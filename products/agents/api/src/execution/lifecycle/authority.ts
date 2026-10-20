@@ -6,6 +6,7 @@ PlatformError,
 terminalTaskStates
 } from "../../contracts/contracts";
 
+import { assertCurrentSkillPolicy } from "../../capabilities/skills/current-policy";
 import { assertAutomationAuthority } from "./automation-authority";
 export { transaction } from "../../infrastructure/database";
 
@@ -66,4 +67,5 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
     }
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
   else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
+  await assertCurrentSkillPolicy(db,execution,grant.operations);
 }

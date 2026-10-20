@@ -1,3 +1,4 @@
+import {skillFamilyId} from "./family";
 import { PlatformError } from "../../contracts/contracts";
 import { parseSkillPackage, type SkillPackage } from "./package";
 
@@ -41,7 +42,7 @@ export function curatedSkillPackage(slug: string): SkillPackage {
   return pkg;
 }
 export function curatedSkillCatalog() {
-  return [...packages].map(([slug, pkg]) => ({ slug, name: pkg.name, description: pkg.description, contentDigest: pkg.contentDigest,
+  return [...packages].map(([slug, pkg]) => ({ slug, familyId:skillFamilyId({organizationId:"",name:pkg.name,sourceKind:"curated",sourceSlug:slug}), requires:pkg.requirements, name: pkg.name, description: pkg.description, contentDigest: pkg.contentDigest,
     compatibility: pkg.compatibility, publisher: CURATED_SKILL_PUBLISHER, source: { kind: "curated" as const, slug },
     files: pkg.files.map(file => ({ path: file.path, size: file.size, contentDigest: file.digest })) }));
 }

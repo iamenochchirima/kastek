@@ -226,13 +226,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       const packages=await skillPackages.list({...scope,agentId});
       const installed=packages.map(skill => ({
         id:skill.id,name:skill.name,description:skill.description,revision:skill.revision,digest:skill.contentDigest,
-        publisher:skill.publisher,source:skill.source,
-        state:skill.reviewState==="reviewed"?"available" as const:"unavailable" as const,
-        ...(skill.reviewState!=="reviewed"?{reason:"Review this skill before adding it"}:{}),
+        publisher:skill.publisher,source:skill.source,familyId:skill.familyId,runtimeRequirements:skill.requires,
+        state:skill.state==="enabled"&&skill.reviewState==="reviewed"?"available" as const:"unavailable" as const,
+        ...(skill.state!=="enabled"?{reason:"This skill is disabled or removed"}:skill.reviewState!=="reviewed"?{reason:"Review this skill before adding it"}:{}),
       }));
       const available=curatedSkillCatalog().filter(skill=>!packages.some(pkg=>pkg.source.kind==="curated"&&pkg.source.slug===skill.slug));
       return [...installed,...available.map(skill=>({id:`curated:${skill.slug}`,name:skill.name,description:skill.description,
-        revision:1,digest:skill.contentDigest,publisher:skill.publisher,source:skill.source,state:"available" as const,installed:false,
+        revision:1,digest:skill.contentDigest,publisher:skill.publisher,source:skill.source,familyId:skill.familyId,runtimeRequirements:skill.requires,state:"available" as const,installed:false,
         purposes:["faq" as const,"customer-service" as const]}))];
     },
   });

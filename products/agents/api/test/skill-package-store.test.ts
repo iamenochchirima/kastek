@@ -10,6 +10,8 @@ import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { activateSkillPackage, parseSkillPackage } from "../src/capabilities/skills/package";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { loadSkillRevisions, MemoryStore } from "../src/execution/memory/memory";
+import {assertCurrentSkillPolicy} from "../src/capabilities/skills/current-policy";
+import type {Execution} from "../src/contracts/execution";
 import { curatedSkillPackage } from "../src/capabilities/skills/curated";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -52,6 +54,56 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     }
     const persisted = (await pool.query("SELECT p.files,r.content_digest FROM agents_platform.skill_packages p JOIN agents_platform.skill_package_reviews r USING(skill_revision_id) WHERE p.skill_revision_id=$1", [first.id])).rows[0];
     expect(activateSkillPackage(parseSkillPackage({ files: persisted.files.map((file: any) => ({ path: file.path, content: file.content, encoding: file.encoding })) }), persisted.content_digest).body).toBe(pkg.body);
+  });
+  it("isolates update families and enforces reversible disable followed by terminal removal",async()=>{
+    const scope=await fixture(),first=await store.import(scope,randomUUID(),parseSkillPackage(input()));
+    const next=await store.import(scope,randomUUID(),parseSkillPackage(input("Changed reference")));
+    expect(first.familyId).toBe(next.familyId);
+    const comparison=await store.compare(scope,first.id,next.id);expect(comparison.files).toMatchObject([{path:"references/guide.md",change:"changed"}]);
+    const foreign=await store.import(scope,randomUUID(),parseSkillPackage(input()),undefined,{repository:"publisher/procedures",commit:"a".repeat(40),path:"skills/report-helper",tree:"b".repeat(40)});
+    expect(foreign.familyId).not.toBe(first.familyId);await expect(store.compare(scope,first.id,foreign.id)).rejects.toMatchObject({code:"SKILL_UPDATE_MISMATCH"});
+    await store.review(scope,first.id,first.contentDigest);await store.review(scope,next.id,next.contentDigest);
+    await expect(loadSkillRevisions(pool,scope.organizationId,scope.agentId,[first.id,next.id])).rejects.toMatchObject({code:"SKILL_FAMILY_CONFLICT"});
+    const mutation={operationId:randomUUID(),expectedGeneration:1,state:"disabled"};
+    const disabled=await store.setState(scope,first.id,mutation);expect(disabled.state).toBe("disabled");expect(disabled.generation).toBe(2);
+    expect(await store.setState(scope,first.id,mutation)).toEqual(disabled);
+    await expect(loadSkillRevisions(pool,scope.organizationId,scope.agentId,[first.id])).rejects.toMatchObject({code:"SKILL_DISABLED"});
+    await expect(store.setState(scope,first.id,{...mutation,operationId:randomUUID()})).rejects.toMatchObject({code:"SKILL_STATE_CONFLICT"});
+    await store.setState(scope,first.id,{operationId:randomUUID(),expectedGeneration:2,state:"enabled"});
+    expect(await loadSkillRevisions(pool,scope.organizationId,scope.agentId,[first.id])).toHaveLength(1);
+    await store.setState(scope,first.id,{operationId:randomUUID(),expectedGeneration:3,state:"removed"});
+    expect((await store.list(scope)).some(pkg=>pkg.id===first.id)).toBe(false);
+    await expect(store.setState(scope,first.id,{operationId:randomUUID(),expectedGeneration:4,state:"enabled"})).rejects.toMatchObject({code:"SKILL_STATE_CONFLICT"});
+    await expect(store.review(scope,first.id,first.contentDigest)).rejects.toMatchObject({code:"SKILL_STATE_CONFLICT"});
+  });
+  it("fences current authority against disabled packages and missing actual grant requirements",async()=>{
+    const scope=await fixture();
+    const pkg=parseSkillPackage({files:[{path:"SKILL.md",content:`---\nname: requirements-helper\ndescription: Apply when connected evidence is needed.\nmetadata:\n  kasitek.requirements: '{"permissions":["connected.read"]}'\n---\nRead verified connected evidence.`}]});
+    const revision=await store.import(scope,randomUUID(),pkg);await store.review(scope,revision.id,revision.contentDigest);
+    const draft=await platform.updateDraft({...scope,configuration:{...defaultBusinessConfiguration(),skillIds:[revision.id]},expectedRevision:1});
+    await expect(platform.createVersion({...scope,expectedRevision:draft.draft_revision})).rejects.toMatchObject({code:"SKILL_REQUIREMENTS_UNAVAILABLE"});
+    const execution={configuration:{...defaultBusinessConfiguration(),skillIds:[revision.id]},task:{organization_id:scope.organizationId},agentId:scope.agentId,connectedBindings:[]} as unknown as Execution;
+    await expect(assertCurrentSkillPolicy(pool,execution,[])).rejects.toMatchObject({code:"SKILL_REQUIREMENTS_UNAVAILABLE"});
+    await assertCurrentSkillPolicy(pool,execution,["connected.read"]);
+    const db=await pool.connect();try{
+      await db.query("BEGIN");await assertCurrentSkillPolicy(db,execution,["connected.read"]);
+      let settled=false;const disabling=store.setState(scope,revision.id,{operationId:randomUUID(),expectedGeneration:1,state:"disabled"}).finally(()=>{settled=true;});
+      await db.query("SELECT pg_sleep(0.03)");expect(settled).toBe(false);await db.query("COMMIT");await disabling;
+    }finally{await db.query("ROLLBACK");db.release();}
+    await expect(assertCurrentSkillPolicy(pool,execution,["connected.read"])).rejects.toMatchObject({code:"SKILL_DISABLED"});
+  });
+  it("requires an active exact connection policy for declared profile dependencies",async()=>{
+    const scope=await fixture(),connectionId=randomUUID();
+    await pool.query("INSERT INTO agents_platform.connections(id,organization_id,account_id,name,target_id,resource,profile_id) VALUES($1,$2,$3,'Profile requirement','provider:custom-api','https://example.test','custom-api-v1')",[connectionId,scope.organizationId,scope.accountId]);
+    const pkg=parseSkillPackage({files:[{path:"SKILL.md",content:`---\nname: connected-helper\ndescription: Apply to connected API questions.\nmetadata:\n  kasitek.requirements: '{"connectionProfiles":["custom-api-v1"]}'\n---\nUse approved connection evidence.`}]});
+    const revision=await store.import(scope,randomUUID(),pkg);await store.review(scope,revision.id,revision.contentDigest);
+    const execution={configuration:{...defaultBusinessConfiguration(),skillIds:[revision.id]},task:{organization_id:scope.organizationId},agentId:scope.agentId,connectedBindings:[{connection:{id:connectionId,profileId:"custom-api-v1",policyRevision:1}}]} as unknown as Execution;
+    await assertCurrentSkillPolicy(pool,execution,[]);
+    await pool.query("UPDATE agents_platform.connections SET policy_revision=2 WHERE id=$1",[connectionId]);
+    await expect(assertCurrentSkillPolicy(pool,execution,[])).rejects.toMatchObject({code:"SKILL_REQUIREMENTS_UNAVAILABLE"});
+    (execution.connectedBindings[0].connection!).policyRevision=2;await assertCurrentSkillPolicy(pool,execution,[]);
+    await pool.query("UPDATE agents_platform.connections SET state='revoked' WHERE id=$1",[connectionId]);
+    await expect(assertCurrentSkillPolicy(pool,execution,[])).rejects.toMatchObject({code:"SKILL_REQUIREMENTS_UNAVAILABLE"});
   });
   it("requires organization access for reads and an owner for package review", async () => {
     const owner = await fixture(), outsider = await fixture(), member = await fixture(), pkg = parseSkillPackage(input());

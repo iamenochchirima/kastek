@@ -4,6 +4,7 @@ import { z } from "zod";
 import { PlatformError,type InitiatingPrincipal } from "../../contracts/contracts";
 import { transaction as memoryTransaction } from "../../infrastructure/database";
 import { assertCurrentEvidence,taskEvidenceManifest } from "../context/evidence";
+import { skillFamilyId } from "../../capabilities/skills/family";
 import { activateSkillPackage, parseSkillPackage, type SkillPackage } from "../../capabilities/skills/package";
 
 export interface MemoryScope { organizationId: string; agentId: string; principal: InitiatingPrincipal }
@@ -11,7 +12,7 @@ export interface ManagementScope { accountId: string; organizationId: string; ag
 export interface ScopeReference extends ManagementScope { id: string; generation: number }
 export interface MemoryRecord { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; sourceTaskId: string | null; expiresAt: string | null; createdAt: string; updatedAt: string }
 export interface SkillRevision { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string;
-  reviewState?: "pending" | "reviewed"; package?: SkillPackage; reviewedDigest?: string }
+  familyId?:string; state?:"enabled"|"disabled"|"removed"; reviewState?: "pending" | "reviewed"; package?: SkillPackage; reviewedDigest?: string }
 const schema = "agents_platform";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const contentSchema = z.string().trim().min(1).max(8192).refine(value => Buffer.byteLength(value) <= 8192);
@@ -19,13 +20,16 @@ const operationSchema = z.string().min(1).max(128);
 const idSchema = z.uuid();
 const record = (row: Record<string, any>): MemoryRecord => ({ id: row.id, kind: row.kind, content: row.content, status: row.status,
   revision: row.revision, sourceTaskId: row.source_task_id, expiresAt: row.expires_at?.toISOString() ?? null, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
-const skillSelection = `SELECT s.*,p.files AS package_files,r.content_digest AS reviewed_digest
+const skillSelection = `SELECT s.*,p.files AS package_files,r.content_digest AS reviewed_digest,p.source_kind,p.source_slug,rs.repository,rs.package_path,coalesce(st.state,'enabled') AS installation_state
   FROM agents_platform.skill_revisions s LEFT JOIN agents_platform.skill_packages p ON p.skill_revision_id=s.id
   LEFT JOIN agents_platform.skill_package_reviews r ON r.skill_revision_id=s.id
+  LEFT JOIN agents_platform.skill_installation_states st ON st.skill_revision_id=s.id
+  LEFT JOIN agents_platform.skill_repository_sources rs ON rs.skill_revision_id=s.id
   WHERE s.organization_id=$1 AND s.agent_id=$2`;
 function skill(row: Record<string, any>, requireReview = false): SkillRevision {
   const result: SkillRevision = { id: row.id, name: row.name, description: row.description, body: row.body,
-    revision: row.revision, contentDigest: row.content_digest, createdAt: row.created_at.toISOString() };
+    familyId:skillFamilyId({organizationId:row.organization_id,name:row.name,sourceKind:row.source_kind,sourceSlug:row.source_slug,repository:row.repository,packagePath:row.package_path}),state:row.installation_state,revision: row.revision, contentDigest: row.content_digest, createdAt: row.created_at.toISOString() };
+  if(requireReview&&row.installation_state!=="enabled")throw new PlatformError("SKILL_DISABLED",409,"Selected skill installation is unavailable");
   if (row.package_files) {
     const pkg = parseSkillPackage({ files: row.package_files.map((file: any) => ({ path: file.path, content: file.content, encoding: file.encoding })) });
     if (pkg.contentDigest !== row.content_digest) throw new PlatformError("SKILL_PACKAGE_CORRUPT", 409, "Skill package content has changed");
@@ -43,7 +47,9 @@ export async function loadSkillRevisions(db: Pool | PoolClient, organizationId: 
   if (!skillIds.length) return [];
   const rows = (await db.query(skillSelection + " AND s.id=ANY($3::uuid[]) ORDER BY s.id", [organizationId, agentId, skillIds])).rows;
   if (rows.length !== new Set(skillIds).size) throw new PlatformError("SKILL_SCOPE_DENIED", 403, "Skill is unavailable");
-  return rows.map(row => skill(row, true));
+  const revisions=rows.map(row => skill(row,true));
+  if(new Set(revisions.map(revision=>revision.familyId)).size!==revisions.length)throw new PlatformError("SKILL_FAMILY_CONFLICT",409,"Select one revision per skill family");
+  return revisions;
 }
 
 export async function requireMemoryAccess(db: PoolClient, scope: ManagementScope): Promise<void> {

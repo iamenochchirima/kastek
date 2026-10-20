@@ -22,6 +22,15 @@ export function registerSkillPackageRoutes(app: FastifyInstance, options: { pool
   });
   app.get(base, async request => ({ packages: await store.list(await options.resolveScope(request)) }));
   app.get(`${base}/:id`, async request => store.get(await options.resolveScope(request), id(request)));
+  app.post(`${base}/repository`,async request=>{
+    const input=z.strictObject({operationId:z.string().min(1).max(128),repository:z.string(),commit:z.string(),path:z.string().default("")}).parse(request.body);
+    return {package:await store.importRepository(await options.resolveScope(request),input.operationId,{repository:input.repository,commit:input.commit,path:input.path})};
+  });
+  app.get(`${base}/:id/compare`,async request=>{
+    const input=z.strictObject({candidateId:z.uuid()}).parse(request.query);
+    return store.compare(await options.resolveScope(request),id(request),input.candidateId);
+  });
+  app.post(`${base}/:id/state`,async request=>({package:await store.setState(await options.resolveScope(request),id(request),request.body)}));
   app.post(base, { bodyLimit: 4_300_000 }, async request => {
     const scope = await options.resolveScope(request);
     const input = z.union([

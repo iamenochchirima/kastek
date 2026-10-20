@@ -75,11 +75,20 @@ separate acceptance steps. Google Calendar bookings is the selected first busine
 
 ## Skill packages
 
-SKILL.md and ZIP uploads preserve a complete immutable package digest and reviewed file inventory.
+SKILL.md and ZIP uploads, plus explicit public GitHub commit/path imports, preserve a complete
+immutable package digest and reviewed file inventory. Repository imports verify Git object hashes
+and reject mutable references. Private repositories are unavailable through this importer.
 Installation does not enable a skill on an agent or execute scripts. Published versions pin reviewed
 revisions. Context initially exposes package metadata, then `skills.activate` and `skills.read` load
 bounded exact files. Activation and file receipts survive compaction and worker continuation.
 Files that exceed a complete-read limit are rejected rather than silently truncated.
+
+Installation state supports enable, disable and terminal removal. Current authority checks lock those
+states and recheck required connection policy, grant operations and runtime. Optional
+`metadata.kasitek.requirements` is bounded JSON with `connectionProfiles`, `permissions` and
+`runtimes`; it never grants capabilities. A skill family separates publishers and repository paths.
+One reviewed revision per family can be selected; updates and rollback change a draft only after
+explicit selection. Package scripts remain inert and need separately authorized runtime tools.
 
 ## Public repository reads
 

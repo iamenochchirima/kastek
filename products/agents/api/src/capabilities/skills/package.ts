@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 import { fromBuffer, type Entry, type ZipFile } from "yauzl";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
+import { parseSkillRequirements,type SkillRequirements } from "./requirements";
 
 export const SKILL_PACKAGE_LIMITS = Object.freeze({ archiveBytes: 2_097_152, totalBytes: 2_097_152,
   fileBytes: 524_288, instructionBytes: 65_536, files: 128, pathBytes: 256, depth: 8, archiveEntries: 256 });
@@ -12,6 +13,7 @@ export interface SkillPackage {
   readonly format: "agent-skills-v1"; readonly name: string; readonly description: string;
   readonly compatibility: string | null; readonly body: string; readonly contentDigest: string;
   readonly files: readonly SkillPackageFile[]; readonly totalBytes: number;
+  readonly requirements:SkillRequirements;
 }
 export interface SkillFileEvidence { packageDigest: string; path: string; contentDigest: string }
 const fileInput = z.strictObject({ path: z.string().max(SKILL_PACKAGE_LIMITS.pathBytes),
@@ -73,7 +75,8 @@ export function parseSkillPackage(input: unknown): SkillPackage {
   const manifest = files.map(file => [file.path, file.size, file.digest]);
   const contentDigest = hash(JSON.stringify(["agent-skills-v1", manifest]));
   return Object.freeze({ format: "agent-skills-v1", name: frontmatter.data.name, description: frontmatter.data.description,
-    compatibility: frontmatter.data.compatibility ?? null, body, contentDigest, files: Object.freeze(files), totalBytes });
+    compatibility: frontmatter.data.compatibility ?? null, body, contentDigest, files: Object.freeze(files), totalBytes,
+    requirements:parseSkillRequirements(frontmatter.data.metadata?.["kasitek.requirements"]) });
 }
 
 /** ZIP decoding never extracts to disk and never executes bundled scripts. */

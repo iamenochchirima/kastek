@@ -1,3 +1,5 @@
+import { missingSkillRequirements } from "../../capabilities/skills/requirement-authority";
+import type { SkillRequirements } from "../../capabilities/skills/requirements";
 import { z } from "zod";
 import { requestDigest, type AgentConfiguration, type AgentExecutionKind, type Product } from "../../contracts/contracts";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
@@ -18,7 +20,8 @@ export interface CatalogueSkill {
   id: string; name: string; description: string; revision: number; digest: string;
   publisher: CataloguePublisher; state: "available" | "disabled" | "unavailable";
   reason?: string; requires?: CatalogueRequirements; purposes?: CataloguePurpose[];
-  source?: {kind:"private"|"curated";slug:string|null}; installed?: boolean;
+  source?: {kind:"private"|"curated"|"repository";slug:string|null;repository?:string;commit?:string;path?:string;tree?:string}; installed?: boolean;
+  familyId?:string;runtimeRequirements?:SkillRequirements;
 }
 interface Definition {
   id: string; revision: number; kind: "builtin" | "mcp" | "native_api" | "skill";
@@ -26,7 +29,7 @@ interface Definition {
   products: Product[]; executionKinds: AgentExecutionKind[]; requires: CatalogueRequirements;
   tools: ToolName[]; skillId?: string; unavailableReason?: string;
   source?: CatalogueSkill["source"];
-  connectionId?: string;
+  connectionId?: string;familyId?:string;runtimeRequirements?:SkillRequirements;
 }
 export interface CatalogueItemDTO {
   id: string; revision: number; digest: string; kind: Definition["kind"];
@@ -36,7 +39,7 @@ export interface CatalogueItemDTO {
   added: boolean; recommended: boolean;
   action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string; connectionId?: string };
   configuration: { tools: ToolName[]; connectedToolBindingIds: string[]; skillIds: string[] };
-  source?: CatalogueSkill["source"];
+  source?: CatalogueSkill["source"];familyId?:string;
 }
 export interface CatalogueResponse { schemaVersion: 1; revision: string; agentId: string | null; entries: CatalogueItemDTO[] }
 
@@ -87,6 +90,11 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   if (!definition.products.includes(context.product)) reasons.push({ code: "PRODUCT_UNSUPPORTED", message: "Unavailable for this product." });
   if (configuration && !definition.executionKinds.includes(configuration.executionKind)) reasons.push({ code: "RUNTIME_UNSUPPORTED", message: "Unavailable for this agent runtime." });
   if (definition.requires.permissions.some(permission => !context.permissions.includes(permission))) reasons.push({ code: "PERMISSION_REQUIRED", message: "Agent configuration permission is required." });
+  if(configuration&&definition.runtimeRequirements) {
+    const selected=context.bindings.filter(binding=>configuration.connectedToolBindingIds.includes(binding.id)).flatMap(binding=>binding.connection?[binding.connection.profileId]:[]);
+    const missing=missingSkillRequirements(definition.runtimeRequirements,configuration,selected);
+    if(Object.values(missing).some(values=>values.length))reasons.push({code:"SKILL_REQUIREMENTS_UNAVAILABLE",message:"Configure the connections and runtime required by this skill."});
+  }
   if (definition.unavailableReason) reasons.push({ code: "DEPENDENCY_UNAVAILABLE", message: definition.unavailableReason });
   let state: CatalogueItemDTO["readiness"]["state"] = reasons.length ? "unavailable" : "ready";
   if (state === "ready" && definition.requires.connectionProfiles.length && !connections.length) {
@@ -118,11 +126,11 @@ export function queryCatalogue(kind: "tools" | "skills", query: CatalogueQuery, 
       requires:{connectionProfiles:[connection.profileId],permissions:["agent.configure"]},
     }))].map(definition => ({ definition }))
     : (context.skills ?? []).map(skill => ({ definition: define({ id: `skill:${skill.id}`, revision: skill.revision, kind: "skill", name: skill.name,
-      description: skill.description, publisher: skill.publisher, source:skill.source, purposes: skill.purposes ?? ["general"], skillId: skill.installed===false?undefined:skill.id,
+      description: skill.description, publisher: skill.publisher, source:skill.source,familyId:skill.familyId,runtimeRequirements:skill.runtimeRequirements, purposes: skill.purposes ?? ["general"], skillId: skill.installed===false?undefined:skill.id,
       requires: skill.requires ?? { connectionProfiles: [], permissions: ["agent.configure"] },
       unavailableReason: skill.state === "available" ? undefined : skill.reason ?? "This skill is disabled or unavailable." }), digest: skill.digest }));
   const search = (query.q ?? "").toLocaleLowerCase();
-  const entries = definitions.map(({ definition, digest }) => ({...item(definition, context, digest),...(definition.source?{source:definition.source}:{})})).filter(entry =>
+  const entries = definitions.map(({ definition, digest }) => ({...item(definition, context, digest),...(definition.source?{source:definition.source}:{}),...(definition.familyId?{familyId:definition.familyId}:{})})).filter(entry =>
     (!search || [entry.name, entry.description, entry.publisher.name, ...entry.purposes].join(" ").toLocaleLowerCase().includes(search))
     && (query.view !== "recommended" || entry.recommended) && (query.view !== "available" || entry.readiness.state !== "unavailable")
     && (query.view !== "added" || entry.added));

@@ -9,6 +9,7 @@ executionGrantSchema,
 PlatformError,
 type AgentConfiguration,type ExecutionGrant
 } from "../../contracts/contracts";
+import { assertSkillRequirements } from "../../capabilities/skills/requirement-authority";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 
@@ -79,7 +80,7 @@ export class AgentStore extends AuthorityStore {
             WHERE v.organization_id=$1 AND v.id=$2 FOR SHARE OF v`, [input.organizationId,binding.versionId])).rows[0];
           if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
           const childConfig = agentConfigurationSchema.parse(child.configuration);
-          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled ||
+          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled || childConfig.capabilities.businessActions.enabled ||
               binding.sourceRevisionIds.some(id => !config.sourceRevisionIds.includes(id) || !childConfig.sourceRevisionIds.includes(id)) ||
               binding.connectedToolBindingIds.some(id => !childConfig.connectedToolBindingIds.includes(id)) ||
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
@@ -109,7 +110,9 @@ export class AgentStore extends AuthorityStore {
       assertConnectedBindingDependencies(connected.filter(row => config.connectedToolBindingIds.includes(row.id))
         .map(row => capabilityBindingSchema.parse(row.binding)));
       if (config.skillIds.length) {
-        await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds);
+        const selectedSkills=await loadSkillRevisions(db, input.organizationId, input.agentId, config.skillIds);
+        const profiles=connected.map(row=>capabilityBindingSchema.parse(row.binding).connection?.profileId).filter((profile):profile is string=>!!profile);
+        for(const skill of selectedSkills)if(skill.package)assertSkillRequirements(skill.package.requirements,config,profiles);
       }
       const composition = compilePublishedComposition(config, connected.filter(row => config.connectedToolBindingIds.includes(row.id)).map(row => capabilityBindingSchema.parse(row.binding)));
       const version = (await db.query<VersionRecord>(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,execution_kind,configuration,created_by,draft_revision,tool_bindings,effective_composition)
