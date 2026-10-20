@@ -23,6 +23,8 @@ export interface TrustedNetworkPolicy {
   onAttempt?: (attempt: NetworkAttempt) => unknown | Promise<unknown>;
   /** Explicit loopback-only HTTP fixture profile, never inferred from NODE_ENV. */
   testLoopback?: boolean;
+  /** OAuth discovery needs the original challenge. Ordinary provider reads still fail on authentication errors. */
+  returnAuthenticationResponses?: boolean;
 }
 export function publicAddress(address: string): boolean {
   try { const parsed = ipaddr.process(address); return parsed.range() === "unicast"; } catch { return false; }
@@ -124,7 +126,7 @@ export function createBoundedFetch(policy: TrustedNetworkPolicy): typeof fetch {
       const explicitRetryMs = rawRetry === null ? undefined : /^\d+$/.test(rawRetry) ? Number(rawRetry) * 1000 : Number.isFinite(retryDate) ? Math.max(0,retryDate-Date.now()) : undefined;
       const exhausted = response.headers.get("x-ratelimit-remaining") === "0";
       const rateLimited = response.status === 429 || response.status === 403 && (exhausted || explicitRetryMs !== undefined);
-      if (response.status === 401 || response.status === 403 && !rateLimited) throw new ConnectedNetworkError("AUTHENTICATION");
+      if (!policy.returnAuthenticationResponses && (response.status === 401 || response.status === 403 && !rateLimited)) throw new ConnectedNetworkError("AUTHENTICATION");
       if (rateLimited || [502, 503, 504].includes(response.status)) {
         const rawReset = exhausted ? response.headers.get("x-ratelimit-reset") : null;
         const resetSeconds = rawReset !== null && /^\d+$/.test(rawReset) ? Number(rawReset) : NaN;
