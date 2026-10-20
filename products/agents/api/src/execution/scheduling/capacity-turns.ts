@@ -4,13 +4,13 @@ export interface CapacityCandidate {id:string;task_id:string;organization_id:str
 
 /** Assign a durable tenant/class/account turn; assignment alone is not execution progress. */
 export async function selectCapacityCandidates(db:PoolClient,limit:number):Promise<CapacityCandidate[]> {
- const tenants=(await db.query(`SELECT st.organization_id FROM agents_platform.scheduling_tenants st WHERE EXISTS(
+ const tenants=(await db.query(`SELECT st.organization_id FROM agents_platform.capacity_tenants st WHERE EXISTS(
   SELECT 1 FROM agents_platform.capacity_requests q WHERE q.organization_id=st.organization_id
   AND (q.state='waiting' OR q.state='granted' AND q.lease_until<=now()))
   ORDER BY st.last_capacity_at,st.organization_id FOR UPDATE OF st SKIP LOCKED LIMIT $1`,[limit])).rows;
  if(!tenants.length)return [];
  const ids=tenants.map(row=>row.organization_id);
- await db.query('UPDATE agents_platform.scheduling_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
+ await db.query('UPDATE agents_platform.capacity_tenants SET last_capacity_at=now() WHERE organization_id=ANY($1::uuid[])',[ids]);
  return (await db.query<CapacityCandidate>(`WITH due AS MATERIALIZED (
   SELECT q.*,q.created_at+CASE WHEN q.workload='interactive' THEN interval '0 seconds' ELSE interval '5 seconds' END AS priority_at
   FROM agents_platform.capacity_requests q WHERE q.organization_id=ANY($1::uuid[])
@@ -20,7 +20,7 @@ export async function selectCapacityCandidates(db:PoolClient,limit:number):Promi
    WHERE NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slots s WHERE s.bucket_key=b.key AND s.owner_request IS NULL)
    AND NOT EXISTS(SELECT 1 FROM agents_platform.capacity_slot_ranges r WHERE r.bucket_key=b.key AND r.next_slot<=b.max_active)),
   chosen AS MATERIALIZED (
-   SELECT st.organization_id,turn.resource_class,turn.resource_key FROM agents_platform.scheduling_tenants st
+   SELECT st.organization_id,turn.resource_class,turn.resource_key FROM agents_platform.capacity_tenants st
    CROSS JOIN LATERAL (
     SELECT classes.resource_class,account.resource_key FROM (VALUES
      (0,st.capacity_model_cursor),(1,st.capacity_connected_cursor),(2,st.capacity_local_cursor),(3,NULL::text)
@@ -40,7 +40,7 @@ export async function selectCapacityCandidates(db:PoolClient,limit:number):Promi
     ) account ORDER BY (classes.resource_class-st.capacity_class_cursor+4)%4 LIMIT 1
    ) turn WHERE st.organization_id=ANY($1::uuid[])
   ), turns AS (
-   UPDATE agents_platform.scheduling_tenants st SET capacity_class_cursor=(c.resource_class+1)%4,
+   UPDATE agents_platform.capacity_tenants st SET capacity_class_cursor=(c.resource_class+1)%4,
     capacity_model_cursor=CASE WHEN c.resource_class=0 THEN c.resource_key ELSE st.capacity_model_cursor END,
     capacity_connected_cursor=CASE WHEN c.resource_class=1 THEN c.resource_key ELSE st.capacity_connected_cursor END,
     capacity_local_cursor=CASE WHEN c.resource_class=2 THEN c.resource_key ELSE st.capacity_local_cursor END

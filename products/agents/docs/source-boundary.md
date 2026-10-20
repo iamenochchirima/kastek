@@ -620,6 +620,9 @@ remain periodic. Slow maintenance does not prevent the next root batch from bein
 Shutdown wakes idle loops, checks stop after each yield and awaits every in-flight batch before
 closing the pool. A batch drains its workers before throwing. The one-shot `dispatchTasksOnce`
 entry still awaits all phases in order.
+Dispatch rotation uses `scheduling_tenants`; capacity rotation and resource cursors use
+`capacity_tenants`. Organization registration creates both rows atomically. Their locks are
+independent, so maintenance of one turn cannot block or suppress the other scheduler.
 
 Dispatch claims default to batches of 32, eight parallel sends, and 120-second leases.
 Operators can set `AGENTS_DISPATCH_POLICY_JSON`, for example

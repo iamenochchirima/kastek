@@ -499,10 +499,13 @@ dedicated capacity only for measured load or explicit isolation requirements.
 
 ### Concurrency targets and workload definitions
 
-The architecture targets 1,000 and then 10,000 concurrent business executions across horizontally
-scaled components. Each capacity claim requires its own measured workload and service limits.
-The controlled 1,000-execution profile passes the checks described below. The 10,000 target remains
-unmet. Workspace execution needs separate Lina capacity acceptance once that integration exists.
+The architecture supports horizontal scaling through durable coordination, bounded queues,
+resource permits and independently replicated services. Capacity qualification is an operator-run
+exercise, separate from platform feature delivery. Target profiles include 1,000 and 10,000
+concurrent business executions. Each capacity claim requires a measured workload and service
+limits. The controlled 1,000-execution profile passes the checks described below. The 10,000 target
+remains unverified. Workspace execution needs separate Lina capacity acceptance once that
+integration exists.
 
 Measure configured agents, accepted nonterminal tasks, tasks waiting on external work, actively
 executing operations, queued work, and connected clients separately. One agent definition can
@@ -525,7 +528,8 @@ poll through the model/tool loop.
 The capacity scheduling contract assigns durable fair opportunities in this order: tenant,
 resource class, provider account, then effective age within the selected queue. Classes are
 `model`, `connected`, `local`, and `generic`. Each tenant stores one class cursor and three
-provider-account cursors. Database-generated queue metadata derives from exactly one native
+provider-account cursors. Capacity turns and dispatch turns use separate database rows, so a
+capacity selection transaction cannot lock out root dispatch for the same tenant. Database-generated queue metadata derives from exactly one native
 `provider:<model|connected|local>:<40 lowercase hex>` bucket. Missing, malformed, or mixed provider buckets use
 one generic queue. A database trigger derives the immutable tenant identity from the task, with a
 composite foreign key. Tenant and resource queue indexes support bounded cyclic seeks. Caller

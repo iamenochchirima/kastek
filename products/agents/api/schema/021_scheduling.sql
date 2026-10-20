@@ -138,7 +138,10 @@ CREATE INDEX task_controls_due ON agents_platform.task_controls(task_id,generati
 CREATE INDEX task_outbox_fair ON agents_platform.task_outbox(available_at,created_at,task_id) WHERE dispatched_at IS NULL;
 CREATE TABLE agents_platform.scheduling_tenants (
  organization_id uuid PRIMARY KEY REFERENCES agents_platform.organizations(id),
- last_dispatch_at timestamptz NOT NULL DEFAULT 'epoch',
+ last_dispatch_at timestamptz NOT NULL DEFAULT 'epoch'
+);
+CREATE TABLE agents_platform.capacity_tenants (
+ organization_id uuid PRIMARY KEY REFERENCES agents_platform.organizations(id),
  last_capacity_at timestamptz NOT NULL DEFAULT 'epoch',
  capacity_class_cursor smallint NOT NULL DEFAULT 0 CHECK(capacity_class_cursor BETWEEN 0 AND 3),
  capacity_model_cursor text CHECK(capacity_model_cursor ~ '^provider:model:[a-f0-9]{40}$'),
@@ -148,12 +151,13 @@ CREATE TABLE agents_platform.scheduling_tenants (
 CREATE FUNCTION agents_platform.register_scheduling_tenant() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  INSERT INTO agents_platform.scheduling_tenants(organization_id) VALUES(NEW.id);
+ INSERT INTO agents_platform.capacity_tenants(organization_id) VALUES(NEW.id);
  INSERT INTO agents_platform.tenant_admission(organization_id) VALUES(NEW.id);
  RETURN NEW;
 END $$;
 CREATE TRIGGER organizations_scheduler AFTER INSERT ON agents_platform.organizations FOR EACH ROW EXECUTE FUNCTION agents_platform.register_scheduling_tenant();
 CREATE INDEX scheduling_dispatch_turn ON agents_platform.scheduling_tenants(last_dispatch_at,organization_id);
-CREATE INDEX scheduling_capacity_turn ON agents_platform.scheduling_tenants(last_capacity_at,organization_id);
+CREATE INDEX scheduling_capacity_turn ON agents_platform.capacity_tenants(last_capacity_at,organization_id);
 CREATE TABLE agents_platform.tenant_admission (
  organization_id uuid PRIMARY KEY REFERENCES agents_platform.organizations(id),
  active_roots integer NOT NULL DEFAULT 0 CHECK(active_roots BETWEEN 0 AND 100000)

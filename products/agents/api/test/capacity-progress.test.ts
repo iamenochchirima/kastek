@@ -7,6 +7,8 @@ import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthorit
 import {PlatformStore} from '../src/product/agents/store';
 import {setupPlatformSchema} from '../src/composition/setup';
 import {transaction} from '../src/infrastructure/database';
+import {selectCapacityCandidates} from '../src/execution/scheduling/capacity-turns';
+import {claimDispatchBatch} from '../src/execution/scheduling/dispatch-claims';
 import {requestCapacity,activateCapacity,releaseCapacity,advanceCapacity,type CapacityRequest} from '../src/execution/scheduling/capacity';
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
@@ -106,7 +108,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await transaction(pool,db=>releaseCapacity(db,held[0]!.id,'completed'));await transaction(pool,db=>releaseCapacity(db,modelHeld.id,'completed'));
   expect(await advanceCapacity(pool)).toBe(1);expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[target.id])).rows[0].state).toBe('granted');
   expect((await pool.query("SELECT count(*)::int n FROM agents_platform.capacity_requests WHERE id=ANY($1::text[]) AND state='waiting'",[locals.map(item=>item.id)])).rows[0].n).toBe(65);
-  expect((await pool.query('SELECT capacity_class_cursor FROM agents_platform.scheduling_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_class_cursor).toBe(1);
+  expect((await pool.query('SELECT capacity_class_cursor FROM agents_platform.capacity_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_class_cursor).toBe(1);
  });
  it('remembers the next connected account across pools while accountA remains partially free',async()=>{
   const f=await fixture(),a=`provider:connected:${'a'.repeat(40)}`,b=`provider:connected:${'b'.repeat(40)}`,product={key:`product:${randomUUID()}`,limit:200};
@@ -116,11 +118,11 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const target=nextB();expect((await transaction(pool,db=>requestCapacity(db,target))).state).toBe('waiting');await transaction(pool,db=>releaseCapacity(db,held[0]!.id,'completed'));await transaction(pool,db=>releaseCapacity(db,bHeld.id,'completed'));
   const observedClient=await pool.connect(),querySpy=vi.spyOn(observedClient,'query');observedClient.release();let selection:readonly unknown[]|undefined;
   try{expect(await advanceCapacity(pool)).toBe(1);selection=querySpy.mock.calls.find(args=>typeof args[0]==='string'&&args[0].includes('chosen AS MATERIALIZED'));}finally{querySpy.mockRestore();}
-  expect((await pool.query('SELECT capacity_connected_cursor FROM agents_platform.scheduling_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_connected_cursor).toBe(a);
+  expect((await pool.query('SELECT capacity_connected_cursor FROM agents_platform.capacity_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_connected_cursor).toBe(a);
   await transaction(pool,db=>releaseCapacity(db,held[1]!.id,'completed'));
   const nextPool=new Pool({connectionString:pool.options.connectionString,max:2});try{expect(await advanceCapacity(nextPool)).toBe(1);}finally{await nextPool.end();}
   expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[target.id])).rows[0].state).toBe('granted');
-  expect((await pool.query('SELECT capacity_connected_cursor FROM agents_platform.scheduling_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_connected_cursor).toBe(b);
+  expect((await pool.query('SELECT capacity_connected_cursor FROM agents_platform.capacity_tenants WHERE organization_id=$1',[f.task.organization_id])).rows[0].capacity_connected_cursor).toBe(b);
   expect((await pool.query("SELECT count(*)::int n FROM agents_platform.capacity_requests WHERE id=ANY($1::text[]) AND state='granted'",[locals.map(item=>item.id)])).rows[0].n).toBe(1);
   const unrelated=await fixture(),otherKey=providerKey('connected');await hold(request(unrelated.task.id,otherKey));
   await pool.query("INSERT INTO agents_platform.capacity_requests(id,task_id,bucket_keys,workload,state,deadline_at) SELECT gen_random_uuid()::text,$1,$2,'interactive','waiting',now()+interval '1 minute' FROM generate_series(1,5000)",[unrelated.task.id,[otherKey]]);
@@ -174,6 +176,26 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await expect(transaction(pool,db=>activateCapacity(db,waiting.id,1))).rejects.toMatchObject({code:'CAPACITY_LEASE_LOST'});
   expect(await advanceCapacity(pool)).toBe(1);expect(await advanceCapacity(pool)).toBe(0);expect((await pool.query('SELECT deadline_at FROM agents_platform.capacity_requests WHERE id=$1',[waiting.id])).rows[0].deadline_at).toEqual(deadline);
   const a=await fixture(),b=await fixture();await queued(a.task.id);await queued(b.task.id);expect(await advanceCapacity(pool)).toBe(2);
+ });
+
+ it('dispatches a root while a capacity-selection transaction retains its tenant turn',async()=>{
+  const f=await fixture(),key=providerKey('local'),holder=request(f.task.id,key),waiting=request(f.task.id,key);await hold(holder);
+  expect((await transaction(pool,db=>requestCapacity(db,waiting))).state).toBe('waiting');
+  const selecting=await pool.connect();let dispatch:ReturnType<typeof claimDispatchBatch>|undefined;
+  try{
+   await selecting.query('BEGIN');expect(await selectCapacityCandidates(selecting,1)).toHaveLength(1);
+   dispatch=claimDispatchBatch(pool,{batchSize:1});
+   const independent=await Promise.race([dispatch.then(()=>true),new Promise<boolean>(resolve=>setTimeout(()=>resolve(false),500))]);
+   expect(independent).toBe(true);expect((await dispatch).rows.map(row=>row.task_id)).toContain(f.task.id);
+  }finally{await selecting.query('ROLLBACK');selecting.release();await dispatch;}
+ });
+ it('promotes capacity while a dispatch transaction retains the same tenant row',async()=>{
+  const f=await fixture(),waiting=await queued(f.task.id),dispatching=await pool.connect();
+  try{
+   await dispatching.query('BEGIN');await dispatching.query('SELECT organization_id FROM agents_platform.scheduling_tenants WHERE organization_id=$1 FOR UPDATE',[f.task.organization_id]);
+   expect(await advanceCapacity(pool,{},1)).toBe(1);
+   expect((await pool.query('SELECT state FROM agents_platform.capacity_requests WHERE id=$1',[waiting.id])).rows[0].state).toBe('granted');
+  }finally{await dispatching.query('ROLLBACK');dispatching.release();}
  });
 
 });
