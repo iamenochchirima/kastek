@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { PlatformError } from "../../contracts/contracts";
 import { createBoundedFetch, publicAddress } from "../../infrastructure/connected-network";
+import {z} from "zod";
 
 export interface RemoteAuthorization {
   client?: StoredOAuthClientInformation;
@@ -13,6 +14,9 @@ export interface RemoteAuthorization {
   authorizationUrl?: string;
   issuedAt?: number;
   ownClientIssuer?: string;
+  resource?: string;
+  requestedScope?: string;
+  stepUp?: boolean;
 }
 export interface RemoteAuthOptions {
   endpoint: string;
@@ -20,8 +24,33 @@ export interface RemoteAuthOptions {
   clientMetadataUrl?: string;
   clientName?: string;
   testLoopback?: boolean;
+  preRegisteredClients?:readonly {issuer:string;clientId:string;clientSecret?:string;authMethod?:"none"|"client_secret_basic"|"client_secret_post"}[];
+}
+export interface RemoteScopeChallenge {resource:string;requiredScope:string}
+function scopes(value:string):string[] {
+  if(Buffer.byteLength(value)>2048||!/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(value))throw failure("OAUTH_SCOPE_INVALID","The server requested unsupported permissions");
+  const result=[...new Set(value.split(" "))];if(result.length>32)throw failure("OAUTH_SCOPE_INVALID","The server requested too many permissions");return result;
 }
 const failure = (code: string, message: string) => new PlatformError(code, 400, message);
+
+/** Operator metadata refers to environment-held credentials; API/model input never selects a client. */
+export function remoteAuthOptionsFromEnvironment(env:NodeJS.ProcessEnv=process.env):Pick<RemoteAuthOptions,"preRegisteredClients"|"clientMetadataUrl"> {
+  const result:Pick<RemoteAuthOptions,"preRegisteredClients"|"clientMetadataUrl">={};
+  if(env.AGENTS_MCP_CLIENT_METADATA_URL){const url=remoteEndpoint(env.AGENTS_MCP_CLIENT_METADATA_URL);if(url.pathname==="/"||url.search)throw failure("OAUTH_CONFIGURATION_INVALID","Client metadata needs a fixed HTTPS document URL");result.clientMetadataUrl=url.href;}
+  if(!env.AGENTS_MCP_OAUTH_CLIENTS)return result;
+  try{
+    if(Buffer.byteLength(env.AGENTS_MCP_OAUTH_CLIENTS)>16384)throw Error();
+    const reference=z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/);
+    const records=z.array(z.strictObject({issuer:z.string().max(2048),clientIdEnvironment:reference,clientSecretEnvironment:reference.optional(),authMethod:z.enum(["none","client_secret_basic","client_secret_post"]).default("none")})).max(16).parse(JSON.parse(env.AGENTS_MCP_OAUTH_CLIENTS));
+    const issuers=new Set<string>();
+    result.preRegisteredClients=records.map(record=>{
+      const url=remoteEndpoint(record.issuer);if(url.search||issuers.has(record.issuer))throw Error();issuers.add(record.issuer);
+      const clientId=env[record.clientIdEnvironment],clientSecret=record.clientSecretEnvironment?env[record.clientSecretEnvironment]:undefined;
+      if(!clientId||clientId.length>2048||record.clientSecretEnvironment&&!clientSecret||clientSecret&&clientSecret.length>4096||record.authMethod!=="none"&&!clientSecret)throw Error();
+      return {issuer:record.issuer,clientId,...(clientSecret?{clientSecret}:{}),authMethod:record.authMethod};
+    });return result;
+  }catch{throw failure("OAUTH_CONFIGURATION_INVALID","OAuth client references are invalid or missing environment values");}
+}
 
 export function remoteEndpoint(value: string, testLoopback = false): URL {
   let url: URL;
@@ -67,7 +96,17 @@ export function remoteAuthProvider(options: RemoteAuthOptions, data: RemoteAutho
     state: () => { if (!data.state) throw failure("OAUTH_STATE_REQUIRED", "Restart sign in"); return data.state; },
     clientInformation: ctx => {
       if(ctx && data.ownClientIssuer && data.ownClientIssuer!==ctx.issuer)throw failure("OAUTH_ISSUER_CHANGED","The authorization server differs from the configured client issuer");
-      return !ctx || !data.client?.issuer || data.client.issuer===ctx.issuer ? data.client : undefined;
+      if(!ctx)return data.client;
+      if(data.ownClientIssuer)return data.client;
+      const configured=options.preRegisteredClients?.filter(client=>client.issuer===ctx.issuer)??[];
+      if(configured.length>1)throw failure("OAUTH_CLIENT_INVALID","Multiple clients are configured for this issuer");
+      const client=configured[0];if(!client)return !data.client?.issuer||data.client.issuer===ctx.issuer?data.client:undefined;
+      remoteEndpoint(client.issuer,options.testLoopback);
+      const method=client.authMethod??"none";
+      if(!client.clientId||client.clientId.length>2048||client.clientSecret&&client.clientSecret.length>4096||method!=="none"&&!client.clientSecret)throw failure("OAUTH_CLIENT_INVALID","The configured OAuth client is invalid");
+      if(data.client?.issuer===ctx.issuer&&data.client.client_id!==client.clientId&&(data.tokens||data.verifier))throw failure("OAUTH_CLIENT_CHANGED","The OAuth client changed; start a new authorization attempt");
+      const selected={client_id:client.clientId,...(client.clientSecret?{client_secret:client.clientSecret}:{}),token_endpoint_auth_method:method,issuer:ctx.issuer};
+      data.client=selected;return selected;
     },
     saveClientInformation: (client, ctx) => { data.client = { ...client, ...(ctx ? { issuer: ctx.issuer } : {}) }; },
     tokens: ctx => !ctx || !data.tokens?.issuer || data.tokens.issuer === ctx.issuer ? data.tokens : undefined,
@@ -88,9 +127,28 @@ export function remoteAuthProvider(options: RemoteAuthOptions, data: RemoteAutho
 
 export async function authorizeRemote(options: RemoteAuthOptions, data: RemoteAuthorization,
   callback?: { code: string; issuer?: string }, forceReauthorization = false): Promise<"AUTHORIZED" | "REDIRECT"> {
-  remoteEndpoint(options.endpoint, options.testLoopback);
+  const resource=remoteEndpoint(options.endpoint, options.testLoopback).href;
+  if(data.resource&&data.resource!==resource)throw failure("OAUTH_RESOURCE_CHANGED","Authorization belongs to another server resource");
+  if(options.preRegisteredClients&&options.preRegisteredClients.length>16)throw failure("OAUTH_CLIENT_INVALID","Too many OAuth clients are configured");
+  data.resource=resource;
   delete data.authorizationUrl;
-  return auth(remoteAuthProvider(options, data), { serverUrl: options.endpoint,
+  const result=await auth(remoteAuthProvider(options, data), { serverUrl: options.endpoint,
     fetchFn: remoteAuthFetch(options.testLoopback), forceReauthorization,
+    ...(data.requestedScope?{scope:scopes(data.requestedScope).join(" ")} : {}),
     ...(callback ? { authorizationCode: callback.code, iss: callback.issuer } : {}) });
+  if(result==="AUTHORIZED"&&data.requestedScope&&data.tokens){
+    const granted=data.tokens.scope===undefined?scopes(data.requestedScope):scopes(data.tokens.scope);
+    if(scopes(data.requestedScope).some(scope=>!granted.includes(scope)))throw failure("OAUTH_SCOPE_DENIED","The requested permissions were not granted");
+    if(data.tokens.scope===undefined)data.tokens.scope=data.requestedScope;
+  }
+  return result;
+}
+
+/** Only an observed resource-server challenge enters this flow; it never retries a tool. */
+export async function beginRemotePermissionStepUp(options:RemoteAuthOptions,data:RemoteAuthorization,challenge:RemoteScopeChallenge):Promise<"AUTHORIZED"|"REDIRECT"> {
+  if(challenge.resource!==remoteEndpoint(options.endpoint,options.testLoopback).href||!data.tokens)throw failure("OAUTH_RESOURCE_CHANGED","Permission request belongs to another server resource");
+  const current=data.tokens.scope?scopes(data.tokens.scope):[],required=scopes(challenge.requiredScope),union=[...new Set([...current,...required])];
+  if(union.length>32||!required.some(scope=>!current.includes(scope)))throw failure("OAUTH_STEP_UP_REPEATED","Reconnect to review the server permissions");
+  data.requestedScope=scopes(union.join(" ")).join(" ");data.stepUp=true;
+  return authorizeRemote(options,data,undefined,true);
 }

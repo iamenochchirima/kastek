@@ -42,6 +42,24 @@ and persists rotated tokens with compare-and-swap checks. A failed or abandoned 
 reconnection. Replacing credentials increments the policy revision and invalidates prior bindings.
 Verified provider account identity is not inferred from the endpoint or a successful sign-in.
 
+Operator-owned OAuth registrations use `AGENTS_MCP_OAUTH_CLIENTS`, a bounded JSON array
+of issuer-keyed records. Each record contains `issuer`, `clientIdEnvironment`, optional
+`clientSecretEnvironment`, and `authMethod`. Values name separate environment variables;
+literal client secrets are rejected. Selection follows the validated authorization issuer.
+An explicit issuer-bound own client takes precedence. Otherwise the shared SDK selects a
+configured registration, advertised CIMD, or compatible DCR. `AGENTS_MCP_CLIENT_METADATA_URL`
+must refer to an approved public HTTPS client document for live CIMD. Controlled CIMD tests
+do not establish public document hosting or live provider acceptance.
+
+Interrupted authorization reuses only its same-owner, connection-generation and issuer-bound
+registration. A new attempt always gets fresh state and verifier. An actual provider
+`insufficient_scope` challenge can request a bounded scope union. The owner explicitly
+reauthorizes through the existing connection flow; a model cannot supply authentication scopes.
+Denied or narrower consent preserves the current grant. Successful step-up changes policy and
+requires reviewed tool selection. Interrupted or scope-rejected operations are never resent
+automatically. Each subsequent physical request rechecks token expiry and current authority.
+
+
 Discovery creates an immutable candidate catalog. Selection pins compatible operation schemas,
 original names, aliases, exact endpoint and adapter identity. Refresh does not broaden an existing
 agent version. The general adapter supports MCP 2026-07-28, 2025-11-25 and explicit deprecated

@@ -1,3 +1,4 @@
+import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { createServer,type ServerHttp2Session } from "node:http2";
 import { Pool } from "pg";
@@ -61,11 +62,12 @@ async function main(): Promise<void> {
 
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
     callbackUrl:`${new URL(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100").origin}/api/connections/oauth/callback`,
-    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
+    ...remoteAuthOptionsFromEnvironment(process.env),
   }):undefined;
   const connected:ConnectedExecutor|undefined=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
     ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    recordRemoteScopeChallenge:remoteConnections?(scope,id,policyRevision,challenge)=>remoteConnections.recordPermissionChallenge(scope,id,policyRevision,challenge):undefined,
     resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
     genericReview:toolReviews.port(),
   }):undefined;

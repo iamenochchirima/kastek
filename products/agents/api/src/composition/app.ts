@@ -1,3 +1,4 @@
+import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import { googleCalendarConnector } from "../adapters/providers/connector-registry";
 import cookie from "@fastify/cookie";
 import Fastify,{ type FastifyRequest } from "fastify";
@@ -77,9 +78,10 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
   outcome: terminalTaskStates.has((row as TaskRecord).state) ? (row as TaskRecord).state : null,
 } : {}) });
 
-export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string }) {
+export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean }) {
   const { config, pool } = options;
   if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
+  if(options.testConnectionLoopback&&config.NODE_ENV!=="test")throw new Error("TEST_CONNECTION_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
@@ -96,20 +98,23 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const bookings=new BookingService(pool,{resolveCalendar:(...args)=>googleCalendar.resolveBookingCalendar(...args),ensureFresh:(scope,id)=>googleCalendar.ensureCredentialFresh(scope,id),testBaseUrl:options.testGoogleApiBaseUrl});
 
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
+    testLoopback:options.testConnectionLoopback,
     callbackUrl:`${new URL(config.AGENTS_PUBLIC_URL).origin}/api/connections/oauth/callback`,
-    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
+    ...remoteAuthOptionsFromEnvironment(),
   }):undefined;
   const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
   const connected:ConnectedExecutor|undefined = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
     ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    recordRemoteScopeChallenge:remoteConnections?(scope,id,policyRevision,challenge)=>remoteConnections.recordPermissionChallenge(scope,id,policyRevision,challenge):undefined,
     resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
+    testApiLoopback:options.testConnectionLoopback,
     genericReview:toolReviews.port(),
   }) : undefined;
   const apiRegistry=connected?.registry??new ExecutableAdapterRegistry<unknown>();
   if(!connected)apiRegistry.register(nativeApiAdapterManifest(),executeGenericNativeApi);
-  const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog}):undefined;
+  const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog,testLoopback:options.testConnectionLoopback}):undefined;
   const grantOperations=operationsForConfiguration;
   async function assertBindings(configuration: AgentConfiguration): Promise<void> {
     if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");

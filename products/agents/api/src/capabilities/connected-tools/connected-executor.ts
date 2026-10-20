@@ -6,7 +6,7 @@ import { z } from "zod";
 import { GITHUB_ADAPTER_RELEASE,GithubReadAdapter,githubRepositoryHandle,type GithubFileHandle,type GithubObservation,type GithubRepositorySelection } from "../../adapters/providers/github-adapter";
 import { githubMcpFileText } from "../../adapters/providers/github-mcp-file";
 import { MCP_ADAPTER_RELEASE,callMcpTool,discoverMcpCatalog,type McpEndpoint,type McpTool } from "../../adapters/providers/mcp-adapter";
-import type { RemoteMcpAttempt,RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
+import type { RemoteMcpAttempt,RemoteMcpEndpoint,RemoteMcpScopeChallenge } from "../../adapters/providers/remote-mcp";
 import type { NativeApiOperationRuntime } from "../../adapters/providers/native-api";
 import { STASH_ADAPTER_RELEASE,STASH_MCP_ENDPOINT,stashItemObservation } from "../../adapters/providers/stash-adapter";
 import { ExecutableAdapterRegistry,capabilityBindingSchema,createCatalog,digestToolSchema,type CapabilityBinding,type CapabilityCatalog,type ResourceHandle } from "../../contracts/capability-catalog";
@@ -34,6 +34,7 @@ export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpo
  resolveRemoteEndpoint?(db:PoolClient,scope:ActionScope,connectionId:string,policyRevision:number):Promise<RemoteMcpEndpoint>;
  resolveApiOperation?(db:PoolClient,scope:ActionScope,connectionId:string,policyRevision:number,providerOperation:string):Promise<NativeApiOperationRuntime>;
  ensureCredentialFresh?(scope:ActionScope,connectionId:string):Promise<void>;
+ recordRemoteScopeChallenge?(scope:ActionScope,connectionId:string,policyRevision:number,challenge:RemoteMcpScopeChallenge):Promise<void>;
  testApiLoopback?:boolean;
  genericReview?:GenericToolReviewPort;
 }
@@ -217,6 +218,7 @@ export class ConnectedExecutor {
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);const current=await this.scope(db,taskId,binding);
     await assertClaim(db);
     if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
+    if(remote)await this.options.resolveRemoteEndpoint!(db,current.scope,binding.connection!.id,binding.connection!.policyRevision);
     if(reviewed)await this.options.genericReview!.assertApproved(db,reviewInput);
     if(generic){
      if(++ordinal>(binding.limits.maxPhysicalRequests??128))throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote operation reached its request limit");
@@ -257,7 +259,8 @@ export class ConnectedExecutor {
       beforeAttempt:attempt=>before("read",{...attempt,rpcMethod:"tools/call"}),onAttempt:after})
      :await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt,effectiveAuthorityDigest:requestDigest({principal:claim.execution.task.principal,versionId:claim.execution.task.version_id,
        product:claim.execution.task.product,resourceId:claim.execution.task.resource_id,callerClientId:claim.execution.task.caller_client_id,
-       bindings:claim.execution.connectedBindings.map(selected=>({id:selected.id,digest:selected.digest,resources:selected.resources})).sort((a,b)=>a.id.localeCompare(b.id))})},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after});
+       bindings:claim.execution.connectedBindings.map(selected=>({id:selected.id,digest:selected.digest,resources:selected.resources})).sort((a,b)=>a.id.localeCompare(b.id))})},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after,
+       onScopeRequired:challenge=>this.options.recordRemoteScopeChallenge?.(claim.scope,binding.connection!.id,binding.connection!.policyRevision,challenge)??Promise.resolve()});
     full=observation.rawResult;
     const inline=observation.content.filter(block=>block.type==="text"&&typeof block.text==="string").map(block=>block.text).join("\n");
     const blocks=observation.content.slice(0,16).map((block,index)=>({index,type:String(block.type).slice(0,64),digest:requestDigest(block),...(typeof block.mimeType==="string"?{mimeType:block.mimeType.slice(0,128)}:{})}));

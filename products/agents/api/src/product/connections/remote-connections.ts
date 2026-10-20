@@ -6,8 +6,8 @@ import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
 import { ConnectionVault } from "../../infrastructure/vault";
-import { authorizeRemote, remoteEndpoint, type RemoteAuthorization, type RemoteAuthOptions } from "./remote-auth";
-import { discoverRemoteMcp,type RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
+import { authorizeRemote,beginRemotePermissionStepUp, remoteEndpoint, type RemoteAuthorization, type RemoteAuthOptions,type RemoteScopeChallenge } from "./remote-auth";
+import { discoverRemoteMcp,RemoteMcpError,type RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
 import { createRemoteMcpCapabilityCatalog,executeGenericConnectedTool,remoteMcpAdapterManifest } from "../../capabilities/connected-tools/generic-connected-runtime";
 import { ExecutableAdapterRegistry } from "../../contracts/capability-catalog";
 import { ConnectedCatalogStore } from "../../capabilities/connected-tools/connected-catalog-store";
@@ -28,7 +28,7 @@ export interface RemoteConnectionDTO {
   status: string; revision: number; generation: number; lastError: string | null;
   identity: unknown; createdAt: string; expiresAt: string;
 }
-interface StoredSecret { authorization?: RemoteAuthorization; secret?: string; }
+interface StoredSecret { authorization?: RemoteAuthorization; secret?: string;pendingStepUp?:RemoteScopeChallenge }
 type Row = Record<string, any>;
 
 export class RemoteConnectionStore {
@@ -109,7 +109,7 @@ export class RemoteConnectionStore {
     if (!updated.rowCount) throw new PlatformError("CONNECTION_BUSY", 409, "Connection is being checked; retry or reconnect");
     return { row, leaseId };
   }
-  private async persist(scope: ActionScope, row: Row, leaseId: string, secret: StoredSecret, status: string, error: string | null = null) {
+  private async persist(scope: ActionScope, row: Row, leaseId: string, secret: StoredSecret, status: string, error: string | null = null,invalidatePolicy=false) {
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
       const lock = (await db.query(`SELECT c.revision,c.state,o.generation FROM agents_platform.connections c JOIN agents_platform.connection_onboarding o ON o.connection_id=c.id
@@ -119,8 +119,8 @@ export class RemoteConnectionStore {
       const revision = row.revision + 1;
       await db.query(`INSERT INTO agents_platform.connection_credentials(connection_id,revision,envelope) VALUES($1,$2,$3)`,
         [row.id, revision, JSON.stringify(this.vault.seal(scope.organizationId, row.id, revision, JSON.stringify({ ...secret, version: 1, kind: "remote-connection" }), 65536))]);
-      await db.query(`UPDATE agents_platform.connections SET revision=$2 WHERE id=$1`, [row.id, revision]);
-      await db.query(`UPDATE agents_platform.connection_onboarding SET status=$2,last_error=$3,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1`, [row.id, status, error]);
+      await db.query(`UPDATE agents_platform.connections SET revision=$2,policy_revision=policy_revision+$3 WHERE id=$1`, [row.id, revision,invalidatePolicy?1:0]);
+      await db.query(`UPDATE agents_platform.connection_onboarding SET status=$2,last_error=$3,generation=generation+$4,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1`, [row.id, status, error,invalidatePolicy?1:0]);
     });
   }
   async beginAuthorization(scope: ActionScope, id: string, generation: number) {
@@ -134,9 +134,15 @@ export class RemoteConnectionStore {
     }
     const { row, leaseId } = await this.lease(scope, id, generation), stored = this.secret(row);
     const state = randomBytes(32).toString("base64url"), attemptId = randomUUID();
-    const authorization: RemoteAuthorization = { client: stored.authorization?.client, ownClientIssuer:stored.authorization?.ownClientIssuer,state };
+    const authorization: RemoteAuthorization = { client: stored.authorization?.client, ownClientIssuer:stored.authorization?.ownClientIssuer,state,
+      ...(stored.pendingStepUp?{tokens:stored.authorization?.tokens,resource:stored.authorization?.resource}: {}) };
     try {
-      const result = await authorizeRemote({ ...this.options, endpoint: row.endpoint }, authorization, undefined, true);
+      if(!authorization.client){
+        const previous=(await this.pool.query("SELECT id,envelope FROM agents_platform.connection_oauth_attempts WHERE connection_id=$1 AND account_id=$2 AND generation=$3 ORDER BY created_at DESC,id DESC LIMIT 1",[id,scope.accountId,generation])).rows[0];
+        if(previous){const saved=JSON.parse(this.vault.open(scope.organizationId,previous.id,1,previous.envelope)) as RemoteAuthorization;authorization.client=saved.client;}
+      }
+      const authOptions={...this.options,endpoint:row.endpoint};
+      const result = stored.pendingStepUp?await beginRemotePermissionStepUp(authOptions,authorization,stored.pendingStepUp):await authorizeRemote(authOptions, authorization, undefined, true);
       if (result !== "REDIRECT" || !authorization.authorizationUrl) throw new PlatformError("OAUTH_REDIRECT_UNAVAILABLE", 400, "The server did not provide a sign-in flow");
       await transaction(this.pool, async db => {
         await requireActionMember(db, scope);
@@ -168,9 +174,10 @@ export class RemoteConnectionStore {
       const data = JSON.parse(this.vault.open(scope.organizationId, attempt.id, 1, attempt.envelope)) as RemoteAuthorization;
       const result = await authorizeRemote({ ...this.options, endpoint: row.endpoint }, data, { code, issuer });
       if (result !== "AUTHORIZED" || !data.tokens) throw conflict();
+      const stepUp=data.stepUp===true;delete data.stepUp;delete stored.pendingStepUp;
       delete data.verifier; delete data.state; delete data.authorizationUrl;
       stored.authorization = data;
-      await this.persist(scope, row, leaseId, stored, "discovering");
+      await this.persist(scope, row, leaseId, stored, "discovering",null,stepUp);
       await this.pool.query(`UPDATE agents_platform.connection_oauth_attempts SET state='completed' WHERE id=$1`, [attempt.id]);
       return await this.get(scope, row.id);
     } catch (error) {
@@ -250,9 +257,10 @@ export class RemoteConnectionStore {
         catalog:createRemoteMcpCapabilityCatalog(catalog,{id:randomUUID(),organizationId:scope.organizationId,connectionId:id,revision})});
       return {connection:current,catalog,candidate};
     } catch(error) {
+      if(error instanceof RemoteMcpError&&error.code==="OAUTH_SCOPE_REQUIRED"&&error.scopeChallenge&&stored.authorization?.tokens&&["oauth","auto"].includes(row.auth_method))stored.pendingStepUp=error.scopeChallenge;
       const attempts=error && typeof error==="object" && "attempts" in error && Array.isArray(error.attempts)?error.attempts:[];
       const code=attempts.at(-1)?.status===401?"AUTHENTICATION":error && typeof error==="object" && "code" in error && typeof error.code==="string" && /^[A-Z0-9_]{1,80}$/.test(error.code)?error.code:"MCP_DISCOVERY_FAILED";
-      const status=code==="AUTHENTICATION"?"authorization_required":code.includes("UNSUPPORTED")?"unsupported":"failed";
+      const status=code==="AUTHENTICATION"||code==="OAUTH_SCOPE_REQUIRED"?"authorization_required":code.includes("UNSUPPORTED")?"unsupported":"failed";
       if(!persisted)await this.persist(scope,row,leaseId,stored,status,code);
       else await this.pool.query(`UPDATE agents_platform.connection_onboarding o SET status=$4,last_error=$5,updated_at=now()
         FROM agents_platform.connections c WHERE c.id=o.connection_id AND c.id=$1 AND c.organization_id=$2 AND c.account_id=$3
@@ -275,6 +283,17 @@ export class RemoteConnectionStore {
       throw new PlatformError("AUTHENTICATION",401,"Reconnect this server to continue");
     }
   }
+  async recordPermissionChallenge(scope:ActionScope,id:string,policyRevision:number,challenge:RemoteScopeChallenge):Promise<void>{
+    const current=await this.row(scope,id);
+    if(current.policy_revision!==policyRevision||current.endpoint!==challenge.resource||!["oauth","auto"].includes(current.auth_method))throw conflict();
+    const {row,leaseId}=await this.lease(scope,id,current.generation),stored=this.secret(row);
+    try{
+      if(row.policy_revision!==policyRevision||row.endpoint!==challenge.resource)throw conflict();
+      if(!stored.authorization?.tokens||!challenge.requiredScope||Buffer.byteLength(challenge.requiredScope)>2048||challenge.requiredScope.split(" ").length>32
+        ||!/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(challenge.requiredScope))throw new PlatformError("OAUTH_SCOPE_INVALID",400,"The server requested unsupported permissions");
+      stored.pendingStepUp=challenge;await this.persist(scope,row,leaseId,stored,"authorization_required","OAUTH_SCOPE_REQUIRED");
+    }catch(error){await this.pool.query("UPDATE agents_platform.connection_onboarding SET lease_id=NULL,lease_until=NULL WHERE connection_id=$1 AND lease_id=$2",[id,leaseId]);throw error;}
+  }
   async resolveRemoteEndpoint(db:PoolClient,scope:ActionScope,id:string,policyRevision:number):Promise<RemoteMcpEndpoint> {
     await requireActionMember(db,scope);
     const row=(await db.query(`SELECT c.*,o.endpoint,o.auth_method,o.header_name,o.status,o.generation,k.envelope FROM agents_platform.connections c
@@ -283,9 +302,8 @@ export class RemoteConnectionStore {
     [id,scope.organizationId,scope.accountId,policyRevision])).rows[0];
     if(!row||!["selection_required","ready"].includes(row.status))throw new PlatformError("CONNECTION_INACTIVE",403,"Connection authorization is unavailable");
     const stored=this.secret(row),authorization=stored.authorization;
-    if(authorization?.tokens?.expires_in&&authorization.issuedAt&&authorization.issuedAt+authorization.tokens.expires_in*1000<=Date.now())
-      throw new PlatformError("AUTHENTICATION",401,"Reconnect this server to continue");
     const token=authorization?.tokens?.access_token;
+    if(token&&authorization?.tokens?.expires_in!==undefined&&(!authorization.issuedAt||authorization.issuedAt+authorization.tokens.expires_in*1000<=Date.now()))throw new PlatformError("AUTHENTICATION",401,"Reconnect or refresh this server before continuing");
     const headers:Record<string,string>={};if(row.auth_method==="header"&&stored.secret)headers[row.header_name]=stored.secret;
     return {endpoint:row.endpoint,...(token?{authorization:`Bearer ${token}`}:row.auth_method==="bearer"&&stored.secret?{authorization:`Bearer ${stored.secret}`}:{headers}),
       deadlineAt:Date.now()+30000,cacheScope:{organizationId:scope.organizationId,accountId:scope.accountId,connectionId:id,credentialRevision:row.revision,policyRevision:row.policy_revision,generation:row.generation},...(this.options.testLoopback?{testLoopback:true}:{})};

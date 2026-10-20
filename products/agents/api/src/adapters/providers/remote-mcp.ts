@@ -54,12 +54,14 @@ export interface RemoteMcpResult {
 }
 export interface RemoteMcpHooks {
   beforeAttempt?(attempt: RemoteMcpAttempt): Promise<void>; onAttempt?(attempt: RemoteMcpAttempt): Promise<void>;
+  onScopeRequired?(challenge:RemoteMcpScopeChallenge):Promise<void>;
 }
 export interface RemoteMcpAttempt extends NetworkAttempt { rpcMethod?: string }
+export interface RemoteMcpScopeChallenge {resource:string;requiredScope:string}
 type Job = { kind: "discover"; endpoint: RemoteMcpEndpoint }
   | { kind: "call"; endpoint: RemoteMcpEndpoint; tool: RemoteMcpTool; arguments: JsonObject; cached?:Omit<RemoteMcpCatalogIndex,"tools">&{tool?:RemoteMcpCatalogIndex["tools"][number]} };
 export class RemoteMcpError extends Error {
-  constructor(public readonly code: string, public readonly attempts: NetworkAttempt[] = []) { super(code); }
+  constructor(public readonly code: string, public readonly attempts: NetworkAttempt[] = [],public readonly scopeChallenge?:RemoteMcpScopeChallenge) { super(code); }
 }
 function fail(code: string): never { throw new RemoteMcpError(code); }
 const protocols = ["2026-07-28", "2025-11-25"] as const;
@@ -88,7 +90,7 @@ async function isolated<T>(job: Job, signal?: AbortSignal, hooks?: RemoteMcpHook
     const channel = child.stdio[3] as Duplex; channel.on("error", () => undefined);
     const decoder = new StringDecoder("utf8"), attempts = new Map<number, NetworkAttempt>();
     let pending = "", bytes = 0, stderrBytes = 0, errorCode: string | undefined;
-    let result: { ok: boolean; value?: T; code?: string } | undefined, acknowledgments = Promise.resolve();
+    let result: { ok: boolean; value?: T; code?: string;scopeChallenge?:RemoteMcpScopeChallenge } | undefined, acknowledgments = Promise.resolve();
     const stop = (code: string) => { errorCode ??= code; child.kill("SIGKILL"); };
     const timer = setTimeout(() => stop("DEADLINE"), remaining), cancel = () => stop("CANCELLED");
     signal?.addEventListener("abort", cancel, { once: true });
@@ -122,7 +124,12 @@ async function isolated<T>(job: Job, signal?: AbortSignal, hooks?: RemoteMcpHook
       const attemptsList = [...attempts.values()].sort((a, b) => a.attempt - b.attempt);
       if (errorCode || code !== 0) reject(new RemoteMcpError(errorCode ?? "ADAPTER_RESOURCE_LIMIT", attemptsList));
       else if (!result) reject(new RemoteMcpError("ADAPTER_OUTPUT_INVALID", attemptsList));
-      else if (!result.ok) reject(new RemoteMcpError(typeof result.code === "string" && /^[A-Z0-9_]{1,80}$/.test(result.code) ? result.code : "MCP_PROTOCOL", attemptsList));
+      else if (!result.ok) {
+        const challenge=result.scopeChallenge;
+        const valid=result.code==="OAUTH_SCOPE_REQUIRED"&&challenge?.resource===job.endpoint.endpoint&&typeof challenge.requiredScope==="string"&&Buffer.byteLength(challenge.requiredScope)<=2048
+          &&/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(challenge.requiredScope)&&challenge.requiredScope.split(" ").length<=32;
+        reject(new RemoteMcpError(typeof result.code === "string" && /^[A-Z0-9_]{1,80}$/.test(result.code) ? result.code : "MCP_PROTOCOL", attemptsList,valid?challenge:undefined));
+      }
       else resolve(result.value as T);
     });
     child.stdin.end(serialized);
@@ -167,7 +174,7 @@ export async function executeRemoteMcpTool(endpoint: RemoteMcpEndpoint, tool: Re
     const result=await isolated<RemoteMcpResult>({kind:"call",endpoint,tool,arguments:arguments_,...(cached?{cached}:{})},signal,hooks);
     if(key&&result.catalogIndex)storeIndex(key,endpoint.cacheScope!,result.catalogIndex);
     return result;
-  }catch(error){if(key)catalogCache.delete(key);throw error;}
+  }catch(error){if(key)catalogCache.delete(key);if(error instanceof RemoteMcpError&&error.scopeChallenge)await hooks?.onScopeRequired?.(error.scopeChallenge);throw error;}
 }
 
 function toolDescriptor(value: unknown): RemoteMcpTool {
@@ -209,7 +216,7 @@ function toolDescriptor(value: unknown): RemoteMcpTool {
 
 /** Network bytes remain bounded while legacy SSE stays open for the SDK's message stream. */
 async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<void>): Promise<RemoteMcpInventory | RemoteMcpResult> {
-  const { Client, StreamableHTTPClientTransport, SSEClientTransport } = await import("@modelcontextprotocol/client");
+  const { Client, StreamableHTTPClientTransport, SSEClientTransport,extractWWWAuthenticateParams } = await import("@modelcontextprotocol/client");
   const { AjvJsonSchemaValidator } = await import("@modelcontextprotocol/client/validators/ajv");
   const endpoint = new URL(job.endpoint.endpoint), deadlineAt = Math.min(job.endpoint.deadlineAt, Date.now() + REMOTE_MCP_LIMITS.wallMs);
   const fixture = job.endpoint.testLoopback === true;
@@ -232,7 +239,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
   const secrets = Object.values(trustedHeaders).flatMap(value => [value, value.replace(/^Bearer\s+/i, "")]).filter(value => value.length > 0);
   const maxRequests = job.endpoint.maxRequests ?? REMOTE_MCP_LIMITS.requests;
   if (!Number.isInteger(maxRequests) || maxRequests < 1 || maxRequests > REMOTE_MCP_LIMITS.requests) fail("MCP_ATTEMPT_LIMIT");
-  let negotiatedModern=false,toolsFreshUntil=Infinity,selectedCacheExpiresAt:number|undefined;
+  let negotiatedModern=false,toolsFreshUntil=Infinity,selectedCacheExpiresAt:number|undefined,scopeChallenge:RemoteMcpScopeChallenge|undefined;
   let requestCount = 0, catalogBytes = 0, sseGets = 0, protocolFallback = false, ssePostEndpoint: string | undefined, networkFailure: string | undefined;
   const attempts: NetworkAttempt[] = [], tools: RemoteMcpTool[] = [], names = new Set<string>();
   const inventories = { resources: [] as RemoteMcpResource[], resourceTemplates: [] as RemoteMcpResourceTemplate[], prompts: [] as RemoteMcpPrompt[] };
@@ -364,6 +371,13 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
             let sanitized = text;
             if (text.trimStart().startsWith("{")) sanitized = JSON.stringify(sanitizeMessage(JSON.parse(text)));
             await complete(status >= 200 && status < 300 ? "ok" : "http_error");
+            if(status===403){
+              const challenge=extractWWWAuthenticateParams(new Response(null,{status,headers:responseHeaders})),required=challenge.scope;
+              if(challenge.error==="insufficient_scope"&&required&&Buffer.byteLength(required)<=2048&&required.split(" ").length<=32
+                &&/^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/.test(required)&&!secrets.some(secret=>required.includes(secret))){
+                scopeChallenge={resource:endpoint.href,requiredScope:required};throw new RemoteMcpError("OAUTH_SCOPE_REQUIRED",[],scopeChallenge);
+              }
+            }
             // Transport fallback is permitted only for explicit endpoint incompatibility, never auth or transient errors.
             if ([404, 405].includes(status) && ["server/discover", "initialize"].includes(rpcMethod ?? "")) protocolFallback = true;
             resolve(new Response([204, 205, 304].includes(status) ? null : sanitized, { status, headers: responseHeaders }));
@@ -487,6 +501,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     const inventory = { protocolVersion: version, transport: currentTransport, tools, ...inventories, serverCapabilities: capabilities, diagnostics };
     return { ...inventory, digest: requestDigest(inventory), attempts };
   } catch (error) {
+    if(scopeChallenge)throw new RemoteMcpError("OAUTH_SCOPE_REQUIRED",[],scopeChallenge);
     if (error instanceof RemoteMcpError) throw error;
     return fail(networkFailure ?? (controller.signal.aborted ? "DEADLINE" : "MCP_PROTOCOL"));
   } finally {
@@ -510,7 +525,7 @@ async function main() {
     const usage = process.resourceUsage();
     process.stdout.write(JSON.stringify({ ok: true, value: { ...value, metrics: { peakRssBytes: usage.maxRSS * 1024, cpuMs: (usage.userCPUTime + usage.systemCPUTime) / 1000 } } }) + "\n");
   } catch (error) {
-    process.stdout.write(JSON.stringify({ ok: false, code: error instanceof RemoteMcpError ? error.code : "MCP_PROTOCOL" }) + "\n");
+    process.stdout.write(JSON.stringify({ ok: false, code: error instanceof RemoteMcpError ? error.code : "MCP_PROTOCOL",...(error instanceof RemoteMcpError&&error.scopeChallenge?{scopeChallenge:error.scopeChallenge}:{}) }) + "\n");
   }
 }
 if (require.main === module && process.argv.includes("--remote-mcp-worker")) void main().catch(() => process.stdout.write('{"ok":false,"code":"MCP_PROTOCOL"}\n'));

@@ -7,7 +7,7 @@ const servers: Server[] = [];
 const inputSchema = { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false };
 type FixtureOptions = { modern?: boolean;ttlMs?:number;omitTtl?:boolean;capabilitiesChanged?:boolean; tools?: unknown[]; pages?: number; resources?: boolean; mixedContent?: boolean;
   changed?: boolean; loop?: boolean; reflect?: boolean; hang?: boolean; sse?: boolean; redirect?: boolean; isError?: boolean; inputRequired?: boolean;
-  status?: number; sseDestination?: string; resultText?: string; badStructured?: boolean };
+  status?: number;callStatus?:number;requiredScope?:string;sseDestination?: string; resultText?: string; badStructured?: boolean };
 async function fixture(options: FixtureOptions = {}) {
   let calls = 0, listCalls = 0; const methods: string[] = [], headers: Record<string, string>[] = [], waiters: (() => void)[] = [];
   let eventStream: import("node:http").ServerResponse | undefined;
@@ -48,6 +48,7 @@ async function fixture(options: FixtureOptions = {}) {
         ...(options.loop || page + 1 < pagination ? { nextCursor: options.loop ? "same" : String(page + 1) } : {}) });
     } else if (body.method === "tools/call") {
       calls++; waiters.splice(0).forEach(resolve => resolve());
+      if(options.callStatus)return response.writeHead(options.callStatus,{"www-authenticate":options.callStatus===403?`Bearer error="insufficient_scope", scope="${options.requiredScope??"records:write"}", resource_metadata="https://attacker.example/metadata"`:'Bearer error="invalid_token"'}).end("{}");
       if (options.hang) return;
       if (options.inputRequired) { reply({ resultType: "input_required", inputRequests: { ask: { method: "sampling/createMessage", params: {} } } }); return; }
       reply({ ...(options.modern ? { resultType: "complete" } : {}), content: options.mixedContent ? [
@@ -69,6 +70,22 @@ async function fixture(options: FixtureOptions = {}) {
 afterEach(async () => { invalidateRemoteMcpCatalogCache();for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
 
 describe("isolated general remote MCP", () => {
+  it("surfaces a bounded actual permission challenge without retrying or trusting its metadata URL",async()=>{
+    const service=await fixture({callStatus:403}),inventory=await discoverRemoteMcp(service.endpoint),observed:unknown[]=[];
+    await expect(executeRemoteMcpTool(service.endpoint,inventory.tools[0]!,{name:"one"},undefined,{onScopeRequired:async value=>{observed.push(value);}})).rejects.toMatchObject({code:"OAUTH_SCOPE_REQUIRED",scopeChallenge:{resource:service.endpoint.endpoint,requiredScope:"records:write"}});
+    expect(service.calls()).toBe(1);expect(observed).toEqual([{resource:service.endpoint.endpoint,requiredScope:"records:write"}]);
+  },15000);
+  it("does not forward oversized or credential-reflecting permission challenges",async()=>{
+    for(const requiredScope of ["x".repeat(2049),"private-authentication-secret"]){
+      const service=await fixture({callStatus:403,requiredScope}),endpoint={...service.endpoint,authorization:"Bearer private-authentication-secret"},inventory=await discoverRemoteMcp(endpoint),observed:unknown[]=[];
+      await expect(executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"one"},undefined,{onScopeRequired:async value=>{observed.push(value);}})).rejects.toMatchObject({code:"MCP_PROTOCOL"});expect(observed).toEqual([]);expect(service.calls()).toBe(1);
+    }
+  },20000);
+  it("surfaces token expiry after initialization without refreshing or resending the invocation",async()=>{
+    const service=await fixture({callStatus:401}),inventory=await discoverRemoteMcp(service.endpoint);
+    await expect(executeRemoteMcpTool({...service.endpoint,authorization:"Bearer expires-during-call"},inventory.tools[0]!,{name:"one"})).rejects.toMatchObject({code:"MCP_PROTOCOL"});
+    expect(service.calls()).toBe(1);
+  },15000);
   it.each([false, true])("negotiates legacy/modern protocols modern=%s with exact original names", async modern => {
     const service = await fixture({ modern, tools: [{ name: "Provider.Read_case.v2", inputSchema }] });
     const inventory = await discoverRemoteMcp(service.endpoint);
