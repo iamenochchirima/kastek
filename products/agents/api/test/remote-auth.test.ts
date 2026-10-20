@@ -1,12 +1,12 @@
 import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it,vi } from "vitest";
 import { authorizeRemote,beginRemotePermissionStepUp,remoteAuthOptionsFromEnvironment, remoteAuthFetch, remoteEndpoint, type RemoteAuthorization } from "../src/product/connections/remote-auth";
 
 const servers: Server[] = [];
 afterEach(async () => { for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
 
-async function provider(options:{cimd?:boolean;tokenScope?:string;noRegistration?:boolean}={}) {
+async function provider(options:{cimd?:boolean;tokenScope?:string;noRegistration?:boolean;refreshError?:string;errorMode?:"malformed400"|"error200"|"malformed200"|"token200"}={}) {
   let origin = "", registered = 0, tokenCalls = 0, challenge = "";
   const server = createServer(async (request, response) => {
     let body = ""; for await (const chunk of request) body += chunk;
@@ -20,6 +20,10 @@ async function provider(options:{cimd?:boolean;tokenScope?:string;noRegistration
     if (path === "/register") { registered++; return response.end(JSON.stringify({ ...JSON.parse(body), client_id: "registered-client" })); }
     if (path === "/token") {
       tokenCalls++; const input = new URLSearchParams(body);
+      if(input.get("grant_type")==="refresh_token"&&options.refreshError){
+        const mode=options.errorMode;
+        return response.writeHead(mode?.endsWith("200")?200:400).end(mode?.startsWith("malformed")?options.refreshError:mode==="token200"?JSON.stringify({access_token:{private:options.refreshError},token_type:"Bearer"}):JSON.stringify({error:"invalid_grant",error_description:options.refreshError}));
+      }
       expect(input.get("resource")).toBe(`${origin}/mcp`);
       if (input.get("grant_type") === "authorization_code") {
         expect(createHash("sha256").update(input.get("code_verifier")!).digest("base64url")).toBe(challenge);
@@ -35,6 +39,12 @@ async function provider(options:{cimd?:boolean;tokenScope?:string;noRegistration
 }
 
 describe("remote MCP authorization", () => {
+  it.each([undefined,"malformed400","error200","malformed200","token200"] as const)("removes provider-controlled OAuth responses before the SDK refresh logger sees them: %s",async errorMode=>{
+    const fixture=await provider({refreshError:"private-refresh-first code-verifier secret-provider-body",errorMode}),options={endpoint:`${fixture.origin}/mcp`,callbackUrl:"http://127.0.0.1:3100/callback",testLoopback:true},data:RemoteAuthorization={state:"redacted-error-state"};
+    await authorizeRemote(options,data);fixture.challenge(new URL(data.authorizationUrl!).searchParams.get("code_challenge")!);await authorizeRemote(options,data,{code:"valid-code",issuer:fixture.origin});
+    const warnings=vi.spyOn(console,"warn").mockImplementation(()=>undefined);
+    try{expect(await authorizeRemote(options,data)).toBe("REDIRECT");const output=JSON.stringify(warnings.mock.calls);if(!errorMode||errorMode==="error200")expect(output).toContain("invalid_grant");expect(warnings).toHaveBeenCalled();expect(output).not.toContain("private-refresh-first");expect(output).not.toContain("code-verifier");expect(output).not.toContain("secret-provider-body");}finally{warnings.mockRestore();}
+  });
   it("loads bounded operator issuer records with separate environment credential references",()=>{
     const records=[{issuer:"https://identity.example.test",clientIdEnvironment:"TEST_MCP_CLIENT_ID",clientSecretEnvironment:"TEST_MCP_CLIENT_SECRET",authMethod:"client_secret_basic"}];
     const env={AGENTS_MCP_OAUTH_CLIENTS:JSON.stringify(records),TEST_MCP_CLIENT_ID:"configured-client",TEST_MCP_CLIENT_SECRET:"configured-private-secret",AGENTS_MCP_CLIENT_METADATA_URL:"https://agents.example.test/oauth/client.json"};

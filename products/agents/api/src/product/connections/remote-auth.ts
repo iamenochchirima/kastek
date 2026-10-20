@@ -81,9 +81,23 @@ export function remoteAuthFetch(testLoopback = false, deadlineAt = Date.now() + 
     const target = remoteEndpoint(String(input), testLoopback);
     const headers = Object.fromEntries(new Headers(init.headers));
     const body = init.body instanceof URLSearchParams ? init.body.toString() : init.body;
-    return createBoundedFetch({ authorizeUrl: candidate => candidate.href === target.href,
+    const response=await createBoundedFetch({ authorizeUrl: candidate => candidate.href === target.href,
       headers, maxRequestBytes: 32768, maxResponseBytes: 262144, maxRequests: 1, maxAttempts: 1,
       deadlineAt, testLoopback, returnAuthenticationResponses: true })(target, { ...init, body, redirect: "error" });
+    // The SDK logs OAuth error messages during refresh recovery. Provider bodies must not reach that logger.
+    let json:unknown;
+    try{json=JSON.parse(await response.text());}catch{if(response.status<400)throw failure("OAUTH_RESPONSE_INVALID","OAuth provider returned invalid JSON");}
+    const tokenRequest=typeof body==="string"&&new URLSearchParams(body).has("grant_type");
+    const providerError=json&&typeof json==="object"&&!Array.isArray(json)&&"error" in json;
+    const safeHeaders=new Headers(response.headers);safeHeaders.delete("content-length");safeHeaders.set("content-type","application/json");
+    const wrap=(value:unknown,status=response.status)=>{const safe=new Response(JSON.stringify(value),{status,headers:safeHeaders});Object.defineProperty(safe,"url",{value:response.url});return safe;};
+    if(response.status>=400||tokenRequest&&providerError){
+      const codes=new Set(["invalid_request","invalid_client","invalid_grant","unauthorized_client","unsupported_grant_type","invalid_scope","access_denied","server_error","temporarily_unavailable"]);
+      const value=json as {error?:unknown}|undefined,code=typeof value?.error==="string"&&codes.has(value.error)?value.error:"server_error";
+      return wrap({error:code},response.status>=400?response.status:400);
+    }
+    if(tokenRequest&&!z.object({access_token:z.string().min(1).max(8192),id_token:z.string().max(65536).optional(),token_type:z.string().regex(/^Bearer$/i),refresh_token:z.string().min(1).max(8192).optional(),expires_in:z.number().int().min(0).max(31536000).optional(),scope:z.string().max(2048).optional()}).safeParse(json).success)throw failure("OAUTH_RESPONSE_INVALID","OAuth provider returned invalid token data");
+    return wrap(json);
   };
 }
 
