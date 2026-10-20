@@ -136,7 +136,7 @@ export function genericToolFromBinding(binding: CapabilityBinding): RemoteMcpToo
 export async function executeGenericConnectedTool(binding: CapabilityBinding, endpoint: RemoteMcpEndpoint, args: Record<string, unknown>,
   signal: AbortSignal | undefined, hooks: RemoteMcpHooks) {
   if (binding.resources.length !== 1 || binding.resources[0]?.kind !== "mcp.endpoint" || binding.resources[0].id !== endpoint.endpoint) throw new PlatformError("CONNECTED_SCOPE_DENIED", 403, "Remote destination does not match the authorized endpoint");
-  return executeRemoteMcpTool({ ...endpoint, protocolVersion: binding.protocolVersion!, transport: binding.definition.remote!.transport,
+  return executeRemoteMcpTool({ ...endpoint, adapterManifestDigest:binding.adapter.manifestDigest, protocolVersion: binding.protocolVersion!, transport: binding.definition.remote!.transport,
     maxRequests: Math.min(endpoint.maxRequests ?? REMOTE_MCP_LIMITS.requests, binding.limits.maxPhysicalRequests ?? REMOTE_MCP_LIMITS.requests) },
   genericToolFromBinding(binding), args, signal, hooks);
 }

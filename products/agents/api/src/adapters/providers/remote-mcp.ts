@@ -11,15 +11,19 @@ import { preflightToolSchema } from "../../contracts/capability-catalog";
 import { requestDigest } from "../../contracts/contracts";
 import { publicAddress, type NetworkAttempt } from "../../infrastructure/connected-network";
 
-export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1";
+export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1-cache1";
 export const REMOTE_MCP_LIMITS = Object.freeze({ tools: 500, inventoryEntries: 500, catalogBytes: 2_097_152,
   pages: 32, schemaBytes: 32768, argumentsBytes: 65536, resultBytes: 2_097_152,
   requestBytes: 131072, requests: 128, wallMs: 30_000, cpuSeconds: 5, heapMiB: 96, addressBytes: 2_147_483_648 });
 type JsonObject = Record<string, unknown>;
+export interface RemoteMcpCacheScope {
+  organizationId:string;accountId:string;connectionId:string;credentialRevision:number;policyRevision:number;generation:number;
+}
 export interface RemoteMcpEndpoint {
   endpoint: string; authorization?: string; headers?: Record<string, string>;
   protocolVersion?: "2026-07-28" | "2025-11-25"; deadlineAt: number; maxRequests?: number;
   transport?: "streamable_http" | "legacy_sse" | "auto"; testLoopback?: boolean;
+  cacheScope?:RemoteMcpCacheScope;effectiveAuthorityDigest?:string;adapterManifestDigest?:string;
 }
 export interface RemoteMcpDiagnostic { code: string; message: string }
 export interface RemoteMcpTool {
@@ -36,10 +40,16 @@ export interface RemoteMcpInventory {
   serverCapabilities: JsonObject; diagnostics: RemoteMcpDiagnostic[]; digest: string;
   attempts: NetworkAttempt[]; metrics?: { peakRssBytes: number; cpuMs: number };
 }
+export interface RemoteMcpCatalogIndex {
+  protocolVersion:"2026-07-28"|"2025-11-25";transport:"streamable_http"|"legacy_sse";
+  capabilitiesDigest:string;expiresAt:number;
+  tools:{name:string;definitionDigest:string;schemaDigest:string;compatible:boolean}[];
+}
 export interface RemoteMcpResult {
   protocolVersion: "2026-07-28" | "2025-11-25"; transport: "streamable_http" | "legacy_sse";
   isError: boolean; content: JsonObject[]; structuredContent?: unknown; rawResult: JsonObject;
   resultDigest: string; effect: "unknown"; reviewRequired: true; attempts: NetworkAttempt[];
+  catalogIndex?:RemoteMcpCatalogIndex;
   metrics?: { peakRssBytes: number; cpuMs: number };
 }
 export interface RemoteMcpHooks {
@@ -47,7 +57,7 @@ export interface RemoteMcpHooks {
 }
 export interface RemoteMcpAttempt extends NetworkAttempt { rpcMethod?: string }
 type Job = { kind: "discover"; endpoint: RemoteMcpEndpoint }
-  | { kind: "call"; endpoint: RemoteMcpEndpoint; tool: RemoteMcpTool; arguments: JsonObject };
+  | { kind: "call"; endpoint: RemoteMcpEndpoint; tool: RemoteMcpTool; arguments: JsonObject; cached?:Omit<RemoteMcpCatalogIndex,"tools">&{tool?:RemoteMcpCatalogIndex["tools"][number]} };
 export class RemoteMcpError extends Error {
   constructor(public readonly code: string, public readonly attempts: NetworkAttempt[] = []) { super(code); }
 }
@@ -118,12 +128,46 @@ async function isolated<T>(job: Job, signal?: AbortSignal, hooks?: RemoteMcpHook
     child.stdin.end(serialized);
   });
 }
+export const REMOTE_MCP_CACHE_LIMITS=Object.freeze({partitions:16,bytes:8_388_608,indexBytes:2_097_152,ttlMs:30_000});
+const catalogCache=new Map<string,{index:RemoteMcpCatalogIndex;bytes:number;partition:string}>();
+function cachePartition(scope:RemoteMcpCacheScope):string {return requestDigest([scope.organizationId,scope.accountId,scope.connectionId]);}
+function cacheKey(endpoint:RemoteMcpEndpoint):string|undefined {
+  const scope=endpoint.cacheScope;
+  if(!scope||![scope.organizationId,scope.accountId,scope.connectionId].every(value=>typeof value==="string"&&value.length>0&&value.length<=128)
+    ||![scope.credentialRevision,scope.policyRevision,scope.generation].every(value=>Number.isSafeInteger(value)&&value>0)
+    ||!endpoint.effectiveAuthorityDigest||!/^[a-f0-9]{64}$/.test(endpoint.effectiveAuthorityDigest))return;
+  const identity=requestDigest({authorization:endpoint.authorization??null,headers:endpoint.headers??{}});
+  return requestDigest({scope,identity,authority:endpoint.effectiveAuthorityDigest,endpoint:endpoint.endpoint,
+    protocol:endpoint.protocolVersion??"auto",transport:endpoint.transport??"auto",release:REMOTE_MCP_RELEASE,adapter:endpoint.adapterManifestDigest??null});
+}
+export function invalidateRemoteMcpCatalogCache(scope?:RemoteMcpCacheScope):void {
+  const partition=scope?cachePartition(scope):undefined;
+  for(const [key,value]of catalogCache)if(!partition||value.partition===partition)catalogCache.delete(key);
+}
+export function remoteMcpCatalogCacheStats():{partitions:number;bytes:number} {return {partitions:catalogCache.size,bytes:[...catalogCache.values()].reduce((sum,value)=>sum+value.bytes,0)};}
+function storeIndex(key:string,scope:RemoteMcpCacheScope,index:RemoteMcpCatalogIndex):void {
+  for(const [entry,value]of catalogCache)if(value.index.expiresAt<=Date.now())catalogCache.delete(entry);
+  const bytes=Buffer.byteLength(JSON.stringify(index));
+  if(index.expiresAt<=Date.now()||index.expiresAt>Date.now()+REMOTE_MCP_CACHE_LIMITS.ttlMs||index.tools.length>REMOTE_MCP_LIMITS.tools||bytes>REMOTE_MCP_CACHE_LIMITS.indexBytes)return;
+  catalogCache.delete(key);catalogCache.set(key,{index:JSON.parse(JSON.stringify(index)) as RemoteMcpCatalogIndex,bytes,partition:cachePartition(scope)});
+  while(catalogCache.size>REMOTE_MCP_CACHE_LIMITS.partitions||remoteMcpCatalogCacheStats().bytes>REMOTE_MCP_CACHE_LIMITS.bytes)catalogCache.delete(catalogCache.keys().next().value!);
+}
 export function discoverRemoteMcp(endpoint: RemoteMcpEndpoint, signal?: AbortSignal, hooks?: RemoteMcpHooks): Promise<RemoteMcpInventory> {
+  if(endpoint.cacheScope)invalidateRemoteMcpCatalogCache(endpoint.cacheScope);
   return isolated({ kind: "discover", endpoint }, signal, hooks);
 }
-export function executeRemoteMcpTool(endpoint: RemoteMcpEndpoint, tool: RemoteMcpTool, arguments_: JsonObject,
+export async function executeRemoteMcpTool(endpoint: RemoteMcpEndpoint, tool: RemoteMcpTool, arguments_: JsonObject,
   signal?: AbortSignal, hooks?: RemoteMcpHooks): Promise<RemoteMcpResult> {
-  return isolated({ kind: "call", endpoint, tool, arguments: arguments_ }, signal, hooks);
+  const key=cacheKey(endpoint),entry=key?catalogCache.get(key):undefined;
+  if(key&&entry){catalogCache.delete(key);if(entry.index.expiresAt>Date.now())catalogCache.set(key,entry);}
+  const index=entry&&entry.index.expiresAt>Date.now()?entry.index:undefined;
+  const cached=index?{protocolVersion:index.protocolVersion,transport:index.transport,capabilitiesDigest:index.capabilitiesDigest,expiresAt:index.expiresAt,
+    tool:index.tools.find(value=>value.name===tool.name)}:undefined;
+  try {
+    const result=await isolated<RemoteMcpResult>({kind:"call",endpoint,tool,arguments:arguments_,...(cached?{cached}:{})},signal,hooks);
+    if(key&&result.catalogIndex)storeIndex(key,endpoint.cacheScope!,result.catalogIndex);
+    return result;
+  }catch(error){if(key)catalogCache.delete(key);throw error;}
 }
 
 function toolDescriptor(value: unknown): RemoteMcpTool {
@@ -188,6 +232,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
   const secrets = Object.values(trustedHeaders).flatMap(value => [value, value.replace(/^Bearer\s+/i, "")]).filter(value => value.length > 0);
   const maxRequests = job.endpoint.maxRequests ?? REMOTE_MCP_LIMITS.requests;
   if (!Number.isInteger(maxRequests) || maxRequests < 1 || maxRequests > REMOTE_MCP_LIMITS.requests) fail("MCP_ATTEMPT_LIMIT");
+  let negotiatedModern=false,toolsFreshUntil=Infinity,selectedCacheExpiresAt:number|undefined;
   let requestCount = 0, catalogBytes = 0, sseGets = 0, protocolFallback = false, ssePostEndpoint: string | undefined, networkFailure: string | undefined;
   const attempts: NetworkAttempt[] = [], tools: RemoteMcpTool[] = [], names = new Set<string>();
   const inventories = { resources: [] as RemoteMcpResource[], resourceTemplates: [] as RemoteMcpResourceTemplate[], prompts: [] as RemoteMcpPrompt[] };
@@ -199,6 +244,10 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     const result = message.result as JsonObject;
     if (result.resultType === "input_required") fail("MCP_CLIENT_CAPABILITY_UNSUPPORTED");
     if (result.tools !== undefined) {
+      const supplied=result.ttlMs;
+      if(supplied!==undefined&&(typeof supplied!=="number"||!Number.isSafeInteger(supplied)))fail("MCP_CACHE_HINT_INVALID");
+      const ttl=typeof supplied==="number"?Math.max(0,Math.min(supplied,REMOTE_MCP_CACHE_LIMITS.ttlMs)):negotiatedModern?0:REMOTE_MCP_CACHE_LIMITS.ttlMs;
+      toolsFreshUntil=Math.min(toolsFreshUntil,Date.now()+ttl);
       if (!Array.isArray(result.tools)) fail("MCP_CATALOG_INVALID");
       catalogBytes += Buffer.byteLength(JSON.stringify(result));
       if (catalogBytes > REMOTE_MCP_LIMITS.catalogBytes || tools.length + result.tools.length > REMOTE_MCP_LIMITS.tools) fail("MCP_CATALOG_LIMIT");
@@ -254,6 +303,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     const ordinal = requestCount, start = Date.now();
     const phase = ["server/discover", "initialize", "notifications/initialized"].includes(rpcMethod ?? "") || isSse ? "setup" as const
       : rpcMethod === "tools/call" ? undefined : "read" as const;
+    if(rpcMethod==="tools/call"&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
     await observe({ attempt: ordinal, phase, rpcMethod, status: null, requestBytes: Buffer.byteLength(body), responseBytes: 0, elapsedMs: 0, outcome: "in_flight" });
     if (controller.signal.aborted) fail("CANCELLED");
     const host = url.hostname.replace(/^\[|\]$/g, "");
@@ -263,6 +313,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     for (const [key, value] of new Headers(init?.headers)) if (["content-type", "accept", "mcp-protocol-version", "mcp-session-id", "last-event-id"].includes(key)) headers[key] = value;
     Object.assign(headers, trustedHeaders);
     if (Object.entries(headers).some(([key, value]) => key.length + value.length > 8192 || /[\x00-\x1f\x7f]/.test(value)) || Buffer.byteLength(JSON.stringify(headers)) > 16384) fail("MCP_AUTH_INVALID");
+    if(rpcMethod==="tools/call"&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
     return new Promise<Response>((resolve, reject) => {
       const send = url.protocol === "http:" ? httpRequest : httpsRequest;
       const request = send(url, { method, headers, agent: false, family: address.family,
@@ -359,6 +410,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     const protocolVersion = client.getNegotiatedProtocolVersion();
     if (!protocolVersion || !(protocols as readonly string[]).includes(protocolVersion)) fail("MCP_PROTOCOL_UNSUPPORTED");
     const version = protocolVersion as RemoteMcpInventory["protocolVersion"], capabilities = client.getServerCapabilities() as JsonObject ?? {};
+    negotiatedModern=version==="2026-07-28";
     async function pages(method: "tools/list" | "resources/list" | "resources/templates/list" | "prompts/list", key: string): Promise<unknown[]> {
       let cursor: string | undefined, count = 0; const cursors = new Set<string>(), values: unknown[] = [];
       do {
@@ -377,11 +429,24 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
       } while (cursor);
       return values;
     }
-    if (capabilities.tools) await pages("tools/list", "tools");
+    const cached=job.kind==="call"?job.cached:undefined;
+    const reuse=!!cached&&cached.expiresAt>Date.now()&&cached.expiresAt<=Date.now()+REMOTE_MCP_CACHE_LIMITS.ttlMs
+      &&cached.protocolVersion===version&&cached.transport===currentTransport&&cached.capabilitiesDigest===requestDigest(capabilities);
+    if (capabilities.tools&&!reuse) await pages("tools/list", "tools");
     if (job.kind === "call") {
-      const selected = tools.find(tool => tool.name === job.tool.name);
+      let selected = tools.find(tool => tool.name === job.tool.name);
+      if(reuse) {
+        selectedCacheExpiresAt=cached!.expiresAt;
+        const proof=cached!.tool;
+        if(!proof||!proof.compatible||proof.name!==job.tool.name||proof.definitionDigest!==job.tool.definitionDigest||proof.schemaDigest!==job.tool.schemaDigest)fail("MCP_DEFINITION_DRIFT");
+        // Cached metadata cannot bypass bounded schema preflight in this isolated process.
+        const checked=toolDescriptor({name:job.tool.name,description:job.tool.description,inputSchema:job.tool.inputSchema,...(job.tool.outputSchema?{outputSchema:job.tool.outputSchema}:{})});
+        if(!checked.compatible||checked.schemaDigest!==proof.schemaDigest)fail("MCP_DEFINITION_DRIFT");
+        selected=job.tool;
+      }
       if (!selected || !selected.compatible || selected.definitionDigest !== job.tool.definitionDigest || selected.schemaDigest !== job.tool.schemaDigest
         || requestDigest({ inputSchema: job.tool.inputSchema, outputSchema: job.tool.outputSchema ?? null }) !== selected.schemaDigest) fail("MCP_DEFINITION_DRIFT");
+      if(reuse&&cached!.expiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
       if (Buffer.byteLength(JSON.stringify(job.arguments)) > REMOTE_MCP_LIMITS.argumentsBytes) fail("REQUEST_LIMIT");
       if (!validator.getValidator(selected.inputSchema)(job.arguments).valid) fail("MCP_ARGUMENTS_INVALID");
       const result = await client.callTool({ name: selected.name, arguments: job.arguments }, { ...requestOptions(), toolDefinition: {
@@ -393,7 +458,9 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
       return { protocolVersion: version, transport: currentTransport, isError: rawResult.isError === true,
         content: Array.isArray(rawResult.content) ? rawResult.content as JsonObject[] : [],
         ...(rawResult.structuredContent !== undefined ? { structuredContent: rawResult.structuredContent } : {}), rawResult,
-        resultDigest: requestDigest(rawResult), effect: "unknown", reviewRequired: true, attempts };
+        resultDigest: requestDigest(rawResult), effect: "unknown", reviewRequired: true, attempts,
+        ...(!reuse&&Number.isFinite(toolsFreshUntil)&&toolsFreshUntil>Date.now()?{catalogIndex:{protocolVersion:version,transport:currentTransport,capabilitiesDigest:requestDigest(capabilities),expiresAt:toolsFreshUntil,
+          tools:tools.map(({name,definitionDigest,schemaDigest,compatible})=>({name,definitionDigest,schemaDigest,compatible}))}}:{}) };
     }
     if (capabilities.resources) {
       for (const value of await pages("resources/list", "resources")) {
@@ -412,6 +479,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
           ...(typeof argument.description === "string" ? { description: argument.description } : {}) }; }), descriptor });
     }
     const diagnostics: RemoteMcpDiagnostic[] = [
+      { code: "MCP_CATALOG_PUSH_UNSUPPORTED", message: "Catalog updates use bounded cache expiry and explicit refresh. Persistent subscription streams are unavailable." },
       { code: "MCP_CLIENT_CAPABILITIES_UNSUPPORTED", message: "Sampling, elicitation, roots, MCP tasks and subscriptions are unavailable." },
     ];
     if (capabilities.resources) diagnostics.push({ code: "MCP_RESOURCE_READ_REQUIRES_POLICY", message: "Resource inventory is available. Reading requires a separately authorized resource binding." });

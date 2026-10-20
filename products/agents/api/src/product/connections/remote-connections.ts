@@ -277,7 +277,7 @@ export class RemoteConnectionStore {
   }
   async resolveRemoteEndpoint(db:PoolClient,scope:ActionScope,id:string,policyRevision:number):Promise<RemoteMcpEndpoint> {
     await requireActionMember(db,scope);
-    const row=(await db.query(`SELECT c.*,o.endpoint,o.auth_method,o.header_name,o.status,k.envelope FROM agents_platform.connections c
+    const row=(await db.query(`SELECT c.*,o.endpoint,o.auth_method,o.header_name,o.status,o.generation,k.envelope FROM agents_platform.connections c
       JOIN agents_platform.connection_onboarding o ON o.connection_id=c.id JOIN agents_platform.connection_credentials k ON k.connection_id=c.id AND k.revision=c.revision
       WHERE c.id=$1 AND c.organization_id=$2 AND c.account_id=$3 AND c.state='active' AND c.expires_at>now() AND c.policy_revision=$4 FOR SHARE OF c,o`,
     [id,scope.organizationId,scope.accountId,policyRevision])).rows[0];
@@ -288,6 +288,6 @@ export class RemoteConnectionStore {
     const token=authorization?.tokens?.access_token;
     const headers:Record<string,string>={};if(row.auth_method==="header"&&stored.secret)headers[row.header_name]=stored.secret;
     return {endpoint:row.endpoint,...(token?{authorization:`Bearer ${token}`}:row.auth_method==="bearer"&&stored.secret?{authorization:`Bearer ${stored.secret}`}:{headers}),
-      deadlineAt:Date.now()+30000,...(this.options.testLoopback?{testLoopback:true}:{})};
+      deadlineAt:Date.now()+30000,cacheScope:{organizationId:scope.organizationId,accountId:scope.accountId,connectionId:id,credentialRevision:row.revision,policyRevision:row.policy_revision,generation:row.generation},...(this.options.testLoopback?{testLoopback:true}:{})};
   }
 }

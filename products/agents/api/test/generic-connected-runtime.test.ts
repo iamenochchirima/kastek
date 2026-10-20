@@ -34,7 +34,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   const database = `agents_generic_${randomUUID().replaceAll("-", "")}`, objects = new Map<string, Uint8Array>();
   const vault = new ConnectionVault("v1", { v1: randomBytes(32).toString("base64") });
   const inputSchema = { type: "object", required: ["value"], additionalProperties: false, properties: { value: { type: "string", maxLength: 128 } } };
-  let effects = 0, requests = 0, hang = false, called: (() => void) | undefined, beforeListReply: (() => Promise<void>) | undefined;
+  let effects = 0, requests = 0,listCalls=0,definitionDescription="Arbitrary operation with provider readOnly hint",beforeInitializeReply:(()=>Promise<void>)|undefined, hang = false, called: (() => void) | undefined, beforeListReply: (() => Promise<void>) | undefined;
   let refresh:((scope:ActionScope,id:string)=>Promise<void>)|undefined;
   const storage = { async put(key: string, value: Uint8Array) { objects.set(key, Buffer.from(value)); },
     async get(key: string) { const value = objects.get(key); if (!value) throw Error("Missing private fixture object"); return value; },
@@ -49,11 +49,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const message = JSON.parse(serialized); response.setHeader("content-type", "application/json");
       const reply = (result: unknown) => response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
       if (message.method === "server/discover") response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Legacy fixture" } }));
-      else if (message.method === "initialize") reply({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "controlled-general-provider", version: "1" } });
+      else if (message.method === "initialize") {await beforeInitializeReply?.();reply({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "controlled-general-provider", version: "1" } });}
       else if (message.method === "notifications/initialized") response.writeHead(202).end();
       else if (message.method === "tools/list") {
-        await beforeListReply?.();
-        reply({ tools: [{ name: "custom.operation-v2", description: "Arbitrary operation with provider readOnly hint", inputSchema, annotations: { readOnlyHint: true } }] });
+        listCalls++;await beforeListReply?.();
+        reply({ tools: [{ name: "custom.operation-v2", description: definitionDescription, inputSchema, annotations: { readOnlyHint: true } }] });
       } else if (message.method === "tools/call") {
         effects++; called?.(); if (hang) return;
         reply({ content: [{ type: "text", text: `Authoritative result for ${message.params.arguments.value}` },
@@ -78,7 +78,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`); await admin.end(); }
   });
   async function fixture(policy: "exact_review" | "owner_reviewed_read" = "exact_review", executeGrant = true) {
-    effects = 0; requests = 0; hang = false; beforeListReply = undefined; called = undefined;refresh=undefined;
+    effects = 0; requests = 0;listCalls=0;definitionDescription="Arbitrary operation with provider readOnly hint";beforeInitializeReply=undefined; hang = false; beforeListReply = undefined; called = undefined;refresh=undefined;
     const account = await platform.ensureAccount({ issuer: "http://localhost/generic-fixture", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "General tools"), scope: ActionScope = { accountId: account.id, organizationId: organization.id };
     let connection = await remote.create(scope, { operationId: randomUUID(), name: "Controlled MCP", endpoint, authentication: "none" });
@@ -127,6 +127,22 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(receipt.state).toBe("completed"); expect(JSON.parse(Buffer.from(objects.get(receipt.body_key)!).toString()).content).toHaveLength(2);
     const replay = await executor.execute(f.task.id, operationId, f.binding, args); expect(replay).toEqual(result); expect(effects).toBe(1);
   }, 20_000);
+  it("uses the metadata cache across real pinned operations but still fences physical sends and explicit refresh",async()=>{
+    const f=await fixture("owner_reviewed_read"),first=await begin(f,{value:"first"});await executor.execute(f.task.id,first.operationId,f.binding,first.args);const initialLists=listCalls;
+    const second=await begin(f,{value:"second"});expect((await executor.execute(f.task.id,second.operationId,f.binding,second.args)).content).toContain("second");expect(listCalls).toBe(initialLists);expect(effects).toBe(2);
+    const current=await remote.get(f.scope,f.connection.id);await remote.discover(f.scope,f.connection.id,current.generation);const afterRefresh=listCalls;
+    const third=await begin(f,{value:"after-refresh"});await executor.execute(f.task.id,third.operationId,f.binding,third.args);expect(listCalls).toBe(afterRefresh+1);expect(effects).toBe(3);
+    const revoked=await begin(f,{value:"must-not-send"});beforeInitializeReply=async()=>{beforeInitializeReply=undefined;const selected=await remote.get(f.scope,f.connection.id);await remote.disconnect(f.scope,f.connection.id,selected.generation);};
+    await expect(executor.execute(f.task.id,revoked.operationId,f.binding,revoked.args)).rejects.toBeDefined();expect(effects).toBe(3);
+  },30000);
+  it("rejects drift after explicit refresh without adopting a new definition or consuming exact approval",async()=>{
+    const f=await fixture(),first=await begin(f,{value:"approved-original"},true);await executor.execute(f.task.id,first.operationId,f.binding,first.args);expect(effects).toBe(1);
+    definitionDescription="A changed provider definition must be reviewed before adoption";
+    const current=await remote.get(f.scope,f.connection.id);await remote.discover(f.scope,f.connection.id,current.generation);
+    const changed=await begin(f,{value:"stale-pinned-definition"},true);await expect(executor.execute(f.task.id,changed.operationId,f.binding,changed.args)).rejects.toMatchObject({code:"MCP_DEFINITION_DRIFT"});expect(effects).toBe(1);
+    expect((await pool.query("SELECT state FROM agents_platform.tool_invocation_reviews WHERE operation_id=$1",[changed.operationId])).rows[0].state).toBe("approved");
+    expect((await pool.query("SELECT binding FROM agents_platform.capability_bindings WHERE id=$1",[f.binding.id])).rows[0].binding.digest).toBe(f.binding.digest);
+  },30000);
   it("consumes an exact approval only at tools/call and publishes proof-backed evidence", async () => {
     const f = await fixture(), { operationId, args } = await begin(f, { value: "approved" }, true);
     const result = await executor.execute(f.task.id, operationId, f.binding, args);

@@ -1,10 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { discoverRemoteMcp, executeRemoteMcpTool, type RemoteMcpEndpoint } from "../src/adapters/providers/remote-mcp";
+import { discoverRemoteMcp, executeRemoteMcpTool, type RemoteMcpEndpoint, invalidateRemoteMcpCatalogCache,remoteMcpCatalogCacheStats,REMOTE_MCP_CACHE_LIMITS } from "../src/adapters/providers/remote-mcp";
 
 const servers: Server[] = [];
 const inputSchema = { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false };
-type FixtureOptions = { modern?: boolean; tools?: unknown[]; pages?: number; resources?: boolean; mixedContent?: boolean;
+type FixtureOptions = { modern?: boolean;ttlMs?:number;omitTtl?:boolean;capabilitiesChanged?:boolean; tools?: unknown[]; pages?: number; resources?: boolean; mixedContent?: boolean;
   changed?: boolean; loop?: boolean; reflect?: boolean; hang?: boolean; sse?: boolean; redirect?: boolean; isError?: boolean; inputRequired?: boolean;
   status?: number; sseDestination?: string; resultText?: string; badStructured?: boolean };
 async function fixture(options: FixtureOptions = {}) {
@@ -13,6 +14,7 @@ async function fixture(options: FixtureOptions = {}) {
   const capabilities = { tools: {}, ...(options.resources ? { resources: {}, prompts: {} } : {}) };
   const server = createServer(async (request, response) => {
     headers.push(request.headers as Record<string, string>);
+    capabilities.tools=options.capabilitiesChanged?{listChanged:true}:{};
     if (options.status) { response.writeHead(options.status).end(); return; }
     if (options.redirect) { response.writeHead(307, { location: "/other" }).end(); return; }
     if (options.sse && request.method === "GET") {
@@ -42,7 +44,7 @@ async function fixture(options: FixtureOptions = {}) {
       const page = Number(body.params?.cursor ?? 0), pagination = options.pages ?? 1;
       const tools = options.tools ?? [{ name: `tool_${page}`, description: "Provider hints cannot grant authority.", inputSchema, annotations: { readOnlyHint: true },
         ...(options.changed && calls > 0 ? { description: "Changed metadata" } : {}) }];
-      reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), tools,
+      reply({ ...(options.modern ? { resultType: "complete", ...(options.omitTtl?{}:{ttlMs: options.ttlMs??0}), cacheScope: "private" } : options.ttlMs!==undefined?{ttlMs:options.ttlMs}:{}), tools,
         ...(options.loop || page + 1 < pagination ? { nextCursor: options.loop ? "same" : String(page + 1) } : {}) });
     } else if (body.method === "tools/call") {
       calls++; waiters.splice(0).forEach(resolve => resolve());
@@ -64,7 +66,7 @@ async function fixture(options: FixtureOptions = {}) {
   return { endpoint, calls: () => calls, listCalls: () => listCalls, methods, headers,
     called: () => new Promise<void>(resolve => calls ? resolve() : waiters.push(resolve)), options };
 }
-afterEach(async () => { for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
+afterEach(async () => { invalidateRemoteMcpCatalogCache();for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
 
 describe("isolated general remote MCP", () => {
   it.each([false, true])("negotiates legacy/modern protocols modern=%s with exact original names", async modern => {
@@ -76,6 +78,55 @@ describe("isolated general remote MCP", () => {
     expect(result.content[0]!.text).toBe("Safe fixture result"); expect(service.calls()).toBe(1);
     expect(service.headers.every(headers => headers.authorization === undefined)).toBe(true);
   }, 20_000);
+  const scoped=(endpoint:RemoteMcpEndpoint):RemoteMcpEndpoint=>({...endpoint,effectiveAuthorityDigest:"a".repeat(64),cacheScope:{organizationId:randomUUID(),accountId:randomUUID(),connectionId:randomUUID(),credentialRevision:1,policyRevision:1,generation:1}});
+  it.each([false,true])("caches a validated index while still initializing and validating every pinned call, modern=%s",async modern=>{
+    const service=await fixture({modern,ttlMs:30000}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    const first=await executeRemoteMcpTool(endpoint,tool,{name:"first"});expect(first.catalogIndex?.tools[0]).toMatchObject({name:tool.name,definitionDigest:tool.definitionDigest,schemaDigest:tool.schemaDigest});
+    const before=service.listCalls();first.catalogIndex!.tools[0]!.definitionDigest="b".repeat(64);
+    expect((await executeRemoteMcpTool(endpoint,tool,{name:"second"})).isError).toBe(false);expect(service.listCalls()).toBe(before);expect(service.calls()).toBe(2);
+    expect(service.methods.filter(method=>method===(modern?"server/discover":"initialize")).length).toBeGreaterThanOrEqual(3);
+    await expect(executeRemoteMcpTool(endpoint,{...tool,inputSchema:{type:"object",properties:{name:{type:"integer"}}}},{name:"invalid"})).rejects.toMatchObject({code:"MCP_DEFINITION_DRIFT"});expect(service.calls()).toBe(2);
+  },20000);
+  it("does not reuse cached schemas across authority, credential, policy, generation or endpoint partitions",async()=>{
+    const service=await fixture({ttlMs:30000}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    await executeRemoteMcpTool(endpoint,tool,{name:"first"});let expected=service.listCalls();
+    for(const field of ["organizationId","accountId","connectionId","credentialRevision","policyRevision","generation"] as const){const scope={...endpoint.cacheScope!,[field]:typeof endpoint.cacheScope![field]==="number"?2:randomUUID()};await executeRemoteMcpTool({...endpoint,cacheScope:scope},tool,{name:field});expect(service.listCalls()).toBe(++expected);}
+    for(const changed of [{effectiveAuthorityDigest:"b".repeat(64)},{authorization:"Bearer different-private-token"},{adapterManifestDigest:"c".repeat(64)}]){await executeRemoteMcpTool({...endpoint,...changed},tool,{name:"changed"});expect(service.listCalls()).toBe(++expected);}
+    const other=await fixture({ttlMs:30000});await executeRemoteMcpTool({...endpoint,endpoint:other.endpoint.endpoint},tool,{name:"other-endpoint"});expect(other.listCalls()).toBe(1);
+  },30000);
+  it("honors modern zero TTL as immediately stale",async()=>{
+    const service=await fixture({modern:true,ttlMs:0}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint);
+    await executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"one"});const before=service.listCalls();await executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"two"});expect(service.listCalls()).toBe(before+1);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+  },15000);
+  it("refuses malformed modern responses missing the required TTL",async()=>{
+    const service=await fixture({modern:true,omitTtl:true});
+    await expect(discoverRemoteMcp(service.endpoint)).rejects.toMatchObject({code:"MCP_PROTOCOL"});
+    expect(service.calls()).toBe(0);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+  },15000);
+  it("invalidates explicit refresh and rejects current definition drift before invoking",async()=>{
+    const service=await fixture({ttlMs:30000,changed:true}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    await executeRemoteMcpTool(endpoint,tool,{name:"first"});expect(service.calls()).toBe(1);
+    const refreshed=await discoverRemoteMcp(endpoint);expect(refreshed.tools[0]!.definitionDigest).not.toBe(tool.definitionDigest);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+    await expect(executeRemoteMcpTool(endpoint,tool,{name:"stale"})).rejects.toMatchObject({code:"MCP_DEFINITION_DRIFT"});expect(service.calls()).toBe(1);
+  },15000);
+  it("revalidates the full list after TTL expiry or initialization capability changes",async()=>{
+    const service=await fixture({ttlMs:1500}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    await executeRemoteMcpTool(endpoint,tool,{name:"one"});let before=service.listCalls();service.options.capabilitiesChanged=true;
+    await executeRemoteMcpTool(endpoint,tool,{name:"capability-changed"});expect(service.listCalls()).toBe(before+1);before=service.listCalls();
+    await new Promise(resolve=>setTimeout(resolve,1600));await executeRemoteMcpTool(endpoint,tool,{name:"expired"});expect(service.listCalls()).toBe(before+1);
+  },20000);
+  it("expires metadata before a delayed physical send and evicts on cancellation",async()=>{
+    const service=await fixture({ttlMs:1500}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    await executeRemoteMcpTool(endpoint,tool,{name:"one"});
+    await expect(executeRemoteMcpTool(endpoint,tool,{name:"expired-before-send"},undefined,{beforeAttempt:async attempt=>{if(attempt.rpcMethod==="tools/call")await new Promise(resolve=>setTimeout(resolve,1600));}})).rejects.toMatchObject({code:"MCP_CATALOG_EXPIRED"});expect(service.calls()).toBe(1);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+    await executeRemoteMcpTool(endpoint,tool,{name:"revalidate"});const controller=new AbortController();controller.abort();await expect(executeRemoteMcpTool(endpoint,tool,{name:"cancelled"},controller.signal)).rejects.toMatchObject({code:"CANCELLED"});expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+  },20000);
+  it("bounds the process cache and declares persistent push notifications unavailable",async()=>{
+    const service=await fixture({ttlMs:300000}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    expect(inventory.diagnostics.map(value=>value.code)).toContain("MCP_CATALOG_PUSH_UNSUPPORTED");
+    for(let generation=1;generation<=REMOTE_MCP_CACHE_LIMITS.partitions+1;generation++)await executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+20000,cacheScope:{...endpoint.cacheScope!,generation}},tool,{name:"bounded"});
+    expect(remoteMcpCatalogCacheStats().partitions).toBe(REMOTE_MCP_CACHE_LIMITS.partitions);expect(remoteMcpCatalogCacheStats().bytes).toBeLessThanOrEqual(REMOTE_MCP_CACHE_LIMITS.bytes);
+  },30000);
   it("keeps one unsupported schema in diagnostics and discovers compatible tools", async () => {
     const service = await fixture({ tools: [{ name: "safe", inputSchema }, { name: "unsupported", inputSchema: { type: "object", properties: { value: { type: "string", pattern: "(a+)+$" } } } }, { name: 1, inputSchema: {} }] });
     let ticks = 0; const timer = setInterval(() => ticks++, 5);

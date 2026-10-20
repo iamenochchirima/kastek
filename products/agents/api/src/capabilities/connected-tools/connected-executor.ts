@@ -255,7 +255,9 @@ export class ConnectedExecutor {
    if(claim.genericResource){
     const observation=api?await executeGenericNativeApi(binding,claim.apiOperation!,args,{deadlineAt,signal,testLoopback:this.options.testApiLoopback,
       beforeAttempt:attempt=>before("read",{...attempt,rpcMethod:"tools/call"}),onAttempt:after})
-     :await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after});
+     :await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt,effectiveAuthorityDigest:requestDigest({principal:claim.execution.task.principal,versionId:claim.execution.task.version_id,
+       product:claim.execution.task.product,resourceId:claim.execution.task.resource_id,callerClientId:claim.execution.task.caller_client_id,
+       bindings:claim.execution.connectedBindings.map(selected=>({id:selected.id,digest:selected.digest,resources:selected.resources})).sort((a,b)=>a.id.localeCompare(b.id))})},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after});
     full=observation.rawResult;
     const inline=observation.content.filter(block=>block.type==="text"&&typeof block.text==="string").map(block=>block.text).join("\n");
     const blocks=observation.content.slice(0,16).map((block,index)=>({index,type:String(block.type).slice(0,64),digest:requestDigest(block),...(typeof block.mimeType==="string"?{mimeType:block.mimeType.slice(0,128)}:{})}));
