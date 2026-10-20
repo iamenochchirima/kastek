@@ -64,15 +64,31 @@ draft selection. Skills include reviewed KasiTek procedures and private SKILL.md
 imports, exact public GitHub commit/path imports, file previews, and exact-digest owner review. Complete packages retain immutable files,
 source identity and content digests. Private imports require explicit draft selection. The curated Add action installs the official package
 and selects its reviewed revision in the unsaved draft. Publication
-and runtime loading reject unreviewed packages. Imported scripts remain inert.
+and runtime loading reject unreviewed packages. Import, installation and review never execute scripts.
 Package-based skills load names and descriptions first. Selected agents receive
 `skills.activate` and `skills.read` with a separate `skill.read` grant. Activation
 loads reviewed instructions; file reads require prior activation. Complete loads
 are limited to 4,096 UTF-8 bytes and the current model budget. Larger files fail
 explicitly. Exact package/file digests and loaded text survive compaction through
 durable receipts. Legacy text revisions retain their existing eager loading.
-This behavior uses `modular-programs-v4` and `AgentsBusinessRunV14` with a fresh
-schema through `037_google_connector_definition.sql`. An older worker or database is not upgraded in place.
+Tool-directed versions with selected skills and the separately enabled `sandbox.analyze` capability
+also expose `skills.run`. The model alias is `skills_run`. Activation is required; loading script
+source with `skills.read` is optional. Execution selects an exact reviewed `scripts/*.py` entry,
+limited to 16 KiB, and records the package digest, script digest, revision and relative path.
+The existing `python-analysis-v1` gVisor runtime stages the complete package read-only under
+`/input/skill`. Reviewed sibling modules, package-root modules and packaged resources are available.
+The entry runs with Python `-I -S -B`, a fixed wrapper and validated paths passed as arguments.
+Package files and authorized artifact inputs share the existing 32-file and 4 MiB input limits.
+Current `skill.read`, `sandbox.execute`, `artifact.read` and `artifact.write` grants are required.
+Execution uses the original admitted resource-operation deadline and existing root budgets.
+No host execution, injected credentials, network access or dependency installation is available.
+Other languages and unavailable sandbox backends fail explicitly.
+Script receipts and generated artifact dependencies retain the complete package digest through
+compaction and continuation. Disabling or removing the package fences launch, later artifact access
+and dependent execution. Normal finalization destroys the allocation; the independent reaper retains
+cleanup responsibility after worker loss or failed cleanup.
+This behavior uses `modular-programs-v5` and `AgentsBusinessRunV15` with a fresh
+schema through `038_skill_script_runtime.sql`. An older worker or database is not upgraded in place.
 Skill update and rollback select one reviewed revision per publisher/source family. Requirements
 recheck existing connections, permissions, and runtime access; they never grant capabilities.
 Disabled or removed packages remain immutable records and lose current execution authority.
@@ -147,8 +163,8 @@ configuration, or live authority state. Operation admission, receipt persistence
 settlement read only immutable organization/root keys before locking, then reload and validate
 the full execution under the original locks. Current authority and dependency checks still run.
 
-The current source release is `modular-programs-v4` / `AgentsBusinessRunV14`. It requires a fresh
-dedicated schema through `037_google_connector_definition.sql`. Verification uses separate compiled artifacts and databases. Running older local
+The current source release is `modular-programs-v5` / `AgentsBusinessRunV15`. It requires a fresh
+dedicated schema through `038_skill_script_runtime.sql`. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
 
 Each operation journals its physical outcome and attempt identity before a separate durable step
@@ -264,8 +280,8 @@ Moving adapter source changes executable digests. Existing immutable bindings ar
 never rewritten: new acceptance uses newly discovered bindings and published versions
 with matching source/compiled artifacts. A previously recorded receipt still resolves
 before the live registry; unavailable old releases fail closed for new physical IO.
-The current business workflow is `AgentsBusinessRunV14`, with harness release
-`modular-programs-v4`. Isolated verification preserves existing running owner services
+The current business workflow is `AgentsBusinessRunV15`, with harness release
+`modular-programs-v5`. Isolated verification preserves existing running owner services
 and their original compiled artifacts.
 
 The relocation smoke compiles into an ignored output tree rather than deleting a
@@ -303,7 +319,7 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `execution/memory/memory.ts`, `product/agents/memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
 | `infrastructure/object-store.ts`, `execution/artifacts/artifacts.ts`, `execution/artifacts/task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
 | `execution/delegation/delegation.ts`, `capabilities/tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
-| `capabilities/sandbox/sandbox.ts`, `capabilities/sandbox/sandbox-executor.ts`, `composition/sandbox-reaper.ts` | Isolated analysis, durable resource/command identities, artifact export and independent cleanup. |
+| `capabilities/sandbox/sandbox.ts`, `capabilities/sandbox/sandbox-executor.ts`, `capabilities/skills/script-runtime.ts`, `composition/sandbox-reaper.ts` | Isolated analysis and reviewed package scripts, immutable script provenance, durable resource/command identities, artifact export and independent cleanup. |
 | `execution/lifecycle/dispatcher.ts`, `composition/worker.ts`, `composition/worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
 | `execution/scheduling/capacity.ts`, `execution/scheduling/capacity-turns.ts`, `execution/scheduling/dispatch-claims.ts` | Durable resource queues, independent tenant turns, generation-fenced permits and bounded replica claims. |
 | `workflows/report-delivery/program.ts` | Durable report review waits, exact dispatch and status-only reconciliation through the shared operation lifecycle. |
@@ -591,7 +607,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV14` (`modular-programs-v4`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV15` (`modular-programs-v5`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one
@@ -677,18 +693,18 @@ structured stdout diagnostics.
 
 | Field | Decision and evidence |
 | --- | --- |
-| Change | Contextual Tools/Skills catalogues, immutable package lifecycle, generic MCP/API selection and exact review, Google Calendar policy and customer booking confirmation. |
+| Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, Google Calendar policy and customer booking confirmation. |
 | Owner | Agents engineering. |
 | Risk | High: encrypted provider credentials, external writes, visitor identity, and durable recovery. |
 | Affected services and surfaces | Agents API, business worker, PostgreSQL, management editor, Connections, task activity, website chat and generated widget. Other channel providers are unchanged and unavailable. |
-| Platform release version or ID | Runtime `AgentsBusinessRunV14` / `modular-programs-v4`. Canonical platform `VERSION` remains `0.1.0`; no production release tag or promoted deployment is claimed. Runtime, schema, and customer-created version identities remain separate. |
-| API/schema changes | Fresh ordered schema through `037_google_connector_definition.sql`; 028–037 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V14 task default, and immutable Google connector-definition pins. Setup validates the complete schema digest and does not migrate an existing owner database. |
-| Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, and exact customer confirmation. Missing Google configuration is unavailable. The standalone Booking offering remains disabled. |
-| Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment, zero pre-confirmation inserts, correct current-policy denial, and no insertion during status recovery. Adoption analytics and production alerting are not established. |
-| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V14 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
+| Platform release version or ID | Runtime `AgentsBusinessRunV15` / `modular-programs-v5`. Canonical platform `VERSION` remains `0.1.0`; no production release tag or promoted deployment is claimed. Runtime, schema, and customer-created version identities remain separate. |
+| API/schema changes | Fresh ordered schema through `038_skill_script_runtime.sql`; 028–038 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V15 task default, immutable Google connector-definition pins, and immutable skill-script execution provenance. Setup validates the complete schema digest and does not migrate an existing owner database. |
+| Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, exact customer confirmation, and separately enabled isolated analysis for package scripts. Missing Google configuration is unavailable. The standalone Booking offering remains disabled. |
+| Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment, zero pre-confirmation inserts, correct current-policy denial, no insertion during status recovery, one sandbox command per admitted script operation, exact package provenance, current withdrawal denial, and resource cleanup. Adoption analytics and production alerting are not established. |
+| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V15 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
 | Documentation | Current README, implementation/feature map, architecture, integration boundary, threat model, and runtime reference updated together. No new planning document. |
-| Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. See coverage below. |
-| Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V14 task to an incompatible worker or reverse the fresh SQL in place. |
+| Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. Real gVisor package execution in `api/test/skill-script-runtime.test.ts`, existing independent-cleanup suite in `api/test/platform-sandbox.test.ts`, and published activation/script/final-answer acceptance in `api/test/platform-business.test.ts`. See coverage below. |
+| Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V15 task to an incompatible worker or reverse the fresh SQL in place. |
 | Post-release review | At the first staging promotion and before enabling a live Google OAuth application. No production release date is assigned. |
 
 The real isolated booking journey verifies a durable pending visitor proposal with zero insertion,
@@ -717,7 +733,21 @@ pnpm --filter @kasitek/agents exec vitest run test/booking-business.test.ts test
 
 Live Google consent and token refresh against a configured application, production credential
 operations, hosted observability, and other channel/provider journeys remain separate gates.
-MCP resources and prompts are inventory only. Imported skill scripts remain inert.
+MCP resources and prompts are inventory only. Package import remains inert; explicit approved Python execution uses the existing isolated sandbox.
+
+Approved package execution was verified with fresh disposable databases, a separate Restate container
+and test allocation directories. The affected check passed 14 cases: five script authorization/execution
+cases, seven real gVisor lifecycle cases, and two published skill/compaction cases. The Python case executes
+a script larger than 4 KiB without a script-read call, imports reviewed helpers, reads packaged data,
+exports a receipt-backed report and destroys its allocation. Withdrawal before guest launch prevents
+execution; withdrawal afterward blocks artifact access. Typecheck, dependency-cycle checks and product
+boundaries passed. These checks do not establish production sandbox availability or operational certification.
+
+With the local isolated sandbox prepared and `AGENTS_TEST_DATABASE_URL` set for disposable database creation:
+
+```sh
+AGENTS_SANDBOX_VERIFY=1 pnpm --filter @kasitek/agents exec vitest run test/skill-script-runtime.test.ts test/platform-sandbox.test.ts test/platform-business.test.ts
+```
 
 ## Coordination and replica configuration
 

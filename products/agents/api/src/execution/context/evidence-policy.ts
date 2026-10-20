@@ -1,3 +1,4 @@
+import {parseSkillPackage} from "../../capabilities/skills/package";
 import type { Pool,PoolClient } from "pg";
 import { capabilityBindingSchema,type CapabilityBinding,type ResourceHandle } from "../../contracts/capability-catalog";
 import { connectedToolAuthorityIds,PlatformError,requestDigest } from "../../contracts/contracts";
@@ -149,7 +150,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
   const origins=execution.task.parent_task_id?[]:await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
   const dependencies = [...manifest.dependencies].sort((a, b) => {
-    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.referenceId;
+    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.referenceId;
     return key(a).localeCompare(key(b));
   });
   for(const dependency of dependencies)if(dependency.kind==="delegation_input")await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,taskId);
@@ -166,6 +167,19 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     const binding = await connectionEvidenceBinding(db,execution,dependency,origins);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
     if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== await owner(db, execution) || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
+  }
+  for(const dependency of dependencies){
+    if(dependency.kind!=="skill")continue;
+    const root=execution.task.parent_task_id?await loadExecution(db,execution.task.root_task_id):execution;
+    const candidates=[execution,root,...origins];
+    if(!candidates.some(origin=>origin.agentId===dependency.agentId&&origin.configuration.skillIds.includes(dependency.skillId)))throw denied();
+    const row=(await db.query(`SELECT s.content_digest,p.files,r.content_digest AS reviewed_digest,st.state
+      FROM agents_platform.skill_revisions s JOIN agents_platform.skill_packages p ON p.skill_revision_id=s.id
+      JOIN agents_platform.skill_package_reviews r ON r.skill_revision_id=s.id
+      JOIN agents_platform.skill_installation_states st ON st.skill_revision_id=s.id
+      WHERE s.organization_id=$1 AND s.agent_id=$2 AND s.id=$3 FOR SHARE OF st`,[execution.task.organization_id,dependency.agentId,dependency.skillId])).rows[0];
+    if(!row||row.state!=="enabled"||row.content_digest!==dependency.packageDigest||row.reviewed_digest!==dependency.packageDigest)throw unavailable();
+    if(parseSkillPackage({files:row.files.map((file:any)=>({path:file.path,content:file.content,encoding:file.encoding}))}).contentDigest!==dependency.packageDigest)throw integrity();
   }
   for (const dependency of dependencies.filter(item => item.kind === "memory")) {
     if (dependency.kind !== "memory") continue;

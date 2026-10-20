@@ -45,7 +45,7 @@ const connectionDependency = z.strictObject({ kind: z.literal("connection"), con
   resource: z.string().min(1).max(2048), catalogDigest: digest });
 const delegationDependency = z.strictObject({kind:z.literal("delegation_input"),referenceId:id,manifestDigest:digest});
 const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId: id, generation });
-export const evidenceDependencySchema = z.discriminatedUnion("kind", [sourceDependency, connectionDependency, memoryDependency, delegationDependency]);
+export const evidenceDependencySchema = z.discriminatedUnion("kind", [sourceDependency, connectionDependency, memoryDependency, delegationDependency, z.strictObject({kind:z.literal("skill"),skillId:id,agentId:id,packageDigest:digest})]);
 export const dependencyManifestSchema = z.strictObject({ version: z.literal(1), dependencies: z.array(evidenceDependencySchema).max(SOURCE_LIMITS.manifestNodes), digest });
 export const evidenceReferenceSchema = z.strictObject({
   id, organizationId: id, rootTaskId: id, operationId: z.string().min(1).max(256),
@@ -71,6 +71,7 @@ export const textDigest = (value: string | Uint8Array): string => createHash("sh
 
 function dependencyKey(dependency: EvidenceDependency): string {
   switch (dependency.kind) {
+    case "skill": return `skill:${dependency.agentId}:${dependency.skillId}`;
     case "source": return `source:${dependency.sourceId}:${dependency.revisionId}`;
     case "connection": return `connection:${dependency.connectionId}:${dependency.resource}:${dependency.catalogDigest}`;
     case "memory": return `memory:${dependency.referenceId}`;

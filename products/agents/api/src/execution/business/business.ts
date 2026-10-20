@@ -57,7 +57,7 @@ export interface BusinessOptions extends ModelAdapterOptions {
   toolReviews?: ToolReviewStore;
   bookings?:BookingService;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
-  executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
+  executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
 const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN"]);
@@ -425,9 +425,9 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     return {value,tokens:0};
                   }
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
-                  if(name==="sandbox.analyze") {
+                  if(name==="sandbox.analyze"||name==="skills.run") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
-                    const parsed=z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()}).safeParse(args);
+                    const parsed=(name==="skills.run"?z.strictObject({skillId:z.uuid(),path:z.string().min(1).max(256),inputArtifactIds:z.array(z.uuid()).max(32).optional()}):z.strictObject({code:z.string().min(1).max(16384),inputArtifactIds:z.array(z.uuid()).max(32).optional()})).safeParse(args);
                     if(!parsed.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the analysis arguments");
                     const value=await options.executeSandbox(taskId,id,parsed.data);
                     if(value && typeof value==="object" && "state" in value && value.state==="uncertain") throw new ModelOperationError("SANDBOX_OUTCOME_UNCERTAIN","uncertain");

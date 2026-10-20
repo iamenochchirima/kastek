@@ -689,7 +689,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV14 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV15 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -710,7 +710,7 @@ remains untrusted reference data. The assembler fits whole records to the remain
 request allowance, records omissions and persists the selected view with the snapshot
 digest. Replaying it rechecks current evidence policy. Completed delegation does not
 consume a permanent child slot; the limit applies to outstanding children.
-Every influencing source/connection/memory dependency survives the summary and child join.
+Every influencing source, connection, memory and reviewed package dependency survives the summary and child join.
 A delegated brief retains an immutable snapshot of its parent dependencies, checked under
 the parent authority. Narrow specialist retrieval grants do not erase that provenance.
 Once consumed evidence is withdrawn or forgotten, the current task stops incomplete rather than
@@ -722,7 +722,14 @@ expected revision. Forget suppresses future learned-memory retrieval and invalid
 context. Original conversation content has a separate source-deletion operation. Expiry advances
 selection generations. These controls do not claim physical erasure of prior provider requests,
 journals, revisions or backups. Procedural skills are immutable reviewed revisions pinned at
-publication; they cannot install tools or expand permissions.
+publication; they cannot install tools or expand permissions. Selected activated packages can expose
+`skills.run` only when the version separately authorizes the existing Python sandbox and artifact
+capabilities. Import remains inert. The run operation selects reviewed code by package/script digest
+without requiring a source read into context. The complete package is read-only in the isolated guest,
+including bundled helpers and resources. Immutable script provenance and generated artifact dependencies
+survive compaction; current installation authority fences later launch and reuse. The original
+operation deadline, root budget, finalization and independent reaper remain shared sandbox controls.
+Unsupported languages, missing isolation backends, network access and dependency installation are unavailable.
 
 Trusted `grounded-conversation` and `tool-directed` program releases use the shared business loop.
 The grounded program permits knowledge search/read, customer handoff, reviewed procedural skills,
@@ -732,8 +739,8 @@ permits the implemented memory, delegation, sandbox, connected-read and reviewed
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
 copies the effective composition to the task, including narrowed child compositions. Workers reject
-unavailable or changed releases before additional execution. New source uses `modular-programs-v4`
-and Restate workflow `AgentsBusinessRunV14` in fresh isolated schemas.
+unavailable or changed releases before additional execution. New source uses `modular-programs-v5`
+and Restate workflow `AgentsBusinessRunV15` in fresh isolated schemas.
 
 The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate, sandbox.analyze and channel.request_handoff operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before

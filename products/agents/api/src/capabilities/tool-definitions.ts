@@ -4,8 +4,9 @@ import type { ToolDefinition } from "../execution/business/model";
 import { REPORT_WORKFLOW_BINDING,toolDescriptor } from "./tool-descriptors";
 
 export const BUILTIN_MODEL_ALIASES = Object.freeze({ knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
-  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",channel_request_handoff: "channel.request_handoff" } as const);
+  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",channel_request_handoff: "channel.request_handoff" } as const);
 export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
+  if(name==="skills.run")return config.skillIds.length>0&&config.capabilities.sandbox.enabled&&config.tools.includes("sandbox.analyze");
   if(name==="booking.availability"||name==="booking.reserve")return config.capabilities.businessActions.enabled;
   return name === "skills.activate" || name === "skills.read" ? config.skillIds.length > 0 : config.tools.includes(name as AgentConfiguration["tools"][number]);
 }
@@ -73,6 +74,7 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
     {type:"function",function:{name:"skills_read",description:"Read one complete UTF-8 resource from an activated reviewed skill using its exact listed relative path. Scripts are text only and are not executed.",
       parameters:{type:"object",properties:{skillId,path:{type:"string",minLength:1,maxLength:256}},required:["skillId","path"],additionalProperties:false}}});
   }
+  if(builtinToolEnabled(config,"skills.run"))result.push({type:"function",function:{name:"skills_run",description:"Run an exact reviewed Python script from an activated selected skill in the approved isolated no-network sandbox. Script source need not be loaded into context. Uses only approved artifact inputs and package files; no extra dependencies.",parameters:{type:"object",properties:{skillId:{type:"string",enum:config.skillIds},path:{type:"string",minLength:1,maxLength:256},inputArtifactIds:{type:"array",maxItems:32,items:{type:"string",format:"uuid"}}},required:["skillId","path"],additionalProperties:false}}});
   if(permitted.has("agents.delegate") && config.capabilities.delegation.enabled) result.push({type:"function",function:{
     name:"agents_delegate",description:"Delegate a brief to approved specialists and wait for their results. Each specialist uses its published scope and allocation. Available roles: "+JSON.stringify(config.capabilities.delegation.bindings.map(binding=>({
       bindingId:binding.id,name:binding.label??binding.id,purpose:(binding.description??"Published business specialist").slice(0,128)}))),

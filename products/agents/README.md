@@ -189,7 +189,13 @@ are separate actions. Owner review checks the exact package digest before execut
 publication permits enabled, reviewed server-curated instruction packages. Private or repository
 skills and generic personal connection bindings remain unavailable to website visitors.
 Owners can compare skill revisions and explicitly select an update or rollback within the same
-publisher/source family. Disable and removal retain immutable history. Imported scripts do not run.
+publisher/source family. Disable and removal retain immutable history. Import never runs scripts.
+Tool-directed versions can explicitly enable the existing isolated analysis capability to run reviewed
+Python package entries through `skills_run` after activation. Script source reads are optional.
+The package remains read-only, with bundled helpers and resources, no network, no credentials and
+no dependency installation. Other languages remain unavailable. Execution receipts and generated
+artifacts retain exact package/script digests and current withdrawal checks.
+See [approved package execution](docs/source-boundary.md#customer-agent-configuration) for limits.
 Connections includes custom MCP discovery/selection, native OpenAPI import, and Google Calendar
 setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
 unsaved draft before navigation and preserves input if saving fails.

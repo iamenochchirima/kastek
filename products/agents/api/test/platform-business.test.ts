@@ -1,3 +1,8 @@
+import {homedir} from "node:os";
+import {join} from "node:path";
+import {rm} from "node:fs/promises";
+import {SandboxManager} from "../src/capabilities/sandbox/sandbox";
+import {createSandboxExecutor} from "../src/capabilities/sandbox/sandbox-executor";
 import { createServer as createHttpServer } from "node:http";
 import { ConnectedExecutor } from "../src/capabilities/connected-tools/connected-executor";
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
@@ -238,6 +243,32 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(last.source_references.filter((reference: any) => reference.skillFile).map((reference: any) => reference.skillFile.path)).toEqual(["SKILL.md", "references/hours.md"]);
     expect(last.source_references.every((reference: any) => !reference.skillFile || reference.skillFile.packageDigest === pkg.contentDigest)).toBe(true);
   }, 30_000);
+  (process.env.AGENTS_SANDBOX_VERIFY==="1"?it:it.skip)("runs a reviewed skill through published activation and real isolated Python without loading script source",async()=>{
+    const f=await fixture();await execute(f.task.id);calls.length=0;
+    const packages=new SkillPackageStore(pool),pkg=parseSkillPackage({files:[
+      {path:"SKILL.md",content:"---\nname: packaged-analysis\ndescription: Compute the exact total from the reviewed package data.\n---\nPACKAGED_ANALYSIS: Run scripts/total.py with skills_run. Use the resulting total and report receipt."},
+      {path:"scripts/total.py",content:"import json,os\nfrom total_helper import sum_values\nvalues=json.load(open('references/numbers.json'))\ntotal=sum_values(values)\nopen(os.environ['OUTPUT_DIR']+'/total.json','w').write(json.dumps({'total':total}))\nprint('Authoritative computed total:',total)\n"+"# CODE_SOURCE_NOT_IN_CONTEXT\n".repeat(200)},
+      {path:"references/numbers.json",content:"[20,30,10]"},{path:"scripts/total_helper.py",content:"def sum_values(values):\n return sum(values)\n"}]});
+    const installed=await packages.import(f.managed,randomUUID(),pkg);await packages.review(f.managed,installed.id,installed.contentDigest);
+    const configuration:AgentConfiguration={...f.config,skillIds:[installed.id],memory:{enabled:false},tools:["sandbox.analyze"],capabilities:{...f.config.capabilities,sandbox:{enabled:true,profileId:"python-analysis-v1"}}};
+    const draft=await store.updateDraft({...f.managed,configuration,expectedRevision:1}),version=await store.createVersion({...f.managed,expectedRevision:draft.draft_revision});
+    expect(version.tool_bindings.map(binding=>binding.name)).toContain("skills.run");
+    const grant:ExecutionGrant={...f.grant,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","skill.read","sandbox.execute","artifact.read","artifact.write"]};await store.createGrant({accountId:f.account.id,grant});
+    const admitted=await store.admitTask({...f.request,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Compute the reviewed package total."});
+    const directory=join(homedir(),".cache/kasitek-agents-sandbox",`test-${randomUUID()}`),manager=new SandboxManager(pool,{directory,runsc:join(homedir(),".cache/kasitek-agents-sandbox/gvisor/runsc"),rootfs:join(homedir(),".cache/kasitek-agents-sandbox/python-rootfs")});
+    const previous=businessOptions.executeSandbox;businessOptions.executeSandbox=createSandboxExecutor(pool,manager,artifacts.objects);
+    let rounds=0;
+    provider=async body=>{rounds++;expect(JSON.stringify(body.messages)).not.toContain("CODE_SOURCE_NOT_IN_CONTEXT");expect(body.tools.map((entry:any)=>entry.function.name)).toContain("skills_run");
+      if(rounds===1)return reply("","tool_calls",[tool("skills_activate",{skillId:installed.id},"activate-analysis")]);
+      expect(JSON.stringify(body.messages)).toContain("PACKAGED_ANALYSIS");
+      if(rounds===2)return reply("","tool_calls",[tool("skills_run",{skillId:installed.id,path:"scripts/total.py"},"run-analysis")]);
+      expect(JSON.stringify(body.messages)).toContain("Authoritative computed total: 60");return reply("The computed total is 60. The report was generated from the reviewed package.");};
+    try{expect(await manager.available()).toBe(true);const task=await execute(admitted.task.id);expect(task.state,task.error_code).toBe("completed");expect(rounds).toBe(3);expect(task.output).toContain("total is 60");
+      const receipts=(await pool.query("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND name='skills.run'",[task.id])).rows;expect(receipts).toHaveLength(1);expect(receipts[0].kind).toBe("resource");expect(receipts[0].state).toBe("completed");expect(receipts[0].output.skill.packageDigest).toBe(pkg.contentDigest);
+      expect((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='skills.read'",[task.id])).rowCount).toBe(0);expect((await pool.query("SELECT state FROM agents_platform.sandbox_allocations WHERE task_id=$1",[task.id])).rows).toEqual([{state:"destroyed"}]);
+      const report=await artifacts.download(f.account.id,f.org.id,task.id,receipts[0].output.artifacts[0].id);expect(JSON.parse(Buffer.from(report.content).toString())).toEqual({total:60});
+    }finally{businessOptions.executeSandbox=previous;for(const row of(await pool.query("SELECT * FROM agents_platform.sandbox_allocations WHERE task_id=$1 AND state<>'destroyed'",[admitted.task.id])).rows)await manager.destroy({organizationId:row.organization_id,rootTaskId:row.root_task_id,taskId:row.task_id,deadlineAt:new Date(row.lease_expires_at)},row.id);await rm(directory,{recursive:true,force:true});}
+  },45000);
   function holdPreparedContext(taskId:string,compact=false){
     const evidence=businessOptions.evidence!,original=evidence.supplyContext.bind(evidence);let release!:()=>void,entered!:()=>void,held=false;
     const barrier=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{entered=resolve;});

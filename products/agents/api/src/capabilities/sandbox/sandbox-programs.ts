@@ -2,7 +2,12 @@
 export const guestRunner = String.raw`import os,sys,json,subprocess,selectors,signal,stat,base64,time
 os.makedirs('/scratch/output',exist_ok=True)
 env={'PATH':'/usr/local/bin:/usr/bin:/bin','PYTHONUNBUFFERED':'1','PYTHONDONTWRITEBYTECODE':'1','TMPDIR':'/scratch','INPUT_DIR':'/input/data','OUTPUT_DIR':'/scratch/output'}
-p=subprocess.Popen(['/usr/local/bin/python3','-I','-B','/input/program.py'],cwd='/scratch',env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+entry='/input/program.py';working='/scratch';command=['/usr/local/bin/python3','-I','-B',entry]
+if os.path.isfile('/input/skill-execution.json'):
+    manifest=json.load(open('/input/skill-execution.json'));entry='/input/skill/'+manifest['entry'];working='/input/skill';env['SKILL_DIR']=working
+    wrapper="import os,runpy,sys;entry=sys.argv[1];sys.path[:0]=[os.path.dirname(entry),'/input/skill'];sys.argv=[entry];runpy.run_path(entry,run_name='__main__')"
+    command=['/usr/local/bin/python3','-I','-S','-B','-c',wrapper,entry]
+p=subprocess.Popen(command,cwd=working,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
 streams=selectors.DefaultSelector()
 streams.register(p.stdout,selectors.EVENT_READ,'stdout');streams.register(p.stderr,selectors.EVENT_READ,'stderr')
 parts={'stdout':bytearray(),'stderr':bytearray()};count=0;error=None;deadline=time.monotonic()+118

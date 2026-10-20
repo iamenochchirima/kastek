@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { toolDescriptor } from "../src/capabilities/tool-descriptors";
 import { builtinContract, capabilityContractMetadata, validateBuiltinArguments, validateBuiltinResult } from "../src/capabilities/tool-contracts";
 import { BOOKING_REQUIREMENTS, verifyBookingReceipt } from "../src/contracts/workflows";
+import {toolsFor} from "../src/capabilities/tools";
+import {defaultBusinessConfiguration} from "../src/contracts/contracts";
 import { requestDigest } from "../src/contracts/contracts";
 
 describe("executable built-in capability contracts",()=>{
@@ -48,6 +50,14 @@ describe("executable built-in capability contracts",()=>{
     expect(()=>validateBuiltinArguments("sandbox.analyze",{code:"print(1)",apiKey:"private"})).toThrowError(expect.objectContaining({code:"TOOL_ARGUMENTS_INVALID"}));
     expect(()=>validateBuiltinArguments("knowledge.search",{query:"x".repeat(513)})).toThrow();
     expect(validateBuiltinArguments("knowledge.initial",{query:"x".repeat(1024)})).toBeDefined();
+  });
+  it("derives skill execution only from selected skills and separately enabled sandbox authority",()=>{
+    const config=defaultBusinessConfiguration(),names=()=>toolsFor(config).map(tool=>tool.function.name);
+    expect(names()).not.toContain("skills_run");config.skillIds=[randomUUID()];expect(names()).not.toContain("skills_run");
+    config.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};expect(names()).not.toContain("skills_run");config.tools=["sandbox.analyze"];expect(names()).toContain("skills_run");
+    expect(toolDescriptor("skills.run")).toMatchObject({effect:"resource",requiredProfile:"python-analysis-v1",requiredAuthority:["skill.read","sandbox.execute","artifact.read","artifact.write"],maxDurationMs:240000,retry:"adapter_reconcile"});
+    expect(validateBuiltinArguments("skills.run",{skillId:config.skillIds[0],path:"scripts/report.py"})).toBeDefined();
+    for(const extra of [{code:"print(1)"},{environment:{KEY:"secret"}},{install:["requests"]},{command:"sh"}])expect(()=>validateBuiltinArguments("skills.run",{skillId:config.skillIds[0],path:"scripts/report.py",...extra})).toThrowError(expect.objectContaining({code:"TOOL_ARGUMENTS_INVALID"}));
   });
   it("rejects invalid or credential-bearing results before they reach a model",()=>{
     expect(validateBuiltinResult("memory.propose",{candidateId:randomUUID(),status:"pending_review"})).toBeDefined();

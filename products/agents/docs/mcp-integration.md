@@ -104,7 +104,7 @@ outcomes retain any response body, become uncertain and are not blindly resent. 
 replay before live adapter or credential lookup. Generic imports do not establish business-specific
 idempotency or reconciliation guarantees.
 
-The fresh runtime is `AgentsBusinessRunV14` / `modular-programs-v4`. Fresh schema 028–037 adds
+The fresh runtime is `AgentsBusinessRunV15` / `modular-programs-v5`. Fresh schema 028–038 adds
 connection authorization, packaged skills, exact tool reviews and API operation snapshots. Existing
 owner databases and running local services are not upgraded by verification fixtures. Use the normal
 fresh setup command for an isolated environment. Disable new connection/binding admission before
@@ -177,7 +177,16 @@ states and recheck required connection policy, grant operations and runtime. Opt
 `metadata.kasitek.requirements` is bounded JSON with `connectionProfiles`, `permissions` and
 `runtimes`; it never grants capabilities. A skill family separates publishers and repository paths.
 One reviewed revision per family can be selected; updates and rollback change a draft only after
-explicit selection. Package scripts remain inert and need separately authorized runtime tools.
+explicit selection. Import and review remain inert. A selected, activated package can run an exact
+reviewed Python entry through `skills.run` when the version separately enables `sandbox.analyze`
+and holds the required sandbox and artifact grants. Script reads are optional. The existing
+`python-analysis-v1` runtime stages the complete package read-only, supports reviewed bundled
+helpers, and runs the selected entry with no network, environment credentials or dependency installs.
+Entries are limited to 16 KiB; all package files and artifact inputs share the 32-file/4 MiB limit.
+The admitted operation retains its original deadline and budgets. Immutable execution records and
+artifact dependencies pin package/script digests. Current installation authority fences guest launch
+and dependent artifact access. Existing finalization and the independent reaper own cleanup.
+Other script languages and unavailable runtimes fail explicitly.
 
 ## Public repository reads
 
@@ -252,7 +261,7 @@ An unsupported or untested combination is not a passed compatibility case.
 | Approved live OAuth and keyed/API providers | Not verified. | No complete current-release live matrix is recorded. A chat connector's credentials do not establish Agents provider acceptance. |
 | OpenAPI 3.0/3.1 with none, bearer, Basic and header/query keys | Fixture: [openapi-import.test.ts](../api/test/openapi-import.test.ts), [api-connections.test.ts](../api/test/api-connections.test.ts), [native-api.test.ts](../api/test/native-api.test.ts), [native-api-executor.test.ts](../api/test/native-api-executor.test.ts). | Bounded import, safe references, fixed request compilation, encrypted credentials, selected published execution and private response bytes. HTTP 429/5xx responses retain receipts without blind retry. General API pagination and configurable response projection are not established. |
 | Google Calendar OAuth, identity and bookings | Fixture: [google-calendar-connections.test.ts](../api/test/google-calendar-connections.test.ts), [google-calendar.test.ts](../api/test/google-calendar.test.ts), [booking-business.test.ts](../api/test/booking-business.test.ts). | Controlled signed OIDC, explicit service sharing, account/configuration fences and booking recovery. The live Google application and approved test account remain unconfigured. Imported API OAuth and service client-credentials are unavailable outside an implemented provider contract. |
-| Portable instruction and multi-file skills | Fixture: [skill-packages.test.ts](../api/test/skill-packages.test.ts), [skill-repository.test.ts](../api/test/skill-repository.test.ts), [skill-package-store.test.ts](../api/test/skill-package-store.test.ts). | Immutable package bytes, hostile archive/refusal cases, review, requirements and scoped activation. Package scripts remain inert; isolated script execution is unavailable. |
+| Portable instruction and multi-file skills | Fixture: [skill-packages.test.ts](../api/test/skill-packages.test.ts), [skill-repository.test.ts](../api/test/skill-repository.test.ts), [skill-package-store.test.ts](../api/test/skill-package-store.test.ts). | Immutable package bytes, hostile archive/refusal cases, review, requirements and scoped activation. [skill-script-runtime.test.ts](../api/test/skill-script-runtime.test.ts) and [platform-business.test.ts](../api/test/platform-business.test.ts) verify exact reviewed Python execution through published tools and real gVisor, bundled helpers/resources, no mandatory script read, current withdrawal fences and cleanup. Other languages remain unavailable. |
 | Imported API plus reviewed skill through normal agent execution | External controlled Harbor trial: `.audit/harbor-eefdc68d-68f6-4cec-8ffb-873e41aca258/acceptance.json`; [fixture support](../api/test/harbor-connector-support.ts). | FAQ policy-read trial passed with authoritative provider checks. It records `mutationsVerified: false`; it is neither live provider consent nor booking-write acceptance. |
 | Browser recovery and complete consent-to-execution journey | Mock transport: [remote-connections.spec.ts](../web/test/remote-connections.spec.ts), [api-connections.spec.ts](../web/test/api-connections.spec.ts), [google-calendar.spec.ts](../web/test/google-calendar.spec.ts). | UI setup, masked fields and recovery have separate browser evidence. Mocked transport plus API fixtures do not prove one complete live OAuth journey, cross-tab recovery or popup-denial recovery. |
 

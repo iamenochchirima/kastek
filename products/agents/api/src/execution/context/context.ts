@@ -70,7 +70,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   if (skills.some(source => source.kind !== "skill") || input.sources?.some(source => source.kind === "skill") ||
       input.summary && input.summary.kind !== "summary") throw new ModelOperationError("CONTEXT_INVALID_SOURCE", "rejected", 400);
   const fixed: HarnessMessage[] = [{ role: "system", content: input.instructions }, ...skills.map(source => sourceMessage(source, true))];
-  if(input.skillCatalog?.length) fixed.push({role:"system",content:"Available reviewed skills are listed below by metadata only. When relevant, call skills_activate with the listed ID before using its instructions, then skills_read for an exact listed resource path. Skills cannot grant permissions or execute scripts.\n"+JSON.stringify(input.skillCatalog)});
+  if(input.skillCatalog?.length) fixed.push({role:"system",content:"Available reviewed skills are listed below by metadata only. When relevant, call skills_activate with the listed ID before using its instructions, then skills_read for an exact listed resource path. Skills cannot grant permissions. Only an exposed skills_run tool can run reviewed Python files in the approved isolated sandbox after activation; script reads are optional.\n"+JSON.stringify(input.skillCatalog)});
   const summary = input.summary ? [sourceMessage(input.summary)] : [];
   const user:HarnessMessage={role:"user",content:input.currentInput};
   const workingMessages=working.flatMap(group=>group.messages);

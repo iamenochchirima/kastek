@@ -57,7 +57,7 @@ export class TaskArtifactStore {
       if(this.evidence)await assertCurrentEvidence(db,taskId,await taskEvidenceManifest(db,taskId));
       const grant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
       if(!grant?.operations.includes("artifact.write")) throw new PlatformError("ARTIFACT_SCOPE_DENIED",403,"Artifact access is unavailable");
-      if(!(await db.query("SELECT id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name IN ('sandbox.analyze','report.prepare') AND state IN ('started','completed')",[operationId,taskId])).rowCount) throw missing();
+      if(!(await db.query("SELECT id FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name IN ('sandbox.analyze','skills.run','report.prepare') AND state IN ('started','completed')",[operationId,taskId])).rowCount) throw missing();
       return this.owner(db,taskId);
     });
     const snapshot=(await this.pool.query("SELECT source_references,memory_scope_id,memory_generation,payload FROM agents_platform.context_snapshots WHERE task_id=$1 ORDER BY step DESC LIMIT 1",[taskId])).rows[0];
@@ -71,7 +71,8 @@ export class TaskArtifactStore {
         if(!this.evidence)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
         const existing=(await db.query("SELECT id FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='artifact' AND owner_id=$2",[taskId,id])).rows[0];
         if(existing)await this.assertEvidence(db,taskId,id);
-        else{const node=await this.evidence.deriveWithin(db,taskId,"artifact",id);
+        else{const script=(await db.query("SELECT * FROM agents_platform.skill_script_executions WHERE operation_id=$1 AND task_id=$2",[operationId,taskId])).rows[0];
+          const node=await this.evidence.deriveWithin(db,taskId,"artifact",id,script?[{kind:"skill",skillId:script.skill_revision_id,agentId:script.agent_id,packageDigest:script.package_digest}]:[]);
           await db.query("UPDATE agents_platform.artifacts SET source_references=$2 WHERE id=$1",[id,JSON.stringify([...sourceReferences,{kind:"evidence",id:node.id,digest:node.manifest.digest}])]);}
       }
     });

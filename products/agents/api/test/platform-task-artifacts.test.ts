@@ -33,7 +33,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
     await platform.createGrant({accountId:account.id,grant});
     const {task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,input:"Analyze authorized data",requestKey:randomUUID()});
     const operationId=`analysis:${task.id}`;
-    await beginOperation(pool,task.id,{id:operationId,kind:"tool",name:"sandbox.analyze",request:{code:"sum([10,20,30])"},reservedTokens:0,reservedMs:120000});
+    await beginOperation(pool,task.id,{id:operationId,kind:"resource",name:"sandbox.analyze",request:{code:"sum([10,20,30])"},reservedTokens:0,reservedMs:120000});
     return {account,organization,task,operationId};
   }
   const input={name:"report.json",contentType:"application/json",content:Buffer.from('{"total":60}'),sourceReferences:[]};

@@ -12,7 +12,7 @@ A live Google OAuth application has not been accepted.
 
 The current business harness supports contextual conversations, reviewed personal
 memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
-delegation, isolated analysis, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
+delegation, isolated analysis, approved Python package scripts, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
 implementation and boundaries:
 
 - [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.

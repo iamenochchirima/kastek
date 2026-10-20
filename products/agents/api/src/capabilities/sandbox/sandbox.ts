@@ -11,13 +11,15 @@ import { assertCurrentAuthority,loadExecution } from "../../execution/lifecycle/
 import { recordEvent } from "../../observability/event-store";
 import { transaction } from "../../infrastructure/database";
 import { resourceGate } from "../../infrastructure/resource-gate";
+import {validateSkillPath} from "../skills/package";
+import type {SkillScriptPackage} from "../skills/script-runtime";
 import { guestRunner,hostRunner } from "./sandbox-programs";
 const execute = promisify(execFile);
 export const SANDBOX_PROFILE = Object.freeze({ id: "python-analysis-v1", cpu: 1, memoryBytes: 536_870_912,
   pids: 64, scratchBytes: 268_435_456, commandSeconds: 120, leaseSeconds: 600,
   inputBytes: 4_194_304, inputFiles: 32, outputFileBytes: 1_048_576, outputBytes: 4_194_304, outputFiles: 4, stdoutBytes: 65_536 });
 export interface SandboxScope { organizationId: string; rootTaskId: string; taskId: string; deadlineAt: Date }
-export interface SandboxInput { operationId: string; code: string; inputs: { name: string; content: Uint8Array }[] }
+export interface SandboxInput { operationId: string; code: string; inputs: { name: string; content: Uint8Array }[]; skillPackage?:SkillScriptPackage }
 export interface SandboxResult { allocationId: string; commandId: string; state: "completed" | "failed" | "uncertain";
   exitCode: number | null; stdout: string; stderr: string; errorCode?: string;
   resourceEvidence?: {pidDenials:number;oomKills:number}; exports: { name: string; contentType: string; content: Uint8Array }[]; artifactRefs?: unknown[] }
@@ -70,10 +72,16 @@ export class SandboxManager {
   }
   async analyze(scope: SandboxScope, input: SandboxInput): Promise<SandboxResult> {
     z.string().min(1).max(128).parse(input.operationId); z.string().min(1).max(16_384).parse(input.code);
-    if (Buffer.byteLength(input.code) > 16_384 || input.inputs.length > SANDBOX_PROFILE.inputFiles || input.inputs.reduce((sum, value) => sum + value.content.byteLength, 0) > SANDBOX_PROFILE.inputBytes) throw fail("SANDBOX_INPUT_LIMIT", "Sandbox inputs exceed the profile", 400);
+    if (Buffer.byteLength(input.code) > 16_384 || input.inputs.length+(input.skillPackage?.files.length??0) > SANDBOX_PROFILE.inputFiles || [...input.inputs,...(input.skillPackage?.files??[])].reduce((sum, value) => sum + value.content.byteLength, 0) > SANDBOX_PROFILE.inputBytes) throw fail("SANDBOX_INPUT_LIMIT", "Sandbox inputs exceed the profile", 400);
     const names = input.inputs.map(item => nameSchema.parse(item.name));
     if (new Set(names).size !== names.length) throw fail("SANDBOX_INPUT_INVALID", "Input names must be unique", 400);
-    const digest = hash(JSON.stringify({ code: input.code, inputs: input.inputs.map(item => ({ name: item.name, digest: hash(item.content) })).sort((a,b) => a.name.localeCompare(b.name)), profile: SANDBOX_PROFILE.id }));
+    if(input.skillPackage){
+      const paths=input.skillPackage.files.map(file=>validateSkillPath(file.path));
+      const entry=input.skillPackage.files.find(file=>file.path===input.skillPackage!.reference.path);
+      if(!entry||entry.content.byteLength>16384||hash(entry.content)!==input.skillPackage.reference.contentDigest)throw fail("SKILL_SCRIPT_INTEGRITY","Skill script digest or runtime bound is invalid",400);
+      if(new Set(paths).size!==paths.length||!paths.includes(input.skillPackage.reference.path)||!input.skillPackage.reference.path.startsWith("scripts/")||!input.skillPackage.reference.path.endsWith(".py"))throw fail("SKILL_PACKAGE_INVALID","Skill script package is invalid",400);
+    }
+    const digest = hash(JSON.stringify({ skillPackage:input.skillPackage?{reference:input.skillPackage.reference,files:input.skillPackage.files.map(file=>({path:file.path,digest:hash(file.content)}))}:null,code: input.code, inputs: input.inputs.map(item => ({ name: item.name, digest: hash(item.content) })).sort((a,b) => a.name.localeCompare(b.name)), profile: SANDBOX_PROFILE.id }));
     const admitted = await transaction(this.pool, async db => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
       const existing = (await db.query(`SELECT a.*,c.id AS command_id,c.export_receipt FROM agents_platform.sandbox_allocations a JOIN agents_platform.sandbox_commands c ON c.allocation_id=a.id WHERE a.task_id=$1 AND a.operation_id=$2 FOR UPDATE OF a`, [scope.taskId, input.operationId])).rows[0];
@@ -128,6 +136,11 @@ export class SandboxManager {
     const directory=this.directory(row.id), data=join(directory,"input/data");
     await mkdir(data,{recursive:true,mode:0o700});
     await writeFile(join(directory,"input/program.py"),input.code,{mode:0o444,flag:"wx"});
+    if(input.skillPackage){
+      const packageDirectory=join(directory,"input/skill");await mkdir(packageDirectory,{recursive:true,mode:0o755});
+      for(const file of input.skillPackage.files){const path=validateSkillPath(file.path),target=join(packageDirectory,path);await mkdir(resolve(target,".."),{recursive:true,mode:0o755});await writeFile(target,file.content,{mode:0o444,flag:"wx"});}
+      await writeFile(join(directory,"input/skill-execution.json"),JSON.stringify({entry:input.skillPackage.reference.path}),{mode:0o444,flag:"wx"});
+    }
     await writeFile(join(directory,"input/runner.py"),guestRunner,{mode:0o444,flag:"wx"});
     for(const item of input.inputs) await writeFile(join(data,item.name),item.content,{mode:0o444,flag:"wx"});
     // The guest uid needs search permission; the bind remains read-only inside gVisor.

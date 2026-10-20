@@ -109,7 +109,7 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 
 ## Report and automation recovery
 
-Worker registration discovers `AgentsBusinessRunV14`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
+Worker registration discovers `AgentsBusinessRunV15`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
 Use a fresh dedicated development database after schema changes; setup rejects
 an incompatible checksum. Keep immutable worker endpoints for journal replay.
 Do not point old journals at changed workflow/descriptor code.
@@ -246,10 +246,35 @@ remains visible and is retried; stopping new admission must not stop the reaper
 or discard receipts. Production isolation, capacity and operational certification
 remain separately verified deployment gates.
 
+### Reviewed package scripts
+
+A tool-directed version with selected reviewed skills and `sandbox.analyze` exposes `skills.run`.
+The required grant operations are `skill.read`, `sandbox.execute`, `artifact.read` and `artifact.write`.
+Activate the pinned skill instructions before execution. Reading script source into model context
+is optional. Only reviewed Python entries under `scripts/` are supported, with a 16 KiB entry limit.
+The complete package is mounted read-only under `/input/skill`; packaged helpers and resources are
+available from the package root and selected entry directory. Execution uses a fixed Python
+`-I -S -B -c` wrapper with validated paths passed as arguments. It adds no host paths or site packages.
+Package files and artifact inputs share the existing 32-file/4 MiB bound. `INPUT_DIR` contains the
+authorized artifact inputs and `OUTPUT_DIR` contains export files. `SKILL_DIR` identifies the package.
+
+The original admitted resource operation bounds time and root usage. Immutable schema038 provenance
+records the selected revision, package/script digests and relative path. Artifact evidence retains
+the package dependency. Current authority checks block withdrawn installations before launch and
+before artifact publication or reuse. Finalization and the existing independent reaper retain
+resource cleanup. Installation never executes code. Other languages, external dependencies,
+credential injection and network access remain unavailable.
+
+The actual isolated check requires disposable database creation and the prepared sandbox:
+
+```sh
+AGENTS_SANDBOX_VERIFY=1 pnpm --filter @kasitek/agents exec vitest run test/skill-script-runtime.test.ts test/platform-sandbox.test.ts test/platform-business.test.ts
+```
+
 ## Calendar booking runtime
 
-The current source uses `AgentsBusinessRunV14` with `modular-programs-v4` and fresh schema
-through `037_google_connector_definition.sql`. Keep each tested worker artifact and database separate from
+The current source uses `AgentsBusinessRunV15` with `modular-programs-v5` and fresh schema
+through `038_skill_script_runtime.sql`. Keep each tested worker artifact and database separate from
 older local releases. Setup checks the complete SQL digest and does not migrate an owner database.
 
 The Google connector requires `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`,
@@ -282,7 +307,7 @@ for rollout limits, observations, and disable procedures.
 
 ## Knowledge and connected-read recovery
 
-`AgentsBusinessRunV14` uses harness release `modular-programs-v4`.
+`AgentsBusinessRunV15` uses harness release `modular-programs-v5`.
 Each operation journals its physical outcome before a separate durable step writes
 the native receipt. Receipt retries reuse that outcome without repeating provider
 requests. A crash before the outcome is journaled remains uncertain.
@@ -294,7 +319,7 @@ is uncertain unless the runtime explicitly reports cancellation. The pinned Rest
 workflow API rejects a caller-supplied idempotency key on `run`; use workflow
 identity and canonical lookup rather than adding that header.
 `AgentsKnowledgeImportV1` coordinates owner imports separately from task roots.
-Fresh schema bootstrap pins all ordered SQL files through `037_google_connector_definition.sql`; this product does not migrate
+Fresh schema bootstrap pins all ordered SQL files through `038_skill_script_runtime.sql`; this product does not migrate
 an earlier Agents database. Keep the old database separate when testing a new
 schema release.
 

@@ -218,6 +218,8 @@ export class EvidenceStore {
       const parents = (await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 ORDER BY created_at,id",[taskId])).rows.map(nodeDto);
       const selectedMemories=(snapshot.source_references??[]).filter((reference:{kind?:string})=>reference.kind==="memory");
       const memoryDependencies:EvidenceDependency[]=[],inheritedIds:string[]=[];
+      for(const selected of snapshot.source_references??[])if(selected.kind==="skill"&&selected.skillFile)
+        memoryDependencies.push({kind:"skill",skillId:selected.id,agentId:execution.agentId,packageDigest:selected.skillFile.packageDigest});
       const checkpoint=snapshot.payload.continuation?.checkpoint?.evidence??[],recordedIds=snapshot.payload.continuationEvidenceIds??[];
       if(!Array.isArray(recordedIds)||!Array.isArray(checkpoint)||continuationEvidenceIds.length>12||requestDigest(continuationEvidenceIds)!==requestDigest(recordedIds)||requestDigest(recordedIds)!==requestDigest(checkpoint.map((item:{id?:unknown})=>item?.id)))throw integrity();
       if(continuationEvidenceIds.length){
@@ -238,10 +240,10 @@ export class EvidenceStore {
     const row=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1 AND kind='artifact' AND owner_id=$2 AND organization_id=$3",[execution.task.root_task_id,artifactId,execution.task.organization_id])).rows[0];
     if(!row)throw unavailable();return this.node(db,execution,"input",`artifact:${artifactId}`,[],[nodeDto(row)]);
   }
-  async deriveWithin(db:PoolClient,taskId:string,kind:Exclude<EvidenceKind,"context">,ownerId:string):Promise<EvidenceNode>{
+  async deriveWithin(db:PoolClient,taskId:string,kind:Exclude<EvidenceKind,"context">,ownerId:string,dependencies:EvidenceDependency[]=[]):Promise<EvidenceNode>{
     const execution=await loadExecution(db,taskId);await assertCurrentAuthority(db,execution);
     const parents=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND NOT(kind=$2 AND owner_id=$3) ORDER BY created_at,id",[taskId,kind,ownerId])).rows.map(nodeDto);
-    return this.node(db,execution,kind,ownerId,[],parents,undefined,"recorded");
+    return this.node(db,execution,kind,ownerId,[],parents,{manifest:createDependencyManifest(dependencies),evidenceIds:[]},"recorded");
   }
   async artifactManifest(db:Db,taskId:string,artifactId:string):Promise<DependencyManifest>{
     const artifact=(await db.query("SELECT task_id FROM agents_platform.artifacts WHERE id=$1",[artifactId])).rows[0];

@@ -51,7 +51,16 @@ and end-to-end acceptance before its channel is offered.
 The harness builds bounded context from authorized history, knowledge, approved
 personal memory, pinned skills, and recorded operation results. Retrieved text and
 tool results are data. They cannot grant tools, credentials, or resource access.
-Skills are reviewed, immutable instructions subordinate to trusted policy.
+Skills are reviewed, immutable instructions subordinate to trusted policy. Import and review never
+execute package code. `skills.run` selects only an exact reviewed Python entry from an activated,
+pinned package under a separately authorized `python-analysis-v1` sandbox. Script source need not
+enter model context. The complete package is staged read-only; only its selected-script directory
+and package root are added for bundled imports inside the isolated guest. Python uses `-I -S -B`.
+Host execution, injected credentials, network access and dependency installation remain unavailable.
+Package and script digests persist in immutable operation provenance. Generated artifacts retain a
+skill dependency, so package withdrawal blocks later use. Current authority is rechecked before
+launch and output publication. The original operation deadline and root budget bound allocation;
+existing finalization and the independent reaper retain cleanup responsibility.
 
 Every tool call passes server validation against the selected configuration.
 The current tools search or read approved knowledge, read personal memory, or
