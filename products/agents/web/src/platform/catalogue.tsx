@@ -61,6 +61,7 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
     const params = new URLSearchParams({ returnTo });
     const profile = item.action.connectionProfileId ?? item.requires.connectionProfiles[0];
     if (profile) params.set("profile", profile);
+    if (item.action.connectionId) params.set("setup", item.action.connectionId);
     navigate(`/app/connections?${params}`);
   }
   const needle = query.trim().toLocaleLowerCase();

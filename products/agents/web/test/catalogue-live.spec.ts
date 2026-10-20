@@ -97,3 +97,62 @@ test("actual API: curated and private skill revisions survive save, reload and i
   await expect(page.getByRole("button", { name: "Add acceptance-replies", exact: true })).toHaveCount(0);
   expect(errors).toEqual([]); expect(failures).toEqual([]);
 });
+
+test("actual API: native API operations, private credentials and immutable bindings persist through reload", async ({ page, context }) => {
+  const fixture: Fixture = JSON.parse(await readFile(fixturePath!, "utf8"));
+  await context.addCookies([{ name: "agents_session", value: fixture.cookie, url: fixture.url, httpOnly: true, sameSite: "Lax" }]);
+  const errors: string[] = [], failures: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("response", response => { if (new URL(response.url()).pathname.startsWith("/api/") && response.status() >= 400) failures.push(`${response.status()} ${new URL(response.url()).pathname}`); });
+  const source = { openapi: "3.1.0", info: { title: "Acceptance inventory", version: "1" }, servers: [{ url: "https://api.example.com/v1" }], security: [{ serviceKey: [] }], components: { securitySchemes: { serviceKey: { type: "apiKey", in: "header", name: "X-API-Key" } } }, paths: {
+    "/items": { get: { operationId: "list_items", summary: "List inventory", parameters: [{ name: "limit", in: "query", schema: { type: "integer" } }], responses: { "200": { description: "Inventory", content: { "application/json": { schema: { type: "object", properties: { items: { type: "array", items: { type: "string" } } }, additionalProperties: false } } } } } },
+      post: { operationId: "create_item", summary: "Create inventory item", requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"], additionalProperties: false } } } }, responses: { "201": { description: "Created", content: { "application/json": { schema: { type: "object", properties: { id: { type: "string" } }, additionalProperties: false } } } } } } },
+  } };
+  await page.goto(`${fixture.url}/app/connections?profile=custom-api`);
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Server URL", { exact: true }).fill("https://api.example.com/v1");
+  await dialog.getByLabel("OpenAPI document", { exact: true }).fill(JSON.stringify(source, null, 2));
+  await dialog.getByRole("button", { name: "Preview operations", exact: true }).click();
+  await dialog.getByRole("checkbox", { name: /List inventory/ }).check();
+  await dialog.getByRole("checkbox", { name: /Create inventory item/ }).check();
+  await dialog.getByLabel("X-API-Key", { exact: true }).fill("isolated-browser-credential");
+  const importedResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/api-connections") && response.request().method() === "POST");
+  const selectionResponse = page.waitForResponse(response => /\/api-connections\/[^/]+\/operations$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
+  await dialog.getByRole("button", { name: "Save connection", exact: true }).click();
+  const imported = (await (await importedResponse).json()).connection;
+  const selected = await (await selectionResponse).json();
+  expect(imported).not.toHaveProperty("credentials"); expect(imported.credentialSchemes[0].configured).toBe(true);
+  expect(selected.connection.selectedOperationIds).toHaveLength(2); expect(selected.bindings).toHaveLength(2);
+  expect(selected.bindings.every((binding: { transport: string; policy: { approval: string } }) => binding.transport === "native_http" && binding.policy.approval === "exact_single_use")).toBe(true);
+  await expect(dialog).toBeHidden();
+  await page.goto(`${fixture.url}/app/connections`); await page.reload();
+  const connections = page.getByRole("region", { name: "Custom API connections", exact: true });
+  await expect(connections.getByRole("heading", { name: "Acceptance inventory", exact: true })).toBeVisible();
+  await connections.getByRole("button", { name: "Manage operations", exact: true }).click(); dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("checkbox", { name: /List inventory/ })).toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: /Create inventory item/ })).toBeChecked();
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/actual-api-native-operations-${width}.png`), fullPage: true, animations: "disabled" });
+  }
+  await dialog.getByRole("button", { name: "Replace credentials", exact: true }).click();
+  await expect(dialog.getByLabel("X-API-Key", { exact: true })).toHaveValue("");
+  await dialog.getByLabel("X-API-Key", { exact: true }).fill("isolated-browser-replacement");
+  await dialog.getByRole("button", { name: "Replace credentials", exact: true }).click();
+  await expect(dialog.getByRole("checkbox", { name: /List inventory/ })).not.toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: /Create inventory item/ })).not.toBeChecked();
+  await dialog.getByRole("checkbox", { name: /List inventory/ }).check();
+  await dialog.getByRole("button", { name: "Save operations", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const current = await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/api-connections/${imported.id}`);
+  expect(current.status()).toBe(200);
+  const result = (await current.json()).connection;
+  expect(result.selectedOperationIds).toHaveLength(1); expect(result.bindingIds).toHaveLength(1); expect(result.policyRevision).toBeGreaterThan(selected.connection.policyRevision);
+  expect(JSON.stringify(result)).not.toContain("isolated-browser-");
+  expect(await page.evaluate(() => Object.values(sessionStorage).some(value => value.includes("isolated-browser-")))).toBe(false);
+  await connections.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Disconnect", exact: true }).click();
+  await expect(connections.getByText("Disconnected · 1 selected", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]); expect(failures).toEqual([]);
+});

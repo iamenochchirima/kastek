@@ -7,6 +7,7 @@ for(const width of [1440,768,390])test(`mock transport: management and settings 
   const path=new URL(route.request().url()).pathname;
   if(path==="/api/session"){await route.fulfill({json:session});return;}
   if(path.endsWith("/knowledge/sources")){await route.fulfill({json:{sources:[{id:"source",title:"Research notes",state:"active",visibility:"private",generation:1,canApprove:true,revisions:[{id:"revision",revision:1,state:"approved",acquiredAt:"2026-10-18T12:00:00Z"}]}],imports:[]}});return;}
+  if(path.endsWith("/api-connections")){await route.fulfill({json:{connections:[]}});return;}
   if(path.endsWith("/remote-connections")){await route.fulfill({json:{connections:[]}});return;}
   if(path.endsWith("/connections")){await route.fulfill({json:{connections:[],targets:[],profiles:[{id:"public-repository-read-v1",label:"Public repositories",allowedTransports:["native_http"]}]}});return;}
   if(path.endsWith("/automations")){await route.fulfill({json:{automations:[]}});return;}

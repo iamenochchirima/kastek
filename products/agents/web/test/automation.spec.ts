@@ -31,6 +31,9 @@ async function fixture(page: Page, separateActions = false) {
     else if (/\/automations\/daily\/(pause|resume|revoke)$/.test(path)) { automation = { ...automation, revision: Number(automation!.revision) + 1, state: path.endsWith("/pause") ? "paused" : path.endsWith("/resume") ? "active" : "revoked" }; data = { automation }; }
     else if (path.endsWith("/event-key")) data = { key: null, eventUrl: "/api/automation-events/daily", rotated: true };
     else if (path.endsWith("/occurrences")) data = { occurrences: [{ id: "occurrence-one", automationId: "daily", revision: 1, status: "accepted", taskId: "scheduled-task", scheduledAt: new Date().toISOString(), errorCode: null, createdAt: new Date().toISOString() }, { id: "occurrence-two", automationId: "daily", revision: 1, status: "skipped_overlap", taskId: null, scheduledAt: new Date().toISOString(), errorCode: null, createdAt: new Date().toISOString() }] };
+    else if (path.endsWith("/tool-reviews")) data = { reviews: [] };
+    else if (path.endsWith("/api-connections")) data = { connections: [] };
+    else if (path.endsWith("/remote-connections")) data = { connections: [] };
     else if (path.endsWith("/actions")) data = { actions: [action] };
     else if (path.endsWith("/decision")) {
       if (loseDecision) { loseDecision = false; await route.abort("failed"); return; }
