@@ -25,7 +25,10 @@ async function fixture(page: Page, failInitially = false) {
     else if (path.endsWith("/catalogue/tools")) {
       expect(new URL(request.url()).searchParams.get("agentId")).toBe("root");
       if (++calls <= 2 && failInitially) { await route.fulfill({ status: 503, json: { error: { message: "Catalogue temporarily unavailable" } } }); return; }
-      data = { ...toolCatalogue, entries: [...toolCatalogue.entries, github] };
+      data = { ...toolCatalogue, entries: [...toolCatalogue.entries.map(item => {
+        const added = item.configuration.tools.length > 0 && item.configuration.tools.every(id => draft.tools?.includes(id));
+        return { ...item, added, action: added ? { kind: "none" } : item.action };
+      }), github] };
     } else if (path.endsWith("/catalogue/skills")) {
       const entry = { ...catalogueItem("skill:skill1", skill.name), kind: "skill" as const, description: skill.description, publisher: { id: "org", name: "Support", verified: false }, configuration: { tools: [], connectedToolBindingIds: [], skillIds: ["skill1"] }, readiness: { state: reviewed ? "ready" : "unavailable", reasons: reviewed ? [] : [{ code: "REVIEW_REQUIRED", message: "Review required before adding this skill." }] }, action: { kind: reviewed ? "add" : "none" } };
       const curated = { ...catalogueItem("curated:grounded-answers", "Grounded answers"), kind: "skill" as const, source: { kind: "curated" as const, slug: "grounded-answers" }, configuration: { tools: [], connectedToolBindingIds: [], skillIds: curatedInstalled ? ["curated1"] : [] } };
@@ -131,4 +134,13 @@ test("mock transport: curated skill preview installs a real revision into the dr
   await page.getByRole("button", { name: "Save configuration", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
   expect(state.draft().skillIds).toEqual(["curated1"]);
+});
+
+
+test("mock transport: removing a saved tool restores its Add action before catalogue refresh", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/app/agents/root?section=tools");
+  await page.getByRole("button", { name: "Remove Knowledge search", exact: true }).click();
+  await page.getByRole("button", { name: "Add Knowledge search", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Remove Knowledge search", exact: true })).toBeVisible();
 });

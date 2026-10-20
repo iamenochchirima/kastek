@@ -77,10 +77,13 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
   }
   function action(item: CatalogueItem) {
     const added = catalogueItemAdded(item, configuration);
+    const actionKind = item.action.kind === "none" && item.added
+      ? item.readiness.state === "needs_connection" ? "connect" : item.readiness.state === "needs_configuration" ? "configure" : "add"
+      : item.action.kind;
     if (added) return <><span className="catalogue-added"><Check size={13} />Added</span><Button type="button" size="sm" variant="ghost" aria-label={`Remove ${item.name}`} onClick={() => select(item, false)}>Remove</Button></>;
-    if (item.readiness.state === "unavailable" || item.action.kind === "none") return <span className="catalogue-unavailable">Unavailable</span>;
-    if (item.action.kind === "connect" || item.action.kind === "configure" && item.requires.connectionProfiles.length) return <Button type="button" size="sm" variant="outline" aria-label={`${item.action.kind === "connect" ? "Connect" : "Configure"} ${item.name}`} onClick={() => connect(item)}>{item.action.kind === "connect" ? "Connect" : "Configure"}</Button>;
-    if (item.action.kind === "configure") return <Button type="button" size="sm" variant="outline" aria-label={`Configure ${item.name}`} onClick={() => navigate(item.id.includes("knowledge") ? "/app/knowledge" : `/app/agents/${encodeURIComponent(agentId)}?section=configuration`)}>Configure</Button>;
+    if (item.readiness.state === "unavailable" || actionKind === "none") return <span className="catalogue-unavailable">Unavailable</span>;
+    if (actionKind === "connect" || actionKind === "configure" && item.requires.connectionProfiles.length) return <Button type="button" size="sm" variant="outline" aria-label={`${actionKind === "connect" ? "Connect" : "Configure"} ${item.name}`} onClick={() => connect(item)}>{actionKind === "connect" ? "Connect" : "Configure"}</Button>;
+    if (actionKind === "configure") return <Button type="button" size="sm" variant="outline" aria-label={`Configure ${item.name}`} onClick={() => navigate(item.id.includes("knowledge") ? "/app/knowledge" : `/app/agents/${encodeURIComponent(agentId)}?section=configuration`)}>Configure</Button>;
     return <Button type="button" size="sm" variant="outline" aria-label={`Add ${item.name}`} onClick={() => item.source?.kind === "curated" && item.source.slug && !item.configuration.skillIds.length ? setPreview(item) : select(item, true)}>Add</Button>;
   }
   return <section className="agent-catalogue" aria-label={`${title} catalogue`}>
