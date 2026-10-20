@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
-type Fixture = { url: string; organizationId: string; agentId: string; otherAgentId: string; cookie: string };
+type Fixture = { url: string; organizationId: string; agentId: string; otherAgentId: string; bookingAgentId: string; bookingTaskId: string; bookingRequestDigest: string; cookie: string };
 type AgentResponse = { agent: { draft: { skillIds: string[]; tools: string[] }; draftRevision: number }; versions: { id: string; number: number; configuration: { skillIds: string[] } }[] };
 const fixturePath = process.env.AGENTS_CATALOGUE_BROWSER_STATE;
 test.skip(!fixturePath, "Run through the isolated actual API catalogue browser fixture");
@@ -155,4 +155,117 @@ test("actual API: native API operations, private credentials and immutable bindi
   await page.getByRole("alertdialog").getByRole("button", { name: "Disconnect", exact: true }).click();
   await expect(connections.getByText("Disconnected · 1 selected", { exact: true })).toBeVisible();
   expect(errors).toEqual([]); expect(failures).toEqual([]);
+});
+
+test("actual API: skill revision comparison and owner lifecycle persist exact packages", async ({ page, context }) => {
+  const fixture: Fixture = JSON.parse(await readFile(fixturePath!, "utf8"));
+  await context.addCookies([{ name: "agents_session", value: fixture.cookie, url: fixture.url, httpOnly: true, sameSite: "Lax" }]);
+  const errors: string[] = [], failures: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("response", response => { if (new URL(response.url()).pathname.startsWith("/api/") && response.status() >= 400) failures.push(`${response.status()} ${new URL(response.url()).pathname}`); });
+  const path = `${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.otherAgentId}/skills/packages`;
+  const packages = [];
+  for (const body of ["First reviewed instructions.", "Updated reviewed instructions."]) {
+    const response = await page.request.post(path, { headers: { Origin: new URL(fixture.url).origin }, data: { operationId: crypto.randomUUID(), files: [{ path: "SKILL.md", content: `---\nname: lifecycle-replies\ndescription: Review revision lifecycle.\n---\n${body}` }] } });
+    expect(response.status()).toBe(200); const skill = (await response.json()).package; packages.push(skill);
+    const review = await page.request.post(`${path}/${skill.id}/review`, { headers: { Origin: new URL(fixture.url).origin }, data: { contentDigest: skill.contentDigest } }); expect(review.status()).toBe(200);
+  }
+  expect(packages[0].familyId).toMatch(/^[a-f0-9]{64}$/); expect(packages[1].familyId).toBe(packages[0].familyId);
+  await page.goto(`${fixture.url}/app/agents/${fixture.otherAgentId}?section=skills`);
+  await page.getByRole("button", { name: "Available", exact: true }).click();
+  await page.getByRole("button", { name: "lifecycle-replies", exact: true }).first().click();
+  const dialog = page.getByRole("dialog").first();
+  await dialog.getByText("Compare revisions", { exact: true }).click();
+  const options = dialog.getByRole("combobox", { name: "Compare revision" });
+  const candidateId = await options.locator("option").nth(1).getAttribute("value");
+  await options.selectOption(candidateId!); await dialog.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(dialog.getByText("SKILL.md · changed", { exact: false })).toBeVisible();
+  await expect(dialog.getByText("First reviewed instructions.", { exact: false }).last()).toBeVisible();
+  await expect(dialog.getByText("Updated reviewed instructions.", { exact: false }).last()).toBeVisible();
+  await dialog.getByRole("button", { name: "Disable skill", exact: true }).click();
+  await page.getByRole("button", { name: "Disable skill", exact: true }).last().click();
+  await expect(dialog.getByRole("button", { name: "Enable skill", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Enable skill", exact: true }).click();
+  await page.getByRole("button", { name: "Enable skill", exact: true }).last().click();
+  await expect(dialog.getByRole("button", { name: "Disable skill", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Remove skill", exact: true }).click();
+  await page.getByRole("button", { name: "Remove skill", exact: true }).last().click();
+  await expect(dialog.getByText(/Revision .* · removed/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Enable skill", exact: true })).toHaveCount(0);
+  expect((await currentAgent(page, fixture, fixture.otherAgentId)).agent.draft.skillIds).toEqual([]);
+  expect(errors).toEqual([]); expect(failures).toEqual([]);
+});
+
+
+test("actual API with controlled Google provider: sign-in, calendar sharing and explicit booking policy", async ({ page, context }) => {
+  const fixture: Fixture = JSON.parse(await readFile(fixturePath!, "utf8"));
+  await context.addCookies([{ name: "agents_session", value: fixture.cookie, url: fixture.url, httpOnly: true, sameSite: "Lax" }]);
+  const errors: string[] = [], failures: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("response", response => { if (new URL(response.url()).pathname.startsWith("/api/") && response.status() >= 400) failures.push(`${response.status()} ${new URL(response.url()).pathname}`); });
+  // Only the external authorization navigation is simulated. KasiTek APIs and Google HTTP fixture calls are real.
+  await page.route("https://accounts.fixture.test/authorize?*", async route => {
+    const callback = new URL("/api/google-calendar/callback", fixture.url);
+    callback.searchParams.set("state", new URL(route.request().url()).searchParams.get("state")!); callback.searchParams.set("code", "controlled-fixture");
+    await route.fulfill({ status: 302, headers: { location: callback.href }, body: "" });
+  });
+  await page.goto(`${fixture.url}/app/connections?profile=google-calendar-v1`);
+  await page.getByRole("textbox", { name: "Connection name", exact: true }).fill("Acceptance appointments");
+  const createResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/google-calendar/connections") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Connect Google account", exact: true }).click();
+  const connection = (await (await createResponse).json()).connection;
+  await page.waitForURL(url => url.pathname === "/app/connections" && url.searchParams.get("setupStatus") === "connected");
+  const row = page.getByRole("heading", { name: "Acceptance appointments", exact: true }).locator("..");
+  await expect(row).toContainText("Private");
+  await row.getByRole("button", { name: "Choose calendar", exact: true }).click();
+  const calendar = page.getByRole("combobox", { name: "Calendar", exact: true });
+  await calendar.selectOption({ label: "Appointments · Africa/Johannesburg · owner" });
+  await page.getByRole("button", { name: "Save calendar", exact: true }).click();
+  await row.getByRole("button", { name: "Allow customer bookings", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Allow booking service", exact: true }).click();
+  await expect(row).toContainText("Shared with the booking service");
+  await page.reload(); await expect(row).toContainText("Acceptance appointments"); await expect(row).toContainText("Africa/Johannesburg");
+  await page.goto(`${fixture.url}/app/agents/${fixture.bookingAgentId}?section=configuration`);
+  await page.getByRole("button", { name: "New booking policy", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "Booking calendar", exact: true }).selectOption(connection.id);
+  await dialog.getByRole("textbox", { name: "Appointment title", exact: true }).fill("Browser consultation");
+  const policyResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/booking-policies") && response.request().method() === "POST");
+  await dialog.getByRole("button", { name: "Create policy", exact: true }).click();
+  const policy = (await (await policyResponse).json()).policy;
+  expect(policy.definition.timeZone).toBe("Africa/Johannesburg"); expect(policy.definition.connectionId).toBe(connection.id);
+  const before = await (await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.bookingAgentId}`)).json();
+  expect(before.agent.draft.capabilities.businessActions).toEqual({ enabled: false });
+  await page.getByRole("combobox", { name: "Booking policy", exact: true }).selectOption(policy.id);
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.reload(); await expect(page.getByRole("combobox", { name: "Booking policy", exact: true })).toHaveValue(policy.id);
+  const saved = await (await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.bookingAgentId}`)).json();
+  expect(saved.agent.draft.capabilities.businessActions).toEqual({ enabled: true, profileId: "google-calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest });
+  expect(errors).toEqual([]); expect(failures).toEqual([]);
+});
+
+test("actual API with controlled Google provider: exact task appointment requires explicit confirmation", async ({ page, context }) => {
+  const fixture: Fixture = JSON.parse(await readFile(fixturePath!, "utf8"));
+  await context.addCookies([{ name: "agents_session", value: fixture.cookie, url: fixture.url, httpOnly: true, sameSite: "Lax" }]);
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${fixture.url}/app/tasks/${fixture.bookingTaskId}`);
+  const appointments = page.getByRole("region", { name: "Appointments", exact: true });
+  await expect(appointments.getByRole("heading", { name: "Consultation", exact: true })).toBeVisible();
+  await expect(appointments).toContainText("Africa/Johannesburg");
+  await appointments.getByRole("button", { name: "Confirm appointment", exact: true }).click();
+  const decision = page.waitForResponse(response => new URL(response.url()).pathname.includes(`/tasks/${fixture.bookingTaskId}/bookings/`) && response.request().method() === "POST");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirm appointment", exact: true }).click();
+  const response = await decision; expect(response.status()).toBe(200);
+  expect(response.request().postDataJSON()).toEqual({ decision: "approve", requestDigest: fixture.bookingRequestDigest });
+  expect((await response.json()).booking.state).toBe("approved");
+  await expect(appointments.getByText("Confirmed by you", { exact: true })).toBeVisible();
+  await page.reload(); await expect(appointments.getByText("Confirmed by you", { exact: true })).toBeVisible();
+  await expect(appointments.getByRole("button", { name: "Confirm appointment", exact: true })).toHaveCount(0);
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/actual-api-booking-confirmation-${width}.png`), fullPage: true, animations: "disabled" });
+  }
+  expect(errors).toEqual([]);
 });

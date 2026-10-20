@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams, useBlocker } from "react-router-dom";
 import { toast } from "sonner";
+import { flushSync } from "react-dom";
 import { Bot, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { useAgentDirectory } from "./agent-directory";
 import { Chat } from "./chat";
 import { SourceConfiguration } from "./source-configuration";
 import { AgentCatalogue } from "./catalogue";
+import { BookingPolicies } from "./booking-policies";
 
 export function AgentEditor() {
   const { organizationId, session } = useWorkspace();
@@ -40,10 +42,24 @@ export function AgentEditor() {
   useEffect(() => { let live = true; Promise.all([api<{ agent: Agent; versions: Version[]; deployments: Deployment[] }>(path), api<KnowledgeSources>(`${organizationPath(organizationId)}/knowledge/sources`)]).then(([result, sources]) => { if (!live) return; setAgent(result.agent); setConfiguration(result.agent.draft); setName(result.agent.name); setVersions(result.versions); setDeployments(result.deployments); let recoveryVersion = "";
       try { const prefix = `agents.chat.${session.account.id}.${organizationId}.${agentId}.`; for (const key of Object.keys(sessionStorage).filter(key => key.startsWith(prefix) && !key.endsWith(".draft"))) { const value = JSON.parse(sessionStorage.getItem(key) ?? "null"); if (Array.isArray(value)) { const pending = value.find(entry => entry.requestKey && !entry.task); if (pending?.versionId) { recoveryVersion = pending.versionId; break; } } } } catch { /* Continue with server-backed history. */ }
       setSelectedVersion(result.versions.some(version => version.id === recoveryVersion) ? recoveryVersion : result.versions[0]?.id ?? ""); setKnowledge(sources.sources); }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, organizationId, agentId, session.account.id]);
+  const latestDraft = useRef({ name, configuration }); latestDraft.current = { name, configuration };
   const dirty = Boolean(agent && configuration && (name !== agent.name || JSON.stringify(configuration) !== JSON.stringify(agent.draft)));
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
   async function save(event: FormEvent) { event.preventDefault(); if (!agent || !configuration) return; setBusy(true); setError(""); try { const result = await api<{ agent: Agent }>(path, { name, configuration, expectedRevision: agent.draftRevision }, "PUT"); setAgent(result.agent); setConfiguration(result.agent.draft); refresh(); toast.success("Configuration saved"); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
+  async function beforeConnect() {
+    if (!agent || !configuration || busy) return false;
+    if (!dirty) return true;
+    const snapshot = JSON.stringify({ name, configuration }); setBusy(true); setError("");
+    try {
+      const result = await api<{ agent: Agent }>(path, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
+      if (JSON.stringify(latestDraft.current) !== snapshot) {
+        setAgent(result.agent); refresh(); throw new Error("You have more unsaved changes. Connect again to save them.");
+      }
+      flushSync(() => { setAgent(result.agent); setName(result.agent.name); setConfiguration(result.agent.draft); }); refresh();
+      return true;
+    } finally { setBusy(false); }
+  }
   async function createVersion() { if (!agent) return; setBusy(true); setError(""); try { const { version } = await api<{ version: Version }>(`${path}/versions`, { expectedRevision: agent.draftRevision }); setVersions(current => [version, ...current]); setSelectedVersion(version.id); refresh(); toast.success("Version created"); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
   const embedCode = (deployment: Deployment) => `<script async src="${window.location.origin}/api/website/${deployment.id}/widget.js"></script>`;
   async function copyEmbed(deployment: Deployment) { try { await navigator.clipboard.writeText(embedCode(deployment)); toast.success("Embed code copied"); } catch { toast.error("Copy the embed code manually"); } }
@@ -58,10 +74,11 @@ export function AgentEditor() {
     {section === "configuration" ? <form className="max-w-2xl space-y-6" onSubmit={event => void save(event)}>
       <label className="block space-y-2 text-sm font-medium">Name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
       <label className="block space-y-2 text-sm font-medium">Instructions<Textarea required maxLength={8_000} rows={7} value={configuration.instructions} onChange={event => setConfiguration({ ...configuration, instructions: event.target.value })} /></label>
+      {agent.offering === "booking" || agent.offering === "customer-service" || configuration.capabilities.businessActions.enabled || searchParams.get("setup") === "booking" ? <BookingPolicies agentId={agent.id} configuration={configuration} onChange={setConfiguration} /> : null}
       <SourceConfiguration sources={knowledge} configuration={configuration} onChange={setConfiguration} />
       <details className="rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Model and limits</summary><div className="mt-4 space-y-4"><p className="break-all text-xs text-muted-foreground">{configuration.model.model}</p><label className="block space-y-2">Maximum reply tokens<Input type="number" min={1} max={1024} required value={configuration.model.maxOutputTokens} onChange={event => setConfiguration({ ...configuration, model: { ...configuration.model, maxOutputTokens: Number(event.target.value) } })} /></label><p className="text-xs text-muted-foreground">{configuration.context?.maxInputTokens ?? 8192} context tokens · {configuration.model.maxDurationSeconds} seconds per model call</p></div></details>
       <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save configuration"}</Button><Button type="button" variant="outline" onClick={() => void createVersion()} disabled={dirty || busy}>Create version</Button></div>
-    </form> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} kind={section} configuration={configuration} onChange={setConfiguration} /><form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save configuration"}</Button><Button type="button" variant="outline" onClick={() => void createVersion()} disabled={dirty || busy}>Create version</Button></form></> : <div className="max-w-2xl space-y-5">      {dirty ? <p role="status" className="text-sm text-muted-foreground">Save your configuration to create a new version.</p> : null}
+    </form> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} kind={section} configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /><form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save configuration"}</Button><Button type="button" variant="outline" onClick={() => void createVersion()} disabled={dirty || busy}>Create version</Button></form></> : <div className="max-w-2xl space-y-5">      {dirty ? <p role="status" className="text-sm text-muted-foreground">Save your configuration to create a new version.</p> : null}
       <><Button disabled={!selected || busy} onClick={() => setPublishOpen(true)}>Publish website</Button>{deployments.length ? <div className="divide-y divide-border rounded-lg border border-border">{deployments.map(deployment => <div key={deployment.id} className="space-y-2 p-4"><p className="text-sm font-medium">Version {versions.find(version => version.id === deployment.versionId)?.number ?? ""}</p><p className="break-all text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ")}</p><a href={`/chat/${deployment.id}`} target="_blank" rel="noreferrer" className="inline-block text-sm underline underline-offset-4">Open website chat</a><details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Embed code</summary><code className="mt-3 block whitespace-pre-wrap break-all rounded-md bg-muted p-3">{embedCode(deployment)}</code><Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void copyEmbed(deployment)}>Copy embed code</Button></details></div>)}</div> : null}</>
     </div>}
     </>}

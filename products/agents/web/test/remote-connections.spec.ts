@@ -13,6 +13,7 @@ async function fixture(page: Page, mode: "tools" | "empty" | "oauth" | "failure"
     const request = route.request(), path = new URL(request.url()).pathname;
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Research", role: "owner" }] };
+    else if (path.endsWith("/connectors")) data = { connectors: [] };
     else if (path.endsWith("/connections")) data = { connections: [], targets: [], profiles: [{ id: "github-public-read-v1", label: "GitHub", allowedTransports: ["native_http"] }] };
     else if (path.endsWith("/api-connections")) data = { connections: [] };
     else if (path.endsWith("/remote-connections")) {
@@ -193,4 +194,27 @@ test("mock transport: reconnect fences old tools and requires an explicit new ke
   await expect(dialog.getByText("Added tools · 1", { exact: true })).toHaveCount(0);
   expect(state.credentialUpdates).toHaveLength(1);
   expect(state.credentialUpdates[0]).toMatchObject({ generation: 4, authentication: "header", headerName: "X-API-Key", secret: "replacement_remote_secret" });
+});
+
+test("mock transport: a registry MCP record pre-fills the shared setup and selects discovered tools", async ({ page }) => {
+  const state = await fixture(page);
+  await page.route("**/connectors", route => route.fulfill({ json: { connectors: [
+    { id: "other-record", name: "Other provider", description: "Another configured integration.", profileId: "remote-mcp-v1", connectionDefaults: { endpoint: "https://other.example.test/mcp", authentication: "auto" }, readiness: { available: true, reasons: [] } },
+    { id: "fixture-alpha", name: "Record supplied tools", description: "A configured document integration.", profileId: "remote-mcp-v1", connectionDefaults: { endpoint: "https://mcp.record.example.test/tools", authentication: "none" }, readiness: { available: true, reasons: [] } },
+  ] } }));
+  await page.goto("/app/connections?profile=remote-mcp-v1&connector=fixture-alpha");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Connect MCP server", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Server URL", exact: true })).toHaveValue("https://mcp.record.example.test/tools");
+  await dialog.getByText("Advanced", { exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Record supplied tools");
+  await expect(dialog.getByRole("combobox", { name: "Authentication", exact: true })).toHaveValue("none");
+  await expect(dialog.locator("textarea")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Tools · 1", exact: true })).toBeVisible();
+  expect(state.submitted[0]).toMatchObject({ name: "Record supplied tools", endpoint: "https://mcp.record.example.test/tools", authentication: "none" });
+  expect(state.submitted[0]).not.toHaveProperty("secret"); expect(state.discoveries()).toBe(1);
+  await dialog.getByRole("checkbox", { name: /search documents/ }).check();
+  await dialog.getByRole("button", { name: "Add tools", exact: true }).click();
+  await expect(dialog).toBeHidden(); expect(state.toolSelections).toHaveLength(1); expect(state.errors).toEqual([]);
 });

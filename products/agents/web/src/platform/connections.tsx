@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { RemoteConnections } from "./remote-connections";
 import { ApiConnections } from "./api-connections";
+import { SupportedConnections } from "./supported-connections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -15,13 +16,13 @@ type ConnectionDialog = { kind: "create" | "rotate" | "revoke"; connection?: Con
 const repositoryProfile = (profile?: ConnectionProfile["id"]) => profile === "github-public-read-v1" || profile === "public-repository-read-v1";
 const operationLabel = (value: string) => value.replaceAll("_", " ").replace(/^./, letter => letter.toUpperCase());
 export function ConnectionsPage() {
-  const { organizationId } = useWorkspace(), path = `${organizationPath(organizationId)}/connections`;
+  const { organizationId, session } = useWorkspace(), path = `${organizationPath(organizationId)}/connections`;
   const [searchParams] = useSearchParams();
   const requestedProfile = searchParams.get("profile");
   const requestedReturn = searchParams.get("returnTo");
   const returnTo = requestedReturn?.startsWith("/app/agents/") && !requestedReturn.includes("\\") ? requestedReturn : null;
-  const [apiOpen, setApiOpen] = useState(requestedProfile === "custom-api");
-  const [remoteOpen, setRemoteOpen] = useState(requestedProfile === "custom-mcp");
+  const [apiOpen, setApiOpen] = useState(requestedProfile === "custom-api" || requestedProfile === "custom-api-v1" && !searchParams.get("setup"));
+  const [remoteOpen, setRemoteOpen] = useState(requestedProfile === "custom-mcp" || requestedProfile === "remote-mcp-v1" && !searchParams.get("setup"));
   const handledProfile = useRef("");
   const [data, setData] = useState<ConnectionList | null>(null), [dialog, setDialog] = useState<ConnectionDialog | null>(null);
   const [tools, setTools] = useState<Connection | null>(null), [profileId, setProfileId] = useState<ConnectionProfile["id"]>("github-public-read-v1");
@@ -72,6 +73,7 @@ export function ConnectionsPage() {
       const expired = new Date(connection.expiresAt).getTime() <= Date.now();
       return <div key={connection.id} className="management-row flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 space-y-1"><h2 className="break-words font-medium">{connection.name}</h2><p className="break-words text-sm text-muted-foreground">{connection.targetLabel}{repositoryProfile(connection.profileId) ? ` · ${connection.selections?.length ?? 0} ${(connection.selections?.length ?? 0) === 1 ? "repository" : "repositories"}` : connection.profileId === "stash-read-v1" ? ` · ${connection.stashItemIds?.length ?? 0} ${(connection.stashItemIds?.length ?? 0) === 1 ? "item" : "items"}` : ` · ${connection.resource}`}</p>{connection.selections?.length ? <p className="max-w-xl break-words text-xs text-muted-foreground">{connection.selections.map(selection => `${selection.owner}/${selection.repository}`).join(", ")}</p> : null}<p className="text-xs text-muted-foreground">{connection.state === "revoked" ? "Revoked" : expired ? "Expired" : `Expires ${new Date(connection.expiresAt).toLocaleString()}`}</p></div>{connection.state === "active" ? <div className="flex flex-wrap gap-2">{(repositoryProfile(connection.profileId) || connection.profileId === "stash-read-v1") && !expired ? <Button size="sm" variant="outline" onClick={() => setTools(connection)}>Manage tools</Button> : null}{connection.profileId !== "public-repository-read-v1" && connection.authentication !== "none" ? <Button size="sm" variant="outline" onClick={() => open("rotate", connection)}>Replace key</Button> : null}<Button size="sm" variant="ghost" onClick={() => open("revoke", connection)}>Revoke</Button></div> : null}</div>;
     }) : <p className="management-empty">No provider connections</p>}</div> : null}
+    <SupportedConnections organizationPath={organizationPath(organizationId)} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} />
     <ApiConnections path={`${organizationPath(organizationId)}/api-connections`} createOpen={apiOpen} onCreateOpenChange={setApiOpen} setupId={requestedProfile === "custom-api-v1" ? searchParams.get("setup") : null} />
     <RemoteConnections path={`${organizationPath(organizationId)}/remote-connections`} createOpen={remoteOpen} onCreateOpenChange={setRemoteOpen} />
     <Dialog open={Boolean(dialog)} onOpenChange={value => { if (!value) close(); }}><DialogContent showCloseButton={!busy}><DialogHeader><DialogTitle>{dialog?.kind === "create" ? "Add connection" : dialog?.kind === "rotate" ? "Replace key" : "Revoke connection"}</DialogTitle><DialogDescription>{dialog?.kind === "revoke" ? "Future use will be blocked. A delivery already claimed may still finish." : dialog?.kind === "rotate" ? stash ? "The approved items stay the same." : "The approved resources stay the same. Pending report reviews will need a new review." : publicRepository ? "Read only the approved public repositories." : stash ? "Read only the approved Stash items." : github ? "Use a fine-grained token limited to public repositories." : "Choose an approved destination."}</DialogDescription></DialogHeader><form onSubmit={event => void save(event)} className="space-y-4"><ErrorMessage value={error} />

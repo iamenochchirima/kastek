@@ -18,6 +18,7 @@ async function fixture(page: Page, separateActions = false) {
     if (body) requests.push({ path, body });
     let data: unknown;
     if (path === "/api/session") data = { account: { id: account, email: "reviewer@example.test", displayName: "Reviewer" }, organizations: [{ id: org, name: "Research", role: "owner" }] };
+    else if (path.endsWith("/connectors")) data = { connectors: [] };
     else if (path.endsWith("/connections") && method === "GET") data = { connections, targets: [{ id: "reports", label: "Reports", resource: "daily-reports" }] };
     else if (path.endsWith("/connections") && method === "POST") { connections = [...connections, { ...connection, id: "new-connection", name: String(body!.name) }]; data = { connection: connections[1] }; }
     else if (path.includes("/connections/") && method === "POST") {

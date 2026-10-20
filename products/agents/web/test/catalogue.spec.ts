@@ -16,6 +16,7 @@ async function fixture(page: Page, failInitially = false) {
     const request = route.request(), path = new URL(request.url()).pathname;
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Support", role: "owner" }] };
+    else if (path.endsWith("/connectors")) data = { connectors: [] };
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
     else if (path.endsWith("/agents/root")) {
       if (request.method() === "PUT") { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; }
@@ -143,4 +144,117 @@ test("mock transport: removing a saved tool restores its Add action before catal
   await page.getByRole("button", { name: "Remove Knowledge search", exact: true }).click();
   await page.getByRole("button", { name: "Add Knowledge search", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove Knowledge search", exact: true })).toBeVisible();
+});
+
+test("mock transport: repository import pins an exact commit and preserves input on failure", async ({ page }) => {
+  await fixture(page);
+  let calls = 0;
+  await page.route("**/skills/packages/repository", async route => {
+    const body = route.request().postDataJSON(); calls++;
+    expect(body).toMatchObject({ repository: "example/skills", commit: "a".repeat(40), path: "skills/replies" }); expect(body.operationId).toBeTruthy();
+    await route.fulfill({ status: 400, json: { error: { message: "This commit does not contain a skill package." } } });
+  });
+  await page.goto("/app/agents/root?section=skills");
+  await page.getByRole("button", { name: "Import skill", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "Skill source" }).selectOption("repository");
+  await dialog.getByRole("textbox", { name: "Repository", exact: true }).fill("example/skills");
+  await dialog.getByRole("textbox", { name: "Commit SHA" }).fill("a".repeat(40));
+  await dialog.getByRole("textbox", { name: "Package path" }).fill("skills/replies");
+  await dialog.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(dialog.getByText("This commit does not contain a skill package.")).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Commit SHA" })).toHaveValue("a".repeat(40));
+  expect(calls).toBe(1);
+});
+
+test("mock transport: skill rollback replaces only the same publisher and source family draft", async ({ page }) => {
+  const state = await fixture(page);
+  const skill = (id: string, revision: number, familyId: string): SkillPackage => ({ id, name: "support-writing", description: "Write concise replies.", revision, familyId, contentDigest: id, compatibility: null, reviewState: "reviewed", state: "enabled", generation: 1, createdAt: "2026-10-20T00:00:00Z", files: [{ path: "SKILL.md", size: 3, contentDigest: id }], requires: { connectionProfiles: [], permissions: [], runtimes: [] } });
+  const packages = [skill("new", 2, "familyA"), skill("old", 1, "familyA"), skill("other", 1, "familyB")];
+  await page.route("**/catalogue/skills?*", route => route.fulfill({ json: { ...toolCatalogue, entries: packages.map(pkg => ({ ...catalogueItem(`skill:${pkg.id}`, pkg.name), familyId: pkg.familyId, kind: "skill", configuration: { tools: [], connectedToolBindingIds: [], skillIds: [pkg.id] } })) } }));
+  await page.route("**/skills/packages**", route => {
+    const url = new URL(route.request().url());
+    const data = url.pathname.endsWith("/compare") ? { before: packages[0], after: packages[1], files: [{ path: "SKILL.md", change: "changed", beforeBytes: 4, afterBytes: 3 }], instructions: { before: "New instructions", after: "Old reviewed instructions" }, requirements: { before: packages[0].requires, after: packages[1].requires } } : url.pathname.endsWith("/new") ? { package: packages[0], body: "New instructions" } : { packages };
+    return route.fulfill({ json: data });
+  });
+  await page.goto("/app/agents/root?section=skills");
+  const rows = page.getByRole("article");
+  await rows.nth(0).getByRole("button", { name: "Add support-writing", exact: true }).click();
+  await rows.nth(2).getByRole("button", { name: "Add support-writing", exact: true }).click();
+  await rows.nth(0).getByRole("button", { name: "support-writing", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByText("Compare revisions", { exact: true }).click();
+  await dialog.getByRole("combobox", { name: "Compare revision" }).selectOption("old");
+  expect(await dialog.getByRole("combobox", { name: "Compare revision" }).locator("option").count()).toBe(2);
+  await dialog.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(dialog.getByText("Old reviewed instructions")).toBeVisible();
+  await dialog.getByRole("button", { name: "Use revision 1", exact: true }).click();
+  expect(state.draft().skillIds).toEqual([]);
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  expect(state.draft().skillIds).toEqual(["other", "old"]);
+});
+
+for (const saveFails of [false, true]) test(`mock transport: Connect ${saveFails ? "preserves the draft when save fails" : "saves the current draft before opening its exact connection"}`, async ({ page }) => {
+  const state = await fixture(page);
+  const connection = { ...catalogueItem("connection:remote1", "Support tools"), kind: "mcp", recommended: true, requires: { connectionProfiles: ["remote-mcp-v1"], permissions: [] }, readiness: { state: "needs_connection", reasons: [] }, action: { kind: "connect", connectionProfileId: "remote-mcp-v1", connectionId: "remote1" } };
+  await page.route("**/catalogue/tools?*", route => route.fulfill({ json: { ...toolCatalogue, entries: [...toolCatalogue.entries, connection] } }));
+  if (saveFails) await page.route("**/agents/root", route => route.request().method() === "PUT" ? route.fulfill({ status: 409, json: { error: { message: "The agent changed. Review your draft before saving." } } }) : route.fallback());
+  for (const suffix of ["connections", "remote-connections", "api-connections"]) await page.route(`**/organizations/org/${suffix}`, route => route.fulfill({ json: suffix === "connections" ? { connections: [], targets: [], profiles: [] } : { connections: [] } }));
+  await page.goto("/app/agents/root?section=tools");
+  await page.getByRole("button", { name: "Add Human support", exact: true }).click();
+  await page.getByRole("button", { name: "Connect Support tools", exact: true }).click();
+  if (saveFails) {
+    await expect(page.getByText("The agent changed. Review your draft before saving.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeEnabled();
+    expect(new URL(page.url()).pathname).toBe("/app/agents/root"); expect(state.draft().tools).not.toContain("channel.request_handoff");
+  } else {
+    await page.waitForURL(url => url.pathname === "/app/connections");
+    const url = new URL(page.url()); expect(url.searchParams.get("setup")).toBe("remote1"); expect(url.searchParams.get("returnTo")).toBe("/app/agents/root?section=tools");
+    expect(state.draft().tools).toContain("channel.request_handoff");
+  }
+  await expect(page.getByRole("alertdialog")).toHaveCount(0); expect(state.errors).toEqual([]);
+});
+
+test("mock transport: Connect preserves newer selections made during its draft save", async ({ page }) => {
+  const state = await fixture(page);
+  let releaseSave!: () => void, saveStarted = false;
+  const gate = new Promise<void>(resolve => { releaseSave = resolve; });
+  await page.route("**/agents/root", async route => { if (route.request().method() === "PUT" && !saveStarted) { saveStarted = true; await gate; } await route.fallback(); });
+  await page.route("**/catalogue/tools?*", route => route.fulfill({ json: { ...toolCatalogue, entries: [...toolCatalogue.entries, { ...catalogueItem("remote", "Support tools"), recommended: true, requires: { connectionProfiles: ["remote-mcp-v1"], permissions: [] }, readiness: { state: "needs_connection", reasons: [] }, action: { kind: "connect", connectionProfileId: "remote-mcp-v1" } }] } }));
+  await page.goto("/app/agents/root?section=tools");
+  await page.getByRole("button", { name: "Add Human support", exact: true }).click();
+  await page.getByRole("button", { name: "Connect Support tools", exact: true }).click();
+  await expect.poll(() => saveStarted).toBe(true);
+  await page.getByRole("button", { name: "Remove Knowledge search", exact: true }).click(); releaseSave();
+  await expect(page.getByText("You have more unsaved changes. Connect again to save them.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Knowledge search", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/app/agents/root");
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  expect(state.draft().tools).toContain("channel.request_handoff"); expect(state.draft().tools).not.toContain("knowledge.search");
+});
+
+test("mock transport: Google Calendar removal edits only the booking policy draft and Configure opens General", async ({ page }) => {
+  const state = await fixture(page);
+  const draft = { ...structuredClone(configuration), capabilities: { ...configuration.capabilities, businessActions: { enabled: true, profileId: "google-calendar-booking-v1", policyId: "policy1", policyDigest: "policy-digest" } } };
+  await page.route("**/agents/root", route => route.request().method() === "GET" ? route.fulfill({ json: { agent: { id: "root", name: "Customer support", offering: "faq", draft, draftRevision: 1 }, versions: [], deployments: [] } }) : route.fallback());
+  await page.route("**/catalogue/tools?*", route => route.fulfill({ json: { ...toolCatalogue, entries: [{ ...catalogueItem("google-calendar", "Google Calendar"), selection:{kind:"capability",capability:"businessActions",profileId:"google-calendar-booking-v1",setup:"booking"}, added: true, requires: { connectionProfiles: ["google-calendar-v1"], permissions: [] }, readiness: { state: "needs_configuration", reasons: [] }, action: { kind: "configure", connectionProfileId: "google-calendar-v1", configurationSection: "configuration",configurationSetup:"booking" } }] } }));
+  await page.route("**/booking-policies", route => route.fulfill({ json: { policies: [] } }));
+  await page.route("**/google-calendar/connections", route => route.fulfill({ json: { connections: [] } }));
+  await page.goto("/app/agents/root?section=tools");
+  await expect(page.getByRole("button", { name: "Configure Google Calendar", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Remove Google Calendar", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Remove Google Calendar", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Google Calendar", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Configure Google Calendar", exact: true }).click();
+  expect(new URL(page.url()).searchParams.get("section")).toBe("configuration"); expect(new URL(page.url()).searchParams.get("setup")).toBe("booking");
+  await expect(page.getByRole("region", { name: "Booking policy", exact: true })).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  expect(state.draft().capabilities.businessActions).toEqual({ enabled: false });
+  expect(state.draft().tools).toEqual(configuration.tools); expect(state.draft().connectedToolBindingIds).toEqual([]);
 });

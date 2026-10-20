@@ -20,7 +20,8 @@ function connectionError(connection: RemoteConnection) {
 export function RemoteConnections({ path, createOpen, onCreateOpenChange }: { path: string; createOpen: boolean; onCreateOpenChange: (value: boolean) => void }) {
   const { confirm } = useConfirmationDialog();
   const [searchParams] = useSearchParams();
-  const setupId = searchParams.get("profile") === "custom-api-v1" ? null : searchParams.get("setup");
+  const setupProfile = searchParams.get("profile");
+  const setupId = !setupProfile || setupProfile === "remote-mcp-v1" ? searchParams.get("setup") : null;
   const [connections, setConnections] = useState<RemoteConnection[] | null>(null);
   const connectionsPath = path.replace(/\/remote-connections$/, "/connections");
   const bindingsPath = path.replace(/\/remote-connections$/, "/tool-bindings");
@@ -34,6 +35,14 @@ export function RemoteConnections({ path, createOpen, onCreateOpenChange }: { pa
   const submitting = useRef(false);
   const [name, setName] = useState(""), [endpoint, setEndpoint] = useState("");
   const [authentication, setAuthentication] = useState<RemoteConnection["authentication"]>("auto");
+  const connectorId=searchParams.get("connector");
+  useEffect(()=>{
+    if(!connectorId||!createOpen)return;let live=true;
+    api<{connectors:{id:string;name:string;profileId:string;connectionDefaults?:{endpoint:string;authentication:RemoteConnection["authentication"]}}[]}>(path.replace(/\/remote-connections$/,"/connectors")).then(result=>{
+      const record=result.connectors.find(item=>item.id===connectorId&&item.profileId==="remote-mcp-v1");
+      if(live&&record?.connectionDefaults){setName(current=>current||record.name);setEndpoint(current=>current||record.connectionDefaults!.endpoint);setAuthentication(current=>current==="auto"?record.connectionDefaults!.authentication:current);}
+    }).catch(error=>{if(live)setFormError(message(error));});return()=>{live=false;};
+  },[connectorId,createOpen,path]);
   const [secret, setSecret] = useState(""), [headerName, setHeaderName] = useState("");
   const [oauthClient, setOauthClient] = useState({ issuer: "", clientId: "", clientSecret: "", authMethod: "none" });
   const [operationId, setOperationId] = useState(crypto.randomUUID());

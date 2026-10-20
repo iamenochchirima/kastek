@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, Check, FileText, GitBranch, Headphones, Plug, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,11 @@ import "./catalogue.css";
 
 type CatalogueProps = {
   organizationId: string; agentId: string; kind: "tools" | "skills";
-  configuration: Configuration; onChange: (value: Configuration) => void;
+  configuration: Configuration; onChange: (value: Configuration) => void; onBeforeConnect?: () => Promise<boolean>;
 };
 
 export function catalogueItemAdded(item: CatalogueItem, configuration: Configuration) {
+  if (item.selection?.kind === "capability") return configuration.capabilities.businessActions.enabled && configuration.capabilities.businessActions.profileId === item.selection.profileId;
   const selection = item.configuration;
   const ids = [...selection.tools, ...selection.connectedToolBindingIds, ...selection.skillIds];
   return ids.length > 0 && selection.tools.every(id => configuration.tools?.includes(id)) &&
@@ -28,8 +29,10 @@ function CatalogueIcon({ item }: { item: CatalogueItem }) {
   return <span className="catalogue-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.6} /></span>;
 }
 
-export function AgentCatalogue({ organizationId, agentId, kind, configuration, onChange }: CatalogueProps) {
+export function AgentCatalogue({ organizationId, agentId, kind, configuration, onChange, onBeforeConnect }: CatalogueProps) {
   const navigate = useNavigate();
+  const connectionLock = useRef(false);
+  const [connecting, setConnecting] = useState(false);
   const { session } = useWorkspace();
   const canReview = session.organizations.find(organization => organization.id === organizationId)?.role === "owner";
   const skillsPath = `${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}/skills/packages`;
@@ -49,20 +52,27 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
   }, [path, attempt]);
 
   function select(item: CatalogueItem, add: boolean) {
+    if (item.selection?.kind === "capability") { if (!add) onChange({ ...configuration, capabilities: { ...configuration.capabilities, businessActions: { enabled: false } } }); return; }
     const selected = item.configuration;
     onChange({ ...configuration,
       tools: add ? [...new Set([...(configuration.tools ?? []), ...selected.tools])] : (configuration.tools ?? []).filter(id => !selected.tools.includes(id)),
       connectedToolBindingIds: add ? [...new Set([...(configuration.connectedToolBindingIds ?? []), ...selected.connectedToolBindingIds])] : (configuration.connectedToolBindingIds ?? []).filter(id => !selected.connectedToolBindingIds.includes(id)),
-      skillIds: add ? [...new Set([...(configuration.skillIds ?? []), ...selected.skillIds])] : (configuration.skillIds ?? []).filter(id => !selected.skillIds.includes(id)),
+      skillIds: add ? [...new Set([...(configuration.skillIds ?? []).filter(id => !item.familyId || !(data?.entries ?? []).some(sibling => sibling.familyId === item.familyId && sibling.id !== item.id && sibling.configuration.skillIds.includes(id))), ...selected.skillIds])] : (configuration.skillIds ?? []).filter(id => !selected.skillIds.includes(id)),
     });
   }
-  function connect(item: CatalogueItem) {
+  async function connect(item: CatalogueItem) {
+    if (connectionLock.current) return;
+    connectionLock.current = true; setConnecting(true); setError("");
+    try {
+      if (onBeforeConnect && !await onBeforeConnect()) return;
     const returnTo = `/app/agents/${encodeURIComponent(agentId)}?section=${kind}`;
     const params = new URLSearchParams({ returnTo });
     const profile = item.action.connectionProfileId ?? item.requires.connectionProfiles[0];
     if (profile) params.set("profile", profile);
+    if(item.connectorId) params.set("connector",item.connectorId);
     if (item.action.connectionId) params.set("setup", item.action.connectionId);
     navigate(`/app/connections?${params}`);
+    } catch (e) { setError(message(e)); } finally { connectionLock.current = false; setConnecting(false); }
   }
   const needle = query.trim().toLocaleLowerCase();
   const entries = data?.entries.filter(item => (view === "available" || view === "recommended" && item.recommended || view === "added" && catalogueItemAdded(item, configuration)) &&
@@ -73,7 +83,7 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
 
   function installed(skill: SkillPackage) {
     setPreview(null); setAttempt(value => value + 1);
-    if (skill.reviewState === "reviewed") onChange({ ...configuration, skillIds: [...new Set([...(configuration.skillIds ?? []), skill.id])] });
+    if (skill.reviewState === "reviewed") onChange({ ...configuration, skillIds: [...new Set([...(configuration.skillIds ?? []).filter(id => !skill.familyId || !(data?.entries ?? []).some(sibling => sibling.familyId === skill.familyId && sibling.configuration.skillIds.includes(id))), skill.id])] });
     else setPackageId(skill.id);
   }
   function action(item: CatalogueItem) {
@@ -81,9 +91,10 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
     const actionKind = item.action.kind === "none" && item.added
       ? item.readiness.state === "needs_connection" ? "connect" : item.readiness.state === "needs_configuration" ? "configure" : "add"
       : item.action.kind;
-    if (added) return <><span className="catalogue-added"><Check size={13} />Added</span><Button type="button" size="sm" variant="ghost" aria-label={`Remove ${item.name}`} onClick={() => select(item, false)}>Remove</Button></>;
+    if (added) return <>{item.action.configurationSection === "configuration" ? <Button type="button" size="sm" variant="outline" aria-label={`Configure ${item.name}`} onClick={() => navigate(`/app/agents/${encodeURIComponent(agentId)}?section=configuration${item.action.configurationSetup ? `&setup=${encodeURIComponent(item.action.configurationSetup)}` : ""}`)}>Configure</Button> : null}<span className="catalogue-added"><Check size={13} />Added</span><Button type="button" size="sm" variant="ghost" aria-label={`Remove ${item.name}`} onClick={() => select(item, false)}>Remove</Button></>;
     if (item.readiness.state === "unavailable" || actionKind === "none") return <span className="catalogue-unavailable">Unavailable</span>;
-    if (actionKind === "connect" || actionKind === "configure" && item.requires.connectionProfiles.length) return <Button type="button" size="sm" variant="outline" aria-label={`${actionKind === "connect" ? "Connect" : "Configure"} ${item.name}`} onClick={() => connect(item)}>{actionKind === "connect" ? "Connect" : "Configure"}</Button>;
+    if (actionKind === "configure" && item.action.configurationSection === "configuration") return <Button type="button" size="sm" variant="outline" aria-label={`Configure ${item.name}`} onClick={() => navigate(`/app/agents/${encodeURIComponent(agentId)}?section=configuration${item.action.configurationSetup ? `&setup=${encodeURIComponent(item.action.configurationSetup)}` : ""}`)}>Configure</Button>;
+    if (actionKind === "connect" || actionKind === "configure" && item.requires.connectionProfiles.length) return <Button type="button" size="sm" variant="outline" aria-label={`${actionKind === "connect" ? "Connect" : "Configure"} ${item.name}`} disabled={connecting} onClick={() => void connect(item)}>{actionKind === "connect" ? "Connect" : "Configure"}</Button>;
     if (actionKind === "configure") return <Button type="button" size="sm" variant="outline" aria-label={`Configure ${item.name}`} onClick={() => navigate(item.id.includes("knowledge") ? "/app/knowledge" : `/app/agents/${encodeURIComponent(agentId)}?section=configuration`)}>Configure</Button>;
     return <Button type="button" size="sm" variant="outline" aria-label={`Add ${item.name}`} onClick={() => item.source?.kind === "curated" && item.source.slug && !item.configuration.skillIds.length ? setPreview(item) : select(item, true)}>Add</Button>;
   }
@@ -94,7 +105,11 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
     {!data && !error ? <Loading /> : data ? <div className="catalogue-list">{entries.length ? entries.map(item => <article className="catalogue-row" key={item.id}>
       <CatalogueIcon item={item} /><div className="catalogue-details"><h2>{kind === "skills" ? <button type="button" className="catalogue-preview-trigger" onClick={() => { const id = item.configuration.skillIds[0]; if (id) setPackageId(id); else setPreview(item); }}>{item.name}</button> : item.name}</h2><p>{item.description}</p><span className="catalogue-publisher">{item.publisher.name}</span>{item.readiness.state !== "ready" && item.readiness.reasons.length ? <p className="catalogue-readiness">{item.readiness.reasons.map(reason => reason.message).join(" ")}</p> : null}</div><div className="catalogue-actions">{action(item)}</div>
     </article>) : <div className="catalogue-empty"><p>{needle ? `No ${kind} match your search` : view === "added" ? `No ${kind} added` : `No ${view} ${kind}`}</p>{!needle && view !== "available" ? <Button type="button" size="sm" variant="outline" onClick={() => setView("available")}>Browse {kind}</Button> : null}</div>}</div> : null}
-    {packageId ? <SkillPreview key={packageId} path={skillsPath} id={packageId} canReview={canReview} onReviewed={() => setAttempt(value => value + 1)} close={() => setPackageId(null)} /> : null}
+    {packageId ? <SkillPreview key={packageId} path={skillsPath} id={packageId} canReview={canReview} onReviewed={() => setAttempt(value => value + 1)} onUseRevision={skill => {
+      const entry = data?.entries.find(item => item.configuration.skillIds.includes(skill.id));
+      if (!entry || entry.readiness.state !== "ready") { setError("This revision is unavailable. Check its requirements and refresh the catalogue."); setPackageId(null); setAttempt(value => value + 1); return; }
+      select(entry, true); setPackageId(null);
+    }} close={() => setPackageId(null)} /> : null}
     {preview?.source?.kind === "curated" && preview.source.slug ? <CuratedSkillPreview key={preview.source.slug} path={`${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}/skills/curated`} slug={preview.source.slug} onInstalled={installed} close={() => setPreview(null)} /> : null}
     <Dialog open={Boolean(preview && preview.source?.kind !== "curated")} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent><DialogHeader><DialogTitle>{preview?.name}</DialogTitle><DialogDescription>{preview?.description}</DialogDescription></DialogHeader>{preview ? <><p className="text-xs text-muted-foreground">{preview.publisher.name}</p>{preview.readiness.reasons.map(reason => <p className="text-sm text-muted-foreground" key={reason.code}>{reason.message}</p>)}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setPreview(null)}>Close</Button>{action(preview)}</div></> : null}</DialogContent></Dialog>
   </section>;
