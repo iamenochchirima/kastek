@@ -14,6 +14,9 @@ import { GoogleCalendarConnectionStore } from "../src/product/connections/google
 import { connectionVaultFromEnvironment } from "../src/infrastructure/vault";
 import { BookingService } from "../src/workflows/booking/bookings";
 import { defaultBusinessConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
+import { createCatalogueProviderFixture } from "./catalogue-provider-fixture";
+import { createCatalogueOAuthFixture } from "./catalogue-oauth-fixture";
+import { createCatalogueRuntimeFixture } from "./catalogue-runtime-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const root = resolve(__dirname, "../../../.."), web = resolve(root, "products/agents/web");
@@ -21,7 +24,7 @@ const statePath = resolve(root, ".audit/agents-catalogue-browser-state.json");
 const origin = "http://127.0.0.1:3197", apiOrigin = "http://127.0.0.1:4197";
 const databaseName = `agents_catalogue_browser_${randomUUID().replaceAll("-", "")}`;
 async function stop(child?: ChildProcess) {
-  if (!child || child.exitCode !== null) return;
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = once(child, "exit"); child.kill("SIGTERM"); await exited;
 }
 async function ready(url: string, child: ChildProcess) {
@@ -37,6 +40,9 @@ async function main() {
   assert.ok(process.env.AGENTS_TEST_DATABASE_URL, "AGENTS_TEST_DATABASE_URL is required");
   let admin: Pool | undefined, pool: Pool | undefined, app: Awaited<ReturnType<typeof buildPlatformApp>> | undefined;
   let provider: BookingProviderFixture | undefined;
+  let executionProvider: Awaited<ReturnType<typeof createCatalogueProviderFixture>> | undefined;
+  let oauthProvider: Awaited<ReturnType<typeof createCatalogueOAuthFixture>> | undefined;
+  let runtime: Awaited<ReturnType<typeof createCatalogueRuntimeFixture>> | undefined;
   let vite: ChildProcess | undefined, browser: ChildProcess | undefined, created = false;
   try {
     admin = new Pool({ connectionString: process.env.AGENTS_TEST_DATABASE_URL });
@@ -48,7 +54,12 @@ async function main() {
     process.env.AGENTS_CURSOR_KEYS_JSON = JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64url") });
     process.env.AGENTS_CONNECTION_ACTIVE_KEY = "browser-fixture";
     process.env.AGENTS_CONNECTION_KEYS = JSON.stringify({ "browser-fixture": randomBytes(32).toString("base64") });
-    const config = loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: database.href, AGENTS_PUBLIC_URL: origin,
+    if (process.env.AGENTS_CATALOGUE_EXECUTION === "1") {
+      executionProvider = await createCatalogueProviderFixture();
+      oauthProvider = await createCatalogueOAuthFixture();
+      runtime = await createCatalogueRuntimeFixture(pool, database.href, origin, `${executionProvider.base}/model`);
+    }
+    const config = loadPlatformConfig({ OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY, NODE_ENV: "test", AGENTS_DATABASE_URL: database.href, AGENTS_PUBLIC_URL: origin,
       AGENTS_OIDC_ISSUER_URL: "http://127.0.0.1:4197/fixture-issuer", AGENTS_CURSOR_ACTIVE_KEY_ID: process.env.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_KEYS_JSON: process.env.AGENTS_CURSOR_KEYS_JSON, AGENTS_OIDC_CLIENT_SECRET: randomBytes(32).toString("base64url") });
     const store = new PlatformStore(pool);
     const account = await store.ensureAccount({ issuer: config.AGENTS_OIDC_ISSUER_URL, subject: randomUUID(), email: "catalogue-browser@example.test", displayName: "Catalogue browser" });
@@ -80,23 +91,32 @@ async function main() {
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: bookingVersion.id, requestKey: randomUUID(), input: "Propose a consultation." });
     const startsAt = new Date(Date.now() + 86400000); startsAt.setUTCHours(8, 0, 0, 0);
     const booking = await bookings.prepare(task.id, randomUUID(), startsAt.toISOString());
-    app = await buildPlatformApp({ config, pool, logging: false, testGoogleOAuth: oauth, testGoogleApiBaseUrl: provider.base }); await app.listen({ host: "127.0.0.1", port: 4197 });
+    if (executionProvider) await assert.rejects(buildPlatformApp({ config: { ...config, NODE_ENV: "production" }, pool, testConnectionLoopback: true }), /TEST_CONNECTION_OPTIONS_DENIED/);
+    app = await buildPlatformApp({ config, pool, logging: false, testGoogleOAuth: oauth, testGoogleApiBaseUrl: provider.base, testConnectionLoopback: Boolean(executionProvider) }); await app.listen({ host: "127.0.0.1", port: 4197 });
     await mkdir(resolve(root, ".audit"), { recursive: true });
-    await writeFile(statePath, JSON.stringify({ url: origin, organizationId: organization.id, agentId: agent.id, otherAgentId: otherAgent.id, bookingAgentId: bookingAgent.id, bookingTaskId: task.id, bookingRequestDigest: booking.requestDigest, cookie: session.token }), { mode: 0o600 });
+    await writeFile(statePath, JSON.stringify({ url: origin, organizationId: organization.id, agentId: agent.id, otherAgentId: otherAgent.id, bookingAgentId: bookingAgent.id, bookingTaskId: task.id, bookingRequestDigest: booking.requestDigest, cookie: session.token, ...(executionProvider ? { controlledProvider: executionProvider.base, oauthProvider: oauthProvider!.base } : {}) }), { mode: 0o600 });
     await chmod(statePath, 0o600);
-    vite = spawn(process.execPath, [resolve(web, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "3197"], {
+    vite = spawn(process.execPath, [resolve(web, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "3197", "--strictPort"], {
       cwd: web, env: { ...process.env, AGENTS_API_PROXY_TARGET: apiOrigin }, stdio: ["ignore", "pipe", "pipe"],
     });
     // Drain server logs without exposing the fixture environment or request credentials.
     vite.stdout?.resume(); vite.stderr?.resume(); await ready(origin, vite);
-    browser = spawn(process.execPath, [resolve(web, "node_modules/@playwright/test/cli.js"), "test", "test/catalogue-live.spec.ts", "--workers=1", "--timeout=45000", "--output", resolve(root, ".audit/catalogue-actual-api-browser")], {
+    browser = spawn(process.execPath, [resolve(web, "node_modules/@playwright/test/cli.js"), "test", ...(process.env.AGENTS_CATALOGUE_EXECUTION_ONLY === "1" ? [] : ["test/catalogue-live.spec.ts"]), ...(executionProvider ? ["test/catalogue-execution-live.spec.ts"] : []), "--workers=1", "--timeout=45000", "--output", resolve(root, ".audit/catalogue-actual-api-browser")], {
       cwd: web, env: { ...process.env, AGENTS_BROWSER_BASE_URL: origin, AGENTS_CATALOGUE_BROWSER_STATE: statePath }, stdio: ["ignore", "inherit", "inherit"],
     });
     const [code] = await once(browser, "exit");
     assert.equal(code, 0, "Actual API catalogue browser acceptance failed");
+    if (executionProvider) {
+      const receipts = (await pool.query("SELECT state,body_key,body_digest,result FROM agents_platform.connected_reads WHERE state='completed'")).rows;
+      assert.equal(receipts.length, 4, "Both published versions of each controlled integration must have a completed receipt");
+      assert.ok(receipts.every(receipt => receipt.body_key && /^[a-f0-9]{64}$/.test(receipt.body_digest) && receipt.result?.status === "ok"));
+      assert.equal(executionProvider.calls.filter(call => call.kind === "mcp").length, 2);
+      assert.equal(executionProvider.calls.filter(call => call.kind === "api").length, 2);
+      console.log("Controlled MCP/native execution verified: four private receipts and four approved provider calls.");
+    }
     console.log("Actual API catalogue browser acceptance passed. Isolated fixture cleanup follows.");
   } finally {
-    await stop(browser); await stop(vite); await app?.close(); await provider?.close(); await pool?.end();
+    await stop(browser); await stop(vite); await runtime?.close(); await app?.close(); await executionProvider?.close(); await oauthProvider?.close(); await provider?.close(); await pool?.end();
     await rm(statePath, { force: true });
     if (admin) { if (created) await dropClosedTestDatabase(admin, databaseName); await admin.end(); }
   }
