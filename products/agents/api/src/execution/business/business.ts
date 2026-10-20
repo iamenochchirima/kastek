@@ -329,7 +329,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
             const groups = [...assembled.history, ...assembled.working];
-            const plan = prepareCompaction(groups, { retainRecent: Math.min(1, groups.length - 1), maxInputTokens: config.context.maxInputTokens,
+            const plan = prepareCompaction(groups, { model: config.model.model, retainRecent: Math.min(1, groups.length - 1), maxInputTokens: config.context.maxInputTokens,
               maxOutputTokens: Math.min(384, config.model.maxOutputTokens), previousSummary: summary });
             const request: ModelRequest = { messages: plan.messages, model: config.model.model, maxDurationSeconds: config.model.maxDurationSeconds,
               maxInputTokens: config.context.maxInputTokens, maxOutputTokens: Math.min(384, config.model.maxOutputTokens) };

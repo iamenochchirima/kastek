@@ -17,7 +17,7 @@ export const initialLimits = Object.freeze({
 
 export const modelSchema = z.strictObject({
   provider: z.literal("openrouter"),
-  model: z.literal("nvidia/nemotron-3-super-120b-a12b:free"),
+  model: z.enum(["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-super-120b-a12b:free"]),
   maxInputBytes: z.number().int().min(512).max(initialLimits.maxInputBytes),
   maxOutputTokens: z.number().int().min(1).max(initialLimits.maxOutputTokens),
   maxDurationSeconds: z.number().int().min(10).max(initialLimits.maxDurationSeconds),
@@ -81,7 +81,7 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
     executionKind: "business",
     instructions: "Answer questions using the approved knowledge. Cite each fact from approved knowledge with its provided evidence label in square brackets, exactly as supplied. Never invent a citation or a fact. If the sources do not answer a question, say so.",
     model: {
-      provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free",
+      provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b",
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },

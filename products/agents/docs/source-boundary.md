@@ -450,11 +450,21 @@ knowledge. Personal memory, memory tools, generic personal bindings, and private
 are denied for website publication and execution. Exact reviewed server-curated instruction packages
 and a separately pinned Google Calendar service policy have explicit public authority contracts.
 
-Provider requests use only `nvidia/nemotron-3-super-120b-a12b:free` through OpenRouter,
-with fallback disabled and reasoning effort `none`. Input preflight conservatively
+Provider requests use the explicitly selected Nemotron route through OpenRouter:
+`nvidia/nemotron-3-super-120b-a12b` (paid, the default for new drafts), or
+`nvidia/nemotron-3-super-120b-a12b:free`. Published versions retain their selected
+route; execution never silently switches a free version to paid. Both routes use
+the same approved tokenizer and accounting profile, with provider fallback disabled
+and reasoning effort `none`. The canonical response model alias is accepted only
+for this exact approved model. Input preflight conservatively
 counts serialized UTF-8 bytes against the configured token allowance and reserves
 framing separately. This estimate is not an exact tokenizer count. Returned usage,
 finish reasons, tool calls, and unexpected reasoning are validated.
+
+HTTP 401, 402, 403, 404 and 429 produce bounded authentication, billing, access,
+availability and rate-limit error codes. Provider response bodies are not exposed
+to users or logged. Other rejected requests and uncertain outcomes remain distinct;
+uncertain generation is not retried automatically.
 
 ## Authorized discovery and history
 

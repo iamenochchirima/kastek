@@ -2,8 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222", versionId = "44444444-4444-4444-8444-444444444444";
 const configuration = { executionKind: "business", instructions: "Help briefly.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
-type Task = { id: string; versionId: string; input: string; output: string; requestKey: string; conversationId: string; turnSequence: number; state: string; errorCode: null };
-async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean } = {}) {
+type Task = { id: string; versionId: string; input: string; output: string | null; requestKey: string; conversationId: string; turnSequence: number; state: string; errorCode: string | null };
+async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean; errorCode?: string } = {}) {
   const tasks: Task[] = [], posts: Record<string, unknown>[] = [];
   let unknown = options.unknown;
   await page.route("**/api/**", async route => {
@@ -21,7 +21,7 @@ async function fixture(page: Page, options: { unknown?: boolean; versions?: bool
     else if (path.endsWith("/tasks") && method === "POST") {
       posts.push(body);
       const existing = tasks.find(t => t.requestKey === body.requestKey);
-      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId: body.versionId, turnSequence: tasks.length + 1, state: "completed", errorCode: null };
+      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: options.errorCode ? null : tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId: body.versionId, turnSequence: tasks.length + 1, state: options.errorCode ? "failed" : "completed", errorCode: options.errorCode ?? null };
       if (!existing) tasks.push(task);
       if (unknown) { unknown = false; await route.abort("failed"); return; }
       data = { task };
@@ -101,3 +101,31 @@ test("mock transport: inline activity loads cursor-paged task events", async ({ 
   await page.getByRole("button", { name: "Load more events" }).click();
   await expect(page.getByText("event page loaded", { exact: true })).toBeVisible(); await expect(page.getByRole("button", { name: "Load more events" })).toHaveCount(0);
 });
+
+
+for (const [code, label] of [
+  ["MODEL_UNAVAILABLE", "Model unavailable. Choose another model in Configure."],
+  ["MODEL_AUTHENTICATION_FAILED", "Model authentication failed. Ask your administrator to check provider credentials."],
+  ["MODEL_BILLING_REQUIRED", "Model provider credits required. Contact your administrator."],
+  ["MODEL_ACCESS_DENIED", "Model access denied. Choose another model or contact your administrator."],
+  ["MODEL_REQUEST_REJECTED", "Model request rejected. Check the model configuration."],
+  ["MODEL_RATE_LIMITED", "Model rate limit reached. Try again shortly."],
+  ["MODEL_CREDENTIAL_UNAVAILABLE", "Model credentials unavailable. Contact your administrator."],
+  ["MODEL_UNRECOGNIZED_FAILURE_with_private_provider_text", "Model call failed. Try again or contact your administrator."],
+]) {
+  test(`mock transport: actionable model failure ${code} in chat and task details`, async ({ page }) => {
+    await fixture(page, { errorCode: code });
+    await page.goto(`/app/agents/${agentId}`);
+    await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hi");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByText(`failed · Version 1 · ${label}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(/private_provider_text/)).toHaveCount(0);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (code === "MODEL_UNAVAILABLE") await page.screenshot({ path: test.info().outputPath(`model-error-${width}.png`) });
+    }
+    await page.goto("/app/tasks/task-1");
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  });
+}

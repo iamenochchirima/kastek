@@ -114,7 +114,8 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
     await inspect(job.id);
     await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
     const abstention="I do not have source evidence to answer that question.";
-    const config={...defaultBusinessConfiguration(),instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
+    const defaults=defaultBusinessConfiguration(); defaults.model.model="nvidia/nemotron-3-super-120b-a12b:free";
+    const config={...defaults,instructions:`Answer only the visitor's question from the provided evidence. Include the exact bracketed evidence citation when a passage answers the question. If no supplied passage answers it, reply exactly: ${abstention} Do not add a citation to that response. Never invent a code or use outside knowledge.`,sourceRevisionIds:[job.revisionId],retrievalProfile:{kind:"hybrid-v1" as const,embeddingRelease:profileRelease},tools:[]};
     const agent=await platform.createAgent({...scope,name:"Public knowledge FAQ",configuration:config});
     const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const deployment=await platform.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:["https://widget.example.test"]});

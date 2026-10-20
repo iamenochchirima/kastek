@@ -4,7 +4,7 @@ export type Configuration = {
   executionKind: "business" | "workspace";
   program?: { id: "grounded-conversation" | "tool-directed"; version: "1" };
   instructions: string;
-  model: { provider: "openrouter"; model: "nvidia/nemotron-3-super-120b-a12b:free"; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number };
+  model: { provider: "openrouter"; model: "nvidia/nemotron-3-super-120b-a12b" | "nvidia/nemotron-3-super-120b-a12b:free"; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number };
   sourceRevisionIds?: string[];
   connectedToolBindingIds?: string[];
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };

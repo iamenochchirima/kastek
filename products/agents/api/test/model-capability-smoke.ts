@@ -9,7 +9,7 @@ async function main(): Promise<void> {
   assert.ok(key, "Provide the approved key through a private file or process environment");
   const tool: ToolDefinition = { type: "function", function: { name: "memory_read", description: "Read the verified report-language preference",
     parameters: { type: "object", properties: { subject: { type: "string" } }, required: ["subject"], additionalProperties: false } } };
-  const request: ModelRequest = { model: APPROVED_MODEL_PROFILE.model, maxOutputTokens: 1024, maxDurationSeconds: 120,
+  const request: ModelRequest = { model: `${APPROVED_MODEL_PROFILE.model}:free`, maxOutputTokens: 1024, maxDurationSeconds: 120,
     messages: [{ role: "system", content: "Use the provided tool exactly once to retrieve the preference. Do not guess. Input includes multilingual test data." },
       { role: "user", content: "What is my preferred report language? Test strings: 中文 日本語 isiZulu Shona français العربية 😀 🧪 \\n JSON {\"x\":\"é\"}." }],
     tools: [tool], toolChoice: { type: "function", function: { name: "memory_read" } } };

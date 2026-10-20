@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-APPROVED_MODEL_PROFILE,estimateRequestTokens,ModelOperationError,requestDigest,
+APPROVED_MODEL_PROFILE,isApprovedModel,estimateRequestTokens,ModelOperationError,requestDigest,
 validateMessageGroups,type HarnessMessage,type ModelRequest,type ToolDefinition
 } from "../business/model";
 import type { ContinuationCheckpoint,ContinuationRecords } from "./continuation";
@@ -56,7 +56,7 @@ function validateSource(source: ContextSource): void {
 export function buildContext(input: ContextInput): ContextBuildResult {
   const maxInputTokens = input.maxInputTokens ?? APPROVED_MODEL_PROFILE.maxInputTokens;
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens < 1 || maxInputTokens > APPROVED_MODEL_PROFILE.maxInputTokens ||
-      input.model !== undefined && input.model !== APPROVED_MODEL_PROFILE.model) throw new ModelOperationError("MODEL_PROFILE_UNSUPPORTED", "rejected", 400);
+      input.model !== undefined && !isApprovedModel(input.model)) throw new ModelOperationError("MODEL_PROFILE_UNSUPPORTED", "rejected", 400);
   const history = input.history ?? [], working = input.workingGroups ?? [];
   const ids = new Set<string>();
   for (const group of [...history, ...working]) {
@@ -141,7 +141,7 @@ export interface CompactionPlan {
   recentGroups: ContextGroup[]; inputDigest: string; estimatedTokens: number;
 }
 export function prepareCompaction(groups: ContextGroup[], options: {
-  retainRecent?: number; maxInputTokens?: number; maxOutputTokens?: number; previousSummary?: ContextSource;
+  retainRecent?: number; model?: string; maxInputTokens?: number; maxOutputTokens?: number; previousSummary?: ContextSource;
 } = {}): CompactionPlan {
   const retainRecent = options.retainRecent ?? 2;
   if (!Number.isSafeInteger(retainRecent) || retainRecent < 0 || groups.length <= retainRecent) throw new ModelOperationError("COMPACTION_NOT_AVAILABLE", "rejected", 400);
@@ -153,14 +153,14 @@ export function prepareCompaction(groups: ContextGroup[], options: {
   for (const group of prefix) {
     validateMessageGroups(group.messages);
     const message: HarnessMessage = { role: "user", content: JSON.stringify({ groupId: group.id, records: group.messages }) };
-    const request = modelRequest({ instructions, currentInput: "", maxInputTokens: options.maxInputTokens,
+    const request = modelRequest({ instructions, currentInput: "", model: options.model, maxInputTokens: options.maxInputTokens,
       maxOutputTokens: options.maxOutputTokens }, [...messages, message]);
     if (estimateRequestTokens(request) > (options.maxInputTokens ?? APPROVED_MODEL_PROFILE.maxInputTokens) ||
         messages.length + 1 > APPROVED_MODEL_PROFILE.maxMessages) break;
     messages.push(message); packed.push(group);
   }
   if (!packed.length) throw new ModelOperationError("COMPACTION_INPUT_LIMIT", "rejected", 400);
-  const request = modelRequest({ instructions, currentInput: "", maxOutputTokens: options.maxOutputTokens,
+  const request = modelRequest({ instructions, currentInput: "", model: options.model, maxOutputTokens: options.maxOutputTokens,
     maxInputTokens: options.maxInputTokens }, messages);
   return { messages, compactedGroupIds: packed.map(group => group.id), remainingGroupIds: prefix.slice(packed.length).map(group => group.id),
     recentGroups, inputDigest: createHash("sha256").update(JSON.stringify({ groups: packed.map(group => group.id),

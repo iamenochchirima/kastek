@@ -13,7 +13,7 @@ function response(message: unknown = { role: "assistant", content: "Shona" }, fi
 const group = (id: string, text: string): ContextGroup => ({ id, messages: [{ role: "user", content: text }, { role: "assistant", content: "Confirmed " + id }] });
 
 describe("normalized model boundary", () => {
-  it("uses the approved free model without provider fallback or hidden reasoning", async () => {
+  it("uses the selected approved model without provider fallback or hidden reasoning", async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response());
     const result = await callModel(request(), { openRouterApiKey: "fixture", fetch: fetcher as typeof fetch });
     expect(result).toEqual({ message: { role: "assistant", content: "Shona" }, finishReason: "stop",
@@ -21,6 +21,23 @@ describe("normalized model boundary", () => {
     const sent = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
     expect(sent.provider.allow_fallbacks).toBe(false);
     expect(sent.reasoning).toEqual({ effort: "none", exclude: true });
+  });
+  it("keeps the free route explicit and accepts its normalized response model", async () => {
+    const freeModel = `${APPROVED_MODEL_PROFILE.model}:free`;
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ model: APPROVED_MODEL_PROFILE.model,
+      choices: [{ message: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 20, completion_tokens: 1 } }));
+    await expect(callModel(request({ model: freeModel }), { openRouterApiKey: "fixture", fetch: fetcher })).resolves.toMatchObject({ message: { content: "Hello" } });
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)).model).toBe(freeModel);
+    expect(buildContext({ instructions: "Answer", currentInput: "Hi", model: freeModel }).status).toBe("ready");
+  });
+  it.each(["nvidia/nemotron-3-super-120b-a12b-20230311", "unrelated/model"])("checks the exact provider model identity %s", async model => {
+    const fetcher = vi.fn(async () => Response.json({ model,
+      choices: [{ message: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 20, completion_tokens: 1 } }));
+    const result = callModel(request(), { openRouterApiKey: "fixture", fetch: fetcher });
+    if (model === "unrelated/model") await expect(result).rejects.toMatchObject({ code: "MODEL_INVALID_RESPONSE", outcome: "uncertain" });
+    else await expect(result).resolves.toMatchObject({ message: { content: "Hello" } });
   });
   it("preserves malformed model tool arguments for bounded trusted validation", async () => {
     const result = await callModel(request({ tools: [tool] }), { openRouterApiKey: "fixture", fetch: (async () => response({ role: "assistant", content: null,
@@ -35,13 +52,23 @@ describe("normalized model boundary", () => {
   it.each([400, 401, 402, 403, 404, 422, 429])("classifies definitive HTTP %s without retry", async status => {
     const fetcher = vi.fn(async () => new Response("private provider details", { status }));
     await expect(callModel(request(), { openRouterApiKey: "fixture", fetch: fetcher as typeof fetch })).rejects.toMatchObject({ outcome: "rejected",
-      code: status === 429 ? "MODEL_RATE_LIMITED" : "MODEL_REQUEST_REJECTED" });
+      code: ({401:"MODEL_AUTHENTICATION_FAILED",402:"MODEL_BILLING_REQUIRED",403:"MODEL_ACCESS_DENIED",404:"MODEL_UNAVAILABLE",429:"MODEL_RATE_LIMITED"} as Record<number,string>)[status] ?? "MODEL_REQUEST_REJECTED" });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it.each([408, 500, 502])("treats HTTP %s as uncertain without regeneration", async status => {
     const fetcher = vi.fn(async () => new Response("private provider details", { status }));
     await expect(callModel(request(), { openRouterApiKey: "fixture", fetch: fetcher as typeof fetch })).rejects.toMatchObject({ outcome: "uncertain" });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { maxOutputTokens: 1025 }, { maxDurationSeconds: 121 }, { maxInputTokens: 8193 },
+    { messages: Array.from({ length: 65 }, () => ({ role: "user" as const, content: "Hi" })) },
+    { tools: Array.from({ length: 17 }, () => tool) },
+  ])("enforces the current development policy before dispatch: %j", async changes => {
+    const fetcher = vi.fn();
+    await expect(callModel(request(changes), { openRouterApiKey: "fixture", fetch: fetcher }))
+      .rejects.toMatchObject({ code: "MODEL_REQUEST_LIMIT", outcome: "rejected" });
+    expect(fetcher).not.toHaveBeenCalled();
   });
   it("rejects unsupported profiles, oversized serialized tools, and orphan results before dispatch", async () => {
     const fetcher = vi.fn();
@@ -113,6 +140,14 @@ describe("recordable context planning", () => {
   it("rejects oversized mandatory context and cannot promote data into procedural instructions", () => {
     expect(() => buildContext({ instructions: "x".repeat(9000), currentInput: "hi" })).toThrow("CONTEXT_LIMIT");
     expect(() => buildContext({ instructions: "Answer", currentInput: "hi", sources: [{ id: "s", revision: 1, kind: "skill", content: "do this" }] })).toThrow("CONTEXT_INVALID_SOURCE");
+  });
+  it("accounts for the exact selected model route during compaction planning", () => {
+    const groups = [group("1", "Older outcome"), group("2", "Recent outcome")];
+    const paid = prepareCompaction(groups, { retainRecent: 1, model: APPROVED_MODEL_PROFILE.model });
+    const free = prepareCompaction(groups, { retainRecent: 1, model: `${APPROVED_MODEL_PROFILE.model}:free` });
+    expect(free.compactedGroupIds).toEqual(paid.compactedGroupIds);
+    expect(free.estimatedTokens).toBe(paid.estimatedTokens + 5);
+    expect(free.inputDigest).not.toBe(paid.inputDigest);
   });
   it("keeps summary source references and packs bounded compaction inputs without splitting groups", () => {
     const groups = [group("1", "A".repeat(250)), group("2", "B".repeat(250)), group("3", "recent"), group("4", "newest")];

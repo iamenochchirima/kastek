@@ -352,7 +352,7 @@ async function prepareAdvancedFixture(token: string): Promise<AdvancedFixture> {
   }
   async function create(name: string, instructions: string, specialist: boolean,sourceIds=[knowledge.id],bindings:CapabilityBinding[]=[]) {
     const { agent } = await request<{ agent: { id: string; draftRevision: number } }>(`${base}/agents`, { name });
-    const defaults = defaultBusinessConfiguration();
+    const defaults = defaultBusinessConfiguration(); defaults.model.model = "nvidia/nemotron-3-super-120b-a12b:free";
     const configuration: AgentConfiguration = { ...defaults, instructions, sourceRevisionIds: sourceIds,connectedToolBindingIds:bindings.map(binding=>binding.id), retrievalProfile:{kind:"hybrid-v1",embeddingRelease:embeddingRelease!}, tools: specialist ? ["knowledge.search", "knowledge.read"] : [], model: { ...defaults.model, maxOutputTokens: specialist ? stashAcceptance?512:githubAcceptance||publicAcceptance?384:192 : publicAcceptance?1024:768 } };
     const updated = await request<{ agent: { draftRevision: number } }>(`${base}/agents/${agent.id}`, { name, configuration, expectedRevision: agent.draftRevision }, "PUT");
     const { version } = await request<{ version: { id: string } }>(`${base}/agents/${agent.id}/versions`, { expectedRevision: updated.agent.draftRevision });

@@ -487,6 +487,12 @@ including after midnight, uses that same accounting day. Every model call, tool 
 compaction has a stable operation identity. Unknown model outcomes conservatively retain their
 reservation and are not regenerated blindly.
 
+These are development policies, not provider capabilities or universal agent limits.
+The verified Nemotron routes advertise a 262,144-token context window; the platform
+currently supports a smaller accounting envelope. Raising it requires coordinated
+changes to model validation, context planning, grants, root reservations, schema
+constraints and evaluation budgets. A change to the configuration form alone is insufficient.
+
 The development profile limits model input to a conservative 8,192-token envelope, output to
 1,024 tokens, and each model request to 120 seconds. Serialized UTF-8 bytes bound the pinned
 byte-level tokenizer's content tokens, with 512 tokens reserved for provider framing. Ingestion

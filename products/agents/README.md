@@ -29,6 +29,19 @@ OAuth settings are listed in [api/.env.example](api/.env.example); keep credenti
 `api/.env`. Follow [connection setup](docs/mcp-integration.md) to connect accounts, select agent
 access, publish a version and test it. Controlled acceptance results do not certify live providers.
 
+## Model selection
+
+New drafts use `nvidia/nemotron-3-super-120b-a12b` through OpenRouter (paid).
+Configure > Model and limits also offers the explicit `:free` route. Selecting a
+route and publishing creates an immutable version; start a new conversation for
+that version. Existing free versions never switch to paid during execution.
+Free endpoint availability is provider-dependent.
+
+The displayed input budget is a conservative serialized-byte accounting envelope,
+not the model's full context window. Output and timeout values are development
+policies. Their enforcement also exists in grants and runtime validation; changing
+only the form does not increase supported execution budgets.
+
 ## Start locally
 
 Use Node 24 and the repository's pnpm workspace. Install dependencies from the root:

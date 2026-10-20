@@ -11,12 +11,16 @@ export interface ToolDefinition { type: "function"; function: {
   name: string; description: string; parameters: Record<string, unknown>; strict?: boolean;
 } }
 export const APPROVED_MODEL_PROFILE = Object.freeze({
-  id: "nemotron-free-v1", model: "nvidia/nemotron-3-super-120b-a12b:free",
+  id: "nemotron-v2", model: "nvidia/nemotron-3-super-120b-a12b",
   contextWindow: 262_144, maxInputTokens: 8192, maxOutputTokens: 1024,
   safetyTokens: 512, maxMessages: 64, maxTools: 16,
   accounting: "serialized-utf8-upper-bound-v1",
   tokenizerRevision: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16@2dc98e2afe4face0e4ce40972a915c45368bd34a",
 });
+export function isApprovedModel(model: string): boolean {
+  return model === APPROVED_MODEL_PROFILE.model || model === `${APPROVED_MODEL_PROFILE.model}:free`;
+}
+
 export interface ModelRequest {
   messages: HarnessMessage[]; tools?: ToolDefinition[]; maxOutputTokens: number;
   maxDurationSeconds: number; model: string; maxInputTokens?: number;
@@ -75,7 +79,7 @@ export function validateMessageGroups(messages: HarnessMessage[]): void {
 
 export function validateModelRequest(request: ModelRequest): void {
   const profile = APPROVED_MODEL_PROFILE;
-  if (request.model !== profile.model) throw new ModelOperationError("MODEL_PROFILE_UNSUPPORTED", "rejected", 400);
+  if (!isApprovedModel(request.model)) throw new ModelOperationError("MODEL_PROFILE_UNSUPPORTED", "rejected", 400);
   if (!Number.isSafeInteger(request.maxOutputTokens) || request.maxOutputTokens < 1 || request.maxOutputTokens > profile.maxOutputTokens ||
       !Number.isSafeInteger(request.maxDurationSeconds) || request.maxDurationSeconds < 1 || request.maxDurationSeconds > 120 ||
       !request.messages.length || request.messages.length > profile.maxMessages || (request.tools?.length ?? 0) > profile.maxTools) {
@@ -108,7 +112,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 function parseResponse(body: unknown, request: ModelRequest): ModelResponse {
   const root = asRecord(body);
-  if (root.model !== undefined && root.model !== request.model && root.model !== request.model.replace(/:free$/, "")) invalidResponse();
+  if (root.model !== undefined && root.model !== request.model && root.model !== request.model.replace(/:free$/, "") &&
+      root.model !== "nvidia/nemotron-3-super-120b-a12b-20230311") invalidResponse();
   if (!Array.isArray(root.choices) || root.choices.length !== 1) invalidResponse();
   const choice = asRecord(root.choices[0]);
   const message = asRecord(choice.message);
@@ -167,7 +172,10 @@ export async function callModel(request: ModelRequest, options: ModelAdapterOpti
     if (!response.ok) {
       try { await response.body?.cancel(); } catch {}
       if ([400, 401, 402, 403, 404, 422, 429].includes(response.status)) {
-        throw new ModelOperationError(response.status === 429 ? "MODEL_RATE_LIMITED" : "MODEL_REQUEST_REJECTED", "rejected");
+        const code = ({ 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED",
+          403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED" } as Record<number, string>)[response.status]
+          ?? "MODEL_REQUEST_REJECTED";
+        throw new ModelOperationError(code, "rejected");
       }
       throw new ModelOperationError("MODEL_OUTCOME_UNCERTAIN", "uncertain");
     }
