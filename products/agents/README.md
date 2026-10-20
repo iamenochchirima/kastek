@@ -24,6 +24,11 @@ The [architecture](docs/architecture/agent-platform-architecture.md) defines the
 The [implementation boundary](docs/source-boundary.md) records current behavior and limits.
 Growth and Agencies are later integrations. Neither is required to run Agents.
 
+Live provider acceptance is owned by the project owner. Optional Google Calendar and MCP
+OAuth settings are listed in [api/.env.example](api/.env.example); keep credentials in the private
+`api/.env`. Follow [connection setup](docs/mcp-integration.md) to connect accounts, select agent
+access, publish a version and test it. Controlled acceptance results do not certify live providers.
+
 ## Start locally
 
 Use Node 24 and the repository's pnpm workspace. Install dependencies from the root:
