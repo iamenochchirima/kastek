@@ -1,0 +1,16 @@
+schema_version = "1.4"
+[metadata]
+name = "kasitek-research-connected-skill"
+category = "authorized-connector-policy-read"
+[agent]
+timeout_sec = 120
+[verifier]
+timeout_sec = 30
+[verifier.env]
+KASITEK_VERIFIER_CONNECTOR_URL = "${KASITEK_VERIFIER_CONNECTOR_URL}"
+KASITEK_VERIFIER_CONNECTOR_KEY = "${KASITEK_VERIFIER_CONNECTOR_KEY}"
+[environment]
+docker_image = "python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c"
+network_mode = "public"
+cpus = 1
+memory_mb = 256

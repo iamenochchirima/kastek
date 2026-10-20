@@ -12,6 +12,7 @@ import { Pool } from "pg";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { publishFixtureSource } from "./knowledge-fixture";
 import { prepareHarborAnalysis } from "./harbor-analysis-support";
+import { prepareHarborConnector,type HarborConnectorPurpose } from "./harbor-connector-support";
 import { prepareHarborWorker } from "./harbor-worker-support";
 
 const root = resolve(__dirname, "../../../.."), api = join(root, "products/agents/api");
@@ -19,7 +20,8 @@ const fixtureId = randomUUID(), databaseName = `agents_harbor_${fixtureId.replac
 const containerName = `agents-harbor-${fixtureId}`, build = join(root, ".audit", `harbor-${fixtureId}`);
 const compiled = join(build, "runtime");
 const suite = process.env.AGENTS_HARBOR_SUITE ?? "faq-grounded";
-assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "controlled-transaction-conflict", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-paraphrase-v2", "faq-paraphrase-v3", "faq-withdrawal", "faq-escalation", "inbox-takeover"].includes(suite), "Select a known Harbor suite");
+assert.ok(["faq-grounded", "faq-follow-up", "research-report", "controlled-transaction", "controlled-transaction-conflict", "delegated-research", "inbox", "isolated-analysis", "faq-unknown", "faq-private", "faq-paraphrase", "faq-paraphrase-v2", "faq-paraphrase-v3", "faq-withdrawal", "faq-escalation", "inbox-takeover", "faq-connected-skill", "customer-service-connected-skill", "booking-policy-connected-skill", "research-connected-skill", "campaign-research-connected-skill"].includes(suite), "Select a known Harbor suite");
+const connectorPurpose=(suite.endsWith("-connected-skill")?suite.slice(0,-"-connected-skill".length):undefined) as HarborConnectorPurpose|undefined;
 const escalation = suite === "faq-escalation", takeover = suite === "inbox-takeover";
 const inboxSuite = suite === "inbox" || escalation || takeover, analysisSuite = suite === "isolated-analysis";
 const followUp = ["faq-follow-up", "inbox"].includes(suite), report = ["research-report", "controlled-transaction", "controlled-transaction-conflict", "delegated-research"].includes(suite);
@@ -27,7 +29,7 @@ const delegated = suite === "delegated-research";
 const negativeKnowledge = ["faq-unknown", "faq-private"].includes(suite), withdrawal = suite === "faq-withdrawal";
 const attempts = Number(process.env.AGENTS_HARBOR_ATTEMPTS ?? "1");
 assert.ok(Number.isInteger(attempts) && attempts >= 1 && attempts <= 4, "Harbor repetitions are bounded to one through four fresh scopes");
-assert.ok(attempts === 1 || !(report || inboxSuite || analysisSuite || withdrawal), "Repeated fixture acceptance currently supports isolated FAQ cases");
+assert.ok(attempts === 1 || !(report || inboxSuite || analysisSuite || withdrawal || connectorPurpose), "Repeated fixture acceptance currently supports isolated FAQ cases");
 const lifecycle = process.env.AGENTS_HARBOR_LIFECYCLE ?? "none";
 assert.ok(["none","native-restart","evaluator-restart","cancel"].includes(lifecycle));
 assert.ok(lifecycle==="none" || (attempts===1 && ["faq-grounded","faq-follow-up"].includes(suite)), "Lifecycle fixtures use one dedicated FAQ trial");
@@ -35,6 +37,7 @@ const verifierScenario = process.env.AGENTS_HARBOR_VERIFIER_TEST ?? "none";
 assert.ok(["none","assertion","exception","missing-evidence"].includes(verifierScenario));
 assert.ok(verifierScenario==="none" || (suite==="faq-grounded" && attempts===1), "Verifier failure probes use one ordinary FAQ execution");
 const realModel = process.env.AGENTS_HARBOR_REAL_MODEL === "1";
+assert.ok(!connectorPurpose||process.env.AGENTS_HARBOR_REAL_MODEL!=="1","Connector acceptance uses deterministic provider fixtures, not a quality benchmark");
 const modelKey = realModel ? process.env.OPENROUTER_API_KEY : "deterministic-harbor-fixture";
 assert.ok(!realModel || lifecycle==="none","Lifecycle acceptance uses deterministic provider fixtures");
 assert.ok(!realModel || verifierScenario==="none", "Verifier failure probes never call a live model");
@@ -47,6 +50,7 @@ let receiver: ReturnType<typeof import("../src/acceptance/report-receiver")["cre
 let verifierBridge: ReturnType<typeof httpServer> | undefined;
 let approvalTimer: ReturnType<typeof setInterval> | undefined, approvalPending: Promise<void> | undefined;
 let processWorker:Awaited<ReturnType<typeof prepareHarborWorker>>|undefined;
+let connector:Awaited<ReturnType<typeof prepareHarborConnector>>|undefined;
 let analysis: Awaited<ReturnType<typeof prepareHarborAnalysis>> | undefined;
 let ownedRuntime = false, privateDirectory: string | undefined;
 const orphanProjects=new Set<string>();
@@ -159,7 +163,7 @@ async function main() {
   }
   const source = await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: report ? "Research the approved audited total using search and prepare the report for review. The audited total is 42." : "What are the opening hours? Harbor fixture opens at nine.", visibility: inboxSuite ? "public" : "private" }, objects);
   if(suite==="faq-private") await publishFixtureSource(pool,{accountId:account.id,organizationId:organization.id,title:"Private launch code",content:"The confidential launch code is CONFIDENTIAL-CODE-7429.",visibility:"private"},objects);
-  const configuration = report || analysisSuite ? defaultBusinessConfiguration() : customerConfiguration("faq"); configuration.sourceRevisionIds = [source.id];
+  const configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq"); configuration.sourceRevisionIds = [source.id];
   if (delegated) {
     const specialistConfig = defaultBusinessConfiguration(); specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
     const specialist = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Research specialist fixture", configuration: specialistConfig });
@@ -168,8 +172,9 @@ async function main() {
   }
   if (report) { if (!delegated) configuration.tools = ["knowledge.search"]; configuration.capabilities.workflows = { enabled: true, profileId: "report-delivery-v1", connectionId: reportConnection!.id, reportArtifactName: "report.md", title: "Audited total" }; }
   if (analysisSuite) analysis = await prepareHarborAnalysis({pool,configuration,objects,directory:privateDirectory,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),load});
-  const agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration });
-  const version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: 1 });
+  const agent = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Grounded FAQ fixture", configuration, ...(connectorPurpose&&!["research","campaign-research"].includes(connectorPurpose)?{offering:connectorPurpose==="faq"?"faq" as const:"customer-service" as const}:{}) });
+  if(connectorPurpose){connector=await prepareHarborConnector({pool,configuration,objects,scope:{accountId:account.id,organizationId:organization.id},agentId:agent.id,gateway:docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}"),purpose:connectorPurpose,load});await store.updateDraft({accountId:account.id,organizationId:organization.id,agentId:agent.id,configuration,expectedRevision:1});}
+  const version = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: agent.id, expectedRevision: connector ? 2 : 1 });
   const deployment = inboxSuite ? await store.publishWebsite({ accountId: account.id, organizationId: organization.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://harbor-widget.example"] }) : undefined;
   app = await buildPlatformApp({ config, pool, logging: false });
   app.addHook("onError", async (request, _reply, error) => { if (request.url.includes("history-export")) console.error(JSON.stringify({ evidence: "native export diagnostic", errorClass: error.name, code: (error as {code?:string}).code, frames: error.stack?.split("\n").slice(1, 6) })); });
@@ -238,6 +243,7 @@ async function main() {
     if(lifecycle==="evaluator-restart"&&providerCalls===1)await new Promise<void>(resolve=>{releaseProvider=resolve;});
     if (realModel) return fetch(url, request);
     if (analysis) return analysis.reply(body,providerCalls);
+    if (connector) return connector.reply(body,providerCalls);
     if(takeover){const row=(await pool!.query("SELECT id FROM agents_platform.customer_conversations")).rows[0];assert.ok(row);await staffCommands(row.id,["claim","takeover","reply"],"Human support took over.");}
     if (escalation) return Response.json({id:"deterministic-human-escalation",choices:[{finish_reason:"tool_calls",message:{role:"assistant",content:null,tool_calls:[{id:"request-support",type:"function",function:{name:"channel_request_handoff",arguments:"{}"}}]}}],usage:{prompt_tokens:100,completion_tokens:20}});
     const child = delegated && messages.includes("Research specialist fixture.");
@@ -256,7 +262,7 @@ async function main() {
   if(lifecycle==="native-restart") {
     processWorker=await prepareHarborWorker({compiled,api,directory:privateDirectory,databaseUrl:isolatedUrl.href,provider:fixtureFetch});workerPort=processWorker.port;
   } else {
-  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, fetch: fixtureFetch, ...(analysis ? {executeSandbox:analysis.executeSandbox} : {}), evidence, knowledgeRuntime: new KnowledgeRuntime(pool, evidence), signal: abort.signal,
+  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, fetch: fixtureFetch, ...(analysis ? {executeSandbox:analysis.executeSandbox} : {}), ...(connector ? {connected:connector.executor} : {}), evidence, knowledgeRuntime: new KnowledgeRuntime(pool, evidence), signal: abort.signal,
     ...(reportServices ? { actions: { prepare: (...args: Parameters<typeof reportServices.actions.prepare>) => reportServices!.actions.prepare(...args), getReview: (...args: Parameters<typeof reportServices.actions.getReview>) => reportServices!.actions.getReview(...args), reconcile: (...args: Parameters<typeof reportServices.actions.reconcile>) => reportServices!.actions.reconcile(...args), execute: (...args: Parameters<typeof reportServices.actions.execute>) => reportServices!.actions.execute(...args) }, selectReportArtifact: (...args: Parameters<import("../src/execution/artifacts/task-artifacts").TaskArtifactStore["prepareReport"]>) => new TaskArtifactStore(pool!,objects).prepareReport(...args) } : {}) })] }));
   worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   await new Promise<void>(resolve => worker!.listen(0, "0.0.0.0", resolve));
@@ -302,11 +308,12 @@ async function main() {
   const baselineFiles=await readdir(suitePath,{recursive:true});
   const baselineEntries=await Promise.all(baselineFiles.filter(file=>/\.(md|toml|py|sh)$|Dockerfile$/.test(file)).sort().map(async file=>({path:file,sha256:createHash("sha256").update(await readFile(join(suitePath,file))).digest("hex")})));
   const fixtureSha256=createHash("sha256").update(await readFile(__filename)).digest("hex");
-  const baseline={fixtureSha256,schemaVersion:"kasitek-harbor-baseline.v1",suite,verifierScenario,harbor:"0.24.0",atif:"1.8",model:"nvidia/nemotron-3-super-120b-a12b:free",correctnessThreshold:1,entries:baselineEntries};
+  const connectorFixtureSha256=connector?createHash("sha256").update(await readFile(join(__dirname,"harbor-connector-support.ts"))).digest("hex"):undefined;
+  const baseline={fixtureSha256,...(connectorFixtureSha256?{connectorFixtureSha256}:{}),schemaVersion:"kasitek-harbor-baseline.v1",suite,verifierScenario,harbor:"0.24.0",atif:"1.8",model:"nvidia/nemotron-3-super-120b-a12b:free",correctnessThreshold:1,entries:baselineEntries};
   const baselineDigest=createHash("sha256").update(JSON.stringify(baseline)).digest("hex");
   await writeFile(join(build,"baseline.json"),JSON.stringify({...baseline,digest:baselineDigest},null,2),{mode:0o600});
   harbor = spawn(process.env.AGENTS_HARBOR_BINARY ?? "/home/enock/.local/share/uv/tools/harbor/bin/harbor", ["run", "--path", suitePath, "--agent", "kasitek_harbor.agent:KasitekAgent", ...(suite==="faq-paraphrase-v3"?["--verifier","kasitek_harbor.verifier:RecordedNativeVerifier"]:[]), "--agent-kwarg", `scope_path=${preparedScope}`, "--agent-kwarg", `root_token_limit=${delegated ? 16000 : 8192}`, ...(lifecycle==="cancel"?["--agent-kwarg","trial_timeout_sec=1"]:[]), ...(lifecycle==="evaluator-restart"?["--agent-kwarg",`recovery_id=${fixtureId}`]:[]), ...(deployment ? ["--agent-kwarg", `channel=${JSON.stringify({deployment_id:deployment.id,origin:"https://harbor-widget.example"})}`] : []), ...(followUp ? ["--agent-kwarg", `follow_ups=${JSON.stringify([{id:"confirm-hours",instruction:"What are the opening hours?"}])}`] : []), "--n-concurrent", "1", "--n-attempts", String(attempts), "--max-retries", "0", "--jobs-dir", jobs, "--job-name", "native-faq", "--quiet", "--yes"],
-    { cwd: root, stdio: "inherit", env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, DOCKER_HOST: process.env.DOCKER_HOST, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token, KASITEK_VERIFIER_RECEIVER_URL: verifierOrigin, KASITEK_VERIFIER_READ_KEY: verifierKey, ...analysis?.verifierEnvironment } });
+    { cwd: root, stdio: "inherit", env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, DOCKER_HOST: process.env.DOCKER_HOST, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token, KASITEK_VERIFIER_RECEIVER_URL: verifierOrigin, KASITEK_VERIFIER_READ_KEY: verifierKey, ...analysis?.verifierEnvironment,...connector?.verifierEnvironment } });
   if(lifecycle==="evaluator-restart") {
     const checkpoint=preparedScope+`.recovery-${fixtureId}.json`;
     let original:{taskId:string;nativeTrialId:string;deadlineAt:string;request:unknown}|undefined;
@@ -362,7 +369,7 @@ async function main() {
   } else {
     assert.equal(rewards.length,attempts);
     const values=await Promise.all(rewards.map(async path=>JSON.parse(await readFile(join(jobs,path),"utf8"))));
-    for(const value of values)assert.equal(takeover ? value.ownership_safety : analysisSuite ? value.isolated_analysis : report ? value.research_report : value.grounded_faq,1);
+    for(const value of values)assert.equal(connector ? value.connector_skill : takeover ? value.ownership_safety : analysisSuite ? value.isolated_analysis : report ? value.research_report : value.grounded_faq,1);
     reward=attempts===1?values[0]:{attempts:values};
   }
   const tasks = (await pool.query("SELECT state,error_code,evaluation_trial_id FROM agents_platform.tasks")).rows; assert.equal(tasks.length, attempts * (followUp || delegated ? 2 : 1)); for (const task of tasks) { if(takeover)assert.ok(["cancelled","uncertain"].includes(task.state));else if(lifecycle!=="cancel")assert.equal(task.state, escalation ? "incomplete" : "completed");else assert.ok(["cancelled","uncertain"].includes(task.state)); assert.ok(task.evaluation_trial_id); }
@@ -373,8 +380,8 @@ async function main() {
   }
   if(escalation)assert.equal(tasks[0].error_code,"CHANNEL_HANDOFF_REQUESTED");
   const trials = (await pool.query("SELECT state FROM agents_platform.evaluation_trials")).rows; assert.equal(trials.length, attempts); for(const trial of trials)assert.equal(trial.state,"revoked");
-  if (!realModel) assert.equal(providerCalls, attempts * (delegated ? 4 : followUp || report || analysisSuite ? 2 : 1));
-  await analysis?.verify();
+  if (!realModel) assert.equal(providerCalls, attempts * (connector ? 3 : delegated ? 4 : followUp || report || analysisSuite ? 2 : 1));
+  await analysis?.verify();await connector?.verify();
   if(lifecycle==="native-restart"){assert.equal(processWorker!.pids.length,2);assert.notEqual(...processWorker!.pids as [number,number]);}
   if (inboxSuite && !escalation && !takeover) {
     assert.equal(lostVisitorAck,true);assert.equal(lostHumanAck,true);assert.equal(visitorRequestAttempts,3);
@@ -403,11 +410,11 @@ async function main() {
     const identities=(await pool.query("SELECT id,root_task_id,parent_task_id,version_id FROM agents_platform.tasks ORDER BY created_at,id")).rows;
     await writeFile(join(build,"telemetry.json"),JSON.stringify({schemaVersion:"harbor-native-telemetry.v1",suite,observationsExported:exported,tasks:identities},null,2),{mode:0o600});
   }
-  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, attempts, baselineDigest, verifierScenario, lifecycle, modelQuality:takeover?"inconclusive":null, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
+  await writeFile(join(build, "acceptance.json"), JSON.stringify({ status: withdrawal || verifierScenario!=="none" || lifecycle==="cancel" ? "verified-negative" : "passed", suite, ...(connectorPurpose?{connectorPurpose,connectorSemantics:"policy-read-with-reviewed-skill",mutationsVerified:false}:{}), attempts, baselineDigest, verifierScenario, lifecycle, modelQuality:takeover?"inconclusive":null, workerPids:processWorker?.pids, modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", harborVersion: "0.24.0", restateVersion: "1.7.13", reward, taskCount: tasks.length, providerCalls, compositionDigest: version.effective_composition.digest, sourceRevisionId: source.id, ownerServicesChanged: false }, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ evidence: "actual Harbor trial + verifier + native HTTP/PostgreSQL/Restate", modelMode: realModel ? "approved-free-model" : "deterministic-provider-fixture", reward, providerCalls, proof: join(build, "acceptance.json") }));
 }
 async function cleanup() {
-  releaseProvider?.();await stop(harbor); if (approvalTimer) clearInterval(approvalTimer); await approvalPending?.catch(() => undefined); abort.abort(); await dispatcher?.stop(); await app?.close();
+  releaseProvider?.();await stop(harbor);await connector?.cleanup(); if (approvalTimer) clearInterval(approvalTimer); await approvalPending?.catch(() => undefined); abort.abort(); await dispatcher?.stop(); await app?.close();
   for (const session of sessions) session.destroy();
   if (worker) await new Promise<void>(resolve => worker!.close(() => resolve()));
   await receiver?.close(); if (verifierBridge) await new Promise<void>(resolve => verifierBridge!.close(() => resolve()));

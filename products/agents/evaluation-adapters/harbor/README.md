@@ -139,3 +139,21 @@ Harbor's official `jobs regrade` uses separate verifier environments. `kasitek_h
 `controlled-transaction-conflict` exercises a separate, attributed fixture negative probe after one actual native accepted delivery. The same delivery identity with a different valid payload receives HTTP 409. An independent verifier reads the actual receiver's request audit and accepted row: one native 200, one fixture-probe 409, one unchanged approved receipt/digest. The verifier has read-only authority; it cannot issue this probe or another delivery. This remains report/effect-contract acceptance, not booking support.
 
 The controlled-conflict verifier revision `kasitek-controlled-transaction-conflict-v2` independently reads the receiver's request audit as well as accepted receipts. It requires exactly one native 200 and one separately attributed fixture 409 under the same delivery identity, independently validates both payloads and canonical digests, requires different valid bodies, and verifies one unchanged accepted receipt with the reviewed artifact bytes. Negative calibration rejects a missing probe, incorrect status/actor, extra acceptance, invalid or unchanged body, incorrect digest and replaced receipt. The earlier conflict job's reward checked ordinary report acceptance only; its fixture assertion of 409 was insufficient independent conflict grading. Retain that historical result with this limitation rather than treating it as v2 acceptance.
+
+## Connector and reviewed skill cases
+
+The existing native fixture also accepts these `AGENTS_HARBOR_SUITE` values:
+
+| Suite | Verified behavior |
+| --- | --- |
+| `faq-connected-skill` | FAQ program activates a reviewed skill and reads its scoped opening-hours record |
+| `customer-service-connected-skill` | Customer service program reads a return policy through the selected connector |
+| `booking-policy-connected-skill` | Customer service program reads a booking notice policy; no appointment is reserved |
+| `research-connected-skill` | Tool-directed program reads an isolated research record |
+| `campaign-research-connected-skill` | Tool-directed program reads a campaign research policy; no campaign is sent |
+
+Each case uses a fresh database, private object storage, actual Restate execution and an authenticated HTTP provider namespace. The setup calls the same scoped connection, skill import/review and draft/version management services used by the production routes. Its explicit loopback transport is confined to the fixture. An owner attests the selected GET operation as a read; the default operation policy still requires exact approval.
+
+The deterministic model requests skill activation and one connector call. A separate Harbor verifier reads the controlled provider state with a distinct read-only credential. It compares the persisted skill review digest, pinned binding digest, exact namespace and provider bytes with the native receipts and cited final answer. It also requires complete model/tool coverage, one physical record read, no effect receipts and confirmed trial cleanup. Provider and verifier credentials never enter model context or prepared scope files. The baseline includes both the runner and connector helper source hashes.
+
+These cases verify execution, authorization and provenance. They do not measure model quality, live vendor compatibility, Google OAuth acceptance or appointment delivery. Research and campaign research use the existing backend program; they add no customer offering. Booking policy retrieval does not establish reservation safety or customer confirmation. Connector cases support one isolated trial per fixture invocation.
