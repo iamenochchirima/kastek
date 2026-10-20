@@ -8,6 +8,8 @@ export const observationIdentitySchema = z.strictObject({
   operationId: identifier.nullable(), attemptId: z.uuid().nullable(), customerConversationId: z.uuid().optional(),
 });
 export const observationMetadataSchema = z.strictObject({
+  connectionId:z.uuid().optional(),bindingId:z.uuid().optional(),
+  policyRevision:z.number().int().positive().optional(),authorizationGeneration:z.number().int().positive().optional(),
   outcome: z.enum(["started", "completed", "failed", "uncertain", "cancelled", "incomplete", "refused", "waiting", "suppressed"]).optional(),
   errorCode: z.string().regex(/^[A-Z][A-Z0-9_]{0,95}$/).optional(),
   inputTokens: z.number().int().nonnegative().optional(), outputTokens: z.number().int().nonnegative().optional(),

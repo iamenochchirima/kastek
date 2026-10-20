@@ -47,6 +47,11 @@ export async function collectNativeMetrics(pool:Pool,role:string):Promise<Metric
       UNION ALL SELECT 'agents.resources.cleanup',count(*)::text,jsonb_build_object('kind','sandbox','state',state) FROM agents_platform.sandbox_allocations WHERE state IN ('destroyed','destroying','uncertain') AND updated_at>now()-interval '24 hours' GROUP BY state
       UNION ALL SELECT 'agents.resources.cleanup',count(*)::text,jsonb_build_object('kind','document','state',state) FROM agents_platform.document_allocations WHERE state IN ('destroyed','failed') AND updated_at>now()-interval '24 hours' GROUP BY state
       UNION ALL SELECT 'agents.resources.cleanup',count(*)::text,jsonb_build_object('kind','query_embedding','state',state) FROM agents_platform.query_embedding_allocations WHERE state='destroyed' AND updated_at>now()-interval '24 hours' GROUP BY state
+      UNION ALL SELECT 'agents.connections',count(*)::text,jsonb_build_object('kind',profile_id,'state',state) FROM agents_platform.connections GROUP BY profile_id,state
+      UNION ALL SELECT 'agents.connection.setup',count(*)::text,jsonb_build_object('state',status) FROM agents_platform.connection_onboarding GROUP BY status
+      UNION ALL SELECT 'agents.tool_reviews',count(*)::text,jsonb_build_object('state',state) FROM agents_platform.tool_invocation_reviews WHERE state IN ('pending','approved','claimed','uncertain') OR created_at>now()-interval '24 hours' GROUP BY state
+      UNION ALL SELECT 'agents.tool_reviews.oldest_pending_ms',coalesce(max(extract(epoch FROM now()-created_at)*1000),0)::text,'{}'::jsonb FROM agents_platform.tool_invocation_reviews WHERE state='pending' AND expires_at>now()
+      UNION ALL SELECT 'agents.connected.operations',count(*)::text,jsonb_build_object('state',state) FROM agents_platform.connected_reads WHERE created_at>now()-interval '24 hours' OR state IN ('started','uncertain') GROUP BY state
       UNION ALL SELECT 'agents.observation.pending',count(*)::text,'{}'::jsonb FROM agents_platform.observation_exports WHERE exported_at IS NULL
     `);
     const points=result.rows.map(row=>({name:row.name,value:Number(row.value),attributes:row.attributes}));
@@ -65,7 +70,7 @@ export function createNativeMetrics(pool:Pool,role:string,environment:NodeJS.Pro
   const reader=new metrics.PeriodicExportingMetricReader({exporter,exportIntervalMillis:15000,exportTimeoutMillis:5000});
   const provider=new metrics.MeterProvider({readers:[reader],resource:resourceFromAttributes({"service.name":`agents-${role}`,"service.instance.id":`${process.pid}`,"service.namespace":"kasitek-agents"})});
   const meter=provider.getMeter("kasitek-agents-native-metrics","1");
-  const names=["agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
+  const names=["agents.connections","agents.connection.setup","agents.tool_reviews","agents.tool_reviews.oldest_pending_ms","agents.connected.operations","agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
   const instruments=new Map(names.map(name=>[name,meter.createObservableGauge(name,{description:"Native snapshot; rolling windows documented in Agents observability reference"})]));
   let failures=0;
   const failed=meter.createObservableGauge("agents.metrics.collection_failures");

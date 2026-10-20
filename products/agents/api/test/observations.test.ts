@@ -13,6 +13,13 @@ describe("versioned native observations", () => {
     expect(JSON.stringify(result)).not.toContain("private");
     expect(JSON.stringify(result)).not.toContain("secret");
   });
+  it("correlates provider authority with bounded identifiers while excluding destinations and arguments",()=>{
+    const connectionId=randomUUID(),bindingId=randomUUID();
+    const observation=makeObservation({identity,eventKey:"provider:claim",kind:"tool.connected.started",occurredAt:new Date().toISOString(),
+      metadata:{connectionId,bindingId,policyRevision:2,authorizationGeneration:4,destination:"https://private.example/path",arguments:{secret:"private"}}});
+    expect(observation.metadata).toEqual({connectionId,bindingId,policyRevision:2,authorizationGeneration:4});
+    expect(JSON.stringify(observation)).not.toContain("private");
+  });
   it("keeps a stable logical identity across replay while distinguishing physical attempts", () => {
     const input = { identity, eventKey: "operation:0:completed", kind: "tool.completed", occurredAt: new Date().toISOString() };
     expect(makeObservation(input).id).toBe(makeObservation({ ...input, occurredAt: new Date(Date.now() + 10).toISOString() }).id);
