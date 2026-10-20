@@ -213,6 +213,35 @@ acceptance requires an explicitly supplied read key; using Stash in the chat doe
 not establish acceptance through Agents. GitHub's authenticated MCP endpoint is an
 optional integration check, not a prerequisite for public MCP execution.
 
+### Verification matrix
+
+The current general adapter release is `remote-mcp-v1-sdk2.3.1-cache1`, using
+`@modelcontextprotocol/client@2.3.1`. Native API execution uses `native-api-v1`.
+The matrix records controlled fixture results separately from live provider evidence.
+An unsupported or untested combination is not a passed compatibility case.
+
+| Combination | Evidence | Verified boundary or remaining gap |
+| --- | --- | --- |
+| MCP 2026-07-28 and 2025-11-25 over Streamable HTTP | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts), 25 passing cases including cache behavior. | Version negotiation, bounded pagination, isolated schema validation, cancellation and physical request limits. |
+| Deprecated HTTP+SSE | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts). | Explicit SSE and opt-in fallback pass; cross-origin message endpoints and authentication-triggered fallback are refused. |
+| Anonymous, bearer and named-key MCP | Fixture: [remote-connections.test.ts](../api/test/remote-connections.test.ts), [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts). | Scoped encrypted custody, selected bindings, published execution and current-authority checks. This does not establish every public server's compatibility. |
+| OAuth discovery, DCR and own client | Fixture: [remote-auth.test.ts](../api/test/remote-auth.test.ts), [remote-connections.test.ts](../api/test/remote-connections.test.ts). | Actual controlled HTTP token exchange, S256 PKCE, issuer binding, registration reuse, callback replay/cancellation, persisted resume and rotating-token refresh. |
+| Metadata-selected pre-registration, CIMD and permission step-up | Untested combinations. | SDK/configuration hooks do not establish fixture or live acceptance for these paths. |
+| Catalog schemas, results and cache partitions | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts), [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts). | Per-tool diagnostics, structured/media blocks, malformed output, secret reflection, immutable drift and organization/account/credential/policy/generation/authority partition tests pass. Metadata can remain stale within its declared maximum 30-second TTL. |
+| Resource/template/prompt inventory | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts). | Inventory is retained. Model resource reads and explicit prompt activation remain unavailable. |
+| Persistent change notifications, tasks, sampling, roots, elicitation and MCP Apps | Unsupported. | These client capabilities are not declared. Persistent catalog push is unavailable; TTL and explicit refresh provide revalidation. Operations requiring unavailable capabilities are refused. |
+| Public no-auth DeepWiki | Current-release live probe: `.audit/public-mcp-current-release-20261020.json`, checked 2026-10-20, endpoint `https://mcp.deepwiki.com/mcp`, protocol 2025-11-25. | `remote-mcp-v1-sdk2.3.1-cache1` discovered three compatible tools and executed `read_wiki_structure` for `facebook/react` without authentication. This proves a public adapter read, not tenant binding or a complete browser journey. |
+| Approved live OAuth and keyed/API providers | Not verified. | No complete current-release live matrix is recorded. A chat connector's credentials do not establish Agents provider acceptance. |
+| OpenAPI 3.0/3.1 with none, bearer, Basic and header/query keys | Fixture: [openapi-import.test.ts](../api/test/openapi-import.test.ts), [api-connections.test.ts](../api/test/api-connections.test.ts), [native-api.test.ts](../api/test/native-api.test.ts), [native-api-executor.test.ts](../api/test/native-api-executor.test.ts). | Bounded import, safe references, fixed request compilation, encrypted credentials, selected published execution and private response bytes. HTTP 429/5xx responses retain receipts without blind retry. General API pagination and configurable response projection are not established. |
+| Google Calendar OAuth, identity and bookings | Fixture: [google-calendar-connections.test.ts](../api/test/google-calendar-connections.test.ts), [google-calendar.test.ts](../api/test/google-calendar.test.ts), [booking-business.test.ts](../api/test/booking-business.test.ts). | Controlled signed OIDC, explicit service sharing, account/configuration fences and booking recovery. The live Google application and approved test account remain unconfigured. Imported API OAuth and service client-credentials are unavailable outside an implemented provider contract. |
+| Portable instruction and multi-file skills | Fixture: [skill-packages.test.ts](../api/test/skill-packages.test.ts), [skill-repository.test.ts](../api/test/skill-repository.test.ts), [skill-package-store.test.ts](../api/test/skill-package-store.test.ts). | Immutable package bytes, hostile archive/refusal cases, review, requirements and scoped activation. Package scripts remain inert; isolated script execution is unavailable. |
+| Imported API plus reviewed skill through normal agent execution | External controlled Harbor trial: `.audit/harbor-eefdc68d-68f6-4cec-8ffb-873e41aca258/acceptance.json`; [fixture support](../api/test/harbor-connector-support.ts). | FAQ policy-read trial passed with authoritative provider checks. It records `mutationsVerified: false`; it is neither live provider consent nor booking-write acceptance. |
+| Browser recovery and complete consent-to-execution journey | Mock transport: [remote-connections.spec.ts](../web/test/remote-connections.spec.ts), [api-connections.spec.ts](../web/test/api-connections.spec.ts), [google-calendar.spec.ts](../web/test/google-calendar.spec.ts). | UI setup, masked fields and recovery have separate browser evidence. Mocked transport plus API fixtures do not prove one complete live OAuth journey, cross-tab recovery or popup-denial recovery. |
+
+This matrix records the remaining registration and live-provider gaps; it does not
+mark every compatibility checklist item complete. Local verification and disable
+evidence remain separate from production deployment and live-provider acceptance.
+
 ## Outbound GitHub reads
 
 A connection belongs to an organization and account. The owner supplies an expiring
