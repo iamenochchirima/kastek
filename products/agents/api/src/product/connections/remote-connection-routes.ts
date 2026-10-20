@@ -11,6 +11,7 @@ export function registerRemoteConnectionRoutes(app: FastifyInstance,options:{sto
   app.get(base,async request=>({connections:await options.store.list(await options.resolveScope(request))}));
   app.post(base,async request=>({connection:await options.store.create(await options.resolveScope(request),request.body)}));
   app.get(`${base}/:connectionId`,async request=>({connection:await options.store.get(await options.resolveScope(request),id(request))}));
+  app.post(`${base}/:connectionId/credentials`,async request=>({connection:await options.store.configure(await options.resolveScope(request),id(request),request.body)}));
   app.post(`${base}/:connectionId/authorize`,async request=>options.store.beginAuthorization(await options.resolveScope(request),id(request),generation(request)));
   app.post(`${base}/:connectionId/discover`,async request=>options.store.discover(await options.resolveScope(request),id(request),generation(request)));
   app.post(`${base}/:connectionId/disconnect`,async request=>options.store.disconnect(await options.resolveScope(request),id(request),generation(request)));

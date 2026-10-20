@@ -42,6 +42,21 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     await expect(remote.discover(owner,connection.id,connection.generation)).rejects.toMatchObject({code:"CONNECTION_CHANGED"});
     await expect(remote.completeAuthorization(owner,"a".repeat(43),"forged")).rejects.toMatchObject({code:"OAUTH_STATE_INVALID"});
   });
+  it("rotates credentials and reconnects without reusing old authorization policy",async()=>{
+    const owner=await scope(),connection=await remote.create(owner,{operationId:randomUUID(),endpoint:"https://tools.example.test/mcp",authentication:"bearer",secret:"original-private-key"});
+    const old=(await pool.query("SELECT policy_revision FROM agents_platform.connections WHERE id=$1",[connection.id])).rows[0].policy_revision;
+    const change={operationId:randomUUID(),generation:connection.generation,authentication:"header",headerName:"X-Service-Key",secret:"replacement-private-key"};
+    const rotated=await remote.configure(owner,connection.id,change);
+    expect(await remote.configure(owner,connection.id,change)).toEqual(rotated);
+    expect(rotated.generation).toBe(connection.generation+1);expect(rotated.status).toBe("draft");expect(JSON.stringify(rotated)).not.toContain("private-key");
+    expect((await pool.query("SELECT policy_revision FROM agents_platform.connections WHERE id=$1",[connection.id])).rows[0].policy_revision).toBe(old+1);
+    await expect(remote.configure(owner,connection.id,{...change,operationId:randomUUID()})).rejects.toMatchObject({code:"CONNECTION_CHANGED"});
+    await remote.disconnect(owner,connection.id,rotated.generation);
+    const disconnected=await remote.get(owner,connection.id);
+    const reconnected=await remote.configure(owner,connection.id,{operationId:randomUUID(),generation:disconnected.generation,authentication:"none"});
+    expect(reconnected.status).toBe("draft");expect(reconnected.authentication).toBe("none");
+    await expect(remote.configure(await scope(),connection.id,{...change,operationId:randomUUID()})).rejects.toMatchObject({code:"CONNECTION_NOT_FOUND"});
+  });
   it("resumes encrypted OAuth across instances, rejects callback replay and serializes rotating-token refresh",async()=>{
     let origin="",registrations=0,tokenCalls=0,challenge="",failRefresh=false;
     const server=createServer(async(request,response)=>{

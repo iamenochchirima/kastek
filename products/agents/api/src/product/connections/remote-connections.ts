@@ -180,6 +180,41 @@ export class RemoteConnectionStore {
       throw new PlatformError("OAUTH_SIGN_IN_FAILED", 400, "Sign in failed; reconnect to try again");
     }
   }
+  async configure(scope:ActionScope,id:string,raw:unknown) {
+    const input=remoteConnectionInput.omit({endpoint:true,name:true}).extend({generation:z.number().int().positive()}).parse(raw);
+    if(["bearer","header"].includes(input.authentication)&&!input.secret)throw new PlatformError("CONNECTION_KEY_REQUIRED",400,"Enter the server credential");
+    if(input.authentication==="header"&&(!input.headerName||/^(authorization|host|cookie|content-|transfer-|connection|proxy-|mcp-)/i.test(input.headerName)))
+      throw new PlatformError("CONNECTION_HEADER_INVALID",400,"Enter a supported credential header");
+    if(!["bearer","header"].includes(input.authentication)&&input.secret)throw new PlatformError("CONNECTION_KEY_INVALID",400,"Choose the credential method");
+    if(input.oauthClient) {
+      if(!["auto","oauth"].includes(input.authentication))throw new PlatformError("OAUTH_CLIENT_INVALID",400,"Choose OAuth for an OAuth client");
+      remoteEndpoint(input.oauthClient.issuer,this.options.testLoopback);
+      if(input.oauthClient.authMethod!=="none"&&!input.oauthClient.clientSecret)throw new PlatformError("OAUTH_CLIENT_INVALID",400,"Enter the OAuth client secret");
+    }
+    return transaction(this.pool,async db=>{
+      await requireActionMember(db,scope);
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`remote:${scope.organizationId}:${scope.accountId}:${input.operationId}`]);
+      const digest=requestDigest({id,...input}),old=(await db.query("SELECT request_digest,result FROM agents_platform.connection_mutations WHERE organization_id=$1 AND account_id=$2 AND operation_id=$3",[scope.organizationId,scope.accountId,input.operationId])).rows[0];
+      if(old){if(old.request_digest!==digest)throw conflict();return old.result as RemoteConnectionDTO;}
+      const row=(await db.query(`SELECT c.*,o.endpoint,o.auth_method,o.generation,k.envelope FROM agents_platform.connections c
+        JOIN agents_platform.connection_onboarding o ON o.connection_id=c.id JOIN agents_platform.connection_credentials k ON k.connection_id=c.id AND k.revision=c.revision
+        WHERE c.id=$1 AND c.organization_id=$2 AND c.account_id=$3 FOR UPDATE OF c,o`,[z.uuid().parse(id),scope.organizationId,scope.accountId])).rows[0];
+      if(!row)throw missing();if(row.generation!==input.generation)throw conflict();
+      const stored=this.secret(row),secret:StoredSecret=input.secret?{secret:input.secret}:{};
+      if(input.oauthClient)secret.authorization={ownClientIssuer:input.oauthClient.issuer,client:{client_id:input.oauthClient.clientId,
+        ...(input.oauthClient.clientSecret?{client_secret:input.oauthClient.clientSecret}:{}),token_endpoint_auth_method:input.oauthClient.authMethod,issuer:input.oauthClient.issuer}};
+      else if(["auto","oauth"].includes(input.authentication)&&stored.authorization?.client)
+        secret.authorization={client:stored.authorization.client,ownClientIssuer:stored.authorization.ownClientIssuer};
+      const revision=row.revision+1;
+      await db.query("INSERT INTO agents_platform.connection_credentials(connection_id,revision,envelope) VALUES($1,$2,$3)",[id,revision,JSON.stringify(this.vault.seal(scope.organizationId,id,revision,JSON.stringify({...secret,version:1,kind:"remote-connection"}),65536))]);
+      const updated=(await db.query("UPDATE agents_platform.connections SET revision=$2,policy_revision=policy_revision+1,state='active',expires_at=now()+interval '90 days' WHERE id=$1 RETURNING *",[id,revision])).rows[0];
+      await db.query(`UPDATE agents_platform.connection_onboarding SET auth_method=$2,header_name=$3,status='draft',generation=generation+1,last_error=NULL,verified_identity=NULL,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1`,[id,input.authentication,input.headerName??null]);
+      await db.query("UPDATE agents_platform.connection_oauth_attempts SET state='failed' WHERE connection_id=$1 AND state IN ('pending','exchanging')",[id]);
+      const result=this.dto({...updated,endpoint:row.endpoint,auth_method:input.authentication,status:"draft",generation:row.generation+1,last_error:null});
+      await db.query("INSERT INTO agents_platform.connection_mutations(organization_id,account_id,operation_id,request_digest,connection_id,result) VALUES($1,$2,$3,$4,$5,$6)",[scope.organizationId,scope.accountId,input.operationId,digest,id,JSON.stringify(result)]);
+      return result;
+    });
+  }
   async disconnect(scope: ActionScope, id: string, generation: number) {
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
