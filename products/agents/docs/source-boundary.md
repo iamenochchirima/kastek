@@ -16,7 +16,9 @@ and agency experiences using the shared execution backend. Shared runtime capabi
 not establish those offerings in the standalone Agents catalogue.
 
 The current application creates grounded FAQ or customer-service agents from the offering catalogue.
-The chosen offering is stored on the agent. The catalogue separates FAQ/customer-service setup from shared execution programs. Booking remains unavailable.
+The chosen offering is stored on the agent. Offering names remain separate from execution programs.
+The standalone Booking creation choice remains unavailable. Customer-service agents can explicitly
+configure Google Calendar appointments, and other agents can open optional setup through Tools.
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
 resolution and explicit return to automation. Human-owned ingress does not admit model work.
@@ -40,14 +42,18 @@ Visitor chat instances and pending-send storage bind both deployment and visitor
 changes withhold the prior deployment's view while the new session initializes. A late send
 acknowledgement from an unmounted session cannot clear another session's pending input.
 
-Website publication and widget conversations exist. WhatsApp, Facebook, Instagram, booking and
-calendar adapters remain unavailable. The tool catalogue exposes reviewed built-in, native API and
-MCP integration entries with agent-specific recommendations and actual connection readiness.
-Connections retains report/public-repository/GitHub/Stash profiles and adds custom remote MCP
-drafts, encrypted key/header credentials, resumable OAuth attempts, discovery and disconnect.
-The OAuth client uses maintained SDK discovery, PKCE and issuer validation. Real provider OAuth
-acceptance, verified provider account identity and generic agent tool binding remain unverified
-or unavailable. A discovered custom server is not yet a published agent capability.
+Website publication and widget conversations exist. WhatsApp, Facebook, and Instagram remain
+unavailable. Google Calendar appointments use their own reviewed service policy rather than a
+personal generic binding. The Tools catalogue exposes built-ins, native API and MCP integrations,
+agent-specific recommendations, and current connection readiness. Custom MCP setup supports encrypted
+keys, resumable OAuth, discovery, compatible tool selection, credential rotation, and disconnect.
+Selection creates immutable executable bindings for operator runs. Endpoint discovery or OAuth alone
+does not grant an agent access. Native API import previews OpenAPI operations or an advanced structured request editor and authentication
+alternatives before explicit credential and operation selection. Generic writes require exact review.
+The bounded authority-keyed MCP tool-index cache has a maximum 30-second metadata TTL, explicit
+uncached refresh, and pinned-schema/current-authority checks before each send. It does not claim
+persistent change notifications. Live provider OAuth acceptance and verified generic provider
+account identity remain separate gates.
 Research/report acceptance fixtures prove execution behavior, not a standalone research product.
 The runtime's reviewed personal memory does not imply a personal-assistant catalogue offering.
 
@@ -55,8 +61,9 @@ The runtime's reviewed personal memory does not imply a personal-assistant catal
 
 The customer editor has Tools and Skills catalogues with search, recommendations and explicit
 draft selection. Skills include reviewed KasiTek procedures and private SKILL.md/ZIP package
-imports, file previews and exact-digest owner review. Complete packages retain immutable files,
-source identity and content digests. Installation does not add a skill to an agent. Publication
+imports, exact public GitHub commit/path imports, file previews, and exact-digest owner review. Complete packages retain immutable files,
+source identity and content digests. Private imports require explicit draft selection. The curated Add action installs the official package
+and selects its reviewed revision in the unsaved draft. Publication
 and runtime loading reject unreviewed packages. Imported scripts remain inert.
 Package-based skills load names and descriptions first. Selected agents receive
 `skills.activate` and `skills.read` with a separate `skill.read` grant. Activation
@@ -64,12 +71,17 @@ loads reviewed instructions; file reads require prior activation. Complete loads
 are limited to 4,096 UTF-8 bytes and the current model budget. Larger files fail
 explicitly. Exact package/file digests and loaded text survive compaction through
 durable receipts. Legacy text revisions retain their existing eager loading.
-This behavior uses `modular-programs-v3` and `AgentsBusinessRunV13` with a fresh
-schema. An older worker or database is not upgraded in place.
+This behavior uses `modular-programs-v4` and `AgentsBusinessRunV14` with a fresh
+schema through `037_google_connector_definition.sql`. An older worker or database is not upgraded in place.
+Skill update and rollback select one reviewed revision per publisher/source family. Requirements
+recheck existing connections, permissions, and runtime access; they never grant capabilities.
+Disabled or removed packages remain immutable records and lose current execution authority.
 Personal-memory, specialist, sandbox and report configuration remains outside the customer editor.
 Shared-harness acceptance provisions those capabilities through authenticated APIs.
-Website publication still rejects all skill and connected-tool bindings pending customer-safe
-authority integration. Operator chat can publish reviewed procedural skills.
+Website publication permits only enabled, reviewed server-curated instruction packages with their
+exact shipped digest. Private and repository packages remain operator-only. Generic personal
+connection bindings remain unavailable to website visitors. Google Calendar uses a separate pinned
+service policy. Operator chat can publish reviewed procedural skills and selected generic tools.
 Customer creation loads the actual catalogue, sends the selected FAQ/customer-service offering and
 keeps submission unavailable when catalogue loading fails. Website chat reads the canonical customer
 timeline; prior browser output caches are discarded before current-policy reads.
@@ -86,13 +98,34 @@ accounting, late-output suppression and canonical human context after restart. R
 admits only the next new visitor message; queued and human-owned messages are not replayed.
 The controlled local provider records physical calls without external model requests.
 
+## Google Calendar appointment authority
+
+A server-configured Google connector and encrypted vault make connection setup available.
+Owners explicitly select a writable calendar and opt into organization service sharing. A booking
+policy pins that calendar, owner, policy revision, time zone, duration, notice, advance window,
+and opening hours. Selecting a policy changes the agent draft; publication remains explicit.
+The separate Booking creation offering remains unavailable. The [integration reference](mcp-integration.md#google-calendar-bookings)
+records provider configuration and authority boundaries.
+
+Website proposals belong to the scoped visitor task and current conversation ownership generation.
+Exact confirmation is a durable wait. Provider insertion starts only after current authority and
+conflict checks. Staff takeover fences subsequent insertion even when a customer already approved.
+Confirmed output uses the authoritative receipt. Unknown acceptance remains uncertain and requests
+shared Inbox handoff only while the original automated ownership binding remains current. Existing
+human ownership is preserved. Staff can inspect the selected conversation's appointment status and
+request GET-only reconciliation; staff cannot approve or decline for the customer.
+**Check status** uses only a leased provider GET for the deterministic event, never another insertion.
+It does not rewrite the original uncertain task outcome. Active claims return `BOOKING_IN_PROGRESS`.
+Public booking projections omit private task and Google event identities.
+
 ## Published execution and evaluation contracts
 
 Trusted `grounded-conversation` and `tool-directed` program releases share the business loop.
 Publication validates exact tool/workflow closure and saves a digest of the effective configuration,
 program/runtime releases, context policies, tools and connected bindings. Admission saves that
 composition on the task; workers validate it before further execution. Task bindings and published
-compositions are immutable. Workspace programs and booking providers fail explicitly.
+compositions are immutable. Workspace programs remain unavailable. Google Calendar is the only
+implemented booking provider; availability still requires the configured OAuth application and vault.
 
 Execution loading reads current task, version, and connected-binding records and validates their
 schemas on every call. A private cache reuses only successful pure composition compilation for
@@ -114,8 +147,8 @@ configuration, or live authority state. Operation admission, receipt persistence
 settlement read only immutable organization/root keys before locking, then reload and validate
 the full execution under the original locks. Current authority and dependency checks still run.
 
-The current source release is `modular-programs-v2` / `AgentsBusinessRunV12`. It requires a fresh
-dedicated schema. Verification uses separate compiled artifacts and databases. Running older local
+The current source release is `modular-programs-v4` / `AgentsBusinessRunV14`. It requires a fresh
+dedicated schema through `037_google_connector_definition.sql`. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
 
 Each operation journals its physical outcome and attempt identity before a separate durable step
@@ -231,8 +264,8 @@ Moving adapter source changes executable digests. Existing immutable bindings ar
 never rewritten: new acceptance uses newly discovered bindings and published versions
 with matching source/compiled artifacts. A previously recorded receipt still resolves
 before the live registry; unavailable old releases fail closed for new physical IO.
-The current business workflow is `AgentsBusinessRunV12`, with harness release
-`modular-programs-v2`. Isolated verification preserves existing running owner services
+The current business workflow is `AgentsBusinessRunV14`, with harness release
+`modular-programs-v4`. Isolated verification preserves existing running owner services
 and their original compiled artifacts.
 
 The relocation smoke compiles into an ignored output tree rather than deleting a
@@ -283,6 +316,10 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `capabilities/knowledge/knowledge.ts`, `product/agents/knowledge-routes.ts`, `capabilities/knowledge/ingestion-runtime.ts` | Private candidates, owner approval, revision policy and durable import stages. |
 | `capabilities/knowledge/document-runtime.ts`, `composition/document-reaper.ts`, `capabilities/knowledge/source-objects.ts`, `execution/artifacts/execution-objects.ts` | Pinned no-network parsing/embedding, physical cleanup and object write/deletion intents. |
 | `capabilities/knowledge/retrieval.ts`, `capabilities/knowledge/query-embedding.ts`, `capabilities/knowledge/knowledge-runtime.ts`, `execution/context/evidence.ts` | Scoped lexical/hybrid retrieval, passage references and transitive policy dependencies. |
+| `adapters/providers/connector-registry.ts`, `adapters/providers/default-connectors.json` | Validated supported-connector records and installed-handler selection; metadata does not supply executable code. |
+| `product/catalogue/`, `product/agents/skill-package-store.ts`, `capabilities/skills/` | Contextual catalogues, immutable skill imports, family revisions, exact review, requirements, and current installation authority. |
+| `product/connections/remote-connections.ts`, `product/connections/api-connections.ts`, `capabilities/reviews/tool-reviews.ts` | Generic MCP/API onboarding, selected bindings, and exact tool approval. |
+| `product/connections/google-calendar-connections.ts`, `product/connections/google-calendar-oauth.ts`, `adapters/providers/google-calendar.ts`, `workflows/booking/` | Calendar OAuth, explicit service sharing, pinned booking policies, customer confirmation, conflict checks, and GET-only reconciliation. |
 | `composition/setup.ts` | Fresh database initialization and schema checks. |
 
 The management client is in `web/`. Its chat, configuration, management and explicit
@@ -292,22 +329,24 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | User entry point | Current behavior | Verification |
 | --- | --- | --- |
 | `/` | Restored public landing with provider-backed signup and sign-in. | Public-entry browser tests and isolated actual identity signup/verification. |
+| `/app/inbox` | Authorized website assignment, takeover, replies, resolution, explicit return, and scoped appointment status/recovery without customer approval. | Canonical Inbox HTTP/browser, `inbox-bookings.spec.ts`, and durable takeover/status acceptance. |
 | `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
-| `/app/agents/:agentId` | Chat, Activity and Configure; instructions, approved knowledge/revision pins, human support, versions and website publication. | Customer configuration/browser suites and actual native fixtures. |
+| `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts`. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history pinned to its original agent/version, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
-| `/app/connections` | Create report, public repository, GitHub and Stash profiles; select API/MCP tools, replace supported keys and revoke. | Responsive browser mocks and local HTTP/SDK/credential checks; external acceptance is recorded separately. |
+| `/app/connections` | Restricted profiles, custom MCP OAuth/discovery/tool selection, native API preview/credentials/selection, and owner-managed Google Calendar sharing. | Connection browser contracts and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
-| `/app/tasks/:taskId` | Inspect root/children/resources, exact report review, permitted downloads and delivery receipts. | Real compiled-worker scheduled-report acceptance and assigned-reviewer regressions. |
+| `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
+| External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
 
 
 ### Chat navigation and recovery
 
-Every available customer agent opens Chat. Configure contains instructions,
-approved knowledge revisions, human support and website publication. Developer and
-product fixtures configure specialists, analysis, reports, memory and skills through
+Every available customer agent opens Chat. Configure contains General, Tools, Skills, and Website
+sections with knowledge pins, optional appointments, package review, and explicit publication.
+Developer and product fixtures configure specialists, analysis, reports, and personal memory through
 authorized APIs. Draft saves and immutable version creation remain separate operations.
 An existing conversation keeps its version. A version change starts a new chat.
 
@@ -357,8 +396,9 @@ text cannot install tools or grant permission.
 
 A minimal website FAQ uses this same controller with optional capabilities
 disabled. Public visitors receive conversation-scoped context and approved public
-knowledge. Personal memory, skills, and memory tools are denied for website
-publication and execution.
+knowledge. Personal memory, memory tools, generic personal bindings, and private or repository skills
+are denied for website publication and execution. Exact reviewed server-curated instruction packages
+and a separately pinned Google Calendar service policy have explicit public authority contracts.
 
 Provider requests use only `nvidia/nemotron-3-super-120b-a12b:free` through OpenRouter,
 with fallback disabled and reasoning effort `none`. Input preflight conservatively
@@ -551,7 +591,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV12` (`modular-programs-v2`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV14` (`modular-programs-v4`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one
@@ -627,11 +667,57 @@ conversations, a completed memory.search tool receipt, pinned skills and correct
 The website/widget journey and real Keycloak checks remain distinct acceptance paths. Worker signature
 fixtures do not certify cluster key distribution or a production deployment.
 
-Public repository reads require no external credential. Keyed Stash and GitHub acceptance remains separately opt-in. Arbitrary destination writes, local-time cron/DST schedules, Lina execution remains unavailable. The external Harbor adapter has controlled FAQ, specialist/research and reviewed-report acceptance; remaining suite criteria stay in Linear. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
+Public repository reads require no external credential. Keyed Stash and GitHub acceptance remains separately opt-in. Model-chosen destinations, local-time cron/DST schedules, and Lina execution remain unavailable. The external Harbor adapter has controlled FAQ, specialist/research and reviewed-report acceptance; remaining suite criteria stay in Linear. Subagents require explicit published bindings; analysis also requires the pinned backend, resource controls and private storage.
 Production rollout, secret management, durable log retention, monitoring, backups,
 and signup-email delivery require separate verification. OTLP trace/metric export is explicit
 configuration, with local Collector acceptance described above. Services also emit bounded
 structured stdout diagnostics.
+
+### Catalogue and booking release record
+
+| Field | Decision and evidence |
+| --- | --- |
+| Change | Contextual Tools/Skills catalogues, immutable package lifecycle, generic MCP/API selection and exact review, Google Calendar policy and customer booking confirmation. |
+| Owner | Agents engineering. |
+| Risk | High: encrypted provider credentials, external writes, visitor identity, and durable recovery. |
+| Affected services and surfaces | Agents API, business worker, PostgreSQL, management editor, Connections, task activity, website chat and generated widget. Other channel providers are unchanged and unavailable. |
+| Platform release version or ID | Runtime `AgentsBusinessRunV14` / `modular-programs-v4`. Canonical platform `VERSION` remains `0.1.0`; no production release tag or promoted deployment is claimed. Runtime, schema, and customer-created version identities remain separate. |
+| API/schema changes | Fresh ordered schema through `037_google_connector_definition.sql`; 028–037 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V14 task default, and immutable Google connector-definition pins. Setup validates the complete schema digest and does not migrate an existing owner database. |
+| Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, and exact customer confirmation. Missing Google configuration is unavailable. The standalone Booking offering remains disabled. |
+| Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment, zero pre-confirmation inserts, correct current-policy denial, and no insertion during status recovery. Adoption analytics and production alerting are not established. |
+| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V14 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
+| Documentation | Current README, implementation/feature map, architecture, integration boundary, threat model, and runtime reference updated together. No new planning document. |
+| Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. See coverage below. |
+| Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V14 task to an incompatible worker or reverse the fresh SQL in place. |
+| Post-release review | At the first staging promotion and before enabling a live Google OAuth application. No production release date is assigned. |
+
+The real isolated booking journey verifies a durable pending visitor proposal with zero insertion,
+worker SIGKILL and a new process, the same accepted Restate invocation, exact scoped confirmation,
+one provider event, and receipt-backed customer output. It also verifies cross-visitor denial,
+Inbox takeover before insertion, explicit return with a new ownership generation, automatic handoff
+for uncertain booking outcomes, and GET-only recovery by the scoped visitor or staff conversation.
+Same-organization unrelated conversations expose no borrowed booking, and takeover after provider
+acceptance preserves human ownership and the original uncertain operation. The provider and model are controlled HTTP fixtures.
+The separate Google OIDC tests use a controlled signed issuer, not Google's live authorization system.
+
+The actual API browser verifies curated/private package review and publication, same-family
+revision comparison and lifecycle changes, native operation bindings, Google connection callback,
+calendar selection and sharing, policy draft pins, and operator confirmation. Its external OAuth
+navigation and Google HTTP responses are explicit fixtures. The generated widget tests use the
+actual emitted script over HTTP with controlled public endpoints; they verify exact two-step
+confirmation, expiry, status-only recovery, and stable focus at 1440, 768, and 390 pixels.
+These layers establish local contracts, not a live Google calendar account or production readiness.
+
+With `AGENTS_TEST_DATABASE_URL` configured for disposable database creation, the durable
+booking acceptance runs from the repository root:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run test/booking-business.test.ts test/booking-workflow.test.ts test/google-calendar.test.ts test/google-calendar-connections.test.ts
+```
+
+Live Google consent and token refresh against a configured application, production credential
+operations, hosted observability, and other channel/provider journeys remain separate gates.
+MCP resources and prompts are inventory only. Imported skill scripts remain inert.
 
 ## Coordination and replica configuration
 

@@ -1,6 +1,6 @@
 # Agents threat model
 
-Owner: Agents engineering. Last reviewed: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 This reference covers the current management API, shared business harness, dedicated database,
 private content store, website widget, identity provider, and model boundary. It
@@ -22,8 +22,10 @@ Implemented continuation paths require their own runtime acceptance; the presenc
 of a resume endpoint alone is not evidence of successful durable recovery.
 
 Website access binds deployment, allowed origin, visitor session, version, and
-approved public knowledge. Website agents cannot enable personal memory, skills,
-or memory tools. An origin check does not replace the visitor's scoped session.
+approved public knowledge. Website agents cannot enable personal memory, memory tools, or
+generic personal connection bindings. Only enabled, reviewed server-curated instruction packages
+with the exact shipped digest are permitted as website skills. Private and repository packages
+remain operator-only. Booking access requires a separate current service policy. An origin check does not replace the visitor's scoped session.
 
 ## Target channels and customer inbox
 
@@ -31,7 +33,9 @@ Website Inbox assignment, takeover, human replies and return to automation are i
 Organization membership, assignee permissions, revision checks, deduplicated commands and durable
 ownership generations fence admission and canonical automated delivery. Human-owned visitor input
 is recorded without automatic model admission. Late model results cannot become customer messages.
-WhatsApp, Facebook, Instagram and booking integrations remain unavailable.
+WhatsApp, Facebook, and Instagram remain unavailable. Google Calendar appointments use explicit
+organization service sharing, an owner-pinned policy, and exact customer confirmation. The
+standalone Booking creation offering and live Google OAuth acceptance remain unavailable.
 
 The website implementation uses verified channel ingress, trusted tenant and agent bindings, deduplicated
 events, and scoped customer conversations. Staff access and assignment require product permission.
@@ -149,15 +153,43 @@ request is not evidence that compute already stopped. Receipts and exported
 artifact references survive destruction for the permitted replay window.
 
 Lina execution remains unavailable. Report writes require exact approval;
-connected native/MCP tools are restricted reads. Local fixtures verify transport
+general native/MCP effects require exact review by default, including nominal read operations.
+Explicit owner read attestation applies only to its selected immutable operation policy. Local fixtures verify transport
 controls. Public repository reads use anonymous native GitHub and DeepWiki endpoints;
 keyed Stash and GitHub checks remain separate from that public acceptance.
+
+## Calendar and booking authority
+
+Google OAuth uses the configured issuer/client, PKCE, nonce, state, and verified token claims.
+The connector encrypts tokens and one-use authorization attempts. Refresh runs outside database
+locks under a lease; changed identity, scopes, policy, or uncertain refresh requires reconnection.
+A private calendar becomes customer-service eligible only after explicit organization sharing.
+
+Published booking authority pins the current owner, calendar, connection policy revision, and
+policy digest. Customer session and channel ownership fence every proposal, approval, and send.
+A staff Inbox takeover prevents a previously approved automated booking from starting a new
+insertion. The customer, rather than a different workspace member or visitor, confirms the exact
+request digest. Confirmation does not override withdrawn policy, membership, or source access.
+
+Local calendar reservations and a single-send claim fence competing inserts. Provider acceptance
+with a lost acknowledgement remains uncertain. **Check status** rechecks current authority and
+uses only a leased provider GET for the deterministic event. It never repeats insertion, renews
+the original operation deadline, or turns the original uncertain task into a successful task.
+Active claims return `BOOKING_IN_PROGRESS`. Public projections omit task IDs, Google event IDs,
+and account credentials. Unresolved state must not produce a model-invented booking confirmation. Uncertain outcomes request
+Inbox handoff only for the current automated ownership generation. Staff status reads require exact
+conversation/task links and current staff scope. Staff reconciliation cannot approve a customer
+request or repeat insertion; unrelated conversations cannot borrow a booking identifier.
+
+The controlled tests use owned disposable PostgreSQL databases, isolated Restate, independent
+worker processes, and local provider/OIDC fixtures. Live Google consent and production operation
+require separate acceptance.
 
 ## Connected action and automation authority
 
 Connection secrets use AES-256-GCM with an external keyring and authenticated
 organization/connection/revision context. Missing keys and failed decryption deny
-access. Neither credentials nor user-selected network headers/URLs enter model
+access. Neither credentials nor owner-selected authentication headers enter model
 context, tool arguments, sandbox, browser responses or diagnostic logs. Only a
 configured destination and resource can receive a report; redirects fail closed.
 
@@ -178,7 +210,7 @@ Personal memory and owner history are excluded. A designated reviewer needs curr
 membership and exact packet identity, independently of execution ownership. Reviewer downloads are limited to the prepared report artifact; other root inputs remain owner-only.
 
 The local persistent HTTP receiver establishes idempotency/status behavior for
-ReportDeliveryHTTP. No arbitrary provider or OAuth flow is claimed. Production key custody/rotation, destination provisioning, durable
+ReportDeliveryHTTP. Report delivery does not implement arbitrary provider OAuth. Production key custody/rotation, destination provisioning, durable
 receiver storage, ingress rate limiting and operational monitoring remain release
 work for their selected deployment.
 

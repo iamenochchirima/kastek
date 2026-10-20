@@ -109,7 +109,7 @@ References: [HTTP invocation](https://docs.restate.dev/services/invocation/http)
 
 ## Report and automation recovery
 
-Worker registration discovers `AgentsBusinessRunV12`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
+Worker registration discovers `AgentsBusinessRunV14`, `AgentsAutomationV1` and, when configured, `AgentsKnowledgeImportV1`.
 Use a fresh dedicated development database after schema changes; setup rejects
 an incompatible checksum. Keep immutable worker endpoints for journal replay.
 Do not point old journals at changed workflow/descriptor code.
@@ -246,9 +246,43 @@ remains visible and is retried; stopping new admission must not stop the reaper
 or discard receipts. Production isolation, capacity and operational certification
 remain separately verified deployment gates.
 
+## Calendar booking runtime
+
+The current source uses `AgentsBusinessRunV14` with `modular-programs-v4` and fresh schema
+through `037_google_connector_definition.sql`. Keep each tested worker artifact and database separate from
+older local releases. Setup checks the complete SQL digest and does not migrate an owner database.
+
+The Google connector requires `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`,
+`GOOGLE_CALENDAR_CALLBACK_URL`, and the encrypted `AGENTS_CONNECTION_KEYS` keyring with
+`AGENTS_CONNECTION_ACTIVE_KEY`. The callback must be `/api/google-calendar/callback` on the
+configured application origin. Production requires HTTPS. API and worker processes need matching
+provider configuration and key access. Missing configuration keeps the provider unavailable.
+Never place credentials in a command argument, model context, browser state, or verification output.
+
+A booking proposal waits durably without a provider insertion or held execution slot. Exact customer
+confirmation resumes the accepted invocation. Current policy and channel ownership still fence the
+send. Claimed or uncertain appointments expose **Check status** through scoped management or public
+routes. That route performs only a provider GET under a lease; it cannot create another event.
+An active insertion claim returns `BOOKING_IN_PROGRESS` rather than taking over the operation.
+
+`test/booking-business.test.ts` starts its own database, Restate container, API, provider fixture,
+and independent worker processes. With `AGENTS_TEST_DATABASE_URL` configured for disposable
+DB creation, run from the repository root:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run test/booking-business.test.ts test/booking-workflow.test.ts test/google-calendar.test.ts test/google-calendar-connections.test.ts
+```
+
+The acceptance kills and restarts its own worker, preserves the accepted invocation, checks one
+provider insertion after exact visitor confirmation, and verifies takeover fences and GET-only
+uncertain recovery. Google OAuth/token exchange in that journey is controlled fixture behavior.
+Separate signed-OIDC tests verify claim validation against a local issuer. Neither is live Google
+OAuth acceptance. See the [release record](../../products/agents/docs/source-boundary.md#catalogue-and-booking-release-record)
+for rollout limits, observations, and disable procedures.
+
 ## Knowledge and connected-read recovery
 
-`AgentsBusinessRunV12` uses harness release `modular-programs-v2`.
+`AgentsBusinessRunV14` uses harness release `modular-programs-v4`.
 Each operation journals its physical outcome before a separate durable step writes
 the native receipt. Receipt retries reuse that outcome without repeating provider
 requests. A crash before the outcome is journaled remains uncertain.
@@ -260,7 +294,7 @@ is uncertain unless the runtime explicitly reports cancellation. The pinned Rest
 workflow API rejects a caller-supplied idempotency key on `run`; use workflow
 identity and canonical lookup rather than adding that header.
 `AgentsKnowledgeImportV1` coordinates owner imports separately from task roots.
-Fresh schema bootstrap pins all ordered SQL files; this product does not migrate
+Fresh schema bootstrap pins all ordered SQL files through `037_google_connector_definition.sql`; this product does not migrate
 an earlier Agents database. Keep the old database separate when testing a new
 schema release.
 

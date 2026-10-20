@@ -26,6 +26,14 @@ curated and private immutable packages. Custom MCP and API setup supplement thos
 Connection entries stay distinct by account and connection ID. Adding a library item does not
 change a published agent version.
 
+Supported connector metadata comes from the validated records in
+`api/src/adapters/providers/default-connectors.json`. Records define names, descriptions,
+recommendations, authentication configuration, and trusted setup/action descriptors. The management
+client reads `/api/organizations/:organizationId/connectors`; it does not hardcode the default
+provider list. Calendar setup still uses its installed protocol-specific picker and policy form.
+The loader accepts a validated configuration snapshot, but database-backed registry editing is not
+implemented. A metadata record cannot import code or enable an uninstalled adapter.
+
 Custom MCP setup starts at `remote-connections` with a URL. OAuth uses the pinned MCP SDK for
 resource/issuer discovery, PKCE and client registration. An own client is optional and remains bound
 to its exact issuer. Tokens, verifier and registration state are encrypted. Callback state is single use
@@ -43,11 +51,24 @@ Tasks, subscriptions, sampling, roots, elicitation and MCP Apps are not declared
 
 General tool calls retain typed content, structured output and complete bounded private result bytes.
 The model receives a bounded projection and content-block diagnostics. Returned links never cause
-an unrestricted fetch. The current isolated invocation verifies the live descriptor before calling it;
-it has no persistent cross-invocation catalog cache or change-notification session.
+an unrestricted fetch. The metadata-only tool index cache has at most 16 authority partitions, 8 MiB total, and 2 MiB
+per index. Indexes expire within 30 seconds, or sooner when the server declares a shorter TTL.
+The partition binds organization, account, connection credential/policy revision and generation,
+task principal, version/resource, selected bindings, endpoint, transport/protocol, executable
+adapter release, and hashed credentials. Cache entries never supply current execution authority.
+
+Each call still negotiates capabilities, validates pinned input/output schemas, and rechecks the
+grant, connection, and exact review before physical send. An index can remain stale within its
+bounded TTL. Expiry or a capability change relists tools; incompatible drift refuses the immutable
+binding instead of adopting a replacement. Explicit discovery bypasses the cache and invalidates
+its local partition. A persisted refresh changes revision identity so other workers cannot reuse
+an old partition. The 2025 protocol uses the 30-second application policy when TTL is absent;
+2026 zero-TTL indexes are uncached, and missing required TTL is rejected by the SDK.
+Persistent push/subscription change notifications remain unsupported.
 
 Native API setup previews bounded OpenAPI 3.0/3.1 JSON or YAML, or an authored structured request.
-It requires one explicit server URL and an explicit selection when authentication alternatives differ.
+The advanced editor accepts a path, method, authentication, and primitive path/query/header/body
+fields without manual JSON. Nested complex schemas use OpenAPI import. It requires one explicit server URL and an explicit selection when authentication alternatives differ.
 Unsupported external references, combined security and schemas have diagnostics. None, bearer,
 named header/query keys and Basic credentials are supported. Import and connectivity checks never
 execute an arbitrary write. Imported OAuth operations remain unavailable until a provider/client is
@@ -65,20 +86,70 @@ outcomes retain any response body, become uncertain and are not blindly resent. 
 replay before live adapter or credential lookup. Generic imports do not establish business-specific
 idempotency or reconciliation guarantees.
 
-The fresh runtime is `AgentsBusinessRunV13` / `modular-programs-v3`. Fresh schema 028 onward adds
+The fresh runtime is `AgentsBusinessRunV14` / `modular-programs-v4`. Fresh schema 028–037 adds
 connection authorization, packaged skills, exact tool reviews and API operation snapshots. Existing
 owner databases and running local services are not upgraded by verification fixtures. Use the normal
 fresh setup command for an isolated environment. Disable new connection/binding admission before
 rolling back code; retain operation receipts and supported runtime releases for in-flight recovery.
 Production deployment, hosted telemetry retention and a live Google OAuth application remain
-separate acceptance steps. Google Calendar bookings is the selected first business-provider work.
+separate acceptance steps. Google Calendar bookings is implemented through a separate customer service policy. The standalone
+Booking creation offering remains unavailable; customer-service configuration can enable appointments.
+
+## Google Calendar bookings
+
+Google Calendar is the implemented provider connector. The API requires
+`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and
+`GOOGLE_CALENDAR_CALLBACK_URL`, plus `AGENTS_CONNECTION_KEYS` and
+`AGENTS_CONNECTION_ACTIVE_KEY` for encrypted credentials. `AGENTS_PUBLIC_URL` names the
+application origin. The callback must be its `/api/google-calendar/callback` path.
+Production requires HTTPS. Missing or invalid configuration reports the provider unavailable.
+The local Google application is not configured, so live account acceptance remains pending.
+
+The owner signs in with the Google authorization-code/PKCE flow. The connector validates state,
+nonce, issuer, audience, email, granted scopes, and token subject. One-use encrypted attempts and
+refresh leases survive independent API instances. A verified Google identity belongs to this
+provider connector; generic MCP sign-in does not establish the same identity guarantee.
+Connections start private. Selecting a writable calendar does not authorize customer access.
+Explicit `organization_service` sharing is required before the owner creates a booking policy.
+Changing calendar, sharing, or connection authority invalidates prior policy revisions. Persisted
+connections and OAuth attempts also pin the connector/client execution definition. Changed issuer,
+client, scopes, API configuration, or capability-selection identity requires authorization again; existing token
+bytes are not sent under the replacement definition.
+
+A policy pins its owner, connection policy revision, calendar, time zone, appointment title,
+duration, notice, advance window, weekdays, and opening hours. The draft selects the policy ID
+and digest under `google-calendar-booking-v1`. Publication preserves those immutable pins.
+Customer-service agents expose policy setup in General. Other agents can explicitly open setup
+through the Google Calendar Tools entry. The separate Booking creation offering is unavailable.
+
+`booking.availability` offers policy-grid slots after provider busy checks and local reservations.
+`booking.reserve` prepares the exact appointment and waits durably for that task's principal.
+No provider insertion starts before confirmation. Current membership, policy, visitor session,
+channel ownership, and operation deadline still apply at the physical send. The deterministic
+event identity supports authoritative receipts and conflict handling; uncertainty never authorizes
+a second insertion. Google event IDs and credentials do not enter public booking projections.
+
+An uncertain website booking requests shared Inbox handoff only under its current automated
+ownership generation. A staff takeover remains human-owned. The selected staff conversation
+shows appointment status and offers reconciliation without approval or decline controls. Unrelated
+FAQ details do not fetch booking records.
+
+Operator, visitor, and authorized staff cards expose **Check status** for claimed or uncertain proposals.
+The scoped `/reconcile` endpoint uses a lease and only a provider GET for the deterministic event.
+It can record a recovered confirmation without rewriting the original uncertain task outcome.
+An active insertion claim returns `BOOKING_IN_PROGRESS`. A 404 or unresolved provider outcome
+keeps the appointment uncertain. Repeated checks never send another insertion.
+
+Controlled provider, signed OIDC, PostgreSQL, and isolated Restate tests establish local behavior.
+They do not establish live Google OAuth consent, a live calendar account, or production readiness.
 
 ## Skill packages
 
 SKILL.md and ZIP uploads, plus explicit public GitHub commit/path imports, preserve a complete
 immutable package digest and reviewed file inventory. Repository imports verify Git object hashes
 and reject mutable references. Private repositories are unavailable through this importer.
-Installation does not enable a skill on an agent or execute scripts. Published versions pin reviewed
+Private and repository imports do not enable a skill on an agent. Curated Add explicitly installs
+and selects a reviewed revision in the unsaved draft. Neither path executes scripts. Published versions pin reviewed
 revisions. Context initially exposes package metadata, then `skills.activate` and `skills.read` load
 bounded exact files. Activation and file receipts survive compaction and worker continuation.
 Files that exceed a complete-read limit are rejected rather than silently truncated.

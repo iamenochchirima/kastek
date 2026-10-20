@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Owner: Agents engineering. Last reviewed: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -94,8 +94,9 @@ verified identity and explicit policy.
 
 The current client implements the shared website Inbox, staff assignment, human takeover, replies,
 and return to automation. Staff and visitor history share canonical messages, with separately
-authorized projections and bounded pagination. WhatsApp, Facebook, Instagram, booking adapters,
-and their end-to-end product journeys remain unimplemented. The
+authorized projections and bounded pagination. Google Calendar appointments implement a separate
+owner-authorized booking policy and exact customer confirmation. The standalone Booking creation
+offering remains unavailable. WhatsApp, Facebook, and Instagram remain unimplemented. The
 [implementation boundary](../source-boundary.md) records current behavior.
 
 ## Three integration boundaries
@@ -105,6 +106,19 @@ and their end-to-end product journeys remain unimplemented. The
 | External agents to Growth or Agencies | Product MCP protected by OAuth; deliberately supported, scoped API keys may also be offered. | The product authorizes external clients and exposes its permitted business operations. Connecting does not create an agent definition, version, or installation in the shared execution service. |
 | Product backend to shared execution API | Authenticated internal submission, status, progress, results, approval, cancellation, and conversation contracts. | The product verifies access and entitlement. Execution admission validates bounded delegated authority for a permitted agent feature and version. |
 | Executing agent to product business API | Typed API adapter using destination-specific scoped delegated credentials. | Trusted execution code proposes no authority of its own. The destination independently enforces resource access, review requirements, and business rules. |
+
+Connector definitions are versioned records, separate from tenant connections and per-agent
+bindings. Validated JSON supplies the records now; a later database snapshot must use the same
+validation contract. Tenant connections own encrypted secret custody, account identity, resource
+scope, and current policy revisions. Each agent separately selects immutable operation bindings
+and pins those selections when it publishes a version.
+
+Records select installed protocol and domain handlers; records cannot load executable code.
+A generic MCP definition uses the shared client without a new provider-specific implementation.
+Domain operations such as calendar booking retain their trusted installed handlers. Authentication
+or destination-definition changes require explicit repair; existing tokens must not be forwarded
+to a replacement definition. The [connector record contract](../mcp-integration.md#catalogues-and-custom-connections)
+records the current configuration and authority boundary.
 
 Internal calls do not require MCP. Product APIs and external MCP expose the same owning-product
 business operations and permission rules. External MCP does not replace embedded product execution.
@@ -675,7 +689,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV12 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV14 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -711,13 +725,15 @@ journals, revisions or backups. Procedural skills are immutable reviewed revisio
 publication; they cannot install tools or expand permissions.
 
 Trusted `grounded-conversation` and `tool-directed` program releases use the shared business loop.
-The grounded program permits knowledge search/read and customer handoff. The tool-directed program
+The grounded program permits knowledge search/read, customer handoff, reviewed procedural skills,
+and explicitly selected operator connections. Google Calendar booking capabilities require a
+separate pinned service policy; generic personal bindings remain unavailable to website visitors. The tool-directed program
 permits the implemented memory, delegation, sandbox, connected-read and reviewed-report capabilities.
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
 copies the effective composition to the task, including narrowed child compositions. Workers reject
-unavailable or changed releases before additional execution. New source uses `modular-programs-v2`
-and Restate workflow `AgentsBusinessRunV12` in fresh isolated schemas.
+unavailable or changed releases before additional execution. New source uses `modular-programs-v4`
+and Restate workflow `AgentsBusinessRunV14` in fresh isolated schemas.
 
 The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate, sandbox.analyze and channel.request_handoff operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before

@@ -1,12 +1,14 @@
 # Kasitek Agents
 
-Owner: Agents engineering. Last reviewed: 2026-10-18.
+Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 The standalone product targets mostly plug-and-play customer-service, FAQ, booking, and intake
 agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
 and campaign experiences belong in Growth or Agencies using the shared execution backend.
 The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
-explicit return to automation. Other channel providers and booking operations remain unavailable. See the
+explicit return to automation. Google Calendar appointments use explicit organization service access, a pinned booking policy, and
+exact customer confirmation. Other channel providers and the separate Booking creation offering
+remain unavailable. Live Google OAuth acceptance remains pending. See the
 [product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
 
 The standalone application creates customer agents with approved knowledge, simple chat, website
@@ -166,8 +168,8 @@ for policy, expiry and uncertainty behavior.
 
 ## Platform interface
 
-This section describes the current management interface. The target customer-service inbox and
-guided agent setup are not present. Runtime research/report fixtures do not define the Agents
+This section describes the current management interface. Website Inbox and guided FAQ/customer-service
+creation are implemented. Runtime research/report fixtures do not define the Agents
 client catalogue.
 
 The public root restores the landing page. Sign in and Get started use the configured
@@ -176,12 +178,21 @@ return destination preserves internal application links through login.
 
 The workspace sidebar contains Inbox, Agents, Tasks, Knowledge, Connections, Automations
 and Settings. Creation uses the server offering catalogue: FAQ or customer service; booking is
-unavailable. Every runnable business agent opens Chat, with Activity and Configure tabs.
+unavailable as a separate creation choice. Customer-service agents can explicitly enable Google
+Calendar appointments when the provider is configured. Every runnable business agent opens Chat,
+with Activity and Configure tabs.
 Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
-catalogue and a Skills library with reviewed KasiTek procedures and private SKILL.md/ZIP imports.
+catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
+and public GitHub packages pinned to an exact commit and package path.
 Installing a skill preserves its complete immutable package. Adding it to a draft and publishing
 are separate actions. Owner review checks the exact package digest before execution. Website
-publication still rejects skills and connected tools until customer authority is implemented.
+publication permits enabled, reviewed server-curated instruction packages. Private or repository
+skills and generic personal connection bindings remain unavailable to website visitors.
+Owners can compare skill revisions and explicitly select an update or rollback within the same
+publisher/source family. Disable and removal retain immutable history. Imported scripts do not run.
+Connections includes custom MCP discovery/selection, native OpenAPI import, and Google Calendar
+setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
+unsaved draft before navigation and preserves input if saving fails.
 Rich harness configurations use developer/product fixtures. Saving a draft does not
 change a runnable version. Create version is explicit, and each conversation keeps
 its original version.
@@ -201,6 +212,27 @@ pages. Settings exposes actual account/workspace identity and persisted appearan
 Desktop uses separate navigation, agent/history and chat panes. Tablet collapses
 global navigation; mobile exposes accessible navigation/history drawers and keeps the
 composer within the viewport.
+
+
+## Configure Google Calendar appointments
+
+Configure `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and
+`GOOGLE_CALENDAR_CALLBACK_URL` on the API, plus the encrypted connection keyring.
+The callback is `/api/google-calendar/callback` on `AGENTS_PUBLIC_URL`. Production
+requires HTTPS. Missing or invalid configuration makes the provider unavailable.
+See [Google Calendar boundaries](docs/mcp-integration.md#google-calendar-bookings)
+for authority, credentials, and status recovery.
+
+An owner signs in through **Connections**, selects a writable calendar, and explicitly allows
+its use for the organization booking service. In the agent's **General** settings, the owner
+creates and selects a booking policy, saves the draft, and creates a version. Customer-service
+agents expose this setup. Other available agents can open optional setup through **Tools**.
+Selecting a calendar alone does not authorize bookings or update published versions.
+
+The customer confirms the exact appointment in website chat before an event can be created.
+**Check status** on an uncertain or claimed appointment performs a provider lookup. It never
+resends the event insertion. Google OAuth and provider calls have controlled local acceptance;
+no live configured Google account or production deployment is claimed.
 
 ## Verify
 
