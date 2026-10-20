@@ -239,7 +239,11 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | --- | --- |
 | `contracts/contracts.ts` | Agent configuration, two execution kinds, grants, limits, and task states. |
 | `product/identity/auth.ts`, `product/identity/auth-routes.ts`, `product/identity/auth-return.ts`, `infrastructure/config.ts` | OIDC signup/login, one-use safe return links, product sessions, identity configuration and backchannel logout. |
-| `product/agents/store.ts` | Membership, drafts, immutable publication, revision pins, ordered admission, root reservations, and paginated authorized turns/events. |
+| `product/agents/store.ts` | Product composition facade for the identity, agent, deployment and admission stores. |
+| `product/identity/identity-store.ts`, `product/agents/agent-store.ts`, `product/deployments/deployment-store.ts` | Membership and sessions, drafts and immutable versions, and website deployment bindings. |
+| `execution/admission/admission-store.ts`, `execution/admission/authority-store.ts` | Shared task admission, root reservations, authority persistence and authorized conversation/event reads. |
+| `contracts/programs.ts`, `execution/programs/composition.ts`, `execution/programs/publication.ts` | Trusted program policies, compatible capability/workflow closure and immutable published composition digests. |
+| `capabilities/tool-contracts.ts`, `contracts/workflows.ts` | Validated capability inputs/results, authority and resource requirements, and exact workflow confirmation contracts. |
 | `product/agents/discovery.ts`, `infrastructure/read-pages.ts` | Principal-scoped agent/conversation/task summaries and signed scope-bound read cursors. |
 | `composition/app.ts`, `composition/server.ts`, `adapters/channels/website/widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
 | `execution/lifecycle/execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
@@ -250,6 +254,10 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `execution/delegation/delegation.ts`, `capabilities/tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
 | `capabilities/sandbox/sandbox.ts`, `capabilities/sandbox/sandbox-executor.ts`, `composition/sandbox-reaper.ts` | Isolated analysis, durable resource/command identities, artifact export and independent cleanup. |
 | `execution/lifecycle/dispatcher.ts`, `composition/worker.ts`, `composition/worker-security.ts` | Leased outbox delivery, runtime identity, cancellation reconciliation, request signatures, and worker lifecycle. |
+| `execution/scheduling/capacity.ts`, `execution/scheduling/capacity-turns.ts`, `execution/scheduling/dispatch-claims.ts` | Durable resource queues, independent tenant turns, generation-fenced permits and bounded replica claims. |
+| `workflows/report-delivery/program.ts` | Durable report review waits, exact dispatch and status-only reconciliation through the shared operation lifecycle. |
+| `product/inbox/inbox-store.ts`, `product/inbox/inbox-routes.ts`, `composition/inbox.ts` | Staff authorization, assignment, customer history, ownership changes, human replies and delivery fencing. |
+| `observability/event-store.ts`, `observability/observations.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed observations, authorized reads, replay-safe export, correlated traces and bounded operational metrics. |
 | `product/connections/connections.ts`, `infrastructure/vault.ts`, `workflows/report-delivery/actions.ts`, `adapters/providers/report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `product/automations/automations.ts`, `execution/lifecycle/automation-authority.ts`, `product/automations/automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
 | `contracts/capability-catalog.ts`, `capabilities/connected-tools/connected-catalog-store.ts`, `capabilities/connected-tools/connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
