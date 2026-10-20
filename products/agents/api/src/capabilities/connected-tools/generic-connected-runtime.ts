@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
 import type { PoolClient } from "pg";
-import { REMOTE_MCP_LIMITS, REMOTE_MCP_RELEASE, executeRemoteMcpTool, type RemoteMcpEndpoint,
+import { REMOTE_MCP_LIMITS, REMOTE_MCP_RELEASE, executeRemoteMcpTool,remoteMcpContentOperations, type RemoteMcpEndpoint,
   type RemoteMcpHooks, type RemoteMcpInventory, type RemoteMcpTool } from "../../adapters/providers/remote-mcp";
 import { createCatalog, digestToolSchema, type AdapterManifest, type CapabilityBinding, type CapabilityCatalog } from "../../contracts/capability-catalog";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
@@ -24,7 +24,7 @@ export function genericToolReviewDigest(binding: CapabilityBinding, args: unknow
 export function remoteMcpAdapterManifest(): AdapterManifest {
   const extension = extname(__filename), hash = createHash("sha256");
   const files = ["./generic-connected-runtime", "./connected-executor", "./connected-tool-schema", "./connected-catalog-store",
-    "../../adapters/providers/remote-mcp", "../../adapters/providers/native-api", "../../adapters/providers/openapi",
+    "../../adapters/providers/remote-mcp", "../../adapters/providers/native-api", "../../adapters/providers/openapi", "../../adapters/providers/native-response-policy",
     "../../contracts/capability-catalog", "../../contracts/connections", "../../infrastructure/connected-network"];
   for (const path of files) hash.update(path).update(readFileSync(join(__dirname, path + extension)));
   // Pin the installed executable SDK and validator chunks, not only a package-version string.
@@ -40,16 +40,16 @@ export function createRemoteMcpCapabilityCatalog(inventory: RemoteMcpInventory, 
   id: string; organizationId: string; connectionId: string; revision: number;
 }): CapabilityCatalog {
   return createCatalog({ schemaVersion: 1, ...input, transport: "mcp_http", protocolVersion: inventory.protocolVersion,
-    adapter: remoteMcpAdapterReference(), tools: inventory.tools.filter(tool => tool.compatible).map(tool => ({ providerOperation: tool.name,
+    adapter: remoteMcpAdapterReference(), tools: [...inventory.tools,...remoteMcpContentOperations(inventory)].filter(tool => tool.compatible).map(tool => ({ providerOperation: tool.name,
       description: tool.description.slice(0, 4096), inputSchema: tool.inputSchema as CapabilityCatalog["tools"][number]["inputSchema"],
       inputDigest: digestToolSchema(tool.inputSchema), outputSchema: tool.outputSchema as CapabilityCatalog["tools"][number]["outputSchema"] ?? null,
       outputDigest: tool.outputSchema ? digestToolSchema(tool.outputSchema) : null,
-      remote: { definitionDigest: tool.definitionDigest, transport: inventory.transport } })) });
+      remote: { definitionDigest: tool.definitionDigest, transport: inventory.transport,...(tool.target?{target:tool.target}:{}) } })) });
 }
 export function nativeApiAdapterManifest():AdapterManifest {
   const extension=extname(__filename),hash=createHash("sha256");
   for(const path of ["./generic-connected-runtime","./connected-executor","./connected-tool-schema","./connected-catalog-store",
-    "../../adapters/providers/native-api","../../adapters/providers/openapi","../../contracts/capability-catalog","../../contracts/connections","../../infrastructure/connected-network"])
+    "../../adapters/providers/native-api","../../adapters/providers/openapi","../../adapters/providers/native-response-policy","../../contracts/capability-catalog","../../contracts/connections","../../infrastructure/connected-network"])
     hash.update(path).update(readFileSync(join(__dirname,path+extension)));
   return {schemaVersion:1,id:"native-api",release:NATIVE_API_RELEASE,executableDigest:hash.digest("hex"),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true};
 }
@@ -131,11 +131,12 @@ export function genericToolFromBinding(binding: CapabilityBinding): RemoteMcpToo
     inputSchema: binding.definition.inputSchema as Record<string, unknown>,
     ...(binding.definition.outputSchema ? { outputSchema: binding.definition.outputSchema as Record<string, unknown> } : {}),
     definitionDigest: remote.definitionDigest, schemaDigest: requestDigest({ inputSchema: binding.definition.inputSchema, outputSchema: binding.definition.outputSchema }),
-    effect: "unknown", reviewRequired: true, compatible: true, diagnostics: [] };
+    effect: "unknown", reviewRequired: true, compatible: true, diagnostics: [],...(remote.target?{target:remote.target}:{}),
+    ...(binding.remoteSelection?{resourceUri:binding.remoteSelection.uri,templateArguments:binding.remoteSelection.templateArguments}:{}) };
 }
 export async function executeGenericConnectedTool(binding: CapabilityBinding, endpoint: RemoteMcpEndpoint, args: Record<string, unknown>,
   signal: AbortSignal | undefined, hooks: RemoteMcpHooks) {
-  if (binding.resources.length !== 1 || binding.resources[0]?.kind !== "mcp.endpoint" || binding.resources[0].id !== endpoint.endpoint) throw new PlatformError("CONNECTED_SCOPE_DENIED", 403, "Remote destination does not match the authorized endpoint");
+  if (binding.resources[0]?.kind !== "mcp.endpoint" || binding.resources[0].id !== endpoint.endpoint) throw new PlatformError("CONNECTED_SCOPE_DENIED", 403, "Remote destination does not match the authorized endpoint");
   return executeRemoteMcpTool({ ...endpoint, adapterManifestDigest:binding.adapter.manifestDigest, protocolVersion: binding.protocolVersion!, transport: binding.definition.remote!.transport,
     maxRequests: Math.min(endpoint.maxRequests ?? REMOTE_MCP_LIMITS.requests, binding.limits.maxPhysicalRequests ?? REMOTE_MCP_LIMITS.requests) },
   genericToolFromBinding(binding), args, signal, hooks);

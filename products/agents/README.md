@@ -14,7 +14,9 @@ remain unavailable. Live Google OAuth acceptance remains pending. See the
 The standalone application creates customer agents with approved knowledge, simple chat, website
 publication and Inbox support. The shared harness also implements reviewed memory, pinned skills,
 bounded specialist tasks, optional isolated analysis and reviewed report workflows for developer
-and product contract fixtures. These capabilities do not define the standalone customer catalogue.
+and product contract fixtures. Skills expose scoped connection repair with explicit tool adoption;
+compatible tool-directed versions can open a contextual Analysis control. Grounded customer versions
+cannot enable analysis or silently switch programs. These capabilities do not define new standalone offerings.
 Restate coordinates durable execution. The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
 

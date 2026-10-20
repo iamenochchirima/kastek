@@ -62,6 +62,17 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     await expect(pool.query("UPDATE agents_platform.api_import_catalogs SET catalog='{}' WHERE connection_id=$1",[connection.id])).rejects.toThrow("immutable");
     await expect(pool.query("DELETE FROM agents_platform.api_operation_templates WHERE connection_id=$1",[connection.id])).rejects.toThrow("immutable");
   });
+  it("requires explicit read policy before selecting automatic pages and pins the total request budget",async()=>{
+    const scope=await fixture(),source=document();
+    const operation=source.paths["/records/{id}"].get as Record<string,unknown>;
+    operation.parameters=[{name:"cursor",in:"query",schema:{type:"string"}}];
+    operation["x-kasitek-response"]={pagination:{itemsPointer:"/items",nextCursorPointer:"/next",cursorParameter:"cursor",maxPages:2},retry:{maxAttempts:3,maxDelayMs:100}};
+    const {connection}=await create(scope,source),read=(await store.operations(scope,connection.id)).find(operation=>operation.method==="GET")!;
+    expect(read.responsePolicy).toMatchObject({pagination:{maxPages:2},retry:{maxAttempts:3}});
+    await expect(store.select(scope,connection.id,{operationId:randomUUID(),expectedGeneration:connection.generation,selections:[{operationId:read.id}]})).rejects.toMatchObject({code:"API_READ_AUTHORIZATION_REQUIRED"});
+    const selected=await store.select(scope,connection.id,{operationId:randomUUID(),expectedGeneration:connection.generation,selections:[{operationId:read.id,effectPolicy:"owner_reviewed_read"}]});
+    expect(selected.bindings[0]!.limits.maxPhysicalRequests).toBe(6);expect(selected.bindings[0]!.policy.approval).toBe("none");
+  });
   it("pins selected operations as exact-reviewed bindings and never probes writes or unreviewed GET operations",async()=>{
     const scope=await fixture(),{connection}=await create(scope),operations=await store.operations(scope,connection.id),read=operations.find(operation=>operation.method==="GET")!,write=operations.find(operation=>operation.method==="POST")!;
     const selection={operationId:randomUUID(),expectedGeneration:connection.generation,selections:[{operationId:read.id},{operationId:write.id}]};

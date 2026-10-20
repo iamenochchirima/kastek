@@ -12,6 +12,7 @@ import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { githubOperationSchema } from "../../contracts/github";
 import { actionMissing,requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
+import {expandRemoteResourceTemplate} from "../../adapters/providers/remote-mcp";
 
 // Trusted provider policy; remote annotations or tool descriptions cannot add operations.
 export const GITHUB_MCP_READ_OPERATIONS: ReadonlySet<string> = new Set([
@@ -35,6 +36,7 @@ function profileTransportAllowed(profileId: string, transport: string): boolean 
   return profileId === "stash-read-v1" ? transport === "mcp_http" : ["github-public-read-v1", "public-repository-read-v1"].includes(profileId) && ["native_http", "mcp_http"].includes(transport);
 }
 const selectionSchema = z.strictObject({ providerOperation: z.string().min(1).max(128), resources: z.array(resourceHandleSchema).min(1).max(20),
+  templateArguments:z.record(z.string().min(1).max(128),z.string().max(2048)).refine(values=>Object.keys(values).length<=32).optional(),
   effectPolicy: z.enum(["exact_review", "owner_reviewed_read"]).optional() });
 export const selectCatalogBindingsSchema = z.strictObject({ operationId: z.string().min(1).max(128), connectionId: z.uuid(),
   expectedRevision: z.number().int().positive(), catalogId: z.uuid(), selections: z.array(selectionSchema).min(1).max(8)
@@ -110,21 +112,33 @@ export class ConnectedCatalogStore {
       if(generic && input.selections.some(selection=>selection.effectPolicy === "owner_reviewed_read") && !(await db.query(
         "SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE",
         [scope.organizationId,scope.accountId])).rowCount) throw new PlatformError("CAPABILITY_POLICY_DENIED",403,"Only an owner may attest that a remote operation is read-only");
-      const bindings = input.selections.map(selection => {
+      const bindings:CapabilityBinding[]=[];
+      for(const selection of input.selections){
         const definition = catalog.tools.find(tool => tool.providerOperation === selection.providerOperation);
         if (!definition || !connectedProviderOperationAllowed(connection.profile_id, catalog.transport, selection.providerOperation)) throw new PlatformError("PROVIDER_OPERATION_DENIED", 403, "Operation is outside the approved read profile");
         if (new Set(selection.resources.map(resourceKey)).size !== selection.resources.length || selection.resources.some(resource => !connectionResources.some(approved => resourceKey(approved) === resourceKey(resource)))) throw new PlatformError("CAPABILITY_SCOPE_DENIED", 403, "Selected resource is outside the connection scope");
-        return createBinding({ schemaVersion: 1, id: randomUUID(), organizationId: scope.organizationId,
+        const target=remote?definition.remote?.target:undefined,resources=[...selection.resources];
+        if(target?.kind==="prompt"&&selection.effectPolicy==="owner_reviewed_read")throw new PlatformError("PROMPT_ACTIVATION_REVIEW_REQUIRED",403,"Each prompt activation requires exact approval");
+        if(target?.kind!=="template"&&selection.templateArguments)throw new PlatformError("MCP_TEMPLATE_ARGUMENTS_INVALID",400,"Only templates accept fixed template values");
+        const expanded=target?.kind==="template"?await expandRemoteResourceTemplate(target,selection.templateArguments??{}):undefined;
+        if(target&&target.kind!=="tool"){
+          if(resources.length!==1||resources[0]?.kind!=="mcp.endpoint"||resources[0].id!==connection.resource)throw new PlatformError("CAPABILITY_SCOPE_DENIED",403,"Select the exact server endpoint for MCP content");
+          const handle={kind:target.kind==="prompt"?"mcp.prompt":"mcp.resource",id:target.kind==="prompt"?target.name:target.kind==="resource"?target.uri:expanded!};
+          resources.push(handle);if(!connectionResources.some(current=>resourceKey(current)===resourceKey(handle)))connectionResources.push(handle);
+          if(connectionResources.length>100)throw new PlatformError("CAPABILITY_LIMIT",400,"Too many selected resource handles");
+        }
+        bindings.push(createBinding({ schemaVersion: 1, id: randomUUID(), organizationId: scope.organizationId,
           catalog: { id: catalog.id, revision: catalog.revision, digest: catalog.digest }, definition, adapter: catalog.adapter,
           transport: catalog.transport, protocolVersion: catalog.protocolVersion,
           connection: { id: connection.id, profileId: connection.profile_id, policyRevision: connection.policy_revision },
-          resources: selection.resources, policy: generic ? selection.effectPolicy === "owner_reviewed_read"
+          resources,...(expanded?{remoteSelection:{uri:expanded,templateArguments:selection.templateArguments!}}:{}), policy: generic ? selection.effectPolicy === "owner_reviewed_read"
             ? { effect: "read", disclosure: "approved_resource_identifiers", retry: "never", approval: "none", cancel: "stop_admission" }
             : { effect: "reviewed_write", disclosure: "exact_reviewed_payload", retry: "status_only", approval: "exact_single_use", cancel: "reconcile_claimed" }
             : { effect: "read", disclosure: connection.profile_id === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers", retry: "safe_read", approval: "none", cancel: "stop_admission" },
           limits: { timeoutMs: 30000, maxPhysicalAttempts: generic ? 1 : 3, ...(generic ? {maxPhysicalRequests:api?1:128}:{}),
-            maxResponseBytes: api?1048576:remote ? 2097152 : catalog.transport === "mcp_http" ? 262144 : 2097152, maxModelResultBytes: 8192 } }, catalog);
-      });
+            maxResponseBytes: api?1048576:remote ? 2097152 : catalog.transport === "mcp_http" ? 262144 : 2097152, maxModelResultBytes: 8192 } }, catalog));
+      }
+      if(remote)await db.query("UPDATE agents_platform.connections SET resource_handles=$2::jsonb WHERE id=$1",[connection.id,JSON.stringify(connectionResources)]);
       for (const binding of bindings) await db.query("INSERT INTO agents_platform.capability_bindings(id,organization_id,connection_id,catalog_id,account_id,alias,digest,binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [binding.id, scope.organizationId, connection.id, catalog.id, scope.accountId, binding.alias, binding.digest, JSON.stringify(binding)]);
       await this.record(db, scope, input.operationId, digest, bindings); return bindings;
     });

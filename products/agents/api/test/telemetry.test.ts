@@ -1,6 +1,7 @@
+import {emitConnectionControlEvent} from "../src/observability/connection-telemetry";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { expect, it } from "vitest";
+import { expect, it,vi } from "vitest";
 import { requestDigest } from "../src/contracts/contracts";
 import { makeObservation } from "../src/observability/observations";
 import { createObservationTelemetry } from "../src/observability/telemetry";
@@ -35,6 +36,18 @@ it("exports specialist work beneath its own task while preserving root lineage",
     expect(childSpan.parentSpanId).toBe(rootSpan.spanId);
     expect(modelSpan.parentSpanId).toBe(childSpan.spanId);
     expect(new Set(spans.map(span => span.traceId))).toEqual(new Set([requestDigest(root).slice(0, 32)]));
+    const log=vi.spyOn(console,"info").mockImplementation(()=>{}),controlTrace=requestDigest("control-plane-fixture").slice(0,32);
+    try{
+      emitConnectionControlEvent({event:"connection.lifecycle",traceId:controlTrace,provider:"mcp",flow:"refresh",outcome:"failed",failureClass:"authorization",durationMs:23,authorizationGeneration:4,connectionId:randomUUID()});
+      for(let n=0;n<100&&received.length<2;n++)await new Promise(resolve=>setTimeout(resolve,10));
+      expect(received).toHaveLength(2);
+      const controls=received[1].resourceSpans.flatMap((resource:any)=>resource.scopeSpans.flatMap((scope:any)=>scope.spans));
+      expect(controls).toHaveLength(1);expect(controls[0].name).toBe("connection.refresh");expect(controls[0].traceId).toBe(controlTrace);
+      const attrs=Object.fromEntries(controls[0].attributes.map((attribute:any)=>[attribute.key,attribute.value.stringValue??Number(attribute.value.intValue)]));
+      expect(attrs).toMatchObject({"agents.authorizationGeneration":4,"agents.durationMs":23,"agents.failureClass":"authorization"});
+      expect(controls[0].parentSpanId??"").toBe("");expect(JSON.stringify(controls)).not.toMatch(/taskId|agentId|versionId|authorizationUrl|scope/);
+    }finally{log.mockRestore();}
+
   } finally {
     await telemetry.shutdown(); await new Promise<void>(resolve => server.close(() => resolve()));
   }

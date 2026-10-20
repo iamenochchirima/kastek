@@ -1,3 +1,4 @@
+import {collectNativeMetrics} from "../src/observability/metrics";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { Pool } from "pg";
@@ -17,6 +18,8 @@ import { ConnectionStore } from "../src/product/connections/connections";
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
 import { PlatformStore } from "../src/product/agents/store";
 import { ConnectionVault } from "../src/infrastructure/vault";
+import Fastify from "fastify";
+import {registerActionRoutes} from "../src/product/connections/actions-routes";
 
 describe("bounded generic tool arguments", () => {
   it("preserves arbitrary reviewed arguments while rejecting non-JSON or oversized data", () => {
@@ -37,6 +40,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   let effects = 0, requests = 0,listCalls=0,definitionDescription="Arbitrary operation with provider readOnly hint",beforeInitializeReply:(()=>Promise<void>)|undefined, hang = false, called: (() => void) | undefined, beforeListReply: (() => Promise<void>) | undefined;
   let refresh:((scope:ActionScope,id:string)=>Promise<void>)|undefined;
   let permissionRequired=false;
+  let contentKind:"resource"|"template"|"prompt"|undefined;
   const storage = { async put(key: string, value: Uint8Array) { objects.set(key, Buffer.from(value)); },
     async get(key: string) { const value = objects.get(key); if (!value) throw Error("Missing private fixture object"); return value; },
     async delete(key: string) { objects.delete(key); } };
@@ -50,12 +54,17 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const message = JSON.parse(serialized); response.setHeader("content-type", "application/json");
       const reply = (result: unknown) => response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
       if (message.method === "server/discover") response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Legacy fixture" } }));
-      else if (message.method === "initialize") {await beforeInitializeReply?.();reply({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "controlled-general-provider", version: "1" } });}
+      else if (message.method === "initialize") {await beforeInitializeReply?.();reply({ protocolVersion: "2025-11-25", capabilities: { tools: {},...(contentKind?{resources:{},prompts:{}}:{}) }, serverInfo: { name: "controlled-general-provider", version: "1" } });}
       else if (message.method === "notifications/initialized") response.writeHead(202).end();
       else if (message.method === "tools/list") {
         listCalls++;await beforeListReply?.();
         reply({ tools: [{ name: "custom.operation-v2", description: definitionDescription, inputSchema, annotations: { readOnlyHint: true } }] });
-      } else if (message.method === "tools/call") {
+      } else if(message.method==="resources/list")reply({resources:[{uri:"file:///approved-policy",name:"Approved policy"}]});
+      else if(message.method==="resources/templates/list")reply({resourceTemplates:[{uriTemplate:"fixture://policy/{name}",name:"Selected policy instance"}]});
+      else if(message.method==="prompts/list")reply({prompts:[{name:"support_policy",arguments:[{name:"topic",required:true}]}]});
+      else if(message.method==="resources/read"){effects++;reply({contents:[{uri:message.params.uri,mimeType:"text/plain",text:"Authoritative approved policy"}]});}
+      else if(message.method==="prompts/get"){effects++;reply({messages:[{role:"assistant",content:{type:"text",text:`External suggestion for ${message.params.arguments.topic}`}}]});}
+      else if (message.method === "tools/call") {
         if(permissionRequired)return response.writeHead(403,{"www-authenticate":'Bearer error="insufficient_scope", scope="records:write"'}).end("{}");
         effects++; called?.(); if (hang) return;
         reply({ content: [{ type: "text", text: `Authoritative result for ${message.params.arguments.value}` },
@@ -80,7 +89,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     server?.closeAllConnections(); if (server) await new Promise<void>(resolve => server.close(() => resolve()));
     await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`); await admin.end(); }
   });
-  async function fixture(policy: "exact_review" | "owner_reviewed_read" = "exact_review", executeGrant = true, description = "Arbitrary operation with provider readOnly hint") {
+  async function fixture(policy: "exact_review" | "owner_reviewed_read" = "exact_review", executeGrant = true, description = "Arbitrary operation with provider readOnly hint",content?:"resource"|"template"|"prompt") {
+    contentKind=content;
     effects = 0; requests = 0;listCalls=0;definitionDescription=description;beforeInitializeReply=undefined; hang = false; beforeListReply = undefined; called = undefined;refresh=undefined;permissionRequired=false;
     const account = await platform.ensureAccount({ issuer: "http://localhost/generic-fixture", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "General tools"), scope: ActionScope = { accountId: account.id, organizationId: organization.id };
@@ -93,8 +103,9 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(catalog.adapter).toEqual(remoteMcpAdapterReference());
     await executor.catalogs.saveCandidate(scope, { operationId: randomUUID(), connectionId: connection.id, expectedRevision: connection.revision, catalog });
     const resources = [{ kind: "mcp.endpoint", id: endpoint }];
+    const operation=content?catalog.tools.find(tool=>tool.remote?.target?.kind===content)!.providerOperation:"custom.operation-v2";
     const bindings = await executor.catalogs.selectBindings(scope, { operationId: randomUUID(), connectionId: connection.id, expectedRevision: connection.revision,
-      catalogId: catalog.id, selections: [{ providerOperation: "custom.operation-v2", resources, effectPolicy: policy }] });
+      catalogId: catalog.id, selections: [{ providerOperation: operation, resources, effectPolicy: policy,...(content==="template"?{templateArguments:{name:"approved instance"}}:{}) }] });
     const binding = bindings[0]!, configuration = { ...defaultBusinessConfiguration(), connectedToolBindingIds: [binding.id] };
     const agent = await platform.createAgent({ ...scope, name: "General agent", configuration }), version = await platform.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: scope.organizationId, resourceId: agent.id, callerClientId: "agents-execution",
@@ -104,9 +115,9 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await platform.createGrant({ accountId: account.id, grant });
     const { task } = await platform.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "Use the controlled tool" });
-    return { scope, connection, binding, task, grant, catalog, resources };
+    return { scope, connection, binding, task, grant, catalog, resources:binding.resources };
   }
-  async function begin(f: Awaited<ReturnType<typeof fixture>>, args = { value: "fixture" }, approve = false) {
+  async function begin(f: Awaited<ReturnType<typeof fixture>>, args:Record<string,unknown> = { value: "fixture" }, approve = false) {
     const operationId = `tool:${f.task.id}:${randomUUID()}`;
     if (approve) { const review = await reviews.prepare(f.task.id, operationId, f.binding, args); await reviews.decide(f.scope, review.id, { decision: "approve", requestDigest: review.requestDigest }); }
     await beginOperation(pool, f.task.id, { id: operationId, kind: "tool", name: f.binding.alias, request: args, reservedTokens: 0, reservedMs: 30000, retrySafe: false });
@@ -120,6 +131,33 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(requests).toBe(before); expect(effects).toBe(0);
     expect((await pool.query("SELECT count(*) FROM agents_platform.connected_reads WHERE operation_id=$1", [operationId])).rows[0].count).toBe("0");
   }, 20_000);
+  it.each(["resource","template"] as const)("reads only the explicitly published %s handle through ordinary grants and evidence",async kind=>{
+    const f=await fixture("owner_reviewed_read",true,"Scoped content",kind),operation=await begin(f,{});
+    expect(f.binding.resources).toHaveLength(2);expect(f.binding.resources[1]).toEqual({kind:"mcp.resource",id:kind==="resource"?"file:///approved-policy":"fixture://policy/approved%20instance"});
+    const result=await executor.execute(f.task.id,operation.operationId,f.binding,operation.args);expect(result.content).toContain("Authoritative approved policy");expect(effects).toBe(1);
+    expect(result.observation.provenance).toMatchObject({rpcMethod:"resources/read"});
+    const forged={...f.binding,resources:[f.binding.resources[0]!,{kind:"mcp.resource",id:"file:///unselected"}]};const {digest,...content}=forged;
+    expect(()=>capabilityBindingSchema.parse({...content,digest:requestDigest(content)})).toThrow();
+    await pool.query("UPDATE agents_platform.connections SET resource_handles=$2::jsonb WHERE id=$1",[f.connection.id,JSON.stringify([f.binding.resources[0]])]);
+    const revoked=await begin(f,{});await expect(executor.execute(f.task.id,revoked.operationId,f.binding,revoked.args)).rejects.toMatchObject({code:"CONNECTED_SCOPE_DENIED"});expect(effects).toBe(1);
+  },20000);
+  it("requires exact single-use approval for each external prompt and never promotes returned roles",async()=>{
+    const f=await fixture("exact_review",true,"Explicit prompt","prompt");
+    await expect(executor.catalogs.selectBindings(f.scope,{operationId:randomUUID(),connectionId:f.connection.id,expectedRevision:f.connection.revision,catalogId:f.catalog.id,selections:[{providerOperation:f.binding.definition.providerOperation,resources:[f.binding.resources[0]!],effectPolicy:"owner_reviewed_read"}]})).rejects.toMatchObject({code:"PROMPT_ACTIVATION_REVIEW_REQUIRED"});
+    const pending=await begin(f,{topic:"refund rules"});await expect(executor.execute(f.task.id,pending.operationId,f.binding,pending.args)).rejects.toMatchObject({code:"TOOL_REVIEW_REQUIRED"});expect(effects).toBe(0);
+    const approved=await begin(f,{topic:"refund rules"},true);expect((await reviews.list(f.scope,f.task.id)).find(review=>review.operationId===approved.operationId)?.operationName).toBe("Activate prompt support_policy");
+    const result=await executor.execute(f.task.id,approved.operationId,f.binding,approved.args);expect(result.content).toContain("External prompt content (assistant): External suggestion");expect(effects).toBe(1);
+    expect(result.observation.provenance).toMatchObject({rpcMethod:"prompts/get"});expect((await executor.execute(f.task.id,approved.operationId,f.binding,approved.args))).toEqual(result);expect(effects).toBe(1);
+    const next=await begin(f,{topic:"another request"});await expect(executor.execute(f.task.id,next.operationId,f.binding,next.args)).rejects.toMatchObject({code:"TOOL_REVIEW_REQUIRED"});expect(effects).toBe(1);
+  },20000);
+  it("accepts fixed template values and explicit effect policy through the real HTTP selection boundary",async()=>{
+    const f=await fixture("owner_reviewed_read",true,"HTTP template","template"),app=Fastify();
+    registerActionRoutes(app,{connections,actions:{} as never,catalogs:executor.catalogs,resolveScope:async()=>f.scope,resolveTask:async()=>({...f.scope,taskId:f.task.id})});
+    try{
+      const response=await app.inject({method:"POST",url:`/api/organizations/${f.scope.organizationId}/connections/${f.connection.id}/catalogs/${f.catalog.id}/select`,payload:{operationId:randomUUID(),expectedRevision:f.connection.revision,selections:[{providerOperation:f.binding.definition.providerOperation,resources:[f.binding.resources[0]!],effectPolicy:"owner_reviewed_read",templateArguments:{name:"HTTP selected"}}]}});
+      expect(response.statusCode,response.body).toBe(200);expect(response.json().bindings[0]).toMatchObject({remoteSelection:{uri:"fixture://policy/HTTP%20selected",templateArguments:{name:"HTTP selected"}},policy:{effect:"read"}});
+    }finally{await app.close();}
+  },20000);
   async function oauthCredential(f:Awaited<ReturnType<typeof fixture>>,issuedAt:number){
     const row=(await pool.query("SELECT revision FROM agents_platform.connections WHERE id=$1",[f.connection.id])).rows[0];
     const envelope=vault.seal(f.scope.organizationId,f.connection.id,row.revision,JSON.stringify({version:1,kind:"remote-connection",authorization:{resource:endpoint,issuedAt,tokens:{access_token:"controlled-current-token",token_type:"Bearer",expires_in:3600,scope:"records:read"}}}),65536);
@@ -136,6 +174,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f=await fixture("owner_reviewed_read");await oauthCredential(f,Date.now());const operation=await begin(f);permissionRequired=true;
     await expect(executor.execute(f.task.id,operation.operationId,f.binding,operation.args)).rejects.toMatchObject({code:"OAUTH_SCOPE_REQUIRED"});expect(effects).toBe(0);
     expect(await remote.get(f.scope,f.connection.id)).toMatchObject({status:"authorization_required",lastError:"OAUTH_SCOPE_REQUIRED"});
+    expect(await collectNativeMetrics(pool,"test")).toEqual(expect.arrayContaining([expect.objectContaining({name:"agents.connected.provider.attempts",attributes:{provider:"mcp",phase:"read",outcome:"failed"}})]));
+
     const row=(await pool.query("SELECT c.revision,k.envelope FROM agents_platform.connections c JOIN agents_platform.connection_credentials k ON k.connection_id=c.id AND k.revision=c.revision WHERE c.id=$1",[f.connection.id])).rows[0];
     expect(JSON.parse(vault.open(f.scope.organizationId,f.connection.id,row.revision,row.envelope)).pendingStepUp).toEqual({resource:endpoint,requiredScope:"records:write"});
     await expect(executor.execute(f.task.id,operation.operationId,f.binding,operation.args)).rejects.toMatchObject({code:"OAUTH_SCOPE_REQUIRED"});expect(effects).toBe(0);
@@ -160,8 +200,27 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(result.handles).toMatchObject({ contentBlocks: [{ index: 0, type: "text" }, { index: 1, type: "image" }], omittedContentBlocks: 0 });
     const receipt = (await pool.query("SELECT * FROM agents_platform.connected_reads WHERE operation_id=$1", [operationId])).rows[0];
     expect(receipt.state).toBe("completed"); expect(JSON.parse(Buffer.from(objects.get(receipt.body_key)!).toString()).content).toHaveLength(2);
+    const observed=(await pool.query("SELECT observation FROM agents_platform.task_events WHERE task_id=$1 AND kind='tool.connected_result'",[f.task.id])).rows[0].observation;
+    expect(observed.metadata).toMatchObject({authorizationGeneration:f.connection.generation,connectionId:f.connection.id,outcome:"completed"});
+    expect(observed.metadata.durationMs).toBeGreaterThanOrEqual(0);
+    const metrics=await collectNativeMetrics(pool,"test");
+    expect(metrics).toEqual(expect.arrayContaining([expect.objectContaining({name:"agents.connected.provider.attempts",attributes:{provider:"mcp",phase:"read",outcome:"response"}})]));
+    expect(metrics.filter(point=>point.name==="agents.connected.provider.attempts"&&point.attributes.provider==="mcp"&&point.attributes.phase==="read"&&point.attributes.outcome==="response")[0]!.value).toBeGreaterThan(0);
     const replay = await executor.execute(f.task.id, operationId, f.binding, args); expect(replay).toEqual(result); expect(effects).toBe(1);
   }, 20_000);
+  it("fences departed credential owners before new sends while replaying completed internal receipts without provider access",async()=>{
+    const f=await fixture("owner_reviewed_read"),completed=await begin(f,{value:"completed"}),result=await executor.execute(f.task.id,completed.operationId,f.binding,completed.args),pending=await begin(f,{value:"must-not-send"});
+    await pool.query("DELETE FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2",[f.scope.organizationId,f.scope.accountId]);
+    const before=requests;refresh=async()=>{throw Error("Provider refresh must not run after departure");};
+    expect(await executor.execute(f.task.id,completed.operationId,f.binding,completed.args)).toEqual(result);
+    await expect(executor.execute(f.task.id,pending.operationId,f.binding,pending.args)).rejects.toBeDefined();expect(requests).toBe(before);expect(effects).toBe(1);
+  },20000);
+  it("fences credential-owner departure between initialization and the actual invocation",async()=>{
+    const f=await fixture("owner_reviewed_read"),operation=await begin(f);
+    beforeInitializeReply=async()=>{beforeInitializeReply=undefined;await pool.query("DELETE FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2",[f.scope.organizationId,f.scope.accountId]);};
+    await expect(executor.execute(f.task.id,operation.operationId,f.binding,operation.args)).rejects.toBeDefined();expect(effects).toBe(0);
+    expect((await pool.query("SELECT count(*) FROM agents_platform.connected_reads WHERE operation_id=$1 AND state='completed'",[operation.operationId])).rows[0].count).toBe("0");
+  },20000);
   it("uses the metadata cache across real pinned operations but still fences physical sends and explicit refresh",async()=>{
     const f=await fixture("owner_reviewed_read"),first=await begin(f,{value:"first"});await executor.execute(f.task.id,first.operationId,f.binding,first.args);const initialLists=listCalls;
     const second=await begin(f,{value:"second"});expect((await executor.execute(f.task.id,second.operationId,f.binding,second.args)).content).toContain("second");expect(listCalls).toBe(initialLists);expect(effects).toBe(2);

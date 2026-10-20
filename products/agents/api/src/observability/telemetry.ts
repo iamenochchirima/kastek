@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { subscribeConnectionTelemetry } from "./connection-telemetry";
+import { randomUUID,randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { ROOT_CONTEXT, trace, TraceFlags } from "@opentelemetry/api";
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -23,14 +24,26 @@ export function createObservationTelemetry(serviceName: string, environment: Nod
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash) throw new Error("INVALID_OTEL_ENDPOINT");
   const exporter = new OTLPTraceExporter({ url: url.href, timeoutMillis: 3000 });
   let captured: RecordedSpan[] = [], nextId = "", nextTraceId = "";
-  const processor = { onStart() {}, onEnd(span: RecordedSpan) { captured.push(span); }, async forceFlush() {}, async shutdown() {} };
+  const pending=new Set<Promise<void>>();
+  const processor = { onStart() {}, onEnd(span: RecordedSpan) {
+    if(!span.name.startsWith("connection.")){captured.push(span);return;}
+    if(pending.size>=64)return;
+    const job=new Promise<void>(resolve=>{try{exporter.export([span],()=>resolve());}catch{resolve();}});
+    pending.add(job);void job.finally(()=>pending.delete(job));
+  }, async forceFlush() {await Promise.all(pending);}, async shutdown() {} };
   const sdk = new NodeSDK({ autoDetectResources: false, instrumentations: [], spanProcessors: [processor],
     resource: resourceFromAttributes({ "service.name": serviceName, "service.namespace": "kasitek-agents",
       "deployment.environment.name": environment.NODE_ENV ?? "development" }),
-    idGenerator: { generateSpanId: () => nextId, generateTraceId: () => nextTraceId },
+    idGenerator: { generateSpanId: () => nextId||randomBytes(8).toString("hex"), generateTraceId: () => nextTraceId||randomBytes(16).toString("hex") },
   });
   sdk.start();
   const tracer = trace.getTracer("kasitek-agents-observations", "1");
+  const unsubscribe=subscribeConnectionTelemetry(event=>{
+    nextId=randomBytes(8).toString("hex");nextTraceId=event.traceId;
+    const ended=Date.now(),attributes=Object.fromEntries(Object.entries(event).filter(([key])=>key!=="traceId").map(([key,value])=>[`agents.${key}`,value]));
+    const span=tracer.startSpan(`connection.${event.flow}`,{attributes,startTime:ended-event.durationMs},ROOT_CONTEXT);
+    span.end(ended);nextId="";nextTraceId="";
+  });
   return {
     async export(observations) {
       captured = [];
@@ -58,7 +71,7 @@ export function createObservationTelemetry(serviceName: string, environment: Nod
       if (!spans.length) throw new Error("OTEL_SPANS_UNAVAILABLE");
       await new Promise<void>((resolve, reject) => exporter.export(spans, result => result.code === 0 ? resolve() : reject(new Error("OTEL_EXPORT_FAILED"))));
     },
-    async shutdown() { await sdk.shutdown(); await exporter.shutdown(); },
+    async shutdown() { unsubscribe();await Promise.all(pending);await sdk.shutdown(); await exporter.shutdown(); },
   };
 }
 

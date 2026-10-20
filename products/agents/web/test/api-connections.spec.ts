@@ -6,7 +6,7 @@ const document = "openapi: 3.1.0\ninfo:\n  title: Customer API\n  version: '1'\n
 const serverUrl = "https://api.example.com/v1";
 const operation = (id: string, summary: string, method = "GET"): ApiOperation => ({ id, operationId: id, method, path: method === "GET" ? "/customers" : "/customers/{id}", summary, compatible: true, diagnostics: [], security: { schemeId: "apiKey", type: "api_key", name: "X-API-Key", in: "header", scopes: [] }, credentialState: "required", effect: "unknown", reviewRequired: true, parameters: method === "GET" ? [{ name: "limit", in: "query", required: false, schema: { type: "integer" } }] : [], requestBody: method === "POST" ? { required: true, contentType: "application/json", schema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] } } : null, responseSchemas: [{ status: "200", contentType: "application/json", schema: { type: "array" } }] });
 
-async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alternative" | "selection_error" | "request" = "normal") {
+async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alternative" | "selection_error" | "request" | "response" = "normal") {
   let connection: ApiConnection | null = null, selected: string[] = [], previewCalls = 0, createCalls = 0, selectionCalls = 0;
   const requests: { path: string; body: Record<string, unknown> }[] = [], errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -21,8 +21,8 @@ async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alterna
     else if (path.endsWith("/api-connections/preview")) {
       previewCalls++;
       if (mode === "error" && previewCalls === 1) { await route.fulfill({ status: 400, json: { error: { message: "Invalid OpenAPI JSON or YAML" } } }); return; }
-      expect(body.serverUrl).toBe(serverUrl); if(mode === "request") { expect(body.document).toBeUndefined(); expect(body.requestTemplate).toMatchObject({title:"Find a customer",method:"GET",path:"/customers/{id}",parameters:[{name:"id",in:"path",required:true,schema:{type:"string"}}],securityScheme:{type:"apiKey",in:"header",name:"X-API-Key"}}); } else expect(body.document).toBe(document);
-      const base = operation("listCustomers", "List customers");
+      expect(body.serverUrl).toBe(serverUrl); if(mode === "request" || mode === "response") { expect(body.document).toBeUndefined(); expect(body.requestTemplate).toMatchObject({title:"Find a customer",method:"GET",path:"/customers/{id}",parameters:mode==="response"?expect.arrayContaining([{name:"id",in:"path",required:true,schema:{type:"string"}}]):[{name:"id",in:"path",required:true,schema:{type:"string"}}],securityScheme:{type:"apiKey",in:"header",name:"X-API-Key"}}); } else expect(body.document).toBe(document);
+      const base = {...operation("listCustomers", "List customers"),...(mode==="response"?{responsePolicy:body.requestTemplate.responsePolicy}:{})};
       const alternative = { ...base, compatible: Boolean(body.securitySelections), security: body.securitySelections ? { schemeId: "none", type: "none", scopes: [] } : null, securityChoices: [{ index: 0, security: base.security, diagnostics: [] }, { index: 1, security: { schemeId: "none", type: "none", scopes: [] }, diagnostics: [] }, { index: 2, security: { schemeId: "oauth", type: "oauth2", scopes: [] }, diagnostics: [] }], credentialState: body.securitySelections ? "none" : "unsupported", diagnostics: body.securitySelections ? [] : [{ code: "OPENAPI_SECURITY_ALTERNATIVES_UNSUPPORTED", message: "Select one security alternative before activation" }] };
       const oauth = { ...operation("oauthWrite", "Update customer account", "PATCH"), compatible: false, credentialState: "unsupported", security: { schemeId: "oauth", type: "oauth2", scopes: ["customers:write"] }, diagnostics: [{ code: "API_OAUTH_CLIENT_REQUIRED", message: "OAuth client configuration is required." }] };
       data = { preview: { importDigest: body.securitySelections ? "digest-alternative" : "digest", title: "Customer API", server: { url: serverUrl, origin: "https://api.example.com" }, operations: mode === "empty" ? [] : mode === "alternative" ? [alternative] : [base, operation("createCustomer", "Create customer", "POST"), oauth], diagnostics: mode === "empty" ? [{ code: "OPENAPI_NO_OPERATIONS", message: "No supported HTTP operation definitions were found." }] : [] } as ApiPreview };
@@ -39,7 +39,7 @@ async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alterna
         if (mode === "selection_error" && selectionCalls === 1) { await route.fulfill({ status: 409, json: { error: { message: "Operation selection could not be saved. Retry." } } }); return; }
         expect(body.expectedGeneration).toBe(connection!.generation);
         const selections = body.selections as { operationId: string; effectPolicy: string }[];
-        expect(selections.every(selection => selection.effectPolicy === "exact_review")).toBe(true);
+        expect(selections.every(selection => selection.effectPolicy === (mode==="response"?"owner_reviewed_read":"exact_review"))).toBe(true);
         selected = selections.map(selection => selection.operationId); connection = { ...connection!, status: "ready", generation: connection!.generation + 1, selectedOperationIds: selected }; data = { connection, bindings: [] };
       } else data = { operations: [operation("listCustomers", "List customers"), operation("createCustomer", "Create customer", "POST")].map((item, index) => ({ ...item, id: `operation${index + 1}`, alias: item.id, selected: selected.includes(`operation${index + 1}`) })) };
     } else if (path.endsWith("/api1/credentials")) { expect(body.expectedGeneration).toBe(connection!.generation); expect(body.credentials).toEqual({ apiKey: { type: "api_key", value: "replacement_key" } }); selected = []; connection = { ...connection!, status: "selection_required", selectedOperationIds: [], generation: connection!.generation + 1 }; data = { connection }; }
@@ -185,4 +185,27 @@ for (const width of [1440, 768, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({path:resolve(process.cwd(),`../../../.audit/api-request-editor-${width}.png`),fullPage:true});
   });
+}
+
+for(const width of [1440,768,390]){
+ test(`mock transport: response projection and bounded pages require explicit read selection at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:1000});const state=await fixture(page,"response");
+  await page.goto("/app/connections?profile=custom-api");const dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Server URL",{exact:true}).fill(serverUrl);await dialog.getByLabel("Definition source",{exact:true}).selectOption("request");
+  await dialog.getByLabel("Action name",{exact:true}).fill("Find a customer");await dialog.getByLabel("Request path",{exact:true}).fill("/customers/{id}");
+  await dialog.getByLabel("Authentication",{exact:true}).selectOption("header");await dialog.getByLabel("API key parameter name",{exact:true}).fill("X-API-Key");
+  await dialog.getByRole("button",{name:"Add parameter",exact:true}).click();await dialog.getByLabel("Parameter name",{exact:true}).fill("id");await dialog.getByLabel("Location",{exact:true}).selectOption("path");
+  await dialog.getByText("Response handling",{exact:true}).click();await dialog.getByRole("button",{name:"Add response field",exact:true}).click();
+  await dialog.getByLabel("Output name",{exact:true}).fill("title");await dialog.getByLabel("JSON pointer",{exact:true}).fill("/title");
+  await dialog.getByLabel("Read multiple pages",{exact:true}).check();await expect(dialog.getByLabel("Cursor query parameter",{exact:true})).toHaveValue("cursor");
+  await dialog.getByLabel("Maximum pages",{exact:true}).fill("2");await dialog.getByLabel("Retry temporary read failures",{exact:true}).check();
+  await dialog.getByLabel("Maximum attempts",{exact:true}).fill("2");await dialog.getByLabel("Maximum delay (ms)",{exact:true}).fill("100");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:resolve(process.cwd(),`../../../.audit/api-response-policy-${width}.png`),fullPage:true});
+  await dialog.getByRole("button",{name:"Preview operations",exact:true}).click();await dialog.getByRole("checkbox",{name:/List customers/}).check();
+  const read=dialog.getByRole("checkbox",{name:"Allow reads without individual approval",exact:true});await expect(read).not.toBeChecked();await read.check();
+  await dialog.getByLabel("X-API-Key",{exact:true}).fill("fixture_api_key");await dialog.getByRole("button",{name:"Save connection",exact:true}).click();await expect(dialog).toBeHidden();
+  expect(state.requests.find(item=>item.path.endsWith("/preview"))?.body.requestTemplate).toMatchObject({responsePolicy:{projection:{fields:{title:"/title"}},pagination:{itemsPointer:"/data",nextCursorPointer:"/next",cursorParameter:"cursor",maxPages:2},retry:{maxAttempts:2,maxDelayMs:100}}});
+  expect(state.errors).toEqual([]);
+ });
 }

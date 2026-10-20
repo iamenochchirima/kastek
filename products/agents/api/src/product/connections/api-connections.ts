@@ -1,3 +1,5 @@
+import { observeConnectionControl,captureConnectionAuthority } from "../../observability/connection-telemetry";
+import { nativeResponsePolicySchema, nativePhysicalRequestLimit } from "../../adapters/providers/native-response-policy";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -23,7 +25,7 @@ type Credentials=z.infer<typeof credentialsSchema>;
 const authored=z.strictObject({title:z.string().min(1).max(256),method:z.enum(["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"]),
   path:z.string().min(1).max(2048),parameters:z.array(z.unknown()).max(50).default([]),
   requestBody:z.strictObject({required:z.boolean().default(false),contentType:z.literal("application/json"),schema:z.unknown()}).nullable().optional(),
-  securityScheme:z.unknown().optional(),securityScopes:z.array(z.string().min(1).max(256)).max(32).optional()});
+  responsePolicy:nativeResponsePolicySchema.optional(),securityScheme:z.unknown().optional(),securityScopes:z.array(z.string().min(1).max(256)).max(32).optional()});
 const sourceSchema=z.strictObject({serverUrl:z.string().min(1).max(2048),document:z.unknown().optional(),requestTemplate:authored.optional(),
   securitySelections:z.record(z.string().regex(/^api_[a-f0-9]{32}$/),z.number().int().min(0).max(7)).optional()});
 const oneSource=(value:{document?:unknown;requestTemplate?:unknown})=>Number(value.document!==undefined)+Number(value.requestTemplate!==undefined)===1;
@@ -34,7 +36,7 @@ export const apiSelectionInput=z.strictObject({operationId:operationKey,expected
   selections:z.array(z.strictObject({operationId:z.uuid(),effectPolicy:z.enum(["exact_review","owner_reviewed_read"]).default("exact_review")})).min(1).max(8)
     .refine(value=>new Set(value.map(item=>item.operationId)).size===value.length)});
 export interface ApiOperationRuntime {
-  operationId:string;template:RequestTemplate;serverOrigin:string;importDigest:string;policyRevision:number;
+  authorizationGeneration?:number;operationId:string;template:RequestTemplate;serverOrigin:string;importDigest:string;policyRevision:number;
   credentialReferences:Record<string,string>;credentials:Record<string,ResolvedOpenApiCredential>;effectPolicy:"exact_review"|"owner_reviewed_read";
 }
 export interface ApiConnectionDTO {
@@ -62,13 +64,13 @@ function operationSummary(operation:OpenApiOperation,configured:Row[]=[],executa
       ...(operation.compatible&&!oauth&&!executable?[{code:"API_SCHEMA_UNSUPPORTED",message:"Operation schema is not supported by the installed native API adapter"}]:[])],security,
     securityChoices:operation.securityChoices.map(choice=>({index:choice.index,security:securitySummary(choice.security),diagnostics:choice.diagnostics})),
     credentialState:oauth||invalidReference?"unsupported":!security||security.type==="none"?"none":configured.some(item=>item.schemeId===security.schemeId&&item.type===security.type)?"configured":"required",
-    effect:"unknown" as const,reviewRequired:true as const,parameters:operation.parameters,requestBody:operation.requestBody,responseSchemas:operation.responseSchemas};
+    effect:"unknown" as const,reviewRequired:true as const,responsePolicy:operation.template?.responsePolicy,parameters:operation.parameters,requestBody:operation.requestBody,responseSchemas:operation.responseSchemas};
 }
 function importedSource(input:z.infer<typeof sourceSchema>,testLoopback=false) {
   const authored=input.requestTemplate;
   const document=authored?{openapi:"3.1.0",info:{title:authored.title,version:"1"},servers:[{url:input.serverUrl}],
     ...(authored.securityScheme?{components:{securitySchemes:{credential:authored.securityScheme}},security:[{credential:authored.securityScopes??[]}]}:{}),
-    paths:{[authored.path]:{[authored.method.toLowerCase()]:{operationId:"authoredRequest",parameters:authored.parameters,
+    paths:{[authored.path]:{[authored.method.toLowerCase()]:{operationId:"authoredRequest",parameters:authored.parameters,...(authored.responsePolicy?{"x-kasitek-response":authored.responsePolicy}:{}),
       ...(authored.requestBody?{requestBody:{required:authored.requestBody.required,content:{"application/json":{schema:authored.requestBody.schema}}}}:{}),responses:{"200":{description:"Provider response"}}}}}}:input.document;
   const imported=importOpenApiDocument(document,{serverUrl:input.serverUrl,testLoopback,securitySelections:input.securitySelections});
   return {imported,sourceKind:authored?"request_template" as const:"openapi" as const,importDigest:requestDigest(imported)};
@@ -91,6 +93,7 @@ const rowQuery=`SELECT c.*,s.import_id,s.catalog_id,s.status,s.generation,s.cred
 export class ApiConnectionStore {
   constructor(readonly pool:Pool,readonly vault:ConnectionVault,readonly options:ApiConnectionStoreOptions={}) {}
   private dto(row:Row):ApiConnectionDTO {
+    captureConnectionAuthority(row);
     const imported=row.imported as OpenApiImport;
     const schemes=new Map(imported.operations.flatMap(operation=>operation.security&&operation.security.type!=="none"?[[operation.security.schemeId,operation.security] as const]:[]));
     return {id:row.id,name:row.name,serverUrl:imported.server.url,origin:imported.server.origin,title:imported.title,sourceKind:row.source_kind,importDigest:row.import_digest,
@@ -103,7 +106,7 @@ export class ApiConnectionStore {
     const row=(await db.query(rowQuery+" AND c.id=$3"+(lock==="share"?" FOR SHARE OF c,s":lock?" FOR UPDATE OF c,s":""),[scope.organizationId,scope.accountId,id])).rows[0];
     if(!row)throw unavailable();
     if(requestDigest(row.imported)!==row.import_digest)throw new PlatformError("API_IMPORT_INTEGRITY",409,"Imported API catalog has changed");
-    return row;
+    captureConnectionAuthority(row);return row;
   }
   private assertGeneration(row:Row,expected:number) {if(row.state!=="active"||new Date(row.expires_at).getTime()<=Date.now()||row.generation!==expected)throw changed();}
   private async replay(db:PoolClient,scope:ActionScope,key:string,digest:string) {
@@ -121,7 +124,7 @@ export class ApiConnectionStore {
   }
   async list(scope:ActionScope) {await requireActionMember(this.pool,scope);return (await this.pool.query(rowQuery+" ORDER BY c.created_at DESC,c.id LIMIT 100",[scope.organizationId,scope.accountId])).rows.map(row=>this.dto(row));}
   async get(scope:ActionScope,id:string) {return this.dto(await this.row(this.pool,scope,id));}
-  async create(scope:ActionScope,raw:unknown):Promise<ApiConnectionDTO> {
+  async create(scope:ActionScope,raw:unknown):Promise<ApiConnectionDTO> {return observeConnectionControl(this.pool,"native_api","connect",{organizationId:scope.organizationId},async()=>{
     const input=apiConnectionInput.parse(raw),source=importedSource(input,this.options.testLoopback);
     if(source.importDigest!==input.expectedImportDigest)throw new PlatformError("API_IMPORT_CHANGED",409,"Preview the exact API server and authentication selection before saving");
     validateCredentials(source.imported,input.credentials);
@@ -149,7 +152,8 @@ export class ApiConnectionStore {
         [id,scope.organizationId,importId,catalogId,usable?"selection_required":"unsupported",JSON.stringify(configured(input.credentials))]);
       const result=this.dto(await this.row(db,scope,id));await this.record(db,scope,input.operationId,digest,id,result);return result;
     });
-  }
+
+});}
   async operations(scope:ActionScope,id:string) {
     const row=await this.row(this.pool,scope,id);
     const native=row.catalog_id?(await this.pool.query("SELECT catalog FROM agents_platform.capability_catalogs WHERE id=$1 AND connection_id=$2",[row.catalog_id,id])).rows[0]?.catalog as CapabilityCatalog|undefined:undefined;
@@ -157,7 +161,7 @@ export class ApiConnectionStore {
       ON s.operation_id=t.id AND s.connection_id=t.connection_id AND s.policy_revision=$2 WHERE t.connection_id=$1 ORDER BY t.alias`,[id,row.policy_revision])).rows;
     return rows.map(operation=>({...operationSummary(operation.definition,row.credential_schemes,!native||native.tools.some(tool=>tool.providerOperation===operation.alias)),id:operation.id,selected:row.selected_operation_ids.includes(operation.id),effectPolicy:operation.effect_policy??null}));
   }
-  async select(scope:ActionScope,id:string,raw:unknown):Promise<{connection:ApiConnectionDTO;bindings:CapabilityBinding[]}> {
+  async select(scope:ActionScope,id:string,raw:unknown):Promise<{connection:ApiConnectionDTO;bindings:CapabilityBinding[]}> {return observeConnectionControl(this.pool,"native_api","select",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const input=apiSelectionInput.parse(raw),digest=requestDigest({kind:"api.select",id,...input});
     return transaction(this.pool,async db=>{
       await owner(db,scope);const row=await this.row(db,scope,id,true),previous=await this.replay(db,scope,input.operationId,digest);if(previous)return previous;
@@ -176,11 +180,12 @@ export class ApiConnectionStore {
         if(!info.compatible)throw new PlatformError(definition.security?.type==="oauth2"?"API_OAUTH_CLIENT_REQUIRED":"API_OPERATION_UNSUPPORTED",400,"Selected operation requires unsupported API configuration");
         if(info.credentialState==="required")throw new PlatformError("API_CREDENTIAL_REQUIRED",400,"Configure credentials for each selected operation");
         const tool=catalog.tools.find(tool=>tool.providerOperation===definition.alias);if(!tool)throw new PlatformError("API_OPERATION_UNSUPPORTED",400,"Selected operation has no executable request schema");
-        const read=selection.effectPolicy==="owner_reviewed_read";
+        const read=selection.effectPolicy==="owner_reviewed_read",requestLimit=nativePhysicalRequestLimit(definition.template?.responsePolicy);
+        if(requestLimit>1&&!read)throw new PlatformError("API_READ_AUTHORIZATION_REQUIRED",403,"Automatic pages and retries require explicit authorization of this GET as a read");
         const binding=createBinding({schemaVersion:1,id:randomUUID(),organizationId:scope.organizationId,catalog:{id:catalog.id,revision:catalog.revision,digest:catalog.digest},definition:tool,adapter:catalog.adapter,
           transport:"native_http",protocolVersion:null,connection:{id,profileId:"custom-api-v1",policyRevision},resources:[{kind:"api.origin",id:row.imported.server.origin}],
           policy:read?{effect:"read",disclosure:"approved_resource_identifiers",retry:"never",approval:"none",cancel:"stop_admission"}:{effect:"reviewed_write",disclosure:"exact_reviewed_payload",retry:"status_only",approval:"exact_single_use",cancel:"reconcile_claimed"},
-          limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxPhysicalRequests:1,maxResponseBytes:1048576,maxModelResultBytes:8192}},catalog);
+          limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxPhysicalRequests:requestLimit,maxResponseBytes:1048576,maxModelResultBytes:8192}},catalog);
         await db.query("INSERT INTO agents_platform.capability_bindings(id,organization_id,connection_id,catalog_id,account_id,alias,digest,binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)",[binding.id,scope.organizationId,id,catalog.id,scope.accountId,binding.alias,binding.digest,JSON.stringify(binding)]);
         await db.query("INSERT INTO agents_platform.api_operation_selections(id,organization_id,connection_id,operation_id,policy_revision,effect_policy,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)",[randomUUID(),scope.organizationId,id,operation.id,policyRevision,selection.effectPolicy,scope.accountId]);bindings.push(binding);
       }
@@ -188,8 +193,9 @@ export class ApiConnectionStore {
       await db.query("UPDATE agents_platform.api_connection_settings SET status='ready',generation=generation+1,selected_operation_ids=$2::uuid[],binding_ids=$3::uuid[],catalog_id=$4,last_error=NULL WHERE connection_id=$1",[id,input.selections.map(item=>item.operationId),bindings.map(binding=>binding.id),catalog.id]);
       const result={connection:this.dto(await this.row(db,scope,id)),bindings};await this.record(db,scope,input.operationId,digest,id,result);return result;
     });
-  }
-  async updateCredentials(scope:ActionScope,id:string,raw:unknown) {
+
+});}
+  async updateCredentials(scope:ActionScope,id:string,raw:unknown) {return observeConnectionControl(this.pool,"native_api","rotate",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const input=z.strictObject({operationId:operationKey,expectedGeneration:generation,credentials:credentialsSchema}).parse(raw),digest=requestDigest({kind:"api.credentials",id,...input});
     return transaction(this.pool,async db=>{
       await owner(db,scope);const row=await this.row(db,scope,id,true),previous=await this.replay(db,scope,input.operationId,digest);if(previous)return previous;this.assertGeneration(row,input.expectedGeneration);
@@ -199,12 +205,14 @@ export class ApiConnectionStore {
       await db.query("UPDATE agents_platform.api_connection_settings SET generation=generation+1,status='selection_required',credential_schemes=$2::jsonb,selected_operation_ids='{}',binding_ids='{}',last_error=NULL WHERE connection_id=$1",[id,JSON.stringify(configured(input.credentials))]);
       const result=this.dto(await this.row(db,scope,id));await this.record(db,scope,input.operationId,digest,id,result);return result;
     });
-  }
-  async disconnect(scope:ActionScope,id:string,expectedGeneration:number) {
+
+});}
+  async disconnect(scope:ActionScope,id:string,expectedGeneration:number) {return observeConnectionControl(this.pool,"native_api","disconnect",{organizationId:scope.organizationId,connectionId:id},async()=>{
     return transaction(this.pool,async db=>{await owner(db,scope);const row=await this.row(db,scope,id,true);this.assertGeneration(row,generation.parse(expectedGeneration));
-      await db.query("UPDATE agents_platform.connections SET state='revoked',policy_revision=policy_revision+1 WHERE id=$1",[id]);
-      await db.query("UPDATE agents_platform.api_connection_settings SET status='disconnected',generation=generation+1 WHERE connection_id=$1",[id]);return {disconnected:true as const};});
-  }
+      const changed=(await db.query("UPDATE agents_platform.connections SET state='revoked',policy_revision=policy_revision+1 WHERE id=$1 RETURNING id,organization_id,policy_revision",[id])).rows[0];
+      const settings=(await db.query("UPDATE agents_platform.api_connection_settings SET status='disconnected',generation=generation+1 WHERE connection_id=$1 RETURNING generation",[id])).rows[0];captureConnectionAuthority({...changed,generation:settings.generation});return {disconnected:true as const};});
+
+});}
   async resolveApiOperation(db:PoolClient,scope:ActionScope,id:string,policyRevision:number,providerOperation:string,forProbe=false):Promise<ApiOperationRuntime> {
     const row=await this.row(db,scope,id,"share");
     if(row.state!=="active"||!(forProbe?["ready","failed","credentials_required"].includes(row.status):row.status==="ready")||new Date(row.expires_at).getTime()<=Date.now()||row.policy_revision!==policyRevision)throw new PlatformError("CONNECTION_INACTIVE",403,"API connection authorization is unavailable");
@@ -223,10 +231,10 @@ export class ApiConnectionStore {
       const credential=stored.credentials[template.security.schemeId];if(!credential||credential.type!==template.security.type)throw new PlatformError("API_CREDENTIAL_REQUIRED",403,"API connection credentials are unavailable");
       const reference=`api:${id}:${template.security.schemeId}`;references[template.security.schemeId]=reference;credentials[reference]=credential;
     }
-    return {operationId:selected.id,template,serverOrigin:row.imported.server.origin,importDigest:row.import_digest,policyRevision,
+    return {authorizationGeneration:row.generation,operationId:selected.id,template,serverOrigin:row.imported.server.origin,importDigest:row.import_digest,policyRevision,
       credentialReferences:references,credentials,effectPolicy:selected.effect_policy};
   }
-  async probe(scope:ActionScope,id:string,raw:unknown) {
+  async probe(scope:ActionScope,id:string,raw:unknown) {return observeConnectionControl(this.pool,"native_api","probe",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const input=z.strictObject({operationId:z.uuid(),expectedGeneration:generation,arguments:z.object({path:z.record(z.string(),z.unknown()).optional(),query:z.record(z.string(),z.unknown()).optional(),headers:z.record(z.string(),z.unknown()).optional(),body:z.unknown().optional()}).strict().default({})}).parse(raw);
     const prepared=await transaction(this.pool,async db=>{
       await owner(db,scope);const row=await this.row(db,scope,id);this.assertGeneration(row,input.expectedGeneration);
@@ -248,5 +256,6 @@ export class ApiConnectionStore {
       await this.pool.query("UPDATE agents_platform.api_connection_settings SET last_error=$2,last_probe_at=now(),status=$4 WHERE connection_id=$1 AND generation=$3",[id,code,prepared.generation,code==="AUTHENTICATION"?"credentials_required":"failed"]);
       return {status:"failed",error:code,connection:await this.get(scope,id)};
     }
-  }
+
+});}
 }

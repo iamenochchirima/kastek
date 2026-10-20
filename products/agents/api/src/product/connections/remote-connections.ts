@@ -1,3 +1,4 @@
+import { observeConnectionControl,captureConnectionAuthority } from "../../observability/connection-telemetry";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
 import { ConnectionVault } from "../../infrastructure/vault";
 import { authorizeRemote,beginRemotePermissionStepUp, remoteEndpoint, type RemoteAuthorization, type RemoteAuthOptions,type RemoteScopeChallenge } from "./remote-auth";
-import { discoverRemoteMcp,RemoteMcpError,type RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
+import { discoverRemoteMcp,remoteMcpContentOperations,RemoteMcpError,type RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
 import { createRemoteMcpCapabilityCatalog,executeGenericConnectedTool,remoteMcpAdapterManifest } from "../../capabilities/connected-tools/generic-connected-runtime";
 import { ExecutableAdapterRegistry } from "../../contracts/capability-catalog";
 import { ConnectedCatalogStore } from "../../capabilities/connected-tools/connected-catalog-store";
@@ -38,6 +39,7 @@ export class RemoteConnectionStore {
     this.catalogs=new ConnectedCatalogStore(pool,new ConnectionStore(pool,vault,[]),registry);
   }
   private dto(row: Row): RemoteConnectionDTO {
+    captureConnectionAuthority(row);
     return { id: row.id, name: row.name, endpoint: row.endpoint, authentication: row.auth_method,
       status: row.state === "revoked" ? "disconnected" : row.status, revision: row.revision, generation: row.generation,
       lastError: row.last_error, identity: row.verified_identity ?? null,
@@ -45,11 +47,12 @@ export class RemoteConnectionStore {
   }
   private async row(scope: ActionScope, id: string): Promise<Row> {
     await requireActionMember(this.pool, scope);
-    return (await this.pool.query(`SELECT c.*,o.endpoint,o.auth_method,o.header_name,o.status,o.generation,o.last_error,o.verified_identity,
+    const row=(await this.pool.query(`SELECT c.*,o.endpoint,o.auth_method,o.header_name,o.status,o.generation,o.last_error,o.verified_identity,
       o.lease_id,o.lease_until,k.envelope FROM agents_platform.connections c
       JOIN agents_platform.connection_onboarding o ON o.connection_id=c.id
       JOIN agents_platform.connection_credentials k ON k.connection_id=c.id AND k.revision=c.revision
       WHERE c.id=$1 AND c.organization_id=$2 AND c.account_id=$3`, [z.uuid().parse(id), scope.organizationId, scope.accountId])).rows[0] ?? (() => { throw missing(); })();
+    captureConnectionAuthority(row);return row;
   }
   private secret(row: Row): StoredSecret { return row.envelope ? JSON.parse(this.vault.open(row.organization_id, row.id, row.revision, row.envelope)) : {}; }
   async list(scope: ActionScope): Promise<RemoteConnectionDTO[]> {
@@ -66,7 +69,7 @@ export class RemoteConnectionStore {
     if (!row) throw new PlatformError("OAUTH_STATE_INVALID", 400, "Sign-in attempt is invalid or expired");
     return { accountId, organizationId: row.organization_id };
   }
-  async create(scope: ActionScope, raw: unknown) {
+  async create(scope: ActionScope, raw: unknown) {return observeConnectionControl(this.pool,"mcp","connect",{organizationId:scope.organizationId},async()=>{
     const input = remoteConnectionInput.parse(raw), endpoint = remoteEndpoint(input.endpoint, this.options.testLoopback);
     if ((input.authentication === "bearer" || input.authentication === "header") && !input.secret)
       throw new PlatformError("CONNECTION_KEY_REQUIRED", 400, "Enter the server credential");
@@ -99,7 +102,8 @@ export class RemoteConnectionStore {
       [scope.organizationId, scope.accountId, input.operationId, digest, id, JSON.stringify(dto)]);
       return dto;
     });
-  }
+
+});}
   private async lease(scope: ActionScope, id: string, expectedGeneration: number) {
     const row = await this.row(scope, id), leaseId = randomUUID();
     if (row.state !== "active" || new Date(row.expires_at).getTime() <= Date.now() || row.generation !== expectedGeneration) throw conflict();
@@ -123,7 +127,7 @@ export class RemoteConnectionStore {
       await db.query(`UPDATE agents_platform.connection_onboarding SET status=$2,last_error=$3,generation=generation+$4,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1`, [row.id, status, error,invalidatePolicy?1:0]);
     });
   }
-  async beginAuthorization(scope: ActionScope, id: string, generation: number) {
+  async beginAuthorization(scope: ActionScope, id: string, generation: number) {return observeConnectionControl(this.pool,"mcp","authorize",{organizationId:scope.organizationId,connectionId:id,authorizationGeneration:generation},async()=>{
     const current = await this.row(scope,id);
     if(current.generation !== generation) throw conflict();
     if(current.lease_id && new Date(current.lease_until).getTime() <= Date.now()) {
@@ -160,8 +164,9 @@ export class RemoteConnectionStore {
       if (error instanceof PlatformError) throw error;
       throw new PlatformError("OAUTH_SETUP_FAILED", 400, "Could not start sign in; check the server or its OAuth client settings");
     }
-  }
-  async completeAuthorization(scope: ActionScope, state: string, code?: string, issuer?: string) {
+
+});}
+  async completeAuthorization(scope: ActionScope, state: string, code?: string, issuer?: string) {return observeConnectionControl(this.pool,"mcp","callback",{organizationId:scope.organizationId},async()=>{
     if (!/^[A-Za-z0-9_-]{43}$/.test(state)) throw new PlatformError("OAUTH_STATE_INVALID", 400, "Sign-in attempt is invalid or expired");
     await requireActionMember(this.pool, scope);
     const attempt = (await this.pool.query(`UPDATE agents_platform.connection_oauth_attempts a SET state='exchanging' FROM agents_platform.connections c
@@ -186,8 +191,9 @@ export class RemoteConnectionStore {
       if (error instanceof PlatformError) throw error;
       throw new PlatformError("OAUTH_SIGN_IN_FAILED", 400, "Sign in failed; reconnect to try again");
     }
-  }
-  async configure(scope:ActionScope,id:string,raw:unknown) {
+
+});}
+  async configure(scope:ActionScope,id:string,raw:unknown) {return observeConnectionControl(this.pool,"mcp","rotate",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const input=remoteConnectionInput.omit({endpoint:true,name:true}).extend({generation:z.number().int().positive()}).parse(raw);
     if(["bearer","header"].includes(input.authentication)&&!input.secret)throw new PlatformError("CONNECTION_KEY_REQUIRED",400,"Enter the server credential");
     if(input.authentication==="header"&&(!input.headerName||/^(authorization|host|cookie|content-|transfer-|connection|proxy-|mcp-)/i.test(input.headerName)))
@@ -221,27 +227,30 @@ export class RemoteConnectionStore {
       await db.query("INSERT INTO agents_platform.connection_mutations(organization_id,account_id,operation_id,request_digest,connection_id,result) VALUES($1,$2,$3,$4,$5,$6)",[scope.organizationId,scope.accountId,input.operationId,digest,id,JSON.stringify(result)]);
       return result;
     });
-  }
-  async disconnect(scope: ActionScope, id: string, generation: number) {
+
+});}
+  async disconnect(scope: ActionScope, id: string, generation: number) {return observeConnectionControl(this.pool,"mcp","disconnect",{organizationId:scope.organizationId,connectionId:id},async()=>{
     return transaction(this.pool, async db => {
       await requireActionMember(db, scope);
       const result = await db.query(`UPDATE agents_platform.connections c SET state='revoked',policy_revision=policy_revision+1
         FROM agents_platform.connection_onboarding o WHERE c.id=o.connection_id AND c.id=$1 AND c.organization_id=$2 AND c.account_id=$3
-        AND o.generation=$4 AND c.state='active'`, [id, scope.organizationId, scope.accountId, generation]);
+        AND o.generation=$4 AND c.state='active' RETURNING c.id,c.organization_id,c.policy_revision`, [id, scope.organizationId, scope.accountId, generation]);
       if (!result.rowCount) throw conflict();
-      await db.query(`UPDATE agents_platform.connection_onboarding SET status='disconnected',generation=generation+1,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1`, [id]);
+      const changed=await db.query(`UPDATE agents_platform.connection_onboarding SET status='disconnected',generation=generation+1,lease_id=NULL,lease_until=NULL,updated_at=now() WHERE connection_id=$1 RETURNING generation`, [id]);
+      captureConnectionAuthority({...result.rows[0],generation:changed.rows[0].generation});
       await db.query(`UPDATE agents_platform.connection_oauth_attempts SET state='failed' WHERE connection_id=$1 AND state='pending'`, [id]);
       return { disconnected: true, upstreamRevocation: "not_attempted" as const };
     });
-  }
-  async discover(scope: ActionScope, id: string, generation: number) {
+
+});}
+  async discover(scope: ActionScope, id: string, generation: number) {return observeConnectionControl(this.pool,"mcp","discover",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const {row,leaseId}=await this.lease(scope,id,generation),stored=this.secret(row);
     let persisted=false;
     try {
       const data=stored.authorization;
       if(data?.tokens?.expires_in && data.issuedAt && data.issuedAt+data.tokens.expires_in*1000 <= Date.now()+30000) {
         if(!data.tokens.refresh_token)throw new PlatformError("AUTHENTICATION",401,"Sign in again");
-        if(await authorizeRemote({...this.options,endpoint:row.endpoint},data)!=="AUTHORIZED")throw new PlatformError("AUTHENTICATION",401,"Sign in again");
+        await observeConnectionControl(this.pool,"mcp","refresh",{organizationId:scope.organizationId,connectionId:id,authorizationGeneration:row.generation,policyRevision:row.policy_revision},async()=>{if(await authorizeRemote({...this.options,endpoint:row.endpoint},data)!=="AUTHORIZED")throw new PlatformError("AUTHENTICATION",401,"Sign in again");});
       }
       const token=data?.tokens?.access_token;
       if(token && data?.tokens?.token_type.toLowerCase()!=="bearer")throw new PlatformError("OAUTH_TOKEN_UNSUPPORTED",400,"This server requires an unsupported token type");
@@ -255,7 +264,7 @@ export class RemoteConnectionStore {
       const revision=Number((await this.pool.query("SELECT coalesce(max(revision),0)+1 AS revision FROM agents_platform.capability_catalogs WHERE connection_id=$1",[id])).rows[0].revision);
       const candidate=await this.catalogs.saveCandidate(scope,{connectionId:id,expectedRevision:current.revision,operationId:`remote-discovery:${randomUUID()}`,
         catalog:createRemoteMcpCapabilityCatalog(catalog,{id:randomUUID(),organizationId:scope.organizationId,connectionId:id,revision})});
-      return {connection:current,catalog,candidate};
+      return {connection:current,catalog:{...catalog,contentOperations:remoteMcpContentOperations(catalog)},candidate};
     } catch(error) {
       if(error instanceof RemoteMcpError&&error.code==="OAUTH_SCOPE_REQUIRED"&&error.scopeChallenge&&stored.authorization?.tokens&&["oauth","auto"].includes(row.auth_method))stored.pendingStepUp=error.scopeChallenge;
       const attempts=error && typeof error==="object" && "attempts" in error && Array.isArray(error.attempts)?error.attempts:[];
@@ -268,21 +277,23 @@ export class RemoteConnectionStore {
         [id,scope.organizationId,scope.accountId,status,code,row.revision+1,generation]);
       return {connection:await this.get(scope,id)};
     }
-  }
-  async ensureCredentialFresh(scope:ActionScope,id:string):Promise<void> {
+
+});}
+  async ensureCredentialFresh(scope:ActionScope,id:string):Promise<void> {return observeConnectionControl(this.pool,"mcp","credential_check",{organizationId:scope.organizationId,connectionId:id},async()=>{
     const row=await this.row(scope,id),stored=this.secret(row),data=stored.authorization;
     if(!data?.tokens?.expires_in||!data.issuedAt||data.issuedAt+data.tokens.expires_in*1000>Date.now()+30000)return;
     const {row:leased,leaseId}=await this.lease(scope,id,row.generation);
     const latest=this.secret(leased),authorization=latest.authorization;
     try {
       if(!authorization?.tokens?.refresh_token)throw new PlatformError("AUTHENTICATION",401,"Sign in again");
-      if(await authorizeRemote({...this.options,endpoint:row.endpoint},authorization)!=="AUTHORIZED")throw new PlatformError("AUTHENTICATION",401,"Sign in again");
+      await observeConnectionControl(this.pool,"mcp","refresh",{organizationId:scope.organizationId,connectionId:id,authorizationGeneration:row.generation,policyRevision:row.policy_revision},async()=>{if(await authorizeRemote({...this.options,endpoint:row.endpoint},authorization)!=="AUTHORIZED")throw new PlatformError("AUTHENTICATION",401,"Sign in again");});
       await this.persist(scope,leased,leaseId,latest,"selection_required");
     }catch {
       await this.persist(scope,leased,leaseId,latest,"reconnect_required","AUTHENTICATION");
       throw new PlatformError("AUTHENTICATION",401,"Reconnect this server to continue");
     }
-  }
+
+});}
   async recordPermissionChallenge(scope:ActionScope,id:string,policyRevision:number,challenge:RemoteScopeChallenge):Promise<void>{
     const current=await this.row(scope,id);
     if(current.policy_revision!==policyRevision||current.endpoint!==challenge.resource||!["oauth","auto"].includes(current.auth_method))throw conflict();

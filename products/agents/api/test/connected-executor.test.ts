@@ -1,3 +1,4 @@
+import {collectNativeMetrics} from "../src/observability/metrics";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {createServer,type Server} from "node:http";
 import {Pool} from "pg";
@@ -114,6 +115,16 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await pool.query("INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state) VALUES($1,$2,$3,$4,$5,$6,$7,'started')",[operationId,f.task.id,f.scope.organizationId,f.task.root_task_id,f.connection.id,binding.id,requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args})]);
   await expect(executor.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
   expect(requests).toEqual([]);expect((await pool.query("SELECT state,claim_token,claim_expires_at FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toEqual({state:"uncertain",claim_token:null,claim_expires_at:null});
+ });
+ it("coalesces actual receipts from two legacy profiles into one bounded provider metric series",async()=>{
+  const before=(await collectNativeMetrics(pool,"test")).filter(point=>point.name==="agents.connected.provider.attempts"&&point.attributes.provider==="other"&&point.attributes.phase==="read"&&point.attributes.outcome==="response").reduce((sum,point)=>sum+point.value,0);
+  const keyed=await fixture();await call(keyed,"get_repository",{repository:"approved/public"});
+  const anonymous=await fixture(false,true);await call(anonymous,"get_repository",{repository:"approved/public"});
+  const points=(await collectNativeMetrics(pool,"test")).filter(point=>point.name.startsWith("agents.connected.provider.")&&point.attributes.provider==="other");
+  const attempts=points.filter(point=>point.name==="agents.connected.provider.attempts"&&point.attributes.phase==="read"&&point.attributes.outcome==="response");
+  expect(attempts).toHaveLength(1);expect(attempts[0]!.value).toBe(before+2);
+  expect(points.filter(point=>point.name==="agents.connected.provider.latency_p95_ms"&&point.attributes.phase==="read")).toHaveLength(1);
+  expect(JSON.stringify(points)).not.toContain(keyed.connection.id);expect(JSON.stringify(points)).not.toContain(anonymous.connection.id);
  });
  it("executes anonymous native and MCP reads without transmitting any authorization header",async()=>{
   const f=await fixture(true,true);expect(f.connection.authentication).toBe("none");

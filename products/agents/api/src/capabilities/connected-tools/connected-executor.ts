@@ -200,8 +200,9 @@ export class ConnectedExecutor {
    const inserted=(await db.query(`INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state,claim_token,claim_expires_at)
     SELECT $1,$2,$3,$4,$5,$6,$7,'started',$8,LEAST(o.started_at+make_interval(secs=>LEAST(o.reserved_ms,$9)::double precision/1000),t.deadline_at)
     FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE o.id=$1 AND t.id=$2 RETURNING claim_expires_at`,[operationId,taskId,initial.task.organization_id,initial.task.root_task_id,binding.connection!.id,binding.id,digest,claimToken,binding.limits.timeoutMs])).rows[0]!;
-   if(generic)await recordEvent(db,taskId,`connected-claim:${operationId}`,"tool.connected_claimed",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,outcome:"started"});
-   return{...authorized,selected:selected!,stashResource,genericResource,remoteEndpoint,apiOperation,handle,claimToken,deadlineAt:new Date(inserted.claim_expires_at).getTime()};
+   const authorizationGeneration=remoteEndpoint?.cacheScope?.generation??apiOperation?.authorizationGeneration;
+   if(generic)await recordEvent(db,taskId,`connected-claim:${operationId}`,"tool.connected_claimed",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,authorizationGeneration:remoteEndpoint?.cacheScope?.generation??apiOperation?.authorizationGeneration,outcome:"started"});
+   return{...authorized,selected:selected!,stashResource,genericResource,remoteEndpoint,apiOperation,authorizationGeneration,handle,claimToken,deadlineAt:new Date(inserted.claim_expires_at).getTime()};
   });
   if("replay"in claim)return claim.replay;
   if("error"in claim){if(claim.error==="CONNECTED_READ_UNCERTAIN")throw generic?genericUncertain():uncertain();throw new PlatformError(claim.error,claim.error==="CONNECTED_READ_IN_PROGRESS"?409:502,"The connected read did not complete");}
@@ -222,14 +223,14 @@ export class ConnectedExecutor {
     if(reviewed)await this.options.genericReview!.assertApproved(db,reviewInput);
     if(generic){
      if(++ordinal>(binding.limits.maxPhysicalRequests??128))throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote operation reached its request limit");
-     if(attempt?.rpcMethod==="tools/call"){
-      if(++genericCalls>1)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote invocation cannot be repeated");
+     if(["tools/call","resources/read","prompts/get"].includes(attempt?.rpcMethod??"")){
+      if(++genericCalls>1&&(!api||reviewed))throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote invocation cannot be repeated");
       if(reviewed)await this.options.genericReview!.claim(db,reviewInput);
      }
     }else if(++ordinal>7||phase==="read"&&++readCount>3||phase==="setup"&&++setupCount>4)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The connected read reached its request limit");
     await db.query("INSERT INTO agents_platform.connected_attempts(operation_id,ordinal,phase,state) VALUES($1,$2,$3,'started')",[operationId,ordinal,phase]);pending=ordinal;
    });
-   if(attempt?.rpcMethod==="tools/call")genericEffectClaimed=true;
+   if(["tools/call","resources/read","prompts/get"].includes(attempt?.rpcMethod??""))genericEffectClaimed=true;
   };
   const after=async(receipt:NetworkAttempt)=>{const attempt=generic?receipt.attempt:pending;await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,attempt,JSON.stringify({...receipt,attempt})]);};
   let responseOrdinal=0;
@@ -256,19 +257,24 @@ export class ConnectedExecutor {
    let projection:Projection,full:unknown;
    if(claim.genericResource){
     const observation=api?await executeGenericNativeApi(binding,claim.apiOperation!,args,{deadlineAt,signal,testLoopback:this.options.testApiLoopback,
-      beforeAttempt:attempt=>before("read",{...attempt,rpcMethod:"tools/call"}),onAttempt:after})
+      beforeAttempt:attempt=>before("read",{...attempt,rpcMethod:"tools/call"}),onAttempt:after,onResponse:capture})
      :await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt,effectiveAuthorityDigest:requestDigest({principal:claim.execution.task.principal,versionId:claim.execution.task.version_id,
        product:claim.execution.task.product,resourceId:claim.execution.task.resource_id,callerClientId:claim.execution.task.caller_client_id,
        bindings:claim.execution.connectedBindings.map(selected=>({id:selected.id,digest:selected.digest,resources:selected.resources})).sort((a,b)=>a.id.localeCompare(b.id))})},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after,
        onScopeRequired:challenge=>this.options.recordRemoteScopeChallenge?.(claim.scope,binding.connection!.id,binding.connection!.policyRevision,challenge)??Promise.resolve()});
     full=observation.rawResult;
-    const inline=observation.content.filter(block=>block.type==="text"&&typeof block.text==="string").map(block=>block.text).join("\n");
+    const inline=observation.content.flatMap(block=>{
+      const entry=block as Record<string,unknown>;
+      if(block.type==="text"&&typeof block.text==="string")return [(observation as {rpcMethod?:string}).rpcMethod==="prompts/get"?`External prompt content (${String((entry._meta as Record<string,unknown>|undefined)?.kasitekExternalPromptRole??"unknown")}): ${block.text}`:block.text];
+      if(block.type==="resource"&&entry.resource&&typeof entry.resource==="object"&&typeof (entry.resource as Record<string,unknown>).text==="string")return [(entry.resource as Record<string,unknown>).text as string];
+      return [];
+    }).join("\n");
     const blocks=observation.content.slice(0,16).map((block,index)=>({index,type:String(block.type).slice(0,64),digest:requestDigest(block),...(typeof block.mimeType==="string"?{mimeType:block.mimeType.slice(0,128)}:{})}));
     const display=inline|| (observation.structuredContent!==undefined?JSON.stringify(observation.structuredContent):`The provider returned ${observation.content.length} content blocks. The complete result is in the private operation receipt.`);
     projection={...prefix(display),resource:claim.genericResource,acquiredAt:new Date().toISOString(),digest:observation.resultDigest,isError:observation.isError,
      handles:{contentBlocks:blocks,omittedContentBlocks:Math.max(0,observation.content.length-blocks.length),privateReceipt:true},
      provenance:{kind:api?"native_api_observation":"remote_mcp_observation",...(api?{templateDigest:binding.definition.nativeApi!.templateDigest,importDigest:binding.definition.nativeApi!.importDigest,httpStatus:(observation as {status:number}).status}
-      :{protocolVersion:(observation as {protocolVersion:string}).protocolVersion,transport:(observation as {transport:string}).transport,definitionDigest:binding.definition.remote!.definitionDigest}),contentBlockCount:observation.content.length,hasStructuredContent:observation.structuredContent!==undefined}};
+      :{protocolVersion:(observation as {protocolVersion:string}).protocolVersion,transport:(observation as {transport:string}).transport,rpcMethod:(observation as {rpcMethod?:string}).rpcMethod??"tools/call",definitionDigest:binding.definition.remote!.definitionDigest}),contentBlockCount:observation.content.length,hasStructuredContent:observation.structuredContent!==undefined}};
    }else if(claim.stashResource){
     const remoteArgs=binding.definition.providerOperation==="get_item"?{id:claim.stashResource.id}:{id:claim.stashResource.id,offset:args.offset??0};
     const tool:McpTool={name:binding.definition.providerOperation,description:binding.definition.description,inputSchema:binding.definition.inputSchema as Record<string,unknown>,...(binding.definition.outputSchema?{outputSchema:binding.definition.outputSchema as Record<string,unknown>}:{}),schemaDigest:requestDigest({inputSchema:binding.definition.inputSchema,outputSchema:binding.definition.outputSchema})};
@@ -334,7 +340,7 @@ export class ConnectedExecutor {
     if(reviewed)await this.options.genericReview!.assertApproved(db,reviewInput);
     const published=await db.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$5 AND claim_expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest,claim.claimToken]);
     if(published.rowCount&&reviewed)await this.options.genericReview!.completed?.(db,reviewInput,projection.digest);
-    if(published.rowCount&&generic)await recordEvent(db,taskId,`connected-result:${operationId}`,"tool.connected_result",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,outcome:"completed",durationMs:Math.max(0,Date.now()-invokedAt)});
+    if(published.rowCount&&generic)await recordEvent(db,taskId,`connected-result:${operationId}`,"tool.connected_result",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,authorizationGeneration:claim.authorizationGeneration,outcome:"completed",durationMs:Math.max(0,Date.now()-invokedAt)});
     return published;
    });
    if(!published.rowCount) throw new PlatformError("CONNECTED_READ_UNCERTAIN",409,"Connected read receipt is no longer publishable");
@@ -344,7 +350,7 @@ export class ConnectedExecutor {
    const unknown=!!active||reviewed&&genericEffectClaimed||error instanceof PlatformError&&["CONNECTED_READ_DEADLINE","CONNECTED_READ_UNCERTAIN"].includes(error.code);
    if(reviewed&&this.options.genericReview?.failed)await transaction(this.pool,db=>this.options.genericReview!.failed!(db,reviewInput,{uncertain:genericEffectClaimed}));
    const settled=await this.pool.query("UPDATE agents_platform.connected_reads SET state=CASE WHEN $2 OR claim_expires_at<=clock_timestamp() THEN 'uncertain' ELSE 'failed' END,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$4 RETURNING state",[operationId,unknown,code(error),claim.claimToken]);
-   if(generic)await recordEvent(this.pool,taskId,`connected-result:${operationId}`,"tool.connected_result",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,outcome:unknown||settled.rows[0]?.state==="uncertain"?"uncertain":"failed",errorCode:code(error),durationMs:Math.max(0,Date.now()-invokedAt)});
+   if(generic)await recordEvent(this.pool,taskId,`connected-result:${operationId}`,"tool.connected_result",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,authorizationGeneration:claim.authorizationGeneration,outcome:unknown||settled.rows[0]?.state==="uncertain"?"uncertain":"failed",errorCode:code(error),durationMs:Math.max(0,Date.now()-invokedAt)});
    if(unknown||!settled.rowCount||settled.rows[0]?.state==="uncertain")throw generic?genericUncertain():uncertain();
    throw new PlatformError(code(error),502,"Connected read did not complete");
   }

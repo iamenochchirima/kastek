@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { RemoteConnectionStore } from "../src/product/connections/remote-connections";
@@ -13,13 +13,16 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("durable remote connections",()=>{
   let admin:Pool,pool:Pool,platform:PlatformStore,remote:RemoteConnectionStore;
   const database=`agents_remote_${randomUUID().replaceAll("-","")}`,servers:Server[]=[];
+  const logs:string[]=[];
   beforeAll(async()=>{
+    vi.spyOn(console,"info").mockImplementation(value=>{logs.push(String(value));});
     admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);
     const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);
     platform=new PlatformStore(pool);remote=new RemoteConnectionStore(pool,new ConnectionVault("test",{test:randomBytes(32).toString("base64")}),
       {callbackUrl:"http://127.0.0.1:3100/api/connections/oauth/callback",testLoopback:true});
   });
   afterAll(async()=>{
+    vi.restoreAllMocks();
     for(const server of servers){server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
     await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}
   });
@@ -81,6 +84,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const owner=await scope(),connection=await remote.create(owner,{operationId:randomUUID(),endpoint:"https://tools.example.test/mcp",authentication:"none"});
     expect((await remote.disconnect(owner,connection.id,connection.generation)).disconnected).toBe(true);
     expect((await remote.get(owner,connection.id)).status).toBe("disconnected");
+    expect(logs.map(line=>JSON.parse(line)).find(event=>event.connectionId===connection.id&&event.flow==="disconnect")).toMatchObject({authorizationGeneration:connection.generation+1,policyRevision:2,outcome:"completed"});
     await expect(remote.discover(owner,connection.id,connection.generation)).rejects.toMatchObject({code:"CONNECTION_CHANGED"});
     await expect(remote.completeAuthorization(owner,"a".repeat(43),"forged")).rejects.toMatchObject({code:"OAUTH_STATE_INVALID"});
   });
@@ -137,9 +141,11 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const refreshes=await Promise.allSettled([remote.ensureCredentialFresh(owner,connection.id),resumed.ensureCredentialFresh(owner,connection.id)]);
     expect(refreshes.filter(result=>result.status==="fulfilled")).toHaveLength(1);expect(tokenCalls).toBe(2);
     expect(JSON.stringify(await resumed.get(owner,connection.id))).not.toContain("private-");
-    await expire();failRefresh=true;
+    await expire();failRefresh=true;const failedRefreshStart=logs.length;
     await expect(resumed.ensureCredentialFresh(owner,connection.id)).rejects.toMatchObject({code:"AUTHENTICATION"});
     expect((await resumed.get(owner,connection.id)).status).toBe("reconnect_required");
+    expect(logs.slice(failedRefreshStart).map(line=>JSON.parse(line)).filter(event=>event.flow==="refresh")).toMatchObject([{outcome:"failed",failureClass:"authorization",connectionId:connection.id,authorizationGeneration:connection.generation}]);
+    expect(logs.join("\n")).not.toMatch(/private-access|private-refresh|valid-code|code_verifier|localhost|127\.0\.0\.1/);
     const own=await resumed.create(owner,{operationId:randomUUID(),endpoint:`${origin}/mcp`,authentication:"oauth",oauthClient:{issuer:origin,clientId:"own-client",authMethod:"none"}});
     const ownRedirect=await resumed.beginAuthorization(owner,own.id,own.generation);expect(new URL(ownRedirect.authorizationUrl).searchParams.get("client_id")).toBe("own-client");expect(registrations).toBe(1);
     await expect(resumed.completeAuthorization(owner,new URL(ownRedirect.authorizationUrl).searchParams.get("state")!)).rejects.toMatchObject({code:"OAUTH_CANCELLED"});
@@ -152,6 +158,12 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const result=await remote.discover(owner,connection.id,connection.generation);
     expect(result.connection.status,JSON.stringify(result.connection)).toBe("authorization_required");expect(result.connection.lastError).toBe("AUTHENTICATION");
     expect(result).not.toHaveProperty("catalog");
+    const events=logs.map(line=>JSON.parse(line)).filter(event=>event.connectionId===connection.id);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({flow:"connect",outcome:"completed",authorizationGeneration:connection.generation}),expect.objectContaining({flow:"discover",outcome:"failed",failureClass:"authorization",authorizationGeneration:connection.generation})]));
+    expect(events.every(event=>Number.isInteger(event.durationMs)&&event.durationMs>=0)).toBe(true);
+    expect(JSON.stringify(events)).not.toContain("https://example.test");expect(JSON.stringify(events)).not.toContain("127.0.0.1");
+    expect(events.every(event=>!("taskId"in event)&&!("accountId"in event))).toBe(true);
+
     expect((await pool.query("SELECT lease_id FROM agents_platform.connection_onboarding WHERE connection_id=$1",[connection.id])).rows[0].lease_id).toBeNull();
   },15000);
 });

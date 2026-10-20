@@ -108,11 +108,12 @@ async function main() {
     assert.equal(code, 0, "Actual API catalogue browser acceptance failed");
     if (executionProvider) {
       const receipts = (await pool.query("SELECT state,body_key,body_digest,result FROM agents_platform.connected_reads WHERE state='completed'")).rows;
-      assert.equal(receipts.length, 4, "Both published versions of each controlled integration must have a completed receipt");
+      assert.equal(receipts.length, 7, "Published integrations, resources, pinned templates and prompts must have completed private receipts");
       assert.ok(receipts.every(receipt => receipt.body_key && /^[a-f0-9]{64}$/.test(receipt.body_digest) && receipt.result?.status === "ok"));
       assert.equal(executionProvider.calls.filter(call => call.kind === "mcp").length, 2);
       assert.equal(executionProvider.calls.filter(call => call.kind === "api").length, 2);
-      console.log("Controlled MCP/native execution verified: four private receipts and four approved provider calls.");
+      for (const kind of ["resource", "template", "prompt"]) assert.equal(executionProvider.calls.filter(call => call.kind === kind).length, 1);
+      console.log("Controlled MCP/native execution verified: seven private receipts and seven approved provider calls.");
     }
     console.log("Actual API catalogue browser acceptance passed. Isolated fixture cleanup follows.");
   } finally {

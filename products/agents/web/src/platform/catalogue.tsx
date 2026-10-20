@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { BookOpen, Check, FileText, GitBranch, Headphones, Plug, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { api, message, organizationPath, type Catalogue, type CatalogueItem, type Configuration, type SkillPackage } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { CuratedSkillPreview, SkillImport, SkillPreview } from "./skill-library";
+import { SkillRequirements } from "./skill-requirements";
 import "./catalogue.css";
 
 type CatalogueProps = {
   organizationId: string; agentId: string; kind: "tools" | "skills";
-  configuration: Configuration; onChange: (value: Configuration) => void; onBeforeConnect?: () => Promise<boolean>;
+  draftRevision?: number; configuration: Configuration; onChange: (value: Configuration) => void; onBeforeConnect?: () => Promise<boolean>;
 };
 
 export function catalogueItemAdded(item: CatalogueItem, configuration: Configuration) {
@@ -29,8 +30,9 @@ function CatalogueIcon({ item }: { item: CatalogueItem }) {
   return <span className="catalogue-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.6} /></span>;
 }
 
-export function AgentCatalogue({ organizationId, agentId, kind, configuration, onChange, onBeforeConnect }: CatalogueProps) {
+export function AgentCatalogue({ organizationId, agentId, kind, draftRevision, configuration, onChange, onBeforeConnect }: CatalogueProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const connectionLock = useRef(false);
   const [connecting, setConnecting] = useState(false);
   const { session } = useWorkspace();
@@ -44,12 +46,13 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
   const [library, setLibrary] = useState("all");
   const [view, setView] = useState<"recommended" | "available" | "added">("recommended");
   const [preview, setPreview] = useState<CatalogueItem | null>(null);
-  const [packageId, setPackageId] = useState<string | null>(null);
+  const [packageId, setPackageId] = useState<string | null>(kind === "skills" ? searchParams.get("skill") : null);
+  function openPackage(id: string | null) { setPackageId(id); const next = new URLSearchParams(searchParams); if (id) next.set("skill", id); else next.delete("skill"); setSearchParams(next, { replace: true }); }
   useEffect(() => {
     let live = true;
     api<Catalogue>(path).then(result => { if (live) { setData(result); setError(""); } }).catch(e => { if (live) setError(message(e)); });
     return () => { live = false; };
-  }, [path, attempt]);
+  }, [path, attempt, draftRevision]);
 
   function select(item: CatalogueItem, add: boolean) {
     if (item.selection?.kind === "capability") { if (!add) onChange({ ...configuration, capabilities: { ...configuration.capabilities, businessActions: { enabled: false } } }); return; }
@@ -60,12 +63,12 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
       skillIds: add ? [...new Set([...(configuration.skillIds ?? []).filter(id => !item.familyId || !(data?.entries ?? []).some(sibling => sibling.familyId === item.familyId && sibling.id !== item.id && sibling.configuration.skillIds.includes(id))), ...selected.skillIds])] : (configuration.skillIds ?? []).filter(id => !selected.skillIds.includes(id)),
     });
   }
-  async function connect(item: CatalogueItem) {
+  async function connect(item: Pick<CatalogueItem, "action" | "requires" | "connectorId">) {
     if (connectionLock.current) return;
     connectionLock.current = true; setConnecting(true); setError("");
     try {
       if (onBeforeConnect && !await onBeforeConnect()) return;
-    const returnTo = `/app/agents/${encodeURIComponent(agentId)}?section=${kind}`;
+    const returnTo = `/app/agents/${encodeURIComponent(agentId)}?section=${kind}${packageId ? `&skill=${encodeURIComponent(packageId)}` : ""}`;
     const params = new URLSearchParams({ returnTo });
     const profile = item.action.connectionProfileId ?? item.requires.connectionProfiles[0];
     if (profile) params.set("profile", profile);
@@ -84,7 +87,7 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
   function installed(skill: SkillPackage) {
     setPreview(null); setAttempt(value => value + 1);
     if (skill.reviewState === "reviewed") onChange({ ...configuration, skillIds: [...new Set([...(configuration.skillIds ?? []).filter(id => !skill.familyId || !(data?.entries ?? []).some(sibling => sibling.familyId === skill.familyId && sibling.configuration.skillIds.includes(id))), skill.id])] });
-    else setPackageId(skill.id);
+    else openPackage(skill.id);
   }
   function action(item: CatalogueItem) {
     const added = catalogueItemAdded(item, configuration);
@@ -99,17 +102,17 @@ export function AgentCatalogue({ organizationId, agentId, kind, configuration, o
     return <Button type="button" size="sm" variant="outline" aria-label={`Add ${item.name}`} onClick={() => item.source?.kind === "curated" && item.source.slug && !item.configuration.skillIds.length ? setPreview(item) : select(item, true)}>Add</Button>;
   }
   return <section className="agent-catalogue" aria-label={`${title} catalogue`}>
-    <div className="catalogue-toolbar"><nav className="catalogue-views" aria-label={`${title} view`}>{(["recommended", "available", "added"] as const).map(value => <button type="button" key={value} aria-current={view === value ? "page" : undefined} onClick={() => setView(value)}>{value === "recommended" ? "Recommended" : value === "available" ? "Available" : <>Added <span>{selectedCount}</span></>}</button>)}</nav><label className="catalogue-search"><Search size={15} aria-hidden="true" /><Input aria-label={`Search ${kind}`} placeholder={`Search ${kind}`} value={query} onChange={event => setQuery(event.target.value)} /></label>{kind === "skills" ? <SkillImport path={skillsPath} onImported={skill => { setPackageId(skill.id); setView("available"); setLibrary("private"); setAttempt(value => value + 1); }} /> : null}</div>
+    <div className="catalogue-toolbar"><nav className="catalogue-views" aria-label={`${title} view`}>{(["recommended", "available", "added"] as const).map(value => <button type="button" key={value} aria-current={view === value ? "page" : undefined} onClick={() => setView(value)}>{value === "recommended" ? "Recommended" : value === "available" ? "Available" : <>Added <span>{selectedCount}</span></>}</button>)}</nav><label className="catalogue-search"><Search size={15} aria-hidden="true" /><Input aria-label={`Search ${kind}`} placeholder={`Search ${kind}`} value={query} onChange={event => setQuery(event.target.value)} /></label>{kind === "skills" ? <SkillImport path={skillsPath} onImported={skill => { openPackage(skill.id); setView("available"); setLibrary("private"); setAttempt(value => value + 1); }} /> : null}</div>
     {kind === "skills" ? <label className="catalogue-library">Library<select value={library} onChange={event => setLibrary(event.target.value)}><option value="all">All skills</option><option value="curated">Curated</option><option value="private">Private</option></select></label> : null}
     <ErrorMessage value={error} />{error ? <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setAttempt(value => value + 1); }}>Try again</Button> : null}
     {!data && !error ? <Loading /> : data ? <div className="catalogue-list">{entries.length ? entries.map(item => <article className="catalogue-row" key={item.id}>
-      <CatalogueIcon item={item} /><div className="catalogue-details"><h2>{kind === "skills" ? <button type="button" className="catalogue-preview-trigger" onClick={() => { const id = item.configuration.skillIds[0]; if (id) setPackageId(id); else setPreview(item); }}>{item.name}</button> : item.name}</h2><p>{item.description}</p><span className="catalogue-publisher">{item.publisher.name}</span>{item.readiness.state !== "ready" && item.readiness.reasons.length ? <p className="catalogue-readiness">{item.readiness.reasons.map(reason => reason.message).join(" ")}</p> : null}</div><div className="catalogue-actions">{action(item)}</div>
+      <CatalogueIcon item={item} /><div className="catalogue-details"><h2>{kind === "skills" ? <button type="button" className="catalogue-preview-trigger" onClick={() => { const id = item.configuration.skillIds[0]; if (id) openPackage(id); else setPreview(item); }}>{item.name}</button> : item.name}</h2><p>{item.description}</p><span className="catalogue-publisher">{item.publisher.name}</span>{item.readiness.state !== "ready" && item.readiness.reasons.length ? <p className="catalogue-readiness">{item.readiness.reasons.map(reason => reason.message).join(" ")}</p> : null}</div><div className="catalogue-actions">{action(item)}</div>
     </article>) : <div className="catalogue-empty"><p>{needle ? `No ${kind} match your search` : view === "added" ? `No ${kind} added` : `No ${view} ${kind}`}</p>{!needle && view !== "available" ? <Button type="button" size="sm" variant="outline" onClick={() => setView("available")}>Browse {kind}</Button> : null}</div>}</div> : null}
-    {packageId ? <SkillPreview key={packageId} path={skillsPath} id={packageId} canReview={canReview} onReviewed={() => setAttempt(value => value + 1)} onUseRevision={skill => {
+    {packageId ? <SkillPreview key={packageId} path={skillsPath} id={packageId} canReview={canReview} canUseRevision={Boolean(data?.entries.some(item => item.configuration.skillIds.includes(packageId) && item.readiness.state === "ready" && !catalogueItemAdded(item, configuration)))} requirementsRepair={skill => <SkillRequirements agentId={agentId} organizationId={organizationId} skill={skill} configuration={configuration} onChange={onChange} save={onBeforeConnect} connect={(profile, connectorId) => { void connect({ action: { kind: "connect", connectionProfileId: profile }, requires: { connectionProfiles: [profile], permissions: [] }, connectorId }); }} configure={(section, setup) => navigate(`/app/agents/${encodeURIComponent(agentId)}?section=${section}${setup ? `&setup=${encodeURIComponent(setup)}` : ""}&skill=${encodeURIComponent(skill.id)}`)} />} onReviewed={() => setAttempt(value => value + 1)} onUseRevision={skill => {
       const entry = data?.entries.find(item => item.configuration.skillIds.includes(skill.id));
-      if (!entry || entry.readiness.state !== "ready") { setError("This revision is unavailable. Check its requirements and refresh the catalogue."); setPackageId(null); setAttempt(value => value + 1); return; }
-      select(entry, true); setPackageId(null);
-    }} close={() => setPackageId(null)} /> : null}
+      if (!entry || entry.readiness.state !== "ready") { setError("This revision is unavailable. Check its requirements and refresh the catalogue."); openPackage(null); setAttempt(value => value + 1); return; }
+      select(entry, true); openPackage(null);
+    }} close={() => openPackage(null)} /> : null}
     {preview?.source?.kind === "curated" && preview.source.slug ? <CuratedSkillPreview key={preview.source.slug} path={`${organizationPath(organizationId)}/agents/${encodeURIComponent(agentId)}/skills/curated`} slug={preview.source.slug} onInstalled={installed} close={() => setPreview(null)} /> : null}
     <Dialog open={Boolean(preview && preview.source?.kind !== "curated")} onOpenChange={open => { if (!open) setPreview(null); }}><DialogContent><DialogHeader><DialogTitle>{preview?.name}</DialogTitle><DialogDescription>{preview?.description}</DialogDescription></DialogHeader>{preview ? <><p className="text-xs text-muted-foreground">{preview.publisher.name}</p>{preview.readiness.reasons.map(reason => <p className="text-sm text-muted-foreground" key={reason.code}>{reason.message}</p>)}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setPreview(null)}>Close</Button>{action(preview)}</div></> : null}</DialogContent></Dialog>
   </section>;

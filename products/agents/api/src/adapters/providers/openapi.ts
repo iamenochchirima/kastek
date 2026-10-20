@@ -1,3 +1,4 @@
+import { parseNativeResponsePolicy, type NativeResponsePolicy } from "./native-response-policy";
 import { isIP } from "node:net";
 import { parseDocument } from "yaml";
 import { PlatformError, canonicalJson, requestDigest } from "../../contracts/contracts";
@@ -21,7 +22,7 @@ export interface OpenApiSecurity {
 export interface RequestTemplate {
   schemaVersion: 1; serverUrl: string; serverOrigin: string; method: OpenApiMethod; path: string;
   parameters: OpenApiParameter[]; requestBody: { required: boolean; contentType: "application/json"; schema: OpenApiSchema } | null;
-  security: OpenApiSecurity; effect: "unknown"; reviewRequired: true; digest: string;
+  security: OpenApiSecurity; effect: "unknown"; reviewRequired: true; digest: string; responsePolicy?:NativeResponsePolicy;
 }
 export interface OpenApiOperation {
   operationId: string | null; alias: string; method: OpenApiMethod; path: string; summary: string;
@@ -365,7 +366,8 @@ export function importOpenApiDocument(source: unknown, options: OpenApiImportOpt
         }
         const content: Omit<RequestTemplate, "digest"> = { schemaVersion: 1, serverUrl: selectedUrl, serverOrigin: selected.origin,
           method: operation.method, path, parameters: operation.parameters, requestBody: operation.requestBody,
-          security: operation.security, effect: "unknown", reviewRequired: true };
+          security: operation.security, effect: "unknown", reviewRequired: true,
+          ...(input["x-kasitek-response"]!==undefined?{responsePolicy:parseNativeResponsePolicy(input["x-kasitek-response"],operation.method,operation.parameters)}:{}) };
         operation.template = { ...content, digest: requestDigest(content) }; operation.compatible = true;
       } catch (error) {
         operation.diagnostics.push(error instanceof PlatformError ? { code: error.code, message: error.message }

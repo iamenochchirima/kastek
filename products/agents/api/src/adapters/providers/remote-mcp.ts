@@ -7,11 +7,11 @@ import { isIP } from "node:net";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
-import { preflightToolSchema } from "../../contracts/capability-catalog";
+import { preflightToolSchema,remoteTargetSchema,type RemoteMcpTarget } from "../../contracts/capability-catalog";
 import { requestDigest } from "../../contracts/contracts";
 import { publicAddress, type NetworkAttempt } from "../../infrastructure/connected-network";
 
-export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1-cache1";
+export const REMOTE_MCP_RELEASE = "remote-mcp-v1-sdk2.3.1-content1";
 export const REMOTE_MCP_LIMITS = Object.freeze({ tools: 500, inventoryEntries: 500, catalogBytes: 2_097_152,
   pages: 32, schemaBytes: 32768, argumentsBytes: 65536, resultBytes: 2_097_152,
   requestBytes: 131072, requests: 128, wallMs: 30_000, cpuSeconds: 5, heapMiB: 96, addressBytes: 2_147_483_648 });
@@ -30,6 +30,7 @@ export interface RemoteMcpTool {
   name: string; alias: string; description: string; inputSchema: JsonObject; outputSchema?: JsonObject;
   annotations?: JsonObject; definitionDigest: string; schemaDigest: string;
   effect: "unknown"; reviewRequired: true; compatible: boolean; diagnostics: RemoteMcpDiagnostic[];
+  target?:RemoteMcpTarget;inventoryTarget?:{kind:"resource"|"template"|"prompt";uri?:string;uriTemplate?:string;name?:string};resourceUri?:string;templateArguments?:Record<string,string>;
 }
 export interface RemoteMcpResource { uri: string; name: string; mimeType?: string; descriptor: JsonObject }
 export interface RemoteMcpResourceTemplate { uriTemplate: string; name: string; descriptor: JsonObject }
@@ -41,15 +42,17 @@ export interface RemoteMcpInventory {
   attempts: NetworkAttempt[]; metrics?: { peakRssBytes: number; cpuMs: number };
 }
 export interface RemoteMcpCatalogIndex {
+  category:"tools"|"resources"|"templates"|"prompts";
   protocolVersion:"2026-07-28"|"2025-11-25";transport:"streamable_http"|"legacy_sse";
   capabilitiesDigest:string;expiresAt:number;
-  tools:{name:string;definitionDigest:string;schemaDigest:string;compatible:boolean}[];
+  tools:{name:string;definitionDigest:string;schemaDigest:string;compatible:boolean;targetDigest?:string}[];
 }
 export interface RemoteMcpResult {
   protocolVersion: "2026-07-28" | "2025-11-25"; transport: "streamable_http" | "legacy_sse";
   isError: boolean; content: JsonObject[]; structuredContent?: unknown; rawResult: JsonObject;
   resultDigest: string; effect: "unknown"; reviewRequired: true; attempts: NetworkAttempt[];
   catalogIndex?:RemoteMcpCatalogIndex;
+  rpcMethod?:"tools/call"|"resources/read"|"prompts/get";
   metrics?: { peakRssBytes: number; cpuMs: number };
 }
 export interface RemoteMcpHooks {
@@ -138,13 +141,13 @@ async function isolated<T>(job: Job, signal?: AbortSignal, hooks?: RemoteMcpHook
 export const REMOTE_MCP_CACHE_LIMITS=Object.freeze({partitions:16,bytes:8_388_608,indexBytes:2_097_152,ttlMs:30_000});
 const catalogCache=new Map<string,{index:RemoteMcpCatalogIndex;bytes:number;partition:string}>();
 function cachePartition(scope:RemoteMcpCacheScope):string {return requestDigest([scope.organizationId,scope.accountId,scope.connectionId]);}
-function cacheKey(endpoint:RemoteMcpEndpoint):string|undefined {
+function cacheKey(endpoint:RemoteMcpEndpoint,category:string):string|undefined {
   const scope=endpoint.cacheScope;
   if(!scope||![scope.organizationId,scope.accountId,scope.connectionId].every(value=>typeof value==="string"&&value.length>0&&value.length<=128)
     ||![scope.credentialRevision,scope.policyRevision,scope.generation].every(value=>Number.isSafeInteger(value)&&value>0)
     ||!endpoint.effectiveAuthorityDigest||!/^[a-f0-9]{64}$/.test(endpoint.effectiveAuthorityDigest))return;
   const identity=requestDigest({authorization:endpoint.authorization??null,headers:endpoint.headers??{}});
-  return requestDigest({scope,identity,authority:endpoint.effectiveAuthorityDigest,endpoint:endpoint.endpoint,
+  return requestDigest({scope,identity,authority:endpoint.effectiveAuthorityDigest,endpoint:endpoint.endpoint,category,
     protocol:endpoint.protocolVersion??"auto",transport:endpoint.transport??"auto",release:REMOTE_MCP_RELEASE,adapter:endpoint.adapterManifestDigest??null});
 }
 export function invalidateRemoteMcpCatalogCache(scope?:RemoteMcpCacheScope):void {
@@ -165,10 +168,10 @@ export function discoverRemoteMcp(endpoint: RemoteMcpEndpoint, signal?: AbortSig
 }
 export async function executeRemoteMcpTool(endpoint: RemoteMcpEndpoint, tool: RemoteMcpTool, arguments_: JsonObject,
   signal?: AbortSignal, hooks?: RemoteMcpHooks): Promise<RemoteMcpResult> {
-  const key=cacheKey(endpoint),entry=key?catalogCache.get(key):undefined;
+  const key=cacheKey(endpoint,operationCategory(tool)),entry=key?catalogCache.get(key):undefined;
   if(key&&entry){catalogCache.delete(key);if(entry.index.expiresAt>Date.now())catalogCache.set(key,entry);}
   const index=entry&&entry.index.expiresAt>Date.now()?entry.index:undefined;
-  const cached=index?{protocolVersion:index.protocolVersion,transport:index.transport,capabilitiesDigest:index.capabilitiesDigest,expiresAt:index.expiresAt,
+  const cached=index?{category:index.category,protocolVersion:index.protocolVersion,transport:index.transport,capabilitiesDigest:index.capabilitiesDigest,expiresAt:index.expiresAt,
     tool:index.tools.find(value=>value.name===tool.name)}:undefined;
   try {
     const result=await isolated<RemoteMcpResult>({kind:"call",endpoint,tool,arguments:arguments_,...(cached?{cached}:{})},signal,hooks);
@@ -214,6 +217,44 @@ function toolDescriptor(value: unknown): RemoteMcpTool {
     effect: "unknown", reviewRequired: true, compatible: diagnostics.length === 0, diagnostics };
 }
 
+function operationCategory(tool:RemoteMcpTool):RemoteMcpCatalogIndex["category"] {
+  return tool.target?.kind==="resource"?"resources":tool.target?.kind==="template"?"templates":tool.target?.kind==="prompt"?"prompts":"tools";
+}
+export function remoteMcpContentOperations(inventory:Pick<RemoteMcpInventory,"tools"|"resources"|"resourceTemplates"|"prompts">):RemoteMcpTool[] {
+  const output:RemoteMcpTool[]=[],names=new Set(inventory.tools.map(tool=>tool.name));
+  const append=(kind:"resource"|"template"|"prompt",identity:string,descriptor:JsonObject)=>{
+    const name=`mcp_${kind}_${requestDigest(identity)}`,inputSchema:JsonObject={type:"object",properties:{},required:[],additionalProperties:false};
+    let target:RemoteMcpTarget|undefined,diagnostic:RemoteMcpDiagnostic|undefined;
+    try{
+      if(kind==="resource")target=remoteTargetSchema.parse({kind,uri:identity});
+      else if(kind==="template"){
+        const variableNames=[...new Set([...identity.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map(match=>match[1]!))];
+        const concrete=identity.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g,"bounded-value");
+        if(/[{}]/.test(concrete)||!variableNames.length||/[\x00-\x20\x7f]/.test(concrete)||!new URL(concrete).protocol)fail("MCP_TEMPLATE_UNSUPPORTED");
+        target=remoteTargetSchema.parse({kind,uriTemplate:identity,variableNames});
+      }else{
+        const args=descriptor.arguments??[];if(!Array.isArray(args))fail("MCP_DESCRIPTOR_INVALID");
+        target=remoteTargetSchema.parse({kind,name:identity,arguments:args.map(value=>{const arg=record(value);return {name:boundedString(arg.name,128),required:arg.required===true,...(arg.description?{description:boundedString(arg.description,2048)}:{})};})});
+        inputSchema.properties=Object.fromEntries(target.kind==="prompt"?target.arguments.map(arg=>[arg.name,{type:"string",maxLength:2048}]):[]);
+        inputSchema.required=target.kind==="prompt"?target.arguments.filter(arg=>arg.required).map(arg=>arg.name):[];
+      }
+    }catch(error){diagnostic={code:error instanceof RemoteMcpError?error.code:"MCP_DESCRIPTOR_INVALID",message:"This resource or prompt exceeds the supported descriptor or template subset."};}
+    const operation=toolDescriptor({name,description:typeof descriptor.description==="string"?descriptor.description.slice(0,4096):typeof descriptor.name==="string"?descriptor.name:"Selected MCP content",inputSchema});
+    if(names.has(name))diagnostic={code:"MCP_OPERATION_NAME_COLLISION",message:"A generated content operation collides with another discovered operation."};
+    names.add(name);output.push({...operation,definitionDigest:requestDigest(descriptor),inventoryTarget:kind==="resource"?{kind,uri:identity}:kind==="template"?{kind,uriTemplate:identity}:{kind,name:identity},...(target?{target}:{}),compatible:operation.compatible&&!diagnostic,diagnostics:[...operation.diagnostics,...(diagnostic?[diagnostic]:[])]});
+  };
+  for(const item of inventory.resources)append("resource",item.uri,item.descriptor);
+  for(const item of inventory.resourceTemplates)append("template",item.uriTemplate,item.descriptor);
+  for(const item of inventory.prompts)append("prompt",item.name,item.descriptor);
+  return output;
+}
+export async function expandRemoteResourceTemplate(target:Extract<RemoteMcpTarget,{kind:"template"}>,values:Record<string,string>):Promise<string>{
+  if(Object.keys(values).sort().join("\n")!==[...target.variableNames].sort().join("\n")||Object.values(values).some(value=>typeof value!=="string"||Buffer.byteLength(value)>2048||/[\x00-\x1f\x7f]/.test(value)))fail("MCP_TEMPLATE_ARGUMENTS_INVALID");
+  const {UriTemplate}=await import("@modelcontextprotocol/client"),template=new UriTemplate(target.uriTemplate);
+  if(template.variableNames.sort().join("\n")!==[...target.variableNames].sort().join("\n"))fail("MCP_TEMPLATE_ARGUMENTS_INVALID");
+  return remoteTargetSchema.options[1].parse({kind:"resource",uri:template.expand(values)}).uri;
+}
+
 /** Network bytes remain bounded while legacy SSE stays open for the SDK's message stream. */
 async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<void>): Promise<RemoteMcpInventory | RemoteMcpResult> {
   const { Client, StreamableHTTPClientTransport, SSEClientTransport,extractWWWAuthenticateParams } = await import("@modelcontextprotocol/client");
@@ -246,15 +287,25 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), Math.max(1, deadlineAt - Date.now()));
   const validator = new AjvJsonSchemaValidator();
   const sanitizeMessage = (raw: unknown): unknown => {
+    if(secrets.length){const pending:unknown[]=[raw];
+      while(pending.length){const current=pending.pop();
+        if(typeof current==="string"&&secrets.some(secret=>current.includes(secret)))fail("MCP_CREDENTIAL_REFLECTION");
+        if(current&&typeof current==="object")for(const [key,value]of Object.entries(current)){
+          if(secrets.some(secret=>key.includes(secret)))fail("MCP_CREDENTIAL_REFLECTION");pending.push(value);
+        }
+      }
+    }
     const message = record(raw);
     if (!message.result || typeof message.result !== "object" || Array.isArray(message.result)) return raw;
     const result = message.result as JsonObject;
     if (result.resultType === "input_required") fail("MCP_CLIENT_CAPABILITY_UNSUPPORTED");
-    if (result.tools !== undefined) {
+    if (["tools","resources","resourceTemplates","prompts"].some(key=>result[key]!==undefined)) {
       const supplied=result.ttlMs;
       if(supplied!==undefined&&(typeof supplied!=="number"||!Number.isSafeInteger(supplied)))fail("MCP_CACHE_HINT_INVALID");
       const ttl=typeof supplied==="number"?Math.max(0,Math.min(supplied,REMOTE_MCP_CACHE_LIMITS.ttlMs)):negotiatedModern?0:REMOTE_MCP_CACHE_LIMITS.ttlMs;
       toolsFreshUntil=Math.min(toolsFreshUntil,Date.now()+ttl);
+    }
+    if (result.tools !== undefined) {
       if (!Array.isArray(result.tools)) fail("MCP_CATALOG_INVALID");
       catalogBytes += Buffer.byteLength(JSON.stringify(result));
       if (catalogBytes > REMOTE_MCP_LIMITS.catalogBytes || tools.length + result.tools.length > REMOTE_MCP_LIMITS.tools) fail("MCP_CATALOG_LIMIT");
@@ -303,14 +354,14 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     let rpcMethod: string | undefined;
     if (method === "POST") {
       try { rpcMethod = JSON.parse(body).method; } catch { fail("MCP_PROTOCOL"); }
-      if (!["server/discover", "initialize", "notifications/initialized", "tools/list", "tools/call", "resources/list", "resources/templates/list", "prompts/list", "notifications/cancelled"].includes(rpcMethod ?? "")) fail("MCP_CLIENT_CAPABILITY_UNSUPPORTED");
-      if (rpcMethod === "tools/call" && job.kind !== "call") fail("MCP_CAPABILITY_DENIED");
+      if (!["server/discover", "initialize", "notifications/initialized", "tools/list", "tools/call", "resources/list", "resources/read", "resources/templates/list", "prompts/list", "prompts/get", "notifications/cancelled"].includes(rpcMethod ?? "")) fail("MCP_CLIENT_CAPABILITY_UNSUPPORTED");
+      if (["tools/call","resources/read","prompts/get"].includes(rpcMethod??"") && job.kind !== "call") fail("MCP_CAPABILITY_DENIED");
     } else if (!isSse) fail("MCP_CAPABILITY_DENIED");
     if (Buffer.byteLength(body) > REMOTE_MCP_LIMITS.requestBytes || ++requestCount > maxRequests) fail("MCP_ATTEMPT_LIMIT");
     const ordinal = requestCount, start = Date.now();
     const phase = ["server/discover", "initialize", "notifications/initialized"].includes(rpcMethod ?? "") || isSse ? "setup" as const
-      : rpcMethod === "tools/call" ? undefined : "read" as const;
-    if(rpcMethod==="tools/call"&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
+      : ["tools/call","resources/read","prompts/get"].includes(rpcMethod??"") ? undefined : "read" as const;
+    if(["tools/call","resources/read","prompts/get"].includes(rpcMethod??"")&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
     await observe({ attempt: ordinal, phase, rpcMethod, status: null, requestBytes: Buffer.byteLength(body), responseBytes: 0, elapsedMs: 0, outcome: "in_flight" });
     if (controller.signal.aborted) fail("CANCELLED");
     const host = url.hostname.replace(/^\[|\]$/g, "");
@@ -320,7 +371,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
     for (const [key, value] of new Headers(init?.headers)) if (["content-type", "accept", "mcp-protocol-version", "mcp-session-id", "last-event-id"].includes(key)) headers[key] = value;
     Object.assign(headers, trustedHeaders);
     if (Object.entries(headers).some(([key, value]) => key.length + value.length > 8192 || /[\x00-\x1f\x7f]/.test(value)) || Buffer.byteLength(JSON.stringify(headers)) > 16384) fail("MCP_AUTH_INVALID");
-    if(rpcMethod==="tools/call"&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
+    if(["tools/call","resources/read","prompts/get"].includes(rpcMethod??"")&&selectedCacheExpiresAt!==undefined&&selectedCacheExpiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
     return new Promise<Response>((resolve, reject) => {
       const send = url.protocol === "http:" ? httpRequest : httpsRequest;
       const request = send(url, { method, headers, agent: false, family: address.family,
@@ -360,7 +411,7 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
         response.on("error", error => {
           const code = error instanceof RemoteMcpError ? error.code : /^[A-Z0-9_]+$/.test(error.message) ? error.message : "NETWORK_UNAVAILABLE";
           networkFailure ??= code;
-          if (eventStream) streamController?.error(new RemoteMcpError(code));
+          if (eventStream) { streamController?.error(new RemoteMcpError(code)); if(code==="MCP_CREDENTIAL_REFLECTION")controller.abort(new RemoteMcpError(code)); }
           void complete(code).catch(() => undefined); reject(new RemoteMcpError(code));
         });
         response.on("end", () => { void (async () => {
@@ -443,61 +494,81 @@ async function runJob(job: Job, observe: (attempt: RemoteMcpAttempt) => Promise<
       } while (cursor);
       return values;
     }
+    async function contentPage(category:Exclude<RemoteMcpCatalogIndex["category"],"tools">):Promise<void>{
+      if(!(category==="prompts"?capabilities.prompts:capabilities.resources))fail("MCP_CAPABILITY_UNAVAILABLE");
+      if(category==="resources")for(const value of await pages("resources/list","resources")){
+        const descriptor=record(value);inventories.resources.push({uri:boundedString(descriptor.uri,4096),name:boundedString(descriptor.name,256),...(typeof descriptor.mimeType==="string"?{mimeType:descriptor.mimeType}:{}),descriptor});
+      }
+      else if(category==="templates")for(const value of await pages("resources/templates/list","resourceTemplates")){
+        const descriptor=record(value);inventories.resourceTemplates.push({uriTemplate:boundedString(descriptor.uriTemplate,4096),name:boundedString(descriptor.name,256),descriptor});
+      }
+      else for(const value of await pages("prompts/list","prompts")){
+        const descriptor=record(value),args=descriptor.arguments??[];if(!Array.isArray(args)||args.length>32)fail("MCP_CATALOG_INVALID");
+        inventories.prompts.push({name:boundedString(descriptor.name,128),...(typeof descriptor.description==="string"?{description:descriptor.description}:{}),arguments:args.map(value=>{const argument=record(value);return{name:boundedString(argument.name,128),required:argument.required===true,...(typeof argument.description==="string"?{description:argument.description}:{})};}),descriptor});
+      }
+    }
+    const category=job.kind==="call"?operationCategory(job.tool):"tools";
+    if(job.kind==="call"&&!(category==="tools"?capabilities.tools:category==="prompts"?capabilities.prompts:capabilities.resources))fail("MCP_CAPABILITY_UNAVAILABLE");
     const cached=job.kind==="call"?job.cached:undefined;
     const reuse=!!cached&&cached.expiresAt>Date.now()&&cached.expiresAt<=Date.now()+REMOTE_MCP_CACHE_LIMITS.ttlMs
-      &&cached.protocolVersion===version&&cached.transport===currentTransport&&cached.capabilitiesDigest===requestDigest(capabilities);
-    if (capabilities.tools&&!reuse) await pages("tools/list", "tools");
+      &&cached.category===category&&cached.protocolVersion===version&&cached.transport===currentTransport&&cached.capabilitiesDigest===requestDigest(capabilities);
+    if (capabilities.tools&&category==="tools"&&!reuse) await pages("tools/list", "tools");
     if (job.kind === "call") {
-      let selected = tools.find(tool => tool.name === job.tool.name);
+      if(category!=="tools"&&!reuse)await contentPage(category);
+      const operations=category==="tools"?tools:remoteMcpContentOperations({tools,...inventories});
+      let selected = operations.find(tool => tool.name === job.tool.name);
       if(reuse) {
         selectedCacheExpiresAt=cached!.expiresAt;
         const proof=cached!.tool;
-        if(!proof||!proof.compatible||proof.name!==job.tool.name||proof.definitionDigest!==job.tool.definitionDigest||proof.schemaDigest!==job.tool.schemaDigest)fail("MCP_DEFINITION_DRIFT");
+        if(!proof||!proof.compatible||proof.name!==job.tool.name||proof.definitionDigest!==job.tool.definitionDigest||proof.schemaDigest!==job.tool.schemaDigest||proof.targetDigest!==requestDigest(job.tool.target??null))fail("MCP_DEFINITION_DRIFT");
         // Cached metadata cannot bypass bounded schema preflight in this isolated process.
         const checked=toolDescriptor({name:job.tool.name,description:job.tool.description,inputSchema:job.tool.inputSchema,...(job.tool.outputSchema?{outputSchema:job.tool.outputSchema}:{})});
         if(!checked.compatible||checked.schemaDigest!==proof.schemaDigest)fail("MCP_DEFINITION_DRIFT");
         selected=job.tool;
       }
       if (!selected || !selected.compatible || selected.definitionDigest !== job.tool.definitionDigest || selected.schemaDigest !== job.tool.schemaDigest
+        ||requestDigest(selected.target??null)!==requestDigest(job.tool.target??null)
         || requestDigest({ inputSchema: job.tool.inputSchema, outputSchema: job.tool.outputSchema ?? null }) !== selected.schemaDigest) fail("MCP_DEFINITION_DRIFT");
       if(reuse&&cached!.expiresAt<=Date.now())fail("MCP_CATALOG_EXPIRED");
       if (Buffer.byteLength(JSON.stringify(job.arguments)) > REMOTE_MCP_LIMITS.argumentsBytes) fail("REQUEST_LIMIT");
       if (!validator.getValidator(selected.inputSchema)(job.arguments).valid) fail("MCP_ARGUMENTS_INVALID");
-      const result = await client.callTool({ name: selected.name, arguments: job.arguments }, { ...requestOptions(), toolDefinition: {
+      const target=selected.target;
+      let resourceUri:string|undefined;
+      if(target?.kind==="template"){
+        resourceUri=await expandRemoteResourceTemplate(target,job.tool.templateArguments??{});
+        if(resourceUri!==job.tool.resourceUri)fail("MCP_RESOURCE_SCOPE_DENIED");
+      }else if(target?.kind==="resource")resourceUri=target.uri;
+      const rpcMethod=resourceUri?"resources/read":target?.kind==="prompt"?"prompts/get":"tools/call";
+      const result = resourceUri?await client.readResource({uri:resourceUri},{...requestOptions(),cacheMode:"bypass"}):target?.kind==="prompt"?await client.getPrompt({name:target.name,arguments:job.arguments as Record<string,string>},requestOptions()):await client.callTool({ name: target?.kind==="tool"?target.name:selected.name, arguments: job.arguments }, { ...requestOptions(), toolDefinition: {
         name: selected.name, inputSchema: selected.inputSchema as { type: "object" }, ...(selected.outputSchema ? { outputSchema: selected.outputSchema as { type: "object" } } : {}),
       } });
       const rawResult = result as unknown as JsonObject;
       if (rawResult.resultType === "input_required") fail("MCP_CLIENT_CAPABILITY_UNSUPPORTED");
       if (Buffer.byteLength(JSON.stringify(rawResult)) > REMOTE_MCP_LIMITS.resultBytes) fail("RESPONSE_LIMIT");
+      let content=Array.isArray(rawResult.content)?rawResult.content as JsonObject[]:[],structuredContent=rawResult.structuredContent;
+      if(resourceUri){
+        if(!Array.isArray(rawResult.contents)||rawResult.contents.length>32)fail("MCP_RESOURCE_RESULT_INVALID");
+        content=rawResult.contents.map(value=>{const resource=record(value);if(resource.uri!==resourceUri)fail("MCP_RESOURCE_SCOPE_DENIED");return{type:"resource",resource};});
+      }else if(target?.kind==="prompt"){
+        if(!Array.isArray(rawResult.messages)||rawResult.messages.length>32)fail("MCP_PROMPT_RESULT_INVALID");
+        structuredContent={kind:"external_prompt",name:target.name,messages:rawResult.messages};
+        content=rawResult.messages.map(value=>{const message=record(value);if(!["user","assistant"].includes(String(message.role)))fail("MCP_PROMPT_RESULT_INVALID");const block=record(message.content);return {...block,_meta:{...(block._meta?record(block._meta):{}),kasitekExternalPromptRole:message.role}};});
+      }
       return { protocolVersion: version, transport: currentTransport, isError: rawResult.isError === true,
-        content: Array.isArray(rawResult.content) ? rawResult.content as JsonObject[] : [],
-        ...(rawResult.structuredContent !== undefined ? { structuredContent: rawResult.structuredContent } : {}), rawResult,
+        rpcMethod,content,...(structuredContent !== undefined ? { structuredContent } : {}), rawResult,
         resultDigest: requestDigest(rawResult), effect: "unknown", reviewRequired: true, attempts,
-        ...(!reuse&&Number.isFinite(toolsFreshUntil)&&toolsFreshUntil>Date.now()?{catalogIndex:{protocolVersion:version,transport:currentTransport,capabilitiesDigest:requestDigest(capabilities),expiresAt:toolsFreshUntil,
-          tools:tools.map(({name,definitionDigest,schemaDigest,compatible})=>({name,definitionDigest,schemaDigest,compatible}))}}:{}) };
+        ...(!reuse&&Number.isFinite(toolsFreshUntil)&&toolsFreshUntil>Date.now()?{catalogIndex:{category,protocolVersion:version,transport:currentTransport,capabilitiesDigest:requestDigest(capabilities),expiresAt:toolsFreshUntil,
+          tools:operations.map(({name,definitionDigest,schemaDigest,compatible,target})=>({name,definitionDigest,schemaDigest,compatible,targetDigest:requestDigest(target??null)}))}}:{}) };
     }
-    if (capabilities.resources) {
-      for (const value of await pages("resources/list", "resources")) {
-        const descriptor = record(value); inventories.resources.push({ uri: boundedString(descriptor.uri, 4096), name: boundedString(descriptor.name, 256),
-          ...(typeof descriptor.mimeType === "string" ? { mimeType: descriptor.mimeType } : {}), descriptor });
-      }
-      for (const value of await pages("resources/templates/list", "resourceTemplates")) {
-        const descriptor = record(value); inventories.resourceTemplates.push({ uriTemplate: boundedString(descriptor.uriTemplate, 4096), name: boundedString(descriptor.name, 256), descriptor });
-      }
-    }
-    if (capabilities.prompts) for (const value of await pages("prompts/list", "prompts")) {
-      const descriptor = record(value), args = descriptor.arguments === undefined ? [] : descriptor.arguments;
-      if (!Array.isArray(args) || args.length > 50) fail("MCP_CATALOG_INVALID");
-      inventories.prompts.push({ name: boundedString(descriptor.name, 128), ...(typeof descriptor.description === "string" ? { description: descriptor.description } : {}),
-        arguments: args.map(value => { const argument = record(value); return { name: boundedString(argument.name, 128), required: argument.required === true,
-          ...(typeof argument.description === "string" ? { description: argument.description } : {}) }; }), descriptor });
-    }
+    if (capabilities.resources) {await contentPage("resources");await contentPage("templates");}
+    if (capabilities.prompts)await contentPage("prompts");
     const diagnostics: RemoteMcpDiagnostic[] = [
       { code: "MCP_CATALOG_PUSH_UNSUPPORTED", message: "Catalog updates use bounded cache expiry and explicit refresh. Persistent subscription streams are unavailable." },
       { code: "MCP_CLIENT_CAPABILITIES_UNSUPPORTED", message: "Sampling, elicitation, roots, MCP tasks and subscriptions are unavailable." },
     ];
-    if (capabilities.resources) diagnostics.push({ code: "MCP_RESOURCE_READ_REQUIRES_POLICY", message: "Resource inventory is available. Reading requires a separately authorized resource binding." });
-    if (capabilities.prompts) diagnostics.push({ code: "MCP_PROMPT_ACTIVATION_REQUIRES_POLICY", message: "Prompt inventory is available. Activation requires an explicit reviewed prompt binding." });
+    diagnostics.push(...remoteMcpContentOperations({tools,...inventories}).flatMap(operation=>operation.diagnostics));
+    if(capabilities.resources)diagnostics.push({code:"MCP_RESOURCE_READ_REQUIRES_POLICY",message:"Select exact resource or template instances before reading."});
+    if(capabilities.prompts)diagnostics.push({code:"MCP_PROMPT_ACTIVATION_REQUIRES_POLICY",message:"Select prompts explicitly; each activation requires exact approval."});
     const inventory = { protocolVersion: version, transport: currentTransport, tools, ...inventories, serverCapabilities: capabilities, diagnostics };
     return { ...inventory, digest: requestDigest(inventory), attempts };
   } catch (error) {

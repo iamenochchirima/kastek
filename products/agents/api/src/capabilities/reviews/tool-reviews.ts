@@ -21,6 +21,10 @@ const dto=(row:Record<string,any>):ToolReview=>({id:row.id,taskId:row.task_id,ro
   expiresAt:new Date(row.expires_at).toISOString(),operationName:row.operation_name??"Tool request",connectionName:row.connection_name??"Connected server",
   destination:row.destination??null,effect:row.effect??"reviewed_write"});
 const denied=()=>new PlatformError("TOOL_REVIEW_DENIED",403,"Tool authorization is unavailable");
+function operationName(binding:CapabilityBinding):string {
+  const target=binding.definition.remote?.target;
+  return target?.kind==="prompt"?`Activate prompt ${target.name}`:target?.kind==="resource"?`Read resource ${target.uri}`:target?.kind==="template"?`Read resource ${binding.remoteSelection?.uri??target.uriTemplate}`:target?.kind==="tool"?target.name:binding.definition.providerOperation;
+}
 
 export class ToolReviewStore {
   constructor(readonly pool:Pool){}
@@ -54,22 +58,22 @@ export class ToolReviewStore {
     return transaction(this.pool,async db=>{
       const {execution,connection}=await this.authority(db,taskId,binding);
       const old=(await db.query("SELECT * FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];
-      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Tool review changed");return dto(old);}
+      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Tool review changed");return dto({...old,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});}
       const row=(await db.query(`INSERT INTO agents_platform.tool_invocation_reviews(id,organization_id,task_id,root_task_id,operation_id,
         binding_id,binding_digest,request_digest,arguments,connection_id,connection_policy_revision,reviewer_account_id,state,expires_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',LEAST($13::timestamptz,now()+interval '15 minutes')) RETURNING *`,
       [randomUUID(),execution.task.organization_id,taskId,execution.task.root_task_id,operationId,binding.id,binding.digest,digest,
         JSON.stringify(args),connection.id,connection.policy_revision,connection.account_id,execution.task.deadline_at])).rows[0];
-      return dto(row);
+      return dto({...row,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});
     });
   }
   async list(scope:ActionScope,taskId:string):Promise<ToolReview[]> {
     return transaction(this.pool,async db=>{await requireActionMember(db,scope);
-      return (await db.query(`SELECT r.*,b.binding#>>'{definition,providerOperation}' AS operation_name,c.name AS connection_name,
+      return (await db.query(`SELECT r.*,b.binding AS reviewed_binding,c.name AS connection_name,
         c.resource AS destination,b.binding#>>'{policy,effect}' AS effect
         FROM agents_platform.tool_invocation_reviews r JOIN agents_platform.capability_bindings b ON b.id=r.binding_id
         JOIN agents_platform.connections c ON c.id=r.connection_id WHERE r.organization_id=$1 AND r.reviewer_account_id=$2
-        AND r.task_id=$3 ORDER BY r.created_at,r.id LIMIT 100`,[scope.organizationId,scope.accountId,z.uuid().parse(taskId)])).rows.map(dto);
+        AND r.task_id=$3 ORDER BY r.created_at,r.id LIMIT 100`,[scope.organizationId,scope.accountId,z.uuid().parse(taskId)])).rows.map(row=>dto({...row,operation_name:operationName(capabilityBindingSchema.parse(row.reviewed_binding))}));
     });
   }
   async decide(scope:ActionScope,id:string,input:{decision:"approve"|"reject";requestDigest:string}) {

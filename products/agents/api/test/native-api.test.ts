@@ -8,7 +8,7 @@ import { createBinding, ExecutableAdapterRegistry } from "../src/contracts/capab
 import { requestDigest } from "../src/contracts/contracts";
 
 const servers: Server[] = [];
-async function fixture(options: { status?: number; binary?: boolean; reflect?: boolean; oversized?: boolean; redirect?: boolean; invalidJson?: boolean; deepJson?: boolean } = {}) {
+async function fixture(options: { status?: number; binary?: boolean; reflect?: boolean; oversized?: boolean; redirect?: boolean; invalidJson?: boolean; deepJson?: boolean; invalidUtf8?: boolean; escapedReflection?:boolean } = {}) {
   const received: { method?: string; url?: string; authorization?: string; body: string }[] = [];
   const server = createServer(async (request, response) => {
     let body = ""; for await (const chunk of request) body += chunk;
@@ -16,6 +16,8 @@ async function fixture(options: { status?: number; binary?: boolean; reflect?: b
     if (options.redirect) { response.writeHead(307, { location: "/elsewhere" }).end(); return; }
     response.statusCode = options.status ?? 200; response.setHeader("content-type", options.binary ? "image/png" : "application/json"); response.setHeader("etag", '"fixture-1"');
     if (options.binary) { response.end(Buffer.from([0, 255, 1, 127])); return; }
+    if (options.escapedReflection) { response.end('{"echo":"\\u0063ontrolled-native-token"}'); return; }
+    if (options.invalidUtf8) { response.end(Buffer.from([0xff,0xfe,0x00])); return; }
     if (options.invalidJson) { response.end("not JSON"); return; }
     if (options.deepJson) { response.end("[".repeat(30) + "0" + "]".repeat(30)); return; }
     response.end(JSON.stringify({ result: options.reflect ? request.headers.authorization : options.oversized ? "x".repeat(1048577) : "done", status: response.statusCode }));
@@ -63,6 +65,15 @@ describe("bounded native API operation adapter", () => {
     for(const [options,code]of [[{redirect:true},"DESTINATION_DENIED"],[{reflect:true},"API_CREDENTIAL_REFLECTION"],[{oversized:true},"RESPONSE_LIMIT"],[{invalidJson:true},"API_RESPONSE_INVALID"],[{deepJson:true},"API_RESPONSE_LIMIT"]]as const){
       const f=await fixture(options);await expect(executeNativeApiOperation(f.operation,args,f.runtimeOptions)).rejects.toMatchObject({code});expect(f.received).toHaveLength(1);
     }
+  });
+  it("rejects escaped credential reflection in plain JSON before private capture",async()=>{
+    const f=await fixture({escapedReflection:true});let captured=0;
+    await expect(executeNativeApiOperation(f.operation,args,{...f.runtimeOptions,onResponse:async()=>{captured++;}})).rejects.toMatchObject({code:"API_CREDENTIAL_REFLECTION"});expect(captured).toBe(0);expect(f.received).toHaveLength(1);
+  });
+  it("retains invalid UTF-8 as exact private bytes before rejecting the response",async()=>{
+    const f=await fixture({invalidUtf8:true});const captured:unknown[]=[];
+    await expect(executeNativeApiOperation(f.operation,args,{...f.runtimeOptions,onResponse:async response=>{captured.push(response.body);}})).rejects.toMatchObject({code:"API_RESPONSE_INVALID"});
+    expect(captured).toMatchObject([{body:{encoding:"base64",data:Buffer.from([0xff,0xfe,0x00]).toString("base64")}}]);expect(f.received).toHaveLength(1);
   });
   it("registers actual executable bindings with exact schema, import and template pins",async()=>{
     const f=await fixture(),ids={id:randomUUID(),organizationId:randomUUID(),connectionId:randomUUID(),revision:1};

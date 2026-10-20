@@ -50,7 +50,13 @@ keys, resumable OAuth, discovery, compatible tool selection, credential rotation
 Selection creates immutable executable bindings for operator runs. Endpoint discovery or OAuth alone
 does not grant an agent access. Native API import previews OpenAPI operations or an advanced structured request editor and authentication
 alternatives before explicit credential and operation selection. Generic writes require exact review.
-The bounded authority-keyed MCP tool-index cache has a maximum 30-second metadata TTL, explicit
+MCP resources, fixed template instances and prompts use the same immutable bindings, execution
+grants, controller, budgets, private receipts and evidence as connected tools. Exact URI/prompt
+handles are selected explicitly; template values and the SDK-expanded URI are pinned together.
+Resource URIs never become network or local filesystem destinations. Prompt activation requires
+exact single-use approval; returned roles remain external tool-result data. Reviews show readable
+target names and evidence records the actual RPC method. No prompt becomes an installed skill.
+The bounded category/authority-keyed MCP descriptor cache has a maximum 30-second metadata TTL, explicit
 uncached refresh, and pinned-schema/current-authority checks before each send. It does not claim
 persistent change notifications. Live provider OAuth acceptance and verified generic provider
 account identity remain separate gates.
@@ -92,8 +98,16 @@ schema through `038_skill_script_runtime.sql`. An older worker or database is no
 Skill update and rollback select one reviewed revision per publisher/source family. Requirements
 recheck existing connections, permissions, and runtime access; they never grant capabilities.
 Disabled or removed packages remain immutable records and lose current execution authority.
-Personal-memory, specialist, sandbox and report configuration remains outside the customer editor.
-Shared-harness acceptance provisions those capabilities through authenticated APIs.
+Skill requirements expose repair actions in the exact revision preview. Connection setup uses the
+shared connector flow and returns to that same agent/revision. The owner explicitly chooses current
+server-ready bindings, saves the draft, then adds the reviewed skill. Installation never selects a
+connection or grants access automatically. Catalogue readiness refreshes after a saved draft revision.
+A Python runtime requirement opens contextual General Analysis configuration. This control also appears
+when analysis is already enabled; the default FAQ form remains compact. Enabling analysis is a separate
+explicit draft change for compatible tool-directed versions. The grounded program cannot enable it,
+and the editor does not switch programs. Missing isolation backends still block publication.
+Unknown runtimes remain unavailable. Personal-memory, specialist and report configuration remain
+outside the customer editor; shared-harness acceptance provisions those capabilities through authenticated APIs.
 Website publication permits only enabled, reviewed server-curated instruction packages with their
 exact shipped digest. Private and repository packages remain operator-only. Generic personal
 connection bindings remain unavailable to website visitors. Google Calendar uses a separate pinned
@@ -224,6 +238,26 @@ Their only labels are the five fixed phase names and `ok` or `error`. A successf
 its pass resolved, not that every task or provider operation succeeded. These counters and
 histograms are process-local, unlike the shared database snapshot gauges.
 
+Connection management emits metadata-only JSON lifecycle logs and separate root OTLP spans
+through `observability/connection-telemetry.ts`. Connect, authorization/callback, discovery,
+refresh, reconnect, rotation, selection/probe and disconnect records carry a fixed flow/outcome,
+elapsed time and trace ID. Existing authorized row reads and mutation `RETURNING` values supply
+connection, organization, policy revision and authorization generation when known. Credential
+checks are separate from actual refreshes. These flows do not invent task/agent identities or
+log URLs, scopes, provider bodies, callback data, credentials or customer text. Generic runtime
+task observations retain agent/version/run/operation lineage and the resolved authorization
+generation; explicit connected-result latency survives while the enclosing operation is active.
+
+Control-plane export is best effort, with at most 64 pending span exports and a three-second
+exporter timeout. It never acquires another database connection or awaits a log/export result
+before settling business work. This differs from the durable task observation outbox.
+`agents.connection.lifecycle.attempts` and `.duration_ms` are process-local attempt counters and
+histograms with fixed provider/flow/outcome/failure-class labels, not authoritative effect counts.
+The `agents.connected.provider.attempts` and `.latency_p95_ms` gauges derive from actual persisted
+physical receipts over one hour, with bounded provider, phase and response/failure labels; legacy
+profiles coalesce into one `other` provider. The [integration reference](mcp-integration.md#connection-observability)
+links focused helper, actual OTLP receiver and PostgreSQL producer checks.
+
 Collection has a 1.5-second SQL deadline and a 15-second export interval. Failed collection emits
 `agents.metrics.collection_failures`; it does not alter usage or task state. Export timeouts are
 bounded and shutdown flushes before closing the database pool. Set `OTEL_SDK_DISABLED=true` to
@@ -324,7 +358,7 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `execution/scheduling/capacity.ts`, `execution/scheduling/capacity-turns.ts`, `execution/scheduling/dispatch-claims.ts` | Durable resource queues, independent tenant turns, generation-fenced permits and bounded replica claims. |
 | `workflows/report-delivery/program.ts` | Durable report review waits, exact dispatch and status-only reconciliation through the shared operation lifecycle. |
 | `product/inbox/inbox-store.ts`, `product/inbox/inbox-routes.ts`, `composition/inbox.ts` | Staff authorization, assignment, customer history, ownership changes, human replies and delivery fencing. |
-| `observability/event-store.ts`, `observability/observations.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed observations, authorized reads, replay-safe export, correlated traces and bounded operational metrics. |
+| `observability/event-store.ts`, `observability/observations.ts`, `observability/connection-telemetry.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed task observations, authorized reads, replay-safe export, separate metadata-only connection lifecycle traces/logs and bounded receipt/attempt metrics. |
 | `product/connections/connections.ts`, `infrastructure/vault.ts`, `workflows/report-delivery/actions.ts`, `adapters/providers/report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `product/automations/automations.ts`, `execution/lifecycle/automation-authority.ts`, `product/automations/automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
 | `contracts/capability-catalog.ts`, `capabilities/connected-tools/connected-catalog-store.ts`, `capabilities/connected-tools/connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
@@ -347,12 +381,12 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/` | Restored public landing with provider-backed signup and sign-in. | Public-entry browser tests and isolated actual identity signup/verification. |
 | `/app/inbox` | Authorized website assignment, takeover, replies, resolution, explicit return, and scoped appointment status/recovery without customer approval. | Canonical Inbox HTTP/browser, `inbox-bookings.spec.ts`, and durable takeover/status acceptance. |
 | `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
-| `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts`. |
+| `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history pinned to its original agent/version, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
-| `/app/connections` | Restricted profiles, custom MCP OAuth/discovery/tool selection, native API preview/credentials/selection, and owner-managed Google Calendar sharing. | Connection browser contracts and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
+| `/app/connections` | Restricted profiles, custom MCP OAuth and separate Tools/Resources/Templates/Prompts selection, native API preview/credentials/selection, and owner-managed Google Calendar sharing. | Connection browser contracts, published controlled MCP/API execution and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
 | External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
@@ -693,7 +727,7 @@ structured stdout diagnostics.
 
 | Field | Decision and evidence |
 | --- | --- |
-| Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, Google Calendar policy and customer booking confirmation. |
+| Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, skill requirement repair with contextual compatible Analysis access, Google Calendar policy and customer booking confirmation. |
 | Owner | Agents engineering. |
 | Risk | High: encrypted provider credentials, external writes, visitor identity, and durable recovery. |
 | Affected services and surfaces | Agents API, business worker, PostgreSQL, management editor, Connections, task activity, website chat and generated widget. Other channel providers are unchanged and unavailable. |
@@ -703,7 +737,7 @@ structured stdout diagnostics.
 | Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment, zero pre-confirmation inserts, correct current-policy denial, no insertion during status recovery, one sandbox command per admitted script operation, exact package provenance, current withdrawal denial, and resource cleanup. Adoption analytics and production alerting are not established. |
 | Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V15 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
 | Documentation | Current README, implementation/feature map, architecture, integration boundary, threat model, and runtime reference updated together. No new planning document. |
-| Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. Real gVisor package execution in `api/test/skill-script-runtime.test.ts`, existing independent-cleanup suite in `api/test/platform-sandbox.test.ts`, and published activation/script/final-answer acceptance in `api/test/platform-business.test.ts`. See coverage below. |
+| Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. `skill-requirements.spec.ts` verifies connection repair, explicit binding adoption, compatible Analysis opt-in and grounded-program denial. `catalogue-execution-live.spec.ts` verifies published controlled MCP/API execution and real API skill requirement repair. Real gVisor package execution in `api/test/skill-script-runtime.test.ts`, existing independent-cleanup suite in `api/test/platform-sandbox.test.ts`, and published activation/script/final-answer acceptance in `api/test/platform-business.test.ts`. See coverage below. |
 | Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V15 task to an incompatible worker or reverse the fresh SQL in place. |
 | Post-release review | At the first staging promotion and before enabling a live Google OAuth application. No production release date is assigned. |
 
@@ -724,6 +758,29 @@ actual emitted script over HTTP with controlled public endpoints; they verify ex
 confirmation, expiry, status-only recovery, and stable focus at 1440, 768, and 390 pixels.
 These layers establish local contracts, not a live Google calendar account or production readiness.
 
+The separate five-case `catalogue-execution-live.spec.ts` browser suite uses the real API, vault,
+fresh PostgreSQL database, private MinIO bucket, isolated Restate container and independent worker.
+Its model, MCP/API providers and OAuth authorization server are controlled HTTP fixtures; no paid
+model or live provider account is used. It verifies URL discovery and explicit selection, immutable
+publication, normal chat execution with exact approval, credential replacement and reselection,
+provider-expiry uncertainty, disconnect fencing, full-page OAuth cancellation and cross-tab consent,
+and one-use callbacks. The skill case imports and reviews a package, returns from connection setup
+to the exact revision, explicitly adopts bindings, saves, adds the skill and publishes a new version.
+Separate resource/template/prompt selections execute through that same normal workflow; template
+values pin the exact URI. The final run passed five cases and checked seven completed private receipts
+with seven successful approved provider invocations. The expired native credential produces an
+additional denied HTTP request and an uncertain operation without a completed provider receipt;
+discovery and OAuth traffic are outside this successful-effect count. The fixture cleans only its
+own services and database.
+
+Skill repair and typed MCP selection also have mocked transport regressions. Catalogue checks passed
+thirteen cases. The final remote-picker and requirement-repair check passed fourteen cases, including
+readable requirement labels, grounded-program denial, reloaded typed categories and disabled unsupported
+tool/template rows with server-supplied reasons. Inventory rows cannot create executable bindings.
+The repair and template forms were checked at 1440, 768 and 390 pixels. Compatible Analysis enablement
+and grounded-program denial are browser contracts; real isolated Python execution is established by
+the separate gVisor/Restate tests below, not by the controlled connection browser suite.
+
 With `AGENTS_TEST_DATABASE_URL` configured for disposable database creation, the durable
 booking acceptance runs from the repository root:
 
@@ -733,7 +790,9 @@ pnpm --filter @kasitek/agents exec vitest run test/booking-business.test.ts test
 
 Live Google consent and token refresh against a configured application, production credential
 operations, hosted observability, and other channel/provider journeys remain separate gates.
-MCP resources and prompts are inventory only. Package import remains inert; explicit approved Python execution uses the existing isolated sandbox.
+MCP resources and prompts have separately selected execution scopes. Directory reads returning
+unselected URIs, reserved template expansion operators and unsupported client capabilities remain
+unavailable. Package import remains inert; explicit approved Python execution uses the existing isolated sandbox.
 
 Approved package execution was verified with fresh disposable databases, a separate Restate container
 and test allocation directories. The affected check passed 14 cases: five script authorization/execution
@@ -1052,3 +1111,29 @@ lost acknowledgements, bounded capacity after lease expiry, physical launch/quie
 rejected identity rebinding. Existing sandbox/document safety suites retain their real no-network,
 resource-limit and pinned-profile checks. No guest helper/profile bytes changed in this routing
 update. These bounded fixtures do not establish 1,000/10,000-root production capacity.
+
+## Bounded native API response handling
+
+Native API release `native-api-v2` consumes immutable response policies from the structured
+request editor or the OpenAPI `x-kasitek-response` extension. Projection selects up to
+sixteen named JSON Pointer fields. Optional cursor pagination and transient-status retries
+require an explicit owner-attested GET read policy; default operations and reviewed writes
+retain one physical request. The existing connected executor checks authority before every
+request, stores private response pages and replays completed observations without resending.
+
+Pages and retries share at most eight physical requests, a 30-second maximum within the
+original operation deadline, and a combined 1MiB page-receipt budget. Retries accept only
+429/502/503/504, honor bounded Retry-After, and never repeat transport uncertainty. Cursors
+are values in a declared query parameter on the pinned origin. Repeated cursors fail; the
+page limit returns explicit incomplete status and continuation. No secondary execution engine,
+arbitrary fetch URL, executable projection expression or automatic write retry is introduced.
+
+The API template extension and safe operation DTO are additive; schema038 already supplies
+the immutable JSON storage. Adapter executable digests pin the new policy implementation.
+Existing operation/physical-attempt events and private receipts provide durable runtime observability;
+connection lifecycle logs/spans and receipt-derived provider metrics are described in the telemetry section above;
+new analytics events, collector endpoints and infrastructure deployment are not applicable.
+Verification combines controlled HTTP, isolated published-grant PostgreSQL execution and
+mock-transport browser checks at desktop/tablet/mobile widths. Live provider compatibility
+remains a separate gate. Disable or replace the selected binding to stop new admissions;
+retain receipts and the accepted executable release for in-flight recovery.

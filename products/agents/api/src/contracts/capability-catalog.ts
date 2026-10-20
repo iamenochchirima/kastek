@@ -109,10 +109,18 @@ const toolSchema = z.unknown().transform((input, ctx): ToolSchema => {
 });
 export function digestToolSchema(input: unknown): string { return requestDigest(preflightToolSchema(input)); }
 
+const remoteUri=z.string().min(1).max(4096).refine(value=>{try{return !/[\x00-\x20\x7f]/.test(value)&&!!new URL(value).protocol;}catch{return false;}});
+export const remoteTargetSchema=z.discriminatedUnion("kind",[
+  z.strictObject({kind:z.literal("tool"),name:identifierSchema}),
+  z.strictObject({kind:z.literal("resource"),uri:remoteUri}),
+  z.strictObject({kind:z.literal("template"),uriTemplate:z.string().min(1).max(4096),variableNames:z.array(identifierSchema).max(32).refine(names=>new Set(names).size===names.length)}),
+  z.strictObject({kind:z.literal("prompt"),name:identifierSchema,arguments:z.array(z.strictObject({name:identifierSchema,required:z.boolean(),description:z.string().max(2048).optional()})).max(32).refine(args=>new Set(args.map(arg=>arg.name)).size===args.length)}),
+]);
+export type RemoteMcpTarget=z.infer<typeof remoteTargetSchema>;
 export const catalogToolSchema = z.strictObject({
   providerOperation: identifierSchema, description: z.string().max(4096),
   inputSchema: toolSchema, outputSchema: toolSchema.nullable(), inputDigest: digestSchema, outputDigest: digestSchema.nullable(),
-  remote: z.strictObject({ definitionDigest: digestSchema, transport: z.enum(["streamable_http", "legacy_sse"]) }).optional(),
+  remote: z.strictObject({ definitionDigest: digestSchema, transport: z.enum(["streamable_http", "legacy_sse"]),target:remoteTargetSchema.optional() }).optional(),
   nativeApi: z.strictObject({ templateDigest: digestSchema, importDigest: digestSchema }).optional(),
 }).superRefine((value, ctx) => {
   if (requestDigest(value.inputSchema) !== value.inputDigest || (value.outputSchema === null ? value.outputDigest !== null : requestDigest(value.outputSchema) !== value.outputDigest)) ctx.addIssue({ code: "custom", message: "Tool schema digest mismatch" });
@@ -156,6 +164,7 @@ const bindingFields = {
   protocolVersion: z.enum(["2026-07-28", "2025-11-25"]).nullable(),
   connection: z.strictObject({ id: z.uuid(), profileId: identifierSchema, policyRevision: z.number().int().positive() }).nullable(),
   resources: z.array(resourceHandleSchema).max(100), policy: capabilityPolicySchema,
+  remoteSelection:z.strictObject({uri:remoteUri,templateArguments:z.record(identifierSchema,z.string().max(2048)).refine(values=>Object.keys(values).length<=32)}).optional(),
   limits: z.strictObject({ timeoutMs: z.number().int().min(1).max(240000), maxPhysicalAttempts: z.number().int().min(1).max(3),
     maxPhysicalRequests: z.number().int().min(1).max(128).optional(),
     maxResponseBytes: z.number().int().min(1).max(2097152), maxModelResultBytes: z.number().int().min(1).max(capabilityLimits.maxModelResultBytes) }),
@@ -173,14 +182,20 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   if(stash && (binding.transport !== "mcp_http" || !stashReadOperationSchema.safeParse(binding.definition.providerOperation).success || binding.resources.some(resource=>resource.kind !== "stash.item" || !z.uuid().safeParse(resource.id).success))) ctx.addIssue({code:"custom",message:"Stash bindings require approved item handles over MCP"});
   const remote = binding.connection?.profileId === "remote-mcp-v1",nativeApi=binding.connection?.profileId === "custom-api-v1",generic=remote||nativeApi;
   if (generic) {
+    const target=remote?binding.definition.remote?.target:undefined;
+    const content=target&&target.kind!=="tool";
+    const handle=target?.kind==="resource"?{kind:"mcp.resource",id:target.uri}:target?.kind==="template"?{kind:"mcp.resource",id:binding.remoteSelection?.uri}:target?.kind==="prompt"?{kind:"mcp.prompt",id:target.name}:undefined;
     const reviewed = binding.policy.effect === "reviewed_write" && binding.policy.approval === "exact_single_use"
       && binding.policy.disclosure === "exact_reviewed_payload" && binding.policy.retry === "status_only" && binding.policy.cancel === "reconcile_claimed";
     const read = binding.policy.effect === "read" && binding.policy.approval === "none" && binding.policy.disclosure === "approved_resource_identifiers"
       && binding.policy.retry === "never" && binding.policy.cancel === "stop_admission";
     if ((remote?(binding.transport !== "mcp_http" || !binding.definition.remote || !!binding.definition.nativeApi):(binding.transport!=="native_http"||!binding.definition.nativeApi||!!binding.definition.remote))
-      || (!reviewed && !read) || binding.resources.length !== 1 || binding.resources[0]?.kind !== (remote?"mcp.endpoint":"api.origin")
+      || (!reviewed && !read) || binding.resources.length !== (content?2:1) || binding.resources[0]?.kind !== (remote?"mcp.endpoint":"api.origin")
+      ||content&&(!handle?.id||binding.resources[1]?.kind!==handle.kind||binding.resources[1]?.id!==handle.id)
+      ||target?.kind==="prompt"&&!reviewed
+      ||(target?.kind==="template"?!binding.remoteSelection||Object.keys(binding.remoteSelection.templateArguments).sort().join("\n")!==[...target.variableNames].sort().join("\n"):!!binding.remoteSelection)
       || binding.limits.timeoutMs > 30000 || binding.limits.maxPhysicalAttempts !== 1
-      ||nativeApi&&(binding.limits.maxPhysicalRequests!==1||binding.limits.maxResponseBytes>1048576)) ctx.addIssue({ code: "custom", message: "Generic connections require a pinned definition, one destination and explicit effect policy" });
+      ||nativeApi&&((read?((binding.limits.maxPhysicalRequests??0)<1||(binding.limits.maxPhysicalRequests??0)>8):binding.limits.maxPhysicalRequests!==1)||binding.limits.maxResponseBytes>1048576)) ctx.addIssue({ code: "custom", message: "Generic connections require a pinned definition, one destination and explicit effect policy" });
     try { const endpoint = new URL(binding.resources[0]?.id ?? ""); if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash||nativeApi&&endpoint.origin!==binding.resources[0]?.id) throw Error(); }
     catch { ctx.addIssue({ code: "custom", message: "Generic connection destination resource is invalid" }); }
   }

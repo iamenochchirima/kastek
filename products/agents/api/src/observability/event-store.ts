@@ -23,7 +23,7 @@ export async function recordEvent(db: Pool | PoolClient, taskId: string, key: st
       totalTokens: operation?.accounted_tokens ?? fields.accountedTokens,
       inputTokens: operation?.output?.usage?.inputTokens, outputTokens: operation?.output?.usage?.outputTokens,
       outcome: fields.outcome ?? operation?.state ?? (['completed','failed','uncertain','cancelled','incomplete','refused'].includes(kind) ? kind : fields.outcome),
-      durationMs: operation?.completed_at ? new Date(operation.completed_at).getTime() - new Date(operation.started_at).getTime() : undefined },
+      durationMs: operation?.completed_at ? new Date(operation.completed_at).getTime() - new Date(operation.started_at).getTime() : fields.durationMs },
   });
   await db.query(`WITH inserted AS (
     INSERT INTO agents_platform.task_events(task_id,event_key,kind,payload,observation) VALUES($1,$2,$3,$4,$5)

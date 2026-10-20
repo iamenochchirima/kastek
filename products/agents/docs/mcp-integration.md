@@ -63,17 +63,29 @@ automatically. Each subsequent physical request rechecks token expiry and curren
 Discovery creates an immutable candidate catalog. Selection pins compatible operation schemas,
 original names, aliases, exact endpoint and adapter identity. Refresh does not broaden an existing
 agent version. The general adapter supports MCP 2026-07-28, 2025-11-25 and explicit deprecated
-HTTP+SSE compatibility. Unsupported schemas have per-operation diagnostics. Resource, template
-and prompt inventories are retained; model resource reads and prompt activation are not yet exposed.
+HTTP+SSE compatibility. Unsupported schemas have per-operation diagnostics. The connection picker
+separates tools, resources, templates and prompts. Each selection creates an immutable scoped binding.
+Resource reads pin an exact URI; template selection pins owner-entered scalar values and the
+URI expanded by the SDK. Runtime arguments cannot choose another URI. The supported template
+subset uses simple named scalar substitutions; reserved expansion operators are unavailable.
+Resource URIs remain opaque arguments to `resources/read` on the selected server. The adapter
+does not fetch HTTPS resource URIs or open file URIs locally. Returned resource contents must
+match the selected URI; directory results with other URIs require a separate scope contract.
+
+Each prompt activation requires exact single-use approval of its name and arguments. Prompts
+cannot use the owner-attested read shortcut. Returned roles and typed content remain external
+tool-result data and private receipt bytes; they never become system messages, conversation roles
+or installed skills. Approval labels show the prompt name or selected resource URI. Observations
+retain the actual `resources/read` or `prompts/get` method and descriptor digest.
 Tasks, subscriptions, sampling, roots, elicitation and MCP Apps are not declared client capabilities.
 
 General tool calls retain typed content, structured output and complete bounded private result bytes.
 The model receives a bounded projection and content-block diagnostics. Returned links never cause
-an unrestricted fetch. The metadata-only tool index cache has at most 16 authority partitions, 8 MiB total, and 2 MiB
+an unrestricted fetch. The metadata-only descriptor cache has at most 16 category/authority entries, 8 MiB total, and 2 MiB
 per index. Indexes expire within 30 seconds, or sooner when the server declares a shorter TTL.
 The partition binds organization, account, connection credential/policy revision and generation,
 task principal, version/resource, selected bindings, endpoint, transport/protocol, executable
-adapter release, and hashed credentials. Cache entries never supply current execution authority.
+adapter release, hashed credentials and operation category. Cache entries never supply current execution authority.
 
 Each call still negotiates capabilities, validates pinned input/output schemas, and rechecks the
 grant, connection, and exact review before physical send. An index can remain stale within its
@@ -112,6 +124,39 @@ rolling back code; retain operation receipts and supported runtime releases for 
 Production deployment, hosted telemetry retention and a live Google OAuth application remain
 separate acceptance steps. Google Calendar bookings is implemented through a separate customer service policy. The standalone
 Booking creation offering remains unavailable; customer-service configuration can enable appointments.
+
+## Connection observability
+
+Connection management emits metadata-only `connection.lifecycle` JSON logs and OTLP
+spans for connect, authorization/callback, discovery, refresh, reconnect, credential
+rotation, selection, probes and disconnect. Credential freshness checks have a separate
+`credential_check` label. Each record has a trace ID, fixed provider/flow/outcome labels
+and elapsed time. Authorized rows already read by the operation supply connection,
+organization, policy revision and authorization generation when available. Unknown
+identifiers are omitted; control-plane flows do not fabricate agent or task identities.
+Provider URLs, credentials, scopes, callback parameters, provider bodies and customer
+text are excluded. SDK OAuth error responses are normalized before SDK warning paths.
+
+Control-plane logs and spans are best effort, separate from durable task observations.
+Telemetry performs no additional database lookup, does not await exporters and cannot
+turn settled provider work into a retry. Control-span export permits at most 64 pending
+requests with the existing three-second exporter timeout. Hosted delivery and retention
+remain deployment concerns. Runtime connected-tool task observations retain the existing
+agent/version/task/operation lineage and add the actual resolved authorization generation.
+Explicit provider duration survives projection while the parent operation is still active.
+
+`agents.connection.lifecycle.attempts` and `.duration_ms` measure lifecycle attempts, not
+business effects. Their labels are limited to fixed provider, flow, outcome and failure
+classes. `agents.connected.provider.attempts` and `.latency_p95_ms` derive from persisted
+physical-attempt receipts over the last hour, grouped by provider, setup/read phase and
+response/failure outcome. Snapshot metrics are replica-scoped and must not be summed
+across replicas. Connection IDs and tenant IDs are never metric labels.
+
+Focused evidence is in [connection-telemetry.test.ts](../api/test/connection-telemetry.test.ts),
+[telemetry.test.ts](../api/test/telemetry.test.ts),
+[remote-connections.test.ts](../api/test/remote-connections.test.ts),
+[generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts) and
+[native-api-executor.test.ts](../api/test/native-api-executor.test.ts).
 
 ## Google Calendar bookings
 
@@ -242,30 +287,38 @@ optional integration check, not a prerequisite for public MCP execution.
 
 ### Verification matrix
 
-The current general adapter release is `remote-mcp-v1-sdk2.3.1-cache1`, using
-`@modelcontextprotocol/client@2.3.1`. Native API execution uses `native-api-v1`.
+The current general adapter release is `remote-mcp-v1-sdk2.3.1-content1`, using
+`@modelcontextprotocol/client@2.3.1`. Native API execution uses `native-api-v2`.
 The matrix records controlled fixture results separately from live provider evidence.
 An unsupported or untested combination is not a passed compatibility case.
 
 | Combination | Evidence | Verified boundary or remaining gap |
 | --- | --- | --- |
-| MCP 2026-07-28 and 2025-11-25 over Streamable HTTP | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts), 25 passing cases including cache behavior. | Version negotiation, bounded pagination, isolated schema validation, cancellation and physical request limits. |
+| MCP 2026-07-28 and 2025-11-25 over Streamable HTTP | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts), 34 passing cases, plus eight [content cases](../api/test/remote-mcp-content.test.ts). | Version negotiation, bounded pagination, isolated schema validation, cancellation, exact resource/prompt RPCs and physical request limits. |
 | Deprecated HTTP+SSE | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts). | Explicit SSE and opt-in fallback pass; cross-origin message endpoints and authentication-triggered fallback are refused. |
 | Anonymous, bearer and named-key MCP | Fixture: [remote-connections.test.ts](../api/test/remote-connections.test.ts), [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts). | Scoped encrypted custody, selected bindings, published execution and current-authority checks. This does not establish every public server's compatibility. |
 | OAuth discovery, DCR and own client | Fixture: [remote-auth.test.ts](../api/test/remote-auth.test.ts), [remote-connections.test.ts](../api/test/remote-connections.test.ts). | Actual controlled HTTP token exchange, S256 PKCE, issuer binding, registration reuse, callback replay/cancellation, persisted resume and rotating-token refresh. |
-| Metadata-selected pre-registration, CIMD and permission step-up | Untested combinations. | SDK/configuration hooks do not establish fixture or live acceptance for these paths. |
+| Metadata-selected pre-registration, CIMD and permission step-up | Fixture: 14 [auth cases](../api/test/remote-auth.test.ts), six [durable connection cases](../api/test/remote-connections.test.ts), and [generic runtime cases](../api/test/generic-connected-runtime.test.ts). | Validated issuer selects configured clients before advertised CIMD or DCR. Tests cover issuer-bound own clients, registration reuse after lost callbacks, denied/narrower scope consent, policy invalidation after step-up and redaction of hostile error/token responses before SDK logging. CIMD tests prove SDK selection and controlled code exchange; public document hosting and live provider fetching remain unverified. |
 | Catalog schemas, results and cache partitions | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts), [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts). | Per-tool diagnostics, structured/media blocks, malformed output, secret reflection, immutable drift and organization/account/credential/policy/generation/authority partition tests pass. Metadata can remain stale within its declared maximum 30-second TTL. |
-| Resource/template/prompt inventory | Fixture: [remote-mcp.test.ts](../api/test/remote-mcp.test.ts). | Inventory is retained. Model resource reads and explicit prompt activation remain unavailable. |
+| Scoped resources, fixed template instances and explicit prompt activation | Fixture: [remote-mcp-content.test.ts](../api/test/remote-mcp-content.test.ts), [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts). | Both protocol versions preserve typed content and external prompt roles. Exact URI handles, fixed template expansion, per-activation approval, capability refusal, category cache/zero-TTL behavior, descriptor drift and foreign returned-URI denial pass. No direct URI fetching, prompt role promotion or implicit skill installation. |
 | Persistent change notifications, tasks, sampling, roots, elicitation and MCP Apps | Unsupported. | These client capabilities are not declared. Persistent catalog push is unavailable; TTL and explicit refresh provide revalidation. Operations requiring unavailable capabilities are refused. |
-| Public no-auth DeepWiki | Current-release live probe: `.audit/public-mcp-current-release-20261020.json`, checked 2026-10-20, endpoint `https://mcp.deepwiki.com/mcp`, protocol 2025-11-25. | `remote-mcp-v1-sdk2.3.1-cache1` discovered three compatible tools and executed `read_wiki_structure` for `facebook/react` without authentication. This proves a public adapter read, not tenant binding or a complete browser journey. |
+| Public no-auth DeepWiki | Current-release live probe: `.audit/public-mcp-current-release-20261020.json`, checked 2026-10-20T18:33:24.104Z, endpoint `https://mcp.deepwiki.com/mcp`, protocol 2025-11-25. | `remote-mcp-v1-sdk2.3.1-content1` discovered three compatible tools and executed `read_wiki_structure` for `facebook/react` without authentication; the result was 7,763 bytes. This proves current-release public tool execution, not live resource/prompt RPCs, OAuth or a complete tenant browser journey. |
 | Approved live OAuth and keyed/API providers | Not verified. | No complete current-release live matrix is recorded. A chat connector's credentials do not establish Agents provider acceptance. |
-| OpenAPI 3.0/3.1 with none, bearer, Basic and header/query keys | Fixture: [openapi-import.test.ts](../api/test/openapi-import.test.ts), [api-connections.test.ts](../api/test/api-connections.test.ts), [native-api.test.ts](../api/test/native-api.test.ts), [native-api-executor.test.ts](../api/test/native-api-executor.test.ts). | Bounded import, safe references, fixed request compilation, encrypted credentials, selected published execution and private response bytes. HTTP 429/5xx responses retain receipts without blind retry. General API pagination and configurable response projection are not established. |
+| OpenAPI 3.0/3.1 with none, bearer, Basic and header/query keys | Fixture: [openapi-import.test.ts](../api/test/openapi-import.test.ts), [api-connections.test.ts](../api/test/api-connections.test.ts), [native-api.test.ts](../api/test/native-api.test.ts), [native-api-executor.test.ts](../api/test/native-api-executor.test.ts). | Bounded import, safe references, fixed request compilation, encrypted credentials, selected published execution and private response bytes. Explicit GET read policies support bounded cursor pagination and optional retries for HTTP 429/502/503/504. JSON Pointer projection narrows model-visible fields; complete pages remain private receipts. The default and reviewed writes perform one physical request. See response-policy acceptance below. |
 | Google Calendar OAuth, identity and bookings | Fixture: [google-calendar-connections.test.ts](../api/test/google-calendar-connections.test.ts), [google-calendar.test.ts](../api/test/google-calendar.test.ts), [booking-business.test.ts](../api/test/booking-business.test.ts). | Controlled signed OIDC, explicit service sharing, account/configuration fences and booking recovery. The live Google application and approved test account remain unconfigured. Imported API OAuth and service client-credentials are unavailable outside an implemented provider contract. |
 | Portable instruction and multi-file skills | Fixture: [skill-packages.test.ts](../api/test/skill-packages.test.ts), [skill-repository.test.ts](../api/test/skill-repository.test.ts), [skill-package-store.test.ts](../api/test/skill-package-store.test.ts). | Immutable package bytes, hostile archive/refusal cases, review, requirements and scoped activation. [skill-script-runtime.test.ts](../api/test/skill-script-runtime.test.ts) and [platform-business.test.ts](../api/test/platform-business.test.ts) verify exact reviewed Python execution through published tools and real gVisor, bundled helpers/resources, no mandatory script read, current withdrawal fences and cleanup. Other languages remain unavailable. |
 | Imported API plus reviewed skill through normal agent execution | External controlled Harbor trial: `.audit/harbor-eefdc68d-68f6-4cec-8ffb-873e41aca258/acceptance.json`; [fixture support](../api/test/harbor-connector-support.ts). | FAQ policy-read trial passed with authoritative provider checks. It records `mutationsVerified: false`; it is neither live provider consent nor booking-write acceptance. |
-| Browser recovery and complete consent-to-execution journey | Mock transport: [remote-connections.spec.ts](../web/test/remote-connections.spec.ts), [api-connections.spec.ts](../web/test/api-connections.spec.ts), [google-calendar.spec.ts](../web/test/google-calendar.spec.ts). | UI setup, masked fields and recovery have separate browser evidence. Mocked transport plus API fixtures do not prove one complete live OAuth journey, cross-tab recovery or popup-denial recovery. |
+| Browser connection execution and recovery | Controlled API/provider/Restate: [catalogue-execution-live.spec.ts](../web/test/catalogue-execution-live.spec.ts), five journeys passed, including seven successful approved provider invocations with seven completed private receipts. Mock transport: [remote-connections.spec.ts](../web/test/remote-connections.spec.ts), [api-connections.spec.ts](../web/test/api-connections.spec.ts), [google-calendar.spec.ts](../web/test/google-calendar.spec.ts). | Actual MCP publication/review/execution/reconnect/revoke, native credential expiry/repair, full-page OAuth cancellation/one-use callbacks across tabs, exact-revision skill repair, and selected resource/template/prompt execution have controlled browser evidence. The expired native credential also produces an additional denied request and an uncertain operation. The flow does not depend on a popup. These are not live-provider consent or fresh-user usability results. |
 
-This matrix records the remaining registration and live-provider gaps; it does not
+The current wire snapshot passed 42 cases: 34 general MCP cases and eight content
+cases, including escaped credential-reflection refusal over HTTP and SSE. The G2
+producer suites passed 20 generic runtime, 14 OAuth and six durable connection cases.
+The later G9 PostgreSQL snapshot passed 55 cases across generic/native execution and
+MCP/API/Google connection management; subsequent focused checks verify committed
+callback/disconnect generations, revoked refresh outcomes and receipt metric grouping.
+These counts identify controlled tested snapshots, not untested live-provider combinations.
+
+This matrix records the remaining live-provider and recovery gaps; it does not
 mark every compatibility checklist item complete. Local verification and disable
 evidence remain separate from production deployment and live-provider acceptance.
 
@@ -340,3 +393,32 @@ remain unavailable.
 
 See the [platform architecture](architecture/agent-platform-architecture.md),
 [implementation boundary](source-boundary.md) and [setup](../README.md).
+
+## API response policies
+
+The advanced request editor exposes Response handling. Builders can select up to sixteen
+JSON Pointer output fields, a declared string query cursor and a maximum page count.
+OpenAPI imports use the same `x-kasitek-response` operation extension. Response policy
+is part of the immutable request template and import digest, not model arguments.
+
+Automatic pagination and retry require GET and the owner's explicit Allow reads without
+individual approval selection. They share one original operation deadline and a maximum
+of eight physical requests. Every physical request rechecks current authority and records
+its outcome. Cursor values are encoded into the fixed approved query parameter; returned
+URLs never become fetch destinations. Repeated cursors fail. A page limit returns a
+continuation cursor and `complete: false` instead of claiming the result is complete.
+
+Retries apply only to opted-in reads on 429, 502, 503 and 504, at most three attempts per
+page. The adapter honors Retry-After only within the configured delay and original
+deadline; otherwise it returns the provider error without retrying early. Transport
+uncertainty and writes are never automatically repeated. Projection excludes unselected
+fields from model output while each accepted page is captured privately after credential checks and before projection. Decoded JSON keys and values are checked so Unicode escapes cannot bypass credential reflection protection.
+Invalid UTF-8 is preserved as exact base64 bytes before a protocol error is returned.
+
+Acceptance: [native-response-policy.test.ts](../api/test/native-response-policy.test.ts)
+covers actual controlled HTTP requests, projection, pagination, backoff, deadlines and
+revocation; [native-api-executor.test.ts](../api/test/native-api-executor.test.ts) covers
+published grants, each physical receipt and replay without a second send;
+[api-connections.spec.ts](../web/test/api-connections.spec.ts) covers the structured editor
+and explicit read selection at 1440, 768 and 390 pixels using a mocked API transport.
+These checks do not establish a real provider's pagination or mutation semantics.

@@ -6,14 +6,15 @@ import { discoverRemoteMcp, executeRemoteMcpTool, type RemoteMcpEndpoint, invali
 const servers: Server[] = [];
 const inputSchema = { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false };
 type FixtureOptions = { modern?: boolean;ttlMs?:number;omitTtl?:boolean;capabilitiesChanged?:boolean; tools?: unknown[]; pages?: number; resources?: boolean; mixedContent?: boolean;
-  changed?: boolean; loop?: boolean; reflect?: boolean; hang?: boolean; sse?: boolean; redirect?: boolean; isError?: boolean; inputRequired?: boolean;
-  status?: number;callStatus?:number;requiredScope?:string;sseDestination?: string; resultText?: string; badStructured?: boolean };
+  changed?: boolean; escapedReflect?:"value"|"key"; loop?: boolean; reflect?: boolean; hang?: boolean; sse?: boolean; redirect?: boolean; isError?: boolean; inputRequired?: boolean;
+  status?: number;callStatus?:number;requiredScope?:string;auth?:{header:string;value:string};sseDestination?: string; resultText?: string; badStructured?: boolean };
 async function fixture(options: FixtureOptions = {}) {
   let calls = 0, listCalls = 0; const methods: string[] = [], headers: Record<string, string>[] = [], waiters: (() => void)[] = [];
   let eventStream: import("node:http").ServerResponse | undefined;
   const capabilities = { tools: {}, ...(options.resources ? { resources: {}, prompts: {} } : {}) };
   const server = createServer(async (request, response) => {
     headers.push(request.headers as Record<string, string>);
+    if(options.auth&&request.headers[options.auth.header]!==options.auth.value)return response.writeHead(401,{"www-authenticate":"Bearer"}).end();
     capabilities.tools=options.capabilitiesChanged?{listChanged:true}:{};
     if (options.status) { response.writeHead(options.status).end(); return; }
     if (options.redirect) { response.writeHead(307, { location: "/other" }).end(); return; }
@@ -26,7 +27,8 @@ async function fixture(options: FixtureOptions = {}) {
     const body = JSON.parse(text); methods.push(body.method);
     response.setHeader("content-type", "application/json");
     const reply = (result: unknown) => {
-      const message = JSON.stringify({ jsonrpc: "2.0", id: body.id, result });
+      const serialized = JSON.stringify({ jsonrpc: "2.0", id: body.id, result });
+      const message=options.escapedReflect?serialized.replaceAll("controlled-secret","\\u0063ontrolled-secret"):serialized;
       if (eventStream) { eventStream.write(`event: message\ndata: ${message}\n\n`); response.writeHead(202).end(); }
       else response.end(message);
     };
@@ -55,7 +57,7 @@ async function fixture(options: FixtureOptions = {}) {
         { type: "text", text: "One" }, { type: "image", data: "AA==", mimeType: "image/png" },
         { type: "audio", data: "AA==", mimeType: "audio/wav" }, { type: "resource_link", uri: "https://example.com/artifact", name: "Artifact" },
         { type: "resource", resource: { uri: "file:///result.txt", text: "Embedded" } },
-      ] : [{ type: "text", text: options.reflect ? String(request.headers.authorization) : options.resultText ?? "Safe fixture result" }], structuredContent: { count: options.badStructured ? "wrong" : 1 }, isError: options.isError ?? false });
+      ] : [{ type: "text", text: options.reflect ? String(request.headers.authorization) : options.resultText ?? "Safe fixture result" }], structuredContent: { count: options.badStructured ? "wrong" : 1,...(options.escapedReflect==="key"?{"controlled-secret":"provider-data"}:{}) }, isError: options.isError ?? false });
     } else if (body.method === "resources/list") reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), resources: [{ uri: "fixture://policy", name: "Policy", mimeType: "text/plain" }] });
     else if (body.method === "resources/templates/list") reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), resourceTemplates: [{ uriTemplate: "fixture://policy/{name}", name: "Policy template" }] });
     else if (body.method === "prompts/list") reply({ ...(options.modern ? { resultType: "complete", ttlMs: 0, cacheScope: "private" } : {}), prompts: [{ name: "policy", description: "Reviewed before use", arguments: [{ name: "topic", required: true }] }] });
@@ -70,6 +72,13 @@ async function fixture(options: FixtureOptions = {}) {
 afterEach(async () => { invalidateRemoteMcpCatalogCache();for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); } });
 
 describe("isolated general remote MCP", () => {
+  it.each(["bearer","header"] as const)("discovers and invokes an authenticated MCP fixture with injected %s credentials",async method=>{
+    const secret="controlled-mcp-key-only",auth={header:method==="bearer"?"authorization":"x-provider-key",value:method==="bearer"?`Bearer ${secret}`:secret},service=await fixture({auth});
+    const endpoint={...service.endpoint,...(method==="bearer"?{authorization:auth.value}:{headers:{"X-Provider-Key":secret}})},inventory=await discoverRemoteMcp(endpoint);
+    expect((await executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"approved"})).isError).toBe(false);expect(service.calls()).toBe(1);
+    expect(service.headers.every(headers=>headers[auth.header]===auth.value)).toBe(true);
+    await expect(discoverRemoteMcp(service.endpoint)).rejects.toMatchObject({code:"MCP_PROTOCOL"});expect(service.calls()).toBe(1);
+  },15000);
   it("surfaces a bounded actual permission challenge without retrying or trusting its metadata URL",async()=>{
     const service=await fixture({callStatus:403}),inventory=await discoverRemoteMcp(service.endpoint),observed:unknown[]=[];
     await expect(executeRemoteMcpTool(service.endpoint,inventory.tools[0]!,{name:"one"},undefined,{onScopeRequired:async value=>{observed.push(value);}})).rejects.toMatchObject({code:"OAUTH_SCOPE_REQUIRED",scopeChallenge:{resource:service.endpoint.endpoint,requiredScope:"records:write"}});
@@ -198,6 +207,12 @@ describe("isolated general remote MCP", () => {
     const privateInventory = await discoverRemoteMcp(endpoint);
     await expect(executeRemoteMcpTool(endpoint, privateInventory.tools[0]!, { name: "value" })).rejects.toMatchObject({ code: "MCP_CREDENTIAL_REFLECTION" });
   }, 20_000);
+  it.each([{sse:false,kind:"value"},{sse:true,kind:"value"},{sse:false,kind:"key"},{sse:true,kind:"key"}] as const)("rejects decoded credential reflection through HTTP/SSE values and keys %j",async({sse,kind})=>{
+    const service=await fixture({sse,escapedReflect:kind,reflect:kind==="value"});
+    const endpoint={...service.endpoint,...(sse?{transport:"legacy_sse" as const}:{}),authorization:"Bearer controlled-secret"};
+    const inventory=await discoverRemoteMcp(endpoint);
+    await expect(executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"value"})).rejects.toMatchObject({code:"MCP_CREDENTIAL_REFLECTION"});expect(service.calls()).toBe(1);
+  },20000);
   it("protects short credential values conservatively before exposing provider metadata", async () => {
     const service=await fixture();
     await expect(discoverRemoteMcp({...service.endpoint,authorization:"Bearer a"})).rejects.toMatchObject({code:"MCP_CREDENTIAL_REFLECTION"});

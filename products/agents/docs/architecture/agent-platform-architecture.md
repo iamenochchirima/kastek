@@ -730,6 +730,11 @@ including bundled helpers and resources. Immutable script provenance and generat
 survive compaction; current installation authority fences later launch and reuse. The original
 operation deadline, root budget, finalization and independent reaper remain shared sandbox controls.
 Unsupported languages, missing isolation backends, network access and dependency installation are unavailable.
+The editor preserves the exact skill revision during requirement repair. Connection setup returns to
+that preview; adopting immutable bindings, saving the draft and selecting the skill remain separate
+explicit decisions. Python requirements can open contextual Analysis configuration for a compatible
+program. The control cannot expand a grounded program or silently select another program; unknown
+runtimes remain unavailable. Default FAQ setup does not expose unrelated capability controls.
 
 Trusted `grounded-conversation` and `tool-directed` program releases use the shared business loop.
 The grounded program permits knowledge search/read, customer handoff, reviewed procedural skills,

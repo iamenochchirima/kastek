@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import type { RemoteConnection, CatalogCandidate, CapabilityBinding } from "../src/platform/api";
 
-async function fixture(page: Page, mode: "tools" | "empty" | "oauth" | "failure" = "tools") {
+async function fixture(page: Page, mode: "tools" | "empty" | "oauth" | "failure" | "capabilities" | "diagnostics" = "tools") {
   let connection: RemoteConnection | null = null, creates = 0, discoveries = 0, disconnects = 0;
   let candidate: CatalogCandidate | null = null;
   let bindings: CapabilityBinding[] = [];
@@ -32,13 +32,15 @@ async function fixture(page: Page, mode: "tools" | "empty" | "oauth" | "failure"
       expect(request.postDataJSON()).toEqual({ generation: connection!.generation }); discoveries++;
       connection = { ...connection!, status: mode === "oauth" && discoveries === 1 ? "authorization_required" : "selection_required", lastError: mode === "oauth" && discoveries === 1 ? "AUTHENTICATION" : null };
       const tools = mode === "empty" ? [] : [{ name: "search_documents", description: "Search documents approved for this connection.", inputSchema: { type: "object", properties: { query: { type: "string" } } }, schemaDigest: "digest" }];
-      candidate = { id: "catalog1", connectionId: "remote1", credentialRevision: connection.revision, policyRevision: 1, createdAt: "2026-10-20T00:00:00Z", selectableOperations: tools.map(tool => tool.name), catalog: { revision: 1, transport: "mcp_http", protocolVersion: "2025-11-25", tools: tools.map(tool => ({ providerOperation: tool.name, description: tool.description, inputSchema: tool.inputSchema })) } };
-      data = { connection, ...(connection.status === "selection_required" ? { catalog: { protocolVersion: "2025-11-25", tools }, candidate } : {}) };
+      candidate = { id: "catalog1", connectionId: "remote1", credentialRevision: connection.revision, policyRevision: 1, createdAt: "2026-10-20T00:00:00Z", selectableOperations: tools.map(tool => tool.name), catalog: { revision: 1, transport: "mcp_http", protocolVersion: "2025-11-25", tools: [...tools.map(tool => ({ providerOperation: tool.name, description: tool.description, inputSchema: tool.inputSchema })), ...(mode === "capabilities" ? [{ providerOperation: "resource_opaque", description: "Approved guide", remote: { target: { kind: "resource" as const, uri: "docs://guide" } } }, { providerOperation: "template_opaque", description: "Select a document", remote: { target: { kind: "template" as const, uriTemplate: "docs://{team}/{document}", variableNames: ["team", "document"] } } }, { providerOperation: "prompt_opaque", description: "Draft a reply", remote: { target: { kind: "prompt" as const, name: "support_reply", arguments: [{ name: "question", required: true, description: "Customer question" }] } } }] : [])] } };
+      if (mode === "capabilities") candidate.selectableOperations = candidate.catalog.tools.map(operation => operation.providerOperation);
+      if (mode === "diagnostics") { candidate.catalog.tools = []; candidate.selectableOperations = []; tools[0] = { ...tools[0], name: "incompatible_tool" }; }
+      data = { connection, ...(connection.status === "selection_required" ? { catalog: { protocolVersion: "2025-11-25", tools: mode === "diagnostics" ? tools.map(tool => ({ ...tool, compatible: false, diagnostics: [{ code: "MCP_SCHEMA_UNSUPPORTED", message: "This tool uses an unsupported recursive schema." }] })) : tools, ...(mode === "diagnostics" ? { contentOperations: [{ name: "unavailable_template", description: "Unsupported template", compatible: false, inventoryTarget: { kind: "template", uriTemplate: "docs://{+path}" }, diagnostics: [{ code: "MCP_TEMPLATE_UNSUPPORTED", message: "Reserved URI template operators are unsupported." }] }] } : {}) }, candidate } : {}) };
     } else if (path.endsWith("/connections/remote1/catalogs")) data = { catalogs: candidate ? [candidate] : [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings };
     else if (path.endsWith("/catalogs/catalog1/select")) {
       const body = request.postDataJSON(); toolSelections.push(body);
-      expect(body.expectedRevision).toBe(connection!.revision); expect(body.selections).toEqual([{ providerOperation: "search_documents", resources: [{ kind: "mcp.endpoint", id: connection!.endpoint }] }]);
+      expect(body.expectedRevision).toBe(connection!.revision); if (mode !== "capabilities") expect(body.selections).toEqual([{ providerOperation: "search_documents", resources: [{ kind: "mcp.endpoint", id: connection!.endpoint }] }]);
       bindings = [{ id: "binding1", alias: "search_documents", digest: "binding-digest", transport: "mcp_http", definition: { providerOperation: "search_documents", description: "Search documents" }, connection: { id: "remote1", profileId: "remote-mcp-v1", policyRevision: 1 }, resources: [{ kind: "mcp.endpoint", id: connection!.endpoint }] }]; data = { bindings };
     } else if (path.endsWith("/remote1/disconnect")) { expect(request.postDataJSON()).toEqual({ generation: 4 }); disconnects++; connection = { ...connection!, status: "disconnected", generation: 5 }; data = { disconnected: true, upstreamRevocation: "not_attempted" }; }
     else if (path.endsWith("/remote1/authorize")) { expect(request.postDataJSON()).toEqual({ generation: 4 }); data = { connection: { ...connection!, status: "authenticating" }, authorizationUrl: "https://provider.example.test/authorize?state=opaque" }; }
@@ -217,4 +219,57 @@ test("mock transport: a registry MCP record pre-fills the shared setup and selec
   await dialog.getByRole("checkbox", { name: /search documents/ }).check();
   await dialog.getByRole("button", { name: "Add tools", exact: true }).click();
   await expect(dialog).toBeHidden(); expect(state.toolSelections).toHaveLength(1); expect(state.errors).toEqual([]);
+});
+
+test("mock transport: typed resources, pinned templates and per-use prompts have separate readable selection", async ({ page }) => {
+  const state = await fixture(page, "capabilities");
+  await page.goto("/app/connections?profile=remote-mcp-v1");
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Server URL", { exact: true }).fill("https://capabilities.example.test/mcp");
+  await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Tools · 1", exact: true })).toBeVisible();
+  const categories = dialog.getByRole("navigation", { name: "Server capabilities", exact: true });
+  await categories.getByRole("button", { name: "Resources", exact: true }).click();
+  await dialog.getByRole("checkbox", { name: /docs:\/\/guide/ }).check();
+  await expect(dialog).not.toContainText("resource_opaque");
+  await categories.getByRole("button", { name: "Templates", exact: true }).click();
+  await dialog.getByRole("checkbox", { name: /docs:\/\/\{team\}\/\{document\}/ }).check();
+  await expect(dialog.getByRole("button", { name: "Add tools", exact: true })).toBeDisabled();
+  await dialog.getByLabel("team", { exact: true }).fill("support");
+  await dialog.getByLabel("document", { exact: true }).fill("returns.md");
+  for (const width of [1440, 768, 390]) { await page.setViewportSize({ width, height: 1000 }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/mock-mcp-template-${width}.png`), fullPage: true, animations: "disabled" }); }
+  await categories.getByRole("button", { name: "Prompts", exact: true }).click();
+  await expect(dialog.getByText("question · Required · Customer question", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Each use requires approval of the exact prompt and arguments.", { exact: true })).toBeVisible();
+  await dialog.getByRole("checkbox", { name: /support_reply/ }).check();
+  await dialog.getByRole("button", { name: "Add tools", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect((state.toolSelections[0] as { selections: unknown[] }).selections).toEqual([
+    { providerOperation: "resource_opaque", resources: [{ kind: "mcp.endpoint", id: "https://capabilities.example.test/mcp" }] },
+    { providerOperation: "template_opaque", resources: [{ kind: "mcp.endpoint", id: "https://capabilities.example.test/mcp" }], templateArguments: { team: "support", document: "returns.md" } },
+    { providerOperation: "prompt_opaque", resources: [{ kind: "mcp.endpoint", id: "https://capabilities.example.test/mcp" }] },
+  ]);
+  await page.getByRole("region", { name: "Custom MCP connections", exact: true }).getByRole("button", { name: "Details", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Tools · 1", exact: true })).toBeVisible();
+  await dialog.getByRole("navigation", { name: "Server capabilities", exact: true }).getByRole("button", { name: "Resources", exact: true }).click();
+  await expect(dialog.getByRole("checkbox", { name: /docs:\/\/guide/ })).toBeVisible();
+  expect(state.errors).toEqual([]);
+});
+
+
+test("mock transport: unsupported server tools and templates remain visible with disabled selection and server reasons", async ({ page }) => {
+  const state = await fixture(page, "diagnostics");
+  await page.goto("/app/connections?profile=remote-mcp-v1");
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Server URL", { exact: true }).fill("https://diagnostics.example.test/mcp");
+  await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(dialog.getByRole("checkbox", { name: /incompatible_tool/ })).toBeDisabled();
+  await expect(dialog.getByText("This tool uses an unsupported recursive schema.", { exact: true })).toBeVisible();
+  await dialog.getByRole("navigation", { name: "Server capabilities", exact: true }).getByRole("button", { name: "Templates", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Templates · 1", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: /docs:\/\/\{\+path\}/ })).toBeDisabled();
+  await expect(dialog.getByText("Reserved URI template operators are unsupported.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("This server returned no templates.", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Add tools", exact: true })).toBeDisabled();
+  expect(state.toolSelections).toEqual([]); expect(state.errors).toEqual([]);
 });
