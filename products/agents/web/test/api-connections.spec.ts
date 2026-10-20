@@ -6,7 +6,7 @@ const document = "openapi: 3.1.0\ninfo:\n  title: Customer API\n  version: '1'\n
 const serverUrl = "https://api.example.com/v1";
 const operation = (id: string, summary: string, method = "GET"): ApiOperation => ({ id, operationId: id, method, path: method === "GET" ? "/customers" : "/customers/{id}", summary, compatible: true, diagnostics: [], security: { schemeId: "apiKey", type: "api_key", name: "X-API-Key", in: "header", scopes: [] }, credentialState: "required", effect: "unknown", reviewRequired: true, parameters: method === "GET" ? [{ name: "limit", in: "query", required: false, schema: { type: "integer" } }] : [], requestBody: method === "POST" ? { required: true, contentType: "application/json", schema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] } } : null, responseSchemas: [{ status: "200", contentType: "application/json", schema: { type: "array" } }] });
 
-async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alternative" | "selection_error" = "normal") {
+async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alternative" | "selection_error" | "request" = "normal") {
   let connection: ApiConnection | null = null, selected: string[] = [], previewCalls = 0, createCalls = 0, selectionCalls = 0;
   const requests: { path: string; body: Record<string, unknown> }[] = [], errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -15,12 +15,13 @@ async function fixture(page: Page, mode: "normal" | "empty" | "error" | "alterna
     if (body) requests.push({ path, body });
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Customer API tests", role: "owner" }] };
+    else if (path.endsWith("/connectors")) data = {connectors:[]};
     else if (path.endsWith("/connections")) data = { connections: [], targets: [], profiles: [] };
     else if (path.endsWith("/remote-connections")) data = { connections: [] };
     else if (path.endsWith("/api-connections/preview")) {
       previewCalls++;
       if (mode === "error" && previewCalls === 1) { await route.fulfill({ status: 400, json: { error: { message: "Invalid OpenAPI JSON or YAML" } } }); return; }
-      expect(body.serverUrl).toBe(serverUrl); expect(body.document).toBe(document);
+      expect(body.serverUrl).toBe(serverUrl); if(mode === "request") { expect(body.document).toBeUndefined(); expect(body.requestTemplate).toMatchObject({title:"Find a customer",method:"GET",path:"/customers/{id}",parameters:[{name:"id",in:"path",required:true,schema:{type:"string"}}],securityScheme:{type:"apiKey",in:"header",name:"X-API-Key"}}); } else expect(body.document).toBe(document);
       const base = operation("listCustomers", "List customers");
       const alternative = { ...base, compatible: Boolean(body.securitySelections), security: body.securitySelections ? { schemeId: "none", type: "none", scopes: [] } : null, securityChoices: [{ index: 0, security: base.security, diagnostics: [] }, { index: 1, security: { schemeId: "none", type: "none", scopes: [] }, diagnostics: [] }, { index: 2, security: { schemeId: "oauth", type: "oauth2", scopes: [] }, diagnostics: [] }], credentialState: body.securitySelections ? "none" : "unsupported", diagnostics: body.securitySelections ? [] : [{ code: "OPENAPI_SECURITY_ALTERNATIVES_UNSUPPORTED", message: "Select one security alternative before activation" }] };
       const oauth = { ...operation("oauthWrite", "Update customer account", "PATCH"), compatible: false, credentialState: "unsupported", security: { schemeId: "oauth", type: "oauth2", scopes: ["customers:write"] }, diagnostics: [{ code: "API_OAUTH_CLIENT_REQUIRED", message: "OAuth client configuration is required." }] };
@@ -152,3 +153,36 @@ test("mock transport: saved operations and credential rotation use current gener
   await page.getByRole("alertdialog").getByRole("button", { name: "Disconnect", exact: true }).click();
   await expect(page.getByText("Disconnected · 1 selected", { exact: true })).toBeVisible();
 });
+
+for (const width of [1440, 768, 390]) {
+  test(`mock transport: authored request preview and save without manual JSON at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const state = await fixture(page, "request");
+    await page.goto("/app/connections?profile=custom-api");
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Server URL", { exact: true }).fill(serverUrl);
+    await dialog.getByLabel("Definition source", { exact: true }).selectOption("request");
+    await expect(dialog.getByLabel("OpenAPI document", { exact: true })).toHaveCount(0);
+    await dialog.getByLabel("Action name", { exact: true }).fill("Find a customer");
+    await dialog.getByLabel("Request path", { exact: true }).fill("/customers/{id}");
+    await dialog.getByLabel("Authentication", { exact: true }).selectOption("header");
+    await dialog.getByLabel("API key parameter name", { exact: true }).fill("X-API-Key");
+    await dialog.getByRole("button", { name: "Add parameter", exact: true }).click();
+    await dialog.getByLabel("Parameter name", { exact: true }).fill("id");
+    await dialog.getByLabel("Location", { exact: true }).selectOption("path");
+    await expect(dialog.getByLabel("Required", { exact: true })).toBeChecked();
+    await expect(dialog.getByLabel("Required", { exact: true })).toBeDisabled();
+    await page.screenshot({path:resolve(process.cwd(),`../../../.audit/api-request-definition-${width}.png`),fullPage:true});
+    await dialog.getByRole("button", { name: "Preview operations", exact: true }).click();
+    await dialog.getByRole("checkbox", { name: /List customers/ }).check();
+    const key = dialog.getByLabel("X-API-Key", { exact: true });
+    await expect(key).toHaveAttribute("type", "password"); await key.fill("fixture_api_key");
+    await dialog.getByRole("button", { name: "Save connection", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const saved = state.requests.find(item => item.path.endsWith("/api-connections") && item.body.requestTemplate);
+    expect(saved?.body.requestTemplate).toMatchObject({title:"Find a customer",path:"/customers/{id}"});
+    expect(saved?.body.document).toBeUndefined(); expect(state.errors).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({path:resolve(process.cwd(),`../../../.audit/api-request-editor-${width}.png`),fullPage:true});
+  });
+}
