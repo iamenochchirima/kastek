@@ -79,7 +79,7 @@ export class EvidenceStore {
     // Content-addressed bytes are immutable; policy is checked again before the reference is published.
     await writeExecutionObject(this.pool,this.objectStore(),{taskId,operationId,key:objectKey,bytes:Buffer.from(input.text),contentType:"text/plain; charset=utf-8"});
     return this.scoped(taskId, async (db, execution) => {
-      const binding = await bindingAllowed(db, execution, input.bindingId);
+      const binding = await bindingAllowed(db, execution, input.bindingId, operationId);
       await this.operation(db, taskId, operationId, [binding.alias]);
       if (!binding.resources.some(resource => requestDigest(resource) === requestDigest(input.resource))) throw denied();
       return this.insert(db, execution, operationId, {start:0,end:input.text.length,text:input.text,title:input.title,acquiredAt:input.acquiredAt,

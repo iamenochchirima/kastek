@@ -4,7 +4,7 @@ import { githubOperationSchema } from "./github";
 import { resourceHandleSchema,type ResourceHandle } from "./resources";
 
 export const capabilityLimits = Object.freeze({
-  maxCatalogTools: 100, maxCatalogBytes: 262144, maxSchemaBytes: 32768, maxSchemaDepth: 16,
+  maxCatalogTools: 500, maxCatalogBytes: 2097152, maxSchemaBytes: 32768, maxSchemaDepth: 16,
   maxSchemaNodes: 4096, maxPublishedBindings: 8, maxModelResultBytes: 8192,
 });
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -112,6 +112,7 @@ export function digestToolSchema(input: unknown): string { return requestDigest(
 export const catalogToolSchema = z.strictObject({
   providerOperation: identifierSchema, description: z.string().max(4096),
   inputSchema: toolSchema, outputSchema: toolSchema.nullable(), inputDigest: digestSchema, outputDigest: digestSchema.nullable(),
+  remote: z.strictObject({ definitionDigest: digestSchema, transport: z.enum(["streamable_http", "legacy_sse"]) }).optional(),
 }).superRefine((value, ctx) => {
   if (requestDigest(value.inputSchema) !== value.inputDigest || (value.outputSchema === null ? value.outputDigest !== null : requestDigest(value.outputSchema) !== value.outputDigest)) ctx.addIssue({ code: "custom", message: "Tool schema digest mismatch" });
   if (typeof value.inputSchema !== "object" || value.inputSchema.type !== "object") ctx.addIssue({ code: "custom", message: "Tool input schema must be an object schema" });
@@ -155,6 +156,7 @@ const bindingFields = {
   connection: z.strictObject({ id: z.uuid(), profileId: identifierSchema, policyRevision: z.number().int().positive() }).nullable(),
   resources: z.array(resourceHandleSchema).max(100), policy: capabilityPolicySchema,
   limits: z.strictObject({ timeoutMs: z.number().int().min(1).max(240000), maxPhysicalAttempts: z.number().int().min(1).max(3),
+    maxPhysicalRequests: z.number().int().min(1).max(128).optional(),
     maxResponseBytes: z.number().int().min(1).max(2097152), maxModelResultBytes: z.number().int().min(1).max(capabilityLimits.maxModelResultBytes) }),
   digest: digestSchema,
 };
@@ -168,7 +170,18 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   if(publicRepository && (!(binding.transport === "native_http" ? githubOperationSchema.safeParse(binding.definition.providerOperation).success : binding.transport === "mcp_http" && publicRepositoryMcpReadOperationSchema.safeParse(binding.definition.providerOperation).success) || binding.resources.some(resource=>resource.kind !== "github.repository" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(resource.id) || [".",".."].includes(resource.id.split("/")[1]!)))) ctx.addIssue({code:"custom",message:"Public repository bindings require approved native or MCP reads"});
   const stash = binding.connection?.profileId === "stash-read-v1";
   if(stash && (binding.transport !== "mcp_http" || !stashReadOperationSchema.safeParse(binding.definition.providerOperation).success || binding.resources.some(resource=>resource.kind !== "stash.item" || !z.uuid().safeParse(resource.id).success))) ctx.addIssue({code:"custom",message:"Stash bindings require approved item handles over MCP"});
-  if (binding.transport !== "builtin" && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
+  const remote = binding.connection?.profileId === "remote-mcp-v1";
+  if (remote) {
+    const reviewed = binding.policy.effect === "reviewed_write" && binding.policy.approval === "exact_single_use"
+      && binding.policy.disclosure === "exact_reviewed_payload" && binding.policy.retry === "status_only" && binding.policy.cancel === "reconcile_claimed";
+    const read = binding.policy.effect === "read" && binding.policy.approval === "none" && binding.policy.disclosure === "approved_resource_identifiers"
+      && binding.policy.retry === "never" && binding.policy.cancel === "stop_admission";
+    if (binding.transport !== "mcp_http" || !binding.definition.remote || (!reviewed && !read) || binding.resources.length !== 1
+      || binding.resources[0]?.kind !== "mcp.endpoint" || binding.limits.timeoutMs > 30000 || binding.limits.maxPhysicalAttempts !== 1) ctx.addIssue({ code: "custom", message: "Remote MCP requires a pinned definition, one endpoint and explicit effect policy" });
+    try { const endpoint = new URL(binding.resources[0]?.id ?? ""); if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash) throw Error(); }
+    catch { ctx.addIssue({ code: "custom", message: "Remote MCP endpoint resource is invalid" }); }
+  }
+  if (binding.transport !== "builtin" && !remote && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
 });
 export type CapabilityBinding = z.infer<typeof capabilityBindingSchema>;
 
@@ -178,6 +191,8 @@ function freeze<T>(value: T): T {
 }
 export function createModelAlias(bindingId: string): string { return `t_${z.uuid().parse(bindingId).replaceAll("-", "").toLowerCase()}`; }
 export function createCatalog(input: Omit<CapabilityCatalog, "digest">): CapabilityCatalog {
+  if(input.tools.length>capabilityLimits.maxCatalogTools)throw new PlatformError("CAPABILITY_LIMIT",413,"Catalog exceeds tool limit");
+  if(Buffer.byteLength(canonicalJson(input))>capabilityLimits.maxCatalogBytes)throw new PlatformError("CAPABILITY_LIMIT",413,"Catalog exceeds byte limit");
   const content = z.strictObject(catalogFields).omit({ digest: true }).parse(input);
   return freeze(capabilityCatalogSchema.parse({ ...content, digest: requestDigest(content) }));
 }

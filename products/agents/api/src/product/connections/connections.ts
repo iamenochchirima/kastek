@@ -27,7 +27,7 @@ export { actionMissing,notifyActionTask,requireActionMember } from "../../infras
 export class ConnectionStore {
  constructor(readonly pool:Pool,readonly vault:ConnectionVault,readonly targets:DeliveryTarget[]){}
  dto(row:Record<string,any>):ConnectionDTO{return{id:row.id,name:row.name,targetId:row.target_id,targetLabel:row.target_id==="provider:public-repository"?"Public repositories":row.target_id==="provider:stash"?"Stash":row.target_id==="provider:github"?"GitHub":this.targets.find(target=>target.id===row.target_id)?.label??"Unavailable destination",resource:row.resource,profileId:row.profile_id??"report-delivery-v1",authentication:row.profile_id==="public-repository-read-v1"?"none":"bearer",policyRevision:row.policy_revision??1,resources:z.array(resourceHandleSchema).parse(row.resource_handles??[]),selections:z.array(githubRepositorySelectionSchema).parse(row.selections??[]),stashItemIds:z.array(resourceHandleSchema).parse(row.resource_handles??[]).filter(handle=>handle.kind==="stash.item").map(handle=>z.uuid().parse(handle.id)),revision:row.revision,state:row.state,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()};}
- async list(scope:ActionScope){return transaction(this.pool,async db=>{await requireActionMember(db,scope);return(await db.query("SELECT * FROM agents_platform.connections WHERE organization_id=$1 AND account_id=$2 ORDER BY created_at,id",[scope.organizationId,scope.accountId])).rows.map(row=>this.dto(row));});}
+ async list(scope:ActionScope,includeRemote=false){return transaction(this.pool,async db=>{await requireActionMember(db,scope);return(await db.query("SELECT * FROM agents_platform.connections WHERE organization_id=$1 AND account_id=$2 AND ($3 OR profile_id NOT IN ('remote-mcp-v1','custom-api-v1')) ORDER BY created_at,id",[scope.organizationId,scope.accountId,includeRemote])).rows.map(row=>this.dto(row));});}
  async create(scope:ActionScope,raw:CreateConnectionInput){
  const input=createConnectionSchema.parse(raw),provider=input.profileId!=="report-delivery-v1",anonymous=input.profileId==="public-repository-read-v1";
  const target=this.targets.find(item=>item.id===input.targetId);
@@ -69,6 +69,14 @@ export class ConnectionStore {
    return{connection:this.dto(row),authorization:""};
   }
   if(row.envelope===null)throw new PlatformError("CONNECTION_AUTHENTICATION_INVALID",403,"Connection credentials are unavailable");
+  if(row.profile_id==="remote-mcp-v1"){
+   const metadata=(await db.query("SELECT status,auth_method FROM agents_platform.connection_onboarding WHERE connection_id=$1 FOR SHARE",[id])).rows[0];
+   if(!metadata||!["ready","selection_required"].includes(metadata.status))throw new PlatformError("CONNECTION_INACTIVE",403,"Connection authorization is unavailable");
+   const secret=JSON.parse(this.vault.open(scope.organizationId,id,row.revision,row.envelope));
+   const token=secret.authorization?.tokens;
+   if(token?.expires_in&&secret.authorization?.issuedAt&&secret.authorization.issuedAt+token.expires_in*1000<=Date.now())throw new PlatformError("AUTHENTICATION",401,"Reconnect this server to continue");
+   return{connection:this.dto(row),authorization:token?.access_token??secret.secret??""};
+  }
   return{connection:this.dto(row),authorization:this.vault.open(scope.organizationId,id,row.revision,row.envelope)};
  }
  private expiry(value?:string):Date{const expiresAt=value?new Date(value):new Date(Date.now()+30*86400000);if(expiresAt.getTime()<=Date.now()||expiresAt.getTime()>Date.now()+90*86400000)throw new PlatformError("CONNECTION_EXPIRY_INVALID",400,"Set an expiry within 90 days");return expiresAt;}

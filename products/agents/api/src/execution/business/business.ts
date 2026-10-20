@@ -44,12 +44,15 @@ type ToolDefinition
 export { settleTask } from "../lifecycle/execution";
 import { runRequiredReport, type ActionRuntime } from "../../workflows/report-delivery/program";
 import { channelPorts } from "../../infrastructure/channel-ports";
+import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
+import { awaitToolInvocationReview } from "./tool-review";
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
 export interface BusinessOptions extends ModelAdapterOptions {
   actions?:ActionRuntime;
   evidence?: EvidenceStore;
   knowledgeRuntime?: KnowledgeRuntime;
   connected?: ConnectedExecutor;
+  toolReviews?: ToolReviewStore;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
@@ -384,6 +387,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const name = builtinToolName(call.function.name) ?? binding?.alias ?? "unavailable";
             const descriptor = toolDescriptor(name);
             const resultBound = binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192;
+            if(binding?.policy.approval==="exact_single_use") {
+              if(!options.toolReviews) {outcome={state:"incomplete",errorCode:"TOOL_REVIEW_UNAVAILABLE"};stop=true;break;}
+              let reviewArguments:unknown;
+              try{reviewArguments=JSON.parse(call.function.arguments);}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              const reviewed=await awaitToolInvocationReview(ctx,pool,options.toolReviews,taskId,id,binding,reviewArguments);
+              if(reviewed){outcome=reviewed;stop=true;break;}
+            }
             let result: Result<unknown> = { ok: false, code: "GRANT_INACTIVE", uncertain: false };
             for (let retry = 0; retry < 8; retry++) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);

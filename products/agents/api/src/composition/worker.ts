@@ -2,6 +2,8 @@ import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { createServer,type ServerHttp2Session } from "node:http2";
 import { Pool } from "pg";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
+import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
+import { RemoteConnectionStore } from "../product/connections/remote-connections";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
 import { IngestionService,createIngestionWorkflow,startIngestionDispatcher } from "../capabilities/knowledge/ingestion-runtime";
 import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
@@ -47,7 +49,15 @@ async function main(): Promise<void> {
   const evidence=new EvidenceStore(pool,sourceObjects);
   const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;
   const knowledgeRuntime=sourceObjects?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
-  const connected=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence):undefined;
+  const toolReviews=new ToolReviewStore(pool);
+  const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
+    callbackUrl:`${new URL(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100").origin}/api/connections/oauth/callback`,
+    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
+  }):undefined;
+  const connected=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence,{
+    resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
+    genericReview:toolReviews.port(),
+  }):undefined;
   const automations=new AutomationService(pool,async configuration=>{
     if(!process.env.OPENROUTER_API_KEY)throw new PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
     if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');
@@ -72,7 +82,7 @@ async function main(): Promise<void> {
   },1000); cancellationTimer.unref();
   const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
-    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected });
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews });
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { GITHUB_ADAPTER_RELEASE,GithubReadAdapter,githubRepositoryHandle,type GithubFileHandle,type GithubObservation,type GithubRepositorySelection } from "../../adapters/providers/github-adapter";
 import { githubMcpFileText } from "../../adapters/providers/github-mcp-file";
 import { MCP_ADAPTER_RELEASE,callMcpTool,discoverMcpCatalog,type McpEndpoint,type McpTool } from "../../adapters/providers/mcp-adapter";
+import type { RemoteMcpAttempt,RemoteMcpEndpoint } from "../../adapters/providers/remote-mcp";
 import { STASH_ADAPTER_RELEASE,STASH_MCP_ENDPOINT,stashItemObservation } from "../../adapters/providers/stash-adapter";
 import { ExecutableAdapterRegistry,capabilityBindingSchema,createCatalog,digestToolSchema,type CapabilityBinding,type CapabilityCatalog,type ResourceHandle } from "../../contracts/capability-catalog";
 import type { ActionScope,ConnectionCredentialPort } from "../../contracts/connections";
@@ -20,12 +21,17 @@ import { transaction } from "../../infrastructure/database";
 import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { ConnectedCatalogStore,GITHUB_MCP_READ_OPERATIONS,connectedProviderOperationAllowed } from "./connected-catalog-store";
 import { assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool,connectedParameters,type ConnectedModelArguments } from "./connected-tool-schema";
+import { executeGenericConnectedTool,genericToolReviewDigest,remoteMcpAdapterManifest,type GenericToolReviewInput,type GenericToolReviewPort } from "./generic-connected-runtime";
 
 const MAX_HANDLES=2000,MAX_BODY_BYTES=2097152;
 const denied=()=>new PlatformError("CONNECTED_SCOPE_DENIED",403,"Connected resource is outside the task's authorized scope");
 const uncertain=()=>new PlatformError("CONNECTED_READ_UNCERTAIN",409,"The previous connected read has an unknown outcome; it was not repeated");
+const genericUncertain=()=>new PlatformError("CONNECTED_OPERATION_UNCERTAIN",409,"The previous remote operation has an unknown outcome; it was not repeated");
 const code=(error:unknown):string=>{const value=(error as {code?:unknown})?.code;return typeof value==="string"&&/^[A-Z0-9_]{1,80}$/.test(value)?value:"CONNECTED_READ_FAILED";};
-export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpoint?:string;testStashMcpEndpoint?:string;testPublicMcpEndpoint?:string}
+export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpoint?:string;testStashMcpEndpoint?:string;testPublicMcpEndpoint?:string;
+ resolveRemoteEndpoint?(db:PoolClient,scope:ActionScope,connectionId:string,policyRevision:number):Promise<RemoteMcpEndpoint>;
+ genericReview?:GenericToolReviewPort;
+}
 export interface ConnectedObservation {
  status:"ok"|"tool_error";bindingId:string;operationId:string;content:string;truncated:boolean;
  evidence:{id:string;label:string;citation:string;contentDigest:string};handles?:unknown;
@@ -37,7 +43,7 @@ function prefix(text:string,maximum=4096):{text:string;truncated:boolean}{const 
 export class ConnectedExecutor {
  readonly registry=new ExecutableAdapterRegistry<ConnectedExecutor>();
  readonly catalogs:ConnectedCatalogStore;
- readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;
+ readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;readonly remoteMcpAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionCredentialPort,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
   const extension=extname(__filename),modules=[
     ["connected-executor","./connected-executor"],["connected-tool-schema","./connected-tool-schema"],
@@ -52,6 +58,7 @@ export class ConnectedExecutor {
   this.mcpAdapter=this.registry.register({schemaVersion:1,id:"github-mcp-read",release:MCP_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.stashAdapter=this.registry.register({schemaVersion:1,id:"stash-mcp-read",release:STASH_ADAPTER_RELEASE,executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.publicMcpAdapter=this.registry.register({schemaVersion:1,id:"deepwiki-mcp-read",release:"public-repository-read-v1",executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
+  this.remoteMcpAdapter=this.registry.register(remoteMcpAdapterManifest(),this);
   this.catalogs=new ConnectedCatalogStore(pool,connections,this.registry);
  }
  assertAvailable(bindings:readonly CapabilityBinding[]):void{assertConnectedBindingDependencies(bindings);for(const binding of bindings){capabilityBindingSchema.parse(binding);this.registry.resolve(binding);}}
@@ -104,7 +111,8 @@ export class ConnectedExecutor {
   const accountId=principal.kind==="automation"?principal.ownerAccountId:principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:null;
   if(!accountId)throw denied();
   const grant=(await db.query("SELECT operations,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
-  if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(binding.id))throw denied();
+  const operation=binding.connection.profileId==="remote-mcp-v1"&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
+  if(!grant?.operations.includes(operation)||!grant.connected_tool_binding_ids.includes(binding.id))throw denied();
   if(!(await db.query(`SELECT 1 FROM agents_platform.version_connected_tools v JOIN agents_platform.capability_bindings b ON b.id=v.binding_id
     WHERE v.version_id=$1 AND v.organization_id=$2 AND b.id=$3 AND b.digest=$4 AND b.account_id=$5`,[execution.task.version_id,execution.task.organization_id,binding.id,binding.digest,accountId])).rowCount)throw denied();
   await assertChildConnectedAuthority(db,execution,binding.id);
@@ -129,6 +137,8 @@ export class ConnectedExecutor {
  }
  async execute(taskId:string,operationId:string,bindingInput:CapabilityBinding,input:unknown,signal?:AbortSignal):Promise<ConnectedObservation>{
   const binding=capabilityBindingSchema.parse(bindingInput),args=connectedModelArguments(binding,input),digest=requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args});
+  const generic=binding.connection?.profileId==="remote-mcp-v1",reviewed=generic&&binding.policy.effect==="reviewed_write";
+  const reviewInput:GenericToolReviewInput={taskId,operationId,binding,arguments:args,requestDigest:genericToolReviewDigest(binding,args)};
   const claim=await transaction(this.pool,async db=>{
    const initial=await loadExecution(db,taskId);await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[initial.task.organization_id]);
    const prior=(await db.query("SELECT * FROM agents_platform.connected_reads WHERE operation_id=$1 FOR UPDATE",[operationId])).rows[0];
@@ -143,6 +153,8 @@ export class ConnectedExecutor {
     return{error:prior.state==="failed"?prior.error_code:"CONNECTED_READ_UNCERTAIN"};
    }
    this.registry.resolve(binding);const authorized=await this.scope(db,taskId,binding);
+   if(generic&&!this.options.resolveRemoteEndpoint)throw new PlatformError("REMOTE_RUNTIME_UNAVAILABLE",503,"Remote connection runtime is unavailable");
+   if(reviewed){if(!this.options.genericReview)throw new PlatformError("TOOL_REVIEW_REQUIRED",409,"This remote operation requires exact approval");await this.options.genericReview.assertApproved(db,reviewInput);}
    const operation=(await db.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name=$3 AND kind='tool' AND state='started'",[operationId,taskId,binding.alias])).rows[0];
    if(!operation)throw denied();
    let selected:GithubRepositorySelection|undefined,handle:Handle|undefined;
@@ -150,33 +162,44 @@ export class ConnectedExecutor {
    else if(args.revisionId)handle=await this.handle(db,authorized.execution,binding,args.revisionId,"revision");else if(args.fileId)handle=await this.handle(db,authorized.execution,binding,args.fileId,"file");else if(args.releaseId)handle=await this.handle(db,authorized.execution,binding,args.releaseId,"release");
    if(!selected&&handle)selected=authorized.credential.connection.selections.find(selection=>githubRepositoryHandle(selection).id===handle!.resource.id);
    const stashResource=binding.connection?.profileId==="stash-read-v1"?binding.resources.find(resource=>resource.kind==="stash.item"&&resource.id===args.itemId):undefined;
-   if(!selected&&!stashResource)throw denied();
+   const genericResource=generic?binding.resources.find(resource=>resource.kind==="mcp.endpoint"):undefined;
+   if(!selected&&!stashResource&&!genericResource)throw denied();
+   const remoteEndpoint=generic?await this.options.resolveRemoteEndpoint!(db,authorized.scope,binding.connection!.id,binding.connection!.policyRevision):undefined;
+   if(remoteEndpoint&&genericResource?.id!==remoteEndpoint.endpoint)throw denied();
    const claimToken=randomUUID();
    const inserted=(await db.query(`INSERT INTO agents_platform.connected_reads(operation_id,task_id,organization_id,root_task_id,connection_id,binding_id,request_digest,state,claim_token,claim_expires_at)
     SELECT $1,$2,$3,$4,$5,$6,$7,'started',$8,LEAST(o.started_at+make_interval(secs=>LEAST(o.reserved_ms,$9)::double precision/1000),t.deadline_at)
     FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE o.id=$1 AND t.id=$2 RETURNING claim_expires_at`,[operationId,taskId,initial.task.organization_id,initial.task.root_task_id,binding.connection!.id,binding.id,digest,claimToken,binding.limits.timeoutMs])).rows[0]!;
-   return{...authorized,selected:selected!,stashResource,handle,claimToken,deadlineAt:new Date(inserted.claim_expires_at).getTime()};
+   return{...authorized,selected:selected!,stashResource,genericResource,remoteEndpoint,handle,claimToken,deadlineAt:new Date(inserted.claim_expires_at).getTime()};
   });
   if("replay"in claim)return claim.replay;
-  if("error"in claim){if(claim.error==="CONNECTED_READ_UNCERTAIN")throw uncertain();throw new PlatformError(claim.error,claim.error==="CONNECTED_READ_IN_PROGRESS"?409:502,"The connected read did not complete");}
+  if("error"in claim){if(claim.error==="CONNECTED_READ_UNCERTAIN")throw generic?genericUncertain():uncertain();throw new PlatformError(claim.error,claim.error==="CONNECTED_READ_IN_PROGRESS"?409:502,"The connected read did not complete");}
   const deadlineAt=claim.deadlineAt;
   const assertClaim=async(db:PoolClient)=>{
    await db.query("SELECT operation_id FROM agents_platform.connected_reads WHERE operation_id=$1 FOR UPDATE",[operationId]);
    if(!(await db.query("SELECT 1 FROM agents_platform.connected_reads WHERE operation_id=$1 AND task_id=$2 AND state='started' AND claim_token=$3 AND claim_expires_at>clock_timestamp()",[operationId,taskId,claim.claimToken])).rowCount)throw uncertain();
   };
   const checkDeadline=()=>{if(Date.now()>=deadlineAt)throw new PlatformError("CONNECTED_READ_DEADLINE",409,"The connected read exceeded its original operation deadline");};
-  let ordinal=0,pending=0,readCount=0,setupCount=0;
-  const before=async(phase:"setup"|"read"="read")=>{
+  let ordinal=0,pending=0,readCount=0,setupCount=0,genericCalls=0,genericEffectClaimed=false;
+  const before=async(phase:"setup"|"read"="read",attempt?:RemoteMcpAttempt)=>{
    checkDeadline();
    await transaction(this.pool,async db=>{
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[claim.execution.task.organization_id]);const current=await this.scope(db,taskId,binding);
     await assertClaim(db);
     if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
-    if(++ordinal>7||phase==="read"&&++readCount>3||phase==="setup"&&++setupCount>4)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The connected read reached its request limit");
+    if(reviewed)await this.options.genericReview!.assertApproved(db,reviewInput);
+    if(generic){
+     if(++ordinal>(binding.limits.maxPhysicalRequests??128))throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote operation reached its request limit");
+     if(attempt?.rpcMethod==="tools/call"){
+      if(++genericCalls>1)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The remote invocation cannot be repeated");
+      if(reviewed)await this.options.genericReview!.claim(db,reviewInput);
+     }
+    }else if(++ordinal>7||phase==="read"&&++readCount>3||phase==="setup"&&++setupCount>4)throw new PlatformError("CONNECTED_ATTEMPT_LIMIT",409,"The connected read reached its request limit");
     await db.query("INSERT INTO agents_platform.connected_attempts(operation_id,ordinal,phase,state) VALUES($1,$2,$3,'started')",[operationId,ordinal,phase]);pending=ordinal;
    });
+   if(attempt?.rpcMethod==="tools/call")genericEffectClaimed=true;
   };
-  const after=async(receipt:NetworkAttempt)=>{await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,pending,JSON.stringify({...receipt,attempt:pending})]);};
+  const after=async(receipt:NetworkAttempt)=>{const attempt=generic?receipt.attempt:pending;await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,attempt,JSON.stringify({...receipt,attempt})]);};
   let responseOrdinal=0;
   const capture=async(response:{body:unknown;digest:string;observedAt:string})=>{
     checkDeadline();
@@ -199,7 +222,16 @@ export class ConnectedExecutor {
   const native=()=>new GithubReadAdapter({authorization:claim.credential.authorization,...(claim.credential.connection.profileId==="public-repository-read-v1"?{authentication:"none" as const}:{}),selections:claim.credential.connection.selections,deadlineAt,signal,testLoopbackOrigin:this.options.testGithubOrigin,beforeAttempt:()=>before(),onAttempt:after,onResponse:capture,maxPhysicalRequests:binding.transport==="mcp_http"?1:3});
   try{
    let projection:Projection,full:unknown;
-   if(claim.stashResource){
+   if(claim.genericResource){
+    const observation=await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt},args,signal,{beforeAttempt:attempt=>before(attempt.phase??"read",attempt),onAttempt:after});
+    full=observation.rawResult;
+    const inline=observation.content.filter(block=>block.type==="text"&&typeof block.text==="string").map(block=>block.text).join("\n");
+    const blocks=observation.content.slice(0,16).map((block,index)=>({index,type:String(block.type).slice(0,64),digest:requestDigest(block),...(typeof block.mimeType==="string"?{mimeType:block.mimeType.slice(0,128)}:{})}));
+    const display=inline|| (observation.structuredContent!==undefined?JSON.stringify(observation.structuredContent):`The provider returned ${observation.content.length} content blocks. The complete result is in the private operation receipt.`);
+    projection={...prefix(display),resource:claim.genericResource,acquiredAt:new Date().toISOString(),digest:observation.resultDigest,isError:observation.isError,
+     handles:{contentBlocks:blocks,omittedContentBlocks:Math.max(0,observation.content.length-blocks.length),privateReceipt:true},
+     provenance:{kind:"remote_mcp_observation",protocolVersion:observation.protocolVersion,transport:observation.transport,definitionDigest:binding.definition.remote!.definitionDigest,contentBlockCount:observation.content.length,hasStructuredContent:observation.structuredContent!==undefined}};
+   }else if(claim.stashResource){
     const remoteArgs=binding.definition.providerOperation==="get_item"?{id:claim.stashResource.id}:{id:claim.stashResource.id,offset:args.offset??0};
     const tool:McpTool={name:binding.definition.providerOperation,description:binding.definition.description,inputSchema:binding.definition.inputSchema as Record<string,unknown>,...(binding.definition.outputSchema?{outputSchema:binding.definition.outputSchema as Record<string,unknown>}:{}),schemaDigest:requestDigest({inputSchema:binding.definition.inputSchema,outputSchema:binding.definition.outputSchema})};
     const observation=await callMcpTool(this.endpoint(claim.credential.authorization,deadlineAt,binding.protocolVersion!,"stash-read-v1"),tool,remoteArgs,signal,{beforeAttempt:attempt=>before(attempt.phase??"setup"),onAttempt:after});
@@ -244,7 +276,7 @@ export class ConnectedExecutor {
    const bodyDigest=textDigest(body),bodyKey=`connected/${claim.execution.task.organization_id}/${claim.execution.task.root_task_id}/${textDigest(operationId)}/${bodyDigest}`;
    await writeExecutionObject(this.pool,this.objects,{taskId,operationId,key:bodyKey,bytes:body,contentType:"application/json"});
    checkDeadline();
-   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty read result.",title:`${binding.connection?.profileId==="stash-read-v1"?"Stash":binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"?"DeepWiki":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
+   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty result.",title:`${generic?"Remote MCP":binding.connection?.profileId==="stash-read-v1"?"Stash":binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"?"DeepWiki":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
    checkDeadline();
@@ -253,15 +285,19 @@ export class ConnectedExecutor {
     const current=await this.scope(db,taskId,binding);
     if(current.credential.connection.revision!==claim.credential.connection.revision)throw new PlatformError("CONNECTION_CREDENTIAL_CHANGED",403,"Connection credentials changed during this read");
     await assertClaim(db);
-    return db.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$5 AND claim_expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest,claim.claimToken]);
+    if(reviewed)await this.options.genericReview!.assertApproved(db,reviewInput);
+    const published=await db.query("UPDATE agents_platform.connected_reads SET state='completed',result=$2,body_key=$3,body_digest=$4,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$5 AND claim_expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM agents_platform.operations p WHERE p.id=$1 AND p.state='started')",[operationId,JSON.stringify(result),bodyKey,bodyDigest,claim.claimToken]);
+    if(published.rowCount&&reviewed)await this.options.genericReview!.completed?.(db,reviewInput,projection.digest);
+    return published;
    });
    if(!published.rowCount) throw new PlatformError("CONNECTED_READ_UNCERTAIN",409,"Connected read receipt is no longer publishable");
    return result;
   }catch(error){
    const active=Number((await this.pool.query("SELECT count(*) AS count FROM agents_platform.connected_attempts WHERE operation_id=$1 AND (state='started' OR (receipt->>'status' IS NULL AND receipt->>'outcome' IN ('CANCELLED','DEADLINE','NETWORK_UNAVAILABLE')))",[operationId])).rows[0].count);
-   const unknown=!!active||error instanceof PlatformError&&["CONNECTED_READ_DEADLINE","CONNECTED_READ_UNCERTAIN"].includes(error.code);
+   const unknown=!!active||reviewed&&genericEffectClaimed||error instanceof PlatformError&&["CONNECTED_READ_DEADLINE","CONNECTED_READ_UNCERTAIN"].includes(error.code);
+   if(reviewed&&this.options.genericReview?.failed)await transaction(this.pool,db=>this.options.genericReview!.failed!(db,reviewInput,{uncertain:genericEffectClaimed}));
    const settled=await this.pool.query("UPDATE agents_platform.connected_reads SET state=CASE WHEN $2 OR claim_expires_at<=clock_timestamp() THEN 'uncertain' ELSE 'failed' END,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$4 RETURNING state",[operationId,unknown,code(error),claim.claimToken]);
-   if(unknown||!settled.rowCount||settled.rows[0]?.state==="uncertain")throw uncertain();
+   if(unknown||!settled.rowCount||settled.rows[0]?.state==="uncertain")throw generic?genericUncertain():uncertain();
    throw new PlatformError(code(error),502,"Connected read did not complete");
   }
  }

@@ -58,7 +58,10 @@ export async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionI
   if(!role||role.versionId!==versionId||!role.connectedToolBindingIds.includes(bindingId)||!connectedToolAuthorityIds(root.configuration).includes(bindingId))throw denied();
   const grant=(await db.query("SELECT connected_tool_binding_ids,operations,revoked_at FROM agents_platform.execution_grants WHERE id=$1",[root.task.grant_id])).rows[0];
   if(grant?.revoked_at)throw unavailable();
-  if(!grant?.operations.includes("connected.read")||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
+  const row=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=$2",[root.task.organization_id,bindingId])).rows[0];
+  const binding=row?capabilityBindingSchema.parse(row.binding):undefined;
+  const operation=binding?.connection?.profileId==="remote-mcp-v1"&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
+  if(!binding||!grant?.operations.includes(operation)||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
 }
 export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
   if(!child.task.parent_task_id)return;
@@ -97,15 +100,28 @@ export async function connectionEvidenceBinding(db:Db,execution:Execution,depend
   const match=rows.find(row=>row.binding.catalog.digest===dependency.catalogDigest&&row.binding.resources.some((resource:ResourceHandle)=>requestDigest(resource)===dependency.resource));
   if(!match)throw denied();return bindingAllowed(db,own.includes(match.id)?execution:delegated.get(match.id)!,match.id);
 }
-export async function bindingAllowed(db: Db, execution: Execution, bindingId: string): Promise<CapabilityBinding> {
+export async function bindingAllowed(db: Db, execution: Execution, bindingId: string, operationId?:string): Promise<CapabilityBinding> {
   const grant = (await db.query("SELECT connected_tool_binding_ids,operations,revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
   if(grant?.revoked_at)throw unavailable();
-  if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId) || !grant.operations.includes("connected.read")) throw denied();
+  if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId)) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[execution.task.organization_id,execution.task.version_id,bindingId])).rowCount) throw denied();
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
   if (!row || row.account_id !== await owner(db, execution)) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
-  if (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection?.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers") || !binding.connection) throw denied();
+  const remote=binding.connection?.profileId==="remote-mcp-v1",reviewed=remote&&binding.policy.effect==="reviewed_write";
+  if(!grant.operations.includes(reviewed?"connected.execute":"connected.read"))throw denied();
+  if (!binding.connection || (!remote && (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers")))) throw denied();
+  if(reviewed&&operationId){
+    const review=(await db.query(`SELECT p.*,r.request_digest AS operation_request_digest FROM agents_platform.tool_invocation_reviews p
+      JOIN agents_platform.connected_reads r ON r.operation_id=p.operation_id AND r.task_id=p.task_id AND r.binding_id=p.binding_id
+      WHERE p.organization_id=$1 AND p.task_id=$2 AND p.operation_id=$3 AND p.binding_id=$4 AND p.binding_digest=$5
+      AND p.connection_id=$6 AND p.connection_policy_revision=$7 AND p.state IN ('claimed','completed')
+      AND p.approved_at IS NOT NULL AND p.claimed_at IS NOT NULL FOR SHARE OF p`,
+      [execution.task.organization_id,execution.task.id,operationId,binding.id,binding.digest,binding.connection.id,binding.connection.policyRevision])).rows[0];
+    if(!review||review.reviewer_account_id!==await owner(db,execution)
+      ||review.request_digest!==requestDigest({bindingDigest:binding.digest,arguments:review.arguments})
+      ||review.operation_request_digest!==requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args:review.arguments}))throw denied();
+  }
   await assertChildConnectedAuthority(db,execution,bindingId);
   return binding;
 }

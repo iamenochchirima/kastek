@@ -90,9 +90,11 @@ describe("immutable capability publication", () => {
   });
 
   it("rejects entire oversized or duplicate discovery rather than silently selecting tools", () => {
-    expect(() => fixtures(Array.from({ length: 101 }, (_, i) => `read${i}`))).toThrow();
+    expect(() => fixtures(Array.from({ length: 501 }, (_, i) => `read${i}`))).toThrow();
     expect(() => fixtures(["read", "read"])).toThrow("Duplicate provider operation");
-    const { catalog } = fixtures(Array.from({ length: 100 }, (_, i) => `read${i}`));
+    const {catalog:base}=fixtures();
+    const {digest:baseDigest,...baseContent}=base;
+    const catalog=createCatalog({...baseContent,tools:Array.from({length:500},(_,i)=>({...base.tools[0]!,providerOperation:`read${i}`}))});
     const { digest: _, ...content } = catalog;
     expect(() => createCatalog({ ...content, tools: content.tools.map(tool => ({ ...tool, description: "x".repeat(4096) })) })).toThrow("Catalog exceeds byte limit");
     expect(() => buildPublishedBindings(Array.from({ length: 9 }, () => fixtures().binding))).toThrow("Too many");

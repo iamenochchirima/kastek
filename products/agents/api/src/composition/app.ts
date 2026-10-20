@@ -37,6 +37,8 @@ import { registerCatalogueRoutes } from "../product/catalogue/catalogue-routes";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
 import { registerRemoteConnectionRoutes } from "../product/connections/remote-connection-routes";
 import { curatedSkillCatalog } from "../capabilities/skills/curated";
+import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
+import { registerToolReviewRoutes } from "../product/connections/tool-review-routes";
 import { PlatformStore } from "../product/agents/store";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
@@ -77,9 +79,17 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const {documents:documentRuntime,sandbox}=resourceBackends(pool);
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
+  const toolReviews=new ToolReviewStore(pool);
+  const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
+    callbackUrl:`${new URL(config.AGENTS_PUBLIC_URL).origin}/api/connections/oauth/callback`,
+    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
+  }):undefined;
   const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
-  const connected = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence) : undefined;
+  const connected = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence,{
+    resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
+    genericReview:toolReviews.port(),
+  }) : undefined;
   const grantOperations=operationsForConfiguration;
   async function assertBindings(configuration: AgentConfiguration): Promise<void> {
     if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
@@ -191,10 +201,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
-  if(actionServices) registerRemoteConnectionRoutes(app,{store:new RemoteConnectionStore(pool,actionServices.connections.vault,{
-    callbackUrl:`${origin}/api/connections/oauth/callback`,
-    ...(process.env.AGENTS_MCP_CLIENT_METADATA_URL?{clientMetadataUrl:process.env.AGENTS_MCP_CLIENT_METADATA_URL}:{}),
-  }),resolveScope,accountId:async request=>(await account(request)).id});
+  if(remoteConnections) registerRemoteConnectionRoutes(app,{store:remoteConnections,resolveScope,accountId:async request=>(await account(request)).id});
+  registerToolReviewRoutes(app,{store:toolReviews,resolveTask:async request=>{
+    const scope=await resolveScope(request),task=await humanTask(request);return {...scope,taskId:task.task.id};
+  }});
   const skillPackages = new SkillPackageStore(pool);
   registerCatalogueRoutes(app, { resolveScope,
     getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
@@ -411,7 +421,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const artifacts = visibleArtifacts.filter(a=>(!task.parent_task_id||a.taskId===task.id)&&(!reviewerReports||reviewerReports.includes(a.id)))
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
-    return { actions,canControl,canDownloadArtifacts:true,task: await readableTask(task), events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
+    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);
