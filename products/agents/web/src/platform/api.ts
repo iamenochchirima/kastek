@@ -12,23 +12,24 @@ export type Configuration = {
   context?: { maxInputTokens: number; compactAtTokens: number };
   tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff")[];
   skillIds?: string[];
-  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
+  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "google-calendar-booking-v1"; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
 export type CatalogueItem = {
   id: string; revision: number | string; digest: string; kind: "builtin" | "mcp" | "native_api" | "skill";
   name: string; description: string; publisher: { id: string; name: string; verified: boolean };
-  source?: { kind: "curated" | "private"; slug?: string };
+  familyId?: string;
+  source?: { kind: "curated" | "private" | "repository"; slug?: string; repository?: string; commit?: string; path?: string };
   purposes: string[]; products: string[]; executionKinds: string[];
   requires: { connectionProfiles: string[]; permissions: string[] };
   readiness: { state: "ready" | "needs_connection" | "needs_configuration" | "unavailable"; reasons: { code: string; message: string }[] };
   added: boolean; recommended: boolean;
-  action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string; connectionId?: string };
+  action: { kind: "add" | "connect" | "configure" | "none"; connectionProfileId?: string; connectionId?: string; configurationSection?: "configuration" };
   configuration: { tools: NonNullable<Configuration["tools"]>; connectedToolBindingIds: string[]; skillIds: string[] };
 };
 export type Catalogue = { schemaVersion: 1; revision: string; agentId: string | null; entries: CatalogueItem[] };
-export type SkillPackage = { id: string; name: string; description: string; revision: number; contentDigest: string; compatibility: string | null; reviewState: "pending" | "reviewed"; createdAt: string; files: { path: string; size: number; contentDigest: string }[] };
+export type SkillPackage = { familyId?: string; state?: "enabled" | "disabled" | "removed"; generation?: number; publisher?: { id: string; name: string; verified: boolean }; source?: { kind: "curated" | "private" | "repository"; slug?: string | null; repository?: string; commit?: string; path?: string; tree?: string }; requires?: { connectionProfiles: string[]; permissions: string[]; runtimes: string[] }; id: string; name: string; description: string; revision: number; contentDigest: string; compatibility: string | null; reviewState: "pending" | "reviewed"; createdAt: string; files: { path: string; size: number; contentDigest: string }[] };
 export type CustomerOffering = { id: "faq" | "customer-service" | "booking"; name: string; available: boolean; unavailableCode?: string };
-export type Agent = { offering?: "faq" | "customer-service" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
+export type Agent = { offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
 export type Organization = { id: string; name: string; role: string };
@@ -68,7 +69,7 @@ export type TaskEvidence = { state: "available" | "unavailable"; code?: string; 
 export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; citedPassages?: CitedPassage[]; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
 export type ToolReview = { id: string; taskId: string; rootTaskId: string; operationId: string; operationName?: string; connectionName?: string; destination?: string | null; effect?: string; bindingId: string; bindingDigest: string; requestDigest: string; arguments: unknown; connectionId: string; reviewerAccountId: string; state: "pending" | "approved" | "rejected" | "claimed" | "completed" | "uncertain" | "expired" | "invalidated"; expiresAt: string };
 export type TaskDetail = { task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; eventsNextCursor?: string | null; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
-export type Task = { id: string; hasToolReviews?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type Task = { id: string; hasToolReviews?: boolean; hasBookings?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
