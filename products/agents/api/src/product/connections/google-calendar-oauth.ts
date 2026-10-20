@@ -1,25 +1,27 @@
+import {googleCalendarConnector,googleCalendarConnectorDigest} from "../../adapters/providers/connector-registry";
 import * as oidc from "openid-client";
 import { z } from "zod";
-import { PlatformError } from "../../contracts/contracts";
+import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { createBoundedFetch } from "../../infrastructure/connected-network";
 
-export const GOOGLE_CALENDAR_SCOPES=Object.freeze(["openid","email","https://www.googleapis.com/auth/calendar.calendarlist.readonly","https://www.googleapis.com/auth/calendar.events.freebusy","https://www.googleapis.com/auth/calendar.events"]);
+export const GOOGLE_CALENDAR_SCOPES=googleCalendarConnector.auth.scopes;
 export interface GoogleOAuthConfig {clientId:string;clientSecret:string;callbackUrl:string;appUrl:string}
 export interface GoogleOAuthTokens {accessToken:string;refreshToken:string;expiresAt:string;scopes:string[];subject:string;email:string}
 export interface GoogleOAuthPort {
+  readonly configurationDigest?:string;
   begin():Promise<{state:string;nonce:string;verifier:string;authorizationUrl:string}>;
   complete(query:string,attempt:{state:string;nonce:string;verifier:string}):Promise<GoogleOAuthTokens>;
   refresh(refreshToken:string,current:GoogleOAuthTokens):Promise<GoogleOAuthTokens>;
 }
 export function googleOAuthConfigFromEnvironment(env:NodeJS.ProcessEnv=process.env):GoogleOAuthConfig|undefined {
-  const {GOOGLE_CALENDAR_CLIENT_ID:clientId,GOOGLE_CALENDAR_CLIENT_SECRET:clientSecret,GOOGLE_CALENDAR_CALLBACK_URL:callbackUrl,AGENTS_PUBLIC_URL:appUrl}=env;
+  const refs=googleCalendarConnector.auth.environment,clientId=env[refs.clientId],clientSecret=env[refs.clientSecret],callbackUrl=env[refs.callbackUrl],appUrl=env.AGENTS_PUBLIC_URL;
   if(!clientId||!clientSecret||!callbackUrl||!appUrl)return;
   try {
     const callback=new URL(callbackUrl),app=new URL(appUrl);
     const localDevelopment=[undefined,"development","test"].includes(env.NODE_ENV)
       && app.protocol==="http:"&&["localhost","127.0.0.1","[::1]"].includes(app.hostname);
     if(callback.origin!==app.origin||(!localDevelopment&&(callback.protocol!=="https:"||app.protocol!=="https:")))return;
-    if(callback.pathname!=="/api/google-calendar/callback"||app.pathname!=="/")return;
+    if(callback.pathname!==googleCalendarConnector.auth.callbackPath||app.pathname!=="/")return;
     for(const value of [callbackUrl,appUrl]) {
       const url=new URL(value),authority=value.match(/^[a-z]+:\/\/([^/?#]*)/i)?.[1];
       if(url.username||url.password||authority?.includes("@")||/[?#\x00-\x20\x7f]/.test(value))return;
@@ -32,9 +34,13 @@ export function parseGoogleTokens(value:unknown):GoogleOAuthTokens {return token
 const normalizeScopes=(scopes:string[])=>[...new Set(scopes.map(scope=>scope==="https://www.googleapis.com/auth/userinfo.email"?"email":scope))];
 const fail=()=>new PlatformError("GOOGLE_AUTHORIZATION_FAILED",401,"Google authorization could not be completed");
 export class GoogleCalendarOAuth implements GoogleOAuthPort {
-  constructor(readonly config:GoogleOAuthConfig,private readonly testMetadata?:oidc.ServerMetadata) {}
+  readonly configurationDigest:string;
+  constructor(readonly config:GoogleOAuthConfig,private readonly testMetadata?:oidc.ServerMetadata) {
+    this.configurationDigest=requestDigest({connector:googleCalendarConnectorDigest,clientId:config.clientId,callbackUrl:config.callbackUrl,...(testMetadata?{testMetadata}:{})});
+  }
   private configuration():oidc.Configuration {
-    const metadata=this.testMetadata??{issuer:"https://accounts.google.com",authorization_endpoint:"https://accounts.google.com/o/oauth2/v2/auth",token_endpoint:"https://oauth2.googleapis.com/token",jwks_uri:"https://www.googleapis.com/oauth2/v3/certs",response_types_supported:["code"],subject_types_supported:["public"],id_token_signing_alg_values_supported:["RS256"]};
+    const auth=googleCalendarConnector.auth;
+    const metadata=this.testMetadata??{issuer:auth.issuer,authorization_endpoint:auth.authorizationEndpoint,token_endpoint:auth.tokenEndpoint,jwks_uri:auth.jwksUri,response_types_supported:["code"],subject_types_supported:["public"],id_token_signing_alg_values_supported:["RS256"]};
     const config=new oidc.Configuration(metadata,this.config.clientId,this.config.clientSecret);
     config.timeout=15;oidc.enableNonRepudiationChecks(config);
     if(this.testMetadata){for(const value of [metadata.issuer,metadata.authorization_endpoint,metadata.token_endpoint,metadata.jwks_uri]){const url=new URL(value!);if(url.protocol!=="http:"||!["localhost","127.0.0.1","[::1]"].includes(url.hostname))throw fail();}oidc.allowInsecureRequests(config);}

@@ -14,11 +14,12 @@ const allowed={
  observability:['contracts','infrastructure','observability'],composition:null,
 };
 export function checkAgentsModules(root){
- const files=[];const walk=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=resolve(directory,entry.name);if(entry.isDirectory())walk(path);else if(entry.name.endsWith('.ts'))files.push(path);}};walk(root);
+ const files=[];const walk=directory=>{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=resolve(directory,entry.name);if(entry.isDirectory())walk(path);else if(entry.name.endsWith('.ts')||entry.name.endsWith('.json'))files.push(path);}};walk(root);
  const graph=new Map(files.map(file=>[file,[]])),failures=[];
  for(const file of files){
   const owner=relative(root,file).split('/')[0];if(owner==='acceptance')continue;
   if(!Object.hasOwn(allowed,owner)){failures.push(`${relative(root,file)} has no module ownership rule`);continue;}
+  if(file.endsWith('.json'))continue;
   const syntax=ts.createSourceFile(file,readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true);
   const references=[];
   function visit(node){
@@ -33,7 +34,7 @@ export function checkAgentsModules(root){
   for(const reference of references){
    if(!ts.isStringLiteralLike(reference))continue;
    const specifier=reference.text;if(!specifier.startsWith('.'))continue;
-   const base=resolve(dirname(file),specifier),target=[base+'.ts',resolve(base,'index.ts')].find(path=>graph.has(path));
+   const base=resolve(dirname(file),specifier),target=[base+'.ts',resolve(base,'index.ts'),...(specifier.endsWith('.json')?[base]:[])].find(path=>graph.has(path));
    if(!target){failures.push(`${relative(root,file)} has unresolved internal reference ${specifier}`);continue;}
    const dependency=relative(root,target).split('/')[0];
    if(allowed[owner]&&!allowed[owner].includes(dependency))failures.push(`${relative(root,file)} cannot depend on ${relative(root,target)}`);

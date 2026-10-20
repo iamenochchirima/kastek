@@ -1,3 +1,4 @@
+import { googleCalendarConnector } from "../adapters/providers/connector-registry";
 import cookie from "@fastify/cookie";
 import Fastify,{ type FastifyRequest } from "fastify";
 import { createHash,randomBytes,randomUUID } from "node:crypto";
@@ -230,15 +231,16 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const skillPackages = new SkillPackageStore(pool);
   registerCatalogueRoutes(app, { resolveScope,
     getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
-    googleCalendar:{available:googleCalendar.providerStatus().available},
+    connectorReadiness:{"google-calendar":googleCalendar.providerStatus()},
     listConnections: async scope => {
       const connections=await actionServices?.connections.list(scope,true)??[];
       const rows=(await pool.query(`SELECT c.*,g.status,g.sharing FROM agents_platform.connections c JOIN agents_platform.google_calendar_connections g ON g.connection_id=c.id
         JOIN agents_platform.memberships m ON m.organization_id=c.organization_id AND m.account_id=c.account_id AND m.revoked_at IS NULL AND m.role='owner'
         WHERE c.organization_id=$1 AND c.account_id=$2 ORDER BY c.created_at DESC LIMIT 100`,[scope.organizationId,scope.accountId])).rows;
-      return [...connections,...rows.map(row=>({id:row.id,name:row.name,targetId:row.target_id,targetLabel:"Google Calendar",resource:row.resource,
-        profileId:"google-calendar-v1" as const,authentication:"bearer" as const,policyRevision:row.policy_revision,resources:[],selections:[],stashItemIds:[],revision:row.revision,
-        state:row.state==="active"&&row.status==="ready"&&row.sharing==="organization_service"?"active" as const:"revoked" as const,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()}))];
+      const eligible=new Set(rows.length?(await googleCalendar.list(scope)).filter(connection=>connection.customerDeploymentEligible).map(connection=>connection.id):[]);
+      return [...connections,...rows.map(row=>({id:row.id,name:row.name,targetId:row.target_id,targetLabel:googleCalendarConnector.name,resource:row.resource,
+        profileId:googleCalendarConnector.profileId,authentication:"bearer" as const,policyRevision:row.policy_revision,resources:[],selections:[],stashItemIds:[],revision:row.revision,
+        state:eligible.has(row.id)?"active" as const:"revoked" as const,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()}))];
     },
     listBindings: scope => connected?.catalogs.listBindings(scope) ?? Promise.resolve([]),
     permissions: async scope => ["agent.configure",...((await pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL",[scope.organizationId,scope.accountId])).rowCount?["calendar.configure"]:[])],

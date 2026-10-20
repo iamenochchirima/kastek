@@ -1,3 +1,4 @@
+import { defaultConnectorRegistry, loadConnectorRegistry } from "../src/adapters/providers/connector-registry";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 import { defaultBusinessConfiguration, PlatformError } from "../src/contracts/contracts";
@@ -18,6 +19,24 @@ const binding = { id: "binding", connection: { id: "connection", profileId: "git
 const find = (ctx: CatalogueContext, id: string) => queryCatalogue("tools", {}, ctx).entries.find(entry => entry.id === id)!;
 
 describe("curated catalogue", () => {
+  it("adds a compatible MCP integration entirely through a validated connector record",()=>{
+    const registry=loadConnectorRegistry({schemaVersion:1,connectors:[...defaultConnectorRegistry.connectors,{id:"project-docs",revision:2,name:"Project documentation",description:"Search reviewed project documentation.",profileId:"remote-mcp-v1",adapterKey:"remote-mcp",kind:"mcp",publisher:{id:"kasitek",name:"KasiTek",verified:true},auth:{kind:"none"},connectionDefaults:{endpoint:"https://docs.example.com/mcp",authentication:"none"},catalogue:{purposes:["faq"],products:["agents"],executionKinds:["business"],permissions:["agent.configure"],selection:{kind:"bindings"}}}]});
+    const ctx=context();ctx.connectorRecords=registry.connectors;
+    expect(find(ctx,"project-docs")).toMatchObject({name:"Project documentation",revision:2,recommended:true,connectorId:"project-docs",readiness:{state:"needs_connection"},action:{kind:"connect",connectionProfileId:"remote-mcp-v1"}});
+    const other={...connection,id:"other",profileId:"remote-mcp-v1",resource:"https://other.example.com/mcp"};ctx.connections=[other];ctx.bindings=[{...binding,catalog:{revision:1},connection:{id:"other",profileId:"remote-mcp-v1",policyRevision:2}} as CapabilityBinding];
+    ctx.configuration!.connectedToolBindingIds=[binding.id];expect(find(ctx,"project-docs")).toMatchObject({added:false,readiness:{state:"needs_connection"}});
+    ctx.connections=[{...other,resource:"https://docs.example.com/mcp"}];expect(find(ctx,"project-docs")).toMatchObject({added:true,configuration:{connectedToolBindingIds:[binding.id]}});
+    expect(defaultConnectorRegistry.connectors.some(record=>record.id==="project-docs")).toBe(false);
+  });
+
+  it("keeps a configured native API record separate from another provider's account",()=>{
+    const source=defaultConnectorRegistry.connectors.find(record=>record.id==="github")!;
+    const registry=loadConnectorRegistry({schemaVersion:1,connectors:[{...source,id:"project-api",profileId:"custom-api-v1",adapterKey:"native-api",apiBaseUrl:"https://api.example.com/v1"}]});
+    const ctx=context();ctx.connectorRecords=registry.connectors;ctx.connections=[{...connection,id:"api-connection",profileId:"custom-api-v1",resource:"https://other.example.com/v1"}];
+    ctx.bindings=[{...binding,catalog:{revision:1},connection:{id:"api-connection",profileId:"custom-api-v1",policyRevision:2}} as CapabilityBinding];ctx.configuration!.connectedToolBindingIds=[binding.id];
+    expect(find(ctx,"project-api")).toMatchObject({added:false,readiness:{state:"needs_connection"},configuration:{connectedToolBindingIds:[]}});
+    ctx.connections[0]={...ctx.connections[0]!,resource:"https://api.example.com/v1"};expect(find(ctx,"project-api")).toMatchObject({added:true,configuration:{connectedToolBindingIds:[binding.id]}});
+  });
   it("keeps FAQ optional services outside recommendations and does not invent providers", () => {
     const result = queryCatalogue("tools", { view: "recommended" }, context());
     expect(result.entries.map(entry => entry.id)).toEqual(["knowledge-search", "knowledge-read", "human-handoff"]);
@@ -29,7 +48,7 @@ describe("curated catalogue", () => {
   it("keeps Google availability honest and routes selected calendars to appointment rules", () => {
     const ctx=context();ctx.purpose="customer-service";
     expect(find(ctx,"google-calendar")).toMatchObject({kind:"native_api",publisher:{id:"kasitek",verified:true},readiness:{state:"unavailable",reasons:[{code:"GOOGLE_OAUTH_NOT_CONFIGURED"}]},action:{kind:"none"}});
-    ctx.googleCalendar={available:true};
+    ctx.connectorReadiness={"google-calendar":{available:true}};
     expect(find(ctx,"google-calendar")).toMatchObject({readiness:{state:"needs_connection"},action:{kind:"connect",connectionProfileId:"google-calendar-v1"},recommended:true,added:false});
     ctx.connections=[{...connection,id:"calendar-connection",profileId:"google-calendar-v1"}];
     expect(find(ctx,"google-calendar")).toMatchObject({readiness:{state:"needs_configuration",reasons:[{code:"BOOKING_POLICY_REQUIRED"}]},action:{kind:"configure",configurationSection:"configuration",connectionProfileId:"google-calendar-v1",connectionId:"calendar-connection"},configuration:{tools:[],connectedToolBindingIds:[],skillIds:[]}});
@@ -38,11 +57,11 @@ describe("curated catalogue", () => {
     expect(queryCatalogue("tools",{view:"added"},ctx).entries.map(entry=>entry.id)).toEqual(["google-calendar"]);
   });
   it("requires calendar configuration permission even for an otherwise eligible agent", () => {
-    const ctx=context();ctx.purpose="customer-service";ctx.googleCalendar={available:true};ctx.permissions=["agent.configure"];
+    const ctx=context();ctx.purpose="customer-service";ctx.connectorReadiness={"google-calendar":{available:true}};ctx.permissions=["agent.configure"];
     expect(find(ctx,"google-calendar")).toMatchObject({readiness:{state:"unavailable",reasons:[{code:"PERMISSION_REQUIRED"}]},action:{kind:"none"}});
   });
   it("does not turn Google calendars into generic bindings or choose among accounts", () => {
-    const ctx=context();ctx.googleCalendar={available:true};
+    const ctx=context();ctx.connectorReadiness={"google-calendar":{available:true}};
     const selected:CatalogueConnection={...connection,id:"calendar-one",profileId:"google-calendar-v1"};
     ctx.connections=[selected,{...selected,id:"calendar-two"}];
     ctx.bindings=[{...binding,connection:{id:selected.id,profileId:"google-calendar-v1",policyRevision:selected.policyRevision}} as unknown as CapabilityBinding];
@@ -130,6 +149,13 @@ describe("curated catalogue", () => {
 });
 
 describe("catalogue routes", () => {
+  it("serves safe connector records through the same authenticated organization boundary",async()=>{
+    const app=Fastify();app.setErrorHandler((error,_request,reply)=>reply.code(error instanceof PlatformError?error.statusCode:400).send({error:"denied"}));
+    registerCatalogueRoutes(app,{resolveScope:async()=>({accountId:"account",organizationId}),getAgent:async()=>({id:agentId,offering:"faq",draft:defaultBusinessConfiguration()}),listConnections:async()=>[],listBindings:async()=>[],permissions:async()=>["agent.configure"],connectorReadiness:{"google-calendar":{available:true,reasons:[]}}});
+    const response=await app.inject({url:`/api/organizations/${organizationId}/connectors`});expect(response.statusCode).toBe(200);const calendar=response.json().connectors.find((record:{id:string})=>record.id==="google-calendar");expect(calendar).toMatchObject({name:"Google Calendar",setup:{kind:"calendar_service"},readiness:{available:true}});expect(calendar).not.toHaveProperty("auth");expect(JSON.stringify(calendar)).not.toContain("GOOGLE_CALENDAR_CLIENT_SECRET");
+    expect((await app.inject({url:`/api/organizations/${agentId}/connectors`})).statusCode).toBe(403);await app.close();
+  });
+
   it("authorizes scope and scoped agent before reading account catalogues", async () => {
     const app = Fastify(); let reads = 0;
     app.setErrorHandler((error, _request, reply) => reply.code(error instanceof PlatformError ? error.statusCode : 400).send({ error: "denied" }));
@@ -143,7 +169,7 @@ describe("catalogue routes", () => {
     await app.close();
   });
   it("uses server provider readiness and the scoped customer-service offering",async()=>{
-    const app=Fastify();registerCatalogueRoutes(app,{resolveScope:async()=>({accountId:"account",organizationId}),getAgent:async()=>({id:agentId,offering:"customer-service",draft:defaultBusinessConfiguration()}),listConnections:async()=>[{...connection,profileId:"google-calendar-v1"}],listBindings:async()=>[],permissions:async()=>["agent.configure","calendar.configure"],googleCalendar:{available:true}});
+    const app=Fastify();registerCatalogueRoutes(app,{resolveScope:async()=>({accountId:"account",organizationId}),getAgent:async()=>({id:agentId,offering:"customer-service",draft:defaultBusinessConfiguration()}),listConnections:async()=>[{...connection,profileId:"google-calendar-v1"}],listBindings:async()=>[],permissions:async()=>["agent.configure","calendar.configure"],connectorReadiness:{"google-calendar":{available:true}}});
     const response=await app.inject({url:`/api/organizations/${organizationId}/catalogue/tools?agentId=${agentId}&purpose=faq&view=recommended`});expect(response.statusCode).toBe(200);expect(response.json().entries.find((entry:{id:string})=>entry.id==="google-calendar")).toMatchObject({recommended:true,action:{kind:"configure",configurationSection:"configuration"}});await app.close();
   });
   it("derives recommendations from the actual agent rather than query override", async () => {

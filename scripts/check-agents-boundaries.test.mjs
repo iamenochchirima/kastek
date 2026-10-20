@@ -16,3 +16,9 @@ test('checks dynamic imports and requires, unresolved paths and dependency cycle
  fixture({'contracts/a.ts':'import("./missing")'},result=>assert.match(result.failures.join('\n'),/unresolved/));
  fixture({'contracts/a.ts':'import(path)'},result=>assert.match(result.failures.join('\n'),/uncheckable/));
 });
+
+test('resolves JSON data modules while preserving their ownership boundary',()=>{
+ fixture({'adapters/providers/registry.ts':'import data from "./default-connectors.json"; export {data};','adapters/providers/default-connectors.json':'{"schemaVersion":1}'},result=>assert.deepEqual(result.failures,[]));
+ fixture({'contracts/public.ts':'import data from "../product/private.json";','product/private.json':'{}'},result=>assert.match(result.failures.join('\n'),/cannot depend/));
+ fixture({'adapters/providers/registry.ts':'import data from "./missing.json";'},result=>assert.match(result.failures.join('\n'),/unresolved/));
+});

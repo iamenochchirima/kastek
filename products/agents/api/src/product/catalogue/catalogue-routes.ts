@@ -1,3 +1,4 @@
+import { defaultConnectorRegistry } from "../../adapters/providers/connector-registry";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { PlatformError, type Product } from "../../contracts/contracts";
@@ -14,10 +15,17 @@ export interface CatalogueRouteOptions {
   listSkills?(scope: ActionScope, agentId?: string): Promise<CatalogueSkill[]>;
   permissions(scope: ActionScope): Promise<readonly string[]>;
   product?: Product;
-  googleCalendar?: { available: boolean };
+  connectorReadiness?:Record<string,{available:boolean;reasons?:{code:string;message:string}[]}>;
 }
 
 export function registerCatalogueRoutes(app: FastifyInstance, options: CatalogueRouteOptions): void {
+  app.get(`/api/organizations/:organizationId/connectors`,async request=>{
+    const scope=await options.resolveScope(request),organizationId=z.uuid().parse((request.params as Record<string,string>).organizationId);
+    if(scope.organizationId!==organizationId)throw new PlatformError("ACCESS_DENIED",403,"Access denied");
+    return {connectors:defaultConnectorRegistry.connectors.map(record=>({id:record.id,name:record.name,description:record.description,profileId:record.profileId,setup:record.setup,
+      readiness:options.connectorReadiness?.[record.id]??(record.auth.kind==="oidc"?{available:false,reasons:[record.catalogue.unavailable??{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."}]}:{available:true,reasons:[]}),
+      ...(record.connectionDefaults?{connectionDefaults:record.connectionDefaults}:{})}))};
+  });
   for (const kind of ["tools", "skills"] as const) {
     app.get(`/api/organizations/:organizationId/catalogue/${kind}`, async request => {
       const scope = await options.resolveScope(request);
@@ -33,7 +41,7 @@ export function registerCatalogueRoutes(app: FastifyInstance, options: Catalogue
         options.permissions(scope),
       ]);
       return queryCatalogue(kind, query, { agentId: agent?.id, configuration: agent?.draft, purpose,
-        product: options.product ?? "agents", connections, bindings, skills, permissions, googleCalendar: options.googleCalendar });
+        product: options.product ?? "agents", connections, bindings, skills, permissions, connectorReadiness: options.connectorReadiness });
     });
   }
 }

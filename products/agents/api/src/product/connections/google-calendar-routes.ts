@@ -1,3 +1,4 @@
+import { googleCalendarConnector } from "../../adapters/providers/connector-registry";
 import type { FastifyInstance,FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { ActionScope } from "../../contracts/connections";
@@ -13,5 +14,5 @@ export function registerGoogleCalendarRoutes(app:FastifyInstance,options:{store:
  app.post(`${base}/connections/:connectionId/calendar`,async request=>({connection:await options.store.selectCalendar(await options.resolveScope(request),id(request),request.body)}));
  app.post(`${base}/connections/:connectionId/sharing`,async request=>({connection:await options.store.sharing(await options.resolveScope(request),id(request),request.body)}));
  app.post(`${base}/connections/:connectionId/disconnect`,async request=>({connection:await options.store.disconnect(await options.resolveScope(request),id(request),request.body)}));
- app.get("/api/google-calendar/callback",async(request,reply)=>{const index=request.url.indexOf("?"),query=index<0?"":request.url.slice(index);const result=await options.store.complete(await options.resolveCallbackAccount(request),query);return reply.redirect(result.redirectTo);});
+ app.get(googleCalendarConnector.auth.callbackPath,async(request,reply)=>{const index=request.url.indexOf("?"),query=index<0?"":request.url.slice(index);const result=await options.store.complete(await options.resolveCallbackAccount(request),query);return reply.redirect(result.redirectTo);});
 }
