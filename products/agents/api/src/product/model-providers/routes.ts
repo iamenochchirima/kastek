@@ -21,6 +21,9 @@ export function registerModelProviderRoutes(app: FastifyInstance, options: {
   app.get(base, async request => ({ connections: await options.store.list(await options.resolveScope(request)) }));
   app.post(base, { bodyLimit: 16384 }, async request => control(request, "connect", async scope => ({ connection: await options.store.create(scope, request.body) })));
   app.get(`${base}/:connectionId`, async request => ({ connection: await options.store.get(await options.resolveScope(request), connectionId(request)) }));
+  app.get(`${base}/:connectionId/models`, async request => options.store.cachedModels(await options.resolveScope(request), connectionId(request)));
+  app.post(`${base}/:connectionId/models/refresh`, async request => control(request, "discover", scope =>
+    options.store.refreshModels(scope, connectionId(request), revision.parse(request.body).expectedRevision)));
   app.patch(`${base}/:connectionId`, { bodyLimit: 16384 }, async request => control(request, "reconnect", async scope => ({ connection: await options.store.update(scope, connectionId(request), request.body) })));
   app.post(`${base}/:connectionId/revoke`, async request => control(request, "disconnect", async scope => ({ connection: await options.store.revoke(scope, connectionId(request), revision.parse(request.body).expectedRevision) })));
   app.delete(`${base}/:connectionId`, async request => control(request, "disconnect", async scope => ({ connection: await options.store.revoke(scope, connectionId(request), revision.parse(request.body).expectedRevision, true) })));

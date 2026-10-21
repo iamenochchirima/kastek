@@ -25,6 +25,29 @@ the exact consumer, model, role, provider definition and current revisions. It n
 an environment key as fallback. Discovery and inference verification remain separate work;
 new connections report `saved`, not verified inference.
 
+Model discovery uses each saved connection's endpoint, authentication placement and credential
+generation. Its bounded server transport pins DNS addresses, rejects private destinations and
+redirects, and rechecks current owner/connection authority before sending. Schema040 stores
+tenant/connection/generation-specific catalogue snapshots with integrity digests. Rotation
+invalidates cache selection; failed refresh does not delete a key or the previous snapshot.
+An older refresh cannot overwrite a newer observation. Native model listings that omit capacities
+or modalities retain unknown values. Curated providers require explicit model setup; partial
+pages report incomplete discovery. Listing models does not verify inference or tool use.
+
+`product/model-providers/setup-policy.ts` defines operator setup protections:
+
+| Setting | Default | Reason and enforcement |
+| --- | --- | --- |
+| Catalogue response bytes | 2 MiB | Matches the existing bounded network reader's response ceiling. |
+| Models per discovery response | 5,000 | Bounds normalization and persisted metadata; larger responses fail explicitly. |
+| Catalogue freshness | 5 minutes | Controls metadata refresh only; never extends credentials or grants. |
+| Discovery deadline | 30 seconds | Matches the existing network reader's setup deadline ceiling. |
+
+These settings are validated constructor policy, not model context/output limits. The discovery
+adapter receives explicit byte/item budgets and an injected transport; it cannot read ambient
+credentials or issue its own fetch. Cached-model reads currently require the organization owner.
+Stale snapshots remain available for display while refresh is a separate action.
+
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
 reuse `connection.lifecycle` telemetry with the bounded `model_provider` provider label.

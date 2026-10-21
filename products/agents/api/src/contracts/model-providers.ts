@@ -60,8 +60,8 @@ export const modelDescriptorSchema = z.strictObject({
   maxInputTokens: sourcedCapacity,
   maxOutputTokens: sourcedCapacity,
   capabilities: z.strictObject({ tools: sourcedCapability, reasoning: sourcedCapability, structuredOutput: sourcedCapability }),
-  inputModalities: z.array(z.enum(["text", "image", "audio", "video"])).min(1),
-  outputModalities: z.array(z.enum(["text", "image", "audio", "video"])).min(1),
+  inputModalities: z.array(z.enum(["text", "image", "audio", "video"])),
+  outputModalities: z.array(z.enum(["text", "image", "audio", "video"])),
   pricing: z.strictObject({
     currency: z.literal("USD"),
     inputMicrosPerMillionTokens: tokenCount.nullable(),

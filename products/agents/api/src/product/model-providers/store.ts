@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { builtinProviderRegistry, getProviderDefinition } from "../../adapters/models/registry";
+import { discoverProviderModels, ModelDiscoveryError, type ModelDiscoveryFetch, type ModelDiscoveryResult } from "../../adapters/models/discovery";
 import type { ActionScope } from "../../contracts/connections";
 import { canonicalJson, PlatformError, requestDigest } from "../../contracts/contracts";
 import { modelEndpointSchema, providerConnectionSchema, providerDefinitionSchema, providerUseGrantSchema,
@@ -9,7 +10,9 @@ import { modelEndpointSchema, providerConnectionSchema, providerDefinitionSchema
 import { requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
 import { ModelCredentialVault, modelApiKeySchema } from "../../infrastructure/model-credential-vault";
+import { createBoundedFetch } from "../../infrastructure/connected-network";
 import { captureConnectionAuthority } from "../../observability/connection-telemetry";
+import { defaultModelSetupPolicy, modelSetupPolicySchema, type ModelSetupPolicy } from "./setup-policy";
 
 const createInput = z.strictObject({ providerId: z.string().min(1).max(64), name: z.string().trim().min(1).max(120),
   apiKey: modelApiKeySchema, endpoint: modelEndpointSchema.optional() });
@@ -37,8 +40,12 @@ function dto(row: ConnectionRow): ProviderConnection {
 }
 
 export class ModelProviderStore {
+  private readonly setupPolicy: ModelSetupPolicy;
   constructor(readonly pool: Pool, private readonly vault: ModelCredentialVault | undefined,
-    readonly registry: readonly ProviderDefinition[] = builtinProviderRegistry) {}
+    readonly registry: readonly ProviderDefinition[] = builtinProviderRegistry,
+    private readonly setupOptions: { discoveryFetch?: ModelDiscoveryFetch; policy?: ModelSetupPolicy } = {}) {
+    this.setupPolicy = modelSetupPolicySchema.parse(setupOptions.policy ?? defaultModelSetupPolicy);
+  }
 
   private requireVault(): ModelCredentialVault {
     if (!this.vault) throw new PlatformError("MODEL_VAULT_UNAVAILABLE", 503, "Model credential storage is unavailable");
@@ -122,6 +129,71 @@ export class ModelProviderStore {
         VALUES($1,$2,$3,$4,$5,$6)`, [result.id, result.organizationId, result.connectionId, result.consumer, JSON.stringify(result.roles), JSON.stringify(result.modelIds)]);
       return result;
     });
+  }
+
+  async cachedModels(scope: ActionScope, id: string): Promise<{
+    result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
+  }> {
+    return transaction(this.pool, async db => {
+      await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (connection.state !== "active") throw changed();
+      const cache = (await db.query(`SELECT snapshot,snapshot_digest,fetched_at FROM agents_platform.model_provider_catalogues
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
+      [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
+      if (cache && requestDigest(cache.snapshot) !== cache.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
+      return { result: cache?.snapshot ?? null, fetchedAt: cache ? cache.fetched_at.toISOString() : null,
+        stale: !cache || Date.now() - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs,
+        connectionRevision: connection.revision, credentialRevision: connection.credential_revision };
+    });
+  }
+
+  async refreshModels(scope: ActionScope, id: string, expectedRevision: number): Promise<ModelDiscoveryResult> {
+    const prepared = await transaction(this.pool, async db => {
+      await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (connection.revision !== expectedRevision || connection.state !== "active") throw changed();
+      const credential = (await db.query(`SELECT envelope FROM agents_platform.model_provider_credentials WHERE organization_id=$1 AND connection_id=$2
+        AND revision=$3 AND endpoint=$4 AND protocol=$5 AND state='active' FOR SHARE`,
+      [scope.organizationId, id, connection.credential_revision, connection.endpoint, connection.protocol])).rows[0];
+      if (!credential) throw changed();
+      const apiKey = this.requireVault().open({ organizationId: scope.organizationId, connectionId: id,
+        credentialRevision: connection.credential_revision, endpoint: connection.endpoint, protocol: connection.protocol }, credential.envelope);
+      return { connection, apiKey, definition: providerDefinitionSchema.parse(connection.definition) };
+    });
+    const reauthorize = () => transaction(this.pool, async db => {
+      await owner(db, scope); const current = await this.row(db, scope, id);
+      if (current.state !== "active" || current.revision !== expectedRevision || current.credential_revision !== prepared.connection.credential_revision) throw changed();
+    });
+    // Secrets remain in this API process. They are not part of the cached snapshot or a durable step result.
+    const network: ModelDiscoveryFetch = this.setupOptions.discoveryFetch ?? (async request => {
+      const destination = new URL(request.url);
+      const bounded = createBoundedFetch({ authorizeUrl: url => url.href === destination.href,
+        headers: { ...request.headers }, maxRequestBytes: 1, maxResponseBytes: request.maxResponseBytes,
+        maxRequests: 1, maxAttempts: 1, deadlineAt: Date.now() + this.setupPolicy.discoveryDeadlineMs,
+        returnAuthenticationResponses: true, returnProviderErrorResponses: true, beforeAttempt: reauthorize });
+      const response = await bounded(request.url, { method: request.method, redirect: "error" });
+      return { status: response.status, body: await response.text() };
+    });
+    await reauthorize();
+    let result: ModelDiscoveryResult;
+    try {
+      result = await discoverProviderModels(prepared.definition, { apiKey: prepared.apiKey, endpoint: prepared.connection.endpoint,
+        fetch: network, observedAt: new Date().toISOString(), maxResponseBytes: this.setupPolicy.maxCatalogueBytes, maxModels: this.setupPolicy.maxCatalogueModels });
+    } catch (error) {
+      if (!(error instanceof ModelDiscoveryError)) throw error;
+      throw new PlatformError(`MODEL_DISCOVERY_${error.code.toUpperCase()}`, 502, "Could not refresh provider models");
+    }
+    await transaction(this.pool, async db => {
+      await owner(db, scope); const current = await this.row(db, scope, id, true);
+      if (current.state !== "active" || current.revision !== expectedRevision || current.credential_revision !== prepared.connection.credential_revision) throw changed();
+      await db.query(`INSERT INTO agents_platform.model_provider_catalogues AS cache(organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest,fetched_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(organization_id,connection_id,connection_revision,credential_revision)
+        DO UPDATE SET snapshot=excluded.snapshot,snapshot_digest=excluded.snapshot_digest,fetched_at=excluded.fetched_at
+        WHERE excluded.fetched_at>=cache.fetched_at`,
+      [scope.organizationId, id, current.revision, current.credential_revision, result, requestDigest(result), result.observedAt]);
+      if (result.kind === "discovered") await db.query(`UPDATE agents_platform.model_provider_connections SET
+        verification=CASE WHEN verification='saved' THEN 'discovered' ELSE verification END WHERE organization_id=$1 AND id=$2`, [scope.organizationId, id]);
+    });
+    return result;
   }
 
   // Call only inside the physical dispatch transaction using the admitted consumer identity.

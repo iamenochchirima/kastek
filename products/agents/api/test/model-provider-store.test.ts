@@ -12,6 +12,8 @@ import { requestDigest } from "../src/contracts/contracts";
 import { getProviderDefinition } from "../src/adapters/models/registry";
 import type { ProviderConnection, ResolvedModelBinding } from "../src/contracts/model-providers";
 import { registerModelProviderRoutes } from "../src/product/model-providers/routes";
+import { builtinProviderRegistry } from "../src/adapters/models/registry";
+import type { ModelDiscoveryRequest } from "../src/adapters/models/discovery";
 
 const keyring = new ConnectionVault("test", { test: randomBytes(32).toString("base64") });
 const vault = new ModelCredentialVault(keyring);
@@ -130,6 +132,37 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(reconnected.state).toBe("active"); expect(reconnected.credentialRevision).toBe(2);
     const oldRoute = { ...accepted.route, connectionRevision: reconnected.revision, credentialRevision: reconnected.credentialRevision };
     await expect(transaction(pool, db => models.resolveCredential(db, oldRoute, accepted.consumer))).rejects.toMatchObject({ code: "MODEL_USE_DENIED" });
+  });
+  it("caches discovered models by tenant, connection revision and credential generation", async () => {
+    const f = await fixture(), other = await fixture();
+    const requests: ModelDiscoveryRequest[] = [];
+    const discover = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async request => {
+      requests.push(request);
+      return { status: 200, body: JSON.stringify({ data: [{ id: "lab/private-model", name: "Private", context_length: 128000,
+        top_provider: { max_completion_tokens: 8192 }, supported_parameters: ["tools"], architecture: { input_modalities: ["text"], output_modalities: ["text"] } }] }) };
+    } });
+    expect((await discover.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+    await discover.refreshModels(f.scope, f.connection.id, 1);
+    expect(requests).toHaveLength(1); expect(new Headers(requests[0]!.headers).get("authorization")).toBe("Bearer fixture-key-one");
+    const cache = await discover.cachedModels(f.scope, f.connection.id);
+    expect(cache.result?.models[0]!.id).toBe("lab/private-model"); expect(cache.stale).toBe(false);
+    expect((await discover.get(f.scope, f.connection.id)).verification).toBe("discovered");
+    await expect(discover.cachedModels(other.scope, f.connection.id)).rejects.toMatchObject({ code: "MODEL_CONNECTION_NOT_FOUND" });
+    await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "new-key" });
+    expect((await discover.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+  });
+  it("rejects discovery receipts from a stale credential and preserves a saved key after discovery failure", async () => {
+    const f = await fixture();
+    const race = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => {
+      await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "rotated-during-discovery" });
+      return { status: 200, body: JSON.stringify({ data: [{ id: "stale-model" }] }) };
+    } });
+    await expect(race.refreshModels(f.scope, f.connection.id, 1)).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
+    expect((await race.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+    const failed = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => ({ status: 401, body: "private-provider-error" }) });
+    await expect(failed.refreshModels(f.scope, f.connection.id, 2)).rejects.toMatchObject({ code: "MODEL_DISCOVERY_AUTHENTICATION_REJECTED" });
+    expect((await models.get(f.scope, f.connection.id)).state).toBe("active");
+    expect((await models.get(f.scope, f.connection.id)).verification).toBe("saved");
   });
   it("exercises HTTP key creation, listing, rotation and revocation without returning or logging keys", async () => {
     const f = await fixture(), app = Fastify({ logger: false }), logs: unknown[] = [];
