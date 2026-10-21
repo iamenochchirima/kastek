@@ -12,7 +12,9 @@ the default changes; credential revocation still blocks later physical requests.
 
 Provider-native continuation stays in private worker records. Context packing,
 compaction, delegated allocation, and root usage settlement use accepted model
-bindings. Evaluation integration, the remaining provider profiles, and live
+bindings. Evaluation trials pin the exact model route and policy; the external
+Harbor adapter verifies those pins in retained evidence. Independent purpose-suite
+acceptance across compatible routes, the remaining provider profiles, and live
 multi-provider acceptance are unfinished. Installed adapters do not establish live
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.

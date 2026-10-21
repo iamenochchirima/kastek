@@ -22,11 +22,11 @@ The implementation was checked against the installed [Harbor BaseAgent API](http
 
 Prepare a dedicated agent, approved knowledge, initial memory and controlled provider namespace through normal authorized platform APIs. Do not select an owner's active agent. Native trial preparation reserves the selected agent, rejects prior task/memory state, checks the immutable composition, and bounds total token allocation and expiry. The adapter cannot provision elevated grants or choose a model from a task instruction.
 
-Store a `kasitek-prepared-scope.v1` JSON file owned by the evaluator's OS user with mode `0600`:
+Store a `kasitek-prepared-scope.v2` JSON file owned by the evaluator's OS user with mode `0600`:
 
 ```json
 {
-  "schema_version": "kasitek-prepared-scope.v1",
+  "schema_version": "kasitek-prepared-scope.v2",
   "scope_id": "11111111-1111-4111-8111-111111111111",
   "origin": "http://127.0.0.1:4101",
   "organization_id": "22222222-2222-4222-8222-222222222222",
@@ -34,12 +34,18 @@ Store a `kasitek-prepared-scope.v1` JSON file owned by the evaluator's OS user w
   "version_id": "44444444-4444-4444-8444-444444444444",
   "composition_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "expires_at": "2099-01-01T00:00:00Z",
-  "max_tokens": 8192,
+  "model_routes_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "root_token_limit": 16384,
+  "max_tokens": 32768,
   "session_cookie_env": "KASITEK_EVALUATION_SESSION",
   "cookie_name": "agents_session",
   "isolation": "operator-provisioned-per-trial"
 }
 ```
+
+Before writing the scope, request `POST /api/organizations/:organizationId/agents/:agentId/model-preview` with `versionId` and `rootTokenLimit`. Use its `modelRoutesDigest` and `rootTokenLimit` in the scope. The preview resolves the authorized provider accounts, models and effective policies for all execution roles. Native trial preparation requires that exact digest and allocation. A later organization default change cannot silently select another account or model for the trial. An unavailable or revoked pinned account fails the trial rather than falling back.
+
+The adapter's `root_token_limit` option must equal the scope's `root_token_limit`. Both default/example allocation and option are 16384. To choose another allocation, repeat the preview and prepare a new scope with its digest, then pass `--agent-kwarg root_token_limit=VALUE`. The maximum trial allocation is 2147483647 tokens, an integer storage bound; provider limits and effective policy can impose lower limits. This does not promise provider capacity.
 
 Replace every sample ID, digest and expiry with actual isolated records. Pass the short-lived session through the named host environment variable. The cookie never appears in the scope file, trial mapping, trajectory or result metadata. HTTPS uses `__Host-agents_session`; plain HTTP is restricted to loopback.
 
@@ -57,7 +63,9 @@ Select an approved suite and a fresh dedicated scope for each trial. Do not pass
 
 ## Recovery and evidence
 
-`trial-mapping.json` persists the Harbor context identity, exact request, pinned composition, native trial/task IDs and original deadline before admission. A repeated invocation inspects the same accepted task. Transport retries preserve the request key; changing an instruction or scope requires another trial. Trial lookup resolves lost preparation acknowledgements without creating resources. Cleanup revokes the native trial before following cancellation. A request to cancel is separate from observed cancellation, and uncertain native outcomes remain unconfirmed.
+`trial-mapping.json` persists the Harbor context identity, exact request, pinned composition and model-policy digest, native trial/task IDs and original deadline before admission. A repeated invocation inspects the same accepted task. Transport retries preserve the request key; changing an instruction or scope requires another trial. Trial lookup resolves lost preparation acknowledgements without creating resources. Cleanup revokes the native trial before following cancellation. A request to cancel is separate from observed cancellation, and uncertain native outcomes remain unconfirmed.
+
+Every export must retain the prepared root model-policy digest and allocation. The adapter verifies each task's complete accepted route snapshot against its SHA-256 digest and checks model calls and compactions against that task's binding and policy. Child tasks may narrow their accepted policy. ATIF extras retain the nonsecret task routes and per-call policy for separate grading by model or purpose. Provider keys and private native continuation state remain absent.
 
 `native-export.json` retains the authorized `execution-export.v1` response. `trajectory.json` validates against installed ATIF v1.8. Exact input snapshots stay in step metadata, rather than becoming invented user turns after compaction. Tool results pair only with exact provider call IDs and native operation receipts. Children remain separate embedded trajectories linked through native delegation operations. No hidden reasoning, missing token split, response or receipt is invented. Unsupported argument mappings fail explicitly. Coverage is retained independently from native outcome and eventual grading.
 

@@ -20,7 +20,7 @@ from kasitek_harbor.persistence import persist
 
 def scope_value():
     return {
-        "schema_version": "kasitek-prepared-scope.v1",
+        "schema_version": "kasitek-prepared-scope.v2",
         "scope_id": str(uuid4()),
         "origin": "http://127.0.0.1:8099",
         "organization_id": str(uuid4()),
@@ -28,7 +28,9 @@ def scope_value():
         "version_id": str(uuid4()),
         "composition_digest": "a" * 64,
         "expires_at": "2099-01-01T00:00:00Z",
-        "max_tokens": 8192,
+        "model_routes_digest": "b" * 64,
+        "root_token_limit": 16384,
+        "max_tokens": 32768,
         "isolation": "operator-provisioned-per-trial",
     }
 
@@ -157,7 +159,7 @@ class ScriptedTurnTests(unittest.TestCase):
             agent = KasitekAgent(
                 logs_dir=root / "logs",
                 scope_path=str(scope_path),
-                root_token_limit=2048,
+                root_token_limit=16384,
                 follow_ups=[{"id": "confirm", "instruction": "Same literal question"}],
             )
             agent.context_id = uuid4()
@@ -172,7 +174,7 @@ class ScriptedTurnTests(unittest.TestCase):
             recovered = KasitekAgent(
                 logs_dir=root / "logs",
                 scope_path=str(scope_path),
-                root_token_limit=2048,
+                root_token_limit=16384,
                 follow_ups=[{"id": "confirm", "instruction": "Changed instruction"}],
             )
             recovered.context_id = agent.context_id

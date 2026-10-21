@@ -14,7 +14,7 @@ import { resolveAutomationOwner } from "../lifecycle/automation-authority";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { assertComposition } from "../programs/composition";
 import { compilePublishedComposition } from "../programs/publication";
-import { assertEvaluationTrial } from "./trial-authority";
+import { assertEvaluationTrial, trialModelRoutes } from "./trial-authority";
 import { recordEvent } from "../../observability/event-store";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
@@ -84,7 +84,9 @@ export class AdmissionStore extends AuthorityStore {
       if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
       return { task: existing, replayed: true };
     }
-    const models = await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
+    await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
+      versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
+    const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection,
       layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.skillIds.length > 0 });
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
@@ -94,8 +96,6 @@ export class AdmissionStore extends AuthorityStore {
     const reservation = models.primary.policy.maxRootTokens;
     if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
-    await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
-      versionId: version.id, rootTokenLimit: reservation, conversationId: input.conversationId });
     if (input.evaluationTrialId && !(await db.query(`UPDATE agents_platform.evaluation_trials SET allocated_tokens=allocated_tokens+$2
       WHERE id=$1 AND state='active' AND expires_at>now() AND allocated_tokens+$2<=max_tokens RETURNING id`, [input.evaluationTrialId, reservation])).rowCount) {
       throw new PlatformError("EVALUATION_BUDGET_EXCEEDED", 429, "The trial allocation limit was reached");

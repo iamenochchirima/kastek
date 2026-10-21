@@ -1,6 +1,9 @@
 """Explicit synthetic schema fixtures. These are not platform acceptance evidence."""
 
+from copy import deepcopy
 from uuid import uuid4
+
+from kasitek_harbor.native import model_routes_digest
 
 
 def native_export(with_child=False):
@@ -145,4 +148,39 @@ def native_export(with_child=False):
                 ],
             }
         )
+    routes = {}
+    for role in ("primary", "compaction", "delegated"):
+        routes[role] = {
+            "binding": {
+                "organizationId": result["organizationId"],
+                "connectionId": str(uuid4()),
+                "modelId": "fixture-only",
+                "modelRevision": "fixture-v1",
+                "providerId": "fixture",
+                "protocol": "openai_chat",
+                "role": role,
+                "policyDigest": "c" * 64,
+            },
+            "policy": {"digest": "c" * 64, "maxRootTokens": 16384},
+            "definition": {"id": "fixture", "protocol": "openai_chat"},
+            "model": {
+                "id": "fixture-only",
+                "revision": "fixture-v1",
+                "providerId": "fixture",
+                "protocol": "openai_chat",
+            },
+            "consumer": {"kind": "agent", "agentId": result["agentId"]},
+        }
+    result["modelRoutes"] = routes
+    result["modelRoutesDigest"] = model_routes_digest(routes)
+    for task in result["tasks"]:
+        task_routes = deepcopy(routes)
+        if task["parentTaskId"] is not None:
+            task_routes = {role: deepcopy(routes["delegated"]) for role in routes}
+            task_routes["compaction"]["binding"]["role"] = "compaction"
+        task["modelRoutes"] = task_routes
+        task["modelRoutesDigest"] = model_routes_digest(task_routes)
+        for call in task["modelCalls"]:
+            call["modelBinding"] = deepcopy(task_routes["primary"]["binding"])
+            call["effectivePolicy"] = deepcopy(task_routes["primary"]["policy"])
     return result

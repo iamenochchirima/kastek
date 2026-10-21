@@ -152,9 +152,23 @@ Focused PostgreSQL tests cover accepted selection, default changes, revocation, 
 inheritance, and native continuation. Controlled-provider tests with actual Restate workers cover
 chat, tool rounds, compaction, and restart recovery. Responsive browser fixtures cover settings
 and model selection through background configuration saves. These checks do not prove live model
-quality or account access. Evaluation adapter integration, the eight additional provider profiles,
-qualified native counters, complete provider fault coverage, and live multi-provider acceptance
-remain separate work. No production or hosted capacity acceptance is claimed.
+quality or account access. Schema045 freezes an evaluation's accepted model routes and exact
+per-root allocation. The authenticated `POST /api/organizations/:organizationId/agents/:agentId/model-preview`
+returns the non-secret route snapshot and digest for the operator's scope. Trial preparation
+requires that digest and allocation and rejects intervening default or metadata changes. Later
+trial turns reuse the prepared snapshot, even if the organization default changes. Rotation or
+revocation invalidates its authority rather than choosing another account. Ordinary execution
+still resolves saved defaults at each new admission.
+
+The external Harbor adapter requires prepared scope v2 with `model_routes_digest` and
+`root_token_limit`. Recovery and exports must match those pins. Each exported task includes its
+accepted model snapshot and digest; model calls and compaction receipts include the exact
+binding and effective policy. Harbor verifies snapshot hashes, call-role identity and bounded
+child inheritance. ATIF keeps that provenance. Private native continuation is not exported.
+The adapter retains isolated trials, purpose-specific suites and authoritative outcome graders.
+The eight additional provider profiles, qualified native counters, complete provider fault
+coverage, independent purpose acceptance across compatible routes, and live multi-provider
+acceptance remain separate work. No production or hosted capacity acceptance is claimed.
 
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
@@ -923,7 +937,7 @@ structured stdout diagnostics.
 ### Catalogue and booking release record
 
 This record covers the earlier catalogue and booking implementation. Its V15 runtime and
-schema038 identify that change; the current provider integration uses V16 and schema044
+schema038 identify that change; the current provider integration uses V16 and schema045
 as described above. The catalogue acceptance evidence has not been rerun against every
 new provider and does not qualify the provider integration.
 

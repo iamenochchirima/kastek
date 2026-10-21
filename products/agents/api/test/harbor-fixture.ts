@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash, createHmac } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer as httpServer } from "node:http";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { join, resolve } from "node:path";
@@ -73,6 +73,8 @@ async function main() {
   await mkdir(compiled, { recursive: true, mode: 0o700 });
   execFileSync(process.execPath, [join(api, "node_modules/typescript/bin/tsc"), "-p", join(api, "tsconfig.json"), "--outDir", compiled], { cwd: root, stdio: "inherit", timeout: 60000 });
   await cp(join(api, "schema"), join(build, "schema"), { recursive: true });
+  // Native ESM imports also need a filesystem package resolution path; NODE_PATH is CommonJS only.
+  await symlink(join(api,"node_modules"),join(compiled,"node_modules"),"dir");
   // The isolated CommonJS build resolves the same pinned workspace dependencies.
   process.env.NODE_PATH = join(api, "node_modules"); require("node:module").Module._initPaths();
   const load = (path: string) => require(join(compiled, path));
@@ -87,6 +89,11 @@ async function main() {
   const { EvidenceStore } = load("execution/context/evidence.js") as typeof import("../src/execution/context/evidence");
   const { KnowledgeRuntime } = load("capabilities/knowledge/knowledge-runtime.js") as typeof import("../src/capabilities/knowledge/knowledge-runtime");
   const { createBusinessWorkflow } = load("execution/business/business.js") as typeof import("../src/execution/business/business");
+  const { ModelProviderStore } = load("product/model-providers/store.js") as typeof import("../src/product/model-providers/store");
+  const { ModelCredentialVault } = load("infrastructure/model-credential-vault.js") as typeof import("../src/infrastructure/model-credential-vault");
+  const { ConnectionVault } = load("infrastructure/vault.js") as typeof import("../src/infrastructure/vault");
+  const { builtinProviderRegistry } = load("adapters/models/registry.js") as typeof import("../src/adapters/models/registry");
+  const { dispatchBoundModel } = load("execution/models/dispatch.js") as typeof import("../src/execution/models/dispatch");
   const { startDispatcher } = load("execution/lifecycle/dispatcher.js") as typeof import("../src/execution/lifecycle/dispatcher");
   const { actionsFromEnvironment } = load("composition/actions.js") as typeof import("../src/composition/actions");
   const { TaskArtifactStore } = load("execution/artifacts/task-artifacts.js") as typeof import("../src/execution/artifacts/task-artifacts");
@@ -163,9 +170,16 @@ async function main() {
   }
   const source = await publishFixtureSource(pool, { accountId: account.id, organizationId: organization.id, title: "Opening hours", content: report ? "Research the approved audited total using search and prepare the report for review. The audited total is 42." : "What are the opening hours? Harbor fixture opens at nine.", visibility: inboxSuite ? "public" : "private" }, objects);
   if(suite==="faq-private") await publishFixtureSource(pool,{accountId:account.id,organizationId:organization.id,title:"Private launch code",content:"The confidential launch code is CONFIDENTIAL-CODE-7429.",visibility:"private"},objects);
-  const configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq"); configuration.model.model = "nvidia/nemotron-3-super-120b-a12b:free"; configuration.sourceRevisionIds = [source.id];
+  const modelVaultKey=randomBytes(32).toString("base64"),modelId="nvidia/nemotron-3-super-120b-a12b:free";
+  const modelVault=new ModelCredentialVault(new ConnectionVault("harbor-model",{"harbor-model":modelVaultKey}));
+  const modelProviders=new ModelProviderStore(pool,modelVault,builtinProviderRegistry,realModel?{}:{discoveryFetch:async()=>({status:200,body:JSON.stringify({data:[{id:modelId,name:"Controlled Harbor model",context_length:262144,top_provider:{max_completion_tokens:32768},supported_parameters:["tools"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})})});
+  const modelScope={accountId:account.id,organizationId:organization.id};
+  const modelConnection=await modelProviders.create(modelScope,{providerId:"openrouter",name:realModel?"Approved live acceptance":"Controlled Harbor provider",apiKey:modelKey!});
+  await modelProviders.refreshModels(modelScope,modelConnection.id,modelConnection.revision);
+  await modelProviders.setDefault(modelScope,{connectionId:modelConnection.id,modelId,expectedRevision:0});
+  const configuration = report || analysisSuite || connectorPurpose==="research" || connectorPurpose==="campaign-research" ? defaultBusinessConfiguration() : customerConfiguration(connectorPurpose&&connectorPurpose!=="faq"?"customer-service":"faq"); configuration.sourceRevisionIds = [source.id];
   if (delegated) {
-    const specialistConfig = defaultBusinessConfiguration(); specialistConfig.model.model = "nvidia/nemotron-3-super-120b-a12b:free"; specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
+    const specialistConfig = defaultBusinessConfiguration(); specialistConfig.sourceRevisionIds = [source.id]; specialistConfig.tools = ["knowledge.search"]; specialistConfig.instructions = "Research specialist fixture. Search the approved source and report its audited total with citations.";
     const specialist = await store.createAgent({ accountId: account.id, organizationId: organization.id, name: "Research specialist fixture", configuration: specialistConfig });
     const specialistVersion = await store.createVersion({ accountId: account.id, organizationId: organization.id, agentId: specialist.id, expectedRevision: 1 });
     configuration.tools = ["agents.delegate"]; configuration.capabilities.delegation = { enabled: true, maxChildren: 2, maxDepth: 1, bindings: [{ id: "research", versionId: specialistVersion.id, sourceRevisionIds: [source.id], connectedToolBindingIds: [], tools: ["knowledge.search"], maxTokens: 8192, maxActiveMs: 180000 }] };
@@ -235,7 +249,7 @@ async function main() {
   await ready(async () => (await fetch(`${adminUrl}/deployments`)).ok, "owned Restate");
   const evidence = new EvidenceStore(pool, objects); let providerCalls = 0;
   let rootCalls = 0, childCalls = 0;
-  const fixtureFetch: typeof fetch = async (url, request) => {
+  const legacyFixtureFetch: typeof fetch = async (url, request) => {
     const body = JSON.parse(String(request?.body)); assert.ok(body.model.endsWith(":free"));
     const messages = body.messages.map((message: { content?: string }) => message.content ?? "").join("\n");
     providerCalls++;
@@ -258,11 +272,22 @@ async function main() {
     const label = messages.match(/E[a-f0-9]{32}/)?.[0]; assert.ok(label, "Answer must receive an actual native evidence citation");
     return Response.json({ id: "deterministic-harbor-fixture", choices: [{ finish_reason: "stop", message: { role: "assistant", content: report ? `The audited total is 42. [${label}]` : `Harbor fixture opens at nine. [${label}]` } }], usage: { prompt_tokens: 100, completion_tokens: 20 } });
   };
+  // The fixture supplies native SSE; live mode retains the real provider response unchanged.
+  const fixtureFetch:typeof fetch=async(url,request)=>{
+    const result=await legacyFixtureFetch(url,request);
+    if(realModel||!result.ok)return result;
+    const parsed=await result.json(),choice=parsed.choices[0],body=JSON.parse(String(request?.body));
+    const delta={...choice.message,...(choice.message.tool_calls?{tool_calls:choice.message.tool_calls.map((call:unknown,index:number)=>({...call as object,index}))}:{})};
+    return new Response(`data: ${JSON.stringify({id:parsed.id,model:body.model,choices:[{index:0,delta,finish_reason:choice.finish_reason}],usage:parsed.usage})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
+  };
   let workerPort:number;
   if(lifecycle==="native-restart") {
-    processWorker=await prepareHarborWorker({compiled,api,directory:privateDirectory,databaseUrl:isolatedUrl.href,provider:fixtureFetch});workerPort=processWorker.port;
+    processWorker=await prepareHarborWorker({compiled,api,directory:privateDirectory,databaseUrl:isolatedUrl.href,provider:fixtureFetch,modelVaultKey});workerPort=processWorker.port;
   } else {
-  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { openRouterApiKey: modelKey, fetch: fixtureFetch, ...(analysis ? {executeSandbox:analysis.executeSandbox} : {}), ...(connector ? {connected:connector.executor} : {}), evidence, knowledgeRuntime: new KnowledgeRuntime(pool, evidence), signal: abort.signal,
+  worker = createServer(createEndpointHandler({ services: [createBusinessWorkflow(pool, { modelProvider:modelProviders,modelRuntime:{dispatch:input=>{if(realModel){providerCalls++;return dispatchBoundModel(input);}return dispatchBoundModel(input,policy=>{
+      const network=(async(url,request)=>{if(!policy.authorizeUrl(new URL(String(url))))throw Error("Fixture destination denied");await policy.beforeDispatch?.();return fixtureFetch(url,request);}) as import("../src/infrastructure/model-network").ModelFetch;
+      network.markProgress=()=>{};return network;
+    });}}, ...(analysis ? {executeSandbox:analysis.executeSandbox} : {}), ...(connector ? {connected:connector.executor} : {}), evidence, knowledgeRuntime: new KnowledgeRuntime(pool, evidence), signal: abort.signal,
     ...(reportServices ? { actions: { prepare: (...args: Parameters<typeof reportServices.actions.prepare>) => reportServices!.actions.prepare(...args), getReview: (...args: Parameters<typeof reportServices.actions.getReview>) => reportServices!.actions.getReview(...args), reconcile: (...args: Parameters<typeof reportServices.actions.reconcile>) => reportServices!.actions.reconcile(...args), execute: (...args: Parameters<typeof reportServices.actions.execute>) => reportServices!.actions.execute(...args) }, selectReportArtifact: (...args: Parameters<import("../src/execution/artifacts/task-artifacts").TaskArtifactStore["prepareReport"]>) => new TaskArtifactStore(pool!,objects).prepareReport(...args) } : {}) })] }));
   worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   await new Promise<void>(resolve => worker!.listen(0, "0.0.0.0", resolve));
@@ -285,13 +310,16 @@ async function main() {
     },100);
   }
   const preparedScope = join(privateDirectory, "scope.json");
-  const scopePaths:string[]=[];
+  const scopePaths:string[]=[],rootTokenLimit=delegated||connectorPurpose?32768:16384;
   for(let attempt=0;attempt<attempts;attempt++) {
     const repeated = attempt ? await store.createAgent({accountId:account.id,organizationId:organization.id,name:`Repeated FAQ ${attempt}`,configuration}) : agent;
     const pinned = attempt ? await store.createVersion({accountId:account.id,organizationId:organization.id,agentId:repeated.id,expectedRevision:1}) : version;
     const scopePath=attempts===1?preparedScope:join(privateDirectory,`scope-${attempt}.json`);scopePaths.push(scopePath);
-    await writeFile(scopePath, JSON.stringify({ schema_version: "kasitek-prepared-scope.v1", scope_id: randomUUID(), origin, organization_id: organization.id, agent_id: repeated.id, version_id: pinned.id,
-      session_cookie_env: "KASITEK_EVALUATION_SESSION", cookie_name: "agents_session", composition_digest: pinned.effective_composition.digest, expires_at: new Date(Date.now() + 600000).toISOString(), max_tokens: delegated ? 32000 : 16384, isolation: "operator-provisioned-per-trial" }), { mode: 0o600 });
+    const preview=await fetch(`${origin}/api/organizations/${organization.id}/agents/${repeated.id}/model-preview`,{method:"POST",headers:{origin,cookie:`agents_session=${session.token}`,"content-type":"application/json"},body:JSON.stringify({versionId:pinned.id,rootTokenLimit})});
+    assert.ok(preview.ok,`Prepared model preview status ${preview.status}: ${await preview.clone().text()}`);
+    const accepted=await preview.json() as {modelRoutesDigest:string;rootTokenLimit:number};
+    await writeFile(scopePath, JSON.stringify({ schema_version: "kasitek-prepared-scope.v2", scope_id: randomUUID(), origin, organization_id: organization.id, agent_id: repeated.id, version_id: pinned.id,
+      session_cookie_env: "KASITEK_EVALUATION_SESSION", cookie_name: "agents_session", composition_digest: pinned.effective_composition.digest, model_routes_digest:accepted.modelRoutesDigest,root_token_limit:accepted.rootTokenLimit, expires_at: new Date(Date.now() + 600000).toISOString(), max_tokens: rootTokenLimit*(followUp?2:1), isolation: "operator-provisioned-per-trial" }), { mode: 0o600 });
   }
   if(attempts>1)await writeFile(preparedScope,JSON.stringify({schema_version:"kasitek-prepared-scope-pool.v1",scope_paths:scopePaths}),{mode:0o600});
   const adapter = join(root, "products/agents/evaluation-adapters/harbor"), jobs = join(build, "jobs");
@@ -312,7 +340,7 @@ async function main() {
   const baseline={fixtureSha256,...(connectorFixtureSha256?{connectorFixtureSha256}:{}),schemaVersion:"kasitek-harbor-baseline.v1",suite,verifierScenario,harbor:"0.24.0",atif:"1.8",model:"nvidia/nemotron-3-super-120b-a12b:free",correctnessThreshold:1,entries:baselineEntries};
   const baselineDigest=createHash("sha256").update(JSON.stringify(baseline)).digest("hex");
   await writeFile(join(build,"baseline.json"),JSON.stringify({...baseline,digest:baselineDigest},null,2),{mode:0o600});
-  harbor = spawn(process.env.AGENTS_HARBOR_BINARY ?? "/home/enock/.local/share/uv/tools/harbor/bin/harbor", ["run", "--path", suitePath, "--agent", "kasitek_harbor.agent:KasitekAgent", ...(suite==="faq-paraphrase-v3"?["--verifier","kasitek_harbor.verifier:RecordedNativeVerifier"]:[]), "--agent-kwarg", `scope_path=${preparedScope}`, "--agent-kwarg", `root_token_limit=${delegated ? 16000 : 8192}`, ...(lifecycle==="cancel"?["--agent-kwarg","trial_timeout_sec=1"]:[]), ...(lifecycle==="evaluator-restart"?["--agent-kwarg",`recovery_id=${fixtureId}`]:[]), ...(deployment ? ["--agent-kwarg", `channel=${JSON.stringify({deployment_id:deployment.id,origin:"https://harbor-widget.example"})}`] : []), ...(followUp ? ["--agent-kwarg", `follow_ups=${JSON.stringify([{id:"confirm-hours",instruction:"What are the opening hours?"}])}`] : []), "--n-concurrent", "1", "--n-attempts", String(attempts), "--max-retries", "0", "--jobs-dir", jobs, "--job-name", "native-faq", "--quiet", "--yes"],
+  harbor = spawn(process.env.AGENTS_HARBOR_BINARY ?? "/home/enock/.local/share/uv/tools/harbor/bin/harbor", ["run", "--path", suitePath, "--agent", "kasitek_harbor.agent:KasitekAgent", ...(suite==="faq-paraphrase-v3"?["--verifier","kasitek_harbor.verifier:RecordedNativeVerifier"]:[]), "--agent-kwarg", `scope_path=${preparedScope}`, "--agent-kwarg", `root_token_limit=${rootTokenLimit}`, ...(lifecycle==="cancel"?["--agent-kwarg","trial_timeout_sec=1"]:[]), ...(lifecycle==="evaluator-restart"?["--agent-kwarg",`recovery_id=${fixtureId}`]:[]), ...(deployment ? ["--agent-kwarg", `channel=${JSON.stringify({deployment_id:deployment.id,origin:"https://harbor-widget.example"})}`] : []), ...(followUp ? ["--agent-kwarg", `follow_ups=${JSON.stringify([{id:"confirm-hours",instruction:"What are the opening hours?"}])}`] : []), "--n-concurrent", "1", "--n-attempts", String(attempts), "--max-retries", "0", "--jobs-dir", jobs, "--job-name", "native-faq", "--quiet", "--yes"],
     { cwd: root, stdio: "inherit", env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG, DOCKER_HOST: process.env.DOCKER_HOST, PYTHONPATH: join(adapter, "src"), KASITEK_EVALUATION_SESSION: session.token, KASITEK_VERIFIER_RECEIVER_URL: verifierOrigin, KASITEK_VERIFIER_READ_KEY: verifierKey, ...analysis?.verifierEnvironment,...connector?.verifierEnvironment } });
   if(lifecycle==="evaluator-restart") {
     const checkpoint=preparedScope+`.recovery-${fixtureId}.json`;

@@ -938,6 +938,12 @@ replies and approved public knowledge. Rich product tools and private record map
 unavailable through that adapter; it does not manufacture Agents membership.
 
 The external Harbor adapter submits isolated pinned trials through normal native interfaces.
+Trial preparation pins provider accounts, model and adapter revisions, metadata, effective policy
+and per-root allowance, in addition to the immutable agent configuration. The operator previews
+and approves the exact model snapshot digest before preparation. Later default changes do not
+retarget a trial. Current credential revocation still fences each physical request. Non-secret
+model bindings and policy accompany native exports and ATIF evidence; private continuation does
+not. Harbor verifies every task snapshot, call role and bounded child inheritance.
 Controlled acceptance covers FAQ, ordered follow-ups, customer Inbox ownership, specialist research,
 real isolated analysis, reviewed reports and uncertain delivery reconciliation. Native outcomes,
 coverage and verifier/quality results remain separate. Unsupported or withheld evidence cannot

@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {publishFixtureSource} from "./knowledge-fixture";
 import * as artifactModule from "../src/infrastructure/object-store";
 import { randomUUID } from "node:crypto";
@@ -59,6 +60,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const cookie = `agents_session=${session.token}`;
     const organization = await request("/api/organizations", { method: "POST", cookie, origin: browserOrigin, payload: { name: "Example" } });
     expect(organization.status).toBe(201);
+    await connectFixtureModel(pool, account.id, organization.body.organization.id);
     return { account, cookie, org: organization.body.organization.id as string };
   }
   async function readyAgent(visibility: "public" | "private" = "public") {
@@ -110,8 +112,10 @@ suite("Agents HTTP and PostgreSQL integration", () => {
 
   it("isolates evaluation scopes, recovers lost acknowledgements and fences revoked trials", async () => {
     const f = await readyAgent(), trialId = randomUUID();
-    const prepare = { trialId, agentId: f.agent.id, versionId: f.version.id, expectedCompositionDigest: f.version.effectiveComposition.digest,
-      maxTokens: 8192, expiresAt: new Date(Date.now() + 600_000).toISOString() };
+    const preview = await request(`${f.base}/agents/${f.agent.id}/model-preview`, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: { versionId: f.version.id, rootTokenLimit: 16384 } });
+    expect(preview.status).toBe(200);
+    const prepare = { expectedModelRoutesDigest: preview.body.modelRoutesDigest, rootTokenLimit: 16384, trialId, agentId: f.agent.id, versionId: f.version.id, expectedCompositionDigest: f.version.effectiveComposition.digest,
+      maxTokens: 32768, expiresAt: new Date(Date.now() + 600_000).toISOString() };
     const mismatch = await request(`${f.base}/evaluation-trials`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
       payload: { ...prepare, expectedCompositionDigest: "0".repeat(64) } });
     expect(mismatch.status).toBe(409);
@@ -124,12 +128,12 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     const normal = await request(`${f.base}/tasks`, { method: "POST", cookie: f.cookie, origin: browserOrigin,
       payload: { versionId: f.version.id, input: "Bypass trial", requestKey: "ordinary" } });
     expect(normal.status).toBe(403); expect(normal.body.error.code).toBe("EVALUATION_SCOPE_REQUIRED");
-    const payload = { versionId: f.version.id, input: "Hello", requestKey: "trial-root", evaluationTrialId: first.body.trial.id, evaluationRootTokenLimit: 4096 };
+    const payload = { versionId: f.version.id, input: "Hello", requestKey: "trial-root", evaluationTrialId: first.body.trial.id, evaluationRootTokenLimit: 16384 };
     const accepted = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload });
     expect(accepted.status).toBe(202);
     const duplicate = await request(first.body.submitPath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload });
     expect(duplicate.body.task.id).toBe(accepted.body.task.id);
-    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1", [first.body.trial.id])).rows[0].allocated_tokens).toBe(4096);
+    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1", [first.body.trial.id])).rows[0].allocated_tokens).toBe(16384);
     const roots = await request(`${f.base}/evaluation-trials/${first.body.trial.id}`, { cookie: f.cookie });
     expect(roots.body.rootTaskIds).toEqual([accepted.body.task.id]);
     const revoked = await request(first.body.revokePath, { method: "POST", cookie: f.cookie, origin: browserOrigin, payload: {} });
@@ -141,7 +145,8 @@ suite("Agents HTTP and PostgreSQL integration", () => {
 
   it("binds evaluation visitors server-side and exposes channel evidence only to the trial owner",async()=>{
     const f=await readyAgent(),deployed=await publish(f);expect(deployed.status).toBe(201);
-    const prepared=await request(`${f.base}/evaluation-trials`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{trialId:randomUUID(),agentId:f.agent.id,versionId:f.version.id,expectedCompositionDigest:f.version.effectiveComposition.digest,maxTokens:16384,expiresAt:new Date(Date.now()+600000).toISOString()}});
+    const preview=await request(`${f.base}/agents/${f.agent.id}/model-preview`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{versionId:f.version.id,rootTokenLimit:16384}});
+    const prepared=await request(`${f.base}/evaluation-trials`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{expectedModelRoutesDigest:preview.body.modelRoutesDigest,rootTokenLimit:16384,trialId:randomUUID(),agentId:f.agent.id,versionId:f.version.id,expectedCompositionDigest:f.version.effectiveComposition.digest,maxTokens:16384,expiresAt:new Date(Date.now()+600000).toISOString()}});
     expect(prepared.status).toBe(201);const path=`${f.base}/evaluation-trials/${prepared.body.trial.id}`;
     const payload={deploymentId:deployed.body.deployment.id,origin:"https://shop.example"};
     const scope=await request(`${path}/channel-session`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload});expect(scope.status).toBe(200);
@@ -160,7 +165,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request(`${path}/channel-history`,{cookie:other.cookie})).status).toBe(404);
     expect((await request(`${f.base}/tasks/${root}`,{cookie:other.cookie})).status).toBe(404);
     expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:other.cookie})).status).toBe(403);
-    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1",[prepared.body.trial.id])).rows[0].allocated_tokens).toBe(8192);
+    expect((await pool.query("SELECT allocated_tokens FROM agents_platform.evaluation_trials WHERE id=$1",[prepared.body.trial.id])).rows[0].allocated_tokens).toBe(16384);
     expect((await request(`${path}/revoke`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{}})).status).toBe(200);
     expect((await request(`${website}/${opened.body.conversation.id}/messages`,{...visitor,method:"POST",payload:{...message,requestKey:"after-revoke"}})).status).toBe(401);
     expect((await request(`${f.base}/tasks/${root}/history-export`,{cookie:f.cookie})).status).toBe(200);

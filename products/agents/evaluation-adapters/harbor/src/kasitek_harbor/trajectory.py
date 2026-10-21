@@ -97,6 +97,8 @@ def to_atif(export: ExecutionExport) -> Trajectory:
                 "extra": {
                     "operationId": call.operationId,
                     "nativeStep": call.step,
+                    "modelBinding": call.modelBinding,
+                    "effectivePolicy": call.effectivePolicy,
                     "state": call.state,
                     "inputMessages": [
                         item.model_dump(mode="json", exclude_unset=True)
@@ -144,6 +146,8 @@ def to_atif(export: ExecutionExport) -> Trajectory:
                 "nativeAgentId": task.agentId,
                 "nativeVersionId": task.versionId,
                 "nativeComposition": task.effectiveComposition,
+                "modelRoutes": task.modelRoutes,
+                "modelRoutesDigest": task.modelRoutesDigest,
                 "nativeOutcome": task.state,
                 "parentTaskId": task.parentTaskId,
                 "parentOperationId": task.parentOperationId,
@@ -187,11 +191,13 @@ def to_atif_turns(exports: list[ExecutionExport]) -> Trajectory:
             item.agentId,
             item.versionId,
             item.effectiveComposition.digest,
+            item.modelRoutesDigest,
         ) != (
             first.organizationId,
             first.agentId,
             first.versionId,
             first.effectiveComposition.digest,
+            first.modelRoutesDigest,
         ):
             raise UnsupportedMapping(
                 "Conversation turns changed their pinned native scope"

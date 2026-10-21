@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
-import { PlatformError, type AdmissionAuthority } from "../../contracts/contracts";
+import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../../contracts/model-bindings";
+import { PlatformError, requestDigest, type AdmissionAuthority, type ExecutionGrant } from "../../contracts/contracts";
 
 /** The trial is another authority ceiling. It never replaces the normal execution grant. */
 export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
@@ -29,4 +30,29 @@ export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
     WHERE evaluation_trial_id=$1 AND conversation_id=$2`, [input.trialId, input.conversationId])).rowCount) {
     throw new PlatformError("EVALUATION_SCOPE_DENIED", 403, "Evaluation history must belong to this trial");
   }
+}
+
+/** Trial preparation freezes model metadata and policy. Dispatch still checks current credentials. */
+export async function trialModelRoutes(db: PoolClient, trialId: string, organizationId: string, grant: ExecutionGrant): Promise<AcceptedModelRoutes> {
+  const row = (await db.query("SELECT model_routes,model_routes_digest,root_token_limit FROM agents_platform.evaluation_trials WHERE id=$1 AND organization_id=$2 FOR SHARE", [trialId, organizationId])).rows[0];
+  const parsed = acceptedModelRoutesSchema.safeParse(row?.model_routes);
+  if (!parsed.success || requestDigest(parsed.data) !== row.model_routes_digest || row.root_token_limit !== grant.rootTokenLimit) {
+    throw new PlatformError("EVALUATION_MODEL_MISMATCH", 409, "The trial model scope does not match this request");
+  }
+  for (const route of Object.values(parsed.data)) {
+    const binding = route.binding;
+    if (binding.organizationId !== organizationId || requestDigest(route.definition) !== binding.providerDefinitionDigest ||
+        route.policy.maxRootTokens > grant.rootTokenLimit || route.policy.maxInputBytes > grant.maxInputBytes ||
+        route.policy.maxInputTokens > grant.maxContextTokens || route.policy.maxOutputTokens > grant.maxOutputTokens) {
+      throw new PlatformError("EVALUATION_MODEL_MISMATCH", 403, "The execution grant does not authorize the pinned model policy");
+    }
+    const current = await db.query(`SELECT 1 FROM agents_platform.model_provider_connections c
+      JOIN agents_platform.model_provider_use_grants g ON g.organization_id=c.organization_id AND g.connection_id=c.id
+      WHERE c.id=$1 AND c.organization_id=$2 AND c.state='active' AND c.revision=$3 AND c.credential_revision=$4
+        AND g.id=$5 AND g.revision=$6 AND g.state='active' AND g.consumer=$7::jsonb AND g.model_ids ? $8 AND g.roles ? $9 FOR SHARE OF c,g`,
+    [binding.connectionId, organizationId, binding.connectionRevision, binding.credentialRevision, binding.useGrantId, binding.useGrantRevision,
+      JSON.stringify(route.consumer), binding.modelId, binding.role]);
+    if (!current.rowCount) throw new PlatformError("MODEL_CONNECTION_CHANGED", 409, "The trial model authorization changed; prepare a new scope");
+  }
+  return parsed.data;
 }

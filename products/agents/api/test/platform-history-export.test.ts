@@ -1,3 +1,6 @@
+import { connectFixtureModel } from "./model-fixture";
+import { modelServiceDefaults } from "../src/execution/models/settings";
+import type { AcceptedModelRoutes } from "../src/contracts/model-bindings";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -11,11 +14,15 @@ import { EvaluationTrials } from "../src/product/evaluation/evaluation-trials";
 import { publishFixtureSource } from "./knowledge-fixture";
 
 const taskId = randomUUID();
+const exportModels = { primary: { binding: { organizationId: randomUUID(), connectionId: randomUUID(), connectionRevision: 1, credentialRevision: 1,
+ useGrantId: randomUUID(), useGrantRevision: 1, providerId: "openrouter", providerDefinitionDigest: "a".repeat(64), endpoint: "https://openrouter.ai/api/v1",
+ protocol: "openai_chat_completions", modelId: "fixture", modelRevision: "fixture-1", adapterId: "pi-ai", adapterRevision: "1", role: "primary", policyDigest: "a".repeat(64) },
+ policy: { ...modelServiceDefaults, revision: "fixture-1", digest: "a".repeat(64) } } } satisfies { primary: Pick<AcceptedModelRoutes["primary"], "binding" | "policy"> };
 const row = (id: string, changes: Partial<OperationRow> = {}): OperationRow => ({ id, task_id: taskId, kind: "model", name: "model.generate", state: "completed", request: { model: "fixture", messages: [{ role: "user", content: "question" }] }, output: { message: { role: "assistant", content: "answer" }, usage: { inputTokens: 3, outputTokens: 2 } }, error_code: null, accounted_tokens: 5, ...changes });
 describe("native model history export identity", () => {
   it("keeps exact request snapshots, response and token usage without prompt reconstruction", () => {
     const coverage = emptyExportCoverage(), input = row(`model:${taskId}:3`);
-    const [call] = exportModelCalls(taskId, [input], [], coverage);
+    const [call] = exportModelCalls(taskId, [input], [], coverage, exportModels);
     expect(call).toMatchObject({ operationId: input.id, step: 3, inputMessages: input.request.messages, outputMessage: input.output.message, usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } });
     expect(coverage.modelInputs.status).toBe("complete");
   });
@@ -25,7 +32,7 @@ describe("native model history export identity", () => {
     const tool = row(child.delegation_operation_id, { kind: "delegation", name: "agents.delegate", request: { tool: "agents.delegate", arguments: "{}" }, output: { accepted: [child.id] } });
     const actualObservation = { children: [{ id: child.id, output: "child answer" }] };
     const next = row(`model:${taskId}:1`, { request: { model: "fixture", messages: [model.output.message, { role: "tool", tool_call_id: "provider-id", content: JSON.stringify(actualObservation) }] } });
-    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool, next], [child], coverage);
+    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool, next], [child], coverage, exportModels);
     expect(call!.toolResults).toEqual([{ toolCallId: "provider-id", operationId: tool.id, name: "agents_delegate", state: "completed", content: JSON.stringify(actualObservation), observedByOperationId: next.id, nativeOutput: tool.output, errorCode: null, childTaskIds: [child.id] }]);
     expect(call!.usage).toBeNull();
     expect(coverage.toolResults.status).toBe("complete");
@@ -33,18 +40,18 @@ describe("native model history export identity", () => {
   it("retains receipts separately when a result was never consumed by another model call", () => {
     const model = row(`model:${taskId}:0`, { output: { message: { role: "assistant", content: null, tool_calls: [{ id: "provider-id", type: "function", function: { name: "knowledge_search", arguments: "{}" } }] } } });
     const tool = row(`tool:${taskId}:0:0`, { kind: "tool", name: "knowledge.search", request: { tool: "knowledge.search", arguments: "{}" }, output: { text: "native receipt" } });
-    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool], [], coverage);
+    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool], [], coverage, exportModels);
     expect(call!.toolResults[0]).toMatchObject({ content: null, observedByOperationId: null, nativeOutput: tool.output });
     expect(coverage.toolResults.status).toBe("partial");
   });
   it("refuses guessed aliases or mismatched saved arguments even if an index exists", () => {
     const model = row(`model:${taskId}:0`, { output: { message: { role: "assistant", content: null, tool_calls: [{ id: "provider-id", type: "function", function: { name: "guessed_alias", arguments: "{}" } }] } } });
     const tool = row(`tool:${taskId}:0:0`, { kind: "tool", name: "knowledge.search", request: { tool: "knowledge.search", arguments: "{}" }, output: { text: "private" } });
-    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool], [], coverage);
+    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [model, tool], [], coverage, exportModels);
     expect(call!.toolResults).toEqual([]); expect(coverage.toolResults.status).toBe("partial");
   });
   it("preserves unknown split usage and missing response instead of inventing an assistant step", () => {
-    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [row(`model:${taskId}:0`, { state: "uncertain", output: null, accounted_tokens: 900 })], [], coverage);
+    const coverage = emptyExportCoverage(), [call] = exportModelCalls(taskId, [row(`model:${taskId}:0`, { state: "uncertain", output: null, accounted_tokens: 900 })], [], coverage, exportModels);
     expect(call!.outputMessage).toBeNull(); expect(call!.usage).toBeNull();
     expect(coverage.modelOutputs.status).toBe("partial"); expect(coverage.toolCalls.status).toBe("partial");
   });
@@ -63,13 +70,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const account = await store.ensureAccount({ issuer: "http://localhost/fixture", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Export fixture");
+    await connectFixtureModel(pool, account.id, org.id);
     const source = await publishFixtureSource(pool, { accountId: account.id, organizationId: org.id, title: "Private hours", content: "Secret opening hours are nine.", visibility: "private" });
     const config = defaultBusinessConfiguration(); config.sourceRevisionIds = [source.id];
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Fixture", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read"], sourceRevisionIds: config.sourceRevisionIds,
-      connectedToolBindingIds: [], maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
+      connectedToolBindingIds: [], maxContextTokens: config.context.maxInputTokens, rootTokenLimit: 32000, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Opening hours?" });
     const knowledgeId = `knowledge:${task.id}:initial`;
@@ -132,11 +140,13 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("requires explicit exact trial-operator ownership for server-bound visitor roots", async () => {
     const account = await store.ensureAccount({ issuer: "http://localhost/export-visitor", subject: randomUUID(), email: "operator@example.test", displayName: "Operator" });
     const org = await store.createOrganization(account.id, "Visitor export fixture"), configuration = defaultBusinessConfiguration();
+    await connectFixtureModel(pool, account.id, org.id);
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Visitor fixture", configuration });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const deployment = await store.publishWebsite({ accountId: account.id, organizationId: org.id, agentId: agent.id, versionId: version.id, allowedOrigins: ["https://fixture.example"] });
     const trials = new EvaluationTrials(pool);
-    const prepared = await trials.prepare(account.id, org.id, { trialId: randomUUID(), agentId: agent.id, versionId: version.id, expectedCompositionDigest: version.effective_composition.digest, maxTokens: 32000, expiresAt: new Date(Date.now() + 300000).toISOString() });
+    const preview = await trials.preview(account.id, org.id, agent.id, { versionId: version.id, rootTokenLimit: 32000 });
+    const prepared = await trials.prepare(account.id, org.id, { expectedModelRoutesDigest: preview.modelRoutesDigest, rootTokenLimit: 32000, trialId: randomUUID(), agentId: agent.id, versionId: version.id, expectedCompositionDigest: version.effective_composition.digest, maxTokens: 32000, expiresAt: new Date(Date.now() + 300000).toISOString() });
     await trials.channelSession(account.id, org.id, prepared.id, { deploymentId: deployment.id, origin: "https://fixture.example" }, "fixture-only-channel-signing-key");
     const binding = (await pool.query("SELECT session_id FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1", [prepared.id])).rows[0];
     const grant = await store.createWebsiteGrant({ deploymentId: deployment.id, origin: "https://fixture.example", sessionId: binding.session_id });

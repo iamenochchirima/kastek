@@ -394,6 +394,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       if (!allowed.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Execution history is unavailable");
     });
   });
+  app.post(`${base}/agents/:agentId/model-preview`, async request => evaluationTrials.preview(
+    (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId), request.body));
   app.post(`${base}/evaluation-trials`, async (request, reply) => {
     const org = organizationId(request), user = await account(request);
     const trial = await evaluationTrials.prepare(user.id, org, prepareTrialSchema.parse(request.body));
@@ -467,11 +469,12 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const trial = input.evaluationTrialId ? (await evaluationTrials.get(user.id, org, { id: input.evaluationTrialId })).trial : null;
     if (input.evaluationTrialId && !trial) throw new PlatformError("EVALUATION_TRIAL_INACTIVE", 403, "Trial not found");
     if (input.evaluationRootTokenLimit && !trial) throw new PlatformError("EVALUATION_SCOPE_REQUIRED", 403, "A trial is required for this allocation");
+    if (trial && input.evaluationRootTokenLimit !== undefined && input.evaluationRootTokenLimit !== trial.rootTokenLimit) throw new PlatformError("EVALUATION_MODEL_MISMATCH", 409, "Use the trial's pinned root allocation");
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
       maxContextTokens: version.configuration.context.maxInputTokens,
-      ...(trial ? { rootTokenLimit: input.evaluationRootTokenLimit ?? Math.min(8192, trial.maxTokens) } : {}),
+      ...(trial ? { rootTokenLimit: trial.rootTokenLimit } : {}),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
     const result = await store.admitTask({ ...input, versionId: version.id, authority, grantId: grant.id });

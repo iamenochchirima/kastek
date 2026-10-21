@@ -87,6 +87,9 @@ class ContractFixture:
                         "agentId": fixture.export["agentId"],
                         "versionId": fixture.export["versionId"],
                         "compositionDigest": "a" * 64,
+                        "modelRoutesDigest": body["expectedModelRoutesDigest"],
+                        "rootTokenLimit": body["rootTokenLimit"],
+                        "maxTokens": body["maxTokens"],
                         "expiresAt": body["expiresAt"],
                         "state": "active",
                     }
@@ -166,7 +169,7 @@ class ContractFixture:
         persist(
             path,
             {
-                "schema_version": "kasitek-prepared-scope.v1",
+                "schema_version": "kasitek-prepared-scope.v2",
                 "scope_id": str(uuid4()),
                 "origin": "http://127.0.0.1:" + str(self.server.server_port),
                 "organization_id": self.export["organizationId"],
@@ -176,7 +179,9 @@ class ContractFixture:
                 "expires_at": (
                     datetime.now(timezone.utc) + timedelta(minutes=10)
                 ).isoformat(),
-                "max_tokens": 8192,
+                "model_routes_digest": self.export["modelRoutesDigest"],
+                "root_token_limit": 16384,
+                "max_tokens": 32768,
                 "isolation": "operator-provisioned-per-trial",
             },
         )
@@ -299,7 +304,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 agent = KasitekAgent(
                     logs_dir=root / "logs",
                     scope_path=str(scope),
-                    root_token_limit=2048,
+                    root_token_limit=16384,
                     follow_ups=[
                         {"id": "followup", "instruction": "Second public question"}
                     ],

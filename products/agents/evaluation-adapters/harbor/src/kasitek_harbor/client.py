@@ -108,6 +108,12 @@ class PlatformClient:
         return version
 
     async def prepare(self, request: dict) -> dict:
+        if (
+            request.get("expectedModelRoutesDigest") != self.scope.model_routes_digest
+            or request.get("rootTokenLimit") != self.scope.root_token_limit
+            or request.get("maxTokens") != self.scope.max_tokens
+        ):
+            raise ValueError("Trial request differs from the prepared model policy")
         for attempt in range(2):
             try:
                 result = await self.request(
@@ -121,6 +127,9 @@ class PlatformClient:
                     or trial.get("agentId") != str(self.scope.agent_id)
                     or trial.get("versionId") != str(self.scope.version_id)
                     or trial.get("compositionDigest") != self.scope.composition_digest
+                    or trial.get("modelRoutesDigest") != self.scope.model_routes_digest
+                    or trial.get("rootTokenLimit") != self.scope.root_token_limit
+                    or trial.get("maxTokens") != self.scope.max_tokens
                     or trial.get("state") != "active"
                     or result.get("submitPath") != f"{self.organization_path}/tasks"
                     or result.get("taskBinding") != {"evaluationTrialId": trial["id"]}
@@ -168,6 +177,9 @@ class PlatformClient:
                 or trial.get("agentId") != str(self.scope.agent_id)
                 or trial.get("versionId") != str(self.scope.version_id)
                 or trial.get("compositionDigest") != self.scope.composition_digest
+                or trial.get("modelRoutesDigest") != self.scope.model_routes_digest
+                or trial.get("rootTokenLimit") != self.scope.root_token_limit
+                or trial.get("maxTokens") != self.scope.max_tokens
                 or trial.get("state") not in {"active", "revoked"}
             ):
                 raise ValueError("Native trial lookup differs from the prepared scope")
@@ -247,6 +259,9 @@ class PlatformClient:
             or export.agentId != str(self.scope.agent_id)
             or export.versionId != str(self.scope.version_id)
             or export.effectiveComposition.digest != self.scope.composition_digest
+            or export.modelRoutesDigest != self.scope.model_routes_digest
+            or export.modelRoutes["primary"]["policy"]["maxRootTokens"]
+            != self.scope.root_token_limit
         ):
             raise ValueError("Authorized export differs from the persisted trial scope")
         return raw, export

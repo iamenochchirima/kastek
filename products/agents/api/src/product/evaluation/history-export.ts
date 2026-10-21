@@ -1,11 +1,14 @@
 import type { Pool, PoolClient } from "pg";
 import { builtinToolName } from "../../capabilities/tool-definitions";
-import { canonicalJson, PlatformError } from "../../contracts/contracts";
+import { canonicalJson, PlatformError, requestDigest } from "../../contracts/contracts";
 import { observationSchema } from "../../contracts/observations";
 import { effectiveCompositionSchema } from "../../contracts/programs";
 import type { HarnessMessage, ToolDefinition } from "../../execution/business/model";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { assertExportArtifact, exportReportEffects, withheldDependency } from "./history-policy";
+import { loadTaskModelRoutes } from "../../execution/models/persistence";
+import type { AcceptedModelRoutes } from "../../contracts/model-bindings";
+import type { ResolvedModelBinding, EffectiveExecutionPolicy } from "../../contracts/model-providers";
 import { transaction } from "../../infrastructure/database";
 
 export interface CoveragePart { status: "complete" | "partial" | "unavailable"; omissions: string[] }
@@ -15,20 +18,20 @@ export interface NativeToolResult {
   childTaskIds: string[]; observedByOperationId: string | null; nativeOutput: unknown; errorCode: string | null;
 }
 export interface NativeModelCall {
-  operationId: string; step: number; model: string; state: string;
+  operationId: string; step: number; model: string; state: string; modelBinding: ResolvedModelBinding; effectivePolicy: EffectiveExecutionPolicy;
   inputMessages: HarnessMessage[]; outputMessage: HarnessMessage | null; toolDefinitions: ToolDefinition[];
   usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null } | null;
   toolResults: NativeToolResult[]; nativeRequest: unknown; nativeResponse: unknown; usageOmissions: string[];
 }
 export interface NativeTask {
   id: string; agentId: string; versionId: string; effectiveComposition: unknown; parentTaskId: string | null; parentOperationId: string | null; state: string;
-  input: string | null; output: string | null; modelCalls: NativeModelCall[];
+  input: string | null; output: string | null; modelCalls: NativeModelCall[]; modelRoutes: AcceptedModelRoutes; modelRoutesDigest: string;
   initialOperations: unknown[]; compactions: unknown[]; contextSnapshots: unknown[]; evidenceManifest: unknown; evidenceReferences: unknown[];
 }
 export interface ExecutionHistoryExport {
   schemaVersion: "execution-export.v1"; conversationId: string; rootTaskId: string; organizationId: string; agentId: string; versionId: string;
   effectiveComposition: { digest: string; programId: string; programVersion: string; runtime: string; capabilities: unknown[]; workflows: unknown[] };
-  compositionSnapshot: unknown; tasks: NativeTask[]; coverage: Coverage;
+  compositionSnapshot: unknown; modelRoutes: AcceptedModelRoutes; modelRoutesDigest: string; tasks: NativeTask[]; coverage: Coverage;
   artifacts: { id: string; taskId: string; name: string; bytes: number; downloadPath: string | null; contentDigest: string | null }[];
   observations: unknown[]; effectReceipts: unknown[];
 }
@@ -51,7 +54,7 @@ const receipt = (row: OperationRow) => ({ operationId: row.id, name: row.name, k
   request: row.request, output: row.output, errorCode: row.error_code });
 
 /** Pair only the worker's persisted model/step/index identity, never text in a later prompt. */
-export function exportModelCalls(taskId: string, operations: OperationRow[], children: { id: string; parent_task_id: string | null; delegation_operation_id: string | null }[], coverage: Coverage): NativeModelCall[] {
+export function exportModelCalls(taskId: string, operations: OperationRow[], children: { id: string; parent_task_id: string | null; delegation_operation_id: string | null }[], coverage: Coverage, models: { primary: Pick<AcceptedModelRoutes["primary"], "binding" | "policy"> }): NativeModelCall[] {
   const byId = new Map(operations.map(row => [row.id, row]));
   const calls: NativeModelCall[] = [];
   const paired = new Set<string>();
@@ -96,7 +99,7 @@ export function exportModelCalls(taskId: string, operations: OperationRow[], chi
         content: observed ? observed.content : null, observedByOperationId: observed ? next!.id : null, nativeOutput: tool.output, errorCode: tool.error_code,
         childTaskIds: children.filter(child => child.parent_task_id === taskId && child.delegation_operation_id === tool.id).map(child => child.id) });
     }
-    calls.push({ operationId: row.id, step: Number(match[1]), model: typeof request?.model === "string" ? request.model : "unavailable", state: row.state,
+    calls.push({ operationId: row.id, step: Number(match[1]), model: models.primary.binding.modelId, state: row.state, modelBinding: models.primary.binding, effectivePolicy: models.primary.policy,
       inputMessages: hasInputs ? request.messages : [], outputMessage, toolDefinitions: Array.isArray(request?.tools) ? request.tools : [],
       usage: response?.usage ? { inputTokens, outputTokens, totalTokens: inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null } : null, toolResults,
       nativeRequest: request, nativeResponse: response, usageOmissions: inputTokens === null || outputTokens === null ? ["Exact provider input/output token split is unavailable; reserved/accounted tokens are not substituted"] : [] });
@@ -132,6 +135,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
     const composition = effectiveCompositionSchema.parse(root.effective_composition), coverage = emptyExportCoverage();
     const tasks: NativeTask[] = [], visible = new Set<string>();
     for (const task of rows) {
+      const models = await loadTaskModelRoutes(db, task.id, task.organization_id);
       const snapshots = (await db.query("SELECT id,step,digest,payload,source_references,memory_scope_id,memory_generation,created_at FROM agents_platform.context_snapshots WHERE task_id=$1 ORDER BY step LIMIT 129", [task.id])).rows;
       if (snapshots.length > 128) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
       const references = (await db.query("SELECT id,operation_id,source_id,revision_id,chunk_id,content_digest,manifest,citation_label FROM agents_platform.evidence_references WHERE task_id=$1 ORDER BY id LIMIT 1025", [task.id])).rows;
@@ -156,8 +160,9 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       if (operations.length > 4096) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
       tasks.push({ id: task.id, agentId: task.agent_id, versionId: task.version_id, effectiveComposition: task.effective_composition, parentTaskId: task.parent_task_id, parentOperationId: task.delegation_operation_id ?? null, state: task.state,
         input: authorized ? task.input : null, output: authorized ? task.output : null,
-        modelCalls: exportModelCalls(task.id, operations, rows, coverage), initialOperations: operations.filter(row => !["model", "compaction"].includes(row.kind) && !row.id.startsWith("tool:")).map(receipt),
-        compactions: operations.filter(row => row.kind === "compaction").map(receipt),
+        modelRoutes: models, modelRoutesDigest: requestDigest(models),
+        modelCalls: exportModelCalls(task.id, operations, rows, coverage, models), initialOperations: operations.filter(row => !["model", "compaction"].includes(row.kind) && !row.id.startsWith("tool:")).map(receipt),
+        compactions: operations.filter(row => row.kind === "compaction").map(row => ({ ...receipt(row), modelBinding: models.compaction.binding, effectivePolicy: models.compaction.policy })),
         contextSnapshots: authorized ? snapshots.map(snapshot => ({ id: snapshot.id, step: snapshot.step, digest: snapshot.digest,
           payload: snapshot.payload, sourceReferences: snapshot.source_references, createdAt: snapshot.created_at })) : [], evidenceManifest: authorized ? manifest : null, evidenceReferences: authorized ? references : [] });
     }
@@ -194,9 +199,10 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       }
       observations.push(parsed.data);
     }
+    const rootModels = tasks.find(task => task.id === rootTaskId)!.modelRoutes;
     const result: ExecutionHistoryExport = { schemaVersion: "execution-export.v1", conversationId: root.conversation_id, rootTaskId, organizationId: root.organization_id, agentId: root.agent_id, versionId: root.version_id,
       effectiveComposition: { digest: composition.digest, programId: composition.program.id, programVersion: composition.program.version, runtime: composition.runtime.kind,
-        capabilities: composition.capabilities, workflows: composition.workflows }, compositionSnapshot: composition, tasks, coverage,
+        capabilities: composition.capabilities, workflows: composition.workflows }, compositionSnapshot: composition, modelRoutes: rootModels, modelRoutesDigest: requestDigest(rootModels), tasks, coverage,
       artifacts: artifacts.map(row => {
         const allowed = visible.has(row.task_id) && row.state === "available" && artifactEvidence.has(row.id);
         if (!allowed) omit(coverage, "artifacts", "Native artifact is unavailable or its current dependencies are withheld");

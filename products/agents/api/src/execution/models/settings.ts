@@ -50,7 +50,7 @@ export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration:
     binding: { ...inherited.binding, role, policyDigest: policy.digest } });
   return acceptedModelRoutesSchema.parse({ primary: route("delegated"), delegated: route("delegated"), compaction: route("compaction") });
 }
-export function executionModelLayers(configuration: AgentConfiguration, grant: ExecutionGrant,
+export function executionModelLayers(configuration: AgentConfiguration, grant: Pick<ExecutionGrant, "id" | "maxInputBytes" | "maxOutputTokens" | "maxContextTokens" | "rootTokenLimit">,
   environment: NodeJS.ProcessEnv = process.env): ExecutionPolicyLayer[] {
   const platform = modelServicePolicy(environment);
   return [

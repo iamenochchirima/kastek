@@ -60,6 +60,7 @@ class KasitekAgent(BaseAgent):
                 "Explicit process recovery requires one prepared trial scope"
             )
         for scope in scopes:
+            self._validate_allocation(scope)
             if (
                 self.options.root_token_limit * (1 + len(self.options.follow_ups))
                 > scope.max_tokens
@@ -71,12 +72,17 @@ class KasitekAgent(BaseAgent):
         # are uploaded to the native agent. Scoped resources are provisioned by
         # normal platform APIs before this adapter is selected.
 
+    def _validate_allocation(self, scope):
+        if self.options.root_token_limit != scope.root_token_limit:
+            raise ValueError("Root allocation differs from the prepared model policy")
+
     def _mapping(self, instruction: str):
         self._supported()
         if self.context_id is None:
             raise ValueError("Harbor must supply its durable trial context identity")
         context_id = str(self.options.recovery_id or self.context_id)
         scope = select_scope(self.options.scope_path, context_id)
+        self._validate_allocation(scope)
         if not instruction.strip() or len(instruction.encode("utf-8")) > 8000:
             raise ValueError("Expected a bounded native task instruction")
         path = (
@@ -149,6 +155,8 @@ class KasitekAgent(BaseAgent):
                     "agentId": str(scope.agent_id),
                     "versionId": str(scope.version_id),
                     "expectedCompositionDigest": scope.composition_digest,
+                    "expectedModelRoutesDigest": scope.model_routes_digest,
+                    "rootTokenLimit": scope.root_token_limit,
                     "maxTokens": scope.max_tokens,
                     "expiresAt": deadline.isoformat(),
                 },

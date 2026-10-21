@@ -62,13 +62,13 @@ class AdapterOptions(AgentOptions):
     trial_timeout_sec: float = Field(default=300, gt=0, le=3600)
     http_timeout_sec: float = Field(default=10, gt=0, le=60)
     poll_interval_sec: float = Field(default=0.5, gt=0, le=10)
-    root_token_limit: int = Field(default=8192, ge=2048, le=32000)
+    root_token_limit: int = Field(default=16384, ge=1, le=2147483647)
     cancellation_timeout_sec: float = Field(default=10, gt=0, le=60)
 
 
 class PreparedScope(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal["kasitek-prepared-scope.v1"]
+    schema_version: Literal["kasitek-prepared-scope.v2"]
     scope_id: UUID
     origin: str
     organization_id: UUID
@@ -78,8 +78,16 @@ class PreparedScope(BaseModel):
     cookie_name: Literal["agents_session", "__Host-agents_session"] = "agents_session"
     composition_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     expires_at: AwareDatetime
-    max_tokens: int = Field(ge=2048, le=32000)
+    model_routes_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    root_token_limit: int = Field(ge=1, le=2147483647)
+    max_tokens: int = Field(ge=1, le=2147483647)
     isolation: Literal["operator-provisioned-per-trial"]
+
+    @model_validator(mode="after")
+    def allocation_fits_trial(self):
+        if self.root_token_limit > self.max_tokens:
+            raise ValueError("Root allocation exceeds the prepared trial total")
+        return self
 
     @field_validator("origin")
     @classmethod
