@@ -18,7 +18,8 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
 }) {
   const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
   const [policy, setPolicy] = useState<{ routeKey: string; value: ModelPolicyPreview } | null>(null), [previewError, setPreviewError] = useState("");
-  const routeKey = JSON.stringify(configuration.model.selection), preview = policy?.routeKey === routeKey ? policy.value : null;
+  const selection = configuration.model.selection ?? { kind: "organization_default" as const };
+  const routeKey = JSON.stringify(selection), preview = policy && policy.routeKey === routeKey ? policy.value : null;
   const [checkingPolicy, setCheckingPolicy] = useState(false);
   const errorsId = useId(), configurationKey = JSON.stringify(configuration);
   useEffect(() => {
@@ -49,7 +50,6 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
       }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [organizationId, agentId]);
-  const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
   function incompatibility(choice: Choice): string | null {

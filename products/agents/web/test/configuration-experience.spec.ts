@@ -2,9 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
 const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", context: { maxInputTokens:8192, compactAtTokens:6144 }, model: { selection: { kind:"organization_default" }, maxCostMicros:null, maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
-async function fixture(page: Page, impact = false, tools = false) {
+async function fixture(page: Page, impact = false, tools = false, missingSelection = false) {
   let draft = configuration(), revision = 1;
   if (tools) Object.assign(draft, { tools: ["knowledge_search"] });
+  if (missingSelection) Reflect.deleteProperty(draft.model, "selection");
   const snapshots = [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft), createdAt: "2026-10-20T10:00:00Z" }];
   const policies: Record<string, unknown>[] = [];
   const saves: Record<string, unknown>[] = [], posts: Record<string, unknown>[] = [], deployments: Record<string, unknown>[] = [], tasks: Record<string, unknown>[] = [];
@@ -17,7 +18,7 @@ async function fixture(page: Page, impact = false, tools = false) {
     else if (path.endsWith("/model-providers")) data = {connections:[{id:"provider-a",providerId:"openai",name:"OpenAI account",state:"active"},{id:"provider-b",providerId:"anthropic",name:"Anthropic account",state:"active"}]};
     else if (/model-providers\/provider-[ab]\/models$/.test(path)) data = {stale:false,result:{kind:"discovered",models:[{id:path.includes("provider-b")?"model-b":"model-a",name:path.includes("provider-b")?"Claude fixture":"GPT fixture",lifecycle:"active",inputModalities:["text"],outputModalities:["text"],contextTokens:{value:128000},maxOutputTokens:{value:32768},capabilities:{tools:{value:true,evidence:"discovered"}}}]}};
     else if (path.endsWith("/model-policy")) {
-      policies.push(body); const cfg = body.configuration, selected = cfg.model.selection.kind === "connection" ? cfg.model.selection.modelId : "model-a";
+      policies.push(body); const cfg = body.configuration, selected = cfg.model.selection?.kind === "connection" ? cfg.model.selection.modelId : "model-a";
       data = { modelId: selected, modelRevision: "fixture-model-1", limits: { contextTokens: 128000, maxInputTokens: 65536,
         maxOutputTokens: 16384, maxCallDurationMs: 180000, maxRootTokens: 32000, safetyTokens: 1024 },
         effectivePolicy: { contextTokens: 128000, maxOutputTokens: cfg.model.maxOutputTokens, maxRootTokens: 32000 }, errors: [],
@@ -45,6 +46,22 @@ async function fixture(page: Page, impact = false, tools = false) {
   });
   return { saves, posts, tasks, snapshots, deployments, policies };
 }
+
+test("configuration without an explicit model selection renders while policy loads", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await fixture(page, false, false, true);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/model-policy", async route => { await pending; await route.fallback(); });
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await expect(page.getByRole("combobox", { name: "Agent model", exact: true })).toHaveValue(JSON.stringify({ kind: "organization_default" }));
+  await page.getByText("Model limits", { exact: true }).click();
+  await expect(page.getByText("Checking model settings…", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+  release();
+  await expect(page.getByLabel("Effective model limits", { exact: true })).toContainText("Task 32,000 tokens");
+  expect(errors).toEqual([]);
+});
 
 test("configuration applies to the next turn in an existing chat; no ordinary version controls", async ({ page }) => {
   const state = await fixture(page); await page.goto(`/app/agents/${agentId}`);
