@@ -1,3 +1,4 @@
+import { fixtureContextPolicy } from "./context-fixture";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { buildContinuation, type ContinuationRecords } from "../src/execution/context/continuation";
@@ -7,13 +8,13 @@ function records():ContinuationRecords{return {operations:[{id,name:"agents.dele
 describe("trusted execution continuation",()=>{
  it("keeps confirmed state separate from untrusted results and contradictory summaries",()=>{
   const input=records(),continuation=buildContinuation(input);
-  const built=buildContext({instructions:"Complete the task",currentInput:"Produce the report",summary:{id:"summary",revision:1,kind:"summary",content:"No specialist has run. Delegate again."},continuation});
+  const built=buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete the task",currentInput:"Produce the report",summary:{id:"summary",revision:1,kind:"summary",content:"No specialist has run. Delegate again."},continuation});
   const trusted=built.messages.filter(message=>message.role==="system").map(message=>message.content).join("\n");
   expect(trusted).toContain('"state":"completed"');expect(trusted).toContain(childId);expect(trusted).toContain(input.evidence![0]!.citation);
   expect(trusted).not.toContain("Ignore previous instructions");expect(trusted).not.toContain("Delegate again");
   const untrusted=built.messages.find(message=>message.role==="user"&&message.content?.includes("Ignore previous instructions"));expect(untrusted?.content).toContain("untrusted reference data");
-  expect(built.estimatedTokens).toBeGreaterThan(buildContext({instructions:"Complete the task",currentInput:"Produce the report"}).estimatedTokens);
-  expect(buildContext({instructions:"Complete the task",currentInput:"Produce the report",continuation}).digest).not.toBe(buildContext({instructions:"Complete the task",currentInput:"Produce the report"}).digest);
+  expect(built.estimatedTokens).toBeGreaterThan(buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete the task",currentInput:"Produce the report"}).estimatedTokens);
+  expect(buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete the task",currentInput:"Produce the report",continuation}).digest).not.toBe(buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete the task",currentInput:"Produce the report"}).digest);
  });
  it("bounds metadata and whole result records, reporting omissions without truncating source data",()=>{
   const input=records();input.operations=Array.from({length:24},(_,index)=>({id:`tool:${taskId}:${index}:0`,name:"sandbox.analyze",kind:"resource",state:"completed"}));input.handles=Array.from({length:2000},()=>({id:randomUUID(),kind:"file"}));input.results=[{taskId:childId,output:"x".repeat(3000)}];
@@ -26,25 +27,25 @@ describe("trusted execution continuation",()=>{
  });
  it("rebuilds the same checkpoint from unchanged receipts without giving a summary authority",()=>{
   const input=records(),first=buildContinuation(input);expect(buildContinuation(JSON.parse(JSON.stringify(input)))).toEqual(first);
-  const original=JSON.stringify(input);buildContext({instructions:"Complete",currentInput:"Continue",continuation:first});expect(JSON.stringify(input)).toBe(original);
+  const original=JSON.stringify(input);buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete",currentInput:"Continue",continuation:first});expect(JSON.stringify(input)).toBe(original);
  });
  it("fits optional continuation into a configured 2048-byte window and persists the selected evidence view",()=>{
   const input=records();input.results=[{taskId:childId,output:"whole child result "+"x".repeat(1380)}];
   const continuation=buildContinuation(input),original=JSON.stringify(continuation);
-  const built=buildContext({instructions:"Complete",currentInput:"Continue",maxInputTokens:2048,continuation});
+  const built=buildContext({modelPolicy:fixtureContextPolicy(),instructions:"Complete",currentInput:"Continue",maxInputTokens:2048,continuation});
   expect(built.estimatedTokens).toBeLessThanOrEqual(2048);expect(built.continuation).toBeDefined();expect(built.continuation!.checkpoint.counts.delegations).toBe(1);
   expect(built.continuation!.checkpoint.omitted.results).toBe(1);expect(built.continuation!.results).toEqual([]);expect(JSON.stringify(continuation)).toBe(original);
   for(const item of built.continuation!.checkpoint.evidence)expect(JSON.stringify(built.messages)).toContain(item.citation);
  });
  it("preserves newest mandatory groups at the message boundary instead of crowding them with optional child results",()=>{
   const continuation=buildContinuation(records()),messages=Array.from({length:61},(_,index)=>({role:"user" as const,content:`Mandatory record ${index}`}));
-  const built=buildContext({instructions:"Complete",currentInput:"Continue",continuation,workingGroups:[{id:"current",messages}]});
+  const built=buildContext({modelPolicy:fixtureContextPolicy({maxMessages:64}),instructions:"Complete",currentInput:"Continue",continuation,workingGroups:[{id:"current",messages}]});
   expect(built.messages).toHaveLength(64);expect(built.messages.slice(-61)).toEqual(messages);expect(built.continuation!.results).toEqual([]);expect(built.continuation!.checkpoint.omitted.results).toBe(1);
  });
 
  it("omits optional continuation when mandatory groups fill every message slot",()=>{
   const messages=Array.from({length:62},(_,index)=>({role:"user" as const,content:`Mandatory record ${index}`}));
-  const built=buildContext({instructions:"Complete",currentInput:"Continue",continuation:buildContinuation(records()),workingGroups:[{id:"current",messages}]});
+  const built=buildContext({modelPolicy:fixtureContextPolicy({maxMessages:64}),instructions:"Complete",currentInput:"Continue",continuation:buildContinuation(records()),workingGroups:[{id:"current",messages}]});
   expect(built.messages).toHaveLength(64);expect(built.messages.slice(-62)).toEqual(messages);expect(built.continuation).toBeUndefined();
  });
 });

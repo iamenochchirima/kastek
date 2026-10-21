@@ -31,7 +31,6 @@ type TaskOutcome
 } from "../lifecycle/execution";
 import { MemoryStore, loadSkillRevisions } from "../memory/memory";
 import {
-estimateRequestTokens,
 ModelOperationError,
 requestDigest as modelRequestDigest,
 type HarnessMessage,
@@ -471,13 +470,15 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     }
                     return {value:{generation:selected.generation,passages},tokens:0};
                   }
-                  const skillBound=name==="skills.activate"||name==="skills.read"?Math.min(resultBound,Math.max(0,config.context.maxInputTokens-snapshot.estimatedTokens-1024)):undefined;
+                  const skillBound=name==="skills.activate"||name==="skills.read"?Math.min(resultBound,Math.max(0,policy.maxInputTokens-snapshot.estimatedTokens-policy.safetyTokens)):undefined;
                   const value = await executeTool(pool, taskId, id, name, call.function.arguments,skillBound);
                   if(name==="skills.activate"||name==="skills.read") {
                     const loaded=value as SkillLoadResult,source=skillSourceMessage(skillLoadContextSource(loaded,name));
                     const existing=snapshot.messages.some(message=>message.role==="system"&&message.content===source.content);
                     const receipt:HarnessMessage={role:"tool",tool_call_id:call.id,content:JSON.stringify({skillId:loaded.skillId,revision:loaded.revision,loaded:true,evidence:loaded.evidence})};
-                    if(estimateRequestTokens({...request,messages:[...snapshot.messages,...(existing?[]:[source]),response.message,receipt]})+policy.safetyTokens>policy.maxInputTokens) {
+                    const contextPolicy = contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution));
+                    const estimate = contextPolicy.estimateRequestTokens({...request,messages:[...snapshot.messages,...(existing?[]:[source]),response.message,receipt]});
+                    if(estimate+policy.safetyTokens>policy.maxInputTokens) {
                       throw new PlatformError("SKILL_CONTEXT_LIMIT",413,"The complete skill file cannot fit the current context budget");
                     }
                   }

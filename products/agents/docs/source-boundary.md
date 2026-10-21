@@ -205,9 +205,13 @@ Accepted request and response byte caps remain independent. Estimated monetary u
 up in integer USD micros; the bigint storage ceiling is9,223,372,036,854,775,807. Unknown usage
 retains its reservation until authoritative reconciliation and never becomes zero.
 
-Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds
-and sets the current task release to `model-bindings-v6`. The worker workflow is
-`AgentsBusinessRunV16`. Database startup still checks the complete schema digest; an older local
+Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds.
+Schema049 sets the current task release to `model-bindings-v7`. The worker workflow is
+`AgentsBusinessRunV17`. Logical request and compaction digests now require an explicit accepted
+context policy. The obsolete Nemotron-only transport, blanket reasoning rejection and implicit
+context fallback have been removed. Skill loading uses the accepted input/safety allowances and
+the same counter with private continuation costs as ordinary context packing. Older task releases
+require their matching worker; this worker does not replay them using changed request digests. Database startup still checks the complete schema digest; an older local
 database is not silently upgraded by starting the application.
 
 Focused PostgreSQL tests cover accepted selection, default changes, revocation, delegated route

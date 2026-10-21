@@ -5,7 +5,7 @@ import {
 } from "../src/execution/context/context";
 import type { ModelRequest, ToolDefinition } from "../src/execution/business/model";
 
-// This synthetic test counter deliberately differs from the production Nemotron byte counter.
+// This synthetic counter differs from the logical byte estimate and native prepared-payload counters.
 const countFixtureTokens = (request: ModelRequest) => request.messages.reduce((sum, message) => sum + (message.content?.length ?? 0) + 4, 0) +
   (request.tools ? JSON.stringify(request.tools).length : 0);
 const policy = (changes: Partial<ContextModelPolicy> = {}): ContextModelPolicy => ({
@@ -26,6 +26,10 @@ const completeToolGroup = (): ContextGroup => ({ id: "working", messages: [
 ] });
 
 describe("runtime-supplied context model policy", () => {
+  it("requires an explicit policy instead of selecting an implicit model or tokenizer", () => {
+    expect(() => buildContext({ instructions: "Answer", currentInput: "Hi" } as never)).toThrow("MODEL_POLICY_REQUIRED");
+    expect(() => prepareCompaction([group("old", "Earlier"), group("recent", "Latest")], {} as never)).toThrow("MODEL_POLICY_REQUIRED");
+  });
   it("accepts independent model IDs, larger output and context capacities using the supplied counter", () => {
     const counter = vi.fn(countFixtureTokens), modelPolicy = policy({ estimateRequestTokens: counter });
     const result = buildContext({ instructions: "Answer", currentInput: "é".repeat(12000), modelPolicy });
@@ -150,7 +154,7 @@ describe("role-specific compaction context policy", () => {
     expect(() => validateCompaction(plan, options)).not.toThrow();
     expect(() => validateCompaction(plan, { ...options, modelPolicy: { ...modelPolicy, revision: "new-policy" } })).toThrow("COMPACTION_PLAN_INVALID");
     expect(() => validateCompaction(plan, { ...options, modelPolicy: { ...modelPolicy, modelId: "another/model" } })).toThrow("COMPACTION_PLAN_INVALID");
-    expect(() => validateCompaction(plan)).toThrow("MODEL_PROFILE_UNSUPPORTED");
+    expect(() => validateCompaction(plan, undefined as never)).toThrow("MODEL_POLICY_REQUIRED");
   });
 
   it("retains complete compaction groups within role-specific request/message envelopes", () => {
