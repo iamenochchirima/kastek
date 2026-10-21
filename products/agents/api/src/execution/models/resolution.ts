@@ -1,3 +1,4 @@
+import { modelToolSupport } from "../../adapters/models/model-capabilities";
 import { validateGeneration, modelControlsRevision } from "../../adapters/models/model-controls";
 import type { ModelGenerationSettings } from "../../contracts/model-generation";
 import { ProviderTransportError } from "../../contracts/model-transport";
@@ -55,12 +56,12 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   if (!model.inputModalities.includes("text") || !model.outputModalities.includes("text")) {
     throw new PlatformError("MODEL_TEXT_SUPPORT_REQUIRED", 409, "Text generation metadata is required for this model");
   }
-  if (input.requiresTools && (model.capabilities.tools.value !== true || model.capabilities.tools.source?.kind === "operator" && model.capabilities.tools.evidence !== "verified")) {
+  if (input.requiresTools && modelToolSupport(model) !== "supported") {
     const receipt = (await db.query(`SELECT verification,observed_at FROM agents_platform.model_provider_verifications
       WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4
       AND endpoint=$5 AND protocol=$6 AND model_id=$7 AND model_revision=$8`,
     [input.organizationId, connectionId, connection.revision, connection.credential_revision, connection.endpoint, connection.protocol, modelId, model.revision])).rows[0];
-    if (model.capabilities.tools.value === false || receipt?.verification !== "tools_verified") {
+    if (modelToolSupport(model, receipt?.verification) !== "supported") {
       throw new PlatformError("MODEL_TOOL_SUPPORT_REQUIRED", 409, "Test tool support for the selected model");
     }
     model.capabilities.tools = { value: true, evidence: "verified", source: { kind: "verified",

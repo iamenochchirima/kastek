@@ -2,8 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
 const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", context: { maxInputTokens:8192, compactAtTokens:6144 }, model: { selection: { kind:"organization_default" }, maxCostMicros:null, maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
-async function fixture(page: Page, impact = false) {
+async function fixture(page: Page, impact = false, tools = false) {
   let draft = configuration(), revision = 1;
+  if (tools) Object.assign(draft, { tools: ["knowledge_search"] });
   const snapshots = [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft), createdAt: "2026-10-20T10:00:00Z" }];
   const policies: Record<string, unknown>[] = [];
   const saves: Record<string, unknown>[] = [], posts: Record<string, unknown>[] = [], deployments: Record<string, unknown>[] = [], tasks: Record<string, unknown>[] = [];
@@ -163,4 +164,23 @@ test("shows server policy errors and ignores obsolete previews after changing mo
   release!();
   await expect(page.getByText("Old reply error", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Maximum reply tokens", { exact: true })).toHaveAttribute("max", "6000");
+});
+
+for (const width of [1440, 768, 390]) test(`tool model compatibility preserves the saved selection at ${width}px`, async ({ page }) => {
+  const state = await fixture(page, false, true); await page.setViewportSize({ width, height: 1000 });
+  const descriptor = (id: string, tools: boolean | null, modalities = ["text"]) => ({ id, name: id, lifecycle: "active", inputModalities: modalities, outputModalities: ["text"], capabilities: { tools: { value: tools, evidence: "declared", source: { kind: "operator" } } } });
+  await page.route(/model-providers\/provider-[ab]\/models(?:\?.*)?$/, route => route.fulfill({ json: { stale: false, modelVerifications: { verified: "tools_verified" }, toolSupport: { verified: "supported", vendor: "supported" }, result: { kind: "discovered", models: [descriptor("unknown", null), descriptor("declared", true), descriptor("unsupported", false), descriptor("image-only", true, ["image"]), descriptor("verified", true), descriptor("vendor", true)] } } }));
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  const picker = page.getByRole("combobox", { name: "Agent model", exact: true }); await expect(picker).toBeEnabled();
+  for (const id of ["unknown", "declared", "unsupported", "image-only"]) await expect(picker.locator("option").filter({ hasText: ` · ${id} · ${id}` }).first()).toHaveAttribute("disabled", "");
+  await expect(picker.locator("option").filter({ hasText: "Tool test required" }).first()).toBeAttached();
+  await expect(picker.locator("option").filter({ hasText: " · vendor · vendor" }).first()).not.toHaveAttribute("disabled");
+  await picker.selectOption(JSON.stringify({ kind: "connection", connectionId: "provider-a", modelId: "verified" }));
+  await page.getByText("Model details", { exact: true }).click(); await expect(page.getByText("openai · OpenAI account · verified", { exact: true })).toBeVisible();
+  await expect(page.getByText("Input: text · Output: text", { exact: true })).toBeVisible();
+  await page.route(/model-providers\/provider-[ab]\/models(?:\?.*)?$/, route => route.fulfill({ status: 503, json: { error: { message: "Unavailable" } } }));
+  await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+  await page.reload(); await expect(picker).toHaveValue(JSON.stringify({ kind: "connection", connectionId: "provider-a", modelId: "verified" }));
+  expect(state.saves).toHaveLength(1); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`tool-model-${width}.png`), fullPage: true });
 });

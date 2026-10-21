@@ -1,8 +1,10 @@
+import { modelToolSupport, type ModelToolSupport } from "../../adapters/models/model-capabilities";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { builtinProviderRegistry, getProviderDefinition } from "../../adapters/models/registry";
-import { discoverProviderModels, ModelDiscoveryError, type ModelDiscoveryFetch, type ModelDiscoveryResult } from "../../adapters/models/discovery";
+import { ModelDiscoveryError, type ModelDiscoveryFetch, type ModelDiscoveryResult } from "../../adapters/models/discovery";
+import { modelProviderAdapter } from "../../adapters/models/model-adapter";
 import { enrichProviderModels } from "../../adapters/models/model-metadata";
 import type { ActionScope } from "../../contracts/connections";
 import { canonicalJson, PlatformError, requestDigest } from "../../contracts/contracts";
@@ -177,6 +179,8 @@ export class ModelProviderStore {
   async cachedModels(scope: ActionScope, id: string, agentId?: string): Promise<{
     result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
     status: "fresh" | "stale" | "refreshing" | "backoff" | "unavailable" | "empty"; retryAt: string | null; errorCode: string | null;
+    modelVerifications: Record<string, "inference_verified" | "tools_verified">;
+    toolSupport: Record<string, ModelToolSupport>;
   }> {
     return transaction(this.pool, async db => {
       if (agentId) {
@@ -205,10 +209,24 @@ export class ModelProviderStore {
       const control = (await db.query(`SELECT lease_until,retry_at,error_code FROM agents_platform.model_provider_catalogue_controls
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
       [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
+      const receipts = (await db.query(`SELECT model_id,model_revision,verification FROM agents_platform.model_provider_verifications
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4
+          AND endpoint=$5 AND protocol=$6 AND (model_id,model_revision) IN
+            (SELECT id,revision FROM jsonb_to_recordset($7::jsonb) AS current_models(id text,revision text))`,
+      [scope.organizationId, id, connection.revision, connection.credential_revision, connection.endpoint, connection.protocol,
+        JSON.stringify((result?.models ?? []).map(model => ({ id: model.id, revision: model.revision })))])).rows;
+      const verified = new Map<string, "inference_verified" | "tools_verified">(receipts.map(receipt => [receipt.model_id, receipt.verification]));
+      const modelVerifications: Record<string, "inference_verified" | "tools_verified"> = Object.create(null);
+      const toolSupport: Record<string, ModelToolSupport> = Object.create(null);
+      for (const model of result?.models ?? []) {
+        const receipt = verified.get(model.id);
+        if (receipt) modelVerifications[model.id] = receipt;
+        toolSupport[model.id] = modelToolSupport(model, modelVerifications[model.id]);
+      }
       const now = Date.now(), stale = !cache || now - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs;
       const status = control?.lease_until?.getTime() > now ? "refreshing" : control?.error_code
         ? (control.retry_at?.getTime() > now ? "backoff" : cache ? "stale" : "unavailable") : !cache ? "empty" : stale ? "stale" : "fresh";
-      return { status, retryAt: control?.retry_at?.toISOString() ?? null, errorCode: control?.error_code ?? null,
+      return { status, modelVerifications, toolSupport, retryAt: control?.retry_at?.toISOString() ?? null, errorCode: control?.error_code ?? null,
         result, fetchedAt: cache ? cache.fetched_at.toISOString() : null,
         stale: !cache || Date.now() - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs,
         connectionRevision: connection.revision, credentialRevision: connection.credential_revision };
@@ -347,7 +365,7 @@ export class ModelProviderStore {
     await reauthorize();
     let result: ModelDiscoveryResult;
     try {
-      result = await discoverProviderModels(prepared.definition, { apiKey: prepared.apiKey, endpoint: prepared.connection.endpoint,
+      result = await modelProviderAdapter.discover(prepared.definition, { apiKey: prepared.apiKey, endpoint: prepared.connection.endpoint,
         fetch: network, observedAt: new Date().toISOString(), maxResponseBytes: this.setupPolicy.maxCatalogueBytes, maxModels: this.setupPolicy.maxCatalogueModels });
       if (result.kind === "discovered") result.models = await enrichProviderModels(prepared.definition.id, result.models, result.observedAt);
     } catch (error) {

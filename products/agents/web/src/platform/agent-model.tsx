@@ -12,7 +12,7 @@ type ModelPolicyPreview = {
   controls: { temperature: { min: number; max: number; source: string } | null;
     reasoning: { kind: "effort" | "budget" | "level"; values?: string[]; minTokens?: number; maxTokens?: number; source: string } | null };
 };
-type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean };
+type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean; toolSupport: "supported" | "needs_verification" | "unsupported" };
 export function AgentModel({ organizationId, agentId, configuration, onChange }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
 }) {
@@ -41,7 +41,7 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
       .then(async ([list, selection]) => {
         const models = await Promise.allSettled(list.connections.filter(connection => connection.state === "active").map(async connection => {
           const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models?agentId=${encodeURIComponent(agentId)}`);
-          return (cache.result?.models ?? []).map(model => ({ connection, model, available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
+          return (cache.result?.models ?? []).map(model => ({ connection, model, toolSupport: cache.toolSupport?.[model.id] ?? (model.capabilities.tools.value === false ? "unsupported" : cache.modelVerifications?.[model.id] === "tools_verified" || model.capabilities.tools.value === true && (model.capabilities.tools.source?.kind !== "operator" || model.capabilities.tools.evidence === "verified") ? "supported" : "needs_verification" as const), available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
         }));
         if (!active) return;
         setDefaultModel(selection); setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value : []));
@@ -52,8 +52,14 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
   const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
-  const selectable = choices.filter(choice => choice.available && choice.model.lifecycle !== "retired" && choice.model.inputModalities?.includes("text") && choice.model.outputModalities?.includes("text") && (!requiresTools || choice.model.capabilities.tools.value !== false));
-  const filtered = selectable.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
+  function incompatibility(choice: Choice): string | null {
+    if (!choice.available || choice.model.lifecycle === "retired") return "Unavailable";
+    if (!choice.model.inputModalities?.includes("text") || !choice.model.outputModalities?.includes("text")) return "Text support unconfirmed";
+    if (requiresTools && choice.toolSupport === "unsupported") return "Tools unsupported";
+    if (requiresTools && choice.toolSupport === "needs_verification") return "Tool test required";
+    return null;
+  }
+  const filtered = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);
   const available = selection.kind === "organization_default" ? choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId) : selected;
   const limits = preview?.limits, controls = preview?.controls;
@@ -82,14 +88,18 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
         <option value={JSON.stringify({ kind: "organization_default" })}>Organization default{defaultModel?.selection ? ` · ${defaultModel.selection.modelId}` : ""}</option>
         {selection.kind === "connection" && !filtered.some(choice => choice.connection.id === selection.connectionId && choice.model.id === selection.modelId) &&
           <option value={current}>{selected?.connection.name ?? "Saved connection"} · {selection.modelId}</option>}
-        {filtered.map(choice => <option key={`${choice.connection.id}:${choice.model.id}`} value={JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id })}>
-          {choice.connection.name} · {choice.model.name} · {choice.model.id}
+        {filtered.map(choice => <option disabled={Boolean(incompatibility(choice))} key={`${choice.connection.id}:${choice.model.id}`} value={JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id })}>
+          {choice.connection.name} · {choice.model.name} · {choice.model.id}{incompatibility(choice) ? ` · ${incompatibility(choice)}` : ""}
         </option>)}
       </select>
     </label>
     {available && (!available.available || available.model.lifecycle === "retired") && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
     {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
-    {available && requiresTools && (available.model.capabilities.tools.value === null || available.model.capabilities.tools.evidence === "declared") && <p className="text-xs text-muted-foreground">Test this model's tool support before running the agent.</p>}
+    {available && incompatibility(available) && available.available && available.model.lifecycle !== "retired" && <p role="status" className="text-sm text-muted-foreground">{incompatibility(available)}. {requiresTools && available.toolSupport === "needs_verification" ? "Test tool support in Model providers." : "Choose a compatible model."}</p>}
+    {available && <details className="text-xs text-muted-foreground"><summary className="min-h-10 cursor-pointer content-center">Model details</summary><dl className="space-y-2 break-words">
+      <div><dt className="font-medium text-foreground">Provider route</dt><dd>{available.connection.providerId} · {available.connection.name} · {available.model.id}</dd></div>
+      <div><dt className="font-medium text-foreground">Modalities</dt><dd>Input: {available.model.inputModalities?.join(", ") || "Unknown"} · Output: {available.model.outputModalities?.join(", ") || "Unknown"}</dd></div>
+    </dl></details>}
     <Link to="/app/settings" className="inline-block text-sm underline underline-offset-4">Manage model providers</Link>
     <details className="rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Model limits</summary>
       <div className="mt-4 space-y-4" aria-busy={checkingPolicy}>

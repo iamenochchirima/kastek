@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { callProviderModel, ProviderTransportError, type ProviderTransportRequest, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
+import { ProviderTransportError, type ProviderTransportRequest, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
+import { modelProviderAdapter } from "../../adapters/models/model-adapter";
 import { modelDescriptorSchema, modelEndpointSchema, providerDefinitionSchema, type ModelDescriptor, type ProviderDefinition } from "../../contracts/model-providers";
 import { createModelFetch } from "../../infrastructure/model-network";
 import { googleModelRequestUrl } from "../../adapters/models/google-transport";
@@ -87,7 +88,7 @@ export async function probeProviderModel(input: ModelProviderProbeRequest, optio
       (!url.search || provider.protocol === "anthropic_messages" && url.search === "?beta=true"),
       headers, maxRequestBytes: policy.probeMaxRequestBytes, maxResponseBytes: policy.probeMaxResponseBytes,
       deadlineAt, beforeDispatch: input.reauthorize, testLoopback: options.testLoopback });
-    const response = await callProviderModel(request, { apiKey: input.apiKey,
+    const response = await modelProviderAdapter.invoke(request, { apiKey: input.apiKey,
       fetch: (async (url, init) => { const response = await network(url, init); httpStatus = response.status; return response; }) as typeof fetch,
       onProgress: network.markProgress,
       beforePayloadDispatch: async payload => {

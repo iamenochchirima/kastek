@@ -6,10 +6,11 @@ import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messa
 import { effectiveExecutionPolicySchema, modelDescriptorSchema, providerDefinitionSchema, providerUseGrantSchema,
   resolvedModelBindingSchema, type EffectiveExecutionPolicy, type ModelDescriptor, type ProviderDefinition,
   type ProviderUseGrant, type ResolvedModelBinding } from "../../contracts/model-providers";
-import { callProviderModel, ProviderTransportError, type PrivateNativeState, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
+import { ProviderTransportError, type PrivateNativeState, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
+import { modelProviderAdapter } from "../../adapters/models/model-adapter";
 import { transaction } from "../../infrastructure/database";
 import { createModelFetch, type ModelFetch, type ModelNetworkPolicy } from "../../infrastructure/model-network";
-import { countPreparedInput, prepareInputCount, type PreparedInputCount } from "../../adapters/models/input-count";
+import type { PreparedInputCount } from "../../adapters/models/input-count";
 import { googleModelRequestUrl } from "../../adapters/models/google-transport";
 
 export interface AcceptedModelDispatch {
@@ -107,7 +108,7 @@ export async function dispatchBoundModel(
         if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409);
       },
     });
-    return await callProviderModel({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
+    return await modelProviderAdapter.invoke({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
       maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
       reasoningCapable: model.capabilities.reasoning.value === true, reasoning: generationSdkOptions(model, binding.endpoint, accepted.generation ?? {}),
@@ -115,13 +116,13 @@ export async function dispatchBoundModel(
       onText: input.onText, onProgress: fetch.markProgress, preparePayload: payload => applyGeneration(model, policy, binding.endpoint, accepted.generation, payload), beforePayloadDispatch: async payload => {
         let count: PreparedInputCount;
         try {
-          const counter = prepareInputCount(accepted, payload);
+          const counter = modelProviderAdapter.prepareInputCount(accepted, payload);
           const counterFetch = counter ? networkFactory({ authorizeUrl: url => url.href === counter.url.href,
             headers, maxRequestBytes, maxResponseBytes: Math.min(policy.maxResponseBytes, 65536), deadlineAt, signal: input.signal,
             connectTimeoutMs: policy.maxCallDurationMs, idleTimeoutMs: policy.maxCallDurationMs, progressTimeoutMs: policy.maxCallDurationMs,
             beforeDispatch: async () => { await input.beforeDispatch?.(); const current = await transaction(input.pool, db => input.providerStore.resolveCredential(db, binding, consumer));
               if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409); } }) : fetch;
-          count = await countPreparedInput(accepted, payload, counterFetch);
+          count = await modelProviderAdapter.countInput(accepted, payload, counterFetch);
           if (count.tokens > policy.maxInputTokens || BigInt(count.tokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {
             throw new ProviderTransportError("CONTEXT_LIMIT", "rejected", 400);
           }

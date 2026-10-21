@@ -315,18 +315,24 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     });
     await testStore.refreshModels(f.scope, f.connection.id, 1);
     const input = { expectedRevision: 1, modelId: "lab/probe", allowBillableRequest: true, verifyTools: true };
+    expect(await testStore.cachedModels(f.scope, f.connection.id)).toMatchObject({ modelVerifications: {}, toolSupport: { "lab/probe": "needs_verification" } });
     await expect(testStore.probe(f.scope, f.connection.id, { ...input, allowBillableRequest: false })).rejects.toThrow();
     expect(calls).toBe(0);
     expect(await testStore.probe(f.scope, f.connection.id, input)).toEqual({ modelId: "lab/probe", verification: "tools_verified", usage: { observed: false } });
     const receipt = (await pool.query("SELECT * FROM agents_platform.model_provider_verifications WHERE organization_id=$1", [f.scope.organizationId])).rows[0];
     expect(receipt.model_id).toBe("lab/probe"); expect(receipt.credential_revision).toBe(1); expect(receipt.endpoint).toBe(f.connection.endpoint);
     expect(JSON.stringify(receipt)).not.toContain("fixture-key");
+    expect(await testStore.cachedModels(f.scope, f.connection.id)).toMatchObject({ modelVerifications: { "lab/probe": "tools_verified" }, toolSupport: { "lab/probe": "supported" } });
+    await testStore.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "lab/probe", confirmMetadata: true,
+      metadata: { reference: "Updated controlled capacity", contextTokens: 64000, maxOutputTokens: 8192, tools: true, inputModalities: ["text"], outputModalities: ["text"] } });
+    expect(await testStore.cachedModels(f.scope, f.connection.id)).toMatchObject({ modelVerifications: {}, toolSupport: { "lab/probe": "needs_verification" } });
     const race = new ModelProviderStore(pool, vault, builtinProviderRegistry, { probe: async request => {
       await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "rotated-in-flight" });
       return { modelId: request.model.id, verification: "tools_verified", usage: { observed: false } };
     } });
     await expect(race.probe(f.scope, f.connection.id, input)).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.model_provider_verifications WHERE organization_id=$1", [f.scope.organizationId])).rows[0].count).toBe(1);
+    expect(await testStore.cachedModels(f.scope, f.connection.id)).toMatchObject({ modelVerifications: {}, toolSupport: {} });
   });
   it("rejects discovery receipts from a stale credential and preserves a saved key after discovery failure", async () => {
     const f = await fixture();

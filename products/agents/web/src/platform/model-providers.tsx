@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
+import { ApiError } from "./api";
 import { providerApi, providerError, type ModelProvider, type ModelProviderConnection, type ProviderModels, type CachedProviderModels, type DefaultModel, type ModelProbe, type ProviderModel, type ProviderDependencies } from "./model-provider-api";
 
 const statusLabels = { saved: "Key saved", discovered: "Models listed", inference_verified: "Model tested", tools_verified: "Tools tested" };
@@ -75,10 +76,10 @@ function modelFact(model: ProviderModel) {
 
 function ModelsDialog({ organizationId, connection, defaultModel, onDefault, onClose }: { organizationId: string; connection: ModelProviderConnection; defaultModel: DefaultModel | null; onDefault(value: DefaultModel): void; onClose(): void }) {
   const [result, setResult] = useState<ProviderModels | null>(null), [stale, setStale] = useState(false), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const [search, setSearch] = useState(""), [modelId, setModelId] = useState(""), [verifyTools, setVerifyTools] = useState(false), [probe, setProbe] = useState<ModelProbe | null>(null);
+  const [search, setSearch] = useState(""), [modelId, setModelId] = useState(defaultModel?.selection?.connectionId === connection.id ? defaultModel.selection.modelId : ""), [verifyTools, setVerifyTools] = useState(false), [probe, setProbe] = useState<ModelProbe | null>(null);
   const { confirm } = useConfirmationDialog();
   const [manual, setManual] = useState(false), [manualModels, setManualModels] = useState<ProviderModel[]>([]);
-  const selectedModel = [...manualModels, ...(result?.models ?? [])].find(item => item.id === modelId);
+  const selectedModel = [...(result?.models ?? []), ...manualModels].find(item => item.id === modelId);
   const unavailable = selectedModel?.lifecycle === "retired" || (result?.kind === "discovered" && result.unavailableModelIds?.includes(modelId));
   const capacity = (value: number | null | undefined) => value == null ? "Unknown" : `${value.toLocaleString()} tokens`;
   const price = (value: number | null | undefined) => value == null ? "Unknown" : `$${(value / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 6 })} / 1M tokens`;
@@ -87,11 +88,12 @@ function ModelsDialog({ organizationId, connection, defaultModel, onDefault, onC
     async function load() {
       try {
         const cached = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models`);
-        if (!active) return; setResult(cached.result); setStale(cached.stale); setLoading(false);
+        if (!active) return; setResult(cached.result); setManualModels(cached.result?.models ?? []); setStale(cached.stale); setLoading(false);
+        if (cached.errorCode) setError(providerError(new ApiError(503, "Provider refresh failed", cached.errorCode)));
         if (cached.result && cached.stale && cached.status !== "refreshing" && cached.status !== "backoff" && (!cached.retryAt || Date.parse(cached.retryAt) <= Date.now())) {
           setBusy(true);
           const refreshed = await providerApi<ProviderModels>(organizationId, `/${connection.id}/models/refresh`, { expectedRevision: connection.revision });
-          if (active) { setResult(refreshed); setStale(false); }
+          if (active) { setResult(refreshed); setStale(false); setError(""); }
         }
       } catch (cause) { if (active) setError(providerError(cause)); }
       finally { if (active) { setLoading(false); setBusy(false); } }
@@ -116,9 +118,12 @@ function ModelsDialog({ organizationId, connection, defaultModel, onDefault, onC
   }
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Models</DialogTitle><DialogDescription>{connection.name}</DialogDescription></DialogHeader>
     <InlineError value={error} /><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">{stale ? "Refresh needed" : result ? "Models updated" : "No models loaded"}</p><Button size="sm" variant="outline" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Working…" : "Refresh models"}</Button><Button size="sm" variant="outline" disabled={busy || loading} onClick={() => setManual(true)}>Add model</Button></div>
-    {loading ? <Skeleton className="h-32 w-full" /> : <>{result?.kind === "manual_required" ? <p className="text-sm text-muted-foreground">Enter a model ID from your provider.</p> : <><Input aria-label="Search models" placeholder="Search models" value={search} onChange={event => setSearch(event.target.value)} /><ul aria-label="Available models" className="max-h-60 overflow-auto divide-y divide-border">{result?.models.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(search.toLowerCase())).map(model => <li key={model.id}><button type="button" aria-pressed={modelId === model.id} disabled={busy || model.lifecycle === "retired" || (result?.kind === "discovered" && result.unavailableModelIds?.includes(model.id))} className="w-full rounded px-2 py-3 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-muted disabled:opacity-50" onClick={() => { setModelId(model.id); setProbe(null); }}><span className="block break-words text-sm font-medium">{model.name}</span><span className="block break-all text-xs text-muted-foreground">{model.id}</span><span className="mt-1 block text-xs text-muted-foreground">{result?.kind === "discovered" && result.unavailableModelIds?.includes(model.id) ? "Unavailable in this account" : modelFact(model)}</span></button></li>)}</ul>{result?.kind === "discovered" && !result.models.length && <p className="text-sm text-muted-foreground">No models returned</p>}{result?.kind === "discovered" && result.visibility === "public_catalog" && <p className="text-xs text-muted-foreground">Provider catalogue. Access varies by account.</p>}{result?.kind === "discovered" && !result.complete && <p className="text-xs text-muted-foreground">Partial model list</p>}</>}
+    {loading ? <Skeleton className="h-32 w-full" /> : <>{result?.kind === "manual_required" ? <p className="text-sm text-muted-foreground">Enter a model ID from your provider.</p> : <><Input aria-label="Search models" placeholder="Search models" value={search} onChange={event => setSearch(event.target.value)} /><ul aria-label="Available models" className="max-h-60 overflow-auto divide-y divide-border">{result?.models.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(search.toLowerCase())).map(model => <li key={model.id}><button type="button" aria-pressed={modelId === model.id} disabled={busy || model.lifecycle === "retired" || (result?.kind === "discovered" && result.unavailableModelIds?.includes(model.id))} className="w-full rounded px-2 py-3 text-left hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-muted disabled:opacity-50" onClick={() => { setModelId(model.id); setProbe(null); }}><span className="block break-words text-sm font-medium">{model.name}</span><span className="block break-all text-xs text-muted-foreground">{model.id}</span><span className="mt-1 block text-xs text-muted-foreground">{result?.kind === "discovered" && result.unavailableModelIds?.includes(model.id) ? "Unavailable in this account" : model.lifecycle === "retired" ? "Retired" : modelFact(model)}</span></button></li>)}</ul>{result?.kind === "discovered" && !result.models.length && <p className="text-sm text-muted-foreground">No models returned</p>}{result?.models.length && !result.models.some(item => `${item.name} ${item.id}`.toLowerCase().includes(search.toLowerCase())) ? <p className="text-sm text-muted-foreground">No matching models</p> : null}{result?.kind === "discovered" && result.visibility === "public_catalog" && <p className="text-xs text-muted-foreground">Provider catalogue. Access varies by account.</p>}{result?.kind === "discovered" && !result.complete && <p className="text-xs text-muted-foreground">Partial model list</p>}</>}
       <label className="block space-y-2 text-sm">Model ID<Input maxLength={512} disabled={busy} value={modelId} onChange={event => { setModelId(event.target.value); setProbe(null); }} /></label>
       {selectedModel && <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+        <div className="col-span-2 min-w-0"><dt className="text-muted-foreground">Provider route</dt><dd className="break-all">{connection.providerId} · {connection.endpoint}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">Input</dt><dd className="break-words">{selectedModel.inputModalities?.join(", ") || "Unknown"}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">Output</dt><dd className="break-words">{selectedModel.outputModalities?.join(", ") || "Unknown"}</dd></div>
         <div><dt className="text-muted-foreground">Context</dt><dd>{capacity(selectedModel.contextTokens.value)}</dd></div>
         <div><dt className="text-muted-foreground">Max output</dt><dd>{capacity(selectedModel.maxOutputTokens.value)}</dd></div>
         <div><dt className="text-muted-foreground">Input price</dt><dd>{price(selectedModel.pricing?.inputMicrosPerMillionTokens)}</dd></div>
@@ -127,6 +132,7 @@ function ModelsDialog({ organizationId, connection, defaultModel, onDefault, onC
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={verifyTools} disabled={busy} onChange={event => { setVerifyTools(event.target.checked); setProbe(null); }} />Test tool support</label>
       {probe && <p role="status" className="text-sm">{statusLabels[probe.verification]} · {probe.usage.observed ? `${probe.usage.inputTokens ?? "?"} input / ${probe.usage.outputTokens ?? "?"} output tokens` : "Usage unavailable"}</p>}
     </>}
+    {unavailable && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
     <DialogFooter><Button variant="outline" disabled={busy} onClick={onClose}>Close</Button><Button variant="outline" disabled={busy || loading || unavailable || !modelId.trim()} onClick={() => void testModel()}>Test model</Button><Button disabled={busy || loading || unavailable || !modelId.trim()} onClick={() => void saveDefault()}>Set default</Button></DialogFooter>
     {manual && <ManualModelDialog organizationId={organizationId} connection={connection} initialModelId={modelId} onClose={() => setManual(false)} onSaved={model => { setManualModels(prior => [...prior.filter(item => item.id !== model.id), model]); setModelId(model.id); setProbe(null); setManual(false); }} />}
   </DialogContent></Dialog>;

@@ -125,3 +125,33 @@ test("owner explicitly restores configured agent access and attests private mode
   const call = state.calls.find(call => call.path.endsWith("/models/manual"))!; expect(call.body).toMatchObject({ expectedRevision: 1, modelId: "private-deployment", confirmMetadata: true, metadata: { contextTokens: 32000, maxOutputTokens: 8192, tools: true } });
   expect(state.calls.filter(call => call.path.endsWith("/probe"))).toHaveLength(0); expect(state.errors).toEqual([]);
 });
+
+for (const [status, code, recovery] of [[401, "MODEL_AUTHENTICATION_FAILED", "Key rejected"], [402, "MODEL_BILLING_REQUIRED", "Add provider credit"], [403, "MODEL_ACCESS_DENIED", "cannot access"], [429, "MODEL_RATE_LIMITED", "rate limit reached"]] as const) test(`catalogue ${status} recovery preserves the selection`, async ({ page }) => {
+  const state = await fixture(page); await page.goto("/app/settings"); await add(page);
+  await page.getByRole("button", { name: "Models", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "Models", exact: true });
+  await dialog.getByRole("button", { name: "Refresh models" }).click(); await dialog.getByRole("button", { name: /Fixture model/ }).click();
+  await page.route("**/models/refresh", route => route.fulfill({ status, json: { error: { code, message: "Provider rejected" } } }));
+  await dialog.getByRole("button", { name: "Refresh models" }).click(); await expect(dialog.getByRole("alert")).toContainText(recovery);
+  await expect(dialog.getByLabel("Model ID", { exact: true })).toHaveValue("fixture-model"); await expect(dialog.getByRole("button", { name: /Fixture model/ })).toBeVisible();
+  await page.unroute("**/models/refresh"); await dialog.getByRole("button", { name: "Refresh models" }).click(); await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(dialog.getByLabel("Model ID", { exact: true })).toHaveValue("fixture-model"); expect(state.calls.filter(call => call.path.endsWith("/probe"))).toHaveLength(0);
+});
+
+test("stale catalogue preserves a retired default and recovers from empty discovery", async ({ page }) => {
+  const state = await fixture(page); await page.goto("/app/settings"); await add(page);
+  await page.route("**/model-providers/default", route => route.fulfill({ json: { selection: { kind: "connection", connectionId: "connection-1", modelId: "retired-model" }, revision: 1 } }));
+  // Reload picks up the persisted default before opening its cached catalogue.
+  await page.reload();
+  await page.route("**/connection-1/models", route => route.fulfill({ json: { stale: true, status: "backoff", errorCode: "MODEL_BILLING_REQUIRED", retryAt: "2099-01-01T00:00:00Z", result: { kind: "discovered", models: [{ id: "retired-model", name: "Retired model", lifecycle: "retired", inputModalities: ["text", "image"], outputModalities: ["text"], contextTokens: { value: 32000 }, maxOutputTokens: { value: 8192 }, capabilities: { tools: { value: true, evidence: "discovered" } }, pricing: null }], complete: true } } }));
+  await page.getByRole("button", { name: "Models", exact: true }).click(); const dialog = page.getByRole("dialog", { name: "Models", exact: true });
+  await expect(dialog.getByRole("alert")).toContainText("Add provider credit"); await expect(dialog.getByLabel("Model ID", { exact: true })).toHaveValue("retired-model");
+  await expect(dialog.getByText("Refresh needed", { exact: true })).toBeVisible(); await expect(dialog.getByRole("button", { name: /Retired model/ })).toBeDisabled();
+  await expect(dialog.getByText("Saved model unavailable. Choose another model.", { exact: true })).toBeVisible(); await expect(dialog.getByText("text, image", { exact: true })).toBeVisible();
+  expect(state.calls.filter(call => call.path.endsWith("/models/refresh"))).toHaveLength(0);
+  await page.route("**/models/refresh", route => route.fulfill({ json: { kind: "discovered", models: [], complete: true } }));
+  await dialog.getByRole("button", { name: "Refresh models" }).click(); await expect(dialog.getByText("No models returned", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Model ID", { exact: true })).toHaveValue("retired-model"); await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await page.unroute("**/models/refresh"); await dialog.getByRole("button", { name: "Refresh models" }).click(); await expect(dialog.getByRole("button", { name: /Fixture model/ })).toBeVisible();
+  await dialog.getByLabel("Search models").fill("no-matches"); await expect(dialog.getByText("No matching models", { exact: true })).toBeVisible();
+  expect(state.calls.filter(call => call.path.endsWith("/probe"))).toHaveLength(0);
+});
