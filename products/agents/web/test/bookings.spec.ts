@@ -18,6 +18,7 @@ async function fixture(page: Page, mode: "pending" | "expired" | "foreign" | "un
       if (request.method() === "POST") { const body = request.postDataJSON(); expect(body).toMatchObject({ connectionId: "calendar1", title: "Consultation", durationMinutes: 30, minimumNoticeMinutes: 60, maximumAdvanceDays: 30 }); const policy = { id: "policy1", policyDigest: "policy-digest", state: "active", definition: { ...body, timeZone: "Africa/Johannesburg", calendarId: "primary", connectionPolicyRevision: 1 } }; policies.push(policy); data = { policy }; } else data = { policies };
     } else if (path.endsWith("/google-calendar/connections")) data = { connections: [{ id: "calendar1", name: "Clinic", customerDeploymentEligible: true, calendar: { name: "Appointments", timeZone: "Africa/Johannesburg" } }, { id: "private-calendar", name: "Private calendar", customerDeploymentEligible: false, calendar: { name: "Personal", timeZone: "UTC" } }] };
     else if (path.endsWith("/agents/root")) { if (request.method() === "PUT") { draft = request.postDataJSON().configuration; revision++; } data = { agent: { id: "root", name: "Booking assistant", offering: "booking", draft, draftRevision: revision }, versions: [], deployments: [] }; }
+    else if (path.endsWith("/agents/root/configuration")) { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; data = { agent: { id: "root", name: "Booking assistant", offering: "booking", draft, draftRevision: revision }, snapshot: { id: `snapshot-${revision}`, number: revision, configuration: structuredClone(draft) }, deployments: [] }; }
     else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Booking assistant" })], nextCursor: null };
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
     else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
@@ -49,12 +50,12 @@ test("mock transport: booking policy creation and exact draft pin are separate e
   await expect(dialog).toBeHidden(); expect(state.draft().capabilities.businessActions).toEqual({ enabled: false });
   await page.getByRole("combobox", { name: "Booking policy", exact: true }).selectOption("policy1");
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: false });
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: true, profileId: "google-calendar-booking-v1", policyId: "policy1", policyDigest: "policy-digest" });
   await page.getByRole("combobox", { name: "Booking policy", exact: true }).selectOption("");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: false }); expect(state.errors).toEqual([]);
 });
 

@@ -18,6 +18,16 @@ export async function nativeAgent(page: Page) {
   const base = `/api/organizations/${encodeURIComponent(organization.id)}`, path = `${base}/agents/${encodeURIComponent(agentId!)}`;
   return { base, path, ...await nativeJson<{ agent: Agent; versions: Version[] }>(page, path) };
 }
+export async function activateNativeConfiguration(page: Page) {
+  const current = await nativeAgent(page);
+  const data = { name: current.agent.name, configuration: current.agent.draft, expectedRevision: current.agent.draftRevision };
+  const first = await page.request.post(`${current.path}/configuration`, { data, headers: { origin: new URL(page.url()).origin } });
+  if (first.status() === 409) {
+    expect((await first.json()).error.code).toBe("CONFIGURATION_CONFIRMATION_REQUIRED");
+    return nativeJson<{ snapshot: Version }>(page, `${current.path}/configuration`, "POST", { ...data, confirmImpact: true });
+  }
+  expect(first.ok()).toBe(true); return first.json() as Promise<{ snapshot: Version }>;
+}
 export async function saveNativeProgram(page: Page, configuration: Configuration) {
   const current = await nativeAgent(page);
   return nativeJson<{ agent: Agent }>(page, current.path, "PUT", { name: current.agent.name, configuration, expectedRevision: current.agent.draftRevision });

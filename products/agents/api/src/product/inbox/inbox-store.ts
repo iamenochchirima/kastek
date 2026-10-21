@@ -63,8 +63,9 @@ export class InboxStore {
   }
   async ingress(scope: VisitorScope, id: string, input: { requestKey: string; body: string }) {
     return transaction(this.pool, async db => {
+      const location = (await db.query("SELECT organization_id FROM agents_platform.website_deployments WHERE id=$1", [scope.deploymentId])).rows[0] ?? denied();
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [location.organization_id]);
       const deployment = await this.visitor(db, scope);
-      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [deployment.organization_id]);
       const row = await this.visitorConversation(db, scope, id, true), digest = requestDigest(input);
       const existing = (await db.query<CustomerMessage & { request_digest: string }>("SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2", [id, `visitor:${input.requestKey}`])).rows[0];
       if (existing) { if (existing.request_digest !== digest) conflict(); return { conversation: row, message: existing, replayed: true }; }
@@ -72,7 +73,7 @@ export class InboxStore {
       const message = await this.append(db, row, { key: `visitor:${input.requestKey}`, digest, kind: "visitor", body: input.body });
       if (row.state === "automation_active") {
         const binding = { customerConversationId: row.id, ownershipGeneration: row.ownership_generation, inputMessageId: message.id };
-        const task = await this.ports.admit(db, { deploymentId: row.deployment_id, sessionId: row.session_id, versionId: row.version_id,
+        const task = await this.ports.admit(db, { deploymentId: row.deployment_id, sessionId: row.session_id, versionId: deployment.version_id,
           executionConversationId: row.execution_conversation_id, input: input.body, requestKey: `channel:${message.id}`, channelBinding: binding });
         await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [message.id, task.id]); message.task_id = task.id;
         await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1", [id, task.conversation_id]); row.execution_conversation_id = task.conversation_id;
@@ -151,9 +152,17 @@ export class InboxStore {
     const rows = (await this.pool.query("SELECT task_id FROM agents_platform.customer_cancellations WHERE completed_at IS NULL ORDER BY created_at LIMIT 20")).rows;
     for (const row of rows) { await this.ports.cancelRoot(row.task_id); await this.pool.query("UPDATE agents_platform.customer_cancellations SET completed_at=now() WHERE task_id=$1", [row.task_id]); }
   }
-  async assertBinding(db: Db, binding: ChannelBinding, task: { organization_id: string; version_id: string }): Promise<void> {
+  async assertBinding(db: Db, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id?: string }): Promise<void> {
     const row = (await db.query<CustomerConversation>("SELECT * FROM agents_platform.customer_conversations WHERE id=$1 FOR SHARE", [binding.customerConversationId])).rows[0];
-    if (!row || row.organization_id !== task.organization_id || row.version_id !== task.version_id || row.state !== "automation_active" || row.ownership_generation !== binding.ownershipGeneration) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation is under human control");
+    if (!row || row.organization_id !== task.organization_id || row.state !== "automation_active" || row.ownership_generation !== binding.ownershipGeneration) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation is under human control");
+    if (row.version_id !== task.version_id) {
+      const authorized = task.root_task_id === "admitting"
+        ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL FOR SHARE", [row.deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
+        : (await db.query(`SELECT 1 FROM agents_platform.customer_task_links l JOIN agents_platform.tasks t ON t.id=l.task_id
+          WHERE l.conversation_id=$1 AND l.task_id=$2 AND t.version_id=$3 AND l.input_message_id=$4 AND l.ownership_generation=$5`,
+          [row.id,task.root_task_id ?? null,task.version_id,binding.inputMessageId,binding.ownershipGeneration])).rowCount;
+      if (!authorized) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Customer turn is unavailable");
+    }
     const message = (await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2 AND author_kind='visitor' AND ownership_generation=$3 AND sequence>$4", [binding.inputMessageId, row.id, binding.ownershipGeneration, row.return_watermark])).rowCount;
     if (!message) throw new PlatformError("CHANNEL_INPUT_DENIED", 403, "Customer message is unavailable");
   }

@@ -1,4 +1,4 @@
-import { nativeAgent, nativeJson, prepareNativeSpecialists } from "./native-harness-fixture";
+import { activateNativeConfiguration, nativeAgent, nativeJson, prepareNativeSpecialists } from "./native-harness-fixture";
 import type { Connection } from "../src/platform/api";
 import { configure } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
@@ -76,7 +76,7 @@ test("mock automation: pinned schedule, future edit, pause/resume, occurrence re
   await page.getByRole("button", { name: "Create automation", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("combobox", { name: "Agent version", exact: true })).toBeFocused();
+  await expect(page.getByRole("combobox", { name: "Agent", exact: true })).toBeFocused();
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -96,7 +96,7 @@ test("mock automation: pinned schedule, future edit, pause/resume, occurrence re
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await page.getByRole("button", { name: "Resume automation", exact: true }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("Accepted tasks keep their original version");
+  await expect(page.getByRole("dialog")).toContainText("Accepted tasks keep their original configuration");
   await page.getByRole("combobox", { name: "Trigger", exact: true }).selectOption("event");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page.getByRole("button", { name: "Issue event key" }).click();
@@ -178,16 +178,11 @@ test("live automation: scheduled report survives review and delivery interruptio
   await prepareNativeSpecialists(page, { versionIds: versions, sourceTitles, operations, knowledge: !publicRepository, maxTokens: connected ? publicRepository ? 12000 : 10000 : 8000,
     workflow: { enabled: true, profileId: "report-delivery-v1", connectionId: destination!.id, reportArtifactName: "report.json", title: "Verified dataset report" } });
   await page.reload(); await configure(page);
-  const publicationResponse = page.waitForResponse(response => /\/versions$/.test(new URL(response.url()).pathname) && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
-  const publication = await publicationResponse;
-  expect(publication.ok(), await publication.text()).toBe(true);
-  const pinned = (await publication.json()).version.id as string;
-  await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue(pinned);
+  const pinned = (await activateNativeConfiguration(page)).snapshot.id;
   await page.getByRole("link", { name: "Automations", exact: true }).click();
   await page.getByRole("button", { name: "Create automation", exact: true }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Scheduled dataset report");
-  await page.getByRole("combobox", { name: "Agent version", exact: true }).selectOption(pinned);
+  await page.getByRole("combobox", { name: "Agent", exact: true }).selectOption(pinned);
   await page.getByRole("textbox", { name: "Task", exact: true }).fill(process.env.AGENTS_ADVANCED_PROMPT!);
   const scheduled = new Date(Date.now() + 5000);
   await page.getByLabel(/^Run at/).fill(new Date(scheduled.getTime() - scheduled.getTimezoneOffset() * 60_000).toISOString().slice(0, 19));
@@ -305,4 +300,22 @@ test("live automation: scheduled report survives review and delivery interruptio
     await page.screenshot({ path: test.info().outputPath(`scheduled-delivery-${width}.png`), fullPage: true });
   }
   console.log(`Scheduled root ${taskId}; original report reviewed after worker restart; interrupted sender recovered receipt ${finalDetail.actions[0].receipt.id}`);
+});
+
+
+test("mock automation: new schedules use the latest saved agent configuration without version choices", async ({ page }) => {
+  await fixture(page);
+  const configuration = { executionKind: "business", capabilities: { workflows: { enabled: true, profileId: "report-delivery-v1", connectionId, reportArtifactName: "report.md" } } };
+  await page.route("**/agents/report-agent", route => route.fulfill({ json: { versions: [{ id: versionId, number: 4, configuration }, { id: "latest-snapshot", number: 5, configuration }] } }));
+  await page.goto("/app/automations"); await page.getByRole("button", { name: "Create automation", exact: true }).click();
+  const select = page.getByRole("combobox", { name: "Agent", exact: true });
+  await expect(select).toHaveValue("latest-snapshot"); await expect(select.getByRole("option", { name: "Research report", exact: true })).toHaveCount(1);
+  await expect(page.getByText(/Version [0-9]/)).toHaveCount(0);
+});
+
+test("mock automation: an older workflow configuration cannot silently replace a disabled current workflow", async ({ page }) => {
+  await fixture(page);
+  await page.route("**/agents/report-agent", route => route.fulfill({ json: { versions: [{ id: versionId, number: 4, configuration: { executionKind: "business", capabilities: { workflows: { enabled: true } } } }, { id: "latest-snapshot", number: 5, configuration: { executionKind: "business", capabilities: { workflows: { enabled: false } } } }] } }));
+  await page.goto("/app/automations"); await expect(page.getByRole("button", { name: "Create automation", exact: true })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "Configure agent", exact: true })).toBeVisible();
 });

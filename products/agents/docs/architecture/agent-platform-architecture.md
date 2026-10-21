@@ -47,7 +47,7 @@ Agent purpose, customer channel, and business-system connection are separate con
 
 Setup starts with the business outcome and collects its required business information, knowledge,
 connections, operating rules, and human handoff settings. Customers test the agent before binding
-a published version to a supported channel. A named offering is available only when its required
+the saved configuration to a supported channel. A named offering is available only when its required
 adapters and business operations work. Generic runtime tools do not establish booking or channel
 support. Publication and current grants bound the agent's authority.
 
@@ -63,8 +63,24 @@ accounts, choose resources and permitted operations, and bind them to agents. Ad
 and runtime categories do not define the customer-facing catalogue. Provider authorization,
 connection health, and channel availability must reflect actual integration support.
 
-Execution conversations pin their admitted agent version. Draft edits and new versions do not
-silently change accepted work. Reconnect follows the accepted task and original request identity.
+The standalone client exposes configuration saves rather than numbered-version management.
+A save validates and activates an immutable internal snapshot atomically. A newly created
+customer agent already has its first snapshot and can chat without a publication step.
+Existing human and website conversations resolve saved settings at each new turn;
+already accepted turns retain their admitted snapshot. Reconnect and exact retries follow
+the original task and snapshot even after a configuration save.
+
+Permission reductions immediately revoke affected historical grants. Adding permissions
+or changing live customer channels requires explicit confirmation. A confirmed save
+revalidates each active website deployment and moves its routing to the new snapshot
+without replacing channel URLs, visitor sessions, Inbox ownership or conversation history.
+Unsafe public configuration leaves both saved settings and routing unchanged. Historical
+snapshots cannot mint new authority that the current configuration has removed.
+
+Configuration history is an optional advanced restore path. Restoring creates a fresh
+snapshot after current policy checks; it never mutates historical execution. Explicit
+snapshot contracts remain available for product integrations and isolated evaluations.
+Evaluation-owned website routes and separately authorized existing schedules stay pinned.
 Knowledge imports remain separate reviewed-source operations. Product setup exposes capabilities
 needed for its customer outcome rather than every shared-runtime configuration control.
 

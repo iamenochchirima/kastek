@@ -21,9 +21,9 @@ for (const width of [1440, 768, 390]) {
       else if (path.endsWith("/agents/root")) {
         if (request.method() === "PUT") { const body = request.postDataJSON(); expect(body.expectedRevision).toBe(draftRevision); draft = body.configuration; draftRevision++; }
         data = { agent: { id: "root", name: "Customer support", draft, draftRevision }, versions, deployments: [] };
-      } else if (path.endsWith("/agents/root/versions")) {
-        expect(request.postDataJSON().expectedRevision).toBe(draftRevision);
-        const version = { id: `version-${versions.length + 1}`, number: versions.length + 1, configuration: structuredClone(draft) }; versions.unshift(version); data = { version };
+      } else if (path.endsWith("/agents/root/configuration")) {
+        const body = request.postDataJSON(); expect(body.expectedRevision).toBe(draftRevision); draft = body.configuration; draftRevision++;
+        const snapshot = { id: `version-${versions.length + 1}`, number: versions.length + 1, configuration: structuredClone(draft) }; versions.unshift(snapshot); data = { agent: { id: "root", name: "Customer support", draft, draftRevision }, snapshot, deployments: [] };
       } else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Customer support" }, versions[0])], nextCursor: null };
       else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
       else { unexpected.push(path); await route.fulfill({ status: 404, json: { error: { message: "Unexpected customer editor dependency" } } }); return; }
@@ -49,17 +49,16 @@ for (const width of [1440, 768, 390]) {
     for (const label of ["Memory"]) await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Connected tools", exact: true })).toHaveCount(0);
     await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Knowledge search", exact: true }) }).getByText("Added", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
     expect(draft).toMatchObject({ program: base.program, sourceRevisionIds: ["revision2"], connectedToolBindingIds: [], tools: ["knowledge.search", "knowledge.read"], retrievalProfile: { kind: "hybrid-v1", embeddingRelease: "local-embedding-v1" }, memory: { enabled: false }, capabilities: base.capabilities });
-    await page.getByRole("button", { name: "Create version", exact: true }).click();
-    await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue("version-1");
-    await handoff.getByRole("button", { name: "Add Human support", exact: true }).click(); await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-    expect(draft.tools).toContain("channel.request_handoff"); expect(versions[0].configuration.tools).not.toContain("channel.request_handoff");
+    await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveCount(0);
+    await handoff.getByRole("button", { name: "Add Human support", exact: true }).click(); await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+    expect(draft.tools).toContain("channel.request_handoff"); expect(versions[1].configuration.tools).not.toContain("channel.request_handoff");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.mouse.move(1, 1);
-    await expect(page.getByText("Configuration saved", { exact: true }).last()).not.toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Changes saved", { exact: true }).last()).not.toBeVisible({ timeout: 10_000 });
     await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/customer-agent-config-${width}.png`), fullPage: true, animations: "disabled" });
     sources[0].revisions[1].state = "withdrawn";
     await page.getByRole("button", { name: "General", exact: true }).click();
@@ -69,9 +68,9 @@ for (const width of [1440, 768, 390]) {
     await page.getByRole("checkbox", { name: /Returns.*Unavailable/ }).uncheck();
     await page.getByText("Search options", { exact: true }).click();
     await page.getByRole("combobox", { name: "Search method", exact: true }).selectOption("lexical-v1");
-    await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-    expect(draft.sourceRevisionIds).toEqual([]); expect(versions[0].configuration.sourceRevisionIds).toEqual(["revision2"]);
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+    expect(draft.sourceRevisionIds).toEqual([]); expect(versions[1].configuration.sourceRevisionIds).toEqual(["revision2"]);
     expect(unexpected).toEqual([]); expect(errors).toEqual([]);
   });
 }

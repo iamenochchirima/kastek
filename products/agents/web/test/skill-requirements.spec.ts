@@ -14,7 +14,8 @@ async function fixture(page: Page, grounded = false) {
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname; let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", displayName: "Owner", email: "owner@example.test" }, organizations: [{ id: "org", name: "Requirements", role: "owner" }] };
-    else if (path.endsWith("/agents/root")) { if (request.method() === "PUT") { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; } data = { agent: { id: "root", name: "Requirements", offering: "faq", draft, draftRevision: revision }, versions: [], deployments: [] }; }
+    else if (path.endsWith("/agents/root")) { if (request.method() === "PUT") { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; } data = { agent: { id: "root", name: "Requirements", offering: "faq", draft, draftRevision: revision }, versions: [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft) }], deployments: [] }; }
+    else if (path.endsWith("/agents/root/configuration")) { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; data = { agent: { id: "root", name: "Requirements", offering: "faq", draft, draftRevision: revision }, snapshot: { id: `snapshot-${revision}`, number: revision, configuration: structuredClone(draft) }, deployments: [] }; }
     else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Requirements", draftRevision: revision })], nextCursor: null };
     else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
@@ -59,7 +60,7 @@ test("mock transport: repair a skill's connection through shared setup, explicit
   await dialog.getByRole("checkbox", { name: /records lookup/ }).check();
   await dialog.getByRole("button", { name: "Use selected tools", exact: true }).click();
   expect(state.draft().connectedToolBindingIds).toEqual([]);
-  await dialog.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(dialog.getByText("Connected tools selected", { exact: true })).toBeVisible();
   expect(state.draft().connectedToolBindingIds).toEqual(["binding1"]); expect(state.draft().skillIds).toEqual([]);
   for (const width of [1440, 768, 390]) { await page.setViewportSize({ width, height: 1000 }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/mock-skill-requirements-${width}.png`), fullPage: true, animations: "disabled" }); }
@@ -68,8 +69,8 @@ test("mock transport: repair a skill's connection through shared setup, explicit
   const analysis = page.getByRole("region", { name: "Analysis configuration", exact: true });
   await analysis.getByRole("checkbox", { name: /Python analysis/ }).check();
   expect(state.draft().capabilities.sandbox.enabled).toBe(false);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().capabilities.sandbox.enabled).toBe(true); expect(state.draft().tools).toContain("sandbox.analyze");
   await page.getByRole("button", { name: "Back to skill", exact: true }).click();
   await page.getByRole("dialog").getByText("Requirements", { exact: true }).click();
@@ -87,6 +88,6 @@ test("mock transport: a grounded agent cannot silently gain analysis or switch i
   await expect(analysis.getByText("This agent's program does not support analysis.", { exact: true })).toBeVisible();
   expect(state.draft().program?.id).toBe("grounded-conversation");
   expect(state.draft().capabilities.sandbox.enabled).toBe(false);
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.errors).toEqual([]);
 });

@@ -14,14 +14,14 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertRuntimeAvailable,
 canonicalJson,
-connectedToolAuthorityIds,
+connectedToolAuthorityIds,requestDigest,
 executionGrantSchema,
 parseAllowedOrigin,
 PlatformError,
 taskStateSchema,
 terminalTaskStates,type AdmissionAuthority,type AgentConfiguration
 } from "../contracts/contracts";
-import type { Account,TaskRecord } from "../contracts/records";
+import type { Account,TaskRecord,VersionRecord } from "../contracts/records";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { assertCurrentEvidence,citationLabels,EvidenceStore } from "../execution/context/evidence";
 import { resolveAutomationOwner,resolveAutomationReviewer } from "../execution/lifecycle/automation-authority";
@@ -51,6 +51,7 @@ import { curatedSkillCatalog } from "../capabilities/skills/curated";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { registerToolReviewRoutes } from "../product/connections/tool-review-routes";
 import { PlatformStore } from "../product/agents/store";
+import { transaction } from "../infrastructure/database";
 import { EvaluationTrials, prepareTrialSchema } from "../product/evaluation/evaluation-trials";
 import { customerOfferings } from "../product/offerings/offerings";
 import { registerAutomationRoutes } from "../product/automations/automation-routes";
@@ -65,9 +66,12 @@ import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
-  requestKey: z.string().min(1).max(128), conversationId: uuid.optional() });
+  requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
-const humanTaskInput = taskInput.extend({ evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().min(2048).max(32000).optional() });
+const humanTaskInput = taskInput.omit({ versionId: true }).extend({ agentId: uuid.optional(), versionId: uuid.optional(),
+  evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().min(2048).max(32000).optional() })
+  .refine(input => Boolean(input.agentId) !== Boolean(input.versionId), "Choose an agent or an explicit evaluation snapshot")
+  .refine(input => !input.agentId || !input.evaluationTrialId, "Evaluations require an explicit snapshot");
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([key, value]) => [
   key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), value,
@@ -328,7 +332,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.post(`${base}/agents`, async (request, reply) => {
     const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.enum(["faq","customer-service","booking"]).default("faq") }).parse(request.body);
     if(input.offering==="booking")throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
-    return reply.code(201).send({ agent: dto(await store.createAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering })) });
+    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering });
+    return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);
@@ -342,6 +347,16 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { agent: dto(await store.updateDraft({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) };
   });
+  app.post(`${base}/agents/:agentId/configuration`, async request => {
+    const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
+      expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional() }).parse(request.body);
+    await assertBindings(input.configuration);
+    const result = await store.saveConfiguration({ ...input, accountId: (await account(request)).id,
+      organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) });
+    request.log.info({ event: "agent.configuration.saved", agentId: result.agent.id, snapshotId: result.snapshot.id,
+      organizationId: result.agent.organization_id }, "Agent configuration saved");
+    return { agent: dto(result.agent), snapshot: dto(result.snapshot), deployments: result.deployments.map(dto) };
+  });
   registerKnowledgeRoutes(app, { knowledge, runtime: documentRuntime, resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
   app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
     const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
@@ -352,9 +367,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       organizationId: org, agentId })) });
   });
   app.post(`${base}/agents/:agentId/deployments`, async (request, reply) => {
-    const input = z.strictObject({ versionId: uuid, allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
-    return reply.code(201).send({ deployment: dto(await store.publishWebsite({ ...input, accountId: (await account(request)).id,
-      organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) })) });
+    const input = z.strictObject({ versionId: uuid.optional(), allowedOrigins: z.array(z.string()).min(1).max(10) }).parse(request.body);
+    const scope = { accountId: (await account(request)).id, organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId), allowedOrigins: input.allowedOrigins };
+    const deployment = input.versionId ? await store.publishWebsite({ ...scope, versionId: input.versionId }) : await store.publishCurrentWebsite(scope);
+    return reply.code(201).send({ deployment: dto(deployment) });
   });
   app.get(`${base}/offerings`, async request => {
     await store.requireMembership((await account(request)).id, organizationId(request));
@@ -408,7 +424,38 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/tasks`, async (request, reply) => {
     const input = humanTaskInput.parse(request.body), user = await account(request), org = organizationId(request);
-    const version = await store.getVersion(user.id, org, input.versionId);
+    if (input.agentId) {
+      const authority = humanAuthority(user,org,input.agentId);
+      const result = await transaction(pool,async db => {
+        if (!(await db.query("SELECT 1 FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[org])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"Access denied");
+        if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE",[org,user.id])).rowCount) throw new PlatformError("ACCESS_DENIED",403,"Access denied");
+        const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product='agents' AND organization_id=$1
+          AND caller_client_id='agents-execution' AND resource_id=$2 AND request_key=$3`,[org,input.agentId,input.requestKey])).rows[0];
+        if (existing) {
+          const digest = requestDigest({authority,versionId:existing.version_id,input:input.input,conversationId:input.conversationId??null,evaluationTrialId:null,channelBinding:null});
+          if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"The request key was used for different input");
+          if ((await db.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[existing.conversation_id])).rows[0]?.deleted_at)
+            throw new PlatformError("CONVERSATION_DELETED",403,"Conversation is unavailable");
+          return {task:existing,replayed:true};
+        }
+        if (input.evaluationRootTokenLimit) throw new PlatformError("EVALUATION_SCOPE_REQUIRED",403,"A trial is required for this allocation");
+        const version = (await db.query<VersionRecord>(`SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a
+          ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.agent_id=$2 ORDER BY v.number DESC LIMIT 1`,[org,input.agentId])).rows[0];
+        if (!version) throw new PlatformError("CONFIGURATION_UNAVAILABLE",409,"Save the agent settings before chatting");
+        assertRuntimeAvailable(version.configuration);
+        await assertServices(version.configuration);
+        const grant = executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:grantOperations(version.configuration),
+          sourceRevisionIds:version.configuration.sourceRevisionIds,connectedToolBindingIds:connectedToolAuthorityIds(version.configuration),
+          maxInputBytes:version.configuration.model.maxInputBytes,maxOutputTokens:version.configuration.model.maxOutputTokens,
+          maxContextTokens:version.configuration.context.maxInputTokens,expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
+        await store.createGrantInTransaction(db,{accountId:user.id,grant});
+        return store.admitTaskInTransaction(db,{authority,grantId:grant.id,versionId:version.id,input:input.input,requestKey:input.requestKey,
+          conversationId:input.conversationId,configurationMode:"current"});
+      });
+      request.log.info({event:"task.admitted",taskId:result.task.id,organizationId:org,replayed:result.replayed},"Task admitted");
+      return reply.code(result.replayed?200:202).send({task:await readableTask(result.task)});
+    }
+    const version = await store.getVersion(user.id, org, input.versionId!);
     assertRuntimeAvailable(version.configuration);
     await assertServices(version.configuration);
     const authority = humanAuthority(user, org, version.agent_id);
@@ -418,12 +465,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
+      maxContextTokens: version.configuration.context.maxInputTokens,
       ...(trial ? { rootTokenLimit: input.evaluationRootTokenLimit ?? Math.min(8192, trial.maxTokens) } : {}),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
-    const result = await store.admitTask({ ...input, authority, grantId: grant.id });
+    const result = await store.admitTask({ ...input, versionId: version.id, authority, grantId: grant.id });
     request.log.info({ event: "task.admitted", taskId: result.task.id, organizationId: org, replayed: result.replayed }, "Task admitted");
-    return reply.code(result.replayed ? 200 : 202).send({ task: dto(result.task) });
+    return reply.code(result.replayed ? 200 : 202).send({ task: await readableTask(result.task) });
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
     const { task, reviewOnly, authority } = await humanTask(request);

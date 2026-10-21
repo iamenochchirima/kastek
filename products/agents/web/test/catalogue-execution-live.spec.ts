@@ -20,15 +20,13 @@ async function attachAndPublish(page: Page, f: Fixture, agent: string, name: str
   await tools.getByRole("button", { name: "Available", exact: true }).click();
   const remove = tools.getByRole("button", { name: `Remove ${name}`, exact: true });
   if (await remove.count()) {
-    await remove.click(); await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+    await remove.click(); await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
     await page.reload(); await tools.getByRole("button", { name: "Available", exact: true }).click();
   }
   await tools.getByRole("button", { name: `Add ${name}`, exact: true }).click();
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue(/.+/);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
 }
 async function runAndApprove(page: Page, f: Fixture, kind: string, input = "Use the selected connected tool once.") {
@@ -206,14 +204,12 @@ test("actual API: an unmet skill connection returns to the exact revision and re
   await dialog.getByRole("button", { name: "Use selected tools", exact: true }).click();
   const agentPath = `${f.url}/api/organizations/${f.organizationId}/agents/${agent}`;
   expect((await (await page.request.get(agentPath)).json()).agent.draft.connectedToolBindingIds).toEqual([]);
-  await dialog.getByRole("button", { name: "Save configuration", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "Add skill", exact: true })).toBeVisible();
   expect((await (await page.request.get(agentPath)).json()).agent.draft.skillIds).toEqual([]);
   await dialog.getByRole("button", { name: "Add skill", exact: true }).click();
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue(/.+/);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   const published = await (await page.request.get(agentPath)).json();
   expect(published.agent.draft.skillIds).toEqual([imported.id]); expect(published.agent.draft.connectedToolBindingIds).toHaveLength(1);
   expect(published.versions[0].configuration.skillIds).toEqual([imported.id]);

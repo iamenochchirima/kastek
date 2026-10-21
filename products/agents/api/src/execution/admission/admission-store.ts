@@ -63,7 +63,14 @@ export class AdmissionStore extends AuthorityStore {
     assertComposition(version.effective_composition, composition);
     assertGrantAuthority(grant, input.authority, input.versionId, config);
     assertRuntimeAvailable(config);
-    await this.assertPrincipal(db, input.authority, version);
+    await this.assertPrincipal(db, input.authority, version, { currentDeployment: true });
+    if (input.configurationMode === "current") {
+      if (input.authority.product !== "agents" || input.evaluationTrialId || !["human", "visitor"].includes(input.authority.principal.kind)) denied();
+      if (input.authority.principal.kind === "human") {
+        const latest = (await db.query("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [input.authority.organizationId, version.agent_id])).rows[0];
+        if (latest?.id !== version.id) throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Try again.");
+      }
+    }
     if (Buffer.byteLength(input.input) > config.model.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the input limit");
     const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null,
       evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null });
@@ -97,7 +104,7 @@ export class AdmissionStore extends AuthorityStore {
     } else await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,deployment_id) VALUES($1,$2,$3,$4,$5)",
       [conversationId, input.authority.organizationId, version.agent_id, input.authority.principal, input.authority.principal.kind === "visitor" ? input.authority.principal.deploymentId : null]);
     const priorVersion = (await db.query("SELECT version_id FROM agents_platform.tasks WHERE conversation_id=$1 ORDER BY turn_sequence DESC LIMIT 1", [conversationId])).rows[0];
-    if (priorVersion && priorVersion.version_id !== input.versionId) throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
+    if (priorVersion && priorVersion.version_id !== input.versionId && input.configurationMode !== "current") throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
       principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,

@@ -11,7 +11,7 @@ import { TaskSources } from "./cited-passages";
 import { cleanupPending, TaskActivity } from "./task-activity";
 
 type SavedChat = { id: string; label: string; entries: Entry[] };
-type Entry = { requestKey: string; input: string; versionId?: string; versionNumber?: number; task?: Task };
+type Entry = { requestKey: string; input: string; agentId?: string; conversationId?: string; versionId?: string; versionNumber?: number; task?: Task };
 function restorable(entries: Entry[]): Entry[] {
   return entries.map(entry => ({ ...entry, input: entry.task ? "" : entry.input, task: entry.task ? {
     id: entry.task.id, state: entry.task.state, output: null, errorCode: null,
@@ -19,8 +19,8 @@ function restorable(entries: Entry[]): Entry[] {
     versionId: entry.task.versionId,
   } : undefined }));
 }
-export function Chat({ endpoint, storageKey, token, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, view = "chat", cancellable = false }: {
-  endpoint: string; storageKey: string; token?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; view?: "chat" | "activity";
+export function Chat({ endpoint, storageKey, token, agentId, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, view = "chat", cancellable = false }: {
+  endpoint: string; storageKey: string; token?: string; agentId?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; view?: "chat" | "activity";
 }) {
   const [entries, setEntries] = useState<Entry[]>(() => restorable(readStored<Entry[]>(storageKey) ?? []));
   const [savedChats, setSavedChats] = useState<SavedChat[]>(() => (readStored<SavedChat[]>(`${storageKey}.conversations`) ?? []).map(chat => ({ ...chat, entries: restorable(chat.entries) })));
@@ -125,8 +125,8 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, in
     lock.current = true; setSending(true); setError("");
     const next = [...previous, entry]; record(next);
     try {
-      const conversationId = previous.at(-1)?.task?.conversationId;
-      const { task } = await api<{ task: Task }>(endpoint, { input: entry.input, requestKey: entry.requestKey, ...(entry.versionId ? { versionId: entry.versionId } : {}), ...(conversationId ? { conversationId } : {}) }, "POST", token);
+      const conversationId = entry.conversationId;
+      const { task } = await api<{ task: Task }>(endpoint, { input: entry.input, requestKey: entry.requestKey, ...(entry.agentId ? { agentId: entry.agentId } : entry.versionId ? { versionId: entry.versionId } : {}), ...(conversationId ? { conversationId } : {}) }, "POST", token);
       record([...previous, { ...entry, task }]); setInput(""); writeStored(`${storageKey}.draft`, ""); if (mounted.current) onConversationReady?.(task.conversationId);
     } catch (e) {
       if (e instanceof ApiError && [400, 401, 403, 404, 409, 413, 422, 429].includes(e.status)) record(previous);
@@ -136,7 +136,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, in
   }
   async function send(event: FormEvent) {
     event.preventDefault(); if (!input.trim() || activeId || unknown || sending || historyLoading || accessDenied) return;
-    await submit({ input: input.trim(), requestKey: crypto.randomUUID(), versionId, versionNumber }, entries);
+    await submit({ input: input.trim(), requestKey: crypto.randomUUID(), agentId, conversationId, versionId, versionNumber }, entries);
   }
   async function continueTask() {
     if (!activeId || continuing) return;
@@ -160,7 +160,7 @@ export function Chat({ endpoint, storageKey, token, versionId, versionNumber, in
         <div className="chat-user-message"><User size={17} className="message-avatar" /><div><p className="mb-1 text-xs font-medium text-muted-foreground">You</p><p className="whitespace-pre-wrap break-words text-sm">{entry.input}</p></div></div>
         {entry.task?.output ? <div className="chat-assistant-message"><span className="assistant-mark"><Bot size={17} /></span><div className="min-w-0 flex-1"><p className="mb-2 text-xs font-medium text-muted-foreground">Assistant</p><MessageContent text={entry.task.output} /></div></div> : null}
         {entry.task?.outputAvailability === "unavailable" ? <p className="text-sm text-muted-foreground">This response is no longer available.</p> : null}
-        {entry.task && (cancellable || !entry.task.output || entry.task.state !== "completed") ? <div className="space-y-1 text-xs text-muted-foreground"><p>{entry.task.state.replaceAll("_", " ")}{entry.versionNumber ? ` · Version ${entry.versionNumber}` : ""}{entry.task.errorCode ? ` · ${taskErrorLabel(entry.task.errorCode)}` : ""}</p><details><summary className="cursor-pointer">Task details</summary><code className="mt-2 block break-all">{entry.task.id}</code>{entry.task.turnSequence ? <p className="mt-2">Conversation turn {entry.task.turnSequence}</p> : null}{entry.task.operations?.length ? <ol className="mt-3 space-y-2" aria-label="Task operations">{entry.task.operations.map((operation, index) => <li key={operation.operationId ?? operation.id ?? index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-2"><span className="break-all">{operation.toolName ?? operation.name ?? operation.kind ?? "Operation"}</span><span>{operation.state.replaceAll("_", " ")}{operation.errorCode ? ` · ${taskErrorLabel(operation.errorCode)}` : ""}</span>{operation.inputTokens != null || operation.outputTokens != null ? <span className="basis-full">{operation.inputTokens ?? 0} input tokens · {operation.outputTokens ?? 0} output tokens</span> : null}</li>)}</ol> : null}{cancellable ? <TaskEvents endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} initial={entry.task.events ?? []} initialCursor={entry.task.eventsNextCursor ?? null} onUnavailable={cause => { setEntries([]); setAccessDenied(true); setError(message(cause)); }} /> : entry.task.events?.length ? <ol className="mt-3 space-y-1" aria-label="Task history">{entry.task.events.map(event => <li key={event.sequence}>{event.kind.replaceAll("_", " ")}</li>)}</ol> : null}</details></div> : !entry.task ? <p className="text-xs text-muted-foreground">{sending ? "Submitting…" : "Request outcome unknown"}</p> : null}
+        {entry.task && (cancellable || !entry.task.output || entry.task.state !== "completed") ? <div className="space-y-1 text-xs text-muted-foreground"><p>{entry.task.state.replaceAll("_", " ")}{entry.task.errorCode ? ` · ${taskErrorLabel(entry.task.errorCode)}` : ""}</p><details><summary className="cursor-pointer">Task details</summary><code className="mt-2 block break-all">{entry.task.id}</code>{entry.task.versionId ? <p className="mt-2 break-all">Configuration snapshot: {entry.task.versionId}</p> : null}{entry.task.turnSequence ? <p className="mt-2">Conversation turn {entry.task.turnSequence}</p> : null}{entry.task.operations?.length ? <ol className="mt-3 space-y-2" aria-label="Task operations">{entry.task.operations.map((operation, index) => <li key={operation.operationId ?? operation.id ?? index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-2"><span className="break-all">{operation.toolName ?? operation.name ?? operation.kind ?? "Operation"}</span><span>{operation.state.replaceAll("_", " ")}{operation.errorCode ? ` · ${taskErrorLabel(operation.errorCode)}` : ""}</span>{operation.inputTokens != null || operation.outputTokens != null ? <span className="basis-full">{operation.inputTokens ?? 0} input tokens · {operation.outputTokens ?? 0} output tokens</span> : null}</li>)}</ol> : null}{cancellable ? <TaskEvents endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} initial={entry.task.events ?? []} initialCursor={entry.task.eventsNextCursor ?? null} onUnavailable={cause => { setEntries([]); setAccessDenied(true); setError(message(cause)); }} /> : entry.task.events?.length ? <ol className="mt-3 space-y-1" aria-label="Task history">{entry.task.events.map(event => <li key={event.sequence}>{event.kind.replaceAll("_", " ")}</li>)}</ol> : null}</details></div> : !entry.task ? <p className="text-xs text-muted-foreground">{sending ? "Submitting…" : "Request outcome unknown"}</p> : null}
         {entry.task ? <TaskSources key={`${entry.task.id}.${entry.task.output}.${historyGeneration}`} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token} output={entry.task.output} onUnavailable={cause => { if (cause instanceof ApiError && [401,403,404].includes(cause.status)) { setEntries([]); setAccessDenied(true); setError(message(cause)); } else { setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", children: [], artifacts: [], actions: [] } } : item)); } }} /> : null}
         {entry.task ? <TaskActivity task={entry.task} onRefresh={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }} /> : null}
       </article>)}

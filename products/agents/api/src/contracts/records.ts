@@ -20,4 +20,4 @@ export interface TaskRecord { id: string; product: AdmissionAuthority["product"]
   effective_composition: EffectiveComposition; evaluation_trial_id: string | null; channel_binding: ChannelBinding | null }
 export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: string; payload: Record<string,unknown>; created_at: Date }
 export interface AdmitTaskInput { authority: AdmissionAuthority; grantId: string; versionId: string;
-  requestKey: string; input: string; conversationId?: string; evaluationTrialId?: string; channelBinding?: ChannelBinding }
+  requestKey: string; input: string; conversationId?: string; evaluationTrialId?: string; channelBinding?: ChannelBinding; configurationMode?: "current" }

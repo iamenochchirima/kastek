@@ -32,6 +32,8 @@ export async function owner(db: Db, execution: Execution): Promise<string | null
 export async function inspectionAuthority(db: Db, execution: Execution): Promise<void> {
   const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
   const accountId = await owner(db, root);
+  const grant = (await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
+  if (!grant || grant.revoked_at) throw unavailable();
   if(root.task.product!=="agents") {
     await assertProductAuthority(db,{product:root.task.product,organizationId:root.task.organization_id,resourceId:root.task.resource_id,
       callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id,root.task.grant_id);
@@ -39,12 +41,10 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
-      WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND s.expires_at>now() AND d.version_id=$3 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.task.version_id])).rowCount) throw unavailable();
+      WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND s.expires_at>now() AND d.agent_id=$3 AND d.organization_id=$4 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.agentId, root.task.organization_id])).rowCount) throw unavailable();
   } else throw unavailable();
   if ((await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.conversations c ON c.id=t.conversation_id
     WHERE t.root_task_id=$1 AND c.deleted_at IS NOT NULL LIMIT 1`, [root.task.id])).rowCount) throw unavailable();
-  const grant = (await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
-  if (!grant || grant.revoked_at) throw unavailable();
 }
 export async function sourceAllowed(db: Db, execution: Execution, revisionId: string): Promise<void> {
   const grant = (await db.query("SELECT source_revision_ids,operations FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];

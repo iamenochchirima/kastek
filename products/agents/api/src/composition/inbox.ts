@@ -25,7 +25,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
         authority: { product: "agents", organizationId: deployment.organization_id, resourceId: deployment.id, callerClientId: "agents-website",
           principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId } }, input: input.input,
         requestKey: input.requestKey, conversationId: input.executionConversationId ?? undefined, channelBinding: input.channelBinding,
-        ...(trial?{evaluationTrialId:trial.trial_id}:{}),
+        ...(trial?{evaluationTrialId:trial.trial_id}:{configurationMode:"current" as const}),
       });
       return result.task;
     },

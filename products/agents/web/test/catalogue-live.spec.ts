@@ -25,12 +25,12 @@ test("actual API: curated and private skill revisions survive save, reload and i
   await expect(tools.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
   await tools.getByRole("button", { name: "Remove Human support", exact: true }).click();
   expect((await currentAgent(page, fixture)).agent.draft.tools).toContain("channel.request_handoff");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect((await currentAgent(page, fixture)).agent.draft.tools).not.toContain("channel.request_handoff");
   await tools.getByRole("button", { name: "Add Human support", exact: true }).click();
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
 
   await page.getByRole("button", { name: "Skills", exact: true }).click();
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("curated");
@@ -45,9 +45,9 @@ test("actual API: curated and private skill revisions survive save, reload and i
   const installed = (await (await installResponse).json()).package;
   expect(installed.id).toMatch(/^[0-9a-f-]{36}$/); expect(installed.reviewState).toBe("reviewed"); expect(installed.publisher.verified).toBe(true);
   expect((await currentAgent(page, fixture)).agent.draft.skillIds).toEqual([]);
-  await expect(page.getByRole("button", { name: "Create version", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create version", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect((await currentAgent(page, fixture)).agent.draft.skillIds).toEqual([installed.id]);
   await page.reload();
   await catalogue.getByRole("button", { name: "Added 1", exact: true }).click();
@@ -70,14 +70,12 @@ test("actual API: curated and private skill revisions survive save, reload and i
   await expect(page.getByRole("combobox", { name: "Library", exact: true })).toHaveValue("private");
   await catalogue.getByRole("button", { name: "Add acceptance-replies", exact: true }).click();
   expect((await currentAgent(page, fixture)).agent.draft.skillIds).toEqual([installed.id]);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   const expectedIds = [installed.id, imported.id];
   expect((await currentAgent(page, fixture)).agent.draft.skillIds).toEqual(expectedIds);
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveValue(/.+/);
   const published = await currentAgent(page, fixture);
-  expect(published.versions).toHaveLength(1); expect(published.versions[0]!.configuration.skillIds).toEqual(expectedIds);
+  expect(published.versions.length).toBeGreaterThan(0); expect(published.versions[0]!.configuration.skillIds).toEqual(expectedIds);
   await page.reload();
   await catalogue.getByRole("button", { name: "Added 2", exact: true }).click();
   await expect(catalogue.getByRole("article")).toHaveCount(2);
@@ -87,10 +85,10 @@ test("actual API: curated and private skill revisions survive save, reload and i
     await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/actual-api-skills-${width}.png`), fullPage: true, animations: "disabled" });
   }
   await catalogue.getByRole("button", { name: "Remove acceptance-replies", exact: true }).click();
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   const changed = await currentAgent(page, fixture);
-  expect(changed.agent.draft.skillIds).toEqual([installed.id]); expect(changed.versions[0]!.configuration.skillIds).toEqual(expectedIds);
+  expect(changed.agent.draft.skillIds).toEqual([installed.id]); expect(changed.versions[0]!.configuration.skillIds).toEqual([installed.id]); expect(published.versions[0]!.configuration.skillIds).toEqual(expectedIds);
   expect((await currentAgent(page, fixture, fixture.otherAgentId)).agent.draft.skillIds).toEqual([]);
   await page.goto(`${fixture.url}/app/agents/${fixture.otherAgentId}?section=skills`);
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("private");
@@ -237,8 +235,8 @@ test("actual API with controlled Google provider: sign-in, calendar sharing and 
   const before = await (await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.bookingAgentId}`)).json();
   expect(before.agent.draft.capabilities.businessActions).toEqual({ enabled: false });
   await page.getByRole("combobox", { name: "Booking policy", exact: true }).selectOption(policy.id);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.reload(); await expect(page.getByRole("combobox", { name: "Booking policy", exact: true })).toHaveValue(policy.id);
   const saved = await (await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.bookingAgentId}`)).json();
   expect(saved.agent.draft.capabilities.businessActions).toEqual({ enabled: true, profileId: "google-calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest });

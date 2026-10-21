@@ -32,9 +32,10 @@ access, publish a version and test it. Controlled acceptance results do not cert
 ## Model selection
 
 New drafts use `nvidia/nemotron-3-super-120b-a12b` through OpenRouter (paid).
-Configure > Model and limits also offers the explicit `:free` route. Selecting a
-route and publishing creates an immutable version; start a new conversation for
-that version. Existing free versions never switch to paid during execution.
+Configure > Model and limits also offers the explicit `:free` route. Save changes
+validates and activates a configuration snapshot in the background. Existing
+conversations use saved settings on their next turn. A free-to-paid change requires
+confirmation; an accepted turn never silently switches routes.
 Free endpoint availability is provider-dependent.
 
 The displayed input budget is a conservative serialized-byte accounting envelope,
@@ -204,8 +205,8 @@ with Activity and Configure tabs.
 Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
 catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
 and public GitHub packages pinned to an exact commit and package path.
-Installing a skill preserves its complete immutable package. Adding it to a draft and publishing
-are separate actions. Owner review checks the exact package digest before execution. Website
+Installing a skill preserves its complete immutable package. Add the selected skill
+and use Save changes to apply it. Owner review checks the exact package digest before execution. Website
 publication permits enabled, reviewed server-curated instruction packages. Private or repository
 skills and generic personal connection bindings remain unavailable to website visitors.
 Owners can compare skill revisions and explicitly select an update or rollback within the same
@@ -219,9 +220,23 @@ See [approved package execution](docs/source-boundary.md#customer-agent-configur
 Connections includes custom MCP discovery/selection, native OpenAPI import, and Google Calendar
 setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
 unsaved draft before navigation and preserves input if saving fails.
-Rich harness configurations use developer/product fixtures. Saving a draft does not
-change a runnable version. Create version is explicit, and each conversation keeps
-its original version.
+Rich harness configurations use developer/product fixtures. In the ordinary client,
+Save changes validates the configuration and creates its immutable execution snapshot
+in one transaction. No numbered-version action or selector is required. The collapsed
+Configuration history control can load an earlier configuration into the editor;
+Save changes applies it as a new snapshot after current permissions are validated.
+
+New chat turns use the latest saved configuration, including in existing conversations.
+Accepted turns retain their own settings. Retry recovers the original task and snapshot,
+even if a save happened after its submission. Permission reductions revoke affected old
+grants immediately. Changes expanding permissions or affecting live customer channels
+require confirmation. Invalid channel configurations roll back the entire save. Website
+URLs, visitor sessions, Inbox ownership and history remain stable.
+
+Connection setup can persist an incomplete draft while authorization is in progress.
+Save changes applies the completed configuration. Product and evaluation contracts
+retain explicit snapshot IDs. Existing scheduled workflows retain their separately
+authorized configuration; creating a new schedule uses the latest saved configuration.
 
 Conversation history comes from authorized server records and survives cleared
 browser storage. New chat starts a separate conversation; unresolved admission must
@@ -251,9 +266,9 @@ for authority, credentials, and status recovery.
 
 An owner signs in through **Connections**, selects a writable calendar, and explicitly allows
 its use for the organization booking service. In the agent's **General** settings, the owner
-creates and selects a booking policy, saves the draft, and creates a version. Customer-service
+creates and selects a booking policy, then applies it with Save changes. Customer-service
 agents expose this setup. Other available agents can open optional setup through **Tools**.
-Selecting a calendar alone does not authorize bookings or update published versions.
+Selecting a calendar alone does not authorize bookings or apply saved agent settings.
 
 The customer confirms the exact appointment in website chat before an event can be created.
 **Check status** on an uncertain or claimed appointment performs a provider lookup. It never

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { assertConnectedBindingDependencies } from "../../capabilities/connected-tools/connected-tool-schema";
@@ -16,7 +17,8 @@ import { compilePublishedComposition } from "../../execution/programs/publicatio
 
 import { publishedToolBindings } from "../../capabilities/tools";
 
-import type { Account,AgentRecord,VersionRecord } from "../../contracts/records";
+import type { Account,AgentRecord,VersionRecord,WebsiteDeployment } from "../../contracts/records";
+import { DeploymentStore } from "../deployments/deployment-store";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
 
@@ -38,6 +40,23 @@ function grantFromRow(row: Record<string, unknown>): ExecutionGrant {
     revokedAt: row.revoked_at ? (row.revoked_at as Date).toISOString() : null });
 }
 
+
+function canonical(value:unknown):string {
+  if(Array.isArray(value))return JSON.stringify(value.map(item=>canonical(item)).sort());
+  if(value&&typeof value==="object")return JSON.stringify(Object.entries(value).filter(([key])=>!["label","description","versionNumber"].includes(key)).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,canonical(item)]));
+  return JSON.stringify(value);
+}
+function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfiguration):{expanded:boolean;reduced:boolean} {
+  const atoms=(config:AgentConfiguration)=>new Set([
+    ...config.tools.map(id=>`tool:${id}`),...config.sourceRevisionIds.map(id=>`source:${id}`),
+    ...config.skillIds.map(id=>`skill:${id}`),...connectedToolAuthorityIds(config).map(id=>`binding:${id}`),
+    ...Object.entries(config.capabilities).filter(([,value])=>value.enabled).map(([key,value])=>`capability:${key}:${canonical(value)}`),
+    ...(config.memory.enabled?["memory"]:[]),`execution:${config.executionKind}`,`program:${canonical(config.program)}`,
+  ]);
+  const old=atoms(before),next=atoms(after);
+  return {expanded:[...next].some(value=>!old.has(value))||(before.model.model.endsWith(":free")&&!after.model.model.endsWith(":free")),
+    reduced:[...old].some(value=>!next.has(value))||(before.model.model!==after.model.model&&after.model.model.endsWith(":free"))||after.model.maxDurationSeconds<before.model.maxDurationSeconds||after.model.maxInputBytes<before.model.maxInputBytes||after.model.maxOutputTokens<before.model.maxOutputTokens||after.context.maxInputTokens<before.context.maxInputTokens};
+}
 
 export class AgentStore extends AuthorityStore {
   async listAgents(accountId: string, organizationId: string): Promise<AgentRecord[]> {
@@ -61,17 +80,69 @@ export class AgentStore extends AuthorityStore {
       const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),
         draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND draft_revision=$3 RETURNING *`,
       [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120)])).rows[0];
-      if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "The draft has changed. Refresh and try again.");
+      if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       return row; });
+  }
+  async createConfiguredAgent(input: {accountId:string;organizationId:string;name:string;offering?:"faq"|"customer-service";configuration?:AgentConfiguration}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+    const config=agentConfigurationSchema.parse(input.configuration??customerConfiguration(input.offering));
+    return this.transaction(async db=>{
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
+      await this.membership(db,input.accountId,input.organizationId);
+      const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering)
+        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),config,input.accountId,input.offering??(input.configuration?null:"faq")])).rows[0]!;
+      const snapshot=await this.createVersionInTransaction(db,{...input,agentId:agent.id},agent);
+      return {agent,snapshot,deployments:[]};
+    });
+  }
+  async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+    const config=agentConfigurationSchema.parse(input.configuration);
+    return this.transaction(async db=>{
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
+      await this.membership(db,input.accountId,input.organizationId);
+      let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
+      if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
+      const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
+      const previous=latest?agentConfigurationSchema.parse(latest.configuration):null;
+      const authority=previous?configurationAuthorityChange(previous,config):{expanded:false,reduced:false};
+      if(authority.reduced)await db.query(`SELECT g.id FROM agents_platform.execution_grants g
+        WHERE g.organization_id=$1 AND g.revoked_at IS NULL AND g.version_id IN
+        (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2)
+        ORDER BY g.id FOR UPDATE OF g`,[input.organizationId,input.agentId]);
+      let deployments=(await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) ORDER BY id FOR UPDATE",[input.organizationId,input.agentId])).rows;
+      const name=input.name===undefined?agent.name:text(input.name,120);
+      const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config);
+      if(!changed&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
+      if(!changed&&latest&&latest.draft_revision===agent.draft_revision){
+        agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name])).rows[0]!;
+        return {agent,snapshot:latest,deployments};
+      }
+      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&deployments.length>0)||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
+      agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,draft_revision=draft_revision+1,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name])).rows[0]!;
+      const snapshot=await this.createVersionInTransaction(db,input,agent);
+      const deploymentStore=new DeploymentStore(this.pool);
+      for(const deployment of deployments)await deploymentStore.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:deployment.agent_id,version:snapshot});
+      if(deployments.length)deployments=(await db.query<WebsiteDeployment>(`UPDATE agents_platform.website_deployments SET version_id=$3
+        WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) RETURNING *`,[input.organizationId,input.agentId,snapshot.id])).rows;
+      if(authority.reduced)await db.query(`UPDATE agents_platform.execution_grants SET revoked_at=now()
+        WHERE organization_id=$1 AND revoked_at IS NULL AND version_id IN
+        (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 AND id<>$3)`,[input.organizationId,input.agentId,snapshot.id]);
+      return {agent,snapshot,deployments};
+    });
   }
   async createVersion(input: { accountId: string; organizationId: string; agentId: string; expectedRevision: number }): Promise<VersionRecord> {
     return this.transaction(async (db) => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId]);
       await this.membership(db, input.accountId, input.organizationId);
       const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
-      if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "The draft has changed. Refresh and try again.");
+      if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2", [agent.id, agent.draft_revision])).rows[0];
       if (existing) return existing;
+      return this.createVersionInTransaction(db,input,agent);
+
+    });
+  }
+  private async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
       const config = agentConfigurationSchema.parse(agent.draft);
       const connectedAuthority = connectedToolAuthorityIds(config);
       if(config.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,agent.id,config.capabilities.businessActions);
@@ -123,7 +194,6 @@ export class AgentStore extends AuthorityStore {
       for (const source of sources) await db.query("INSERT INTO agents_platform.version_sources(organization_id,version_id,source_id,revision_id) VALUES($1,$2,$3,$4)", [input.organizationId, version.id, source.source_id, source.id]);
       for (const binding of connected) await db.query("INSERT INTO agents_platform.version_connected_tools(organization_id,version_id,binding_id) VALUES($1,$2,$3)", [input.organizationId, version.id, binding.id]);
       return version;
-    });
   }
   async listVersions(accountId: string, organizationId: string, agentId: string): Promise<VersionRecord[]> {
     return this.transaction(async (db) => {
@@ -136,17 +206,25 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async (db) => { await this.membership(db, accountId, organizationId); return this.version(db, organizationId, versionId); });
   }
   async createGrant(input: { accountId: string; grant: ExecutionGrant }): Promise<ExecutionGrant> {
+    return this.transaction(db=>this.createGrantInTransaction(db,input));
+  }
+  async createGrantInTransaction(db:PoolClient,input:{accountId:string;grant:ExecutionGrant}):Promise<ExecutionGrant> {
     const grant = executionGrantSchema.parse(input.grant);
-    return this.transaction(async (db) => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[grant.organizationId]);
       await this.membership(db, input.accountId, grant.organizationId);
       const account = (await db.query<Account>("SELECT * FROM agents_platform.accounts WHERE id=$1", [input.accountId])).rows[0]!;
       const version = await this.version(db, grant.organizationId, grant.versionId);
+      const current=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[grant.organizationId,version.agent_id])).rows[0];
+      if(current&&current.id!==version.id){
+        const latest=agentConfigurationSchema.parse(current.configuration),requested=agentConfigurationSchema.parse(version.configuration);
+        if(configurationAuthorityChange(latest,requested).expanded||requested.model.maxInputBytes>latest.model.maxInputBytes||requested.model.maxOutputTokens>latest.model.maxOutputTokens||requested.model.maxDurationSeconds>latest.model.maxDurationSeconds||requested.context.maxInputTokens>latest.context.maxInputTokens)
+          throw new PlatformError("CONFIGURATION_SCOPE_REVOKED",403,"This saved configuration contains permissions that have been removed.");
+      }
       if (grant.product !== "agents" || grant.callerClientId !== "agents-execution" || grant.resourceId !== version.agent_id ||
         grant.principal.kind !== "human" || grant.principal.issuer !== account.issuer || grant.principal.subject !== account.subject ||
         new Date(grant.expiresAt).getTime() > Date.now() + 30 * 60_000) denied();
       assertGrantAuthority(grant, { ...grant }, version.id, version.configuration);
       return this.insertGrant(db, grant);
-    });
   }
   async revokeGrant(accountId: string, organizationId: string, grantId: string): Promise<void> {
     await this.transaction(async (db) => { await this.membership(db, accountId, organizationId);

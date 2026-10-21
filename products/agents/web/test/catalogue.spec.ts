@@ -21,7 +21,8 @@ async function fixture(page: Page, failInitially = false) {
     else if (path.endsWith("/agents/root")) {
       if (request.method() === "PUT") { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; }
       data = { agent: { id: "root", name: "Customer support", offering: "faq", draft, draftRevision: revision }, versions: [], deployments: [] };
-    } else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Customer support", draftRevision: revision })], nextCursor: null };
+    } else if (path.endsWith("/agents/root/configuration")) { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; data = { agent: { id: "root", name: "Customer support", offering: "faq", draft, draftRevision: revision }, snapshot: { id: `snapshot-${revision}`, number: revision, configuration: structuredClone(draft) }, deployments: [] }; }
+    else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Customer support", draftRevision: revision })], nextCursor: null };
     else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
     else if (path.endsWith("/catalogue/tools")) {
       expect(new URL(request.url()).searchParams.get("agentId")).toBe("root");
@@ -59,7 +60,7 @@ for (const width of [1440, 768, 390]) {
     await expect(catalogue.getByRole("heading", { name: "GitHub", exact: true })).toHaveCount(0);
     await catalogue.getByRole("button", { name: "Add Human support", exact: true }).click();
     expect(state.draft().tools).not.toContain("channel.request_handoff");
-    await expect(page.getByRole("button", { name: "Create version", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Create version", exact: true })).toHaveCount(0);
     await catalogue.getByRole("button", { name: "Added 3", exact: true }).click();
     await expect(catalogue.getByRole("article")).toHaveCount(3);
     await catalogue.getByRole("button", { name: "Available", exact: true }).click();
@@ -73,8 +74,8 @@ for (const width of [1440, 768, 390]) {
     await page.getByRole("button", { name: "General", exact: true }).click();
     await page.getByRole("button", { name: "Tools", exact: true }).click();
     await expect(page.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
     expect(state.draft().tools).toContain("channel.request_handoff");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/mock-agent-tools-${width}.png`), fullPage: true, animations: "disabled" });
@@ -113,8 +114,8 @@ test("mock transport: import, inspect, review and add a private skill revision",
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("private");
   await page.getByRole("button", { name: "Add support-writing", exact: true }).click();
   expect(state.draft().skillIds).toEqual([]);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().skillIds).toEqual(["skill1"]);
   expect(state.errors).toEqual([]);
 });
@@ -132,8 +133,8 @@ test("mock transport: curated skill preview installs a real revision into the dr
   await expect(preview).toBeHidden();
   await expect(page.getByRole("button", { name: "Remove Grounded answers", exact: true })).toBeVisible();
   expect(state.draft().skillIds).toEqual([]);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().skillIds).toEqual(["curated1"]);
 });
 
@@ -190,8 +191,8 @@ test("mock transport: skill rollback replaces only the same publisher and source
   await expect(dialog.getByText("Old reviewed instructions")).toBeVisible();
   await dialog.getByRole("button", { name: "Use revision 1", exact: true }).click();
   expect(state.draft().skillIds).toEqual([]);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().skillIds).toEqual(["other", "old"]);
 });
 
@@ -207,7 +208,7 @@ for (const saveFails of [false, true]) test(`mock transport: Connect ${saveFails
   if (saveFails) {
     await expect(page.getByText("The agent changed. Review your draft before saving.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeEnabled();
     expect(new URL(page.url()).pathname).toBe("/app/agents/root"); expect(state.draft().tools).not.toContain("channel.request_handoff");
   } else {
     await page.waitForURL(url => url.pathname === "/app/connections");
@@ -232,8 +233,8 @@ test("mock transport: Connect preserves newer selections made during its draft s
   await expect(page.getByRole("button", { name: "Add Knowledge search", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove Human support", exact: true })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe("/app/agents/root");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().tools).toContain("channel.request_handoff"); expect(state.draft().tools).not.toContain("knowledge.search");
 });
 
@@ -253,8 +254,8 @@ test("mock transport: Google Calendar removal edits only the booking policy draf
   expect(new URL(page.url()).searchParams.get("section")).toBe("configuration"); expect(new URL(page.url()).searchParams.get("setup")).toBe("booking");
   await expect(page.getByRole("region", { name: "Booking policy", exact: true })).toBeVisible();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: false });
   expect(state.draft().tools).toEqual(configuration.tools); expect(state.draft().connectedToolBindingIds).toEqual([]);
 });

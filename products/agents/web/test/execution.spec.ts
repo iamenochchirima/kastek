@@ -1,5 +1,5 @@
-import { nativeAgent, prepareNativeSpecialists } from "./native-harness-fixture";
-import { agentSummary, conversationSummaries, configure } from "./workspace-fixtures";
+import { activateNativeConfiguration, nativeAgent, prepareNativeSpecialists } from "./native-harness-fixture";
+import { agentSummary, conversationSummaries } from "./workspace-fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -138,7 +138,7 @@ test("live execution: accepted root reconnects to specialists, isolated analysis
   expect(configured.agent.draft.capabilities.delegation.enabled).toBe(true);
   expect(configured.agent.draft.capabilities.sandbox.enabled).toBe(true);
   if (configured.agent.draft.capabilities.delegation.enabled) expect(configured.agent.draft.capabilities.delegation.bindings).toHaveLength(2);
-  if (pinnedVersions?.length === 2) { await configure(page); await page.getByRole("button", { name: "Create version", exact: true }).click(); }
+  if (pinnedVersions?.length === 2) { await activateNativeConfiguration(page); }
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Message" })).toBeEnabled();
   await page.getByRole("textbox", { name: "Message" }).fill(prompt!);

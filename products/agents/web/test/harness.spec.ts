@@ -107,8 +107,8 @@ test("live harness: scoped memory, tool rounds, contextual follow-up and new con
   await configure(page);
   const instructions = page.getByRole("textbox", { name: "Instructions", exact: true });
   await instructions.fill(`${await instructions.inputValue()} Preserve the exact preferred-color wording.`);
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Create version", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Version", exact: true })).not.toHaveValue(originalVersionId);
   const latestVersionId = await page.getByRole("combobox", { name: "Version", exact: true }).inputValue();

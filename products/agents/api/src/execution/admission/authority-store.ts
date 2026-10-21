@@ -51,7 +51,7 @@ export class AuthorityStore {
       grant.maxInputBytes, grant.maxOutputTokens, grant.expiresAt, grant.revokedAt, grant.maxContextTokens, grant.rootTokenLimit, grant.sourceRevisionIds, grant.connectedToolBindingIds]);
     return grant;
   }
-  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord): Promise<void> {
+  protected async assertPrincipal(db: Db, authority: AdmissionAuthority, version: VersionRecord, options: { currentDeployment?: boolean } = {}): Promise<void> {
     if (authority.product !== "agents") return assertProductAuthority(db,authority,version.id);
     if (authority.principal.kind === "human") {
       if (authority.callerClientId !== "agents-execution" || authority.resourceId !== version.agent_id) denied();
@@ -61,7 +61,7 @@ export class AuthorityStore {
     } else if (authority.principal.kind === "visitor") {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];
-      if (!deployment || deployment.version_id !== version.id || deployment.agent_id !== version.agent_id) denied();
+      if (!deployment || deployment.agent_id !== version.agent_id || options.currentDeployment && deployment.version_id !== version.id) denied();
     } else if(authority.principal.kind==="automation") await assertAutomationAdmission(db,authority,version);
     else denied();
   }

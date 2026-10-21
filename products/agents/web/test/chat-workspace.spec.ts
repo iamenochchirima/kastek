@@ -21,7 +21,7 @@ async function fixture(page: Page, options: { unknown?: boolean; versions?: bool
     else if (path.endsWith("/tasks") && method === "POST") {
       posts.push(body);
       const existing = tasks.find(t => t.requestKey === body.requestKey);
-      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: options.errorCode ? null : tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId: body.versionId, turnSequence: tasks.length + 1, state: options.errorCode ? "failed" : "completed", errorCode: options.errorCode ?? null };
+      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: options.errorCode ? null : tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId, turnSequence: tasks.length + 1, state: options.errorCode ? "failed" : "completed", errorCode: options.errorCode ?? null };
       if (!existing) tasks.push(task);
       if (unknown) { unknown = false; await route.abort("failed"); return; }
       data = { task };
@@ -52,7 +52,7 @@ test("mock transport: default chat, server history after storage clear, pinned c
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("What is my project?");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByText("Your project is ORCHID-17.", { exact: true })).toBeVisible();
-  expect(posts[1].conversationId).toBe("conversation-1"); expect(posts[1].versionId).toBe(versionId);
+  expect(posts[1].conversationId).toBe("conversation-1"); expect(posts[1].agentId).toBe(agentId); expect(posts[1].versionId).toBeUndefined();
   await page.getByRole("button", { name: "New chat", exact: true }).click();
   await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
   for (const width of [1440, 768, 390]) {
@@ -77,7 +77,7 @@ test("mock transport: uncertain admission retries same key after reload and crea
   await expect(page.getByRole("button", { name: "Retry request" })).toBeVisible();
   await page.reload(); await page.getByRole("button", { name: "Retry request" }).click();
   await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
-  expect(tasks).toHaveLength(1); expect(posts).toHaveLength(2); expect(posts[0].requestKey).toBe(posts[1].requestKey);
+  expect(tasks).toHaveLength(1); expect(posts).toHaveLength(2); expect(posts[0]).toEqual(posts[1]); expect(posts[0].agentId).toBe(agentId);
 });
 
 test("mock transport: draft changes require custom discard confirmation before navigation", async ({ page }) => {
@@ -118,7 +118,7 @@ for (const [code, label] of [
     await page.goto(`/app/agents/${agentId}`);
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hi");
     await page.getByRole("button", { name: "Send message" }).click();
-    await expect(page.getByText(`failed · Version 1 · ${label}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(`failed · ${label}`, { exact: true })).toBeVisible();
     await expect(page.getByText(/private_provider_text/)).toHaveCount(0);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });

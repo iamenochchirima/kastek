@@ -212,7 +212,7 @@ SKILL.md and ZIP uploads, plus explicit public GitHub commit/path imports, prese
 immutable package digest and reviewed file inventory. Repository imports verify Git object hashes
 and reject mutable references. Private repositories are unavailable through this importer.
 Private and repository imports do not enable a skill on an agent. Curated Add explicitly installs
-and selects a reviewed revision in the unsaved draft. Neither path executes scripts. Published versions pin reviewed
+and selects a reviewed revision in the unsaved configuration. Save changes applies the selection. Neither path executes scripts. Internal snapshots pin reviewed
 revisions. Context initially exposes package metadata, then `skills.activate` and `skills.read` load
 bounded exact files. Activation and file receipts survive compaction and worker continuation.
 Files that exceed a complete-read limit are rejected rather than silently truncated.

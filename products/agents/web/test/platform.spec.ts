@@ -42,8 +42,8 @@ async function openAgent(page: Page, name: string) {
 }
 async function attachKnowledge(page: Page, title: string) {
   await page.getByRole("checkbox", { name: new RegExp(title) }).check();
-  await page.getByRole("button", { name: "Save configuration" }).click();
-  await expect(page.getByText("Configuration saved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
 }
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -79,8 +79,8 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
     else if (path.endsWith("/policy")) { const source = knowledge[0]; source.generation++; if (body.action === "approve") source.revisions[0].state = "approved"; else if (body.action === "visibility") source.visibility = body.visibility; data = { source }; }
     else if (path === `/api/organizations/${mockOrg}/agents`) { if (method === "POST") { expect(body.offering).toBe("faq"); agent = { id: mockAgent, name: body.name, draft: structuredClone(configuration), draftRevision: 1, updatedAt: new Date().toISOString() }; data = { agent }; } else data = { agents: agent ? [agent] : [] }; }
     else if (path.endsWith(`/agents/${mockAgent}`)) { if (method === "PUT") { expect(body.expectedRevision).toBe(agent!.draftRevision); agent = { ...agent!, name: body.name, draft: body.configuration, draftRevision: agent!.draftRevision + 1 }; } data = { agent, versions, deployments }; }
-    else if (path.endsWith("/versions")) { const version = { id: mockVersion, number: 1, configuration: structuredClone(agent!.draft) }; versions.push(version); data = { version }; }
-    else if (path.endsWith("/deployments")) { const deployment = { id: mockDeployment, ...body }; deployments.push(deployment); data = { deployment }; }
+    else if (path.endsWith("/configuration")) { expect(body.expectedRevision).toBe(agent!.draftRevision); agent = { ...agent!, name: body.name, draft: body.configuration, draftRevision: agent!.draftRevision + 1 }; const snapshot = { id: mockVersion, number: versions.length + 1, configuration: structuredClone(agent.draft) }; versions.unshift(snapshot); data = { agent, snapshot, deployments }; }
+    else if (path.endsWith("/deployments")) { const deployment = { id: mockDeployment, ...body, versionId: mockVersion }; deployments.push(deployment); data = { deployment }; }
     else if (path === `/api/website/${mockDeployment}`) data = { name: agent!.name };
     else if (path.endsWith("/session")) { visitorSessions++; data = { token: "visitor-token" }; }
     else if (path.endsWith("/customer-conversations")) data = { conversation: { id: "website-conversation", state: "automation_active" } };
@@ -102,7 +102,6 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
   expect(deployments).toHaveLength(0);
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await configure(page);
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("What is the return policy?");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
@@ -117,7 +116,7 @@ test("mock transport: draft isolation, immutable versions, task reconnect, expli
   await configure(page, "Website");
   await page.getByRole("button", { name: "Publish website", exact: true }).click();
   await page.getByRole("textbox", { name: "Allowed website origins" }).fill("https://example.com");
-  await page.getByRole("button", { name: "Publish version", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Publish website", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open website chat" })).toBeVisible();
   expect(deployments).toHaveLength(1);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -157,11 +156,10 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   await attachKnowledge(page, `Returns ${suffix}`);
   await page.getByText("Search options", { exact: true }).click();
   await page.getByRole("combobox", { name: "Search method", exact: true }).selectOption("hybrid-v1");
-  await page.getByRole("button", { name: "Save configuration", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save configuration", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await configure(page);
-  await page.getByRole("button", { name: "Create version", exact: true }).click();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("How many days do I have to return an item?");
   let taskId = "";
@@ -180,7 +178,7 @@ test("live platform: authenticated knowledge, private reply, task recovery and p
   await configure(page, "Website");
   await page.getByRole("button", { name: "Publish website", exact: true }).click();
   await page.getByRole("textbox", { name: "Allowed website origins" }).fill(process.env.AGENTS_BROWSER_WIDGET_ORIGIN ?? "http://127.0.0.1:4398");
-  await page.getByRole("button", { name: "Publish version", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Publish website", exact: true }).click();
   const link = page.getByRole("link", { name: "Open website chat" });
   await expect(link).toBeVisible();
   const publicPath = await link.getAttribute("href");

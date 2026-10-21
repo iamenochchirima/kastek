@@ -382,7 +382,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/inbox` | Authorized website assignment, takeover, replies, resolution, explicit return, and scoped appointment status/recovery without customer approval. | Canonical Inbox HTTP/browser, `inbox-bookings.spec.ts`, and durable takeover/status acceptance. |
 | `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
 | `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |
-| `/app/agents/:agentId/conversations/:conversationId` | Authorized history pinned to its original agent/version, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
+| `/app/agents/:agentId/conversations/:conversationId` | Authorized history scoped to its original agent and principal, per-turn configuration snapshots, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
@@ -392,13 +392,41 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
 
 
+### Configuration activation
+
+`POST /api/organizations/:organizationId/agents/:agentId/configuration` accepts
+`configuration`, `expectedRevision`, optional `name`, and optional `confirmImpact`.
+It returns `{agent,snapshot,deployments}`. Optimistic revision checks reject stale
+editors. A save requiring channel or authority confirmation returns
+`CONFIGURATION_CONFIRMATION_REQUIRED` before mutation. No-op saves reuse the current
+snapshot. Invalid snapshots or unsafe public deployment settings roll back together.
+Deployment IDs and origins stay stable. Evaluation-owned deployments do not advance.
+
+Ordinary `POST /tasks` accepts `agentId` instead of `versionId`. Current snapshot
+selection, grant creation and admission share the organization transaction lock with
+configuration saves. A request may instead supply an explicit `versionId` for
+product/evaluation tooling; supplying both selectors is invalid. Isolated evaluations
+require explicit snapshots. New website connections omit `versionId` and use current
+saved settings; the explicit publication contract remains available internally.
+
+Existing conversations can span configuration snapshots. Their agent, tenant, principal,
+channel session and human ownership boundaries remain fixed. Customer conversation
+bindings remain immutable; each persisted task link proves its turn's snapshot.
+Ordinary settings changes preserve accepted turns. Reduced authority revokes old grants,
+and historical snapshots cannot mint removed permissions or larger budgets. Current
+connection, source, skill and Inbox authority checks still apply to every operation.
+
 ### Chat navigation and recovery
 
 Every available customer agent opens Chat. Configure contains General, Tools, Skills, and Website
 sections with knowledge pins, optional appointments, package review, and explicit publication.
 Developer and product fixtures configure specialists, analysis, reports, and personal memory through
-authorized APIs. Draft saves and immutable version creation remain separate operations.
-An existing conversation keeps its version. A version change starts a new chat.
+authorized APIs. Save changes validates, snapshots and activates configuration atomically.
+Numbered versions are internal provenance, not a normal client workflow. Existing conversations
+use current saved configuration for their next turn; accepted turns retain their snapshot.
+Retries recover the original task across saves without reserving another grant or budget.
+Connection setup may persist an incomplete draft, which remains pending until Save changes.
+The collapsed configuration history loads a prior configuration for a fresh validated save.
 
 The global sidebar contains Agents, Tasks, Knowledge, Connections, Automations and
 Settings. The agent/history pane is separate from the main conversation. Tablet
@@ -477,7 +505,7 @@ agent configuration records. All routes below are beneath
 | `GET /agents/summaries?q=...` | `{agents,nextCursor}`; compact roster with latest immutable version, draft revision and unpublished-change state. Newest-created first, ID tie breaker. Optional trimmed `q` (maximum 120 characters) searches the complete roster by case-insensitive literal name substring before paging. The existing `/agents` management response is unchanged. |
 | `GET /conversations?agentId=...&versionId=...` | `{conversations,nextCursor}`; `agentId` required, version filter optional. The exact human issuer/subject, Agents product, execution caller and agent scope must match. Activity descending, conversation ID tie breaker. |
 | `GET /tasks?agentId=...&state=...` | `{tasks,nextCursor}`; optional agent/state filters. Root tasks only, newest-created first, task ID tie breaker. Human tasks require exact principal; automation tasks require a current owner membership and either that owner or the pinned occurrence reviewer. |
-| `GET /conversations/:conversationId` | `{tasks,nextCursor,conversation}`; newest page of turns in ascending display order. Prepend subsequent pages to load older turns. Conversation metadata includes the pinned version and current latest task/turn IDs independently of the selected page. |
+| `GET /conversations/:conversationId` | `{tasks,nextCursor,conversation}`; newest page of turns in ascending display order. Prepend subsequent pages to load older turns. Conversation metadata identifies the latest turn snapshot and task/turn IDs independently of the selected page; each task retains its own snapshot. |
 | `GET /tasks/:taskId/events` | `{events,nextCursor}` in sequence order. Child reads require access through their original root. Reviewer-only access returns no events. |
 | `GET /tasks/:taskId` | Existing detail response plus `eventsNextCursor`; accepts `eventsLimit` and `eventsCursor` for its embedded event page. |
 
@@ -775,7 +803,7 @@ model or live provider account is used. It verifies URL discovery and explicit s
 publication, normal chat execution with exact approval, credential replacement and reselection,
 provider-expiry uncertainty, disconnect fencing, full-page OAuth cancellation and cross-tab consent,
 and one-use callbacks. The skill case imports and reviews a package, returns from connection setup
-to the exact revision, explicitly adopts bindings, saves, adds the skill and publishes a new version.
+to the exact revision, explicitly adopts bindings, saves, adds the skill and applies the configuration with Save changes.
 Separate resource/template/prompt selections execute through that same normal workflow; template
 values pin the exact URI. The final run passed five cases and checked seven completed private receipts
 with seven successful approved provider invocations. The expired native credential produces an
