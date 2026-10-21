@@ -222,6 +222,17 @@ export class ChannelStore {
       this.definition(row.kind, row.mode); return this.openCredential(db, row);
     });
   }
+  /** Private webhook verification only; returning a secret does not authorize routing or sending. */
+  async telegramWebhookSecret(id: string): Promise<{assetId:string;secret:string}> {
+    z.uuid().parse(id);
+    return transaction(this.pool,async db=>{
+      const row=(await db.query("SELECT * FROM agents_platform.channel_connections WHERE id=$1 AND kind='telegram' AND state IN ('pending','active','needs_attention') FOR SHARE",[id])).rows[0];
+      if(!row?.asset_id)throw missing();
+      const credentials=await this.openCredential(db,row);
+      if(!credentials.webhookSecret)throw new PlatformError("CHANNEL_WEBHOOK_UNAVAILABLE",403,"Channel webhook is unavailable");
+      return {assetId:row.asset_id,secret:credentials.webhookSecret};
+    });
+  }
   private async openCredential(db: PoolClient, row: Row): Promise<Record<string, string>> {
     const secret = (await db.query("SELECT * FROM agents_platform.channel_credentials WHERE organization_id=$1 AND connection_id=$2 AND revision=$3 AND state='active' FOR SHARE", [row.organization_id, row.id, row.credential_revision])).rows[0];
     if (!secret || secret.kind !== row.kind || secret.mode !== row.mode || secret.asset_id !== row.asset_id || !this.vault) throw new PlatformError("CHANNEL_CREDENTIAL_UNAVAILABLE", 503, "Channel credentials are unavailable");

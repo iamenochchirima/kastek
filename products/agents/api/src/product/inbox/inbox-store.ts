@@ -6,6 +6,7 @@ import { createCursorCodec, cursorKeysFromEnvironment } from "../../infrastructu
 import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
 import type { ChannelKind } from "../../contracts/channel-adapters";
+import { enqueueChannelMessage } from "../channels/channel-outbound";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -19,7 +20,9 @@ export interface CustomerConversation {
   return_watermark: string; created_at: Date; updated_at: Date;
 }
 export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
-  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date }
+  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date;
+  channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
+  deliveries?: {id:string;segment:number;state:string;reason:string|null}[] }
 export interface InboxPorts {
   admit(db: PoolClient, input: { deploymentId: string; sessionId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
@@ -41,7 +44,9 @@ export class InboxStore {
     return row?.role ?? denied();
   }
   private async conversation(db: Db, id: string, lock = false): Promise<CustomerConversation> {
-    return (await db.query<CustomerConversation>(`SELECT * FROM agents_platform.customer_conversations WHERE id=$1 ${lock ? "FOR UPDATE" : ""}`, [id])).rows[0] ?? absent();
+    return (await db.query<CustomerConversation>(`SELECT c.*,cn.id connection_id,cn.name connection_name,cn.asset_id FROM agents_platform.customer_conversations c
+      LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+      WHERE c.id=$1 ${lock ? "FOR UPDATE OF c" : ""}`, [id])).rows[0] ?? absent();
   }
   private async visitor(db: Db, scope: VisitorScope): Promise<{ organization_id: string; agent_id: string; version_id: string }> {
     return (await db.query(`SELECT d.organization_id,d.agent_id,d.version_id FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
@@ -86,7 +91,7 @@ export class InboxStore {
       return { conversation: row, message, replayed: false };
     });
   }
-  async ingressChannel(input: { deploymentId: string; externalConversationId: string; senderId: string; requestKey: string; body: string }) {
+  async ingressChannel(input: { deploymentId: string; externalConversationId: string; senderId: string; requestKey: string; body: string; requireHandoff?: boolean }) {
     if (![input.externalConversationId, input.senderId].every(value => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value)) ||
       !input.requestKey || input.requestKey.length > 100 || !input.body.trim() || Buffer.byteLength(input.body) > 32768) throw new PlatformError("CHANNEL_INPUT_INVALID", 400, "Invalid channel message");
     return transaction(this.pool, async db => {
@@ -104,6 +109,10 @@ export class InboxStore {
       if (existing) { if (existing.request_digest !== digest) conflict(); return { conversation: row, message: existing, replayed: true }; }
       if (row.state === "resolved") throw new PlatformError("CONVERSATION_RESOLVED",409,"Conversation is resolved");
       const message = await this.append(db,row,{key,digest,kind:"visitor",body:input.body});
+      if (input.requireHandoff && row.state === "automation_active") {
+        Object.assign(row,(await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]);
+        await this.queueCancellation(db,row.id,row.ownership_generation);
+      }
       if (row.state === "automation_active") {
         if (!this.ports.admitChannel) throw new PlatformError("CHANNEL_RUNTIME_UNAVAILABLE",503,"Channel execution is unavailable");
         const binding = {customerConversationId:row.id,ownershipGeneration:row.ownership_generation,inputMessageId:message.id};
@@ -120,6 +129,16 @@ export class InboxStore {
     const rows = (await db.query<CustomerMessage>(after === "0" || before ? `SELECT * FROM (SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND ($2::bigint IS NULL OR sequence<$2) ORDER BY sequence DESC LIMIT $3) m ORDER BY sequence` :
       "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
     for (const message of rows) if (message.author_kind === "assistant") message.body = message.task_id ? await this.ports.readableOutput(db, message.task_id, message.body) ?? "[Response unavailable]" : "[Response unavailable]";
+    if (rows.length) {
+      const facts = (await db.query("SELECT * FROM agents_platform.channel_message_facts WHERE message_id=ANY($1::uuid[])",[rows.map(row=>row.id)])).rows;
+      const deliveries = (await db.query("SELECT id,message_id,segment,state,reason FROM agents_platform.channel_outbound WHERE message_id=ANY($1::uuid[]) ORDER BY segment",[rows.map(row=>row.id)])).rows;
+      for (const message of rows) {
+        const fact = facts.find(fact=>fact.message_id===message.id);
+        if (fact) message.channelFacts={occurredAt:fact.provider_occurred_at,replyToProviderMessageId:fact.reply_to_provider_message_id,
+          attachments:fact.attachments.map((attachment:{kind:string;fileName?:string},index:number)=>({kind:attachment.kind,fileName:attachment.fileName,index}))};
+        message.deliveries=deliveries.filter(delivery=>delivery.message_id===message.id).map(delivery=>({id:delivery.id,segment:delivery.segment,state:delivery.state,reason:delivery.reason}));
+      }
+    }
     return rows;
   }
   async readVisitor(scope: VisitorScope, id: string, after = "0", limit = 100, before?: string) {
@@ -129,17 +148,19 @@ export class InboxStore {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
       return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
   }
-  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; assigned?: string; cursor?: string; limit: number }) {
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
-      const scopeKey = { kind: "customer-inbox-v2", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null };
+      const scopeKey = { kind: "customer-inbox-v2", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
-      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+        LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
+        AND ($11::uuid IS NULL OR cn.id=$11)
         AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
         ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
-        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null])).rows;
+        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null, filters.connectionId ?? null])).rows;
       const items = rows.slice(0, filters.limit), last = items.at(-1);
       return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
@@ -160,7 +181,8 @@ export class InboxStore {
         case "takeover": if (!assigned || state === "resolved") denied(); state = "human_owned"; fence = true; break;
         case "reply": if (!assigned || state !== "human_owned" || !input.body?.trim()) denied();
           { const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
-            await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]); } break;
+            await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]);
+            await enqueueChannelMessage(db,row,message); } break;
         case "resolve": if (!assigned) denied(); state = "resolved"; fence = true; break;
         case "reopen": if (!assigned || state !== "resolved") denied(); state = "human_owned"; fence = true; break;
         case "return": if (!assigned || !["human_owned", "handoff_pending"].includes(state)) denied(); state = "automation_active"; fence = true; break;
@@ -226,6 +248,7 @@ export class InboxStore {
     if (!input.output) return;
     const message = await this.append(db, row, { key: `assistant:${input.taskId}`, digest: requestDigest(input.output), kind: "assistant", body: input.output, taskId: input.taskId });
     await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,$5,'published')", [randomUUID(), row.id, input.taskId, message.id, row.ownership_generation]);
+    await enqueueChannelMessage(db,row,message);
     await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"completed"});
   }
   async context(db: Db, binding: ChannelBinding, beforeMessageId: string) {
