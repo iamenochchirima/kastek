@@ -180,6 +180,31 @@ the model binding. Dispatch validates the pin and applies native fields before b
 input counting. A changed controls revision rejects accepted settings rather than retargeting them.
 Saving still uses background configuration snapshots.
 
+The following inventory separates model facts from policy and transport protections. Paths are
+relative to `api/src/`. These values are not vendor capacity promises.
+
+| Rule and source | Classification and rationale | Configuration and verification |
+| --- | --- | --- |
+| Context, input and output capacities in `adapters/models/discovery.ts` and `model-metadata.ts` | Vendor metadata with per-field provenance. Missing context/output capacity blocks execution until sourced metadata exists. | Refresh the selected connection or supply owner-attested manual metadata. `model-discovery.test.ts`, `model-metadata.test.ts`, `model-execution-policy.test.ts`. |
+| Every operator field in the defaults table above, in `execution/models/settings.ts` | Platform policy limits request size, work, root cost exposure and transport memory. The policy compiler takes the smallest ceiling and largest safety reserve. | Strict `AGENTS_MODEL_POLICY_JSON`; `model-execution-policy.test.ts`, `model-dispatch.test.ts`. |
+| Agent defaults in `contracts/contracts.ts`: input16,384 bytes, output4,096 tokens, call120 seconds, context8,192 tokens, compaction6,144 tokens | Editable product defaults for a newly configured agent. Context and output must fit the effective model and root allowance; compaction must precede input exhaustion. | Saved configuration and the model-policy preview. `model-controls.test.ts`, `configuration-experience.spec.ts`. |
+| Grant root default32,000 tokens; tenant defaults2 active roots and100,000 tokens/day | Product and tenant admission policy, independent of a model's advertised context. Existing tenant reservations bound accepted work; child and compaction work share the root. | `executionGrantSchema`, persisted `tenant_admission`, accepted product assertion or evaluation scope. `model-accounting.test.ts`, admission and runtime tests. |
+| Positive stored counters at most2,147,483,647; seconds at most2,147,483 | Persistence integrity. Millisecond conversion must fit PostgreSQL integer counters. These broad bounds do not grant execution allowances. | `contracts/contracts.ts`, `contracts/products.ts`, schema041 and044. Initial schema001's old ceilings are superseded by these additive schemas. PostgreSQL admission/accounting tests. |
+| Delegation2 children, depth1, each2,048–12,000 tokens and1,000–300,000 active milliseconds | Current capability policy for bounded specialist work. Parent authority, remaining allowance and model policy can only narrow these allocations. | `delegationBindingSchema`, published capability and execution grant. Delegation and real business workflow tests. |
+| Instructions8,000 characters, sources20, connected tools8, skills8 and direct builtin tools7 | Product configuration and authority collection bounds. Larger context does not increase capability authority. Full serialized content must still fit the accepted input policy. | `agentConfigurationSchema` and published program contracts. Configuration, publication and product-scope tests. |
+| Model controls in `adapters/models/model-control-profiles.json` | Sourced vendor parameter rules, matched to endpoint, API and model. Manual budgets additionally fit the effective output reserve. Unknown routes expose provider defaults. | Reviewed JSON revision pinned at admission. `model-controls.test.ts`, `model-provider-conformance.test.ts`. |
+| Catalogue2MiB/5,000 models, TTL5 minutes, refresh30 seconds, maximum backoff15 minutes and discovery30-second deadline | Setup transport/cache protections. These values bound provider setup separately from paid agent execution. | Injected validated `ModelSetupPolicy` in `product/model-providers/setup-policy.ts`. Store/discovery tests. |
+| Explicit probe256 output tokens,32KiB request,256KiB response and30 seconds | Setup policy bounds an explicitly billable model/tool test. Actual model capacity can lower the output allowance. | The same `ModelSetupPolicy`; provider probe tests. |
+| Counter response at most64KiB, additionally bounded by the accepted response limit | Transport protection for a small token-count document. Counter failure prevents generation. Native input counts and byte estimates retain separate precision labels. | `execution/models/dispatch.ts`, `adapters/models/input-count.ts`. Native counter success/overflow/failure tests. |
+| Per-call deadline and connection/idle/progress timers | Transport protection within the original operation and task deadlines. Preparation and counting do not reset accepted execution time. Semantic progress is distinct from incoming bytes. | Accepted `maxCallDurationMs`, operation `started_at + reserved_ms`, task deadline and `infrastructure/model-network.ts`. Runtime elapsed-deadline and network timeout/cancellation tests. |
+
+Context packing estimates the complete logical request, including protected instructions and tool
+schemas. The final native count additionally sees provider envelopes and private continuation.
+Serialized-byte estimates are estimates for unqualified tokenizers, not a universal upper bound.
+Accepted request and response byte caps remain independent. Estimated monetary usage is rounded
+up in integer USD micros; the bigint storage ceiling is9,223,372,036,854,775,807. Unknown usage
+retains its reservation until authoritative reconciliation and never becomes zero.
+
 Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds
 and sets the current task release to `model-bindings-v6`. The worker workflow is
 `AgentsBusinessRunV16`. Database startup still checks the complete schema digest; an older local

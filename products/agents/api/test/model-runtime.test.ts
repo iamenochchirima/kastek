@@ -63,7 +63,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function operation(f: Awaited<ReturnType<typeof fixture>>, compaction = false) {
     const id = randomUUID();
     await pool.query(`INSERT INTO agents_platform.operations(id,task_id,kind,name,request_digest,request,state,reserved_tokens,reserved_ms,attempt_id)
-      VALUES($1,$2,$3,'fixture',repeat('a',64),'{}','started',32000,0,$4)`, [id, f.taskId, compaction ? "compaction" : "model", randomUUID()]);
+      VALUES($1,$2,$3,'fixture',repeat('a',64),'{}','started',32000,2000,$4)`, [id, f.taskId, compaction ? "compaction" : "model", randomUUID()]);
     return id;
   }
   function response(request: BoundModelDispatchInput): ProviderTransportResponse {
@@ -151,6 +151,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const f = await fixture(), id = await operation(f), dependencies = controlledDispatch();
     await expect(invokeTaskModel({ ...invocation(f, id), estimateRequestTokens: () => 16001 }, dependencies)).rejects.toMatchObject({ code: "CONTEXT_LIMIT", outcome: "rejected" });
     expect(dependencies.assertAuthority).not.toHaveBeenCalled();
+  });
+  it("rejects an expired native operation before credentials or physical generation", async () => {
+    const f = await fixture(), id = await operation(f), input = invocation(f, id);
+    await pool.query("UPDATE agents_platform.operations SET started_at=now()-interval '3 seconds' WHERE id=$1", [id]);
+    const physical = vi.fn(async () => response({ accepted: f.pinned.primary } as BoundModelDispatchInput));
+    await expect(invokeTaskModel(input, { dispatch: physical })).rejects.toMatchObject({ code: "MODEL_NETWORK_DEADLINE", outcome: "rejected" });
+    expect(physical).not.toHaveBeenCalled(); expect(input.providerStore.resolveCredential).not.toHaveBeenCalled();
+    expect((await pool.query("SELECT state FROM agents_platform.operations WHERE id=$1", [id])).rows[0].state).toBe("started");
+    expect((await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0].state).toBe("rejected");
+    const current = await operation(f), dependencies = controlledDispatch();
+    const recorded = (await pool.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1", [current])).rows[0];
+    await invokeTaskModel(invocation(f, current), dependencies);
+    expect(dependencies.dispatch.mock.calls[0]![0].deadlineAt).toBe(recorded.started_at.getTime() + recorded.reserved_ms);
   });
   it("streams a real controlled HTTP call and persists only private native continuation", async () => {
     const f = await fixture(), id = await operation(f); let calls = 0;

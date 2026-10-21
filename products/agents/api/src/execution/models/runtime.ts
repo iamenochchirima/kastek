@@ -100,7 +100,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
         throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
       }
       validateMessageGroups(messages);
-      const operation = (await db.query(`SELECT state,kind,reserved_tokens FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE`, [input.operationId, taskId])).rows[0];
+      const operation = (await db.query(`SELECT state,kind,reserved_tokens,started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE`, [input.operationId, taskId])).rows[0];
       if (!operation || operation.state !== "started" || (input.role === "compaction" ? operation.kind !== "compaction" : operation.kind !== "model")) {
         throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
       }
@@ -110,12 +110,17 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
         VALUES($1,$2,$3,$4,$5,$6,'started') ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`,
         [input.operationId, organizationId, taskId, input.role, requestDigest(route.binding), request]);
       if (!inserted.rowCount) throw new ModelOperationError("MODEL_NATIVE_OPERATION_ALREADY_RECORDED", "uncertain", 409);
-      return { route, restored, reservedTokens: operation.reserved_tokens };
+      const deadlineAt = Math.min(new Date(input.execution.task.deadline_at).getTime(),
+        new Date(operation.started_at).getTime() + operation.reserved_ms);
+      return { route, restored, reservedTokens: operation.reserved_tokens, deadlineAt };
     });
     claimed = true;
+    if (!Number.isSafeInteger(prepared.deadlineAt) || prepared.deadlineAt <= Date.now()) {
+      throw new ModelOperationError("MODEL_NETWORK_DEADLINE", "rejected", 408);
+    }
     const response = await (dependencies.dispatch ?? dispatchBoundModel)({ pool: input.pool, providerStore: input.providerStore,
       accepted: prepared.route, messages, tools, nativeHistory: prepared.restored, signal: input.signal,
-      maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: new Date(input.execution.task.deadline_at).getTime(), onText: input.onText,
+      maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: prepared.deadlineAt, onText: input.onText,
       beforeDispatch: async () => {
         try { await transaction(input.pool, async db => {
           await (dependencies.assertAuthority ?? currentAuthority)(db, input.execution);
