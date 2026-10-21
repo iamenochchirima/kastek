@@ -86,6 +86,34 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(models.update(member, f.connection.id, { expectedRevision: 1, apiKey: "foreign-key" })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
     await expect(models.create(member, { providerId: "openai", name: "Other", apiKey: "foreign-key" })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
+  it("lists only models granted to the selected agent or current organization default for ordinary members", async () => {
+    const f = await fixture(), memberAccount = await fixture(), foreign = await fixture();
+    await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [f.scope.organizationId, memberAccount.scope.accountId]);
+    const member = { accountId: memberAccount.scope.accountId, organizationId: f.scope.organizationId };
+    const agent = await platform.createAgent({ ...f.scope, name: "Allowed" });
+    const different = await platform.createAgent({ ...f.scope, name: "Different" });
+    for (const modelId of ["private/allowed", "private/other", "default-model"]) {
+      await models.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId });
+    }
+    await models.grant(f.scope, { connectionId: f.connection.id, consumer: { kind: "agent", agentId: agent.id },
+      roles: ["primary", "compaction", "delegated"], modelIds: ["private/allowed"] });
+    await models.grant(f.scope, { connectionId: f.connection.id, consumer: { kind: "agent", agentId: different.id },
+      roles: ["primary", "compaction", "delegated"], modelIds: ["private/other"] });
+    await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "default-model", expectedRevision: 0 });
+    expect((await models.cachedModels(member, f.connection.id, agent.id)).result?.models.map(model => model.id)).toEqual(["private/allowed", "default-model"]);
+    expect((await models.cachedModels(member, f.connection.id)).result?.models.map(model => model.id)).toEqual(["default-model"]);
+    const foreignAgent = await platform.createAgent({ ...foreign.scope, name: "Foreign" });
+    await expect(models.cachedModels(member, f.connection.id, foreignAgent.id)).rejects.toMatchObject({ code: "AGENT_NOT_FOUND" });
+    await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE organization_id=$1 AND account_id=$2", [f.scope.organizationId, member.accountId]);
+    await expect(models.cachedModels(member, f.connection.id, agent.id)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+  });
+  it("honors an operator-disabled provider profile before resolving an accepted credential", async () => {
+    const f = await fixture(), accepted = await binding(f);
+    const disabled = new ModelProviderStore(pool, vault, builtinProviderRegistry.map(profile => profile.id === f.connection.providerId
+      ? { ...profile, adapter: { ...profile.adapter, readiness: "planned" as const } } : profile));
+    await expect(transaction(pool, db => disabled.resolveCredential(db, accepted.route, accepted.consumer)))
+      .rejects.toMatchObject({ code: "MODEL_ADAPTER_NOT_INSTALLED" });
+  });
   it("requires endpoint key re-entry and rejects stale edits and old credential bindings", async () => {
     const f = await fixture(), accepted = await binding(f);
     expect(await transaction(pool, db => models.resolveCredential(db, accepted.route, accepted.consumer))).toBe("fixture-key-one");
@@ -171,6 +199,87 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(discover.cachedModels(other.scope, f.connection.id)).rejects.toMatchObject({ code: "MODEL_CONNECTION_NOT_FOUND" });
     await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "new-key" });
     expect((await discover.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+  });
+  it("accepts owner-reviewed private model metadata without inventing limits, tools or account access", async () => {
+    const f = await fixture(), other = await fixture();
+    const unknown = await models.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "private/deployment" });
+    expect(unknown.model.contextTokens.value).toBeNull(); expect(unknown.model.capabilities.tools.value).toBeNull();
+    expect(unknown.model.inputModalities).toEqual([]); expect(unknown.model.pricing).toBeNull();
+    await expect(models.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "private/deployment",
+      metadata: { reference: "Reviewed deployment settings", contextTokens: 16000 } })).rejects.toThrow();
+    const declared = await models.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "private/deployment", confirmMetadata: true,
+      metadata: { reference: "Reviewed deployment settings", contextTokens: 16000, maxOutputTokens: 2048,
+        tools: false, inputModalities: ["text"], outputModalities: ["text"] } });
+    expect(declared.model.contextTokens).toMatchObject({ value: 16000, source: { kind: "operator" } });
+    expect(declared.model.capabilities.tools).toMatchObject({ value: false, evidence: "declared", source: { kind: "operator" } });
+    expect(declared.model.setupSource?.reference).toContain(f.scope.accountId);
+    expect((await models.get(f.scope, f.connection.id)).verification).toBe("saved");
+    expect((await models.cachedModels(f.scope, f.connection.id)).result?.models[0]?.revision).toBe(declared.model.revision);
+    await expect(models.addManualModel(other.scope, f.connection.id, { expectedRevision: 1, modelId: "foreign" }))
+      .rejects.toMatchObject({ code: "MODEL_CONNECTION_NOT_FOUND" });
+    await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "rotated" });
+    expect((await models.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+  });
+  it("preserves manual and unavailable saved IDs across refresh without choosing a replacement", async () => {
+    const f = await fixture(); let ids = ["old-alias"];
+    const discover = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => ({ status: 200,
+      body: JSON.stringify({ data: ids.map(id => ({ id, context_length: 16000 })) }) }) });
+    await discover.refreshModels(f.scope, f.connection.id, 1);
+    await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "old-alias", expectedRevision: 0 });
+    await models.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "private/deployment" });
+    await pool.query("UPDATE agents_platform.model_provider_catalogue_controls SET retry_at=NULL WHERE connection_id=$1", [f.connection.id]);
+    ids = ["new-alias"];
+    const result = await discover.refreshModels(f.scope, f.connection.id, 1);
+    expect(result.models.map(model => model.id)).toEqual(["new-alias", "old-alias", "private/deployment"]);
+    expect(result.kind === "discovered" && result.unavailableModelIds).toEqual(["old-alias"]);
+    expect((await models.getDefault(f.scope)).selection?.modelId).toBe("old-alias");
+    expect(result.models.find(model => model.id === "private/deployment")?.contextTokens.value).toBeNull();
+  });
+  it("keeps provider retirement authoritative over manual metadata", async () => {
+    const f = await fixture();
+    const discover = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => ({ status: 200,
+      body: JSON.stringify({ data: [{ id: "retired-model", lifecycle: "retired", context_length: 16000 }] }) }) });
+    await discover.refreshModels(f.scope, f.connection.id, 1);
+    const manual = await discover.addManualModel(f.scope, f.connection.id, { expectedRevision: 1, modelId: "retired-model", confirmMetadata: true,
+      metadata: { reference: "Owner settings", contextTokens: 32000 } });
+    expect(manual.model.lifecycle).toBe("retired");
+    await pool.query("UPDATE agents_platform.model_provider_catalogue_controls SET retry_at=NULL WHERE connection_id=$1", [f.connection.id]);
+    const refreshed = await discover.refreshModels(f.scope, f.connection.id, 1);
+    expect(refreshed.models[0]?.lifecycle).toBe("retired");
+  });
+  it("adds a manual deployment through the authenticated HTTP route", async () => {
+    const f = await fixture(), app = Fastify({ logger: false });
+    registerModelProviderRoutes(app, { store: models, resolveScope: async () => f.scope });
+    try {
+      const response = await app.inject({ method: "POST",
+        url: `/api/organizations/${f.scope.organizationId}/model-providers/${f.connection.id}/models/manual`,
+        payload: { expectedRevision: 1, modelId: "private-http-deployment" } });
+      expect(response.statusCode).toBe(200); expect(response.json().model.contextTokens.value).toBeNull();
+      expect(response.json().model.id).toBe("private-http-deployment");
+      expect(JSON.stringify(response.json())).not.toContain("fixture-key");
+    } finally { await app.close(); }
+  });
+  it("serializes refreshes and backs off failures while retaining readable stale metadata", async () => {
+    const f = await fixture(); let calls = 0, fail = false;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const discover = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => {
+      calls++; await gate;
+      return fail ? { status: 429, body: "provider-private-error" } : { status: 200, body: JSON.stringify({ data: [{ id: "saved" }] }) };
+    } });
+    const pending = discover.refreshModels(f.scope, f.connection.id, 1);
+    await vi.waitFor(async () => expect((await discover.cachedModels(f.scope, f.connection.id)).status).toBe("refreshing"));
+    await expect(discover.refreshModels(f.scope, f.connection.id, 1)).rejects.toMatchObject({ code: "MODEL_DISCOVERY_BACKOFF" });
+    release!(); await pending; expect(calls).toBe(1);
+    await pool.query("UPDATE agents_platform.model_provider_catalogue_controls SET retry_at=NULL WHERE connection_id=$1", [f.connection.id]);
+    await pool.query("UPDATE agents_platform.model_provider_catalogues SET fetched_at=now()-interval '1 hour' WHERE connection_id=$1", [f.connection.id]);
+    fail = true;
+    await expect(discover.refreshModels(f.scope, f.connection.id, 1)).rejects.toMatchObject({ code: "MODEL_DISCOVERY_RATE_LIMITED" });
+    const cached = await discover.cachedModels(f.scope, f.connection.id);
+    expect(cached).toMatchObject({ stale: true, status: "backoff", errorCode: "MODEL_DISCOVERY_RATE_LIMITED" });
+    expect(cached.result?.models[0]?.id).toBe("saved"); expect(cached.retryAt).not.toBeNull();
+    await expect(discover.refreshModels(f.scope, f.connection.id, 1)).rejects.toMatchObject({ code: "MODEL_DISCOVERY_BACKOFF" });
+    expect(calls).toBe(2); expect(JSON.stringify(cached)).not.toContain("provider-private-error");
   });
   it("resolves pinned role bindings without secrets or network and honors later revocation", async () => {
     const f = await fixture(), agent = await platform.createAgent({ ...f.scope, name: "Pinned" });

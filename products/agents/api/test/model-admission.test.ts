@@ -22,11 +22,10 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     pool = new Pool({ connectionString: url.href }); await setupPlatformSchema(pool); platform = new PlatformStore(pool);
   });
   afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`); await admin.end(); } });
-  async function fixture() {
+  async function fixture(configuration = defaultBusinessConfiguration()) {
     const account = await platform.ensureAccount({ issuer: "https://identity.example.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const org = await platform.createOrganization(account.id, "Provider routes");
     const models = await connectFixtureModel(pool, account.id, org.id, "fixture/model-a");
-    const configuration = defaultBusinessConfiguration();
     const { agent, snapshot } = await platform.createConfiguredAgent({ accountId: account.id, organizationId: org.id, name: "Agent", configuration });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
       principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
@@ -86,6 +85,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       expect(calls).toBe(1);
       await finishOperation(pool, accepted.task.id, second.id, "failed", null, "MODEL_CONNECTION_CHANGED", 0);
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+  });
+  it("rejects an unenforceable finite money cap at admission without reserving work", async () => {
+    const config = defaultBusinessConfiguration(); config.model.maxCostMicros = 100;
+    const f = await fixture(config);
+    await expect(platform.admitTask(f.request)).rejects.toMatchObject({ code: "MODEL_COST_CAP_UNSUPPORTED" });
+    expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rowCount).toBe(0);
   });
   it("inherits the accepted parent route with bounded child policy, independently of the current default", async () => {
     const f = await fixture(), accepted = await platform.admitTask(f.request), parent = await loadExecution(pool, accepted.task.id);

@@ -10,6 +10,7 @@ import { transaction } from "../../infrastructure/database";
 import { assertCurrentAuthority } from "../context/evidence-policy";
 import { loadExecution } from "../lifecycle/state";
 import { ModelOperationError, validateMessageGroups } from "../business/model";
+import type { PreparedInputCount } from "../../adapters/models/input-count";
 import { BoundModelDispatchError, dispatchBoundModel, type BoundModelDispatchInput } from "./dispatch";
 
 type Db = Pool | PoolClient;
@@ -84,6 +85,7 @@ async function nativeHistory(db: Db, taskId: string, organizationId: string, rou
 /** Invoke only inside the durable operation boundary. Return public message/usage; keep native continuation out of journals. */
 export async function invokeTaskModel(input: TaskModelInvocation, dependencies: ModelRuntimeDependencies = {}): Promise<TaskModelResponse> {
   let claimed = false, dispatched = false;
+  let inputCount: PreparedInputCount | undefined;
   let guardFailure: ModelOperationError | PlatformError | undefined;
   const retainGuardFailure = (error: unknown): never => {
     if (error instanceof ModelOperationError || error instanceof PlatformError) guardFailure = error;
@@ -121,10 +123,10 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
           if (!operation || operation.state !== "started") throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
         }); } catch (error) { retainGuardFailure(error); }
       },
-      beforePayloadDispatch: async payload => {
+      beforePayloadDispatch: async (payload, count) => {
         try {
-          // This is a serialized-byte estimate until a qualified model-native counter is configured.
-          const estimate = input.estimateRequestTokens ? await input.estimateRequestTokens(payload) : Buffer.byteLength(JSON.stringify(payload), "utf8");
+          inputCount = count;
+          const estimate = input.estimateRequestTokens ? await input.estimateRequestTokens(payload) : count.tokens;
         if (!Number.isSafeInteger(estimate) || estimate < 0 || estimate > prepared.route.policy.maxInputTokens ||
           estimate + prepared.route.policy.maxOutputTokens > prepared.reservedTokens ||
             BigInt(estimate) + BigInt(prepared.route.policy.maxOutputTokens) + BigInt(prepared.route.policy.safetyTokens) > BigInt(prepared.route.policy.contextTokens)) {
@@ -140,9 +142,9 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       const parsed = nativeSchema.safeParse(state);
       if (!parsed.success || !compatible(parsed.data, prepared.route)) throw new Error("Native continuation route changed");
       const stored = await transaction(input.pool, db => db.query(`UPDATE agents_platform.private_model_continuations
-        SET state='completed',assistant_digest=$3,tool_call_ids=$4,native_state=$5,native_state_digest=$6,completed_at=now()
+        SET state='completed',assistant_digest=$3,tool_call_ids=$4,native_state=$5,native_state_digest=$6,input_count=$8,completed_at=now()
         WHERE operation_id=$1 AND task_id=$2 AND organization_id=$7 AND state='started' RETURNING operation_id`,
-        [input.operationId, taskId, requestDigest(response.message), (response.message.tool_calls ?? []).map(call => call.id), state, requestDigest(state), organizationId]));
+        [input.operationId, taskId, requestDigest(response.message), (response.message.tool_calls ?? []).map(call => call.id), state, requestDigest(state), organizationId, inputCount ?? null]));
       if (!stored.rowCount) throw new Error("Native continuation was not persisted");
     } catch { throw new ModelOperationError("MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN", "uncertain"); }
     return { message: response.message, finishReason: response.finishReason, usage: response.usage,
@@ -155,8 +157,8 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       new ModelOperationError(error.code, "rejected", error.statusCode) :
       new ModelOperationError(dispatched ? "MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN" : "MODEL_RUNTIME_UNAVAILABLE", dispatched ? "uncertain" : "rejected");
     if (claimed) {
-      try { await input.pool.query(`UPDATE agents_platform.private_model_continuations SET state=$3,completed_at=now()
-        WHERE operation_id=$1 AND task_id=$2 AND state='started'`, [input.operationId, taskId, mapped.outcome]); } catch {}
+      try { await input.pool.query(`UPDATE agents_platform.private_model_continuations SET state=$3,input_count=$4,completed_at=now()
+        WHERE operation_id=$1 AND task_id=$2 AND state='started'`, [input.operationId, taskId, mapped.outcome, inputCount ?? null]); } catch {}
     }
     throw mapped;
   }

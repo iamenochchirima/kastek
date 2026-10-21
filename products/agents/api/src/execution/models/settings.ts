@@ -31,6 +31,7 @@ export function modelServicePolicy(environment: NodeJS.ProcessEnv = process.env)
 
 export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration: AgentConfiguration,
   maxTokens: number, maxActiveMs: number): AcceptedModelRoutes {
+  if (configuration.model.maxCostMicros !== null) throw new PlatformError("MODEL_COST_CAP_UNSUPPORTED", 422, "A strict spending cap is unavailable for this specialist route");
   const inherited = parent.delegated, selection = configuration.model.selection;
   if (selection.kind === "connection" && (selection.connectionId !== inherited.binding.connectionId || selection.modelId !== inherited.binding.modelId)) {
     throw new PlatformError("MODEL_DELEGATION_ROUTE_DENIED", 403, "The specialist model is outside its parent's authorized route");

@@ -7,6 +7,7 @@ import { effectiveExecutionPolicySchema, modelDescriptorSchema, providerDefiniti
 import { callProviderModel, ProviderTransportError, type PrivateNativeState, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
 import { transaction } from "../../infrastructure/database";
 import { createModelFetch, type ModelFetch, type ModelNetworkPolicy } from "../../infrastructure/model-network";
+import { countPreparedInput, prepareInputCount, type PreparedInputCount } from "../../adapters/models/input-count";
 import { googleModelRequestUrl } from "../../adapters/models/google-transport";
 
 export interface AcceptedModelDispatch {
@@ -30,7 +31,7 @@ export interface BoundModelDispatchInput {
   signal?: AbortSignal;
   onText?: (delta: string) => void;
   beforeDispatch?: () => void | Promise<void>;
-  beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>) => Promise<void>;
+  beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>, count: PreparedInputCount) => Promise<void>;
 }
 export class BoundModelDispatchError extends Error {
   constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502) {
@@ -66,6 +67,7 @@ export async function dispatchBoundModel(
   input: BoundModelDispatchInput,
   networkFactory: (policy: ModelNetworkPolicy) => ModelFetch = createModelFetch,
 ): Promise<ProviderTransportResponse> {
+  let counterFailure: ProviderTransportError | undefined;
   try {
     // Parse a fresh copy before any asynchronous work, so callers cannot mutate authority during dispatch.
     const accepted = validateAccepted(input.accepted);
@@ -80,6 +82,7 @@ export async function dispatchBoundModel(
     if (!Number.isSafeInteger(deadlineAt)) throw rejected("MODEL_NETWORK_POLICY_INVALID");
     if (input.signal?.aborted) throw rejected("MODEL_CANCELLED_BEFORE_DISPATCH", 409);
     if (deadlineAt <= Date.now()) throw rejected("MODEL_NETWORK_DEADLINE", 408);
+    if (policy.maxCostMicros !== null) throw rejected("MODEL_COST_CAP_UNSUPPORTED", 422);
     if (tools?.length && model.capabilities.tools.value !== true) throw rejected("MODEL_TOOLS_UNSUPPORTED", 409);
     const apiKey = await transaction(input.pool, db => input.providerStore.resolveCredential(db, binding, consumer));
     const endpoint = new URL(binding.endpoint);
@@ -103,8 +106,24 @@ export async function dispatchBoundModel(
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
       maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
       maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch,
-      onText: input.onText, onProgress: fetch.markProgress, beforePayloadDispatch: input.beforePayloadDispatch });
+      onText: input.onText, onProgress: fetch.markProgress, beforePayloadDispatch: async payload => {
+        let count: PreparedInputCount;
+        try {
+          const counter = prepareInputCount(accepted, payload);
+          const counterFetch = counter ? networkFactory({ authorizeUrl: url => url.href === counter.url.href,
+            headers, maxRequestBytes, maxResponseBytes: Math.min(policy.maxResponseBytes, 65536), deadlineAt, signal: input.signal,
+            connectTimeoutMs: policy.maxCallDurationMs, idleTimeoutMs: policy.maxCallDurationMs, progressTimeoutMs: policy.maxCallDurationMs,
+            beforeDispatch: async () => { await input.beforeDispatch?.(); const current = await transaction(input.pool, db => input.providerStore.resolveCredential(db, binding, consumer));
+              if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409); } }) : fetch;
+          count = await countPreparedInput(accepted, payload, counterFetch);
+          if (count.tokens > policy.maxInputTokens || BigInt(count.tokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {
+            throw new ProviderTransportError("CONTEXT_LIMIT", "rejected", 400);
+          }
+        } catch (error) { if (error instanceof ProviderTransportError) counterFailure = error; throw error; }
+        await input.beforePayloadDispatch?.(payload, count);
+      } });
   } catch (error) {
+    if (counterFailure) throw new BoundModelDispatchError(counterFailure.code, counterFailure.outcome, counterFailure.status);
     if (error instanceof BoundModelDispatchError) throw error;
     if (error instanceof ProviderTransportError) throw new BoundModelDispatchError(error.code, error.outcome, error.status);
     if (error instanceof PlatformError) throw rejected(error.code, error.statusCode);

@@ -380,6 +380,11 @@ The Restate business worker resolves the accepted connection again before physic
 with no environment-key fallback. Private native continuation stays in worker-only PostgreSQL
 records; durable step results contain public messages and usage. Exact request retries retain
 their accepted route. New turns resolve the saved configuration and current default.
+Owners can add private model IDs with explicit sourced capacity declarations. Declaration
+does not verify inference or tools. Refresh failures retain selections and expose bounded
+backoff. Reconnection requires explicit current-model reauthorization after revoked use.
+Reviewed official routes use native input-count endpoints before generation. Compatible
+routes label byte estimates; finite spending caps fail when no enforceable bound exists.
 OpenRouter, OpenAI, Anthropic and Google have installed adapters. Controlled protocol fixtures
 do not establish live account acceptance. Further profiles and evaluation integration remain
 in progress; see the [implementation status](../source-boundary.md).

@@ -15,7 +15,8 @@ import { createBoundedFetch } from "../../infrastructure/connected-network";
 import { captureConnectionAuthority } from "../../observability/connection-telemetry";
 import { defaultModelSetupPolicy, modelSetupPolicySchema, type ModelSetupPolicy } from "./setup-policy";
 import { probeProviderModel, type ModelProviderProbeRequest, type ModelProviderProbeResult } from "./probe";
-import { modelDescriptorSchema } from "../../contracts/model-providers";
+import { modelDescriptorSchema, modelIdSchema } from "../../contracts/model-providers";
+import { manualModelInput, manualModelDescriptor, overlayManualModel } from "./manual-model";
 import { ProviderTransportError } from "../../adapters/models/pi-transport";
 
 const createInput = z.strictObject({ providerId: z.string().min(1).max(64), name: z.string().trim().min(1).max(120),
@@ -149,7 +150,7 @@ export class ModelProviderStore {
   }
 
   async setDefault(scope: ActionScope, raw: unknown): Promise<Awaited<ReturnType<ModelProviderStore["getDefault"]>>> {
-    const input = z.strictObject({ connectionId: z.uuid(), modelId: z.string().trim().min(1).max(256),
+    const input = z.strictObject({ connectionId: z.uuid(), modelId: modelIdSchema,
       expectedRevision: z.number().int().nonnegative().nullable() }).parse(raw);
     return transaction(this.pool, async db => {
       await owner(db, scope);
@@ -173,24 +174,83 @@ export class ModelProviderStore {
     });
   }
 
-  async cachedModels(scope: ActionScope, id: string): Promise<{
+  async cachedModels(scope: ActionScope, id: string, agentId?: string): Promise<{
     result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
+    status: "fresh" | "stale" | "refreshing" | "backoff" | "unavailable" | "empty"; retryAt: string | null; errorCode: string | null;
   }> {
     return transaction(this.pool, async db => {
-      await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (agentId) {
+        z.uuid().parse(agentId); await requireActionMember(db, scope);
+        if (!(await db.query("SELECT 1 FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [scope.organizationId, agentId])).rowCount) {
+          throw new PlatformError("AGENT_NOT_FOUND", 404, "Agent not found");
+        }
+      } else await requireActionMember(db, scope);
+      const connection = await this.row(db, scope, id);
       if (connection.state !== "active") throw changed();
       const cache = (await db.query(`SELECT snapshot,snapshot_digest,fetched_at FROM agents_platform.model_provider_catalogues
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
       [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
       if (cache && requestDigest(cache.snapshot) !== cache.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
-      return { result: cache?.snapshot ?? null, fetchedAt: cache ? cache.fetched_at.toISOString() : null,
+      let result: ModelDiscoveryResult | null = cache?.snapshot ?? null;
+      if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL",
+        [scope.organizationId, scope.accountId])).rowCount && result) {
+        const grants = (await db.query(`SELECT model_ids FROM agents_platform.model_provider_use_grants
+          WHERE organization_id=$1 AND connection_id=$2 AND state='active' AND roles ?& ARRAY['primary','compaction','delegated']
+          AND (consumer=$3::jsonb OR id IN (SELECT use_grant_id FROM agents_platform.model_provider_defaults WHERE organization_id=$1))`,
+        [scope.organizationId, id, JSON.stringify(agentId ? { kind: "agent", agentId } : null)])).rows;
+        const allowed = new Set(grants.flatMap(row => row.model_ids as string[]));
+        result = { ...result, models: result.models.filter(model => allowed.has(model.id)) };
+        if (result.kind === "discovered") result.unavailableModelIds = result.unavailableModelIds?.filter(id => allowed.has(id));
+      }
+      const control = (await db.query(`SELECT lease_until,retry_at,error_code FROM agents_platform.model_provider_catalogue_controls
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
+      [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
+      const now = Date.now(), stale = !cache || now - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs;
+      const status = control?.lease_until?.getTime() > now ? "refreshing" : control?.error_code
+        ? (control.retry_at?.getTime() > now ? "backoff" : cache ? "stale" : "unavailable") : !cache ? "empty" : stale ? "stale" : "fresh";
+      return { status, retryAt: control?.retry_at?.toISOString() ?? null, errorCode: control?.error_code ?? null,
+        result, fetchedAt: cache ? cache.fetched_at.toISOString() : null,
         stale: !cache || Date.now() - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs,
         connectionRevision: connection.revision, credentialRevision: connection.credential_revision };
     });
   }
 
+  async addManualModel(scope: ActionScope, id: string, raw: unknown): Promise<{ model: import("../../contracts/model-providers").ModelDescriptor }> {
+    const input = manualModelInput.parse(raw);
+    const definition = await transaction(this.pool, async db => {
+      await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (connection.state !== "active" || connection.revision !== input.expectedRevision) throw changed();
+      return providerDefinitionSchema.parse(connection.definition);
+    });
+    const observedAt = new Date().toISOString();
+    let model = await manualModelDescriptor(definition, scope.accountId, input, observedAt);
+    await transaction(this.pool, async db => {
+      await owner(db, scope); const connection = await this.row(db, scope, id, true);
+      if (connection.state !== "active" || connection.revision !== input.expectedRevision) throw changed();
+      const key = [scope.organizationId, id, connection.revision, connection.credential_revision];
+      const cache = (await db.query(`SELECT snapshot,snapshot_digest,fetched_at FROM agents_platform.model_provider_catalogues
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 FOR UPDATE`, key)).rows[0];
+      if (cache && requestDigest(cache.snapshot) !== cache.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
+      const prior: ModelDiscoveryResult = cache?.snapshot ?? { kind: "manual_required", models: [], observedAt };
+      model = overlayManualModel(prior.models.find(item => item.id === model.id), model);
+      await db.query(`INSERT INTO agents_platform.model_provider_manual_models
+        (organization_id,connection_id,connection_revision,credential_revision,model_id,descriptor,descriptor_digest,created_by)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(organization_id,connection_id,connection_revision,credential_revision,model_id)
+        DO UPDATE SET descriptor=excluded.descriptor,descriptor_digest=excluded.descriptor_digest,created_by=excluded.created_by,updated_at=now()`,
+      [...key, model.id, model, requestDigest(model), scope.accountId]);
+      const result: ModelDiscoveryResult = { ...prior, models: [...prior.models.filter(item => item.id !== model.id), model] };
+      if (result.kind === "discovered") result.unavailableModelIds = result.unavailableModelIds?.filter(value => value !== model.id);
+      if (result.models.length > this.setupPolicy.maxCatalogueModels) throw new PlatformError("MODEL_CATALOGUE_LIMIT", 409, "Model catalogue is full");
+      await db.query(`INSERT INTO agents_platform.model_provider_catalogues AS cache
+        (organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest,fetched_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(organization_id,connection_id,connection_revision,credential_revision)
+        DO UPDATE SET snapshot=excluded.snapshot,snapshot_digest=excluded.snapshot_digest`, [...key, result, requestDigest(result), cache?.fetched_at ?? observedAt]);
+    });
+    return { model };
+  }
+
   async probe(scope: ActionScope, id: string, raw: unknown): Promise<ModelProviderProbeResult> {
-    const input = z.strictObject({ expectedRevision: z.number().int().positive(), modelId: z.string().trim().min(1).max(256),
+    const input = z.strictObject({ expectedRevision: z.number().int().positive(), modelId: modelIdSchema,
       allowBillableRequest: z.literal(true), verifyTools: z.boolean() }).parse(raw);
     const prepared = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
@@ -250,6 +310,7 @@ export class ModelProviderStore {
   }
 
   async refreshModels(scope: ActionScope, id: string, expectedRevision: number): Promise<ModelDiscoveryResult> {
+    const leaseId = randomUUID();
     const prepared = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
       if (connection.revision !== expectedRevision || connection.state !== "active") throw changed();
@@ -259,7 +320,15 @@ export class ModelProviderStore {
       if (!credential) throw changed();
       const apiKey = this.requireVault().open({ organizationId: scope.organizationId, connectionId: id,
         credentialRevision: connection.credential_revision, endpoint: connection.endpoint, protocol: connection.protocol }, credential.envelope);
-      return { connection, apiKey, definition: providerDefinitionSchema.parse(connection.definition) };
+      const key = [scope.organizationId, id, connection.revision, connection.credential_revision];
+      await db.query(`INSERT INTO agents_platform.model_provider_catalogue_controls
+        (organization_id,connection_id,connection_revision,credential_revision) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, key);
+      const claim = await db.query(`UPDATE agents_platform.model_provider_catalogue_controls SET lease_id=$5,
+        lease_until=now()+($6::text||' milliseconds')::interval WHERE organization_id=$1 AND connection_id=$2
+        AND connection_revision=$3 AND credential_revision=$4 AND (lease_until IS NULL OR lease_until<=now())
+        AND (retry_at IS NULL OR retry_at<=now()) RETURNING failure_count`, [...key, leaseId, this.setupPolicy.discoveryDeadlineMs + 5000]);
+      if (!claim.rowCount) throw new PlatformError("MODEL_DISCOVERY_BACKOFF", 429, "Model refresh is already running or temporarily limited; use the cached models");
+      return { connection, apiKey, definition: providerDefinitionSchema.parse(connection.definition), failures: claim.rows[0].failure_count };
     });
     const reauthorize = () => transaction(this.pool, async db => {
       await owner(db, scope); const current = await this.row(db, scope, id);
@@ -282,12 +351,45 @@ export class ModelProviderStore {
         fetch: network, observedAt: new Date().toISOString(), maxResponseBytes: this.setupPolicy.maxCatalogueBytes, maxModels: this.setupPolicy.maxCatalogueModels });
       if (result.kind === "discovered") result.models = await enrichProviderModels(prepared.definition.id, result.models, result.observedAt);
     } catch (error) {
-      if (!(error instanceof ModelDiscoveryError)) throw error;
-      throw new PlatformError(`MODEL_DISCOVERY_${error.code.toUpperCase()}`, 502, "Could not refresh provider models");
+      const code = error instanceof ModelDiscoveryError ? `MODEL_DISCOVERY_${error.code.toUpperCase()}` : "MODEL_DISCOVERY_UNAVAILABLE";
+      const backoff = Math.min(this.setupPolicy.refreshMaxBackoffMs,
+        this.setupPolicy.refreshMinIntervalMs * 2 ** Math.min(prepared.failures, 20));
+      await this.pool.query(`UPDATE agents_platform.model_provider_catalogue_controls SET lease_id=NULL,lease_until=NULL,
+        failure_count=least(failure_count+1,100),error_code=$6,retry_at=now()+($7::text||' milliseconds')::interval
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 AND lease_id=$5`,
+      [scope.organizationId, id, expectedRevision, prepared.connection.credential_revision, leaseId, code, backoff]);
+      throw new PlatformError(code, 502, "Could not refresh provider models; cached selections are preserved");
     }
     await transaction(this.pool, async db => {
       await owner(db, scope); const current = await this.row(db, scope, id, true);
       if (current.state !== "active" || current.revision !== expectedRevision || current.credential_revision !== prepared.connection.credential_revision) throw changed();
+      const key = [scope.organizationId, id, current.revision, current.credential_revision];
+      const controls = await db.query(`SELECT 1 FROM agents_platform.model_provider_catalogue_controls
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 AND lease_id=$5 FOR UPDATE`, [...key, leaseId]);
+      if (!controls.rowCount) throw changed();
+      const previous = (await db.query(`SELECT snapshot,snapshot_digest FROM agents_platform.model_provider_catalogues
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 FOR UPDATE`, key)).rows[0];
+      if (previous && requestDigest(previous.snapshot) !== previous.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
+      if (result.kind === "discovered") {
+        const discoveredIds = new Set(result.models.map(model => model.id));
+        const priorModels = (previous?.snapshot.models ?? []) as import("../../contracts/model-providers").ModelDescriptor[];
+        const absent = priorModels.filter(model => !discoveredIds.has(model.id));
+        result.models.push(...absent);
+        result.unavailableModelIds = result.complete ? absent.map(model => model.id) : (previous?.snapshot.unavailableModelIds ?? []).filter((id: string) => !discoveredIds.has(id));
+      }
+      const manual = (await db.query(`SELECT descriptor,descriptor_digest FROM agents_platform.model_provider_manual_models
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`, key)).rows;
+      for (const item of manual) {
+        if (requestDigest(item.descriptor) !== item.descriptor_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Manual model metadata has changed");
+        const manualDescriptor = modelDescriptorSchema.parse(item.descriptor);
+        const descriptor = overlayManualModel(result.models.find(model => model.id === manualDescriptor.id), manualDescriptor);
+        result.models = [...result.models.filter(model => model.id !== descriptor.id), descriptor];
+        if (result.kind === "discovered") result.unavailableModelIds = result.unavailableModelIds?.filter(id => id !== descriptor.id);
+      }
+      await db.query(`UPDATE agents_platform.model_provider_catalogue_controls SET lease_id=NULL,lease_until=NULL,
+        failure_count=0,error_code=NULL,retry_at=now()+($6::text||' milliseconds')::interval
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 AND lease_id=$5`,
+      [...key, leaseId, this.setupPolicy.refreshMinIntervalMs]);
       await db.query(`INSERT INTO agents_platform.model_provider_catalogues AS cache(organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest,fetched_at)
         VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(organization_id,connection_id,connection_revision,credential_revision)
         DO UPDATE SET snapshot=excluded.snapshot,snapshot_digest=excluded.snapshot_digest,fetched_at=excluded.fetched_at
@@ -302,6 +404,10 @@ export class ModelProviderStore {
   // Call only inside the physical dispatch transaction using the admitted consumer identity.
   async resolveCredential(db: PoolClient, raw: ResolvedModelBinding, consumer: ProviderUseGrant["consumer"]): Promise<string> {
     const binding = resolvedModelBindingSchema.parse(raw);
+    const enabled = getProviderDefinition(binding.providerId, this.registry);
+    if (!enabled || enabled.adapter.readiness !== "installed") {
+      throw new PlatformError("MODEL_ADAPTER_NOT_INSTALLED", 503, "The selected model adapter is unavailable");
+    }
     const connection = (await db.query<ConnectionRow>("SELECT * FROM agents_platform.model_provider_connections WHERE organization_id=$1 AND id=$2 FOR SHARE",
       [binding.organizationId, binding.connectionId])).rows[0];
     if (!connection || connection.state !== "active" || connection.revision !== binding.connectionRevision ||

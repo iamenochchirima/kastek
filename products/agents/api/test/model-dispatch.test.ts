@@ -1,3 +1,4 @@
+import { prepareInputCount } from "../src/adapters/models/input-count";
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingHttpHeaders } from "node:http";
 import type { Pool } from "pg";
@@ -56,13 +57,14 @@ function response(protocol: ModelProtocol) {
   return sse({ id: "fixture-message", model: "fixture-model", choices: [{ index: 0, delta: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
     usage: { prompt_tokens: 3, completion_tokens: 1 } }) + "data: [DONE]\n\n";
 }
-async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRequest?: () => void, status = 200) {
+async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRequest?: () => void, status = 200, counter?: { status: number; body: unknown }, origin = "https://fixture.invalid") {
   const calls: Array<{ path: string; headers: IncomingHttpHeaders; body: Record<string, unknown> }> = [];
   const server = createServer((request, reply) => {
     onRequest?.(); let body = "";
     request.on("data", chunk => { body += chunk; });
     request.on("end", () => {
       calls.push({ path: request.url!, headers: request.headers, body: JSON.parse(body) });
+      if (request.url?.endsWith("/input_tokens")) { reply.writeHead(counter?.status ?? 200, { "content-type": "application/json" }); reply.end(JSON.stringify(counter?.body ?? {input_tokens:3})); return; }
       reply.writeHead(status, { "Content-Type": status === 200 ? "text/event-stream" : "application/json" });
       reply.end(status === 200 ? response(protocol) : JSON.stringify({ error: { message: "private-fixture-key denied" } }));
     });
@@ -75,7 +77,7 @@ async function fixture(protocol: ModelProtocol = "openai_chat_completions", onRe
   const factory = (policy: ModelNetworkPolicy): ModelFetch => {
     networkPolicy = policy;
     const controlled = createModelFetch({ ...policy, testLoopback: true,
-      authorizeUrl: url => url.origin === loopback && policy.authorizeUrl(new URL(url.pathname + url.search, "https://fixture.invalid")) });
+      authorizeUrl: url => url.origin === loopback && policy.authorizeUrl(new URL(url.pathname + url.search, origin)) });
     const wrapped = (async (url: RequestInfo | URL, init?: RequestInit) => {
       const target = new URL(String(url));
       expect(policy.authorizeUrl(target)).toBe(true);
@@ -181,5 +183,50 @@ describe("authorized bound model dispatch", () => {
     const state = input(); state.resolveCredential.mockRejectedValueOnce(new Error("private-fixture-key"));
     await expect(dispatchBoundModel(state.request)).rejects.toMatchObject({ message: "MODEL_DISPATCH_FAILED", outcome: "rejected" });
     expect(state.activeConnections()).toBe(0);
+  });
+});
+
+function officialRoute(protocol: ModelProtocol, providerId: string, endpoint: string): AcceptedModelDispatch {
+  const route = accepted(protocol);
+  route.definition = { ...route.definition, id: providerId, baseUrl: endpoint };
+  route.model = { ...route.model, providerId };
+  route.binding = { ...route.binding, providerId, endpoint, providerDefinitionDigest: requestDigest(route.definition) };
+  return route;
+}
+describe("native input counter dispatch", () => {
+  it.each([{tokens:3,status:200,code:null},{tokens:20000,status:200,code:"CONTEXT_LIMIT"},
+    {tokens:3,status:429,code:"MODEL_COUNTER_RATE_LIMITED"},{tokens:null,status:200,code:"MODEL_COUNTER_RESPONSE_INVALID"}])("counts before generation and stops for $code", async ({tokens,status,code}) => {
+    const state = input(officialRoute("openai_responses", "openai", "https://api.openai.com/v1"));
+    const server = await fixture("openai_responses", undefined, 200, { status, body:{input_tokens:tokens} }, "https://api.openai.com");
+    const counted = vi.fn(async () => {});
+    const run = dispatchBoundModel({ ...state.request, beforePayloadDispatch: counted }, server.factory);
+    if (code) await expect(run).rejects.toMatchObject({code,outcome:"rejected"});
+    else { expect((await run).message.content).toBe("Hello"); expect(counted.mock.calls[0]![1]).toMatchObject({tokens:3,precision:"provider_count"}); }
+    expect(server.calls.map(call=>call.path)).toEqual(code ? ["/v1/responses/input_tokens"] : ["/v1/responses/input_tokens","/v1/responses"]);
+    expect(server.calls.every(call=>call.headers.authorization==="Bearer private-fixture-key")).toBe(true);
+    expect(server.calls[0]!.body).toHaveProperty("input");
+    expect(server.calls[0]!.body).not.toHaveProperty("max_output_tokens");
+  });
+  it("reauthorizes generation after counting instead of retaining counter authority", async () => {
+    const state=input(officialRoute("openai_responses","openai","https://api.openai.com/v1"));
+    state.resolveCredential.mockResolvedValueOnce("private-fixture-key").mockResolvedValueOnce("private-fixture-key").mockRejectedValue(new PlatformError("MODEL_CONNECTION_CHANGED",409,"Changed"));
+    const server=await fixture("openai_responses",undefined,200,undefined,"https://api.openai.com");
+    await expect(dispatchBoundModel(state.request,server.factory)).rejects.toMatchObject({outcome:"rejected"});
+    expect(server.calls.map(call=>call.path)).toEqual(["/v1/responses/input_tokens"]);
+  });
+  it("refuses an unenforceable spending cap before any provider request", async () => {
+    const state=input(); state.request.accepted.policy.maxCostMicros=100;
+    const server=await fixture();
+    await expect(dispatchBoundModel(state.request,server.factory)).rejects.toMatchObject({code:"MODEL_COST_CAP_UNSUPPORTED",outcome:"rejected"});
+    expect(server.calls).toHaveLength(0);expect(state.resolveCredential).not.toHaveBeenCalled();
+  });
+  it("counts private native input and tools with the correct official protocol, without assuming compatible endpoints support it", () => {
+    const payload={model:"fixture-model",messages:[{role:"assistant",content:[{type:"thinking",thinking:"private",signature:"signed"}]}],system:"Instructions",tools:[{name:"lookup",input_schema:{type:"object"}}],thinking:{type:"adaptive"},stream:true,max_tokens:32};
+    const anthropic=prepareInputCount(officialRoute("anthropic_messages","anthropic","https://api.anthropic.com/v1"),payload)!;
+    expect(anthropic.url.pathname).toBe("/v1/messages/count_tokens");expect(anthropic.body).toMatchObject({messages:payload.messages,system:payload.system,tools:payload.tools,thinking:payload.thinking});
+    expect(anthropic.body).not.toHaveProperty("stream");expect(anthropic.precision).toBe("provider_estimate");
+    const google=prepareInputCount(officialRoute("google_generate_content","google","https://generativelanguage.googleapis.com/v1beta"),{contents:[{role:"model",parts:[{thoughtSignature:"signed"}]}],systemInstruction:{parts:[{text:"Instructions"}]},tools:[{functionDeclarations:[{name:"lookup"}]}]})!;
+    expect(google.url.pathname).toBe("/v1beta/models/fixture-model:countTokens");expect(google.body).toHaveProperty("generateContentRequest.tools");
+    expect(prepareInputCount(accepted("openai_responses"),payload)).toBeNull();
   });
 });

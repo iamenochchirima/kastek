@@ -38,7 +38,11 @@ secret access. Admission stores those routes and their integrity digest atomical
 root reservation and outbox command. An idempotent replay returns the original accepted task.
 Changing the organization default affects new admissions; it does not redirect accepted work.
 The agent editor also supports an explicit account/model selection and saves through the
-existing background configuration-snapshot flow. Unrelated configuration edits cannot restore
+existing background configuration-snapshot flow. Owner dependency views list affected agents,
+schedules, defaults and active tasks before removal or revocation. Reconnection does not restore
+old use grants. An explicit revision-checked Restore access action authorizes only the agent's
+currently configured model IDs. Cached model reads for ordinary members are filtered to the
+requested agent's current grants and the authorized organization default. Unrelated configuration edits cannot restore
 a revoked model-use grant.
 
 Model discovery uses each saved connection's endpoint, authentication placement and credential
@@ -46,8 +50,13 @@ generation. Its bounded server transport pins DNS addresses, rejects private des
 redirects, and rechecks current owner/connection authority before sending. Schema040 stores
 tenant/connection/generation-specific catalogue snapshots with integrity digests. Rotation
 invalidates cache selection; failed refresh does not delete a key or the previous snapshot.
-An older refresh cannot overwrite a newer observation. Native model listings that omit capacities
-or modalities retain unknown values. Curated providers require explicit model setup; partial
+An older refresh cannot overwrite a newer observation. Schema046 adds a persistent refresh
+lease and retry state scoped to the exact credential generation. Refresh uses a 30-second
+minimum interval; failures back off from 30 seconds to 15 minutes. Cached reads never perform
+HTTP. The response exposes status, retry time and bounded failure code while preserving saved
+metadata. Complete listings retain omitted models for display but mark them unavailable for new
+admission. Saved selections are not replaced automatically. Native model listings that omit capacities
+or modalities retain unknown values. Owners can add a manual model ID using reviewed metadata or explicit confirmed capacity declarations with source provenance. Declared tool support still requires an exact-model verification before tool execution. Curated providers require explicit model setup; partial
 pages report incomplete discovery. Listing models does not verify inference or tool use.
 
 `product/model-providers/setup-policy.ts` defines operator setup protections:
@@ -113,7 +122,23 @@ rather than the old Nemotron allowlist. Native continuation byte estimates contr
 packing without exposing the private content. Final native-payload preflight checks the accepted
 input/context limits and the operation reservation before dispatch. The default counter estimates
 serialized UTF-8 bytes; it is not a qualified universal tokenizer or a proof of a provider's actual
-bill. Model-native counter qualification remains unfinished. Scheduling groups model operations
+bill. Final preflight uses official OpenAI Responses, Anthropic Messages and Google
+GenerateContent token-count endpoints for their reviewed official destinations. It counts the
+prepared native input, including instructions, tool schemas and private continuation. Anthropic
+reports an estimate. Counter failures stop generation; they do not fall back to a different
+counter or account. Counting and generation each recheck current credentials, share the accepted
+call deadline and keep separate bounded physical requests. Counter responses are capped at
+64 KiB, an operator transport protection for the small count JSON response. Schema047 retains
+only count, precision, revision and payload digest privately. It does not retain another prompt.
+Compatible/custom routes use the explicitly labeled serialized-byte estimate until a qualified
+counter is installed. Sources: [OpenAI](https://developers.openai.com/api/docs/guides/token-counting),
+[Anthropic](https://platform.claude.com/docs/en/build-with-claude/token-counting) and
+[Google](https://ai.google.dev/api/tokens).
+
+A finite `maxCostMicros` currently fails admission and dispatch with
+`MODEL_COST_CAP_UNSUPPORTED`. Listed prices and approximate counters do not establish an
+enforceable upper invoice bound. Token allowances and estimated monetary usage still work;
+they are not presented as a strict spending guarantee. Scheduling groups model operations
 by organization and accepted connection, independently of a deployment-wide environment key.
 
 `execution/models/settings.ts` reads partial operator overrides from `AGENTS_MODEL_POLICY_JSON`.
@@ -134,7 +159,7 @@ execution grants, and agent settings can reduce the effective allowances.
 | `maxRequestBytes`, `maxResponseBytes` | 2,097,152, 4,194,304 | Serialized native request and response byte ceilings. |
 | `maxMessages`, `maxTools` | 256, 64 | Native request collection bounds. |
 | `maxRootTokens` | 1,000,000 | Service root allowance, reduced by the execution grant. |
-| `maxCostMicros` | `null` | No operator monetary cap. Finite caps also require known pricing. |
+| `maxCostMicros` | `null` | No operator monetary cap. Finite caps are rejected until their price and token bound can be enforced. |
 
 For example, `AGENTS_MODEL_POLICY_JSON={"maxModelCalls":32,"maxToolCalls":64}` changes only
 the two call ceilings. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
@@ -166,7 +191,7 @@ accepted model snapshot and digest; model calls and compaction receipts include 
 binding and effective policy. Harbor verifies snapshot hashes, call-role identity and bounded
 child inheritance. ATIF keeps that provenance. Private native continuation is not exported.
 The adapter retains isolated trials, purpose-specific suites and authoritative outcome graders.
-The eight additional provider profiles, qualified native counters, complete provider fault
+The eight additional provider profiles, qualified counters for compatible routes, complete provider fault
 coverage, independent purpose acceptance across compatible routes, and live multi-provider
 acceptance remain separate work. No production or hosted capacity acceptance is claimed.
 

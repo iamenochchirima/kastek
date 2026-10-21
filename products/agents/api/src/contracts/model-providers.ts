@@ -71,6 +71,7 @@ export const modelDescriptorSchema = z.strictObject({
     revision,
   }).nullable(),
   lifecycle: z.enum(["active", "deprecated", "retired", "unknown"]),
+  setupSource: metadataSourceSchema.optional(),
 });
 export type ModelDescriptor = z.infer<typeof modelDescriptorSchema>;
 

@@ -44,7 +44,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
     throw new PlatformError("MODEL_METADATA_REQUIRED", 409, "Refresh models for the selected provider");
   }
   const found = cache.snapshot.models.find((item: { id: string }) => item.id === modelId);
-  if (!found) throw new PlatformError("MODEL_UNAVAILABLE", 409, "The selected model is unavailable; refresh models or choose another model");
+  if (!found || cache.snapshot.unavailableModelIds?.includes(modelId)) throw new PlatformError("MODEL_UNAVAILABLE", 409, "The selected model is unavailable; refresh models or choose another model");
   const model = modelDescriptorSchema.parse(found);
   if (model.providerId !== definition.id || model.protocol !== definition.protocol || model.lifecycle === "retired") {
     throw new PlatformError("MODEL_UNAVAILABLE", 409, "The selected model cannot be used on this route");
@@ -52,7 +52,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   if (!model.inputModalities.includes("text") || !model.outputModalities.includes("text")) {
     throw new PlatformError("MODEL_TEXT_SUPPORT_REQUIRED", 409, "Text generation metadata is required for this model");
   }
-  if (input.requiresTools && model.capabilities.tools.value !== true) {
+  if (input.requiresTools && (model.capabilities.tools.value !== true || model.capabilities.tools.source?.kind === "operator" && model.capabilities.tools.evidence !== "verified")) {
     const receipt = (await db.query(`SELECT verification,observed_at FROM agents_platform.model_provider_verifications
       WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4
       AND endpoint=$5 AND protocol=$6 AND model_id=$7 AND model_revision=$8`,
@@ -68,6 +68,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   let compiled;
   try { compiled = compileEffectiveExecutionPolicy(model, input.layers); }
   catch { throw new PlatformError("MODEL_POLICY_INVALID", 422, "Model limits are unknown or do not fit the execution allowance"); }
+  if (compiled.policy.maxCostMicros !== null) throw new PlatformError("MODEL_COST_CAP_UNSUPPORTED", 422, "A strict spending cap requires a qualified token bound and an enforceable price ceiling for this route");
   const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy,
     binding: { organizationId: input.organizationId, connectionId, connectionRevision: connection.revision,
       credentialRevision: connection.credential_revision, useGrantId: grant.id, useGrantRevision: grant.revision,

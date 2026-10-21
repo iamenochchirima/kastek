@@ -79,7 +79,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   function controlledDispatch() {
     const assertAuthority = vi.fn(async () => {});
     const dispatch = vi.fn(async (request: BoundModelDispatchInput) => {
-      await request.beforePayloadDispatch?.({ messages: request.messages }); await request.beforeDispatch?.(); return response(request);
+      const payload = { messages: request.messages };
+      await request.beforePayloadDispatch?.(payload, {tokens:Buffer.byteLength(JSON.stringify(payload)),precision:"serialized_bytes_estimate",revision:"fixture-v1",payloadDigest:requestDigest(payload)}); await request.beforeDispatch?.(); return response(request);
     });
     return { assertAuthority, dispatch } satisfies ModelRuntimeDependencies;
   }
@@ -170,6 +171,10 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       }) };
       const result = await invokeTaskModel(invocation(f, id), dependencies);
       expect(result.message.content).toBe("Hello"); expect(calls).toBe(1); expect(result).not.toHaveProperty("nativeState");
+      const counted = (await pool.query("SELECT input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0].input_count;
+      expect(counted).toMatchObject({ precision: "serialized_bytes_estimate", revision: "serialized-native-utf8-v1" });
+      expect(counted.tokens).toBeGreaterThan(0); expect(counted.payloadDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(result).not.toHaveProperty("inputCount");
       expect((await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0].state).toBe("completed");
       const overflow = await operation(f);
       await expect(invokeTaskModel({ ...invocation(f, overflow), estimateRequestTokens: () => 16001 }, dependencies))

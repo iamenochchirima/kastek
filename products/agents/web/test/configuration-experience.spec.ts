@@ -94,7 +94,7 @@ for (const width of [1440,768,390]) test(`model selection saves in the backgroun
   expect(JSON.stringify(state.saves)).not.toMatch(/apiKey|provider.*openrouter|nemotron/);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`model-picker-${width}.png`),fullPage:true});
-  await page.route("**/model-providers/*/models",route=>route.fulfill({status:503,json:{error:{message:"Unavailable"}}}));
+  await page.route(/\/model-providers\/[^/]+\/models(?:\?.*)?$/,route=>route.fulfill({status:503,json:{error:{message:"Unavailable"}}}));
   await page.reload(); await expect(page.getByRole("combobox",{name:"Agent model",exact:true})).toHaveValue(JSON.stringify(selection));
   await expect(page.getByText("Some model lists are unavailable.")).toBeVisible();
   expect(state.snapshots).toHaveLength(2);

@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import type { Configuration } from "./api";
 import { providerApi, providerError, type CachedProviderModels, type DefaultModel, type ModelProviderConnection, type ProviderModel } from "./model-provider-api";
 
-type Choice = { connection: ModelProviderConnection; model: ProviderModel };
-export function AgentModel({ organizationId, configuration, onChange }: {
-  organizationId: string; configuration: Configuration; onChange(value: Configuration): void;
+type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean };
+export function AgentModel({ organizationId, agentId, configuration, onChange }: {
+  organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
 }) {
   const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
   const [search, setSearch] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
@@ -16,19 +16,19 @@ export function AgentModel({ organizationId, configuration, onChange }: {
     void Promise.all([providerApi<{ connections: ModelProviderConnection[] }>(organizationId), providerApi<DefaultModel>(organizationId, "/default")])
       .then(async ([list, selection]) => {
         const models = await Promise.allSettled(list.connections.filter(connection => connection.state === "active").map(async connection => {
-          const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models`);
-          return (cache.result?.models ?? []).map(model => ({ connection, model }));
+          const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models?agentId=${encodeURIComponent(agentId)}`);
+          return (cache.result?.models ?? []).map(model => ({ connection, model, available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
         }));
         if (!active) return;
         setDefaultModel(selection); setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value : []));
         if (models.some(result => result.status === "rejected")) setError("Some model lists are unavailable.");
       }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [organizationId]);
+  }, [organizationId, agentId]);
   const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
-  const selectable = choices.filter(choice => choice.model.lifecycle !== "retired" && choice.model.inputModalities?.includes("text") && choice.model.outputModalities?.includes("text") && (!requiresTools || choice.model.capabilities.tools.value !== false));
+  const selectable = choices.filter(choice => choice.available && choice.model.lifecycle !== "retired" && choice.model.inputModalities?.includes("text") && choice.model.outputModalities?.includes("text") && (!requiresTools || choice.model.capabilities.tools.value !== false));
   const filtered = selectable.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);
   const available = selection.kind === "organization_default" ? choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId) : selected;
@@ -47,8 +47,9 @@ export function AgentModel({ organizationId, configuration, onChange }: {
         </option>)}
       </select>
     </label>
+    {available && (!available.available || available.model.lifecycle === "retired") && <p role="status" className="text-sm text-muted-foreground">Saved model unavailable. Choose another model.</p>}
     {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
-    {available && requiresTools && available.model.capabilities.tools.value === null && <p className="text-xs text-muted-foreground">Test this model's tool support before running the agent.</p>}
+    {available && requiresTools && (available.model.capabilities.tools.value === null || available.model.capabilities.tools.evidence === "declared") && <p className="text-xs text-muted-foreground">Test this model's tool support before running the agent.</p>}
     <Link to="/app/settings" className="inline-block text-sm underline underline-offset-4">Manage model providers</Link>
     <details className="rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Model limits</summary><div className="mt-4 grid gap-4 sm:grid-cols-2">
       <label className="block space-y-2">Maximum reply tokens<Input type="number" min={1} max={knownOutputLimit} required value={configuration.model.maxOutputTokens} onChange={event => update({ maxOutputTokens: Number(event.target.value) })} /></label>

@@ -31,9 +31,11 @@ export type ModelDiscoveryResult = {
   models: ModelDescriptor[];
   observedAt: string;
   complete: boolean;
+  /** Complete refreshed listings can retain unavailable saved IDs without silently replacing them. */
+  unavailableModelIds?: string[];
 } | {
   kind: "manual_required";
-  models: [];
+  models: ModelDescriptor[];
   observedAt: string;
 };
 
