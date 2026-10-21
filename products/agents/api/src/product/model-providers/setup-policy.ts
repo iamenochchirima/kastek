@@ -6,6 +6,10 @@ export const modelSetupPolicySchema = z.strictObject({
   maxCatalogueModels: z.number().int().positive(),
   catalogueTtlMs: z.number().int().positive(),
   discoveryDeadlineMs: z.number().int().positive().max(30000),
+  probeMaxOutputTokens: z.number().int().positive(),
+  probeMaxRequestBytes: z.number().int().positive(),
+  probeMaxResponseBytes: z.number().int().positive(),
+  probeDeadlineMs: z.number().int().positive(),
 });
 export type ModelSetupPolicy = z.infer<typeof modelSetupPolicySchema>;
 export const defaultModelSetupPolicy: ModelSetupPolicy = Object.freeze({
@@ -13,4 +17,8 @@ export const defaultModelSetupPolicy: ModelSetupPolicy = Object.freeze({
   maxCatalogueModels: 5000,
   catalogueTtlMs: 300000,
   discoveryDeadlineMs: 30000,
+  probeMaxOutputTokens: 256,
+  probeMaxRequestBytes: 32768,
+  probeMaxResponseBytes: 262144,
+  probeDeadlineMs: 30000,
 });

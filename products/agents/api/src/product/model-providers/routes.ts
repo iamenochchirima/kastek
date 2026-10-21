@@ -19,9 +19,13 @@ export function registerModelProviderRoutes(app: FastifyInstance, options: {
     return { providers: options.store.registry };
   });
   app.get(base, async request => ({ connections: await options.store.list(await options.resolveScope(request)) }));
+  app.get(`${base}/default`, async request => options.store.getDefault(await options.resolveScope(request)));
+  app.put(`${base}/default`, async request => control(request, "connect", scope => options.store.setDefault(scope, request.body)));
   app.post(base, { bodyLimit: 16384 }, async request => control(request, "connect", async scope => ({ connection: await options.store.create(scope, request.body) })));
   app.get(`${base}/:connectionId`, async request => ({ connection: await options.store.get(await options.resolveScope(request), connectionId(request)) }));
   app.get(`${base}/:connectionId/models`, async request => options.store.cachedModels(await options.resolveScope(request), connectionId(request)));
+  app.post(`${base}/:connectionId/probe`, async request => control(request, "discover", scope =>
+    options.store.probe(scope, connectionId(request), request.body)));
   app.post(`${base}/:connectionId/models/refresh`, async request => control(request, "discover", scope =>
     options.store.refreshModels(scope, connectionId(request), revision.parse(request.body).expectedRevision)));
   app.patch(`${base}/:connectionId`, { bodyLimit: 16384 }, async request => control(request, "reconnect", async scope => ({ connection: await options.store.update(scope, connectionId(request), request.body) })));

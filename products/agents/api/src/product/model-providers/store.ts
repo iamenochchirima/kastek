@@ -14,6 +14,9 @@ import { ModelCredentialVault, modelApiKeySchema } from "../../infrastructure/mo
 import { createBoundedFetch } from "../../infrastructure/connected-network";
 import { captureConnectionAuthority } from "../../observability/connection-telemetry";
 import { defaultModelSetupPolicy, modelSetupPolicySchema, type ModelSetupPolicy } from "./setup-policy";
+import { probeProviderModel, type ModelProviderProbeRequest, type ModelProviderProbeResult } from "./probe";
+import { modelDescriptorSchema } from "../../contracts/model-providers";
+import { ProviderTransportError } from "../../adapters/models/pi-transport";
 
 const createInput = z.strictObject({ providerId: z.string().min(1).max(64), name: z.string().trim().min(1).max(120),
   apiKey: modelApiKeySchema, endpoint: modelEndpointSchema.optional() });
@@ -44,7 +47,8 @@ export class ModelProviderStore {
   private readonly setupPolicy: ModelSetupPolicy;
   constructor(readonly pool: Pool, private readonly vault: ModelCredentialVault | undefined,
     readonly registry: readonly ProviderDefinition[] = builtinProviderRegistry,
-    private readonly setupOptions: { discoveryFetch?: ModelDiscoveryFetch; policy?: ModelSetupPolicy } = {}) {
+    private readonly setupOptions: { discoveryFetch?: ModelDiscoveryFetch; policy?: ModelSetupPolicy;
+      probe?: (input: ModelProviderProbeRequest) => Promise<ModelProviderProbeResult> } = {}) {
     this.setupPolicy = modelSetupPolicySchema.parse(setupOptions.policy ?? defaultModelSetupPolicy);
   }
 
@@ -92,6 +96,8 @@ export class ModelProviderStore {
       await owner(db, scope); const row = await this.row(db, scope, id, true);
       if (row.revision !== input.expectedRevision || row.state === "revoked" && !input.apiKey) throw changed();
       const endpoint = input.endpoint ?? row.endpoint;
+      const definition = getProviderDefinition(row.provider_id, this.registry);
+      if (!definition) throw new PlatformError("MODEL_PROVIDER_UNSUPPORTED", 409, "Model provider is unavailable");
       if (endpoint !== row.endpoint && !input.apiKey) throw new PlatformError("MODEL_KEY_REENTRY_REQUIRED", 400, "Enter a key for the new endpoint");
       let credentialRevision = row.credential_revision;
       if (input.apiKey !== undefined) {
@@ -102,8 +108,9 @@ export class ModelProviderStore {
           VALUES($1,$2,$3,$4,$5,$6,'active')`, [scope.organizationId, id, credentialRevision, endpoint, row.protocol, envelope]);
       }
       const updated = (await db.query<ConnectionRow>(`UPDATE agents_platform.model_provider_connections SET name=$3,endpoint=$4,credential_revision=$5,state='active',
-        revision=revision+1,verification=CASE WHEN credential_revision<>$5 THEN 'saved' ELSE verification END,updated_at=now()
-        WHERE organization_id=$1 AND id=$2 RETURNING *`, [scope.organizationId, id, input.name ?? row.name, endpoint, credentialRevision])).rows[0]!;
+        revision=revision+1,verification=CASE WHEN credential_revision<>$5 OR definition<>$6::jsonb THEN 'saved' ELSE verification END,
+        definition=$6,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`, [scope.organizationId, id, input.name ?? row.name, endpoint, credentialRevision, definition])).rows[0]!;
       return dto(updated);
     });
   }
@@ -132,6 +139,40 @@ export class ModelProviderStore {
     });
   }
 
+  async getDefault(scope: ActionScope): Promise<{ selection: { kind: "connection"; connectionId: string; modelId: string } | null; revision: number }> {
+    return transaction(this.pool, async db => {
+      await requireActionMember(db, scope);
+      const row = (await db.query("SELECT connection_id,model_id,revision FROM agents_platform.model_provider_defaults WHERE organization_id=$1",
+        [scope.organizationId])).rows[0];
+      return { selection: row ? { kind: "connection", connectionId: row.connection_id, modelId: row.model_id } : null, revision: row?.revision ?? 0 };
+    });
+  }
+
+  async setDefault(scope: ActionScope, raw: unknown): Promise<Awaited<ReturnType<ModelProviderStore["getDefault"]>>> {
+    const input = z.strictObject({ connectionId: z.uuid(), modelId: z.string().trim().min(1).max(256),
+      expectedRevision: z.number().int().nonnegative().nullable() }).parse(raw);
+    return transaction(this.pool, async db => {
+      await owner(db, scope);
+      // The organization lock also orders default changes against new admissions.
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [scope.organizationId]);
+      const prior = (await db.query("SELECT revision FROM agents_platform.model_provider_defaults WHERE organization_id=$1 FOR UPDATE", [scope.organizationId])).rows[0];
+      if ((prior?.revision ?? 0) !== (input.expectedRevision ?? 0)) throw new PlatformError("MODEL_DEFAULT_CHANGED", 409, "Default model changed; refresh and try again");
+      const connection = await this.row(db, scope, input.connectionId);
+      if (connection.state !== "active") throw changed();
+      const grantId = randomUUID(), revision = (prior?.revision ?? 0) + 1;
+      await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
+        VALUES($1,$2,$3,$4,$5,$6)`, [grantId, scope.organizationId, connection.id,
+        { kind: "service", serviceId: "organization-default", product: "agents" },
+        JSON.stringify(["primary", "compaction", "delegated"]), JSON.stringify([input.modelId])]);
+      await db.query(`INSERT INTO agents_platform.model_provider_defaults(organization_id,connection_id,model_id,use_grant_id,revision,updated_by)
+        VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(organization_id) DO UPDATE SET connection_id=excluded.connection_id,
+        model_id=excluded.model_id,use_grant_id=excluded.use_grant_id,revision=excluded.revision,updated_by=excluded.updated_by,updated_at=now()`,
+      [scope.organizationId, connection.id, input.modelId, grantId, revision, scope.accountId]);
+      // A new default affects new admissions. Previously admitted work retains its original grant until explicitly revoked.
+      return { selection: { kind: "connection" as const, connectionId: connection.id, modelId: input.modelId }, revision };
+    });
+  }
+
   async cachedModels(scope: ActionScope, id: string): Promise<{
     result: ModelDiscoveryResult | null; fetchedAt: string | null; stale: boolean; connectionRevision: number; credentialRevision: number;
   }> {
@@ -146,6 +187,66 @@ export class ModelProviderStore {
         stale: !cache || Date.now() - cache.fetched_at.getTime() >= this.setupPolicy.catalogueTtlMs,
         connectionRevision: connection.revision, credentialRevision: connection.credential_revision };
     });
+  }
+
+  async probe(scope: ActionScope, id: string, raw: unknown): Promise<ModelProviderProbeResult> {
+    const input = z.strictObject({ expectedRevision: z.number().int().positive(), modelId: z.string().trim().min(1).max(256),
+      allowBillableRequest: z.literal(true), verifyTools: z.boolean() }).parse(raw);
+    const prepared = await transaction(this.pool, async db => {
+      await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (connection.revision !== input.expectedRevision || connection.state !== "active") throw changed();
+      const cache = (await db.query(`SELECT snapshot,snapshot_digest FROM agents_platform.model_provider_catalogues
+        WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
+      [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
+      if (!cache || requestDigest(cache.snapshot) !== cache.snapshot_digest) {
+        throw new PlatformError("MODEL_METADATA_REQUIRED", 409, "Refresh models before testing");
+      }
+      const found = cache.snapshot.models?.find((model: { id: string }) => model.id === input.modelId);
+      if (!found) throw new PlatformError("MODEL_METADATA_REQUIRED", 409, "Known model metadata is required before testing");
+      const model = modelDescriptorSchema.parse(found);
+      const credential = (await db.query(`SELECT envelope FROM agents_platform.model_provider_credentials
+        WHERE organization_id=$1 AND connection_id=$2 AND revision=$3 AND state='active'`,
+      [scope.organizationId, id, connection.credential_revision])).rows[0];
+      if (!credential) throw changed();
+      const apiKey = this.requireVault().open({ organizationId: scope.organizationId, connectionId: id,
+        credentialRevision: connection.credential_revision, endpoint: connection.endpoint, protocol: connection.protocol }, credential.envelope);
+      return { connection, model, apiKey, definition: providerDefinitionSchema.parse(connection.definition) };
+    });
+    const reauthorize = () => transaction(this.pool, async db => {
+      await owner(db, scope); const current = await this.row(db, scope, id);
+      if (current.state !== "active" || current.revision !== input.expectedRevision || current.credential_revision !== prepared.connection.credential_revision) throw changed();
+    });
+    await reauthorize();
+    let result: ModelProviderProbeResult;
+    try {
+      result = await (this.setupOptions.probe ?? probeProviderModel)({ provider: prepared.definition,
+        endpoint: prepared.connection.endpoint, apiKey: prepared.apiKey, model: prepared.model, verifyTools: input.verifyTools,
+        policy: this.setupPolicy, reauthorize });
+    } catch (error) {
+      if (!(error instanceof ProviderTransportError)) throw error;
+      throw new PlatformError(error.code, error.status, error.outcome === "uncertain"
+        ? "The model test outcome is uncertain; check provider usage before retrying" : "The provider could not complete the model test");
+    }
+    if (result.modelId !== input.modelId || result.verification !== (input.verifyTools ? "tools_verified" : "inference_verified")) {
+      throw new PlatformError("MODEL_PROBE_INVALID", 502, "The model test could not be verified");
+    }
+    await transaction(this.pool, async db => {
+      await owner(db, scope); const current = await this.row(db, scope, id, true);
+      if (current.state !== "active" || current.revision !== input.expectedRevision || current.credential_revision !== prepared.connection.credential_revision) throw changed();
+      await db.query(`INSERT INTO agents_platform.model_provider_verifications AS receipt
+        (organization_id,connection_id,connection_revision,credential_revision,endpoint,protocol,model_id,model_revision,verification)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        ON CONFLICT(organization_id,connection_id,connection_revision,credential_revision,model_id) DO UPDATE SET
+        model_revision=excluded.model_revision,verification=CASE WHEN receipt.model_revision=excluded.model_revision AND receipt.verification='tools_verified'
+        THEN receipt.verification ELSE excluded.verification END,observed_at=now()`,
+      [scope.organizationId, id, current.revision, current.credential_revision, current.endpoint, current.protocol,
+        input.modelId, prepared.model.revision, result.verification]);
+      await db.query(`UPDATE agents_platform.model_provider_connections SET verification=CASE
+        WHEN verification='tools_verified' THEN verification ELSE $3 END WHERE organization_id=$1 AND id=$2`,
+      [scope.organizationId, id, result.verification]);
+    });
+    // The public result deliberately excludes native continuation and request/response bodies.
+    return { verification: result.verification, modelId: result.modelId, usage: result.usage };
   }
 
   async refreshModels(scope: ActionScope, id: string, expectedRevision: number): Promise<ModelDiscoveryResult> {

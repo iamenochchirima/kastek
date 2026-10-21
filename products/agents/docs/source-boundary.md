@@ -10,8 +10,9 @@ startup. It does not migrate an older database or import Growth state.
 ## Product scope and implementation gaps
 
 Model-provider contracts and a reviewed JSON registry now exist under `api/src/contracts/`
-and `api/src/adapters/models/`. Registry records cover twelve providers and remain marked
-`planned` until adapter conformance establishes support. Shared messages no longer depend on
+and `api/src/adapters/models/`. Registry records cover twelve providers. OpenRouter, OpenAI
+and Anthropic have installed fixture-tested adapters; other profiles remain `planned`.
+Installation does not claim live account verification. Shared messages no longer depend on
 the business adapter's file. The running agent configuration and model loop still use their
 existing OpenRouter/Nemotron route; the new registry alone does not enable another provider.
 
@@ -22,8 +23,18 @@ separate model-credential domain bound to tenant, connection, endpoint, protocol
 Endpoint changes require a new key. Revocation removes encrypted key material and revokes use
 grants; reconnecting does not revive those grants. Physical-call credential resolution checks
 the exact consumer, model, role, provider definition and current revisions. It never consults
-an environment key as fallback. Discovery and inference verification remain separate work;
+an environment key as fallback. Discovery and inference verification are separate actions;
 new connections report `saved`, not verified inference.
+
+Settings now lists multiple labeled model accounts with masked key entry, rotation/reconnection,
+revocation/removal dialogs, model search/refresh and explicit paid tests. Tests send one short
+generation request or a two-call local echo-tool round trip. Each physical request rechecks
+authority. Exact-model receipts bind endpoint, protocol, model metadata revision and credential
+generation. A stale in-flight test cannot verify a rotated key. Schema042 stores these receipts
+and a revision-checked organization default. Choosing a default explicitly creates a service-use
+grant; changing it does not revoke the grants of previously accepted work. The admission resolver
+can pin primary, compaction and delegated role routes from saved metadata without network or
+secret access. Worker/admission integration is still required before this default governs chat.
 
 Model discovery uses each saved connection's endpoint, authentication placement and credential
 generation. Its bounded server transport pins DNS addresses, rejects private destinations and
@@ -42,6 +53,9 @@ pages report incomplete discovery. Listing models does not verify inference or t
 | Models per discovery response | 5,000 | Bounds normalization and persisted metadata; larger responses fail explicitly. |
 | Catalogue freshness | 5 minutes | Controls metadata refresh only; never extends credentials or grants. |
 | Discovery deadline | 30 seconds | Matches the existing network reader's setup deadline ceiling. |
+| Setup test output | 256 tokens per call | Bounds the explicitly billable short verification; intersected with known model capacity. |
+| Setup test request/response | 32 KiB / 256 KiB per call | Bounds the fixed prompt and local tool exchange, independently of normal generation. |
+| Setup test deadline | 30 seconds total | Both tool-test calls share one setup deadline. |
 
 These settings are validated constructor policy, not model context/output limits. The discovery
 adapter receives explicit byte/item budgets and an injected transport; it cannot read ambient
@@ -53,7 +67,10 @@ Chat, Responses, Messages and Gemini protocols. It disables retries and explicit
 requests, validates final output caps, rejects repaired tool JSON, distinguishes missing usage
 from zero, and scopes private continuation to provider/API/model/endpoint/credential generation.
 Public results exclude internal reasoning; private native state must stay out of transcript and
-evaluation projections when runtime integration is enabled. The CommonJS application currently
+evaluation projections when runtime integration is enabled. The pinned SDK receives instructions
+and tools through its leading system message; actual outgoing-body tests guard this contract.
+Anthropic's SDK base path is normalized while the accepted endpoint stays unchanged.
+The CommonJS application currently
 loads this import-only dependency through Node24's native VM loader, which emits an experimental
 warning. The Gemini library path permits only the official endpoint and rejects ambient cloud
 backend flags. Its failed HTTP status is unavailable through this adapter. This foundation is
@@ -65,7 +82,7 @@ account access or tool support. Generated zero prices remain unknown rather than
 `execution/models/policy.ts` intersects explicit platform/product/tenant/agent allowances and
 sourced model capacities. Unknown context/output capacity requires an operator attestation.
 The compiler checks reserves and root/compaction relationships and pins its decisions in a digest.
-No default numeric model limits are hidden in the compiler. Worker, SQL, grant and UI integration
+No default numeric model limits are hidden in the compiler. Worker, grant and agent-editor integration
 remain necessary before these policies govern live calls.
 
 `infrastructure/model-network.ts` supplies a separate streaming fetch for generation. It pins
@@ -79,8 +96,8 @@ Context packing and compaction accept `ContextModelPolicy` with explicit model/c
 duration, capacities, message/tool/byte protections and a runtime-supplied counter. Serializable
 snapshots pin the policy and omit the callback. The new path does not use the global Nemotron
 allowlist or counter. Existing runtime callers still use their previous profile until accepted
-binding integration changes them. Runtime monetary reservations, storage-compatible counter
-bounds and account-scoped scheduling are not established by the pure policy compiler tests.
+binding integration changes them. Root monetary reservation persistence exists in schema041;
+runtime accounting and account-scoped scheduling integration remain outstanding.
 
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes

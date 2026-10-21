@@ -7,6 +7,7 @@ import { APPEARANCE_STORAGE_KEYS, type ThemeMode } from "@/lib/appearance-contra
 import { ErrorMessage, useWorkspace } from "./shell";
 import { message } from "./api";
 import "./management.css";
+import { ModelProvidersSettings } from "./model-providers";
 
 export function SettingsPage() {
   const { session, organizationId, createWorkspace, selectWorkspace, logout } = useWorkspace();
@@ -45,6 +46,7 @@ export function SettingsPage() {
         <Button variant="outline" size="sm" onClick={createWorkspace}>Create workspace</Button>
       </div>
     </section>
+    <ModelProvidersSettings key={organizationId} organizationId={organizationId} owner={workspace?.role === "owner"} />
     <section className="settings-group" aria-labelledby="settings-appearance">
       <h2 id="settings-appearance">Appearance</h2>
       <fieldset className="space-y-3"><legend className="mb-3 text-sm">Theme</legend><div className="flex flex-wrap gap-2">{([{value:"light",label:"Light",Icon:Sun},{value:"dark",label:"Dark",Icon:Moon},{value:"system",label:"System",Icon:Monitor}] as const).map(({value,label,Icon}) => <Button key={value} size="sm" variant={theme === value ? "secondary" : "outline"} aria-pressed={theme === value} onClick={() => changeTheme(value)}><Icon className="size-4" />{label}</Button>)}</div></fieldset>

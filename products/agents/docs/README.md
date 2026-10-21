@@ -1,5 +1,16 @@
 # Agents documentation
 
+Model provider setup is available at `/app/settings` under **Model providers**.
+Owners can save multiple encrypted API-key accounts, refresh models, run an explicit
+paid model/tool test, and choose an organization default. OpenRouter, OpenAI and
+Anthropic have installed adapters with controlled HTTP fixture coverage. This
+settings-to-chat integration is still in progress; the existing chat route does not
+yet consume that default. Browser verification starts at
+`web/test/model-providers.spec.ts`; backend authority and transport checks are in
+`api/test/model-provider-store.test.ts`, `model-provider-probe.test.ts` and
+`model-dispatch.test.ts`. See [implementation boundaries](source-boundary.md) for
+current provider limitations and schema/configuration requirements.
+
 Owner: Agents engineering. Last reviewed: 2026-10-20.
 
 The standalone product targets customer-service, FAQ, booking, and intake agents across customer

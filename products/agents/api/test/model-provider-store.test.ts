@@ -14,6 +14,8 @@ import type { ProviderConnection, ResolvedModelBinding } from "../src/contracts/
 import { registerModelProviderRoutes } from "../src/product/model-providers/routes";
 import { builtinProviderRegistry } from "../src/adapters/models/registry";
 import type { ModelDiscoveryRequest } from "../src/adapters/models/discovery";
+import { resolveAcceptedModelRoutes } from "../src/execution/models/resolution";
+import type { ExecutionPolicyLayer } from "../src/execution/models/policy";
 
 const keyring = new ConnectionVault("test", { test: randomBytes(32).toString("base64") });
 const vault = new ModelCredentialVault(keyring);
@@ -124,6 +126,25 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
   });
+  it("keeps default changes tenant-scoped, explicit and revision-bound without revoking admitted grants", async () => {
+    const f = await fixture(), other = await fixture();
+    expect(await models.getDefault(f.scope)).toEqual({ selection: null, revision: 0 });
+    await expect(models.setDefault(other.scope, { connectionId: f.connection.id, modelId: "lab/one", expectedRevision: 0 }))
+      .rejects.toMatchObject({ code: "MODEL_CONNECTION_NOT_FOUND" });
+    const first = await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/one", expectedRevision: null });
+    expect(first.revision).toBe(1);
+    const results = await Promise.allSettled(["lab/two", "lab/three"].map(modelId =>
+      models.setDefault(f.scope, { connectionId: f.connection.id, modelId, expectedRevision: 1 })));
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect((await models.getDefault(f.scope)).revision).toBe(2);
+    const grants = (await pool.query("SELECT state,consumer FROM agents_platform.model_provider_use_grants WHERE organization_id=$1", [f.scope.organizationId])).rows;
+    expect(grants).toHaveLength(2);
+    expect(grants.every(row => row.state === "active" && row.consumer.serviceId === "organization-default")).toBe(true);
+    await models.revoke(f.scope, f.connection.id, 1);
+    await expect(models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/new", expectedRevision: 2 })).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
+    expect((await models.getDefault(f.scope)).selection?.connectionId).toBe(f.connection.id);
+  });
   it("reconnects with a new key without reviving previously revoked use grants", async () => {
     const f = await fixture(), accepted = await binding(f);
     await models.revoke(f.scope, f.connection.id, 1);
@@ -150,6 +171,53 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(discover.cachedModels(other.scope, f.connection.id)).rejects.toMatchObject({ code: "MODEL_CONNECTION_NOT_FOUND" });
     await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "new-key" });
     expect((await discover.cachedModels(f.scope, f.connection.id)).result).toBeNull();
+  });
+  it("resolves pinned role bindings without secrets or network and honors later revocation", async () => {
+    const f = await fixture(), agent = await platform.createAgent({ ...f.scope, name: "Pinned" });
+    const discover = new ModelProviderStore(pool, vault, builtinProviderRegistry, { discoveryFetch: async () => ({ status: 200,
+      body: JSON.stringify({ data: [{ id: "lab/pinned", context_length: 32000, top_provider: { max_completion_tokens: 4096 },
+        supported_parameters: ["tools"], architecture: { input_modalities: ["text"], output_modalities: ["text"] } }] }) }) });
+    await discover.refreshModels(f.scope, f.connection.id, 1);
+    await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/pinned", expectedRevision: 0 });
+    const layers: ExecutionPolicyLayer[] = [{ kind: "platform", reference: "fixture-policy", limits: {
+      contextTokens: 32000, maxInputTokens: 20000, maxOutputTokens: 4096, safetyTokens: 1000, compactAtTokens: 16000,
+      maxModelCalls: 8, maxToolCalls: 8, maxDurationMs: 120000, maxInputBytes: 16384, maxResponseBytes: 1048576,
+      maxRootTokens: 50000, maxCostMicros: null } }];
+    const input = { organizationId: f.scope.organizationId, agentId: agent.id, product: "agents" as const,
+      selection: { kind: "organization_default" as const }, layers, requiresTools: true };
+    const accepted = await transaction(pool, db => resolveAcceptedModelRoutes(db, input));
+    expect(accepted.primary.binding.modelId).toBe("lab/pinned");
+    expect(accepted.compaction.binding.role).toBe("compaction"); expect(accepted.delegated.binding.role).toBe("delegated");
+    expect(JSON.stringify(accepted)).not.toContain("fixture-key");
+    await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/new", expectedRevision: 1 });
+    expect(await transaction(pool, db => models.resolveCredential(db, accepted.primary.binding, accepted.primary.consumer))).toBe("fixture-key-one");
+    await expect(transaction(pool, db => resolveAcceptedModelRoutes(db, input))).rejects.toMatchObject({ code: "MODEL_UNAVAILABLE" });
+    await expect(transaction(pool, db => resolveAcceptedModelRoutes(db, { ...input, product: "growth" }))).rejects.toMatchObject({ code: "MODEL_USE_DENIED" });
+    await models.revoke(f.scope, f.connection.id, 1);
+    await expect(transaction(pool, db => models.resolveCredential(db, accepted.primary.binding, accepted.primary.consumer))).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
+  });
+  it("requires explicit paid tests and binds receipts to exact model and key generation", async () => {
+    const f = await fixture(); let calls = 0;
+    const testStore = new ModelProviderStore(pool, vault, builtinProviderRegistry, {
+      discoveryFetch: async () => ({ status: 200, body: JSON.stringify({ data: [{ id: "lab/probe", context_length: 32000,
+        top_provider: { max_completion_tokens: 4096 }, architecture: { input_modalities: ["text"], output_modalities: ["text"] } }] }) }),
+      probe: async input => { calls++; await input.reauthorize(); return { modelId: input.model.id,
+        verification: input.verifyTools ? "tools_verified" : "inference_verified", usage: { observed: false } }; },
+    });
+    await testStore.refreshModels(f.scope, f.connection.id, 1);
+    const input = { expectedRevision: 1, modelId: "lab/probe", allowBillableRequest: true, verifyTools: true };
+    await expect(testStore.probe(f.scope, f.connection.id, { ...input, allowBillableRequest: false })).rejects.toThrow();
+    expect(calls).toBe(0);
+    expect(await testStore.probe(f.scope, f.connection.id, input)).toEqual({ modelId: "lab/probe", verification: "tools_verified", usage: { observed: false } });
+    const receipt = (await pool.query("SELECT * FROM agents_platform.model_provider_verifications WHERE organization_id=$1", [f.scope.organizationId])).rows[0];
+    expect(receipt.model_id).toBe("lab/probe"); expect(receipt.credential_revision).toBe(1); expect(receipt.endpoint).toBe(f.connection.endpoint);
+    expect(JSON.stringify(receipt)).not.toContain("fixture-key");
+    const race = new ModelProviderStore(pool, vault, builtinProviderRegistry, { probe: async request => {
+      await models.update(f.scope, f.connection.id, { expectedRevision: 1, apiKey: "rotated-in-flight" });
+      return { modelId: request.model.id, verification: "tools_verified", usage: { observed: false } };
+    } });
+    await expect(race.probe(f.scope, f.connection.id, input)).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.model_provider_verifications WHERE organization_id=$1", [f.scope.organizationId])).rows[0].count).toBe(1);
   });
   it("rejects discovery receipts from a stale credential and preserves a saved key after discovery failure", async () => {
     const f = await fixture();
