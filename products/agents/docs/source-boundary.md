@@ -15,6 +15,23 @@ and `api/src/adapters/models/`. Registry records cover twelve providers and rema
 the business adapter's file. The running agent configuration and model loop still use their
 existing OpenRouter/Nemotron route; the new registry alone does not enable another provider.
 
+Authenticated organization routes at `/api/organizations/:organizationId/model-providers`
+now save labeled provider accounts, list public metadata, rotate keys, revoke access and
+remove accounts. Only owners manage secrets. The existing encrypted vault keyring backs a
+separate model-credential domain bound to tenant, connection, endpoint, protocol and revision.
+Endpoint changes require a new key. Revocation removes encrypted key material and revokes use
+grants; reconnecting does not revive those grants. Physical-call credential resolution checks
+the exact consumer, model, role, provider definition and current revisions. It never consults
+an environment key as fallback. Discovery and inference verification remain separate work;
+new connections report `saved`, not verified inference.
+
+Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
+fresh-database/checksum contract; existing databases are not silently rewritten. The routes
+reuse `connection.lifecycle` telemetry with the bounded `model_provider` provider label.
+Credential values and request/provider bodies are excluded. No new analytics event or exporter
+configuration is introduced. Disable new routes/dispatch to stop setup; preserve non-secret
+historical records for receipt attribution. No production rollout has occurred.
+
 The [target product](architecture/agent-platform-architecture.md#standalone-agents-product)
 offers mostly plug-and-play customer-service, FAQ, booking, and intake agents, with connected
 customer channels and a shared staff inbox. Growth and Agencies own research, campaign, content,
