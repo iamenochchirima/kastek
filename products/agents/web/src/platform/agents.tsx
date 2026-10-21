@@ -46,9 +46,9 @@ export function AgentEditor() {
   const needsApply = dirty || pendingSetup;
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
-  async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }): Promise<boolean> {
+  async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision): Promise<boolean> {
     if (!agent) return false;
-    const payload = { name, configuration, expectedRevision: agent.draftRevision };
+    const payload = { name, configuration, expectedRevision };
     type Saved = { agent: Agent; snapshot: Version; deployments: Deployment[] };
     let result: Saved;
     try { result = await api<Saved>(`${path}/configuration`, payload); }
@@ -69,10 +69,12 @@ export function AgentEditor() {
   async function changeChatModel(selection: NonNullable<Configuration["model"]["selection"]>) {
     if (!agent || busy || dirty) return false;
     const previous = { name: agent.name, configuration: agent.draft };
-    const next = { ...agent.draft, model: { ...agent.draft.model, selection } };
     setBusy(true);
-    try { return await applyConfiguration(next, agent.name, previous); }
-    finally { setBusy(false); }
+    try {
+      const { agent: current } = await api<{ agent: Agent }>(path);
+      const next = { ...current.draft, model: { ...current.draft.model, selection } };
+      return await applyConfiguration(next, current.name, previous, current.draftRevision);
+    } finally { setBusy(false); }
   }
   async function beforeConnect() {
     if (!agent || !configuration || busy) return false;

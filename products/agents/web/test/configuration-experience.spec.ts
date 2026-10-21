@@ -242,3 +242,27 @@ test("chat model picker preserves unsaved configuration and recovers after save 
   await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
   expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).instructions).toBe("Unsaved instructions stay here");
 });
+
+
+test("chat model save reads current configuration instead of stale tab fields", async ({ page }) => {
+  const state = await fixture(page, true);
+  let reads = 0;
+  await page.route(`**/api/organizations/${org}/agents/${agentId}`, async route => {
+    if (++reads > 1) return route.fallback();
+    const stale = configuration();
+    Reflect.deleteProperty(stale.model, "selection");
+    Object.assign(stale.model, { provider: "openrouter", model: "retired/model" });
+    await route.fulfill({ json: { agent: { id: agentId, name: "Old tab name", offering: "faq", draft: stale, draftRevision: 1 }, versions: [], deployments: [] } });
+  });
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("button", { name: /^Chat model:/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Claude fixture", exact: true }).click();
+  await page.getByRole("button", { name: "Use model", exact: true }).click();
+  await page.getByRole("button", { name: "Apply changes", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Support", exact: true })).toBeVisible();
+  expect(state.saves[1].name).toBe("Support");
+  expect(state.saves[1].configuration).toMatchObject({ instructions: "Answer customer questions.", model: { selection: { kind: "connection", connectionId: "provider-b", modelId: "model-b" } } });
+  expect((state.saves[1].configuration as { model: object }).model).not.toHaveProperty("provider");
+  expect((state.saves[1].configuration as { model: object }).model).not.toHaveProperty("model");
+});
