@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { RemoteConnections } from "./remote-connections";
 import { ApiConnections } from "./api-connections";
+import { CustomerChannels } from "./customer-channels";
 import { SupportedConnections } from "./supported-connections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,8 @@ export function ConnectionsPage() {
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   return <section className="management-page"><div className="management-header"><h1>Connections</h1><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setApiOpen(true)}>Custom API</Button><Button variant="outline" onClick={() => setRemoteOpen(true)}>Custom MCP</Button><Button onClick={() => open("create")} disabled={!data || !profiles.length}>Add connection</Button></div></div>{returnTo ? <Link className="mb-5 inline-block text-sm underline underline-offset-4" to={returnTo}>Back to agent</Link> : null}{!dialog ? <ErrorMessage value={error} /> : null}
+    <CustomerChannels organizationId={organizationId} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} />
+    <h2 className="mb-4 text-lg font-medium">Business tools</h2>
     {!data && !error ? <Loading /> : data ? <div className="management-list">{data.connections.length ? data.connections.map(connection => {
       const expired = new Date(connection.expiresAt).getTime() <= Date.now();
       return <div key={connection.id} className="management-row flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 space-y-1"><h2 className="break-words font-medium">{connection.name}</h2><p className="break-words text-sm text-muted-foreground">{connection.targetLabel}{repositoryProfile(connection.profileId) ? ` · ${connection.selections?.length ?? 0} ${(connection.selections?.length ?? 0) === 1 ? "repository" : "repositories"}` : connection.profileId === "stash-read-v1" ? ` · ${connection.stashItemIds?.length ?? 0} ${(connection.stashItemIds?.length ?? 0) === 1 ? "item" : "items"}` : ` · ${connection.resource}`}</p>{connection.selections?.length ? <p className="max-w-xl break-words text-xs text-muted-foreground">{connection.selections.map(selection => `${selection.owner}/${selection.repository}`).join(", ")}</p> : null}<p className="text-xs text-muted-foreground">{connection.state === "revoked" ? "Revoked" : expired ? "Expired" : `Expires ${new Date(connection.expiresAt).toLocaleString()}`}</p></div>{connection.state === "active" ? <div className="flex flex-wrap gap-2">{(repositoryProfile(connection.profileId) || connection.profileId === "stash-read-v1") && !expired ? <Button size="sm" variant="outline" onClick={() => setTools(connection)}>Manage tools</Button> : null}{connection.profileId !== "public-repository-read-v1" && connection.authentication !== "none" ? <Button size="sm" variant="outline" onClick={() => open("rotate", connection)}>Replace key</Button> : null}<Button size="sm" variant="ghost" onClick={() => open("revoke", connection)}>Revoke</Button></div> : null}</div>;

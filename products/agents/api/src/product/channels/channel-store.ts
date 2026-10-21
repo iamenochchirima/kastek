@@ -88,7 +88,7 @@ export class ChannelStore {
   }
   async list(scope: ActionScope): Promise<ChannelConnection[]> {
     return transaction(this.pool, async db => { await requireActionMember(db, scope);
-      return (await db.query("SELECT * FROM agents_platform.channel_connections WHERE organization_id=$1 AND state<>'removed' ORDER BY created_at,id", [scope.organizationId])).rows.map(connectionDto); });
+      return (await db.query("SELECT * FROM agents_platform.channel_connections WHERE organization_id=$1 AND state<>'removed' AND coalesce(metadata->>'evaluationFixture','false')<>'true' ORDER BY created_at,id", [scope.organizationId])).rows.map(connectionDto); });
   }
   async get(scope: ActionScope, id: string): Promise<ChannelConnection> {
     return transaction(this.pool, async db => connectionDto(await this.row(db, scope, id)));
@@ -169,7 +169,9 @@ export class ChannelStore {
   async listDeployments(scope: ActionScope, connectionId?: string): Promise<ChannelDeployment[]> {
     if (connectionId) z.uuid().parse(connectionId);
     return transaction(this.pool, async db => { await requireActionMember(db, scope);
-      return (await db.query("SELECT * FROM agents_platform.channel_deployments WHERE organization_id=$1 AND ($2::uuid IS NULL OR connection_id=$2) ORDER BY created_at,id", [scope.organizationId, connectionId ?? null])).rows.map(deploymentDto); });
+      return (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections c ON c.id=d.connection_id
+        WHERE d.organization_id=$1 AND ($2::uuid IS NULL OR d.connection_id=$2) AND coalesce(c.metadata->>'evaluationFixture','false')<>'true'
+        ORDER BY d.created_at,d.id`, [scope.organizationId, connectionId ?? null])).rows.map(deploymentDto); });
   }
   async bind(scope: ActionScope, id: string, raw: unknown): Promise<ChannelDeployment> {
     const input = z.strictObject({ expectedRevision: revision, agentId: z.uuid(), assetId: externalId.optional(), confirmReassignment: z.boolean().default(false) }).parse(raw);
@@ -218,7 +220,7 @@ export class ChannelStore {
   async resolveSetupCredential(scope: ActionScope, id: string, expectedRevision: number): Promise<Record<string, string>> {
     revision.parse(expectedRevision);
     return transaction(this.pool, async db => { await owner(db, scope); const row = await this.row(db, scope, id);
-      if (row.revision !== expectedRevision || !["pending", "active", "needs_attention"].includes(row.state)) throw changed();
+      if (row.metadata.evaluationFixture || row.revision !== expectedRevision || !["pending", "active", "needs_attention"].includes(row.state)) throw changed();
       this.definition(row.kind, row.mode); return this.openCredential(db, row);
     });
   }
@@ -227,7 +229,7 @@ export class ChannelStore {
     z.uuid().parse(id);
     return transaction(this.pool,async db=>{
       const row=(await db.query("SELECT * FROM agents_platform.channel_connections WHERE id=$1 AND kind='telegram' AND state IN ('pending','active','needs_attention') FOR SHARE",[id])).rows[0];
-      if(!row?.asset_id)throw missing();
+      if(!row?.asset_id||row.metadata.evaluationTrialId)throw missing();
       const credentials=await this.openCredential(db,row);
       if(!credentials.webhookSecret)throw new PlatformError("CHANNEL_WEBHOOK_UNAVAILABLE",403,"Channel webhook is unavailable");
       return {assetId:row.asset_id,secret:credentials.webhookSecret};

@@ -121,7 +121,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       WHERE t.root_task_id=$1 AND t.organization_id=$2 ORDER BY t.created_at,t.id LIMIT 1025 FOR SHARE OF t`, [rootTaskId, initial.organization_id])).rows;
     if (rows.length > 1024) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
     const root = rows.find(row => row.id === rootTaskId);
-    if (!root || root.parent_task_id || !["human", "visitor"].includes(root.principal.kind)) throw new PlatformError("ACCESS_DENIED", 403, "Root ownership is required");
+    if (!root || root.parent_task_id || !["human", "visitor","channel_customer"].includes(root.principal.kind)) throw new PlatformError("ACCESS_DENIED", 403, "Root ownership is required");
     if (root.principal.kind === "visitor") {
       if (!authorization || authorization.evaluationTrialId !== root.evaluation_trial_id) throw new PlatformError("ACCESS_DENIED", 403, "Evaluation ownership is required");
       const bound = await db.query(`SELECT e.id FROM agents_platform.evaluation_trials e
@@ -131,6 +131,17 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
           AND c.deployment_id=$6 AND c.session_id=$7 FOR SHARE OF e,c,m`,
       [authorization.evaluationTrialId, authorization.accountId, root.organization_id, root.agent_id, root.version_id, root.principal.deploymentId, root.principal.sessionId]);
       if (!bound.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Evaluation ownership is required");
+    }
+    if(root.principal.kind==="channel_customer") {
+      if(!authorization||authorization.evaluationTrialId!==root.evaluation_trial_id)throw new PlatformError("ACCESS_DENIED",403,"Evaluation ownership is required");
+      const bound=await db.query(`SELECT 1 FROM agents_platform.evaluation_trials e
+        JOIN agents_platform.evaluation_trial_messaging_channels f ON f.trial_id=e.id AND f.organization_id=e.organization_id
+        JOIN agents_platform.customer_conversations c ON c.channel_deployment_id=f.deployment_id AND c.organization_id=e.organization_id
+        JOIN agents_platform.memberships m ON m.organization_id=e.organization_id AND m.account_id=e.account_id AND m.revoked_at IS NULL
+        WHERE e.id=$1 AND e.account_id=$2 AND e.organization_id=$3 AND e.agent_id=$4 AND e.version_id=$5
+          AND f.deployment_id=$6 AND c.id=$7 FOR SHARE OF e,f,c,m`,[authorization.evaluationTrialId,authorization.accountId,
+          root.organization_id,root.agent_id,root.version_id,root.principal.deploymentId,root.principal.participantId]);
+      if(!bound.rowCount)throw new PlatformError("ACCESS_DENIED",403,"Evaluation ownership is required");
     }
     const composition = effectiveCompositionSchema.parse(root.effective_composition), coverage = emptyExportCoverage();
     const tasks: NativeTask[] = [], visible = new Set<string>();

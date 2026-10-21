@@ -5,7 +5,7 @@ import { z } from "zod";
 import { PlatformError } from "../contracts/contracts";
 
 export const connectionFlowSchema=z.enum(["connect","authorize","callback","discover","refresh","credential_check","reconnect","rotate","disconnect","select","probe"]);
-const providerSchema=z.enum(["mcp","native_api","google_calendar","model_provider"]);
+const providerSchema=z.enum(["mcp","native_api","google_calendar","model_provider","whatsapp","telegram","facebook","instagram"]);
 export const connectionControlEventSchema=z.strictObject({
   event:z.literal("connection.lifecycle"),traceId:z.string().regex(/^[a-f0-9]{32}$/),
   provider:providerSchema,flow:connectionFlowSchema,outcome:z.enum(["completed","failed"]),

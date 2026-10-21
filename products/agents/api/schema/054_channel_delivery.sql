@@ -1,5 +1,6 @@
 CREATE TABLE agents_platform.channel_ingress (
   id uuid PRIMARY KEY,
+  sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   organization_id uuid NOT NULL,
   connection_id uuid NOT NULL,
   deployment_id uuid NOT NULL,
@@ -20,14 +21,16 @@ CREATE TABLE agents_platform.channel_ingress (
   UNIQUE(connection_id,event_id)
 );
 CREATE INDEX channel_ingress_pending ON agents_platform.channel_ingress(available_at,id) WHERE state IN ('pending','processing');
+CREATE INDEX channel_ingress_thread ON agents_platform.channel_ingress(connection_id,(event->>'externalConversationId'),sequence);
 CREATE TABLE agents_platform.channel_message_facts (
   message_id uuid PRIMARY KEY REFERENCES agents_platform.customer_messages(id),
   connection_id uuid NOT NULL REFERENCES agents_platform.channel_connections(id),
+  external_conversation_id text NOT NULL,
   provider_message_id text,
   provider_occurred_at timestamptz,
   reply_to_provider_message_id text,
   attachments jsonb NOT NULL DEFAULT '[]',
-  UNIQUE(connection_id,provider_message_id)
+  UNIQUE(connection_id,external_conversation_id,provider_message_id)
 );
 CREATE TABLE agents_platform.channel_outbound (
   id uuid PRIMARY KEY,
@@ -53,9 +56,13 @@ CREATE TABLE agents_platform.channel_outbound (
   updated_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY(organization_id,connection_id) REFERENCES agents_platform.channel_connections(organization_id,id),
   FOREIGN KEY(organization_id,deployment_id) REFERENCES agents_platform.channel_deployments(organization_id,id),
-  UNIQUE(message_id,segment), UNIQUE(connection_id,provider_message_id)
+  UNIQUE(message_id,segment), UNIQUE(connection_id,conversation_id,provider_message_id)
 );
 CREATE INDEX channel_outbound_pending ON agents_platform.channel_outbound(available_at,id) WHERE state IN ('pending','sending');
+CREATE TABLE agents_platform.channel_send_limits (
+  connection_id uuid PRIMARY KEY REFERENCES agents_platform.channel_connections(id),
+  next_send_at timestamptz NOT NULL
+);
 CREATE TABLE agents_platform.channel_receipts (
   connection_id uuid NOT NULL REFERENCES agents_platform.channel_connections(id),
   event_id text NOT NULL,
@@ -69,3 +76,10 @@ CREATE TABLE agents_platform.channel_receipts (
   PRIMARY KEY(connection_id,event_id)
 );
 CREATE INDEX channel_receipt_message ON agents_platform.channel_receipts(connection_id,provider_message_id);
+CREATE TABLE agents_platform.channel_delivery_recovery (
+  delivery_id uuid PRIMARY KEY REFERENCES agents_platform.channel_outbound(id),
+  actor_account_id uuid NOT NULL REFERENCES agents_platform.accounts(id),
+  ownership_generation bigint NOT NULL,
+  decision text NOT NULL CHECK(decision='continue_without_resending'),
+  created_at timestamptz NOT NULL DEFAULT now()
+);

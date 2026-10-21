@@ -67,6 +67,27 @@ journey or certify other providers. Do not substitute a model after an unavailab
 
 ## Evidence
 
+For five-channel engineering changes, use focused deterministic checks rather than the
+provider/model drive above. The API files `channel-store`, `channel-provider-adapters`,
+`channel-meta-adapters`, `telegram-setup`, `channel-meta-setup`, `channel-customer-admission`,
+`channel-delivery`, `channel-policy-attachments`, `channel-lifecycle`, `channel-media-replies`
+and `channel-routes` test protocols and owned database authority without inference or live
+accounts. Select only files affected by a change. The `pauses website grants` test in
+`customer-inbox-execution.test.ts` checks native pause authority without model execution.
+
+Controlled browser cases are `customer-channels.spec.ts`, `website-appearance.spec.ts` and
+`channel-support.spec.ts`. They exercise connection selection, Inbox drafts, mobile layout,
+appearance, templates, attachment links and stable retry identity. Their mocked provider
+boundaries do not establish live channel acceptance. Retain ignored screenshots/results under
+`.artifacts/browser/` and inspect the relevant image before reporting interface verification.
+
+The external runner remains Harbor. Its channel ports, isolated receipt suite and five
+owner case manifests live in `products/agents/evaluation-adapters/harbor/`. Running those
+evaluations, model-purpose suites or live account acceptance is owner work for this block.
+Creating adapters/manifests or compiling their source does not count as running an evaluation.
+The schema/runtime identities and enablement limits are in the canonical feature map and
+`products/agents/README.md#customer-channels`.
+
 Keep these ignored artifacts after cleanup:
 
 - `.audit/model-provider-actual-browser/acceptance.json` and `revoked-model.png` for the controlled journey.

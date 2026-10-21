@@ -279,6 +279,70 @@ The customer confirms the exact appointment in website chat before an event can 
 resends the event insertion. Google OAuth and provider calls have controlled local acceptance;
 no live configured Google account or production deployment is claimed.
 
+## Customer channels
+
+In **Connections → Customer channels**, connect an account, choose its asset and bind an
+existing saved agent. WhatsApp defaults to embedded signup; manual token setup is advanced.
+Telegram checks the bot and asks before replacing an existing webhook. Facebook and Instagram
+use explicit account selection. One agent can serve several authorized channels.
+
+The operator configures the existing credential vault and a reachable HTTPS callback origin
+in `AGENTS_CHANNEL_WEBHOOK_ORIGIN`. Meta profiles are private server records in
+`AGENTS_META_CHANNEL_PROFILES`, validated by `metaSetupProfileSchema`. Supply the reviewed app
+ID/secret, verification secret, API version, scopes and subscribed fields. WhatsApp also needs
+its embedded configuration ID. OAuth redirect URI is the application origin followed by
+`/app/connections`. Never put app secrets in browser configuration or commit environment files.
+The catalogue shows setup unavailable when these prerequisites are absent.
+
+| Channel | Customer input | Staff output | Important boundary |
+| --- | --- | --- | --- |
+| Website | Text and existing booking decisions | Text | Origin/session checks; optional files/speech are unavailable. |
+| WhatsApp | Text/captions; private media references | Text, supported received-media replies, approved text templates | Standard24h window; out-of-window templates require recorded opt-in and current approval. |
+| Telegram | Text/captions, media, rejected unsupported callbacks | Text and supported received-media replies | Bot/chat identity; acceptance does not prove delivery/read. |
+| Messenger | Text, attachments, native receipts | Text and supported received-media replies | Standard reply window; no inferred human-policy exemption. |
+| Instagram | DMs, attachments, available native receipts | Text and received image/audio/video replies through approved CDN URLs | Direct and Page-linked modes stay distinct; documents/reusable IDs are unsupported. |
+
+Media-only inputs request staff assistance; no transcription or image understanding is implied.
+Staff downloads use authenticated, bounded private routes. Replying with an attachment reuses an
+authorized attachment already received in that conversation. New arbitrary file uploads, media
+templates/buttons and out-of-window human-agent tags are not implemented. Direct-Instagram
+refresh is disabled unless the operator explicitly reviews and enables its profile.
+
+Inbox supports assignment, takeover, human reply, resolution and explicit return. Ownership and
+credential checks apply immediately before dispatch. An unknown delivery is never automatically
+resent: the assigned human can review it and continue later messages while retaining uncertainty.
+A failed multipart send suppresses its remaining parts. Check connection health after permission
+or subscription loss. Setup uncertainty requires explicit native-state reconciliation; elapsed
+time alone never proves success. Quarantined ingress is visible in connection details and can be
+retried deliberately after correcting the displayed failure. Repeated ingress retains its identity.
+
+Website settings provide install/share links, appearance, suggested messages and pause. Pause
+stops new grants and publication; resuming preserves the URL and conversation identity. Saved
+agent settings create background snapshots and apply to future turns. Existing accepted tasks
+retain their own configuration and executable release.
+
+Schemas052–061 require the current matching schema digest and worker
+`channel-customers-v9` / `AgentsBusinessRunV19`. Fresh setup uses the normal command below;
+starting the app never silently upgrades an existing database. Stop new admissions before an
+operator-controlled additive local schema application. Retain old executable releases for any
+accepted work; do not replay an old journal through the new worker. To disable a channel,
+disconnect its binding and remove only owned provider subscriptions. Already accepted or unknown
+provider effects are retained and cannot be undone by local rollback.
+
+Channel metrics use the existing OTLP configuration: `agents.channels.connections`,
+`agents.channels.ingress`, `agents.channels.delivery` and `agents.channels.oldest_pending_ms`.
+Labels contain bounded channel/state values. Private receipt IDs correlate with canonical task,
+message and delivery records; message bodies, provider locators and secrets are excluded from
+telemetry. No hosted collector, dashboard, retention change or production-scale qualification is
+claimed by this local implementation.
+
+The owner runs evaluation and live account acceptance. Use the existing
+[Harbor adapter instructions](evaluation-adapters/harbor/README.md#isolated-messaging-trials)
+and its five channel case manifests. Receipt fixtures cover accepted, rejected and lost-ACK
+transport; setup/reconnect and staff-driven cases have separate stated prerequisites. Existing
+purpose-specific graders still judge knowledge, handoff and booking outcomes. No evaluation or
+live-provider result is implied by installed fixtures or deterministic engineering checks.
+
 ## Verify
 
 From the repository root:

@@ -83,7 +83,7 @@ export class DeploymentStore extends AuthorityStore {
     return this.transaction(db => this.createWebsiteGrantInTransaction(db, input));
   }
   async createWebsiteGrantInTransaction(db:PoolClient,input: { deploymentId: string; origin: string; sessionId: string; rootTokenLimit?:number }): Promise<ExecutionGrant> {
-      const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL FOR SHARE", [input.deploymentId])).rows[0] ?? absent();
+      const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE id=$1 AND revoked_at IS NULL AND paused=false FOR SHARE", [input.deploymentId])).rows[0] ?? absent();
       if (!deployment.allowed_origins.includes(parseAllowedOrigin(input.origin))) denied();
       const version = await this.version(db, deployment.organization_id, deployment.version_id);
       assertRuntimeAvailable(version.configuration);
@@ -95,7 +95,7 @@ export class DeploymentStore extends AuthorityStore {
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);
   }
-  async createChannelGrantInTransaction(db: PoolClient, input: { deploymentId: string; participantId: string }): Promise<ExecutionGrant> {
+  async createChannelGrantInTransaction(db: PoolClient, input: { deploymentId: string; participantId: string; rootTokenLimit?:number }): Promise<ExecutionGrant> {
     const deployment = (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d
       JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
       JOIN agents_platform.customer_conversations p ON p.organization_id=d.organization_id AND p.channel_deployment_id=d.id
@@ -111,6 +111,7 @@ export class DeploymentStore extends AuthorityStore {
         ...(config.capabilities.businessActions.enabled ? ["booking.read", "booking.execute"] : []), ...(config.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])],
       sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: [], maxInputBytes: config.model.maxInputBytes,
       maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: config.context.maxInputTokens,
+      ...(input.rootTokenLimit===undefined?{}:{rootTokenLimit:input.rootTokenLimit}),
       expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
     return this.insertGrant(db, grant);
   }

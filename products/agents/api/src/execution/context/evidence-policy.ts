@@ -42,10 +42,10 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
-      WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND s.expires_at>now() AND d.agent_id=$3 AND d.organization_id=$4 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.agentId, root.task.organization_id])).rowCount) throw unavailable();
+      WHERE d.id=$1 AND s.id=$2 AND d.agent_id=$3 AND d.organization_id=$4 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.agentId, root.task.organization_id])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "channel_customer") {
     await assertChannelCustomerAuthority(db, { organizationId: root.task.organization_id, principal: root.task.principal,
-      agentId: root.agentId, versionId: root.task.version_id });
+      agentId: root.agentId, versionId: root.task.version_id,inspectionOnly:true });
   } else throw unavailable();
   if ((await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.conversations c ON c.id=t.conversation_id
     WHERE t.root_task_id=$1 AND c.deleted_at IS NOT NULL LIMIT 1`, [root.task.id])).rowCount) throw unavailable();

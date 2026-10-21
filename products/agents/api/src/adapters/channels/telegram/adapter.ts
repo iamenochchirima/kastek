@@ -38,7 +38,7 @@ export function normalizeTelegram(payload: unknown, context?: { assetId: string 
   const parsed = channelWebhookEventSchema.safeParse({ kind: interaction === undefined ? "message" : "interaction",
     assetId: context.assetId, eventId, externalConversationId: chatId, senderId, providerMessageId: messageId,
     occurredAt: timestamp(message.date), ...(text === undefined ? {} : { text }), attachments,
-    ...(interaction === undefined ? {} : { interaction }), echo: sender.is_bot === true,
+    ...(interaction === undefined ? {} : { interaction, ...(typeof callback.id==="string"&&callback.id?{callbackQueryId:callback.id}:{}) }), echo: sender.is_bot === true,
     ...(id(object(message.reply_to_message).message_id) ? { replyToProviderMessageId: id(object(message.reply_to_message).message_id) } : {}) });
   if (!parsed.success) throw invalid();
   return [parsed.data];

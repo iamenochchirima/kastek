@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { setupFailure } from "./sessions";
 
@@ -9,14 +10,16 @@ export const metaSetupProfileSchema = z.strictObject({
   appId: identifier, appSecret: secret, webhookVerifyToken: secret, apiVersion: z.string().regex(/^v\d+\.\d+$/),
   redirectUri: https, scopes: z.array(identifier).min(1).max(30), subscribedFields: z.array(identifier).min(1).max(30),
   embeddedConfigurationId: identifier.optional(), discoveryPageLimit: z.number().int().min(1).max(100),
+  humanAgentApproved: z.boolean().optional(), instagramRefreshReviewed: z.boolean().optional(),
 }).superRefine((value, context) => {
   if (value.kind === "facebook" && value.mode !== "meta" || value.kind === "instagram" && value.mode === "cloud_api" || value.kind === "whatsapp" && value.mode !== "cloud_api") context.addIssue({ code: "custom", message: "Unsupported channel login mode" });
   if (value.kind === "whatsapp" && !value.embeddedConfigurationId) context.addIssue({ code: "custom", message: "Embedded signup configuration is required" });
 });
 export type MetaSetupProfile = z.infer<typeof metaSetupProfileSchema>;
+export const metaSetupProfileDigest = (profile: MetaSetupProfile) => createHash("sha256").update(JSON.stringify(metaSetupProfileSchema.parse(profile))).digest("hex");
 export type SetupAsset = { id: string; name: string; eligible: boolean; reasonCode: string | null; metadata: Record<string, unknown> };
 export type PrivateSetupAsset = SetupAsset & { credential: string };
-export type SetupAuthorization = { accessToken: string; expiresAt?: string; wabaId?: string };
+export type SetupAuthorization = { accessToken: string; expiresAt?: string; issuedAt?: string; wabaId?: string };
 export const metaIdentifier = (value: unknown) => identifier.parse(value);
 function record(value: unknown): Record<string, any> { if (!value || typeof value !== "object" || Array.isArray(value)) throw setupFailure("CHANNEL_PROVIDER_RESPONSE_INVALID", 502); return value as Record<string, any>; }
 
@@ -54,6 +57,7 @@ export class MetaSetupProvider {
     }
     const authorization: SetupAuthorization = direct ? { accessToken: token } : await this.authorizeMetaToken(token, wabaId);
     if (Number.isFinite(expiry) && expiry > 0) authorization.expiresAt = new Date(Date.now() + expiry * 1000).toISOString();
+    if (direct) authorization.issuedAt = new Date().toISOString();
     return authorization;
   }
   private async authorizeMetaToken(token: string, wabaId?: string): Promise<SetupAuthorization> {
@@ -77,6 +81,51 @@ export class MetaSetupProvider {
   async manual(accessToken: string, wabaId: string): Promise<SetupAuthorization> {
     if (this.profile.kind !== "whatsapp") throw setupFailure("CHANNEL_MANUAL_SETUP_UNSUPPORTED");
     return this.authorizeMetaToken(secret.parse(accessToken), metaIdentifier(wabaId));
+  }
+  async health(assetId: string, metadata: Record<string, unknown>, credential: string) {
+    let expiresAt: string | undefined;
+    if (this.profile.mode === "instagram_login") {
+      const account = await this.request(`${this.base()}/me?fields=id,user_id,username`, credential);
+      if ((account.user_id ?? account.id) !== assetId) throw setupFailure("CHANNEL_ASSET_UNAVAILABLE", 409);
+      const permissions = await this.page("me/permissions", credential);
+      const granted = new Set(permissions.data.filter(item => item.status === "granted").map(item => item.permission));
+      if (this.profile.scopes.some(scope => !granted.has(scope))) throw setupFailure("CHANNEL_PERMISSION_DENIED", 403);
+    } else {
+      const authorization = await this.authorizeMetaToken(credential, this.profile.kind === "whatsapp" ? metaIdentifier(metadata.wabaId) : undefined); expiresAt = authorization.expiresAt;
+      if (this.profile.kind === "whatsapp") {
+        const asset = await this.select(authorization, assetId);
+        if (asset.metadata.registrationRequired) throw setupFailure("CHANNEL_PHONE_REGISTRATION_REQUIRED", 409);
+      } else {
+        const pageId = metaIdentifier(metadata.pageId), fields = this.profile.kind === "instagram" ? "id,instagram_business_account{id}" : "id";
+        const account = await this.request(`${this.base()}/${pageId}?fields=${fields}`, credential);
+        if (account.id !== pageId || this.profile.kind === "instagram" && account.instagram_business_account?.id !== assetId) throw setupFailure("CHANNEL_ASSET_UNAVAILABLE", 409);
+      }
+    }
+    const subscription = await this.subscription(assetId, metadata, credential);
+    if (!subscription.subscribed || !subscription.fieldsGranted) throw setupFailure("CHANNEL_SUBSCRIPTION_MISSING", 409);
+    return { permissionsGranted: true, assetVerified: true, subscribed: true, ...(expiresAt ? { expiresAt } : {}) };
+  }
+  async refresh(credential: string, issuedAt: unknown, expiresAt: unknown): Promise<SetupAuthorization> {
+    if (this.profile.mode !== "instagram_login" || !this.profile.instagramRefreshReviewed) throw setupFailure("CHANNEL_REFRESH_REVIEW_REQUIRED", 409);
+    const issued = typeof issuedAt === "string" ? Date.parse(issuedAt) : NaN, expiry = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
+    // The reference endpoint is reviewed per profile; unknown issuance or expired grants always require reconnect.
+    if (!Number.isFinite(issued) || !Number.isFinite(expiry) || expiry <= Date.now() || Date.now() - issued < 24 * 60 * 60 * 1000) throw setupFailure("CHANNEL_REFRESH_NOT_ELIGIBLE", 409);
+    const url = new URL("https://graph.instagram.com/refresh_access_token");
+    url.search = new URLSearchParams({ grant_type: "ig_refresh_token", access_token: credential }).toString();
+    const refreshed = await this.request(url.href), accessToken = secret.parse(refreshed.access_token);
+    if (!Number.isInteger(refreshed.expires_in) || refreshed.expires_in <= 0) throw setupFailure("CHANNEL_PROVIDER_RESPONSE_INVALID", 502);
+    return { accessToken, issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + refreshed.expires_in * 1000).toISOString() };
+  }
+  async subscription(assetId: string, metadata: Record<string, unknown>, credential: string): Promise<{ subscribed: boolean; fieldsGranted: boolean }> {
+    let cursor: string | undefined; const seen = new Set<string>(), target = this.subscriptionTarget(assetId, metadata);
+    for (let index = 0; index < this.profile.discoveryPageLimit; index++) {
+      const page = await this.page(`${target}/subscribed_apps${this.profile.kind === "whatsapp" ? "" : "?fields=id,subscribed_fields"}`, credential, cursor);
+      const app = page.data.find(item => String(item.id ?? item.whatsapp_business_api_data?.id) === this.profile.appId);
+      if (app) return { subscribed: true, fieldsGranted: this.profile.kind === "whatsapp" || Array.isArray(app.subscribed_fields) && this.profile.subscribedFields.every(field => app.subscribed_fields.includes(field)) };
+      if (!page.nextCursor) return { subscribed: false, fieldsGranted: false };
+      if (seen.has(page.nextCursor)) throw setupFailure("CHANNEL_DISCOVERY_CURSOR_INVALID", 502); seen.add(page.nextCursor); cursor = page.nextCursor;
+    }
+    throw setupFailure("CHANNEL_DISCOVERY_LIMIT_REACHED", 409);
   }
   private async page(path: string, token: string, cursor?: string): Promise<{ data: Record<string, any>[]; nextCursor: string | null }> {
     const url = new URL(`${this.base()}/${path}`); if (cursor) url.searchParams.set("after", z.string().min(1).max(2048).parse(cursor));
@@ -124,21 +173,27 @@ export class MetaSetupProvider {
     }
     throw setupFailure("CHANNEL_ASSET_UNAVAILABLE", 409);
   }
-  async subscribe(asset: PrivateSetupAsset, registrationPin?: string): Promise<void> {
+  subscriptionTarget(assetId: string, metadata: Record<string, unknown>): string {
+    return this.profile.kind === "whatsapp" ? metaIdentifier(metadata.wabaId) : this.profile.mode === "meta" ? metaIdentifier(metadata.pageId) : metaIdentifier(assetId);
+  }
+  async subscribe(asset: PrivateSetupAsset, registrationPin?: string, beforeAttempt: () => Promise<void> = async () => {}): Promise<void> {
     const p = this.profile;
     if (p.kind === "whatsapp" && asset.metadata.registrationRequired) {
       if (!registrationPin || !/^\d{6}$/.test(registrationPin)) throw setupFailure("CHANNEL_PHONE_REGISTRATION_REQUIRED", 409);
+      await beforeAttempt();
       const registered = await this.request(`${this.base()}/${metaIdentifier(asset.id)}/register`, asset.credential,
         new URLSearchParams({ messaging_product: "whatsapp", pin: registrationPin }));
       if (registered.success !== true) throw setupFailure("CHANNEL_PHONE_REGISTRATION_NOT_CONFIRMED", 502);
     }
-    const target = p.kind === "whatsapp" ? metaIdentifier(asset.metadata.wabaId) : p.mode === "meta" ? metaIdentifier(asset.metadata.pageId) : asset.id;
+    const target = this.subscriptionTarget(asset.id, asset.metadata);
+    await beforeAttempt();
     const subscribed = await this.request(`${this.base()}/${target}/subscribed_apps`, asset.credential,
       p.kind === "whatsapp" ? new URLSearchParams() : new URLSearchParams({ subscribed_fields: p.subscribedFields.join(",") }));
     if (subscribed.success !== true) throw setupFailure("CHANNEL_SUBSCRIPTION_NOT_CONFIRMED", 502);
   }
-  async unsubscribe(assetId: string, metadata: Record<string, unknown>, credential: string): Promise<void> {
-    const target = this.profile.kind === "whatsapp" ? metaIdentifier(metadata.wabaId) : this.profile.mode === "meta" ? metaIdentifier(metadata.pageId) : metaIdentifier(assetId);
+  async unsubscribe(assetId: string, metadata: Record<string, unknown>, credential: string, beforeAttempt: () => Promise<void> = async () => {}): Promise<void> {
+    const target = this.subscriptionTarget(assetId, metadata);
+    await beforeAttempt();
     const result = await this.request(`${this.base()}/${target}/subscribed_apps`, credential, undefined, "DELETE");
     if (result.success !== true) throw setupFailure("CHANNEL_UNSUBSCRIBE_NOT_CONFIRMED", 502);
   }

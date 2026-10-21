@@ -1,3 +1,4 @@
 include README.md
 recursive-include tests *.py
 recursive-include suites *.md *.toml *.sh *.py *.yaml Dockerfile
+recursive-include cases *.json

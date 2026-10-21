@@ -93,7 +93,7 @@ and delivery state. They can assign conversations, handle escalations, take over
 human, and explicitly return control to automation. Customer history is subject to staff access
 policy. Private operator chats are not automatically visible to other staff through Inbox.
 
-The conversation has one explicit automation or human ownership decision. The website Inbox uses
+The conversation has one explicit automation or human ownership decision. The shared Inbox uses
 `automation_active`, `handoff_pending`, `human_owned`, and `resolved`. Organization-scoped Inbox
 routes expose conversation lists, history, members, and revision-checked commands. Commands cover
 claim, assign, unassign, takeover, reply, resolve, reopen, and return. Active organization membership
@@ -109,11 +109,25 @@ or lost acknowledgements must not create duplicate tasks or sends. A channel ide
 not establish access to private customer records. Cross-channel customer linking requires a
 verified identity and explicit policy.
 
-The current client implements the shared website Inbox, staff assignment, human takeover, replies,
-and return to automation. Staff and visitor history share canonical messages, with separately
-authorized projections and bounded pagination. Google Calendar appointments implement a separate
-owner-authorized booking policy and exact customer confirmation. The standalone Booking creation
-offering remains unavailable. WhatsApp, Facebook, and Instagram remain unimplemented. The
+Website, WhatsApp, Telegram, Messenger and Instagram use canonical Inbox messages, separately
+authorized staff projections and bounded pagination. Verified messaging participants enter the
+same business harness with a `channel_customer` principal scoped to the deployment and canonical
+conversation. Website visitors retain their origin-bound sessions. Provider identities do not
+authorize private records, personal memory or arbitrary tools.
+
+Verified webhook receipts and pending processing commit before acknowledgement. Local ingress
+sequence defines order within a channel thread. Customer messages remain durable during human
+ownership without model admission. Human and automated output enqueue stable message segments;
+provider dispatch rechecks connection revisions, deployment and ownership. Network calls run
+outside database transactions. A lost send acknowledgement remains unknown; expiry cannot
+authorize another send. Provider acceptance, delivery and read receipts remain separate facts.
+An explicit assigned-staff decision may continue later messages without resending an unknown one.
+
+Account setup uses server-held credentials, explicit eligible-asset selection and revision checks.
+Setup claims serialize mutations and preserve uncertainty. Definitions select installed adapters;
+tenant records cannot install executable code. Live account prerequisites and provider acceptance
+remain owner-run. Google Calendar appointments retain their separate owner-authorized booking
+policy and exact customer confirmation. The standalone Booking creation offering remains unavailable. The
 [implementation boundary](../source-boundary.md) records current behavior.
 
 ## Three integration boundaries

@@ -190,4 +190,38 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
     expect(results.every(result => result.status === "rejected")).toBe(true); expect(http).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(results)).not.toContain("private-failure");
   });
+  it("fences parallel selection tickets before physical mutation and preserves unknown subscription intent", async () => {
+    const { scope, connection } = await workspace(), pageId = randomUUID();
+    let release!: () => void, started!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; }), entered = new Promise<void>(resolve => { started = resolve; });
+    const native = transport(url => url.pathname.endsWith("/me/accounts") ? json({ data: [{ id: pageId, name: "Race", tasks: ["MESSAGING"], access_token: "private-race-token" }] }) : undefined);
+    const http = vi.fn<typeof fetch>(async (input, init) => { if (String(input).endsWith("/subscribed_apps")) { started(); await gate; return json({ error: { message: "lost" } }, 503); } return native(input, init); });
+    const setup = new MetaChannelSetup(channels, sessions, [profile("facebook", "meta")], http);
+    async function authorize() { const begin = await setup.begin(scope, session, { connectionId: connection.id, expectedRevision: 1 }); return setup.complete(scope, session, { state: begin.state, code: "code" }); }
+    const a = await authorize(), b = await authorize();
+    const first = setup.select(scope, session, { ticket: a.ticket, assetId: pageId }); const failedFirst = expect(first).rejects.toMatchObject({ code: "CHANNEL_SETUP_PROVIDER_REJECTED" });
+    await entered;
+    await expect(setup.select(scope, session, { ticket: b.ticket, assetId: pageId })).rejects.toMatchObject({ code: "CHANNEL_SETUP_RECONCILIATION_REQUIRED" });
+    release(); await failedFirst;
+    await pool.query("UPDATE agents_platform.channel_setup_claims SET expires_at=now()-interval '1 second' WHERE connection_id=$1", [connection.id]);
+    const c = await authorize(); await expect(setup.select(scope, session, { ticket: c.ticket, assetId: pageId })).rejects.toMatchObject({ code: "CHANNEL_SETUP_RECONCILIATION_REQUIRED" });
+    expect(http.mock.calls.filter(([url]) => String(url).endsWith("/subscribed_apps"))).toHaveLength(1);
+    expect((await channels.get(scope, connection.id)).state).toBe("pending");
+  });
+  it("serializes a shared-resource unsubscribe against another connection selecting the same Page", async () => {
+    const { scope } = await workspace(), pageId = randomUUID();
+    const existing = await channels.create(scope, { kind: "facebook", mode: "meta", name: "Previous", assetId: pageId, state: "active", credentials: { accessToken: "private-old" }, metadata: { pageId } });
+    const pending = await channels.create(scope, { kind: "facebook", mode: "meta", name: "Reconnect" });
+    let release!: () => void, started!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; }), entered = new Promise<void>(resolve => { started = resolve; });
+    const native = transport(url => url.pathname.endsWith("/me/accounts") ? json({ data: [{ id: pageId, name: "Shared Page", tasks: ["MESSAGING"], access_token: "private-new" }] }) : undefined);
+    const http = vi.fn<typeof fetch>(async (url, init) => { if (init?.method === "DELETE") { started(); await gate; return json({ success: true }); } return native(url, init); });
+    const setup = new MetaChannelSetup(channels, sessions, [profile("facebook", "meta")], http);
+    const begin = await setup.begin(scope, session, { connectionId: pending.id, expectedRevision: 1 }), authorization = await setup.complete(scope, session, { state: begin.state, code: "code" });
+    const disconnecting = setup.disconnect(scope, { connectionId: existing.id, expectedRevision: 1 }); await entered;
+    await expect(setup.select(scope, session, { ticket: authorization.ticket, assetId: pageId })).rejects.toMatchObject({ code: "CHANNEL_SETUP_RECONCILIATION_REQUIRED" });
+    release(); expect((await disconnecting).unsubscribe).toBe("confirmed");
+    expect(http.mock.calls.filter(([, init]) => init?.method === "DELETE")).toHaveLength(1);
+    expect(http.mock.calls.filter(([url, init]) => String(url).endsWith("/subscribed_apps") && init?.method === "POST")).toHaveLength(0);
+  });
 });

@@ -165,3 +165,44 @@ Each case uses a fresh database, private object storage, actual Restate executio
 The deterministic model requests skill activation and one connector call. A separate Harbor verifier reads the controlled provider state with a distinct read-only credential. It compares the persisted skill review digest, pinned binding digest, exact namespace and provider bytes with the native receipts and cited final answer. It also requires complete model/tool coverage, one physical record read, no effect receipts and confirmed trial cleanup. Provider and verifier credentials never enter model context or prepared scope files. The baseline includes both the runner and connector helper source hashes.
 
 These cases verify execution, authorization and provenance. They do not measure model quality, live vendor compatibility, Google OAuth acceptance or appointment delivery. Research and campaign research use the existing backend program; they add no customer offering. Booking policy retrieval does not establish reservation safety or customer confirmation. Connector cases support one isolated trial per fixture invocation.
+
+## Isolated messaging trials
+
+Owner-run only: implementation of these ports is not evidence that an evaluation or a live channel acceptance has passed. The existing website `channel` option remains separate. Select `messaging_channel` to exercise Telegram, WhatsApp, Messenger or Instagram through real native payload normalization, durable ingress, canonical Inbox admission, the same saved agent runtime and native outbound serialization. This option creates synthetic tenant-owned bindings, with fixture-only vault credentials. Public webhooks reject these bindings. The server intercepts outbound HTTP with a controlled transport; it never falls back to a real account.
+
+Use one fresh prepared scope per matrix row, including a separate scope for each outcome case:
+
+| Kind | Mode | Owner cases |
+| --- | --- | --- |
+| telegram | bot | accepted, rejected, lost acknowledgement |
+| whatsapp | cloud_api | accepted, rejected, lost acknowledgement |
+| facebook | meta | accepted, rejected, lost acknowledgement |
+| instagram | meta | accepted, rejected, lost acknowledgement |
+| instagram | instagram_login | accepted, rejected, lost acknowledgement |
+
+Add this option to the existing `harbor run` command and select `suites/channel-native-receipts`:
+
+```sh
+--agent-kwarg 'messaging_channel={"kind":"telegram","mode":"bot","outcomes":["accepted"]}'
+```
+
+Use `"rejected"` or `"lost_ack"` for the respective negative case. Each array entry authorizes one controlled native HTTP outcome; exhausted arrays fail closed. Lost acknowledgement records a private simulated provider acceptance while the canonical delivery remains `unknown`; no automatic resend is introduced. These are simulated provider effects, not live delivery evidence. Existing product-specific graders still judge knowledge, booking and other permitted outcomes independently.
+
+The authenticated API ports are `POST evaluation-trials/:trialId/channel-fixture`, `POST .../channel-fixture/ingress` and the existing `GET .../channel-history`. Preparation pins exact owner, trial, published configuration, route digest and token allowance. Raw native payloads can be resubmitted through ingress for duplicate-event checks; changed payloads under an existing provider identity must conflict. Use the same authenticated staff Inbox commands to test claim/takeover/reply/return and read canonical commands, ingress and delivery evidence from channel history. Do not send these fixtures to public provider webhook endpoints. The runner persists native envelopes before dispatch and correlates canonical receipt/message/task IDs, rather than inferring success from reply text.
+
+`native-channel-history.json` includes `fixture`, `ingress`, canonical `messages`, staff `commands`, delivery states and private controlled `effects` with request digests. Access remains bound to the current authorized trial owner. Revocation/expiry stop admission and fixture sends; authorized historical reads do not require an active trial. Queue and worker processes must be running before the owner launches a trial. Channel delivery can finish after model completion; the runner waits within its original bounded deadline before collecting terminal receipts. No new execution engine, channel-specific model loop, real provider token or evaluation credential is supplied by a task instruction.
+
+Per-channel owner case manifests are in `cases/website.json`, `cases/telegram.json`, `cases/whatsapp.json`, `cases/facebook.json` and `cases/instagram.json`. They label each case's driver and prerequisite: fixture Harbor trial, authenticated fixture/staff HTTP, or a live owner UI journey. Setup/reconnect require an actual dedicated provider account and are never represented as fixture delivery success. Knowledge/tool cases reuse their existing purpose-specific suites and graders; the receipt suite only judges canonical channel transport evidence.
+
+For example, after exporting the session variable named by the private prepared scope, this is a complete owner-run fixture command:
+
+```sh
+PYTHONPATH="$PWD/products/agents/evaluation-adapters/harbor/src" harbor run \
+  --path "$PWD/products/agents/evaluation-adapters/harbor/suites/channel-native-receipts" \
+  --agent kasitek_harbor.agent:KasitekAgent \
+  --agent-kwarg scope_path=/absolute/private/fresh-scope.json \
+  --agent-kwarg 'messaging_channel={"kind":"telegram","mode":"bot","outcomes":["accepted"]}' \
+  --n-concurrent 1 --max-retries 0
+```
+
+Substitute the exact kind/mode from its manifest. Do not reuse a prepared scope between cases. For duplicates or staff takeover/return, drive the same authenticated fixture and Inbox ports while the trial is active; retain the exact saved payload and current staff command revision/command ID. These scripted HTTP cases are supplied as interface cases, not claimed as already executed Harbor scenarios. Owner credentials and receipt artifacts remain private.

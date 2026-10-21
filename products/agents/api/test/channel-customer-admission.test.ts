@@ -12,6 +12,7 @@ import { MemoryStore } from "../src/execution/memory/memory";
 import { isCustomerPrincipal } from "../src/contracts/contracts";
 import { customerConfiguration } from "../src/product/offerings/offerings";
 import { connectFixtureModel } from "./model-fixture";
+import { inspectionAuthority } from "../src/execution/context/evidence-policy";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -80,6 +81,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await platform.getAgent(f.scope.accountId, f.scope.organizationId, f.agent.id)).draft_revision).toBe(1);
     expect((await channels.listDeployments(f.scope, f.connection.id)).find(item => item.state === "active")!.versionId).toBe(f.snapshot.id);
     await channels.disconnect(f.scope, f.connection.id, f.connection.revision);
-    await expect(assertCurrentAuthority(pool, await loadExecution(pool, accepted.message.task_id!))).rejects.toMatchObject({ code: "DEPLOYMENT_SCOPE_DENIED" });
+    await expect(inspectionAuthority(pool,await loadExecution(pool,accepted.message.task_id!))).resolves.toBeUndefined();
+    await expect(assertCurrentAuthority(pool, await loadExecution(pool, accepted.message.task_id!))).rejects.toMatchObject({ code: "CHANNEL_OWNERSHIP_CHANGED" });
   });
 });

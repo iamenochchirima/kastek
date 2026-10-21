@@ -6,6 +6,8 @@ import { createHash,randomBytes,randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { websiteWidgetScript } from "../adapters/channels/website/widget";
+import { websiteAppearanceSchema } from "../adapters/channels/website/appearance";
+import { registerWebsiteAppearanceRoutes } from "../product/deployments/appearance-routes";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { assertConnectedBindingDependencies } from "../capabilities/connected-tools/connected-tool-schema";
 import { KnowledgeStore } from "../capabilities/knowledge/knowledge";
@@ -67,6 +69,10 @@ import { PlatformIdentity } from "../product/identity/auth";
 import { registerPublicIdentityRoutes } from "../product/identity/auth-routes";
 import { actionsFromEnvironment } from "./actions";
 import { composeInbox } from "./inbox";
+import { composeChannels } from "./channels";
+import { registerChannelRoutes } from "../product/channels/channel-routes";
+import { registerChannelWebhooks } from "../product/channels/channel-webhooks";
+import { registerChannelSupportRoutes } from "../product/channels/channel-support-routes";
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
@@ -151,6 +157,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   const automations=new AutomationService(pool,assertServices);
   const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
+  const channelServices=composeChannels(pool,inbox,config.AGENTS_PUBLIC_URL);
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;
   const secure = origin.startsWith("https:");
@@ -178,7 +185,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });
@@ -208,8 +215,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       reviewOnly = user.id !== owner;
       if(reviewOnly && task.parent_task_id)throw new PlatformError("NOT_FOUND",404,"Task not found");
       authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
-    } else if(root.principal.kind==="visitor") {
-      if(!await evaluationTrials.authorizeVisitorRoot(pool,user.id,org,root.id))throw new PlatformError("NOT_FOUND",404,"Task not found");
+    } else if(root.principal.kind==="visitor"||root.principal.kind==="channel_customer") {
+      if(!await evaluationTrials.authorizeCustomerRoot(pool,user.id,org,root.id))throw new PlatformError("NOT_FOUND",404,"Task not found");
       authority={product:root.product,organizationId:org,resourceId:root.resource_id,callerClientId:root.caller_client_id,principal:root.principal};
     } else await store.getTask(authority, root.id);
     const source=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
@@ -237,6 +244,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,resolveScope,
+    resolveSessionId:async request=>{await account(request);return hash(request.cookies[sessionCookie]!);}});
+  registerWebsiteAppearanceRoutes(app,{pool,resolveScope});
+  registerChannelSupportRoutes(app,{inbox,delivery:channelServices.delivery,attachments:channelServices.attachments,templates:channelServices.templates,media:channelServices.media,resolveScope});
+  await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles});
   const modelVault = connectionVaultFromEnvironment();
   const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
@@ -391,7 +403,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get(`${base}/tasks/:taskId/history-export`, async request => {
     const user = await account(request), org = organizationId(request), taskId = uuid.parse(parameters(request).taskId);
     return exportExecutionHistory(pool, taskId, async (db, rootTaskId) => {
-      const visitorScope=await evaluationTrials.authorizeVisitorRoot(db,user.id,org,rootTaskId);
+      const visitorScope=await evaluationTrials.authorizeCustomerRoot(db,user.id,org,rootTaskId);
       if(visitorScope)return visitorScope;
       const allowed = await db.query(`SELECT t.id FROM agents_platform.tasks t
         JOIN agents_platform.memberships m ON m.organization_id=t.organization_id AND m.account_id=$3 AND m.revoked_at IS NULL
@@ -419,10 +431,22 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if(!config.AGENTS_LOGIN_RETURN_SECRET)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Evaluation channels require the configured signing secret");
     return evaluationTrials.channelSession((await account(request)).id,organizationId(request),uuid.parse(parameters(request).trialId),request.body,config.AGENTS_LOGIN_RETURN_SECRET);
   });
+  app.post(`${base}/evaluation-trials/:trialId/channel-fixture`,async request=>{
+    if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
+    return channelServices.fixtures.prepare(await resolveScope(request),uuid.parse(parameters(request).trialId),request.body);
+  });
+  app.post(`${base}/evaluation-trials/:trialId/channel-fixture/ingress`,async request=>{
+    if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
+    return channelServices.fixtures.ingress(await resolveScope(request),uuid.parse(parameters(request).trialId),request.body);
+  });
   app.get(`${base}/evaluation-trials/:trialId/channel-history`,async request=>{
     const user=await account(request),org=organizationId(request),id=uuid.parse(parameters(request).trialId);
     const trial=await evaluationTrials.get(user.id,org,{id});
     if(!trial.trial)throw new PlatformError("NOT_FOUND",404,"Trial not found");
+    if((await pool.query("SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels WHERE trial_id=$1 AND organization_id=$2",[id,org])).rowCount){
+      if(!channelServices.fixtures)throw new PlatformError("EVALUATION_CHANNEL_UNAVAILABLE",503,"Isolated channel storage is unavailable");
+      return channelServices.fixtures.history({accountId:user.id,organizationId:org},id);
+    }
     const channel=(await pool.query(`SELECT c.id FROM agents_platform.evaluation_trial_channels e
       JOIN agents_platform.customer_conversations c ON c.session_id=e.session_id AND c.deployment_id=e.deployment_id
       WHERE e.trial_id=$1 AND c.organization_id=$2`,[id,org])).rows[0];
@@ -642,6 +666,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (row.requests > 20) throw new PlatformError("RATE_LIMIT", 429, "Too many requests. Try again shortly");
   }
   async function websiteAuthority(request: FastifyRequest, deployment: Awaited<ReturnType<PlatformStore["getWebsiteDeployment"]>>, websiteOrigin: string): Promise<AdmissionAuthority> {
+    if(deployment.paused)throw new PlatformError("WEBSITE_PAUSED",409,"This chat is paused");
     const token = request.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
     if (!token) throw new PlatformError("WEBSITE_SESSION_REQUIRED", 401, "Website session required");
     const row = (await pool.query<{ id: string }>(`SELECT id FROM agents_platform.website_sessions
@@ -654,7 +679,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const { deployment } = await websiteContext(request, reply);
     const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
     const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
-    return { name: row?.name ?? "Assistant",bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
+    return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,
+      bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
     const deploymentId = uuid.parse(parameters(request).deploymentId);

@@ -12,7 +12,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
   const inbox = new InboxStore(pool, {
     async admit(db, input) {
       const deployment = (await db.query(`SELECT d.*,s.origin AS session_origin FROM agents_platform.website_deployments d
-        JOIN agents_platform.website_sessions s ON s.deployment_id=d.id WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND s.expires_at>now() FOR SHARE OF d,s`,
+        JOIN agents_platform.website_sessions s ON s.deployment_id=d.id WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND d.paused=false AND s.expires_at>now() FOR SHARE OF d,s`,
       [input.deploymentId, input.sessionId])).rows[0];
       if (!deployment || deployment.version_id !== input.versionId) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel is unavailable");
       const version = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2", [input.versionId, deployment.organization_id])).rows[0];
@@ -37,12 +37,15 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
       const version = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2", [input.versionId, deployment.organization_id])).rows[0];
       if (!version) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel is unavailable");
       await options.assertServices(version.configuration);
-      const grant = await store.createChannelGrantInTransaction(db, { deploymentId: deployment.id, participantId: input.participantId });
+      const trial=(await db.query(`SELECT e.trial_id,t.root_token_limit FROM agents_platform.evaluation_trial_messaging_channels e
+        JOIN agents_platform.evaluation_trials t ON t.id=e.trial_id WHERE e.deployment_id=$1`,[deployment.id])).rows[0];
+      const grant = await store.createChannelGrantInTransaction(db, { deploymentId: deployment.id, participantId: input.participantId,
+        ...(trial?{rootTokenLimit:trial.root_token_limit}:{}) });
       const result = await store.admitTaskInTransaction(db, { versionId: input.versionId, grantId: grant.id,
         authority: { product: "agents", organizationId: deployment.organization_id, resourceId: deployment.id, callerClientId: "agents-channel",
           principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId } },
         input: input.input, requestKey: input.requestKey, conversationId: input.executionConversationId ?? undefined,
-        channelBinding: input.channelBinding, configurationMode: "current" });
+        channelBinding: input.channelBinding,...(trial?{evaluationTrialId:trial.trial_id}:{configurationMode:"current" as const}) });
       return result.task;
     },
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {

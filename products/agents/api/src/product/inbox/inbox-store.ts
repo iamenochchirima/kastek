@@ -6,7 +6,7 @@ import { createCursorCodec, cursorKeysFromEnvironment } from "../../infrastructu
 import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
 import type { ChannelKind } from "../../contracts/channel-adapters";
-import { enqueueChannelMessage } from "../channels/channel-outbound";
+import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -50,7 +50,20 @@ export class InboxStore {
   }
   private async visitor(db: Db, scope: VisitorScope): Promise<{ organization_id: string; agent_id: string; version_id: string }> {
     return (await db.query(`SELECT d.organization_id,d.agent_id,d.version_id FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
-      WHERE d.id=$1 AND s.id=$2 AND s.expires_at>now() AND d.revoked_at IS NULL FOR SHARE OF d,s`, [scope.deploymentId, scope.sessionId])).rows[0] ?? denied();
+      WHERE d.id=$1 AND s.id=$2 AND s.expires_at>now() AND d.revoked_at IS NULL AND d.paused=false FOR SHARE OF d,s`, [scope.deploymentId, scope.sessionId])).rows[0] ?? denied();
+  }
+  private async activeBinding(db:Db,row:CustomerConversation):Promise<boolean> {
+    return Boolean(row.channel_kind==="website"
+      ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND revoked_at IS NULL AND paused=false FOR SHARE",[row.deployment_id,row.organization_id])).rowCount
+      : (await db.query(`SELECT 1 FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections c ON c.id=d.connection_id
+          WHERE d.id=$1 AND d.organization_id=$2 AND d.state='active' AND c.state='active' FOR SHARE OF d,c`,[row.channel_deployment_id,row.organization_id])).rowCount);
+  }
+  private async trialStaff(db:Db,scope:InboxScope,row:CustomerConversation,mutate=false):Promise<void> {
+    const trial=(await db.query(`SELECT e.account_id,e.state,e.expires_at FROM agents_platform.evaluation_trials e
+      WHERE EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels f WHERE f.trial_id=e.id AND f.session_id=$1)
+        OR EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels f WHERE f.trial_id=e.id AND f.deployment_id=$2)
+      LIMIT 1`,[row.session_id,row.channel_deployment_id])).rows[0];
+    if(trial&&(trial.account_id!==scope.accountId||mutate&&(trial.state!=="active"||trial.expires_at.getTime()<=Date.now())))denied();
   }
   private async visitorConversation(db: Db, scope: VisitorScope, id: string, lock = false): Promise<CustomerConversation> {
     await this.visitor(db, scope); const row = await this.conversation(db, id, lock);
@@ -146,6 +159,7 @@ export class InboxStore {
   }
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
+      await this.trialStaff(db,scope,conversation);
       return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; cursor?: string; limit: number }) {
@@ -158,6 +172,8 @@ export class InboxStore {
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
+        AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
+        AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)
         AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
         ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
         anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null, filters.connectionId ?? null])).rows;
@@ -166,10 +182,12 @@ export class InboxStore {
     });
   }
   async members(scope: InboxScope) { return transaction(this.pool, async db => { await this.membership(db, scope); return (await db.query(`SELECT a.id,a.display_name FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL ORDER BY a.display_name,a.id LIMIT 200`, [scope.organizationId])).rows; }); }
-  async command(scope: InboxScope, id: string, input: InboxCommand) {
+  async command(scope: InboxScope, id: string, input: InboxCommand, preparedDelivery?:PreparedChannelDelivery, sourceDigest?:string) {
     const result = await transaction(this.pool, async db => {
       const role = await this.membership(db, scope), row = await this.conversation(db, id, true); if (row.organization_id !== scope.organizationId) denied();
-      const digest = requestDigest(input), existing = (await db.query("SELECT * FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [id, input.commandId])).rows[0];
+      await this.trialStaff(db,scope,row,true);
+      if(preparedDelivery&&input.action!=="reply")throw new PlatformError("CHANNEL_TEMPLATE_INVALID",400,"Templates require a staff reply");
+      const digest = sourceDigest??requestDigest(preparedDelivery?{input,preparedDelivery}:input), existing = (await db.query("SELECT * FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [id, input.commandId])).rows[0];
       if (existing) { if (existing.actor_account_id !== scope.accountId || existing.request_digest !== digest) conflict(); return existing.result as CustomerConversation; }
       if (row.revision !== input.expectedRevision) conflict();
       const assigned = row.assignee_account_id === scope.accountId;
@@ -180,9 +198,10 @@ export class InboxStore {
         case "unassign": if (role !== "owner" && !assigned) denied(); assignee = null; if (state === "human_owned") state = "handoff_pending"; fence = true; break;
         case "takeover": if (!assigned || state === "resolved") denied(); state = "human_owned"; fence = true; break;
         case "reply": if (!assigned || state !== "human_owned" || !input.body?.trim()) denied();
-          { const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
+          { if(!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_UNAVAILABLE",409,"Reconnect or resume this channel before replying");
+            const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
             await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]);
-            await enqueueChannelMessage(db,row,message); } break;
+            await enqueueChannelMessage(db,row,message,preparedDelivery); } break;
         case "resolve": if (!assigned) denied(); state = "resolved"; fence = true; break;
         case "reopen": if (!assigned || state !== "resolved") denied(); state = "human_owned"; fence = true; break;
         case "return": if (!assigned || !["human_owned", "handoff_pending"].includes(state)) denied(); state = "automation_active"; fence = true; break;
@@ -212,10 +231,11 @@ export class InboxStore {
   async assertBinding(db: Db, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id?: string }): Promise<void> {
     const row = (await db.query<CustomerConversation>("SELECT * FROM agents_platform.customer_conversations WHERE id=$1 FOR SHARE", [binding.customerConversationId])).rows[0];
     if (!row || row.organization_id !== task.organization_id || row.state !== "automation_active" || row.ownership_generation !== binding.ownershipGeneration) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation is under human control");
+    if(!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Customer channel is unavailable");
     if (row.version_id !== task.version_id) {
       const authorized = task.root_task_id === "admitting"
         ? row.channel_kind === "website"
-          ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL FOR SHARE", [row.deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
+          ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL AND paused=false FOR SHARE", [row.deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
           : (await db.query("SELECT 1 FROM agents_platform.channel_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND state='active' FOR SHARE", [row.channel_deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
         : (await db.query(`SELECT 1 FROM agents_platform.customer_task_links l JOIN agents_platform.tasks t ON t.id=l.task_id
           WHERE l.conversation_id=$1 AND l.task_id=$2 AND t.version_id=$3 AND l.input_message_id=$4 AND l.ownership_generation=$5`,
@@ -241,7 +261,7 @@ export class InboxStore {
     const row = await this.conversation(db, input.binding.customerConversationId, true);
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [input.taskId, row.id, input.binding.inputMessageId, input.binding.ownershipGeneration])).rowCount) denied();
     if ((await db.query("SELECT id FROM agents_platform.customer_deliveries WHERE task_id=$1", [input.taskId])).rowCount) return;
-    if (row.state !== "automation_active" || row.ownership_generation !== input.binding.ownershipGeneration) {
+    if (row.state !== "automation_active" || row.ownership_generation !== input.binding.ownershipGeneration || !await this.activeBinding(db,row)) {
       await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,task_id,ownership_generation,state,reason) VALUES($1,$2,$3,$4,'suppressed','ownership_changed')", [randomUUID(), row.id, input.taskId, input.binding.ownershipGeneration]);
       await recordEvent(db,input.taskId,`channel:delivery:${input.taskId}`,"channel.delivery",{outcome:"suppressed"}); return;
     }

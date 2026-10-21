@@ -18,8 +18,11 @@ export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
     WHERE e.id=$1 AND e.organization_id=$2 FOR SHARE OF e,m`, [input.trialId, input.authority.organizationId])).rows[0];
   const principal=input.authority.principal;
   const actorMatches=principal.kind==="human" ? principal.issuer===trial?.issuer&&principal.subject===trial?.subject
-    : principal.kind==="visitor"&&Boolean((await db.query(`SELECT 1 FROM agents_platform.evaluation_trial_channels
-        WHERE trial_id=$1 AND deployment_id=$2 AND session_id=$3`,[input.trialId,principal.deploymentId,principal.sessionId])).rowCount);
+    : principal.kind==="visitor"?Boolean((await db.query(`SELECT 1 FROM agents_platform.evaluation_trial_channels
+        WHERE trial_id=$1 AND deployment_id=$2 AND session_id=$3`,[input.trialId,principal.deploymentId,principal.sessionId])).rowCount)
+    : principal.kind==="channel_customer"&&Boolean((await db.query(`SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e
+        JOIN agents_platform.customer_conversations c ON c.channel_deployment_id=e.deployment_id AND c.organization_id=e.organization_id
+        WHERE e.trial_id=$1 AND e.deployment_id=$2 AND c.id=$3`,[input.trialId,principal.deploymentId,principal.participantId])).rowCount);
   if (!trial || trial.state !== "active" || new Date(trial.expires_at).getTime() <= Date.now() ||
       trial.version_id !== input.versionId || trial.agent_id !== input.agentId ||
       input.authority.product !== "agents" || !actorMatches ||

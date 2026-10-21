@@ -21,6 +21,7 @@ export const channelWebhookEventSchema = z.strictObject({
   status: z.enum(["accepted", "sent", "delivered", "read", "failed"]).optional(),
   receiptWatermark: z.string().max(128).optional(),
   errorCode: z.string().max(128).optional(), interaction: z.string().max(4096).optional(),
+  callbackQueryId: externalId.optional(),
 });
 export type ChannelWebhookEvent = z.infer<typeof channelWebhookEventSchema>;
 export interface ChannelWebhookRequest {

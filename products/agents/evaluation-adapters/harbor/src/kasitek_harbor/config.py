@@ -46,13 +46,39 @@ class ChannelOptions(BaseModel):
         return PreparedScope.origin_only(value)
 
 
+class MessagingChannelOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal["telegram", "whatsapp", "facebook", "instagram"]
+    mode: Literal["bot", "cloud_api", "meta", "instagram_login"]
+    outcomes: list[Literal["accepted", "rejected", "lost_ack"]] = Field(
+        min_length=1, max_length=64
+    )
+
+    @model_validator(mode="after")
+    def compatible_mode(self):
+        modes = {
+            "telegram": {"bot"},
+            "whatsapp": {"cloud_api"},
+            "facebook": {"meta"},
+            "instagram": {"meta", "instagram_login"},
+        }
+        if self.mode not in modes[self.kind]:
+            raise ValueError("Channel mode does not belong to the selected provider")
+        return self
+
+
 class AdapterOptions(AgentOptions):
     recovery_id: UUID | None = None
     channel: ChannelOptions | None = None
+    messaging_channel: MessagingChannelOptions | None = None
     follow_ups: list[ConversationTurn] = Field(default_factory=list, max_length=7)
 
     @model_validator(mode="after")
     def stable_turn_ids(self):
+        if self.channel and self.messaging_channel:
+            raise ValueError(
+                "A trial uses either a website or isolated messaging channel"
+            )
         ids = [turn.id for turn in self.follow_ups]
         if len(set(ids)) != len(ids) or "initial" in ids:
             raise ValueError("Conversation turn IDs must be unique and exclude initial")

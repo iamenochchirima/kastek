@@ -57,6 +57,16 @@ export async function collectNativeMetrics(pool:Pool,role:string):Promise<Metric
       UNION ALL SELECT 'agents.model.unknown_cost_operations',coalesce(sum(unknown_operations),0)::text,'{}'::jsonb FROM agents_platform.root_model_accounts
       UNION ALL SELECT 'agents.inbox.commands',count(*)::text,jsonb_build_object('action',action) FROM agents_platform.customer_commands WHERE created_at>now()-interval '24 hours' GROUP BY action
       UNION ALL SELECT 'agents.inbox.deliveries',count(*)::text,jsonb_build_object('state',state) FROM agents_platform.customer_deliveries WHERE created_at>now()-interval '24 hours' GROUP BY state
+      UNION ALL SELECT 'agents.channels.connections',count(*)::text,jsonb_build_object('channel',kind,'state',state)
+        FROM agents_platform.channel_connections GROUP BY kind,state
+      UNION ALL SELECT 'agents.channels.ingress',count(*)::text,jsonb_build_object('channel',c.kind,'state',i.state)
+        FROM agents_platform.channel_ingress i JOIN agents_platform.channel_connections c ON c.id=i.connection_id
+        WHERE i.state IN ('pending','processing','quarantined') OR i.created_at>now()-interval '24 hours' GROUP BY c.kind,i.state
+      UNION ALL SELECT 'agents.channels.delivery',count(*)::text,jsonb_build_object('channel',c.kind,'state',o.state)
+        FROM agents_platform.channel_outbound o JOIN agents_platform.channel_connections c ON c.id=o.connection_id
+        WHERE o.state IN ('pending','sending','unknown') OR o.created_at>now()-interval '24 hours' GROUP BY c.kind,o.state
+      UNION ALL SELECT 'agents.channels.oldest_pending_ms',coalesce(max(extract(epoch FROM now()-o.created_at)*1000),0)::text,jsonb_build_object('channel',c.kind)
+        FROM agents_platform.channel_outbound o JOIN agents_platform.channel_connections c ON c.id=o.connection_id WHERE o.state='pending' GROUP BY c.kind
       UNION ALL SELECT 'agents.resources',count(*)::text,jsonb_build_object('kind','sandbox','state',state) FROM agents_platform.sandbox_allocations WHERE state<>'destroyed' GROUP BY state
       UNION ALL SELECT 'agents.resources',count(*)::text,jsonb_build_object('kind','document','state',state) FROM agents_platform.document_allocations WHERE state<>'destroyed' GROUP BY state
       UNION ALL SELECT 'agents.resources',count(*)::text,jsonb_build_object('kind','query_embedding','state',state) FROM agents_platform.query_embedding_allocations WHERE state<>'destroyed' GROUP BY state
@@ -94,7 +104,7 @@ export function createNativeMetrics(pool:Pool,role:string,environment:NodeJS.Pro
   const reader=new metrics.PeriodicExportingMetricReader({exporter,exportIntervalMillis:15000,exportTimeoutMillis:5000});
   const provider=new metrics.MeterProvider({readers:[reader],resource:resourceFromAttributes({"service.name":`agents-${role}`,"service.instance.id":`${process.pid}`,"service.namespace":"kasitek-agents"})});
   const meter=provider.getMeter("kasitek-agents-native-metrics","1");
-  const names=["agents.model.budget_roots","agents.model.unknown_cost_operations","agents.connected.provider.attempts","agents.connected.provider.latency_p95_ms","agents.connections","agents.connection.setup","agents.tool_reviews","agents.tool_reviews.oldest_pending_ms","agents.connected.operations","agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
+  const names=["agents.channels.connections","agents.channels.ingress","agents.channels.delivery","agents.channels.oldest_pending_ms","agents.model.budget_roots","agents.model.unknown_cost_operations","agents.connected.provider.attempts","agents.connected.provider.latency_p95_ms","agents.connections","agents.connection.setup","agents.tool_reviews","agents.tool_reviews.oldest_pending_ms","agents.connected.operations","agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
   const instruments=new Map(names.map(name=>[name,meter.createObservableGauge(name,{description:"Native snapshot; rolling windows documented in Agents observability reference"})]));
   let failures=0;
   const failed=meter.createObservableGauge("agents.metrics.collection_failures");

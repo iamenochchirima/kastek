@@ -36,7 +36,11 @@ channels, with a shared inbox for staff support. Research and campaign experienc
 Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
 define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
 are implemented. Google Calendar booking is implemented through explicit owner policy and exact customer confirmation.
-The separate Booking creation offering and additional channel providers remain unavailable.
+Connections now includes setup and agent binding for WhatsApp, Telegram, Messenger and Instagram,
+alongside website appearance/install controls. All share Inbox ownership and durable messaging
+receipts. Meta setup requires a configured provider app and reachable webhook; Telegram requires
+an owner-created bot and reachable webhook. Installed adapters and controlled checks do not
+establish live account acceptance. The separate Booking creation offering remains unavailable.
 A live Google OAuth application has not been accepted.
 
 The current business harness supports contextual conversations, reviewed personal

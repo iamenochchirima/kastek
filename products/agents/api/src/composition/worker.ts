@@ -38,6 +38,7 @@ import { workerSecurityFromEnvironment } from "./worker-security";
 import { createNativeMetrics } from "../observability/metrics";
 import { createObservationTelemetry, startObservationPublisher } from "../observability/telemetry";
 import { composeInbox } from "./inbox";
+import { composeChannels } from "./channels";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 async function main(): Promise<void> {
@@ -92,9 +93,12 @@ async function main(): Promise<void> {
   });
   const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin,
     assertServices: async () => {} });
+  const channelServices=composeChannels(pool,inbox,process.env.AGENTS_PUBLIC_URL??"http://localhost:3100",abort.signal);
   let cancellationPending: Promise<unknown> | undefined;
   const cancellationTimer = setInterval(() => {
-    if(!cancellationPending) cancellationPending=inbox.drainCancellations().catch(()=>undefined).finally(()=>{cancellationPending=undefined;});
+    if(!cancellationPending) cancellationPending=(async()=>{await inbox.drainCancellations();await channelServices.delivery.drain();})()
+      .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"channel_maintenance_failed",code:"CHANNEL_MAINTENANCE_UNAVAILABLE"})))
+      .finally(()=>{cancellationPending=undefined;});
   },1000); cancellationTimer.unref();
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);

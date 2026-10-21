@@ -222,8 +222,8 @@ up in integer USD micros; the bigint storage ceiling is9,223,372,036,854,775,807
 retains its reservation until authoritative reconciliation and never becomes zero.
 
 Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds.
-Schema051 sets the current task release to `model-bindings-v8`. The worker workflow is
-`AgentsBusinessRunV18`. Logical request and compaction digests require an explicit accepted
+Schema051 introduced `model-bindings-v8` / `AgentsBusinessRunV18`; schema060 advances
+new channel-aware work to `channel-customers-v9` / `AgentsBusinessRunV19`. Logical request and compaction digests require an explicit accepted
 context policy. The obsolete Nemotron-only transport, blanket reasoning rejection and implicit
 context fallback have been removed. Skill loading uses the accepted input/safety allowances and
 the same counter with private continuation costs as ordinary context packing. Older task releases
@@ -328,23 +328,76 @@ Visitor chat instances and pending-send storage bind both deployment and visitor
 changes withhold the prior deployment's view while the new session initializes. A late send
 acknowledgement from an unmounted session cannot clear another session's pending input.
 
-Website publication and widget conversations exist. WhatsApp, Facebook, and Instagram remain
-unavailable. The shared channel foundation now defines validated catalogue records,
-tenant-owned encrypted connection credentials, paginated provider assets and explicit agent
-deployments. Schemas052–053 allow non-website canonical Inbox conversations with channel-scoped
-identity and the existing human-ownership commands. Messaging ingress uses a separate verified
-channel admission port, not a manufactured website session. These records do not establish
-complete provider setup, verified webhook processing, execution admission or external delivery.
-External messaging channels remain unavailable until those ports are composed and enabled.
+Website, WhatsApp, Telegram, Messenger and Instagram use shared connection records and
+canonical Inbox ownership. `adapters/channels/catalogue.json` declares installed handlers,
+login modes and supported content. `product/channels/` owns connection lifecycle, provider
+setup, durable ingress/delivery, approved WhatsApp templates and private staff attachment access.
+The Connections channel catalogue is separate from model providers and business-system tools.
+An installed adapter is not evidence that a live account passed provider acceptance.
 
-Installed Telegram, WhatsApp, Messenger and Instagram protocol adapters verify webhook
-authenticity, normalize provider event identities and send one native effect per invocation
-through an injected trusted transport. The installed-handler map validates catalogue references.
-No adapter reads ambient provider keys or retries an uncertain send. WhatsApp and Meta require
-an explicitly reviewed Graph version. Instagram outbound image/audio/video URLs are supported;
-document/reusable-ID sends remain an explicit unqualified implementation limit. Provider
-onboarding, durable dispatch and Inbox composition remain separate requirements, so installed
-protocol support does not label an account connected. Google Calendar appointments use their own reviewed service policy rather than a
+Schemas052–061 add encrypted connection revisions, selected assets and agent deployments;
+channel-neutral customer identity; ingress/outbound receipts; setup/session claims; website
+appearance/pause; consent; and isolated external-runner fixture mappings. No Growth tables,
+private runtime imports or legacy installation controllers are restored. Schema060 and
+`contracts/execution.ts` identify `channel-customers-v9` / `AgentsBusinessRunV19`. Changed
+customer-principal grammar and publication effects require this new worker identity. Previously
+accepted releases retain their matching worker; startup never silently upgrades an older schema.
+
+Non-website admissions use a verified `channel_customer` principal bound to the deployment and
+canonical conversation. The same admission/model routing/root budgets, Restate loop, context,
+public knowledge/skills, booking confirmation and ownership fences apply. No website session is
+fabricated. Saved settings update future channel admissions without replacing the address,
+customer thread or history. Accepted work retains its pinned model, snapshot and authority.
+
+Raw-body signatures or connection-specific Telegram secrets precede JSON parsing. Verified
+receipts and pending commands commit before webhook acknowledgement. Unbound or ambiguous
+assets fail closed. Stable provider identities and request digests deduplicate ingress; Telegram
+message IDs are scoped by bot and chat. A local receipt sequence orders each thread. Pending
+ingress has bounded claims/backoff and a quarantined outcome after repeated failures. Media-only
+messages request staff assistance without model admission; private media locators never enter
+prompts. Captions can be processed as text without claiming image/audio understanding.
+
+Human and automated messages enqueue durable segments in the canonical transaction. Claims,
+current credentials, binding and ownership are checked before physical sends; no SQL transaction
+spans provider HTTP. Provider acceptance is distinct from sent/delivered/read. Lost acknowledgements
+and abandoned sending claims remain unknown and are never silently requeued. Assigned staff can
+explicitly continue later messages without resending an unknown operation. The uncertainty and
+actor decision remain recorded. Known provider429 rejections honor bounded retry guidance;
+successful segments are not repeated. Delivery uses the existing worker maintenance lifecycle.
+
+Telegram setup verifies bot identity, requires deliberate replacement of an existing webhook,
+stores its generated secret privately and serializes setup mutations. A matching webhook URL
+after a lost setup acknowledgement cannot prove its secret: health stays needs-attention until
+an explicit acknowledged setup succeeds. Meta uses owner/session-bound one-use OAuth/signup
+and selection tickets, explicit paginated account/number selection and server-side token custody.
+Direct Instagram and Page-linked credentials stay distinct. Exact embedded-signup origins are
+checked. Setup claims serialize connection and shared Page/WABA mutations across replicas.
+
+Meta setup requires private `AGENTS_META_CHANNEL_PROFILES` records validated by
+`metaSetupProfileSchema`, with reviewed app/API version, permissions, subscribed fields and
+signup configuration. Redirect URI must equal the configured application origin plus
+`/app/connections`. Telegram requires `AGENTS_CHANNEL_WEBHOOK_ORIGIN` and the existing vault.
+No Graph version or provider key is guessed. Public callback paths are
+`/api/channel-webhooks/telegram/:connectionId` and
+`/api/channel-webhooks/:kind/:mode` for Meta profiles. Missing prerequisites remain unavailable.
+
+Standard Meta replies use the latest verified customer-message time, not receipt/echo/takeover
+time. WhatsApp out-of-window replies require a currently approved supported text template and
+recorded customer opt-in. Template payload, exact rendered preview, category/consent revision,
+ownership and credential revisions are revalidated before dispatch. Media/buttons templates are
+explicitly unsupported. Taking over does not grant a human-policy exception. Telegram acceptance
+does not establish delivery/read. Instagram outbound documents and reusable-ID sends remain
+unqualified; the installed protocol supports text and image/audio/video URLs. Staff attachment
+access is authenticated, provider-scoped, bounded and downloaded as an attachment; no public raw
+provider URL is returned. Optional speech/vision backends are not supplied by this block.
+
+Website presentation retains the working parent-origin Shadow DOM transport and canonical
+visitor sessions. Growth's launcher, appearance, mobile and suggested-message presentation are
+adapted without introducing another iframe/postMessage authority bridge. Appearance and pause
+changes use an owner-authorized digest check. Pause fences new grants and current publication
+checks, while staff history remains readable and unpause retains the same widget URL.
+
+Google Calendar appointments use their own reviewed service policy rather than a
 personal generic binding. The Tools catalogue exposes built-ins, native API and MCP integrations,
 agent-specific recommendations, and current connection readiness. Custom MCP setup supports encrypted
 keys, resumable OAuth, discovery, compatible tool selection, credential rotation, and disconnect.

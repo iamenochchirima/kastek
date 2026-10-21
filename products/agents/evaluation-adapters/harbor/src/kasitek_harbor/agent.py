@@ -21,6 +21,11 @@ from .channel import (
     channel_history,
     submit_channel_turn,
 )
+from .messaging import (
+    prepare_messaging,
+    submit_messaging_turn,
+    settled_messaging_history,
+)
 from .config import AdapterOptions
 from .scope_pool import prepared_scopes, select_scope
 from .recovery import recovery_path, exclusive_recovery
@@ -105,6 +110,15 @@ class KasitekAgent(BaseAgent):
                     "channel": self.options.channel.model_dump(mode="json")
                     if self.options.channel
                     else None,
+                    **(
+                        {
+                            "messagingChannel": self.options.messaging_channel.model_dump(
+                                mode="json"
+                            )
+                        }
+                        if self.options.messaging_channel
+                        else {}
+                    ),
                     "followUps": [
                         turn.model_dump() for turn in self.options.follow_ups
                     ],
@@ -253,6 +267,15 @@ class KasitekAgent(BaseAgent):
                     elif mapping["nativeTrialId"] is None:
                         mapping["nativeTrialId"] = known["trial"]["id"]
                         self._save_mapping(path, mapping)
+                    messaging_fixture = (
+                        await prepare_messaging(
+                            client,
+                            self.options.messaging_channel,
+                            mapping["nativeTrialId"],
+                        )
+                        if self.options.messaging_channel
+                        else None
+                    )
                     visitor = None
                     if self.options.channel:
                         token = await prepare_channel(
@@ -276,9 +299,13 @@ class KasitekAgent(BaseAgent):
                     expected_keys = {
                         turn["request"]["requestKey"] for turn in mapping["turns"]
                     }
-                    if not visitor and any(
-                        task.get("requestKey") not in expected_keys
-                        for task in recovered
+                    if (
+                        not visitor
+                        and not messaging_fixture
+                        and any(
+                            task.get("requestKey") not in expected_keys
+                            for task in recovered
+                        )
                     ):
                         raise ValueError(
                             "Native trial contains an unexpected root request"
@@ -304,7 +331,17 @@ class KasitekAgent(BaseAgent):
                         ]
                         if len(matches) > 1:
                             raise ValueError("Native request identity is not unique")
-                        if visitor:
+                        if messaging_fixture:
+                            task = await submit_messaging_turn(
+                                client,
+                                messaging_fixture,
+                                mapping,
+                                turn,
+                                path,
+                                timeout=min(self.options.trial_timeout_sec, 120),
+                                poll_interval=self.options.poll_interval_sec,
+                            )
+                        elif visitor:
                             task = await submit_channel_turn(
                                 client, visitor, mapping, turn, path
                             )
@@ -331,6 +368,7 @@ class KasitekAgent(BaseAgent):
                             )
                         if (
                             not visitor
+                            and not messaging_fixture
                             and task.get("requestKey") != request["requestKey"]
                         ):
                             raise ValueError(
@@ -383,9 +421,18 @@ class KasitekAgent(BaseAgent):
                             self.logs_dir / "trajectory.json",
                             trajectory.model_dump(mode="json", exclude_none=True),
                         )
-                        if visitor:
-                            native_channel = await channel_history(
-                                client, mapping["nativeTrialId"]
+                        if visitor or messaging_fixture:
+                            native_channel = (
+                                await settled_messaging_history(
+                                    client,
+                                    mapping["nativeTrialId"],
+                                    poll_interval=self.options.poll_interval_sec,
+                                    require_delivery=task["state"] == "completed",
+                                )
+                                if messaging_fixture
+                                else await channel_history(
+                                    client, mapping["nativeTrialId"]
+                                )
                             )
                             persist(
                                 self.logs_dir / "native-channel-history.json",

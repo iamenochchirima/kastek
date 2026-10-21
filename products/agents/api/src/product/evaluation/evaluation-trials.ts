@@ -101,6 +101,8 @@ export class EvaluationTrials {
       if (!result.rowCount) throw new PlatformError("NOT_FOUND", 404, "Trial not found");
       await db.query(`UPDATE agents_platform.website_sessions SET expires_at=least(expires_at,now())
         WHERE id IN (SELECT session_id FROM agents_platform.evaluation_trial_channels WHERE trial_id=$1)`,[id]);
+      await db.query(`UPDATE agents_platform.channel_deployments SET state='revoked',revision=revision+1,updated_at=now()
+        WHERE id IN(SELECT deployment_id FROM agents_platform.evaluation_trial_messaging_channels WHERE trial_id=$1) AND state<>'revoked'`,[id]);
     });
     // The committed revocation fences new effects even if cancellation dispatch is interrupted.
     const result = await this.get(accountId, organizationId, { id });
@@ -108,13 +110,22 @@ export class EvaluationTrials {
     return { ...result, cancellationRequested: true };
   }
   async authorizeVisitorRoot(db:Pool|PoolClient,accountId:string,organizationId:string,rootTaskId:string) {
+    return this.authorizeCustomerRoot(db,accountId,organizationId,rootTaskId);
+  }
+  async authorizeCustomerRoot(db:Pool|PoolClient,accountId:string,organizationId:string,rootTaskId:string) {
     const row=(await db.query(`SELECT e.id FROM agents_platform.tasks t
       JOIN agents_platform.evaluation_trials e ON e.id=t.evaluation_trial_id AND e.organization_id=t.organization_id AND e.version_id=t.version_id
       JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.agent_id=e.agent_id
-      JOIN agents_platform.evaluation_trial_channels c ON c.trial_id=e.id AND c.deployment_id::text=(t.principal->>'deploymentId') AND c.session_id::text=(t.principal->>'sessionId')
       JOIN agents_platform.memberships m ON m.organization_id=e.organization_id AND m.account_id=e.account_id AND m.revoked_at IS NULL
       WHERE t.id=$1 AND t.organization_id=$2 AND e.account_id=$3 AND t.parent_task_id IS NULL
-        AND t.product='agents' AND t.caller_client_id='agents-website' AND t.principal->>'kind'='visitor' FOR SHARE OF t,e,c,m`,[rootTaskId,organizationId,accountId])).rows[0];
+        AND t.product='agents' AND ((t.caller_client_id='agents-website' AND t.principal->>'kind'='visitor'
+          AND EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels c WHERE c.trial_id=e.id
+            AND c.deployment_id::text=(t.principal->>'deploymentId') AND c.session_id::text=(t.principal->>'sessionId')))
+          OR (t.caller_client_id='agents-channel' AND t.principal->>'kind'='channel_customer'
+            AND EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels f
+              JOIN agents_platform.customer_conversations c ON c.channel_deployment_id=f.deployment_id AND c.organization_id=f.organization_id
+              WHERE f.trial_id=e.id AND f.deployment_id::text=(t.principal->>'deploymentId') AND c.id::text=(t.principal->>'participantId'))))
+        FOR SHARE OF t,e,m`,[rootTaskId,organizationId,accountId])).rows[0];
     return row?{evaluationTrialId:row.id as string,accountId}:null;
   }
   async channelSession(accountId:string,organizationId:string,id:string,raw:unknown,signingSecret:string) {

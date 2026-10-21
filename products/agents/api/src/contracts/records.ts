@@ -10,6 +10,7 @@ export interface AgentRecord { id: string; organization_id: string; name: string
 export interface VersionRecord { id: string; organization_id: string; agent_id: string; number: number;
   draft_revision: number; execution_kind: "business" | "workspace"; configuration: AgentConfiguration; effective_composition: EffectiveComposition; created_by: string; created_at: Date }
 export interface WebsiteDeployment { id: string; organization_id: string; agent_id: string; version_id: string;
+  appearance: Record<string,unknown>; paused:boolean;
   allowed_origins: string[]; published_by: string; published_at: Date; revoked_at: Date | null }
 export interface TaskRecord { id: string; product: AdmissionAuthority["product"]; organization_id: string; resource_id: string;
   caller_client_id: string; principal: AdmissionAuthority["principal"]; version_id: string; grant_id: string;

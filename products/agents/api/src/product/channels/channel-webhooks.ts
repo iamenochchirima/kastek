@@ -5,7 +5,7 @@ import { PlatformError } from "../../contracts/contracts";
 import { messagingChannelAdapter } from "../../adapters/channels/providers";
 import type { ChannelStore } from "./channel-store";
 import type { ChannelDelivery } from "./channel-delivery";
-import type { MetaSetupProfile } from "./meta-setup";
+import { metaSetupProfileDigest, type MetaSetupProfile } from "./meta-setup";
 
 export async function registerChannelWebhooks(app: FastifyInstance,options:{channels:ChannelStore;delivery:ChannelDelivery;profiles:readonly MetaSetupProfile[]}) {
   // Encapsulation keeps signed bytes intact without changing ordinary JSON application routes.
@@ -33,7 +33,7 @@ export async function registerChannelWebhooks(app: FastifyInstance,options:{chan
       let payload:unknown;try{payload=JSON.parse(raw.toString("utf8"));}catch{throw new PlatformError("CHANNEL_WEBHOOK_INVALID",400,"Invalid webhook content");}
       try {
         const events=adapter.normalize(payload,telegram?{assetId:telegram.assetId}:undefined);
-        await options.delivery.persist(kind,events);
+        await options.delivery.persist(kind,events,profile?.mode,profile?metaSetupProfileDigest(profile):undefined);
         return reply.code(200).send({received:true});
       } catch(error) {
         if(error instanceof ChannelAdapterError)throw new PlatformError("CHANNEL_WEBHOOK_INVALID",400,"Unsupported webhook content");
