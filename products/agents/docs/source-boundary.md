@@ -48,6 +48,40 @@ adapter receives explicit byte/item budgets and an injected transport; it cannot
 credentials or issue its own fetch. Cached-model reads currently require the organization owner.
 Stale snapshots remain available for display while refresh is a separate action.
 
+The new transport adapter uses pinned `@earendil-works/pi-ai@1.1.0` low-level streams for
+Chat, Responses, Messages and Gemini protocols. It disables retries and explicit prompt-cache
+requests, validates final output caps, rejects repaired tool JSON, distinguishes missing usage
+from zero, and scopes private continuation to provider/API/model/endpoint/credential generation.
+Public results exclude internal reasoning; private native state must stay out of transcript and
+evaluation projections when runtime integration is enabled. The CommonJS application currently
+loads this import-only dependency through Node24's native VM loader, which emits an experimental
+warning. The Gemini library path permits only the official endpoint and rejects ambient cloud
+backend flags. Its failed HTTP status is unavailable through this adapter. This foundation is
+fixture-tested and not yet the running business loop.
+
+Discovery can enrich exact provider/model/API matches from the pinned bundled catalogue.
+Live metadata takes precedence. Bundled fields retain registry provenance; they do not prove
+account access or tool support. Generated zero prices remain unknown rather than free.
+`execution/models/policy.ts` intersects explicit platform/product/tenant/agent allowances and
+sourced model capacities. Unknown context/output capacity requires an operator attestation.
+The compiler checks reserves and root/compaction relationships and pins its decisions in a digest.
+No default numeric model limits are hidden in the compiler. Worker, SQL, grant and UI integration
+remain necessary before these policies govern live calls.
+
+`infrastructure/model-network.ts` supplies a separate streaming fetch for generation. It pins
+verified public DNS addresses, reauthorizes after lookup, sends only trusted credential headers,
+enforces explicit body/response budgets and independent total/connect/idle/progress clocks,
+and permits one physical request without redirects or retries. Semantic model deltas reset the
+progress clock; heartbeat bytes only reset idle time. Its compiled CommonJS/native-adapter
+path has a real HTTP fixture proof. Gemini's bundled SDK cannot consume this fetch port.
+
+Context packing and compaction accept `ContextModelPolicy` with explicit model/counter revisions,
+duration, capacities, message/tool/byte protections and a runtime-supplied counter. Serializable
+snapshots pin the policy and omit the callback. The new path does not use the global Nemotron
+allowlist or counter. Existing runtime callers still use their previous profile until accepted
+binding integration changes them. Runtime monetary reservations, storage-compatible counter
+bounds and account-scoped scheduling are not established by the pure policy compiler tests.
+
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
 reuse `connection.lifecycle` telemetry with the bounded `model_provider` provider label.

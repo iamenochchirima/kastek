@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { builtinProviderRegistry, getProviderDefinition } from "../../adapters/models/registry";
 import { discoverProviderModels, ModelDiscoveryError, type ModelDiscoveryFetch, type ModelDiscoveryResult } from "../../adapters/models/discovery";
+import { enrichProviderModels } from "../../adapters/models/model-metadata";
 import type { ActionScope } from "../../contracts/connections";
 import { canonicalJson, PlatformError, requestDigest } from "../../contracts/contracts";
 import { modelEndpointSchema, providerConnectionSchema, providerDefinitionSchema, providerUseGrantSchema,
@@ -178,6 +179,7 @@ export class ModelProviderStore {
     try {
       result = await discoverProviderModels(prepared.definition, { apiKey: prepared.apiKey, endpoint: prepared.connection.endpoint,
         fetch: network, observedAt: new Date().toISOString(), maxResponseBytes: this.setupPolicy.maxCatalogueBytes, maxModels: this.setupPolicy.maxCatalogueModels });
+      if (result.kind === "discovered") result.models = await enrichProviderModels(prepared.definition.id, result.models, result.observedAt);
     } catch (error) {
       if (!(error instanceof ModelDiscoveryError)) throw error;
       throw new PlatformError(`MODEL_DISCOVERY_${error.code.toUpperCase()}`, 502, "Could not refresh provider models");
