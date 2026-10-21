@@ -4,12 +4,15 @@ Model provider setup is available at `/app/settings` under **Model providers**.
 Owners can save multiple encrypted API-key accounts, add manual models with sourced
 metadata, inspect affected agents and schedules, refresh models, run an explicit
 paid generation or tool test, and choose an organization default. OpenRouter,
-OpenAI, Anthropic, and Google have installed adapters with controlled HTTP coverage.
+OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Groq, Together, Fireworks,
+Moonshot/Kimi and Z.ai have installed adapters with controlled HTTP coverage.
 The agent editor selects that default or an explicit account and model. Saving
 creates configuration snapshots in the background. Admission pins the selected
 account, model metadata, use grant, and effective policy before the shared Restate
 worker runs chat or tool rounds. Existing accepted work retains its selection when
 the default changes; credential revocation still blocks later physical requests.
+Model limits shows effective allowances and reviewed model-specific generation controls.
+Scheduled work also retains its authorized route until an explicit schedule edit.
 
 Provider-native continuation stays in private worker records. Context packing,
 compaction, delegated allocation, and root usage settlement use accepted model
@@ -18,8 +21,7 @@ input counting is available on reviewed OpenAI, Anthropic and Google routes. Oth
 routes label estimates explicitly; unenforceable strict spending caps are rejected.
 Evaluation trials pin the exact model route and policy; the external
 Harbor adapter verifies those pins in retained evidence. Independent purpose-suite
-acceptance across compatible routes, the remaining provider profiles, and live
-multi-provider acceptance are unfinished. Installed adapters do not establish live
+acceptance across compatible routes and live multi-provider acceptance are unfinished. Installed adapters do not establish live
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 

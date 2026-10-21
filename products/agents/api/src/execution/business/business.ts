@@ -49,6 +49,7 @@ import type { BookingService } from "../../workflows/booking/bookings";
 import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
+import { invokeObservedTaskModel } from "../models/observed-invocation";
 function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map()): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
   return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: "serialized-utf8-estimate-v1",
@@ -365,7 +366,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
               request, reservedTokens: Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens,
               reservedMs: execution.models.compaction.policy.maxCallDurationMs, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
-                const value = await invokeTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+                const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
                 return { value, tokens: accountedModelTokens(value, Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens) };
               });
             if (!compacted.ok) {
@@ -385,7 +386,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
             reservedTokens: Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens,
             reservedMs: policy.maxCallDurationMs, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
-              const value = await invokeTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+              const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
               return { value, tokens: accountedModelTokens(value, Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens) };
             });
           if (!generated.ok) {

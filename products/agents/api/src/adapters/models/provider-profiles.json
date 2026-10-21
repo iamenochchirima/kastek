@@ -47,7 +47,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://docs.x.ai/developers/rest-api-reference/inference",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "deepseek",
@@ -57,7 +57,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://api-docs.deepseek.com/quick_start",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "mistral",
@@ -67,7 +67,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://docs.mistral.ai/api",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "groq",
@@ -77,7 +77,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://console.groq.com/docs/openai",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "together",
@@ -87,7 +87,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://docs.together.ai/docs/inference/openai-compatibility",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "fireworks",
@@ -97,7 +97,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "curated" },
     "officialDocsUrl": "https://docs.fireworks.ai/tools-sdks/openai-compatibility",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "moonshot",
@@ -107,7 +107,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://platform.kimi.ai/docs/api/chat",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "zai",
@@ -117,6 +117,6 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "curated" },
     "officialDocsUrl": "https://docs.z.ai/api-reference/introduction",
-    "adapter": { "id": "openai-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
   }
 ]

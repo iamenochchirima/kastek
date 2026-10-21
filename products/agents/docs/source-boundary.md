@@ -165,8 +165,20 @@ For example, `AGENTS_MODEL_POLICY_JSON={"maxModelCalls":32,"maxToolCalls":64}` c
 the two call ceilings. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
 threshold, 4,096 reply tokens, 16,384 raw input bytes, and a 120-second model-call deadline.
 These are editable configuration defaults, not provider limits. Effective root grants can be
-smaller than the service allowance. The editor does not yet expose every effective-policy limit
-or provider reasoning control.
+smaller than the service allowance. The editor's Model limits section previews the effective
+context, reply and root allowances from the full unsaved configuration. Its authenticated
+`POST /api/organizations/:organizationId/agents/:agentId/model-policy` reads authorized cached
+metadata without a provider request or an execution grant. Invalid previews preserve edits.
+Input/output and compaction controls use the preview's effective bounds.
+
+`adapters/models/model-control-profiles.json` records reviewed endpoint/model rules and official
+sources for temperature, effort, reasoning budgets and thinking levels. Unknown models and custom
+endpoints expose no unverified controls. Provider defaults remain the default selection. Manual
+reasoning budgets must fit the accepted reply allowance. Admission, evaluation preparation and
+schedule creation validate generation settings and pin their reviewed revision and digest beside
+the model binding. Dispatch validates the pin and applies native fields before byte checks and
+input counting. A changed controls revision rejects accepted settings rather than retargeting them.
+Saving still uses background configuration snapshots.
 
 Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds
 and sets the current task release to `model-bindings-v6`. The worker workflow is
@@ -191,9 +203,15 @@ accepted model snapshot and digest; model calls and compaction receipts include 
 binding and effective policy. Harbor verifies snapshot hashes, call-role identity and bounded
 child inheritance. ATIF keeps that provenance. Private native continuation is not exported.
 The adapter retains isolated trials, purpose-specific suites and authoritative outcome graders.
-The eight additional provider profiles, qualified counters for compatible routes, complete provider fault
-coverage, independent purpose acceptance across compatible routes, and live multi-provider
-acceptance remain separate work. No production or hosted capacity acceptance is claimed.
+The reviewed xAI, DeepSeek, Mistral, Groq, Together, Fireworks, Moonshot/Kimi and Z.ai profiles
+now use installed adapters. Controlled real-HTTP conformance covers their endpoint/authentication,
+unsupported fields, private reasoning/tool continuation, refusal, truncation, unknown usage and
+output caps. Mistral uses the pinned library's native parser and a thin wire conversion, preserving
+native thinking chunks. Compatible routes retain provider-native thinking defaults; arbitrary SDK
+reasoning options are rejected. These tests establish protocol behavior, not live model access.
+Qualified counters for compatible routes, complete provider fault coverage, independent purpose
+acceptance across compatible routes, and live multi-provider acceptance remain separate work.
+No production or hosted capacity acceptance is claimed.
 
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
@@ -451,6 +469,72 @@ physical receipts over one hour, with bounded provider, phase and response/failu
 profiles coalesce into one `other` provider. The [integration reference](mcp-integration.md#connection-observability)
 links focused helper, actual OTLP receiver and PostgreSQL producer checks.
 
+### Model invocation observations
+
+`observability/model-telemetry.ts` defines the strict `model.invocation` operational event schema.
+The shared business loop wraps primary, delegated and compaction model calls inside their existing
+durable operation. Each physical invocation emits one best-effort JSON record. Replaying a completed
+operation does not invoke that wrapper again. This event is an attempt observation, not an invoice,
+a durable usage receipt or a replacement for the task observation outbox. Abrupt process loss can
+lose an event. The operations, cost reservations and private continuation tables remain authoritative.
+
+The record contains accepted provider/protocol/model, connection, route and policy digests, adapter
+revision, runtime release, root/task/operation identities, bounded outcome/failure class and elapsed
+time. It excludes URLs, keys, headers, prompt and response text, tool arguments, provider request IDs,
+raw errors and private reasoning/continuation. Model and connection identities appear only in logs
+and traces. OTLP spans share the root task trace and the native task parent. They use the existing
+exporter and its 64-pending-export bound; no extra Collector, scheduler or HTTP instrumentation runs.
+
+Duration starts at the physical invocation wrapper and includes credential checks, private history
+restoration and native input counting. First visible token time records the first nonempty public
+text callback relative to that start. Hidden reasoning and tool-only output do not create a text
+measurement. Missing observations have an explicit `unavailable` status and omit their numeric value.
+The wrapper has no authoritative queue timestamp, so it reports queue time unavailable. Use the
+existing durable `resource.capacity_granted` observations and `agents.capacity.*` gauges for queue
+waits, including requests that never reach a model invocation.
+
+When usage is observed, input/output totals and available cache-read, cache-write and reasoning
+subsets are separate fields. Missing subsets remain absent. Listed model prices and the same
+normalized accounting quote used by settlement produce a USD micro-cost estimate only when all
+required price and usage components are known. The event labels it `estimate`; invoice adjustments
+are outside this measurement. Unknown usage or pricing never becomes a zero-valued estimate.
+
+| Metric | Meaning |
+| --- | --- |
+| `agents.model.invocations` | Process-local physical invocation attempts by fixed provider bucket, protocol, role and outcome. Unknown provider IDs use `other`. |
+| `agents.model.duration_ms` | Wrapper elapsed-time histogram in milliseconds. |
+| `agents.model.first_visible_token_ms` | Observed first public text delay; absent for tool-only output or no visible text. |
+| `agents.model.queue_ms` | Reserved for authoritative per-invocation queue measurements; current producer emits no numeric samples. |
+| `agents.model.observed_tokens` | Observed token counters with a fixed category label. Cache categories are subsets of input; reasoning is a subset of output. Do not sum every category into total tokens. |
+| `agents.model.cost_estimate_micros` | Process-local sum of representable listed-price estimates, separate from authoritative cost settlement. |
+| `agents.model.unavailable_measurements` | Counts absent token categories, usage, timing and cost observations by fixed measurement label. |
+| `agents.model.quota_rejections` | Quota/budget rejections observed inside physical invocation. Admission rejections occur before this wrapper. |
+| `agents.model.budget_roots` | Native snapshot count of unsettled roots by `budget=cost|tokens` and `state=available|saturated|unlimited`. Saturation means current reservations plus usage meet the accepted allowance. |
+| `agents.model.unknown_cost_operations` | Native outstanding unknown-cost operation count across root accounts, including settled roots awaiting reconciliation. |
+
+Invocation metrics have no tenant, task, connection, endpoint, route digest or model-ID labels.
+They are best-effort process counters and histograms. Database snapshot gauges must use the existing
+single-replica or max aggregation rule. Unknown-cost gauges derive from durable accounts, so exporter
+restarts and replay do not reset or multiply the accounting facts. A root with remaining allowance
+may still reject a proposed reservation larger than its headroom.
+
+Operators should correlate model authorization failures with the saved connection and its current
+use grant, then rotate/reconnect or explicitly restore access as appropriate. A 402 credit failure
+requires funding the selected provider account. A 429 calls for reducing concurrency or waiting for
+the provider limit to reset. Model-access failures require a model available to that account; context
+failures require a smaller request or a compatible larger context allowance. Do not change a queued
+run's accepted billing route to repair an error. Budget saturation requires reviewing root usage and
+reservations before admitting new work. An uncertain invocation or unknown cost requires checking the
+native operation and provider account before retrying; exporter loss does not authorize a retry.
+
+These are operational events owned by the Agents service, not new Labs product analytics events.
+The schema and bounded metric vocabulary are the analytics decision for this change. API and database
+schema changes are not applicable. Existing OTLP endpoint configuration and Collector revision apply;
+set `OTEL_SDK_DISABLED=true` or remove exporter endpoints to disable export. Structured metadata logs
+remain enabled. Hosted retention, production alert thresholds and live provider telemetry acceptance
+remain deployment gates. Focused redaction, bounded-label, real local OTLP receiver and PostgreSQL
+snapshot tests verify this implementation without asserting production capacity.
+
 Collection has a 1.5-second SQL deadline and a 15-second export interval. Failed collection emits
 `agents.metrics.collection_failures`; it does not alter usage or task state. Export timeouts are
 bounded and shutdown flushes before closing the database pool. Set `OTEL_SDK_DISABLED=true` to
@@ -554,7 +638,7 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `execution/scheduling/capacity.ts`, `execution/scheduling/capacity-turns.ts`, `execution/scheduling/dispatch-claims.ts` | Durable resource queues, independent tenant turns, generation-fenced permits and bounded replica claims. |
 | `workflows/report-delivery/program.ts` | Durable report review waits, exact dispatch and status-only reconciliation through the shared operation lifecycle. |
 | `product/inbox/inbox-store.ts`, `product/inbox/inbox-routes.ts`, `composition/inbox.ts` | Staff authorization, assignment, customer history, ownership changes, human replies and delivery fencing. |
-| `observability/event-store.ts`, `observability/observations.ts`, `observability/connection-telemetry.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed task observations, authorized reads, replay-safe export, separate metadata-only connection lifecycle traces/logs and bounded receipt/attempt metrics. |
+| `observability/event-store.ts`, `observability/observations.ts`, `observability/connection-telemetry.ts`, `observability/model-telemetry.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed task observations, authorized reads, replay-safe export, separate metadata-only connection and model invocation traces/logs, bounded attempt metrics and native budget/unknown-cost gauges. |
 | `product/connections/connections.ts`, `infrastructure/vault.ts`, `workflows/report-delivery/actions.ts`, `adapters/providers/report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `product/automations/automations.ts`, `execution/lifecycle/automation-authority.ts`, `product/automations/automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |
 | `contracts/capability-catalog.ts`, `capabilities/connected-tools/connected-catalog-store.ts`, `capabilities/connected-tools/connected-executor.ts` | Immutable selected tools, executable releases, issued handles and durable connected receipts. |
@@ -923,6 +1007,15 @@ organization/agent procedural skills remain available.
 intervals of at least 60 seconds. Downtime coalesces to the latest eligible instant
 with a bounded skipped-occurrence summary. At most one occurrence is active per
 automation, including review waits; overlap and permission/quota blocks are recorded.
+Each schedule revision also stores an immutable model-route snapshot in
+`automation_model_routes`: provider/account and credential revisions, model metadata,
+all three role bindings and effective policy. Creation and explicit edits resolve the
+saved agent selection. Pause, resume and revoke copy the prior snapshot. Changing the
+organization default does not retarget an existing schedule. Occurrences load that
+snapshot through normal admission and compare its allowance with the new occurrence
+grant. A rotated credential or revoked use grant records a blocked occurrence; no
+fallback route is selected. Event retry still returns its original occurrence.
+
 Pause stops future occurrences. Edits pin a new revision for future occurrences;
 accepted tasks retain their original authorization. Revoke blocks fresh claims and
 requests tree cancellation while existing effects remain reconcilable. Current owner

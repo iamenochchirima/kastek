@@ -1,3 +1,4 @@
+import { modelControlsRevision } from "../src/adapters/models/model-controls";
 import { prepareInputCount } from "../src/adapters/models/input-count";
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingHttpHeaders } from "node:http";
@@ -219,6 +220,16 @@ describe("native input counter dispatch", () => {
     const server=await fixture();
     await expect(dispatchBoundModel(state.request,server.factory)).rejects.toMatchObject({code:"MODEL_COST_CAP_UNSUPPORTED",outcome:"rejected"});
     expect(server.calls).toHaveLength(0);expect(state.resolveCredential).not.toHaveBeenCalled();
+  });
+  it("sends the pinned reviewed reasoning choice in the actual provider body", async () => {
+    const route=officialRoute("openai_chat_completions","openrouter","https://openrouter.ai/api/v1");
+    route.model.capabilities.reasoning={value:true,evidence:"discovered",source};
+    route.generation={reasoning:{kind:"effort",value:"high"}};route.generationRevision=modelControlsRevision;
+    route.binding.generationDigest=requestDigest({generation:route.generation,revision:modelControlsRevision});
+    const state=input(route),server=await fixture("openai_chat_completions",undefined,200,undefined,"https://openrouter.ai");
+    await dispatchBoundModel(state.request,server.factory);
+    expect(server.calls).toHaveLength(1);expect(server.calls[0]!.body.reasoning).toEqual({effort:"high"});
+    expect(server.calls[0]!.body.provider).toEqual({allow_fallbacks:false,require_parameters:true});
   });
   it("counts private native input and tools with the correct official protocol, without assuming compatible endpoints support it", () => {
     const payload={model:"fixture-model",messages:[{role:"assistant",content:[{type:"thinking",thinking:"private",signature:"signed"}]}],system:"Instructions",tools:[{name:"lookup",input_schema:{type:"object"}}],thinking:{type:"adaptive"},stream:true,max_tokens:32};

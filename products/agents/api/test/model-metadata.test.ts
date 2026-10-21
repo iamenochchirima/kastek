@@ -27,6 +27,12 @@ describe("sourced model metadata enrichment", () => {
       expect(enrichModelMetadata(discovered, [profile], observedAt)).toEqual(discovered);
     }
   });
+  it("matches reviewed Mistral metadata to its native adapter API without accepting other providers", () => {
+    const mistral = { ...discovered, providerId: "mistral", protocol: "openai_chat_completions" as const };
+    const native = { ...bundled, api: "mistral-conversations" };
+    expect(enrichModelMetadata(mistral, [native], observedAt).contextTokens.value).toBe(128000);
+    expect(enrichModelMetadata({ ...mistral, providerId: "groq" }, [native], observedAt).contextTokens.value).toBeNull();
+  });
   it("does not interpret generated zero prices as a free model", () => {
     expect(enrichModelMetadata(discovered, [{ ...bundled, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }], observedAt).pricing).toBeNull();
   });

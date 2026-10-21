@@ -385,9 +385,13 @@ does not verify inference or tools. Refresh failures retain selections and expos
 backoff. Reconnection requires explicit current-model reauthorization after revoked use.
 Reviewed official routes use native input-count endpoints before generation. Compatible
 routes label byte estimates; finite spending caps fail when no enforceable bound exists.
-OpenRouter, OpenAI, Anthropic and Google have installed adapters. Controlled protocol fixtures
-do not establish live account acceptance. Further profiles and evaluation integration remain
-in progress; see the [implementation status](../source-boundary.md).
+OpenRouter, OpenAI, Anthropic, Google and the eight additional reviewed provider profiles have
+installed adapters. Controlled protocol fixtures do not establish live account acceptance.
+The editor previews effective limits against authorized cached metadata. Reviewed model-specific
+generation controls are optional; accepted tasks pin their settings and controls revision alongside
+the route. Schedules and evaluation trials retain exact accepted routes across default changes.
+The existing observation pipeline records redacted invocation timing, usage and quota signals.
+Remaining acceptance work is listed in the [implementation status](../source-boundary.md).
 
 ### Common platform lifecycle
 
@@ -522,6 +526,15 @@ and recovery. This path requires neither Restate nor Temporal. The platform rema
 for granting bounded workspace and connection access, credential delivery, resource limits, and
 the user-facing lifecycle. Platform-supplied credentials must preserve destination and resource
 scope without appearing in task prompts. Provider and isolation technology remain unselected.
+
+The current implementation exposes only the validated `WorkspaceExecutionRequest`
+contract in `contracts/workspace-execution.ts`: task identity, the execution grant and
+the same accepted model-route/policy snapshots used by business execution. These
+bindings contain opaque authorization references, never provider keys. The contract
+checks organization and policy ceilings. No Lina lifecycle adapter is installed;
+workspace admission still returns `RUNTIME_UNAVAILABLE`, and readiness reports
+`workspace: false`. Adding this contract does not create another model loop or claim
+that workspace execution works today.
 
 ## Adapter boundaries
 

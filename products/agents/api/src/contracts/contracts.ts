@@ -1,3 +1,4 @@
+import { modelGenerationSchema } from "./model-generation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { programReferenceSchema } from "./programs";
@@ -18,6 +19,7 @@ export const initialLimits = Object.freeze({
 });
 
 export const modelSchema = z.strictObject({
+  generation: modelGenerationSchema.optional(),
   selection: modelSelectionSchema.default({ kind: "organization_default" }),
   maxInputBytes: storagePositiveInteger,
   maxOutputTokens: storagePositiveInteger,

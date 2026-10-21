@@ -18,6 +18,7 @@ import { assertEvaluationTrial, trialModelRoutes } from "./trial-authority";
 import { recordEvent } from "../../observability/event-store";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
+import { automationModelRoutes } from "../models/automation-routes";
 import { resolveAcceptedModelRoutes } from "../models/resolution";
 import { executionModelLayers } from "../models/settings";
 import { saveTaskModelRoutes } from "../models/persistence";
@@ -86,8 +87,8 @@ export class AdmissionStore extends AuthorityStore {
     }
     await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
-    const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
-      agentId: version.agent_id, product: input.authority.product, selection: config.model.selection,
+    const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
+      agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
       layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.skillIds.length > 0 });
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];

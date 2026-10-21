@@ -1,3 +1,6 @@
+import { validateGeneration, modelControlsRevision } from "../../adapters/models/model-controls";
+import { ProviderTransportError } from "../../contracts/model-transport";
+import { requestDigest } from "../../contracts/contracts";
 import { z } from "zod";
 import type { AgentConfiguration, ExecutionGrant } from "../../contracts/contracts";
 import { effectiveExecutionPolicySchema } from "../../contracts/model-providers";
@@ -47,8 +50,12 @@ export function delegatedModelRoutes(parent: AcceptedModelRoutes, configuration:
       maxRootTokens: maxTokens, maxDurationMs: maxActiveMs, maxCallDurationMs: Math.min(maxActiveMs, configuration.model.maxDurationSeconds * 1000),
       maxInputBytes: configuration.model.maxInputBytes } },
   ]).policy;
-  const route = (role: "delegated" | "compaction") => ({ ...inherited, policy,
-    binding: { ...inherited.binding, role, policyDigest: policy.digest } });
+  let generation;
+  try { generation = validateGeneration(inherited.model, policy, inherited.binding.endpoint, configuration.model.generation); }
+  catch (error) { if (error instanceof ProviderTransportError) throw new PlatformError(error.code, error.status, "The specialist generation settings do not fit its allocation"); throw error; }
+  const generationDigest = requestDigest({ generation, revision: modelControlsRevision });
+  const route = (role: "delegated" | "compaction") => ({ ...inherited, policy, generation, generationRevision: modelControlsRevision,
+    binding: { ...inherited.binding, generationDigest, role, policyDigest: policy.digest } });
   return acceptedModelRoutesSchema.parse({ primary: route("delegated"), delegated: route("delegated"), compaction: route("compaction") });
 }
 export function executionModelLayers(configuration: AgentConfiguration, grant: Pick<ExecutionGrant, "id" | "maxInputBytes" | "maxOutputTokens" | "maxContextTokens" | "rootTokenLimit">,

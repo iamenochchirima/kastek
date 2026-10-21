@@ -7,6 +7,7 @@ import { ProviderTransportError, type ProviderProtocol, type PrivateNativeState,
   type ProviderTransportOptions, type ProviderTransportResponse } from "../../contracts/model-transport";
 export { ProviderTransportError } from "../../contracts/model-transport";
 export type { ProviderProtocol, PrivateNativeState, ProviderTransportRequest, ProviderTransportOptions, ProviderTransportResponse } from "../../contracts/model-transport";
+import { compatibleProfile, compatibleSdkSettings, prepareCompatiblePayload } from "./compatible-profiles";
 import { callGoogleProviderModel } from "./google-transport";
 
 // Keep native import: TypeScript's CommonJS transform otherwise emits require(),
@@ -16,6 +17,9 @@ const loaders: Record<Exclude<ProviderProtocol, "google_generate_content">, () =
   openai_responses: compileFunction('return import("@earendil-works/pi-ai/api/openai-responses")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
   anthropic_messages: compileFunction('return import("@earendil-works/pi-ai/api/anthropic-messages")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
 };
+const loadMistral = compileFunction('return import("@earendil-works/pi-ai/api/mistral-conversations")', [], {
+  filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
+}) as () => Promise<any>;
 const piApi = { openai_chat_completions: "openai-completions", openai_responses: "openai-responses",
   anthropic_messages: "anthropic-messages", google_generate_content: "google-generative-ai" };
 const protocols = new Set<ProviderProtocol>(["openai_chat_completions", "openai_responses", "anthropic_messages", "google_generate_content"]);
@@ -97,8 +101,12 @@ function history(request: ProviderTransportRequest): any[] {
 
 export async function callProviderModel(request: ProviderTransportRequest, options: ProviderTransportOptions): Promise<ProviderTransportResponse> {
   validate(request, options);
+  compatibleProfile(request);
   if (request.protocol === "google_generate_content") return callGoogleProviderModel(request, options);
   if (options.signal?.aborted) throw new ProviderTransportError("MODEL_CANCELLED_BEFORE_DISPATCH", "rejected", 409);
+  const nativeMistral = request.provider === "mistral";
+  let rawReasoning: unknown;
+  let preparationFailure: ProviderTransportError | undefined;
   let dispatched = false, httpStatus: number | undefined, physicalFailure: ModelNetworkError | undefined,
     observed = false, inputObserved = false, outputObserved = false, refused = false, bytes = 0;
   const raw = new Map<string, string>();
@@ -106,36 +114,55 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
   const cancel = () => control.abort(options.signal?.reason);
   options.signal?.addEventListener("abort", cancel, { once: true });
   try {
-    const adapter = await loaders[request.protocol]();
-    const model = { id: request.model, name: request.model, provider: request.provider, api: piApi[request.protocol],
-      baseUrl: request.protocol === "anthropic_messages" ? request.baseUrl.replace(/\/v1\/?$/, "") : request.baseUrl,
+    const adapter = await (nativeMistral ? loadMistral() : loaders[request.protocol]());
+    const model = { id: request.model, name: request.model, provider: request.provider, api: nativeMistral ? "mistral-conversations" : piApi[request.protocol],
+      baseUrl: request.protocol === "anthropic_messages" || nativeMistral ? request.baseUrl.replace(/\/v1\/?$/, "") : request.baseUrl,
       contextWindow: request.contextWindowTokens, maxTokens: request.maxOutputTokens,
-      reasoning: !!request.reasoning, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      compat: { supportsStore: false, maxTokensField: "max_tokens" } };
+      reasoning: request.reasoningCapable ?? !!request.reasoning, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      compat: { supportsStore: false, maxTokensField: "max_tokens", ...compatibleSdkSettings(request) } };
     const context = { messages: [{ role: "system", timestamp: 0,
       content: request.messages.filter(m => m.role === "system").map(m => m.content ?? "").join("\n\n"),
       toolsAdded: request.tools?.map(t => ({ name: t.function.name,
         description: t.function.description, parameters: t.function.parameters })) ?? [] }, ...history(request)] };
     const stream = adapter.stream(model, context, {
       ...request.reasoning, apiKey: options.apiKey, signal: control.signal, maxRetries: 0, maxTokens: request.maxOutputTokens,
-      transport: "sse", cacheRetention: "none", ...({ fetch: (async (url, init) => {
+      transport: "sse", cacheRetention: "none",
+      // Native Mistral otherwise inserts a 60-second timer. The bounded caller owns the actual deadline.
+      ...(nativeMistral ? { timeoutMs: 2147483647 } : {}), ...({ fetch: (async (url, init) => {
         try {
+          if (nativeMistral) {
+            const payload: unknown = JSON.parse(String(init?.body));
+            if (!object(payload)) throw new ProviderTransportError("MODEL_PAYLOAD_INVALID", "rejected", 400);
+            payload.max_tokens = request.maxOutputTokens;
+            if (Array.isArray(payload.tools)) for (const tool of payload.tools) if (object(tool.function)) delete tool.function.strict;
+            prepareCompatiblePayload(request, payload);
+            options.preparePayload?.(payload);
+            const body = JSON.stringify(payload);
+            if (request.maxRequestBytes !== undefined && Buffer.byteLength(body) > request.maxRequestBytes) throw new ProviderTransportError("MODEL_REQUEST_BYTES_EXCEEDED", "rejected", 400);
+            await options.beforePayloadDispatch?.(structuredClone(payload));
+            control.signal.throwIfAborted(); dispatched = true;
+            init = { ...init, body };
+          }
           const response = await options.fetch!(url, init);
           httpStatus = response.status; return response;
         } catch (error) {
           if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
+          if (error instanceof ProviderTransportError) preparationFailure = error;
           throw error;
         }
       }) as typeof fetch }),
       onResponse: (response: { status: number }) => { httpStatus = response.status; },
       onPayload: async (value: unknown) => {
         if (!object(value)) throw new ProviderTransportError("MODEL_PAYLOAD_INVALID", "rejected", 400);
+        if (nativeMistral) { value.maxTokens = request.maxOutputTokens; return value; }
         // Override SDK minimums/defaults with the exact approved physical-call cap.
         if (request.protocol === "openai_responses") value.max_output_tokens = request.maxOutputTokens;
         else {
           delete value.max_completion_tokens; value.max_tokens = request.maxOutputTokens;
         }
         if (request.provider === "openrouter") value.provider = { allow_fallbacks: false, require_parameters: true };
+        prepareCompatiblePayload(request, value);
+        options.preparePayload?.(value);
         if (request.maxRequestBytes !== undefined && Buffer.byteLength(JSON.stringify(value)) > request.maxRequestBytes) {
           throw new ProviderTransportError("MODEL_REQUEST_BYTES_EXCEEDED", "rejected", 400);
         }
@@ -149,6 +176,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
           control.abort(); throw new ProviderTransportError("MODEL_RESPONSE_BYTES_EXCEEDED", "uncertain");
         }
         if (event.usage && count(event.usage.prompt_tokens) && count(event.usage.completion_tokens)) observed = true;
+        if (event.usage?.completion_tokens_details?.reasoning_tokens !== undefined) rawReasoning = event.usage.completion_tokens_details.reasoning_tokens;
         if (event.type === "message_start" && count(event.message?.usage?.input_tokens)) inputObserved = true;
         if (event.type === "message_delta" && count(event.usage?.output_tokens)) outputObserved = true;
         if (inputObserved && outputObserved) observed = true;
@@ -171,6 +199,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
       }
       if (event.type === "done") result = event.message;
       if (event.type === "error") {
+        if (preparationFailure) throw preparationFailure;
         if (physicalFailure) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
         throw failure(httpStatus, dispatched, control.signal.aborted);
       }
@@ -186,13 +215,14 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
         !count(result.usage.input + result.usage.cacheRead + result.usage.cacheWrite) ||
         !count(result.usage.input + result.usage.cacheRead + result.usage.cacheWrite + result.usage.output) ||
         (result.usage.reasoning !== undefined && (!count(result.usage.reasoning) || result.usage.reasoning > result.usage.output)) ||
+        (rawReasoning !== undefined && (!count(rawReasoning) || Number(rawReasoning) > result.usage.output)) ||
         result.usage.output > request.maxOutputTokens)) throw new ProviderTransportError("MODEL_USAGE_INVALID", "uncertain");
     return { message: { role: "assistant", content: text || null,
       ...(calls.length ? { tool_calls: calls.map((c: any) => ({ id: c.id, type: "function" as const, function: { name: c.name, arguments: JSON.stringify(c.arguments) } })) } : {}) },
       finishReason: refused ? "refusal" : result.stopReason === "toolUse" ? "tool_calls" : result.stopReason === "length" ? "length" : "stop",
       usage: observed ? { observed: true, inputTokens: result.usage.input + result.usage.cacheRead + result.usage.cacheWrite,
         outputTokens: result.usage.output, cachedInputTokens: result.usage.cacheRead, cacheWriteTokens: result.usage.cacheWrite,
-        reasoningTokens: result.usage.reasoning } : { observed: false },
+        reasoningTokens: rawReasoning !== undefined ? Number(rawReasoning) : result.usage.reasoning } : { observed: false },
       providerRequestId: result.responseId,
       nativeState: { provider: request.provider, protocol: request.protocol, model: request.model,
         baseUrl: request.baseUrl, credentialRevision: request.credentialRevision, assistant: structuredClone(result) } };

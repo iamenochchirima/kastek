@@ -1,3 +1,4 @@
+import { createModelInvocationMetrics } from "./model-telemetry";
 import { subscribeConnectionTelemetry } from "./connection-telemetry";
 import type { Pool } from "pg";
 import { metrics } from "@opentelemetry/sdk-node";
@@ -47,6 +48,13 @@ export async function collectNativeMetrics(pool:Pool,role:string):Promise<Metric
       UNION ALL SELECT 'agents.operations.duration_p95_ms',coalesce(percentile_cont(0.95) WITHIN GROUP(ORDER BY extract(epoch FROM completed_at-started_at)*1000),0)::text,jsonb_build_object('kind',kind)
         FROM agents_platform.operations WHERE completed_at>now()-interval '1 hour' GROUP BY kind
       UNION ALL SELECT 'agents.usage.tokens',coalesce(sum(accounted_tokens),0)::text,jsonb_build_object('kind',kind) FROM agents_platform.operations WHERE started_at>now()-interval '24 hours' GROUP BY kind
+      UNION ALL SELECT 'agents.model.budget_roots',count(*)::text,jsonb_build_object('budget','cost','state',CASE WHEN a.max_cost_micros IS NULL THEN 'unlimited' WHEN a.used_micros::numeric+a.reserved_micros>=a.max_cost_micros THEN 'saturated' ELSE 'available' END)
+        FROM agents_platform.root_model_accounts a JOIN agents_platform.execution_roots r USING(root_task_id) WHERE r.settled_at IS NULL
+        GROUP BY CASE WHEN a.max_cost_micros IS NULL THEN 'unlimited' WHEN a.used_micros::numeric+a.reserved_micros>=a.max_cost_micros THEN 'saturated' ELSE 'available' END
+      UNION ALL SELECT 'agents.model.budget_roots',count(*)::text,jsonb_build_object('budget','tokens','state',CASE WHEN r.tokens_used::bigint+r.tokens_reserved+r.child_reserved_tokens>=t.root_token_limit THEN 'saturated' ELSE 'available' END)
+        FROM agents_platform.execution_roots r JOIN agents_platform.tasks t ON t.id=r.root_task_id WHERE r.settled_at IS NULL
+        GROUP BY CASE WHEN r.tokens_used::bigint+r.tokens_reserved+r.child_reserved_tokens>=t.root_token_limit THEN 'saturated' ELSE 'available' END
+      UNION ALL SELECT 'agents.model.unknown_cost_operations',coalesce(sum(unknown_operations),0)::text,'{}'::jsonb FROM agents_platform.root_model_accounts
       UNION ALL SELECT 'agents.inbox.commands',count(*)::text,jsonb_build_object('action',action) FROM agents_platform.customer_commands WHERE created_at>now()-interval '24 hours' GROUP BY action
       UNION ALL SELECT 'agents.inbox.deliveries',count(*)::text,jsonb_build_object('state',state) FROM agents_platform.customer_deliveries WHERE created_at>now()-interval '24 hours' GROUP BY state
       UNION ALL SELECT 'agents.resources',count(*)::text,jsonb_build_object('kind','sandbox','state',state) FROM agents_platform.sandbox_allocations WHERE state<>'destroyed' GROUP BY state
@@ -86,7 +94,7 @@ export function createNativeMetrics(pool:Pool,role:string,environment:NodeJS.Pro
   const reader=new metrics.PeriodicExportingMetricReader({exporter,exportIntervalMillis:15000,exportTimeoutMillis:5000});
   const provider=new metrics.MeterProvider({readers:[reader],resource:resourceFromAttributes({"service.name":`agents-${role}`,"service.instance.id":`${process.pid}`,"service.namespace":"kasitek-agents"})});
   const meter=provider.getMeter("kasitek-agents-native-metrics","1");
-  const names=["agents.connected.provider.attempts","agents.connected.provider.latency_p95_ms","agents.connections","agents.connection.setup","agents.tool_reviews","agents.tool_reviews.oldest_pending_ms","agents.connected.operations","agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
+  const names=["agents.model.budget_roots","agents.model.unknown_cost_operations","agents.connected.provider.attempts","agents.connected.provider.latency_p95_ms","agents.connections","agents.connection.setup","agents.tool_reviews","agents.tool_reviews.oldest_pending_ms","agents.connected.operations","agents.tasks","agents.capacity.requests","agents.capacity.oldest_wait_ms","agents.capacity.wait_p95_ms","agents.dispatch.pending","agents.dispatch.oldest_ms","agents.dispatch.attempts","agents.operations","agents.operations.duration_p95_ms","agents.usage.tokens","agents.inbox.commands","agents.inbox.deliveries","agents.resources","agents.resources.cleanup","agents.observation.pending","agents.database.lock_waiters","agents.database.oldest_lock_wait_ms","agents.pool.connections"];
   const instruments=new Map(names.map(name=>[name,meter.createObservableGauge(name,{description:"Native snapshot; rolling windows documented in Agents observability reference"})]));
   let failures=0;
   const failed=meter.createObservableGauge("agents.metrics.collection_failures");
@@ -94,6 +102,6 @@ export function createNativeMetrics(pool:Pool,role:string,environment:NodeJS.Pro
     try{for(const point of await collectNativeMetrics(pool,role))result.observe(instruments.get(point.name)!,point.value,point.attributes);}catch{failures++;}
     result.observe(failed,failures);
   },[...instruments.values(),failed]);
-  const unsubscribe=createConnectionControlMetrics(meter);
-  return {dispatcherPhase:createDispatcherPhaseMetrics(meter),forceFlush:()=>provider.forceFlush(),shutdown:async()=>{unsubscribe();await provider.shutdown();}};
+  const unsubscribe=createConnectionControlMetrics(meter), unsubscribeModels=createModelInvocationMetrics(meter);
+  return {dispatcherPhase:createDispatcherPhaseMetrics(meter),forceFlush:()=>provider.forceFlush(),shutdown:async()=>{unsubscribe();unsubscribeModels();await provider.shutdown();}};
 }

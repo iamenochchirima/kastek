@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -22,6 +23,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const account = await store.ensureAccount({ issuer: "https://identity.example.test", subject: randomUUID(), email: "test@example.test", displayName: "Test" });
     const org = await store.createOrganization(account.id, "Observation fixture"), config = defaultBusinessConfiguration();
+    await connectFixtureModel(pool, account.id, org.id);
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Fixture", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
@@ -62,7 +64,18 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(points.find(point=>point.name==="agents.usage.tokens")?.value).toBe(7);
     expect(points.find(point=>point.name==="agents.tasks")?.value).toBeGreaterThan(0);
     expect(JSON.stringify(points)).not.toContain("PRIVATE_");
-    for(const point of points)expect(Object.keys(point.attributes).every(key=>["product","program","state","workload","kind","action","role"].includes(key))).toBe(true);
+    expect(points).toEqual(expect.arrayContaining([
+      {name:"agents.model.budget_roots",value:1,attributes:{budget:"cost",state:"unlimited"}},
+      {name:"agents.model.budget_roots",value:1,attributes:{budget:"tokens",state:"available"}},
+      {name:"agents.model.unknown_cost_operations",value:1,attributes:{}},
+    ]));
+    await pool.query("UPDATE agents_platform.root_model_accounts SET max_cost_micros=0,unknown_operations=0 WHERE root_task_id=(SELECT id FROM agents_platform.tasks LIMIT 1)");
+    const saturated=await collectNativeMetrics(pool,"worker");
+    expect(saturated).toEqual(expect.arrayContaining([
+      {name:"agents.model.budget_roots",value:1,attributes:{budget:"cost",state:"saturated"}},
+      {name:"agents.model.unknown_cost_operations",value:0,attributes:{}},
+    ]));
+    for(const point of points)expect(Object.keys(point.attributes).every(key=>["product","program","state","workload","kind","action","role","budget"].includes(key))).toBe(true);
     expect((await collectNativeMetrics(pool,"worker")).filter(point=>point.name==="agents.usage.tokens")).toEqual(points.filter(point=>point.name==="agents.usage.tokens"));
   });
   it.skipIf(!process.env.AGENTS_TEST_OTEL_METRICS_ENDPOINT)("exports real SDK metric points through the local Collector",async()=>{

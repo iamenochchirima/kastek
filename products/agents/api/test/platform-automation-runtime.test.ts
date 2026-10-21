@@ -4,6 +4,12 @@ import {createServer,type ServerHttp2Session} from "node:http2";
 import {createEndpointHandler} from "@restatedev/restate-sdk";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
+import {connectFixtureModel} from "./model-fixture";
+import {transaction} from "../src/infrastructure/database";
+import {executionGrantSchema} from "../src/contracts/contracts";
+import {executionModelLayers} from "../src/execution/models/settings";
+import {resolveAcceptedModelRoutes} from "../src/execution/models/resolution";
+import {saveAutomationModelRoutes} from "../src/execution/models/automation-routes";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {PlatformStore} from "../src/product/agents/store";
 import {defaultBusinessConfiguration} from "../src/contracts/contracts";
@@ -34,6 +40,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
  async function fixture(schedule:AutomationConfig["schedule"],historical=false){
   const account=await store.ensureAccount({issuer:"http://localhost/timers",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await store.createOrganization(account.id,"Timer tests"),scope={accountId:account.id,organizationId:organization.id};
+  await connectFixtureModel(pool,account.id,organization.id);
   const agent=await store.createAgent({...scope,name:"Scheduled FAQ",configuration:defaultBusinessConfiguration()}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const input={name:"Scheduled work",versionId:version.id,input:"Summarize the permitted knowledge",reviewerAccountId:account.id,expiresAt:new Date(Date.now()+3600000).toISOString(),maxOccurrencesPerDay:20,schedule};
   let automation:{id:string;revision:number};
@@ -41,6 +48,13 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    // Seed a valid immutable revision representing an old, still-unacknowledged timer outbox.
    const id=randomUUID();await pool.query("INSERT INTO agents_platform.automations(id,organization_id,owner_account_id,name) VALUES($1,$2,$3,$4)",[id,organization.id,account.id,input.name]);
    await pool.query("INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration,created_at) VALUES($1,1,$2,$3,now()-interval '10 minutes')",[id,version.id,input]);
+   await transaction(pool,async db=>{
+    const cfg=defaultBusinessConfiguration(),grant=executionGrantSchema.parse({id:randomUUID(),product:"agents",organizationId:organization.id,resourceId:id,callerClientId:"agents-automation",
+      principal:{kind:"automation",id,ownerAccountId:account.id},versionId:version.id,operations:["model.reply"],sourceRevisionIds:[],connectedToolBindingIds:[],
+      maxInputBytes:cfg.model.maxInputBytes,maxOutputTokens:cfg.model.maxOutputTokens,maxContextTokens:cfg.context.maxInputTokens,expiresAt:input.expiresAt,revokedAt:null});
+    const routes=await resolveAcceptedModelRoutes(db,{organizationId:organization.id,agentId:agent.id,product:"agents",selection:cfg.model.selection,layers:executionModelLayers(cfg,grant),requiresTools:false});
+    await saveAutomationModelRoutes(db,{automationId:id,revision:1,organizationId:organization.id,versionId:version.id,routes});
+   });
    await pool.query("INSERT INTO agents_platform.automation_timer_outbox(automation_id,revision) VALUES($1,1)",[id]);automation={id,revision:1};
   }else automation=await service.create(scope,randomUUID(),input);
   return{account,organization,scope,automation,input};
@@ -49,10 +63,14 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  async function accepted(id:string){return eventually(async()=>{const rows=await occurrences(id);return rows.find(row=>row.status==="accepted")??false;});}
  async function oneReservation(id:string){const row=(await pool.query("SELECT count(*)::int AS count FROM agents_platform.usage_reservations u JOIN agents_platform.automation_occurrences o ON o.task_id=u.task_id WHERE o.automation_id=$1",[id])).rows[0];expect(row.count).toBe(1);}
  it("keeps a durable due timer across worker loss and admits one original root",async()=>{
-  const due=Date.now()+6000,f=await fixture({kind:"once",at:new Date(due).toISOString()});await dispatchAutomationTimersOnce(pool,ingress);
+  const due=Date.now()+6000,f=await fixture({kind:"once",at:new Date(due).toISOString()});
+  const pinned=(await pool.query("SELECT routes FROM agents_platform.automation_model_routes WHERE automation_id=$1 AND revision=1",[f.automation.id])).rows[0].routes;
+  await connectFixtureModel(pool,f.account.id,f.organization.id,"fixture/new-default");
+  await dispatchAutomationTimersOnce(pool,ingress);
   await eventually(async()=>observed.has(`${f.automation.id}:1`));await delay(75);expect(Date.now()).toBeLessThan(due);await stopWorker();
   try{await delay(Math.max(1,due-Date.now()+150));expect(await occurrences(f.automation.id)).toHaveLength(0);}finally{await listen(port);}
   const occurrence=await accepted(f.automation.id);expect(new Date(occurrence.scheduled_at).getTime()).toBe(due);
+  expect((await pool.query("SELECT routes FROM agents_platform.task_model_routes WHERE task_id=$1",[occurrence.task_id])).rows[0].routes).toEqual(pinned);
   expect(await occurrences(f.automation.id)).toHaveLength(1);await oneReservation(f.automation.id);
  },30000);
  it("reuses the same runtime invocation after the timer outbox acknowledgement is lost",async()=>{

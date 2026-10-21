@@ -8,7 +8,7 @@ import { ModelProviderStore } from "../src/product/model-providers/store";
 import { ModelCredentialVault } from "../src/infrastructure/model-credential-vault";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { registerModelProviderDependencyRoutes } from "../src/product/model-providers/dependencies";
-import { defaultBusinessConfiguration, PlatformError } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, requestDigest, PlatformError } from "../src/contracts/contracts";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("provider dependencies and explicit reuse with PostgreSQL", () => {
@@ -37,6 +37,9 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const automation = randomUUID();
     await pool.query("INSERT INTO agents_platform.automations(id,organization_id,owner_account_id,name) VALUES($1,$2,$3,'Daily support')", [automation, f.scope.organizationId, f.scope.accountId]);
     await pool.query("INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,1,$2,'{}')", [automation, version.id]);
+    const scheduledRoutes = { primary: { binding: { connectionId: f.connection.id } } };
+    await pool.query("INSERT INTO agents_platform.automation_model_routes(automation_id,revision,organization_id,version_id,routes,snapshot_digest) VALUES($1,1,$2,$3,$4,$5)",
+      [automation, f.scope.organizationId, version.id, scheduledRoutes, requestDigest(scheduledRoutes)]);
     const grant = randomUUID(), conversation = randomUUID(), principal = { kind: "human", issuer: "https://identity.example.test", subject: "fixture" };
     await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,expires_at)
       VALUES($1,'agents',$2,$3,'agents-execution',$4,$5,'["model.reply"]',8192,1024,now()+interval '1 hour')`, [grant, f.scope.organizationId, f.agent.id, principal, version.id]);

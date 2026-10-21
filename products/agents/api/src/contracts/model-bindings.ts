@@ -1,3 +1,5 @@
+import { requestDigest } from "./contracts";
+import { modelGenerationSchema } from "./model-generation";
 import { z } from "zod";
 import { effectiveExecutionPolicySchema, modelDescriptorSchema, providerDefinitionSchema,
   providerUseGrantSchema, resolvedModelBindingSchema } from "./model-providers";
@@ -8,7 +10,11 @@ export const acceptedModelRouteSchema = z.strictObject({
   model: modelDescriptorSchema,
   policy: effectiveExecutionPolicySchema,
   consumer: providerUseGrantSchema.shape.consumer,
+  generation: modelGenerationSchema.optional(), generationRevision: z.string().min(1).max(128).optional(),
 }).superRefine((route, context) => {
+  if (route.generation !== undefined && (!route.generationRevision || route.binding.generationDigest !== requestDigest({ generation: route.generation, revision: route.generationRevision }))) {
+    context.addIssue({ code: "custom", message: "Generation settings do not match the accepted binding" });
+  }
   if (route.binding.providerId !== route.definition.id || route.binding.protocol !== route.definition.protocol ||
       route.binding.modelId !== route.model.id || route.binding.modelRevision !== route.model.revision ||
       route.binding.providerId !== route.model.providerId || route.binding.protocol !== route.model.protocol ||

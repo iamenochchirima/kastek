@@ -9,13 +9,14 @@ export interface ProviderTransportRequest {
   provider: string; protocol: ProviderProtocol; model: string; baseUrl: string; credentialRevision: string;
   contextWindowTokens: number; maxOutputTokens: number; messages: HarnessMessage[]; tools?: ToolDefinition[];
   /** Native protocol options, supplied only by the trusted policy resolver. */
-  reasoning?: Record<string, unknown>;
+  reasoning?: Record<string, unknown>; reasoningCapable?: boolean;
   nativeHistory?: Record<number, PrivateNativeState>;
   maxRequestBytes?: number; maxResponseBytes?: number;
 }
 export interface ProviderTransportOptions {
   apiKey: string; signal?: AbortSignal; fetch?: typeof fetch; onText?: (delta: string) => void;
   onProgress?: () => void;
+  preparePayload?: (payload: Record<string, unknown>) => void;
   beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 export interface ProviderTransportResponse {

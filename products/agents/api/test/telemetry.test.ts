@@ -1,3 +1,4 @@
+import { emitModelInvocation } from "../src/observability/model-telemetry";
 import {emitConnectionControlEvent} from "../src/observability/connection-telemetry";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
@@ -46,6 +47,19 @@ it("exports specialist work beneath its own task while preserving root lineage",
       const attrs=Object.fromEntries(controls[0].attributes.map((attribute:any)=>[attribute.key,attribute.value.stringValue??Number(attribute.value.intValue)]));
       expect(attrs).toMatchObject({"agents.authorizationGeneration":4,"agents.durationMs":23,"agents.failureClass":"authorization"});
       expect(controls[0].parentSpanId??"").toBe("");expect(JSON.stringify(controls)).not.toMatch(/taskId|agentId|versionId|authorizationUrl|scope/);
+      emitModelInvocation({event:"model.invocation",traceId:requestDigest(root).slice(0,32),organizationId:identity.organizationId,
+        rootTaskId:root,taskId:child,operationId,connectionId:randomUUID(),providerId:"openai",protocol:"openai_responses",modelId:"fixture-model",
+        role:"delegated",routeDigest:"a".repeat(64),policyDigest:"b".repeat(64),adapterRevision:"fixture-1",runtimeRelease:"fixture-release",
+        outcome:"completed",durationMs:12,firstVisibleTokenStatus:"observed",firstVisibleTokenMs:3,queueStatus:"unavailable",
+        usageStatus:"observed",inputTokens:10,outputTokens:3,costStatus:"unavailable"});
+      for(let n=0;n<100&&received.length<3;n++)await new Promise(resolve=>setTimeout(resolve,10));
+      expect(received).toHaveLength(3);
+      const invocations=received[2].resourceSpans.flatMap((resource:any)=>resource.scopeSpans.flatMap((scope:any)=>scope.spans));
+      expect(invocations).toHaveLength(1);expect(invocations[0].name).toBe("model.invocation");
+      expect(invocations[0].parentSpanId).toBe(childSpan.spanId);expect(invocations[0].traceId).toBe(rootSpan.traceId);
+      expect(JSON.stringify(invocations)).toContain("agents.firstVisibleTokenMs");
+      expect(JSON.stringify(invocations)).not.toMatch(/Bearer|apiKey|privateNative|messages|prompt|endpoint/);
+
     }finally{log.mockRestore();}
 
   } finally {

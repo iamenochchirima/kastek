@@ -123,6 +123,7 @@ export async function callGoogleProviderModel(request: ProviderTransportRequest,
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
       ...(request.tools?.length ? { tools: [{ functionDeclarations: request.tools.map(tool => ({ name: tool.function.name,
         description: tool.function.description, parametersJsonSchema: tool.function.parameters })) }] } : {}) };
+    options.preparePayload?.(payload);
     const body = JSON.stringify(payload);
     if (request.maxRequestBytes !== undefined && Buffer.byteLength(body) > request.maxRequestBytes) throw rejected("MODEL_REQUEST_BYTES_EXCEEDED");
     await options.beforePayloadDispatch?.(structuredClone(payload));

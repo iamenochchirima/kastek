@@ -8,6 +8,9 @@ import { requestTreeCancellation } from '../../execution/lifecycle/execution';
 import { recordEvent } from "../../observability/event-store";
 import { transaction } from '../../infrastructure/database';
 import { PlatformStore } from "../agents/store";
+import { resolveAcceptedModelRoutes } from '../../execution/models/resolution';
+import { executionModelLayers } from '../../execution/models/settings';
+import { loadAutomationModelRoutes,saveAutomationModelRoutes } from '../../execution/models/automation-routes';
 
 export const automationScheduleSchema=z.discriminatedUnion('kind',[
  z.strictObject({kind:z.literal('once'),at:z.iso.datetime({offset:true})}),
@@ -58,6 +61,21 @@ export class AutomationService {
   await this.assertAvailable?.(cfg);
   return {...c,reviewerAccountId};
  }
+ private async pinModels(db:PoolClient,s:AutomationScope,id:string,revision:number,c:AutomationConfig,priorRevision?:number) {
+  let routes;
+  if(priorRevision!==undefined)routes=await loadAutomationModelRoutes(db,s.organizationId,id,priorRevision,c.versionId);
+  else {
+   const version=(await db.query<VersionRecord>('SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2',[s.organizationId,c.versionId])).rows[0]!;
+   const cfg=agentConfigurationSchema.parse(version.configuration);
+   const grant=executionGrantSchema.parse({id:randomUUID(),product:'agents',organizationId:s.organizationId,resourceId:id,callerClientId:'agents-automation',
+    principal:{kind:'automation',id,ownerAccountId:s.accountId},versionId:c.versionId,operations:operationsForConfiguration(cfg),
+    sourceRevisionIds:cfg.sourceRevisionIds,connectedToolBindingIds:connectedToolAuthorityIds(cfg),maxInputBytes:cfg.model.maxInputBytes,
+    maxOutputTokens:cfg.model.maxOutputTokens,maxContextTokens:cfg.context.maxInputTokens,expiresAt:c.expiresAt,revokedAt:null});
+   routes=await resolveAcceptedModelRoutes(db,{organizationId:s.organizationId,agentId:version.agent_id,product:'agents',selection:cfg.model.selection,generation:cfg.model.generation,
+    layers:executionModelLayers(cfg,grant).map(layer=>layer.kind==='product'?{...layer,reference:`automation-revision:${id}/${revision}`}:layer),requiresTools:cfg.tools.length>0||cfg.connectedToolBindingIds.length>0||cfg.skillIds.length>0});
+  }
+  await saveAutomationModelRoutes(db,{automationId:id,revision,organizationId:s.organizationId,versionId:c.versionId,routes});
+ }
  async list(s:AutomationScope) {await this.store.requireMembership(s.accountId,s.organizationId);return (await this.pool.query(`SELECT a.*,r.configuration FROM agents_platform.automations a JOIN agents_platform.automation_revisions r ON r.automation_id=a.id AND r.revision=a.revision WHERE a.organization_id=$1 AND a.owner_account_id=$2 ORDER BY a.created_at,a.id`,[s.organizationId,s.accountId])).rows.map(dto);}
  async create(s:AutomationScope,operationId:string,input:unknown) {
   z.uuid().parse(operationId);
@@ -70,6 +88,7 @@ export class AutomationService {
    const c=await this.validate(db,s,input);
    const row=(await db.query('INSERT INTO agents_platform.automations(id,organization_id,owner_account_id,name) VALUES($1,$2,$3,$4) RETURNING *',[operationId,s.organizationId,s.accountId,c.name])).rows[0];
    await db.query('INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,1,$2,$3)',[operationId,c.versionId,c]);
+   await this.pinModels(db,s,operationId,1,c);
    await db.query('INSERT INTO agents_platform.automation_timer_outbox(automation_id,revision) VALUES($1,1)',[operationId]);
    const result=dto({...row,configuration:c});await db.query('INSERT INTO agents_platform.automation_mutations VALUES($1,$1,$2,$3)',[operationId,digest,result]);return result;
   });
@@ -89,6 +108,7 @@ export class AutomationService {
    const state=kind==='pause'?'paused':kind==='revoke'?'revoked':kind==='resume'?'active':row.state;
    const revision=row.revision+1;
    await db.query('INSERT INTO agents_platform.automation_revisions(automation_id,revision,version_id,configuration) VALUES($1,$2,$3,$4)',[id,revision,c.versionId,c]);
+   await this.pinModels(db,s,id,revision,c,kind==='edit'?undefined:row.revision);
    await db.query('UPDATE agents_platform.automations SET revision=$2,state=$3,name=$4,event_key_hash=CASE WHEN $5 THEN NULL ELSE event_key_hash END,updated_at=now() WHERE id=$1',[id,revision,state,c.name,state==='revoked'||c.schedule.kind!=='event']);
    await db.query('INSERT INTO agents_platform.automation_timer_outbox(automation_id,revision) VALUES($1,$2)',[id,revision]);
    if(kind==='revoke')await db.query(`UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE principal->>'kind'='automation' AND principal->>'id'=$1`,[id]);

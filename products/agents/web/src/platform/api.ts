@@ -4,7 +4,7 @@ export type Configuration = {
   executionKind: "business" | "workspace";
   program?: { id: "grounded-conversation" | "tool-directed"; version: "1" };
   instructions: string;
-  model: { selection: { kind: "organization_default" } | { kind: "connection"; connectionId: string; modelId: string }; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number; maxCostMicros?: number | null };
+  model: { selection: { kind: "organization_default" } | { kind: "connection"; connectionId: string; modelId: string }; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number; maxCostMicros?: number | null; generation?: { temperature?: number; reasoning?: { kind: "effort"; value: string } | { kind: "budget"; tokens: number } | { kind: "level"; value: string } } };
   sourceRevisionIds?: string[];
   connectedToolBindingIds?: string[];
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
@@ -78,9 +78,9 @@ export type Task = { id: string; hasToolReviews?: boolean; hasBookings?: boolean
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
-export async function api<T>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST", token?: string): Promise<T> {
+export async function api<T>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST", token?: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
-    method, credentials: "same-origin",
+    method, credentials: "same-origin", signal,
     headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });

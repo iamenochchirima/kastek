@@ -1,3 +1,6 @@
+import { validateGeneration, modelControlsRevision } from "../../adapters/models/model-controls";
+import type { ModelGenerationSettings } from "../../contracts/model-generation";
+import { ProviderTransportError } from "../../contracts/model-transport";
 import type { PoolClient } from "pg";
 import { PlatformError, canonicalJson, requestDigest } from "../../contracts/contracts";
 import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../../contracts/model-bindings";
@@ -8,7 +11,7 @@ import { compileEffectiveExecutionPolicy, type ExecutionPolicyLayer } from "./po
 /** Admission only. It reads saved metadata and authority without discovery, inference or key access. */
 export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   organizationId: string; agentId: string; product: "agents" | "growth" | "agencies";
-  selection: ModelSelection; layers: readonly ExecutionPolicyLayer[]; requiresTools: boolean;
+  selection: ModelSelection; generation?: ModelGenerationSettings; layers: readonly ExecutionPolicyLayer[]; requiresTools: boolean;
 }): Promise<AcceptedModelRoutes> {
   const selection = modelSelectionSchema.parse(input.selection);
   let connectionId: string, modelId: string, grantId: string | undefined, consumer: ProviderUseGrant["consumer"];
@@ -69,11 +72,15 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   try { compiled = compileEffectiveExecutionPolicy(model, input.layers); }
   catch { throw new PlatformError("MODEL_POLICY_INVALID", 422, "Model limits are unknown or do not fit the execution allowance"); }
   if (compiled.policy.maxCostMicros !== null) throw new PlatformError("MODEL_COST_CAP_UNSUPPORTED", 422, "A strict spending cap requires a qualified token bound and an enforceable price ceiling for this route");
-  const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy,
+  let generation;
+  try { generation = validateGeneration(model, compiled.policy, connection.endpoint, input.generation); }
+  catch (error) { if (error instanceof ProviderTransportError) throw new PlatformError(error.code, error.status, "The generation settings do not fit this model or output allowance"); throw error; }
+  const generationDigest = requestDigest({ generation, revision: modelControlsRevision });
+  const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy, generation, generationRevision: modelControlsRevision,
     binding: { organizationId: input.organizationId, connectionId, connectionRevision: connection.revision,
       credentialRevision: connection.credential_revision, useGrantId: grant.id, useGrantRevision: grant.revision,
       providerId: definition.id, providerDefinitionDigest: requestDigest(definition), endpoint: connection.endpoint,
       protocol: definition.protocol, modelId, modelRevision: model.revision, adapterId: definition.adapter.id,
-      adapterRevision: definition.adapter.revision, role, policyDigest: compiled.policy.digest } });
+      adapterRevision: definition.adapter.revision, generationDigest, role, policyDigest: compiled.policy.digest } });
   return acceptedModelRoutesSchema.parse({ primary: route("primary"), compaction: route("compaction"), delegated: route("delegated") });
 }

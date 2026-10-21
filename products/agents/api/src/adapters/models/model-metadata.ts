@@ -13,7 +13,8 @@ const price = (value: number): number | null => {
 /** Bundled metadata is advisory; it never grants model access or establishes tool conformance. */
 export function enrichModelMetadata(discovered: ModelDescriptor, bundled: readonly BundledProviderModel[], observedAt: string): ModelDescriptor {
   const result = modelDescriptorSchema.parse(discovered);
-  const profile = bundled.find(candidate => candidate.id === result.id && candidate.api === api[result.protocol]);
+  const nativeApi = result.providerId === "mistral" && result.protocol === "openai_chat_completions" ? "mistral-conversations" : api[result.protocol];
+  const profile = bundled.find(candidate => candidate.id === result.id && candidate.api === nativeApi);
   if (!profile) return result;
   const source = { kind: "registry" as const, reference: `@earendil-works/pi-ai@1.1.0:${result.providerId}/${result.id}`, observedAt };
   for (const [field, value] of [["contextTokens", profile.contextWindow], ["maxOutputTokens", profile.maxTokens]] as const) {

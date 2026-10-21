@@ -35,7 +35,7 @@ export class EvaluationTrials {
     const row = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 AND id=$3 FOR SHARE", [organizationId, agentId, versionId])).rows[0];
     if (!row) throw new PlatformError("NOT_FOUND", 404, "Configuration not found");
     const configuration = agentConfigurationSchema.parse(row.configuration);
-    const modelRoutes = await resolveAcceptedModelRoutes(db, { organizationId, agentId, product: "agents", selection: configuration.model.selection,
+    const modelRoutes = await resolveAcceptedModelRoutes(db, { organizationId, agentId, product: "agents", selection: configuration.model.selection, generation: configuration.model.generation,
       layers: executionModelLayers(configuration, { id: `evaluation:${versionId}`, rootTokenLimit, maxInputBytes: configuration.model.maxInputBytes,
         maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens }),
       requiresTools: configuration.tools.length > 0 || configuration.connectedToolBindingIds.length > 0 || configuration.skillIds.length > 0 });

@@ -46,6 +46,7 @@ import { nativeApiAdapterManifest,executeGenericNativeApi,createNativeApiCapabil
 import { registerGoogleCalendarRoutes } from "../product/connections/google-calendar-routes";
 import { registerBookingRoutes } from "../workflows/booking/routes";
 import { registerApiConnectionRoutes } from "../product/connections/api-connection-routes";
+import { registerModelPolicyRoutes } from "../product/model-providers/model-policy";
 import { registerModelProviderDependencyRoutes } from "../product/model-providers/dependencies";
 import { registerModelProviderRoutes } from "../product/model-providers/routes";
 import { ModelProviderStore } from "../product/model-providers/store";
@@ -237,6 +238,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const modelVault = connectionVaultFromEnvironment();
   registerModelProviderRoutes(app, { store: new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined), resolveScope });
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
+  registerModelPolicyRoutes(app, { store: new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined), resolveScope });
   registerGoogleCalendarRoutes(app,{store:googleCalendar,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

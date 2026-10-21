@@ -1,0 +1,10 @@
+[
+  { "providerId": "xai", "streamUsage": true, "toolResultName": false, "contextOverflowError": false, "docs": "https://docs.x.ai/developers/rest-api-reference/inference/chat-completions" },
+  { "providerId": "deepseek", "streamUsage": true, "toolResultName": false, "contextOverflowError": false, "docs": "https://api-docs.deepseek.com/guides/thinking_mode/" },
+  { "providerId": "mistral", "streamUsage": false, "toolResultName": true, "contextOverflowError": false, "docs": "https://docs.mistral.ai/api/endpoint/chat" },
+  { "providerId": "groq", "streamUsage": true, "toolResultName": false, "contextOverflowError": false, "docs": "https://console.groq.com/docs/openai" },
+  { "providerId": "together", "streamUsage": true, "toolResultName": false, "contextOverflowError": false, "docs": "https://docs.together.ai/docs/inference/openai-compatibility" },
+  { "providerId": "fireworks", "streamUsage": false, "toolResultName": false, "contextOverflowError": true, "docs": "https://docs.fireworks.ai/tools-sdks/openai-compatibility" },
+  { "providerId": "moonshot", "streamUsage": true, "toolResultName": false, "contextOverflowError": false, "docs": "https://platform.kimi.ai/docs/guide/use-thinking-models" },
+  { "providerId": "zai", "streamUsage": false, "toolResultName": false, "contextOverflowError": false, "docs": "https://docs.z.ai/guides/capabilities/thinking-mode" }
+]

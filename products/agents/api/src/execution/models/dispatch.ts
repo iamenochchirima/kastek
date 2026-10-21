@@ -1,3 +1,5 @@
+import { modelGenerationSchema, type ModelGenerationSettings } from "../../contracts/model-generation";
+import { applyGeneration, validateGeneration, generationSdkOptions, modelControlsRevision } from "../../adapters/models/model-controls";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
@@ -16,6 +18,7 @@ export interface AcceptedModelDispatch {
   policy: EffectiveExecutionPolicy;
   consumer: ProviderUseGrant["consumer"];
   definition: ProviderDefinition;
+  generation?: ModelGenerationSettings; generationRevision?: string;
 }
 export interface BoundModelDispatchInput {
   pool: Pool;
@@ -44,7 +47,7 @@ function validateAccepted(raw: AcceptedModelDispatch): AcceptedModelDispatch {
   try {
     accepted = { binding: resolvedModelBindingSchema.parse(raw.binding), model: modelDescriptorSchema.parse(raw.model),
       policy: effectiveExecutionPolicySchema.parse(raw.policy), definition: providerDefinitionSchema.parse(raw.definition),
-      consumer: providerUseGrantSchema.shape.consumer.parse(raw.consumer) };
+      consumer: providerUseGrantSchema.shape.consumer.parse(raw.consumer), generation: modelGenerationSchema.parse(raw.generation ?? {}), generationRevision: raw.generationRevision };
   } catch { throw rejected("MODEL_ACCEPTED_BINDING_INVALID"); }
   const { binding, model, policy, definition } = accepted;
   if (definition.id !== binding.providerId || definition.protocol !== binding.protocol ||
@@ -56,6 +59,8 @@ function validateAccepted(raw: AcceptedModelDispatch): AcceptedModelDispatch {
     (model.maxOutputTokens.value !== null && policy.maxOutputTokens > model.maxOutputTokens.value)) {
     throw rejected("MODEL_ACCEPTED_BINDING_MISMATCH", 409);
   }
+  if (raw.generation !== undefined && (raw.generationRevision !== modelControlsRevision || binding.generationDigest !== requestDigest({generation:raw.generation,revision:raw.generationRevision}))) throw rejected("MODEL_GENERATION_CHANGED",409);
+  validateGeneration(model, policy, binding.endpoint, accepted.generation);
   if (definition.adapter.readiness !== "installed") throw rejected("MODEL_ADAPTER_NOT_INSTALLED", 501);
   return accepted;
 }
@@ -105,8 +110,9 @@ export async function dispatchBoundModel(
     return await callProviderModel({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
       maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
+      reasoningCapable: model.capabilities.reasoning.value === true, reasoning: generationSdkOptions(model, binding.endpoint, accepted.generation ?? {}),
       maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch,
-      onText: input.onText, onProgress: fetch.markProgress, beforePayloadDispatch: async payload => {
+      onText: input.onText, onProgress: fetch.markProgress, preparePayload: payload => applyGeneration(model, policy, binding.endpoint, accepted.generation, payload), beforePayloadDispatch: async payload => {
         let count: PreparedInputCount;
         try {
           const counter = prepareInputCount(accepted, payload);

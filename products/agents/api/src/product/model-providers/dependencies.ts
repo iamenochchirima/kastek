@@ -43,9 +43,8 @@ export function registerModelProviderDependencyRoutes(app: FastifyInstance, opti
         UNION ALL
         SELECT 'schedule:'||a.id,'schedule',a.id,a.name,a.revision,false,false FROM agents_platform.automations a
           JOIN agents_platform.automation_revisions r ON r.automation_id=a.id AND r.revision=a.revision
-          JOIN agents_platform.agent_versions v ON v.id=r.version_id AND v.organization_id=a.organization_id
-          CROSS JOIN LATERAL (SELECT v.configuration->'model'->'selection' s) selection
-          WHERE a.organization_id=$1 AND a.state<>'revoked' AND (${depends})
+          JOIN agents_platform.automation_model_routes model_routes ON model_routes.automation_id=a.id AND model_routes.revision=a.revision AND model_routes.organization_id=a.organization_id
+          WHERE a.organization_id=$1 AND a.state<>'revoked' AND model_routes.routes->'primary'->'binding'->>'connectionId'=$2::text
       ) SELECT *, (SELECT count(*)::integer FROM dependencies) AS total FROM dependencies WHERE ($3::text IS NULL OR cursor>$3) ORDER BY cursor LIMIT 51`, [scope.organizationId, connectionId, cursor ?? null]);
       const page = result.rows.slice(0, 50);
       const active = (await db.query(`SELECT (count(DISTINCT t.task_id) FILTER (WHERE task.state<>'uncertain'))::integer AS count, (count(DISTINCT t.task_id) FILTER (WHERE task.state='uncertain'))::integer AS uncertain FROM agents_platform.task_model_routes t

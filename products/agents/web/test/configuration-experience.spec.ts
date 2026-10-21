@@ -5,6 +5,7 @@ const configuration = () => ({ executionKind: "business", instructions: "Answer 
 async function fixture(page: Page, impact = false) {
   let draft = configuration(), revision = 1;
   const snapshots = [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft), createdAt: "2026-10-20T10:00:00Z" }];
+  const policies: Record<string, unknown>[] = [];
   const saves: Record<string, unknown>[] = [], posts: Record<string, unknown>[] = [], deployments: Record<string, unknown>[] = [], tasks: Record<string, unknown>[] = [];
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname, method = route.request().method(), body = route.request().postData() ? route.request().postDataJSON() : {};
@@ -14,6 +15,15 @@ async function fixture(page: Page, impact = false) {
     else if (path.endsWith("/model-providers/default")) data = {selection:{kind:"connection",connectionId:"provider-a",modelId:"model-a"},revision:1};
     else if (path.endsWith("/model-providers")) data = {connections:[{id:"provider-a",providerId:"openai",name:"OpenAI account",state:"active"},{id:"provider-b",providerId:"anthropic",name:"Anthropic account",state:"active"}]};
     else if (/model-providers\/provider-[ab]\/models$/.test(path)) data = {stale:false,result:{kind:"discovered",models:[{id:path.includes("provider-b")?"model-b":"model-a",name:path.includes("provider-b")?"Claude fixture":"GPT fixture",lifecycle:"active",inputModalities:["text"],outputModalities:["text"],contextTokens:{value:128000},maxOutputTokens:{value:32768},capabilities:{tools:{value:true,evidence:"discovered"}}}]}};
+    else if (path.endsWith("/model-policy")) {
+      policies.push(body); const cfg = body.configuration, selected = cfg.model.selection.kind === "connection" ? cfg.model.selection.modelId : "model-a";
+      data = { modelId: selected, modelRevision: "fixture-model-1", limits: { contextTokens: 128000, maxInputTokens: 65536,
+        maxOutputTokens: 16384, maxCallDurationMs: 180000, maxRootTokens: 32000, safetyTokens: 1024 },
+        effectivePolicy: { contextTokens: 128000, maxOutputTokens: cfg.model.maxOutputTokens, maxRootTokens: 32000 }, errors: [],
+        controls: { temperature: selected === "model-a" ? { min: 0, max: 2, source: "fixture" } : null,
+          reasoning: selected === "model-b" ? { kind: "budget", minTokens: 1024, maxTokens: 8192, source: "fixture" }
+            : { kind: "effort", values: ["low", "medium", "high"], source: "fixture" } } };
+    }
     else if (path.endsWith("/agents/summaries")) data = { agents: [{ ...agent(), latestVersion: snapshots[0], hasUnpublishedChanges: false }], nextCursor: null };
     else if (path.endsWith(`/agents/${agentId}`)) data = { agent: agent(), versions: snapshots, deployments };
     else if (path.endsWith("/configuration") && method === "POST") {
@@ -32,7 +42,7 @@ async function fixture(page: Page, impact = false) {
     else { await route.fulfill({ status: 404, json: { error: { message: `Unexpected ${method} ${path}` } } }); return; }
     await route.fulfill({ json: data });
   });
-  return { saves, posts, tasks, snapshots, deployments };
+  return { saves, posts, tasks, snapshots, deployments, policies };
 }
 
 test("configuration applies to the next turn in an existing chat; no ordinary version controls", async ({ page }) => {
@@ -85,12 +95,20 @@ for (const width of [1440,768,390]) test(`model selection saves in the backgroun
   const selection={kind:"connection",connectionId:"provider-b",modelId:"model-b"};
   await picker.selectOption(JSON.stringify(selection));
   await page.getByText("Model limits",{exact:true}).click();
+  await expect(page.getByLabel("Effective model limits",{exact:true})).toContainText("Task 32,000 tokens");
+  await expect(page.getByLabel("Maximum reply tokens",{exact:true})).toHaveAttribute("max", "16384");
+  await expect(page.getByLabel("Input context tokens",{exact:true})).toHaveAttribute("max", "65536");
+  await expect(page.getByLabel("Call timeout in seconds",{exact:true})).toHaveAttribute("max", "180");
   await page.getByLabel("Maximum reply tokens",{exact:true}).fill("8192");
+  await page.getByRole("combobox", { name: "Reasoning", exact: true }).selectOption("budget");
+  await page.getByRole("spinbutton", { name: "Reasoning tokens", exact: true }).fill("2048");
+  await expect(page.getByRole("spinbutton", { name: "Reasoning tokens", exact: true })).toHaveAttribute("max", "8192");
+  await expect(page.getByRole("spinbutton", { name: "Temperature", exact: true })).toHaveCount(0);
   await page.getByRole("button",{name:"Save changes",exact:true}).click();
   await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button",{name:"Apply changes",exact:true}).click();
   await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
   expect(state.snapshots).toHaveLength(2);
-  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).model).toMatchObject({selection,maxOutputTokens:8192});
+  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).model).toMatchObject({selection,maxOutputTokens:8192,generation:{reasoning:{kind:"budget",tokens:2048}}});
   expect(JSON.stringify(state.saves)).not.toMatch(/apiKey|provider.*openrouter|nemotron/);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`model-picker-${width}.png`),fullPage:true});
@@ -98,4 +116,51 @@ for (const width of [1440,768,390]) test(`model selection saves in the backgroun
   await page.reload(); await expect(page.getByRole("combobox",{name:"Agent model",exact:true})).toHaveValue(JSON.stringify(selection));
   await expect(page.getByText("Some model lists are unavailable.")).toBeVisible();
   expect(state.snapshots).toHaveLength(2);
+});
+
+
+test("preserves unsupported saved generation until an explicit reset; preview failures preserve edits", async ({ page }) => {
+  const state = await fixture(page); await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByText("Model limits", { exact: true }).click();
+  await page.getByRole("spinbutton", { name: "Temperature", exact: true }).fill("0.7");
+  await page.getByRole("combobox", { name: "Reasoning", exact: true }).selectOption("high");
+  await page.getByRole("combobox", { name: "Agent model", exact: true }).selectOption(JSON.stringify({ kind: "connection", connectionId: "provider-b", modelId: "model-b" }));
+  await expect(page.getByText("Saved generation settings are unavailable for this model.")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Reasoning", exact: true })).toHaveValue("high");
+  expect((state.policies.at(-1)!.configuration as { model: { generation: unknown } }).model.generation).toEqual({ temperature: 0.7, reasoning: { kind: "effort", value: "high" } });
+  await page.getByRole("button", { name: "Reset provider defaults", exact: true }).click();
+  await expect(page.getByText("Saved generation settings are unavailable for this model.")).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Reasoning", exact: true })).toHaveValue("provider_default");
+  await page.route("**/model-policy", route => route.fulfill({ status: 503, json: { error: { message: "Model policy unavailable" } } }));
+  await page.getByLabel("Maximum reply tokens", { exact: true }).fill("4096");
+  await expect(page.getByText("Model policy unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Maximum reply tokens", { exact: true })).toHaveValue("4096");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+  expect((state.saves.at(-1)!.configuration as { model: { generation?: unknown } }).model).not.toHaveProperty("generation");
+});
+
+test("shows server policy errors and ignores obsolete previews after changing model", async ({ page }) => {
+  await fixture(page); let release: (() => void) | undefined;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let delayed = false;
+  await page.route("**/model-policy", async route => {
+    const cfg = route.request().postDataJSON().configuration;
+    const isOld = cfg.model.maxOutputTokens === 9000 && cfg.model.selection.kind === "organization_default";
+    if (isOld) { delayed = true; await held; }
+    await route.fulfill({ json: { modelId: isOld ? "model-a" : "model-b", modelRevision: "fixture", limits: { contextTokens: 32000,
+      maxInputTokens: 12000, maxOutputTokens: isOld ? 9000 : 6000, maxCallDurationMs: 90000, maxRootTokens: 20000, safetyTokens: 1024 },
+      effectivePolicy: null, errors: isOld ? [{ field: "model.maxOutputTokens", message: "Old reply error" }] : [{ field: "context.maxInputTokens", message: "Input exceeds the effective allowance" }],
+      controls: { temperature: null, reasoning: null } } });
+  });
+  await page.goto(`/app/agents/${agentId}?section=configuration`); await page.getByText("Model limits", { exact: true }).click();
+  await expect(page.getByText("Input exceeds the effective allowance")).toBeVisible();
+  await expect(page.getByLabel("Input context tokens", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await page.getByLabel("Maximum reply tokens", { exact: true }).fill("9000");
+  await expect.poll(() => delayed).toBe(true);
+  await page.getByRole("combobox", { name: "Agent model", exact: true }).selectOption(JSON.stringify({ kind: "connection", connectionId: "provider-b", modelId: "model-b" }));
+  await expect(page.getByLabel("Maximum reply tokens", { exact: true })).toHaveAttribute("max", "6000");
+  release!();
+  await expect(page.getByText("Old reply error", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Maximum reply tokens", { exact: true })).toHaveAttribute("max", "6000");
 });

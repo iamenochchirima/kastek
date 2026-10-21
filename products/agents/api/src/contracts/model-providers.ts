@@ -126,6 +126,9 @@ export const effectiveExecutionPolicySchema = z.strictObject({
   if (BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {
     context.addIssue({ code: "custom", message: "Input, output and safety reserves exceed model context", path: ["maxInputTokens"] });
   }
+  if (policy.maxCallDurationMs > policy.maxDurationMs) {
+    context.addIssue({ code: "custom", message: "A model call must fit the root active-time allowance", path: ["maxCallDurationMs"] });
+  }
   if (policy.compactAtTokens >= policy.maxInputTokens) {
     context.addIssue({ code: "custom", message: "Compaction threshold must be below input allowance", path: ["compactAtTokens"] });
   }
@@ -141,6 +144,6 @@ export const resolvedModelBindingSchema = z.strictObject({
   providerId: identifier, providerDefinitionDigest: z.string().regex(/^[a-f0-9]{64}$/),
   endpoint: modelEndpointSchema, protocol: modelProtocolSchema, modelId: modelIdSchema,
   modelRevision: revision, adapterId: identifier, adapterRevision: revision, role: modelRoleSchema,
-  policyDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  policyDigest: z.string().regex(/^[a-f0-9]{64}$/), generationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export type ResolvedModelBinding = z.infer<typeof resolvedModelBindingSchema>;
