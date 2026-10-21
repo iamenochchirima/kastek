@@ -339,6 +339,44 @@ Lina is a separate execution owner. A business agent using an isolated browser o
 Subagents are configured agents invoked under bounded child-task authority. Websites and messaging
 are channels. Sandboxes are execution resources. None adds a third category.
 
+### Model providers and configuration ownership
+
+Model provider selection is shared platform configuration. A provider, model or API key does
+not select an agent execution category or grant tools, knowledge, delegation or external effects.
+The business worker retains its Restate-coordinated loop. Lina retains workspace execution.
+
+The contracts in `api/src/contracts/model-providers.ts` separate these records:
+
+| Record | Responsibility |
+| --- | --- |
+| `ProviderDefinition` | Operator-reviewed provider identity, endpoint, protocol, authentication placement, discovery strategy and adapter revision. |
+| `ProviderConnection` | Organization-owned labeled account, selected destination, credential generation and public setup state. It contains no secret. |
+| `CredentialRevision` | Private vault reference bound to the tenant, connection, endpoint, protocol and generation. |
+| `ModelDescriptor` | Model capacities, capabilities and prices with field provenance. Missing information remains unknown. |
+| `ProviderUseGrant` | Explicit consumer, model IDs and generation roles allowed to use a connection. Saving a key grants no agent access. |
+| `ModelSelection` | Organization default or explicit connection/model selection saved with agent configuration. |
+| `ResolvedModelBinding` | Accepted invocation identity, route, credential and grant revisions, adapter/model revisions and effective-policy digest. |
+| `EffectiveExecutionPolicy` | Model capacity intersected with platform, product, tenant and agent allowances, including context reserves and root limits. |
+
+Primary, compaction and delegated generation are model roles within the same authorization
+and accounting system. Compaction and children inherit the authorized route unless an explicit
+bounded override exists. Provider selection never silently changes embeddings, retrieval
+indexes, tool connections or billing accounts.
+
+`api/src/adapters/models/provider-profiles.json` supplies the reviewed provider records.
+The server validates and freezes each registry snapshot. A new record can select an installed
+protocol adapter; configuration cannot install executable hooks or prove model compatibility.
+Adapter readiness, account discovery and live inference verification are separate facts.
+
+Provider settings and workers consume these shared contracts. Protocol adapters depend on
+contracts and infrastructure, never product settings or the business loop. Shared message types
+live in `contracts/model-messages.ts`. Secret resolution belongs at physical dispatch; browser
+DTOs, configuration snapshots, Restate journals and evaluation exports retain references only.
+Native provider continuation stays private and scoped to its compatible route and generation.
+
+These contracts and the registry are implemented. Replacing the current single-provider
+runtime and exposing provider settings require the implementation tracked in Linear.
+
 ### Common platform lifecycle
 
 Both categories implement the same platform operations while keeping their native runtime state

@@ -1,15 +1,6 @@
 import { createHash } from "node:crypto";
-
-export interface HarnessToolCall { id: string; type: "function"; function: { name: string; arguments: string } }
-export interface HarnessMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
-  tool_calls?: HarnessToolCall[];
-  tool_call_id?: string;
-}
-export interface ToolDefinition { type: "function"; function: {
-  name: string; description: string; parameters: Record<string, unknown>; strict?: boolean;
-} }
+import type { HarnessToolCall, HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
+export type { HarnessToolCall, HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
 export const APPROVED_MODEL_PROFILE = Object.freeze({
   id: "nemotron-v2", model: "nvidia/nemotron-3-super-120b-a12b",
   contextWindow: 262_144, maxInputTokens: 8192, maxOutputTokens: 1024,

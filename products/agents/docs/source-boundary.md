@@ -9,6 +9,12 @@ startup. It does not migrate an older database or import Growth state.
 
 ## Product scope and implementation gaps
 
+Model-provider contracts and a reviewed JSON registry now exist under `api/src/contracts/`
+and `api/src/adapters/models/`. Registry records cover twelve providers and remain marked
+`planned` until adapter conformance establishes support. Shared messages no longer depend on
+the business adapter's file. The running agent configuration and model loop still use their
+existing OpenRouter/Nemotron route; the new registry alone does not enable another provider.
+
 The [target product](architecture/agent-platform-architecture.md#standalone-agents-product)
 offers mostly plug-and-play customer-service, FAQ, booking, and intake agents, with connected
 customer channels and a shared staff inbox. Growth and Agencies own research, campaign, content,
