@@ -99,15 +99,35 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   it("keeps native reasoning/signatures in private storage and excludes them from returned journal data", async () => {
     const f = await fixture(), id = await operation(f), dependencies = controlledDispatch();
+    const modelIdentity = {requestedModelId:"fixture-model",returnedModelId:"fixture-model-version-a",relation:"different" as const};
+    dependencies.dispatch.mockImplementationOnce(async request => {
+      const payload={messages:request.messages};
+      await request.beforePayloadDispatch?.(payload,{tokens:Buffer.byteLength(JSON.stringify(payload)),precision:"serialized_bytes_estimate",revision:"fixture-v1",payloadDigest:requestDigest(payload)});
+      await request.beforeDispatch?.(); return {...response(request),modelIdentity};
+    });
     const result = await invokeTaskModel(invocation(f, id), dependencies);
+    expect(result.modelIdentity).toEqual(modelIdentity);
     expect(result.message.content).toBe("Visible answer"); expect(result.usage.observed).toBe(true);
     expect(dependencies.assertAuthority).toHaveBeenCalledOnce();
     expect(JSON.stringify(result)).not.toMatch(/private-reasoning|private-signature|nativeState|private-fixture-key/);
     const row = (await pool.query("SELECT * FROM agents_platform.private_model_continuations WHERE operation_id=$1", [id])).rows[0];
     expect(row.state).toBe("completed"); expect(JSON.stringify(row.native_state)).toContain("private-signature");
+    expect(row.model_identity).toEqual(modelIdentity); expect(row.model_identity_digest).toBe(requestDigest(modelIdentity));
+    expect(row.native_state.model).toBe("fixture-model");
+    await expect(pool.query("UPDATE agents_platform.private_model_continuations SET model_identity='{}' WHERE operation_id=$1",[id])).rejects.toMatchObject({code:"23514"});
     expect(JSON.stringify(row)).not.toContain("private-fixture-key"); expect(row.route_binding_digest).toBe(requestDigest(f.pinned.primary.binding));
     await expect(invokeTaskModel(invocation(f, id), dependencies)).rejects.toMatchObject({ code: "MODEL_NATIVE_OPERATION_ALREADY_RECORDED", outcome: "uncertain" });
     expect(dependencies.dispatch).toHaveBeenCalledOnce();
+  });
+  it("records absent identity explicitly and rejects a forged requested route identity before continuation completion", async () => {
+    const f=await fixture(), dependencies=controlledDispatch(), id=await operation(f);
+    const result=await invokeTaskModel(invocation(f,id),dependencies);
+    expect(result.modelIdentity).toEqual({requestedModelId:"fixture-model",returnedModelId:null,relation:"unreported"});
+    const next=await operation(f);
+    dependencies.dispatch.mockImplementationOnce(async request=>({...response(request),modelIdentity:{requestedModelId:"unauthorized-model",returnedModelId:null,relation:"unreported"}}));
+    await expect(invokeTaskModel(invocation(f,next),dependencies)).rejects.toMatchObject({code:"MODEL_RESPONSE_IDENTITY_INVALID",outcome:"uncertain"});
+    const row=(await pool.query("SELECT state,native_state,model_identity FROM agents_platform.private_model_continuations WHERE operation_id=$1",[next])).rows[0];
+    expect(row).toMatchObject({state:"uncertain",native_state:null,model_identity:null});
   });
   it("restores exact matching assistant/tool groups only for the same task and route role", async () => {
     const f = await fixture(), first = await operation(f), dependencies = controlledDispatch();
@@ -125,16 +145,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await invokeTaskModel({ ...invocation(other, await operation(other)), messages: continuation }, otherDependencies);
     expect(otherDependencies.dispatch.mock.calls[0]![0].nativeHistory).toEqual({});
   });
-  it("rejects corrupt matching native continuation before dispatch", async () => {
+  it.each(["native", "identity"] as const)("rejects corrupt matching %s continuation metadata before dispatch", async corrupt => {
     const f = await fixture(), priorId = await operation(f), state = controlledDispatch();
     const original = response({ accepted: f.pinned.primary } as BoundModelDispatchInput);
     await pool.query(`INSERT INTO agents_platform.private_model_continuations(operation_id,organization_id,task_id,role,route_binding_digest,request_digest,state,
-      assistant_digest,tool_call_ids,native_state,native_state_digest,completed_at)
-      VALUES($1,$2,$3,'primary',$4,repeat('a',64),'completed',$5,$6,$7,repeat('c',64),now())`,
-      [priorId, f.organizationId, f.taskId, requestDigest(f.pinned.primary.binding), requestDigest(original.message), ['call-fixture'], original.nativeState]);
+      assistant_digest,tool_call_ids,native_state,native_state_digest,model_identity,model_identity_digest,completed_at)
+      VALUES($1,$2,$3,'primary',$4,repeat('a',64),'completed',$5,$6,$7,$8,$9,$10,now())`,
+      [priorId, f.organizationId, f.taskId, requestDigest(f.pinned.primary.binding), requestDigest(original.message), ['call-fixture'], original.nativeState,
+        corrupt==="native"?"c".repeat(64):requestDigest(original.nativeState),
+        corrupt==="identity"?{requestedModelId:"fixture-model",returnedModelId:null,relation:"unreported"}:null,
+        corrupt==="identity"?"c".repeat(64):null]);
     const nextId = await operation(f);
     await expect(invokeTaskModel({ ...invocation(f, nextId), messages: [...invocation(f, nextId).messages, original.message,
-      { role: "tool", content: "Found", tool_call_id: "call-fixture" }] }, state)).rejects.toMatchObject({ code: "MODEL_NATIVE_HISTORY_INTEGRITY", outcome: "rejected" });
+      { role: "tool", content: "Found", tool_call_id: "call-fixture" }] }, state)).rejects.toMatchObject({ code: corrupt==="native"?"MODEL_NATIVE_HISTORY_INTEGRITY":"MODEL_RESPONSE_IDENTITY_INTEGRITY", outcome: "rejected" });
     expect(state.dispatch).not.toHaveBeenCalled();
   });
   it("marks persistence failure uncertain and blocks physical replay", async () => {

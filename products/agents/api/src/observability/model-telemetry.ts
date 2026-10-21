@@ -9,7 +9,8 @@ export const modelInvocationEventSchema = z.strictObject({
   event: z.literal("model.invocation"), traceId: z.string().regex(/^[a-f0-9]{32}$/),
   organizationId: z.uuid(), rootTaskId: z.uuid(), taskId: z.uuid(), operationId: z.string().min(1).max(256),
   connectionId: z.uuid(), providerId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
-  protocol: modelProtocolSchema, modelId: modelIdSchema, role: modelRoleSchema,
+  protocol: modelProtocolSchema, modelId: modelIdSchema, returnedModelId: modelIdSchema.optional(),
+  modelIdentityRelation: z.enum(["same", "different", "unreported"]).optional(), role: modelRoleSchema,
   routeDigest: z.string().regex(/^[a-f0-9]{64}$/), policyDigest: z.string().regex(/^[a-f0-9]{64}$/),
   adapterRevision: z.string().min(1).max(128), runtimeRelease: z.string().min(1).max(128),
   outcome: z.enum(["completed", "tool_calls", "refused", "truncated", "rejected", "uncertain", "cancelled"]),
@@ -22,6 +23,10 @@ export const modelInvocationEventSchema = z.strictObject({
   cacheWriteTokens: count.optional(), reasoningTokens: count.optional(),
   costStatus: z.enum(["estimate", "unavailable"]), costEstimateMicros: z.string().regex(/^(0|[1-9][0-9]{0,18})$/).optional(),
 }).superRefine((event, context) => {
+  if (event.modelIdentityRelation !== undefined) {
+    const relation=event.returnedModelId===undefined?"unreported":event.returnedModelId===event.modelId?"same":"different";
+    if (event.modelIdentityRelation!==relation) context.addIssue({code:"custom",path:["modelIdentityRelation"],message:"Reported model relation disagrees with identity"});
+  }
   for (const [status, field, observed] of [[event.firstVisibleTokenStatus, "firstVisibleTokenMs", "observed"],
     [event.queueStatus, "queueMs", "observed"], [event.costStatus, "costEstimateMicros", "estimate"]] as const) {
     if ((status === observed) !== (event[field] !== undefined)) context.addIssue({ code: "custom", path: [field], message: "Measurement must agree with its availability" });

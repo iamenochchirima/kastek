@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { observeModelIdentity } from "./model-identity";
 import { ProviderTransportError, type ProviderTransportOptions, type ProviderTransportRequest, type ProviderTransportResponse } from "../../contracts/model-transport";
 import { ModelNetworkError } from "../../infrastructure/model-network";
 import type { HarnessToolCall } from "../../contracts/model-messages";
@@ -143,12 +144,14 @@ export async function callGoogleProviderModel(request: ProviderTransportRequest,
     let buffer = "", data: string[] = [], bytes = 0, finish: string | undefined, text = "", metadata: unknown, requestId: string | undefined;
     const parts: JsonObject[] = [], calls: HarnessToolCall[] = [], ids = new Set<string>();
     const refusedReasons = new Set(["SAFETY", "RECITATION", "LANGUAGE", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION"]);
+    const identity = observeModelIdentity(request.model);
     function event() {
       if (!data.length) return;
       let value: unknown;
       try { value = JSON.parse(data.join("\n")); } catch { throw invalid("MODEL_STREAM_INVALID"); }
       data = [];
       if (!object(value) || value.error !== undefined) throw invalid("MODEL_STREAM_INVALID");
+      identity.observe(value.modelVersion);
       if (value.usageMetadata !== undefined) {
         googleUsage(value.usageMetadata, request.maxOutputTokens); metadata = value.usageMetadata;
       }
@@ -220,7 +223,7 @@ export async function callGoogleProviderModel(request: ProviderTransportRequest,
     if (!refusal && !calls.length && !text.trim()) throw invalid("MODEL_EMPTY_RESPONSE");
     return { message: { role: "assistant", content: refusal ? null : text || null, ...(!refusal && calls.length ? { tool_calls: calls } : {}) },
       finishReason: refusal ? "refusal" : finish === "MAX_TOKENS" ? "length" : calls.length ? "tool_calls" : "stop",
-      usage: googleUsage(metadata, request.maxOutputTokens), ...(requestId ? { providerRequestId: requestId } : {}),
+      modelIdentity: identity.receipt(), usage: googleUsage(metadata, request.maxOutputTokens), ...(requestId ? { providerRequestId: requestId } : {}),
       nativeState: { provider: request.provider, protocol: request.protocol, model: request.model, baseUrl: request.baseUrl,
         credentialRevision: request.credentialRevision, assistant: { role: "model", parts } } };
   } catch (error) {

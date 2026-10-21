@@ -27,12 +27,12 @@ it("projects route, first visible token and observed usage without payloads or c
   const input = invocation(), onText = vi.fn(); input.onText = onText;
   vi.mocked(invokeTaskModel).mockImplementationOnce(async options => {
     options.onText?.(""); options.onText?.("private streamed text"); options.onText?.("more text");
-    return { ...response(), privateNativeState: { reasoning: "private signature" }, providerRequestId: "private request" } as TaskModelResponse;
+    return { ...response(), modelIdentity:{requestedModelId:"fixture-model",returnedModelId:"fixture-model-snapshot",relation:"different"}, privateNativeState: { reasoning: "private signature" }, providerRequestId: "private request" } as TaskModelResponse;
   });
   expect((await invokeObservedTaskModel(input)).message.content).toBe("private response");
   expect(onText).toHaveBeenCalledTimes(3);
   const event = modelInvocationEventSchema.parse(JSON.parse(output.mock.calls[0]![0] as string));
-  expect(event).toMatchObject({ outcome: "completed", providerId: "openai", modelId: "fixture-model", role: "delegated", usageStatus: "observed",
+  expect(event).toMatchObject({ outcome: "completed", providerId: "openai", modelId: "fixture-model", returnedModelId:"fixture-model-snapshot", modelIdentityRelation:"different", role: "delegated", usageStatus: "observed",
     inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, reasoningTokens: 3, costStatus: "estimate", costEstimateMicros: "19", firstVisibleTokenStatus: "observed", queueStatus: "unavailable" });
   expect(event.firstVisibleTokenMs).toBeGreaterThanOrEqual(0); expect(event.durationMs).toBeGreaterThanOrEqual(event.firstVisibleTokenMs!);
   expect(JSON.stringify(event)).not.toMatch(/private|secret-key|apiKey|messages|assistant|endpoint|providerRequestId/);

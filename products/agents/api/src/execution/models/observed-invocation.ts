@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { modelIdentitySchema } from "../../contracts/model-transport";
 import { requestDigest } from "../../contracts/contracts";
 import { emitModelInvocation, modelTraceId, type ModelInvocationEvent } from "../../observability/model-telemetry";
 import { quoteNormalizedUsage } from "./accounting";
@@ -37,6 +38,7 @@ export async function invokeObservedTaskModel(input: TaskModelInvocation, depend
     try {
       const route = input.execution.models[input.role], binding = route.binding, task = input.execution.task;
       const usage = response?.usage.observed === true ? response.usage : undefined;
+      const identity = modelIdentitySchema.safeParse(response?.modelIdentity ?? {requestedModelId:binding.modelId,returnedModelId:null,relation:"unreported"});
       const valid = (value: number | undefined) => value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
       const quote = quoteNormalizedUsage(usage ? { inputTokens: usage.inputTokens ?? null, outputTokens: usage.outputTokens ?? null,
         cacheReadTokens: usage.cachedInputTokens ?? null, cacheWriteTokens: usage.cacheWriteTokens ?? null,
@@ -44,6 +46,7 @@ export async function invokeObservedTaskModel(input: TaskModelInvocation, depend
       emitModelInvocation({ event: "model.invocation", traceId: modelTraceId(task.root_task_id),
         organizationId: task.organization_id, rootTaskId: task.root_task_id, taskId: task.id, operationId: input.operationId,
         connectionId: binding.connectionId, providerId: binding.providerId, protocol: binding.protocol, modelId: binding.modelId,
+        ...(identity.success ? {modelIdentityRelation:identity.data.relation,...(identity.data.returnedModelId===null?{}:{returnedModelId:identity.data.returnedModelId})}:{}),
         role: binding.role, routeDigest: requestDigest(binding), policyDigest: route.policy.digest,
         adapterRevision: binding.adapterRevision, runtimeRelease: task.harness_release,
         ...(response ? { outcome: response.finishReason === "stop" ? "completed" : response.finishReason === "length" ? "truncated" : response.finishReason === "refusal" ? "refused" : "tool_calls" } as const : failure(error)),

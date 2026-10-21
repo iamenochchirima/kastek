@@ -1,3 +1,4 @@
+import { observeModelIdentity } from "./model-identity";
 import { compileFunction, constants } from "node:vm";
 import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
 
@@ -106,7 +107,8 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
   if (options.signal?.aborted) throw new ProviderTransportError("MODEL_CANCELLED_BEFORE_DISPATCH", "rejected", 409);
   const nativeMistral = request.provider === "mistral";
   let rawReasoning: unknown;
-  let preparationFailure: ProviderTransportError | undefined;
+  let preparationFailure: ProviderTransportError | undefined, identityFailure: ProviderTransportError | undefined;
+  const identity = observeModelIdentity(request.model);
   let dispatched = false, httpStatus: number | undefined, physicalFailure: ModelNetworkError | undefined,
     observed = false, inputObserved = false, outputObserved = false, refused = false, bytes = 0;
   const raw = new Map<string, string>();
@@ -171,6 +173,14 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
         return value;
       },
       onProviderStreamEvent: (event: any) => {
+        try {
+          if (request.protocol === "openai_chat_completions") identity.observe(event.model);
+          else if (request.protocol === "openai_responses" && event.response) identity.observe(event.response.model);
+          else if (request.protocol === "anthropic_messages" && event.type === "message_start") identity.observe(event.message?.model);
+        } catch (error) {
+          if (error instanceof ProviderTransportError) identityFailure = error;
+          throw error;
+        }
         bytes += Buffer.byteLength(JSON.stringify(event));
         if (request.maxResponseBytes !== undefined && bytes > request.maxResponseBytes) {
           control.abort(); throw new ProviderTransportError("MODEL_RESPONSE_BYTES_EXCEEDED", "uncertain");
@@ -199,11 +209,13 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
       }
       if (event.type === "done") result = event.message;
       if (event.type === "error") {
+        if (identityFailure) throw identityFailure;
         if (preparationFailure) throw preparationFailure;
         if (physicalFailure) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
         throw failure(httpStatus, dispatched, control.signal.aborted);
       }
     }
+    if (identityFailure) throw identityFailure;
     if (!result || !["stop", "toolUse", "length"].includes(result.stopReason)) throw new ProviderTransportError("MODEL_INCOMPLETE_RESPONSE", "uncertain");
     for (const value of raw.values()) if (!object(JSON.parse(value))) throw new ProviderTransportError("MODEL_TOOL_ARGUMENTS_INVALID", "uncertain");
     const calls = result.content.filter((part: any) => part.type === "toolCall");
@@ -223,7 +235,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
       usage: observed ? { observed: true, inputTokens: result.usage.input + result.usage.cacheRead + result.usage.cacheWrite,
         outputTokens: result.usage.output, cachedInputTokens: result.usage.cacheRead, cacheWriteTokens: result.usage.cacheWrite,
         reasoningTokens: rawReasoning !== undefined ? Number(rawReasoning) : result.usage.reasoning } : { observed: false },
-      providerRequestId: result.responseId,
+      modelIdentity: identity.receipt(), providerRequestId: result.responseId,
       nativeState: { provider: request.provider, protocol: request.protocol, model: request.model,
         baseUrl: request.baseUrl, credentialRevision: request.credentialRevision, assistant: structuredClone(result) } };
   } catch (error) {

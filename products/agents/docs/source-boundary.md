@@ -498,6 +498,27 @@ physical receipts over one hour, with bounded provider, phase and response/failu
 profiles coalesce into one `other` provider. The [integration reference](mcp-integration.md#connection-observability)
 links focused helper, actual OTLP receiver and PostgreSQL producer checks.
 
+### Requested and reported model identities
+
+Native adapters emit a safe `modelIdentity` receipt with the exact requested model, a reported model
+or `null`, and `same`, `different` or `unreported`. Chat Completions and native Mistral read the chunk
+`model`; Responses reads `response.model`; Anthropic reads the starting message's `model`; Google
+reads `modelVersion`. Reported names must be nonempty strings of at most 512 characters without
+control characters or surrounding whitespace. Repeated reports must agree. Malformed or conflicting
+reports make the physical outcome uncertain, with no hidden retry or execution of returned tools.
+
+`different` records a provider's reported name. It does not establish equivalent capabilities,
+pricing or permission to change the accepted route. The binding and private continuation's `model`
+remain the requested ID. Omitted identities remain explicitly `unreported`. Native adapters always
+produce a receipt; trusted test dispatch fixtures may omit it and receive an unreported receipt.
+
+Schema050 adds the safe receipt and its digest to private model continuation records. The worker
+validates it against the accepted requested model, persists it before returning completion, and
+verifies its digest when restoring continuation. Safe operation results carry the same receipt;
+private thoughts and signatures remain excluded. Existing immutable route snapshots retain endpoint,
+connection/use-grant/credential revisions, adapter and policy identity for the physical operation.
+The receipt is observational metadata, not a replacement model selection or a proof of exact billing.
+
 ### Model invocation observations
 
 `observability/model-telemetry.ts` defines the strict `model.invocation` operational event schema.
@@ -507,7 +528,8 @@ operation does not invoke that wrapper again. This event is an attempt observati
 a durable usage receipt or a replacement for the task observation outbox. Abrupt process loss can
 lose an event. The operations, cost reservations and private continuation tables remain authoritative.
 
-The record contains accepted provider/protocol/model, connection, route and policy digests, adapter
+The record contains accepted provider/protocol/model, any reported model and its explicit relation,
+connection, route and policy digests, adapter
 revision, runtime release, root/task/operation identities, bounded outcome/failure class and elapsed
 time. It excludes URLs, keys, headers, prompt and response text, tool arguments, provider request IDs,
 raw errors and private reasoning/continuation. Model and connection identities appear only in logs

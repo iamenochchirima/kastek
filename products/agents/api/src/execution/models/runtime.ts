@@ -1,3 +1,4 @@
+import { modelIdentitySchema } from "../../contracts/model-transport";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
@@ -47,7 +48,7 @@ export interface TaskModelInvocation {
   estimateRequestTokens?: (payload: Readonly<Record<string, unknown>>) => number | Promise<number>;
   onText?: (delta: string) => void;
 }
-export type TaskModelResponse = Pick<ProviderTransportResponse, "message" | "finishReason" | "usage" | "providerRequestId">;
+export type TaskModelResponse = Pick<ProviderTransportResponse, "message" | "finishReason" | "usage" | "providerRequestId" | "modelIdentity">;
 export interface ModelRuntimeDependencies {
   dispatch?: typeof dispatchBoundModel;
   assertAuthority?: (db: PoolClient, execution: Execution) => Promise<void>;
@@ -62,7 +63,7 @@ async function nativeHistory(db: Db, taskId: string, organizationId: string, rou
   const candidates = messages.flatMap((message, index) => message.role === "assistant" ? [{ message, index, digest: requestDigest(message) }] : []);
   const history: Record<number, PrivateNativeState> = {};
   if (!candidates.length || route.binding.role === "compaction") return history;
-  const rows = (await db.query(`SELECT assistant_digest,tool_call_ids,native_state,native_state_digest FROM agents_platform.private_model_continuations
+  const rows = (await db.query(`SELECT assistant_digest,tool_call_ids,native_state,native_state_digest,model_identity,model_identity_digest FROM agents_platform.private_model_continuations
     WHERE task_id=$1 AND organization_id=$2 AND route_binding_digest=$3 AND assistant_digest=ANY($4::text[])
       AND state='completed' AND role<>'compaction' ORDER BY created_at,operation_id`,
     [taskId, organizationId, requestDigest(route.binding), candidates.map(candidate => candidate.digest)])).rows;
@@ -74,6 +75,12 @@ async function nativeHistory(db: Db, taskId: string, organizationId: string, rou
       throw new ModelOperationError("MODEL_NATIVE_HISTORY_AMBIGUOUS", "rejected", 409);
     }
     const row = matching[0]; if (!row) continue;
+    if (row.model_identity !== null) {
+      const identity = modelIdentitySchema.safeParse(row.model_identity);
+      if (!identity.success || identity.data.requestedModelId !== route.binding.modelId || requestDigest(identity.data) !== row.model_identity_digest) {
+        throw new ModelOperationError("MODEL_RESPONSE_IDENTITY_INTEGRITY", "rejected", 409);
+      }
+    }
     const parsed = nativeSchema.safeParse(row.native_state);
     if (!parsed.success || requestDigest(row.native_state) !== row.native_state_digest || !compatible(parsed.data, route)) {
       throw new ModelOperationError("MODEL_NATIVE_HISTORY_INTEGRITY", "rejected", 409);
@@ -141,18 +148,21 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       },
     });
     dispatched = true;
+    const identity = modelIdentitySchema.safeParse(response.modelIdentity ?? { requestedModelId: prepared.route.binding.modelId, returnedModelId: null, relation: "unreported" });
+    if (!identity.success || identity.data.requestedModelId !== prepared.route.binding.modelId) throw new ModelOperationError("MODEL_RESPONSE_IDENTITY_INVALID", "uncertain");
+    const modelIdentity = identity.data;
     try {
       // Persist only JSON values. The provider SDK can include undefined fields that PostgreSQL drops.
       const state: unknown = JSON.parse(JSON.stringify(response.nativeState));
       const parsed = nativeSchema.safeParse(state);
       if (!parsed.success || !compatible(parsed.data, prepared.route)) throw new Error("Native continuation route changed");
       const stored = await transaction(input.pool, db => db.query(`UPDATE agents_platform.private_model_continuations
-        SET state='completed',assistant_digest=$3,tool_call_ids=$4,native_state=$5,native_state_digest=$6,input_count=$8,completed_at=now()
+        SET state='completed',assistant_digest=$3,tool_call_ids=$4,native_state=$5,native_state_digest=$6,input_count=$8,model_identity=$9,model_identity_digest=$10,completed_at=now()
         WHERE operation_id=$1 AND task_id=$2 AND organization_id=$7 AND state='started' RETURNING operation_id`,
-        [input.operationId, taskId, requestDigest(response.message), (response.message.tool_calls ?? []).map(call => call.id), state, requestDigest(state), organizationId, inputCount ?? null]));
+        [input.operationId, taskId, requestDigest(response.message), (response.message.tool_calls ?? []).map(call => call.id), state, requestDigest(state), organizationId, inputCount ?? null, modelIdentity, requestDigest(modelIdentity)]));
       if (!stored.rowCount) throw new Error("Native continuation was not persisted");
     } catch { throw new ModelOperationError("MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN", "uncertain"); }
-    return { message: response.message, finishReason: response.finishReason, usage: response.usage,
+    return { message: response.message, finishReason: response.finishReason, usage: response.usage, modelIdentity,
       ...(response.providerRequestId ? { providerRequestId: response.providerRequestId } : {}) };
   } catch (caught) {
     // SDKs can wrap callback failures; preserve a known pre-dispatch denial without masking uncertain physical outcomes.
