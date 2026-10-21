@@ -1,3 +1,4 @@
+import { channelKindSchema } from "../../contracts/channel-adapters";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { BookingService } from "../../workflows/booking/bookings";
@@ -7,7 +8,8 @@ import { InboxStore, type CustomerConversation, type CustomerMessage, type Inbox
 const uuid = z.uuid(), sequence = z.string().regex(/^(0|[1-9][0-9]{0,17})$/), revision = z.string().regex(/^[1-9][0-9]{0,17}$/);
 const page = z.object({ after: sequence.default("0"), before: revision.optional(), limit: z.coerce.number().int().min(1).max(100).default(100) });
 export function inboxConversation(row: CustomerConversation) {
-  return { id: row.id, agentId: row.agent_id, deploymentId: row.deployment_id, versionId: row.version_id, channel: "website" as const,
+  return { id: row.id, agentId: row.agent_id, deploymentId: row.deployment_id, versionId: row.version_id, channel: row.channel_kind ?? "website",
+    channelDeploymentId: row.channel_deployment_id, externalConversationId: row.external_conversation_id,
     state: row.state, assigneeAccountId: row.assignee_account_id, revision: row.revision, ownershipGeneration: row.ownership_generation,
     createdAt: row.created_at, updatedAt: row.updated_at, agentName: (row as CustomerConversation & { agent_name?: string }).agent_name };
 }
@@ -29,7 +31,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   const base = "/api/organizations/:organizationId/inbox";
   app.get(base, async request => {
     const scope = await options.resolveScope(request), filters = z.object({ state: z.enum(["automation_active", "handoff_pending", "human_owned", "resolved"]).optional(),
-      agentId: uuid.optional(), channel: z.literal("website").optional(), assigned: z.enum(["mine", "unassigned"]).optional(), cursor: z.string().min(1).max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
+      agentId: uuid.optional(), channel: channelKindSchema.optional(), assigned: z.enum(["mine", "unassigned"]).optional(), cursor: z.string().min(1).max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
     const result = await options.inbox.list(scope, filters);
     return { conversations: result.items.map(inboxConversation), nextCursor: result.nextCursor };
   });

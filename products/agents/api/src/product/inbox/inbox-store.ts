@@ -5,13 +5,15 @@ import { recordEvent } from "../../observability/event-store";
 import { createCursorCodec, cursorKeysFromEnvironment } from "../../infrastructure/read-pages";
 import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
+import type { ChannelKind } from "../../contracts/channel-adapters";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
 export interface InboxScope { organizationId: string; accountId: string }
 export interface VisitorScope { deploymentId: string; sessionId: string }
 export interface CustomerConversation {
-  id: string; organization_id: string; deployment_id: string; agent_id: string; version_id: string; session_id: string;
+  id: string; organization_id: string; deployment_id: string | null; agent_id: string; version_id: string; session_id: string | null;
+  channel_kind: ChannelKind; channel_deployment_id: string | null; external_conversation_id: string | null; external_sender_id: string | null;
   execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
   assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
   return_watermark: string; created_at: Date; updated_at: Date;
@@ -20,6 +22,8 @@ export interface CustomerMessage { id: string; conversation_id: string; sequence
   author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date }
 export interface InboxPorts {
   admit(db: PoolClient, input: { deploymentId: string; sessionId: string; versionId: string; executionConversationId: string | null;
+    input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
+  admitChannel?(db: PoolClient, input: { deploymentId: string; participantId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
   readableOutput(db: Db, taskId: string, body: string): Promise<string | null>;
   cancelRoot(taskId: string): Promise<unknown>;
@@ -73,13 +77,43 @@ export class InboxStore {
       const message = await this.append(db, row, { key: `visitor:${input.requestKey}`, digest, kind: "visitor", body: input.body });
       if (row.state === "automation_active") {
         const binding = { customerConversationId: row.id, ownershipGeneration: row.ownership_generation, inputMessageId: message.id };
-        const task = await this.ports.admit(db, { deploymentId: row.deployment_id, sessionId: row.session_id, versionId: deployment.version_id,
+        const task = await this.ports.admit(db, { deploymentId: scope.deploymentId, sessionId: scope.sessionId, versionId: deployment.version_id,
           executionConversationId: row.execution_conversation_id, input: input.body, requestKey: `channel:${message.id}`, channelBinding: binding });
         await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [message.id, task.id]); message.task_id = task.id;
         await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1", [id, task.conversation_id]); row.execution_conversation_id = task.conversation_id;
         await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)", [task.id, id, message.id, row.ownership_generation]);
       }
       return { conversation: row, message, replayed: false };
+    });
+  }
+  async ingressChannel(input: { deploymentId: string; externalConversationId: string; senderId: string; requestKey: string; body: string }) {
+    if (![input.externalConversationId, input.senderId].every(value => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value)) ||
+      !input.requestKey || input.requestKey.length > 100 || !input.body.trim() || Buffer.byteLength(input.body) > 32768) throw new PlatformError("CHANNEL_INPUT_INVALID", 400, "Invalid channel message");
+    return transaction(this.pool, async db => {
+      const location = (await db.query("SELECT organization_id FROM agents_platform.channel_deployments WHERE id=$1", [input.deploymentId])).rows[0] ?? denied();
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [location.organization_id]);
+      const deployment = (await db.query(`SELECT d.*,c.kind FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections c
+        ON c.id=d.connection_id AND c.organization_id=d.organization_id WHERE d.id=$1 AND d.state='active' AND c.state='active' AND c.kind<>'website' FOR SHARE OF d,c`, [input.deploymentId])).rows[0] ?? denied();
+      const row = (await db.query<CustomerConversation>(`INSERT INTO agents_platform.customer_conversations
+        (id,organization_id,agent_id,version_id,channel_kind,channel_deployment_id,external_conversation_id,external_sender_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(channel_deployment_id,external_conversation_id) WHERE channel_deployment_id IS NOT NULL
+        DO UPDATE SET updated_at=agents_platform.customer_conversations.updated_at RETURNING *`,
+      [randomUUID(), deployment.organization_id, deployment.agent_id, deployment.version_id, deployment.kind, deployment.id, input.externalConversationId, input.senderId])).rows[0]!;
+      const digest = requestDigest(input), key = `channel:${input.requestKey}`;
+      const existing = (await db.query<CustomerMessage & { request_digest: string }>("SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2", [row.id,key])).rows[0];
+      if (existing) { if (existing.request_digest !== digest) conflict(); return { conversation: row, message: existing, replayed: true }; }
+      if (row.state === "resolved") throw new PlatformError("CONVERSATION_RESOLVED",409,"Conversation is resolved");
+      const message = await this.append(db,row,{key,digest,kind:"visitor",body:input.body});
+      if (row.state === "automation_active") {
+        if (!this.ports.admitChannel) throw new PlatformError("CHANNEL_RUNTIME_UNAVAILABLE",503,"Channel execution is unavailable");
+        const binding = {customerConversationId:row.id,ownershipGeneration:row.ownership_generation,inputMessageId:message.id};
+        const task = await this.ports.admitChannel(db,{deploymentId:deployment.id,participantId:row.id,versionId:deployment.version_id,
+          executionConversationId:row.execution_conversation_id,input:input.body,requestKey:`channel:${message.id}`,channelBinding:binding});
+        await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1",[message.id,task.id]); message.task_id=task.id;
+        await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1",[row.id,task.conversation_id]); row.execution_conversation_id=task.conversation_id;
+        await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)",[task.id,row.id,message.id,row.ownership_generation]);
+      }
+      return {conversation:row,message,replayed:false};
     });
   }
   private async messages(db: Db, id: string, after: string, limit: number, before?: string): Promise<CustomerMessage[]> {
@@ -95,16 +129,17 @@ export class InboxStore {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
       return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
   }
-  async list(scope: InboxScope, filters: { state?: string; agentId?: string; assigned?: string; cursor?: string; limit: number }) {
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; assigned?: string; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
-      const scopeKey = { kind: "customer-inbox-v1", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: "website" };
+      const scopeKey = { kind: "customer-inbox-v2", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
       const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
+        AND ($10::text IS NULL OR c.channel_kind=$10)
         AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
         ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
-        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1])).rows;
+        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null])).rows;
       const items = rows.slice(0, filters.limit), last = items.at(-1);
       return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
@@ -157,7 +192,9 @@ export class InboxStore {
     if (!row || row.organization_id !== task.organization_id || row.state !== "automation_active" || row.ownership_generation !== binding.ownershipGeneration) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation is under human control");
     if (row.version_id !== task.version_id) {
       const authorized = task.root_task_id === "admitting"
-        ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL FOR SHARE", [row.deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
+        ? row.channel_kind === "website"
+          ? (await db.query("SELECT 1 FROM agents_platform.website_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND revoked_at IS NULL FOR SHARE", [row.deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
+          : (await db.query("SELECT 1 FROM agents_platform.channel_deployments WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND version_id=$4 AND state='active' FOR SHARE", [row.channel_deployment_id,row.organization_id,row.agent_id,task.version_id])).rowCount
         : (await db.query(`SELECT 1 FROM agents_platform.customer_task_links l JOIN agents_platform.tasks t ON t.id=l.task_id
           WHERE l.conversation_id=$1 AND l.task_id=$2 AND t.version_id=$3 AND l.input_message_id=$4 AND l.ownership_generation=$5`,
           [row.id,task.root_task_id ?? null,task.version_id,binding.inputMessageId,binding.ownershipGeneration])).rowCount;

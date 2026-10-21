@@ -329,7 +329,13 @@ changes withhold the prior deployment's view while the new session initializes. 
 acknowledgement from an unmounted session cannot clear another session's pending input.
 
 Website publication and widget conversations exist. WhatsApp, Facebook, and Instagram remain
-unavailable. Google Calendar appointments use their own reviewed service policy rather than a
+unavailable. The shared channel foundation now defines validated catalogue records,
+tenant-owned encrypted connection credentials, paginated provider assets and explicit agent
+deployments. Schemas052–053 allow non-website canonical Inbox conversations with channel-scoped
+identity and the existing human-ownership commands. Messaging ingress uses a separate verified
+channel admission port, not a manufactured website session. These records do not establish
+complete provider setup, verified webhook processing, execution admission or external delivery.
+External messaging channels remain unavailable until those ports are composed and enabled. Google Calendar appointments use their own reviewed service policy rather than a
 personal generic binding. The Tools catalogue exposes built-ins, native API and MCP integrations,
 agent-specific recommendations, and current connection readiness. Custom MCP setup supports encrypted
 keys, resumable OAuth, discovery, compatible tool selection, credential rotation, and disconnect.
