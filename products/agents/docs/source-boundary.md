@@ -37,8 +37,11 @@ pins primary, compaction, and delegated role routes from saved metadata without 
 secret access. Admission stores those routes and their integrity digest atomically with the
 root reservation and outbox command. An idempotent replay returns the original accepted task.
 Changing the organization default affects new admissions; it does not redirect accepted work.
-The agent editor also supports an explicit account/model selection and saves through the
-existing background configuration-snapshot flow. Owner dependency views list affected agents,
+The chat model picker and Configure support an explicit account/model selection through the
+existing background configuration-snapshot flow. Chat selection saves after any required impact
+confirmation; it preserves conversation history and drafts. Unsaved Configure edits block chat
+switching until saved or discarded. An environment key alone does not create a workspace
+connection. Owner dependency views list affected agents,
 schedules, defaults and active tasks before removal or revocation. Reconnection does not restore
 old use grants. An explicit revision-checked Restore access action authorizes only the agent's
 currently configured model IDs. Cached model reads for ordinary members are filtered to the

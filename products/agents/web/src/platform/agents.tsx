@@ -16,7 +16,7 @@ import { SourceConfiguration } from "./source-configuration";
 import { AgentCatalogue } from "./catalogue";
 import { AnalysisConfiguration } from "./analysis-configuration";
 import { BookingPolicies } from "./booking-policies";
-import { AgentModel } from "./agent-model";
+import { AgentModel, ChatModelPicker } from "./agent-model";
 
 export function AgentEditor() {
   const { organizationId, session } = useWorkspace();
@@ -46,8 +46,8 @@ export function AgentEditor() {
   const needsApply = dirty || pendingSetup;
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
-  async function applyConfiguration(configuration: Configuration, name: string) {
-    if (!agent) return;
+  async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }): Promise<boolean> {
+    if (!agent) return false;
     const payload = { name, configuration, expectedRevision: agent.draftRevision };
     type Saved = { agent: Agent; snapshot: Version; deployments: Deployment[] };
     let result: Saved;
@@ -55,16 +55,25 @@ export function AgentEditor() {
     catch (error) {
       if (!(error instanceof ApiError) || error.code !== "CONFIGURATION_CONFIRMATION_REQUIRED") throw error;
       const approved = await confirm({ title: "Apply changes?", description: "These changes expand agent permissions or update connected customer channels. New messages will use the saved configuration. In-progress work keeps its original settings.", confirmLabel: "Apply changes" });
-      if (!approved) return;
+      if (!approved) return false;
       result = await api<Saved>(`${path}/configuration`, { ...payload, confirmImpact: true });
     }
     setAgent(result.agent);
-    const unchanged = JSON.stringify(latestDraft.current) === JSON.stringify({ name, configuration });
+    const unchanged = JSON.stringify(latestDraft.current) === JSON.stringify(draftBefore);
     if (unchanged) { setName(result.agent.name); setConfiguration(result.agent.draft); }
     setVersions(current => [result.snapshot, ...current.filter(item => item.id !== result.snapshot.id)]);
     setDeployments(result.deployments); refresh(); toast.success(unchanged ? "Changes saved" : "Changes saved. Newer edits remain unsaved.");
+    return true;
   }
   async function save(event: FormEvent) { event.preventDefault(); if (event.target !== event.currentTarget) return; if (!agent || !configuration) return; setBusy(true); setError(""); try { await applyConfiguration(configuration, name); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
+  async function changeChatModel(selection: NonNullable<Configuration["model"]["selection"]>) {
+    if (!agent || busy || dirty) return false;
+    const previous = { name: agent.name, configuration: agent.draft };
+    const next = { ...agent.draft, model: { ...agent.draft.model, selection } };
+    setBusy(true);
+    try { return await applyConfiguration(next, agent.name, previous); }
+    finally { setBusy(false); }
+  }
   async function beforeConnect() {
     if (!agent || !configuration || busy) return false;
     if (!dirty) return true;
@@ -84,6 +93,7 @@ export function AgentEditor() {
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
   return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><span className="agent-avatar"><Bot size={20} /></span><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button></div></header>
     <nav className="agent-tabs" aria-label="Agent sections">{[["chat", "Chat"], ["activity", "Activity"], ["configuration", "Configure"]].map(([id, label]) => <button type="button" key={id} onClick={() => setSection(id)} aria-current={(id === "configuration" ? view === "configure" : view === id) ? "page" : undefined} className={(id === "configuration" ? view === "configure" : view === id) ? "is-active" : ""}>{label}</button>)}</nav>
+    {view === "chat" && <div className="flex min-w-0 items-center border-b border-border px-4 py-1 sm:px-6"><ChatModelPicker organizationId={organizationId} agentId={agent.id} configuration={agent.draft} dirty={dirty} saving={busy} onSelect={changeChatModel} /></div>}
     <div className="agent-editor-body"><ErrorMessage value={error} />{view === "configure" && pendingSetup ? <p role="status" className="mb-4 text-sm text-muted-foreground">Save changes to apply the updated setup.</p> : null}
     {view !== "configure" ? <Chat endpoint={`${organizationPath(organizationId)}/tasks`} key={`${agent.id}.${conversationId ?? "new"}.${chatGeneration}`} storageKey={`agents.chat.${session.account.id}.${organizationId}.${agent.id}.${conversationId ?? "new"}`} agentId={agent.id} initialConversationId={conversationId} expectedAgentId={agent.id} onConversationReady={id => { refresh(); if (!conversationId) navigate(`/app/agents/${agent.id}/conversations/${id}`, { replace: true }); }} view={view} cancellable /> : <>
     <nav className="configuration-tabs" aria-label="Configuration sections">{[["configuration", "General"], ["tools", "Tools"], ["skills", "Skills"], ["publish", "Website"]].map(([id, label]) => <button key={id} onClick={() => setSection(id)} aria-current={section === id ? "page" : undefined}>{label}</button>)}</nav>

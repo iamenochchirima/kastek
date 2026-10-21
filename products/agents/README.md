@@ -31,17 +31,21 @@ access, publish a version and test it. Controlled acceptance results do not cert
 
 ## Model selection
 
-New drafts use `nvidia/nemotron-3-super-120b-a12b` through OpenRouter (paid).
-Configure > Model and limits also offers the explicit `:free` route. Save changes
-validates and activates a configuration snapshot in the background. Existing
-conversations use saved settings on their next turn. A free-to-paid change requires
-confirmation; an accepted turn never silently switches routes.
-Free endpoint availability is provider-dependent.
+Connect a provider account in **Settings > Model providers**, refresh its models,
+and choose an organization default. New agents use that default. A key in the
+server environment does not create a workspace connection or authorize agent use.
 
-The displayed input budget is a conservative serialized-byte accounting envelope,
-not the model's full context window. Output and timeout values are development
-policies. Their enforcement also exists in grants and runtime validation; changing
-only the form does not increase supported execution budgets.
+Use the model picker in chat to select a connected account and model. The selection
+saves the agent configuration in the background and applies to new messages,
+including connected customer channels. Changes affecting those channels or model
+access require confirmation. In-progress work keeps its accepted route. Unsaved
+Configure edits must be saved or discarded before switching from chat.
+
+**Configure > Model** exposes the same selection and advanced limits. The displayed
+input budget is separate from the model's advertised context window. Admission
+checks model capacity, saved limits, grants and shared execution policy; changing
+only the form does not grant additional authority. There is no silent model or
+account fallback.
 
 ## Start locally
 
@@ -129,8 +133,8 @@ pnpm dev:agents
 
 Open `http://localhost:3100`. The web server proxies `/api` to port 4100.
 API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
-The worker needs `OPENROUTER_API_KEY`. Development permits only
-`nvidia/nemotron-3-super-120b-a12b:free`, with reasoning disabled and no paid fallback.
+Connect a provider in **Settings > Model providers** before using agent chat.
+The API and worker use encrypted workspace credentials, not an environment-key fallback.
 
 Private storage is required for knowledge, connected evidence and isolated analysis. Conversations without those capabilities can run without it. Configure all five `AGENTS_S3_*` settings
 from the environment example and provision a private S3-compatible bucket.

@@ -1,5 +1,8 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronDown, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Configuration } from "./api";
 import { providerApi, providerError, type CachedProviderModels, type DefaultModel, type ModelProviderConnection, type ProviderModel } from "./model-provider-api";
@@ -13,10 +16,82 @@ type ModelPolicyPreview = {
     reasoning: { kind: "effort" | "budget" | "level"; values?: string[]; minTokens?: number; maxTokens?: number; source: string } | null };
 };
 type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean; toolSupport: "supported" | "needs_verification" | "unsupported" };
+function useAgentModels(organizationId: string, agentId: string) {
+  const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
+  const [loading, setLoading] = useState(true), [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError("");
+    void Promise.all([providerApi<{ connections: ModelProviderConnection[] }>(organizationId), providerApi<DefaultModel>(organizationId, "/default")])
+      .then(async ([list, selection]) => {
+        const models = await Promise.allSettled(list.connections.filter(connection => connection.state === "active").map(async connection => {
+          const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models?agentId=${encodeURIComponent(agentId)}`);
+          return (cache.result?.models ?? []).map(model => ({ connection, model, toolSupport: cache.toolSupport?.[model.id] ?? (model.capabilities.tools.value === false ? "unsupported" : cache.modelVerifications?.[model.id] === "tools_verified" || model.capabilities.tools.value === true && (model.capabilities.tools.source?.kind !== "operator" || model.capabilities.tools.evidence === "verified") ? "supported" : "needs_verification" as const), available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
+        }));
+        if (!active) return;
+        setDefaultModel(selection); setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value : []));
+        if (models.some(result => result.status === "rejected")) setError("Some model lists are unavailable.");
+      }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [organizationId, agentId]);
+  return { choices, defaultModel, loading, error };
+}
+function modelIncompatibility(choice: Choice, requiresTools: boolean): string | null {
+  if (!choice.available || choice.model.lifecycle === "retired") return "Unavailable";
+  if (!choice.model.inputModalities?.includes("text") || !choice.model.outputModalities?.includes("text")) return "Text support unconfirmed";
+  if (requiresTools && choice.toolSupport === "unsupported") return "Tools unsupported";
+  if (requiresTools && choice.toolSupport === "needs_verification") return "Tool test required";
+  return null;
+}
+type Selection = NonNullable<Configuration["model"]["selection"]>;
+export function ChatModelPicker({ organizationId, agentId, configuration, dirty, saving, onSelect }: {
+  organizationId: string; agentId: string; configuration: Configuration; dirty: boolean; saving: boolean;
+  onSelect(selection: Selection): Promise<boolean>;
+}) {
+  const { choices, defaultModel, loading, error } = useAgentModels(organizationId, agentId);
+  const active = configuration.model.selection ?? { kind: "organization_default" as const };
+  const activeKey = JSON.stringify(active);
+  const [open, setOpen] = useState(false), [search, setSearch] = useState(""), [pending, setPending] = useState(activeKey), [saveError, setSaveError] = useState("");
+  const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
+  const resolved = active.kind === "organization_default" ? defaultModel?.selection : active;
+  const selected = choices.find(choice => choice.connection.id === resolved?.connectionId && choice.model.id === resolved.modelId);
+  const label = selected ? `${selected.connection.name} · ${selected.model.name}` : resolved ? resolved.modelId : loading ? "Loading model…" : "Choose model";
+  const matching = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
+  const defaultChoice = choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId);
+  const defaultReason = defaultChoice ? modelIncompatibility(defaultChoice, requiresTools) : "No available default model";
+  async function apply() {
+    if (saving || dirty) return;
+    setSaveError("");
+    try { if (await onSelect(JSON.parse(pending) as Selection)) setOpen(false); }
+    catch (cause) { setSaveError(message(cause)); }
+  }
+  return <>
+    <Button size="sm" variant="ghost" className="max-w-full min-w-0" aria-label={`Chat model: ${label}`} disabled={saving} onClick={() => { setPending(activeKey); setSearch(""); setSaveError(""); setOpen(true); }}><span className="truncate">{label}</span><ChevronDown className="size-3 shrink-0" /></Button>
+    <Dialog open={open} onOpenChange={value => { if (!saving) setOpen(value); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Choose model</DialogTitle><DialogDescription>New messages use the saved model.</DialogDescription></DialogHeader>
+      {dirty && <p role="status" className="text-sm text-muted-foreground">Save configuration changes in Configure before switching models.</p>}
+      {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
+      {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+      <Input aria-label="Search chat models" placeholder="Search models" value={search} disabled={saving} onChange={event => setSearch(event.target.value)} />
+      <div className="max-h-[50vh] space-y-1 overflow-auto" aria-label="Chat models" aria-busy={loading}>
+        <button type="button" disabled={saving || Boolean(defaultReason)} aria-pressed={pending === JSON.stringify({ kind: "organization_default" })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(JSON.stringify({ kind: "organization_default" }))}>
+          <span className="min-w-0"><span className="block text-sm font-medium">Organization default</span><span className="block break-words text-xs text-muted-foreground">{defaultReason ?? `${defaultChoice?.connection.name} · ${defaultChoice?.model.name}`}</span></span>{pending === JSON.stringify({ kind: "organization_default" }) && <Check className="size-4 shrink-0" />}
+        </button>
+        {matching.map(choice => {
+          const key = JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id });
+          const reason = modelIncompatibility(choice, requiresTools);
+          return <button type="button" key={key} disabled={saving || Boolean(reason)} aria-pressed={pending === key} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(key)}><span className="min-w-0"><span className="block break-words text-sm font-medium">{choice.model.name}</span><span className="block break-all text-xs text-muted-foreground">{choice.connection.name} · {choice.model.id}{reason ? ` · ${reason}` : ""}</span></span>{pending === key && <Check className="size-4 shrink-0" />}</button>;
+        })}
+        {!loading && !matching.length && <p className="px-3 py-2 text-sm text-muted-foreground">{choices.length ? "No matching models" : "No available models"}</p>}
+      </div>
+      <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
+      <DialogFooter><Button variant="outline" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={saving || dirty || pending === activeKey || loading} onClick={() => void apply()}>{saving ? "Saving…" : "Use model"}</Button></DialogFooter>
+    </DialogContent></Dialog>
+  </>;
+}
 export function AgentModel({ organizationId, agentId, configuration, onChange }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
 }) {
-  const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
+  const { choices, defaultModel, loading, error } = useAgentModels(organizationId, agentId);
   const [policy, setPolicy] = useState<{ routeKey: string; value: ModelPolicyPreview } | null>(null), [previewError, setPreviewError] = useState("");
   const selection = configuration.model.selection ?? { kind: "organization_default" as const };
   const routeKey = JSON.stringify(selection), preview = policy && policy.routeKey === routeKey ? policy.value : null;
@@ -34,31 +109,10 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
     }, 250);
     return () => { active = false; clearTimeout(timer); cancel.abort(); };
   }, [organizationId, agentId, configurationKey, routeKey]);
-  const [search, setSearch] = useState(""), [loading, setLoading] = useState(true), [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setLoading(true); setError("");
-    void Promise.all([providerApi<{ connections: ModelProviderConnection[] }>(organizationId), providerApi<DefaultModel>(organizationId, "/default")])
-      .then(async ([list, selection]) => {
-        const models = await Promise.allSettled(list.connections.filter(connection => connection.state === "active").map(async connection => {
-          const cache = await providerApi<CachedProviderModels>(organizationId, `/${connection.id}/models?agentId=${encodeURIComponent(agentId)}`);
-          return (cache.result?.models ?? []).map(model => ({ connection, model, toolSupport: cache.toolSupport?.[model.id] ?? (model.capabilities.tools.value === false ? "unsupported" : cache.modelVerifications?.[model.id] === "tools_verified" || model.capabilities.tools.value === true && (model.capabilities.tools.source?.kind !== "operator" || model.capabilities.tools.evidence === "verified") ? "supported" : "needs_verification" as const), available: cache.result?.kind !== "discovered" || !cache.result.unavailableModelIds?.includes(model.id) }));
-        }));
-        if (!active) return;
-        setDefaultModel(selection); setChoices(models.flatMap(result => result.status === "fulfilled" ? result.value : []));
-        if (models.some(result => result.status === "rejected")) setError("Some model lists are unavailable.");
-      }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [organizationId, agentId]);
+  const [search, setSearch] = useState("");
   const current = JSON.stringify(selection);
   const requiresTools = Boolean(configuration.tools?.length || configuration.connectedToolBindingIds?.length || configuration.skillIds?.length);
-  function incompatibility(choice: Choice): string | null {
-    if (!choice.available || choice.model.lifecycle === "retired") return "Unavailable";
-    if (!choice.model.inputModalities?.includes("text") || !choice.model.outputModalities?.includes("text")) return "Text support unconfirmed";
-    if (requiresTools && choice.toolSupport === "unsupported") return "Tools unsupported";
-    if (requiresTools && choice.toolSupport === "needs_verification") return "Tool test required";
-    return null;
-  }
+  const incompatibility = (choice: Choice) => modelIncompatibility(choice, requiresTools);
   const filtered = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);
   const available = selection.kind === "organization_default" ? choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId) : selected;

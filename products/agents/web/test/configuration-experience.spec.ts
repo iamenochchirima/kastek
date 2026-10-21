@@ -201,3 +201,44 @@ for (const width of [1440, 768, 390]) test(`tool model compatibility preserves t
   expect(state.saves).toHaveLength(1); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath(`tool-model-${width}.png`), fullPage: true });
 });
+
+for (const width of [1440, 390]) test(`chat model picker saves only the selected model at ${width}px`, async ({ page }) => {
+  const state = await fixture(page, true); await page.setViewportSize({ width, height: 1000 });
+  await page.goto(`/app/agents/${agentId}`);
+  const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await expect(current).toBeVisible();
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this draft while changing models");
+  await current.click(); const picker = page.getByRole("dialog", { name: "Choose model", exact: true });
+  await picker.getByRole("textbox", { name: "Search chat models", exact: true }).fill("Anthropic");
+  await picker.getByRole("button", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog"); await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click(); await expect(picker).toBeVisible(); await expect(current).toBeAttached();
+  expect(state.snapshots).toHaveLength(1);
+  await picker.getByRole("button", { name: "Use model", exact: true }).click(); await confirmation.getByRole("button", { name: "Apply changes", exact: true }).click();
+  await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("Keep this draft while changing models");
+  expect(state.snapshots).toHaveLength(2);
+  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>)).toMatchObject({ instructions: "Answer customer questions.", model: { selection: { kind: "connection", connectionId: "provider-b", modelId: "model-b" } } });
+  await page.getByRole("button", { name: "Send message", exact: true }).click(); await expect(page.getByText("Answer customer questions.", { exact: true })).toBeVisible();
+  expect(state.tasks.at(-1)?.versionId).toBe("snapshot-2"); expect(state.posts.at(-1)).not.toHaveProperty("model");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`chat-model-${width}.png`), fullPage: true });
+});
+
+test("chat model picker preserves unsaved configuration and recovers after save failure", async ({ page }) => {
+  const state = await fixture(page); await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Unsaved instructions stay here");
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await current.click();
+  const picker = page.getByRole("dialog", { name: "Choose model", exact: true }); await expect(picker).toContainText("Save configuration changes in Configure");
+  await picker.getByRole("button", { name: /Claude fixture/ }).click(); await expect(picker.getByRole("button", { name: "Use model", exact: true })).toBeDisabled();
+  await picker.getByRole("button", { name: "Cancel", exact: true }).click(); expect(state.saves).toHaveLength(0);
+  await page.getByRole("button", { name: "Configure", exact: true }).click(); await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Unsaved instructions stay here");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.route("**/configuration", route => route.fulfill({ status: 503, json: { error: { message: "Save temporarily unavailable" } } }));
+  await current.click(); await picker.getByRole("button", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  await expect(picker.getByRole("alert")).toContainText("Save temporarily unavailable"); await expect(current).toBeAttached(); expect(state.snapshots).toHaveLength(2);
+  await page.unroute("**/configuration"); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
+  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).instructions).toBe("Unsaved instructions stay here");
+});

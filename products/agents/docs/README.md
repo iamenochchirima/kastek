@@ -6,7 +6,9 @@ metadata, inspect affected agents and schedules, refresh models, run an explicit
 paid generation or tool test, and choose an organization default. OpenRouter,
 OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Groq, Together, Fireworks,
 Moonshot/Kimi and Z.ai have installed adapters with controlled HTTP coverage.
-The agent editor selects that default or an explicit account and model. Saving
+The chat model picker and Configure select that default or an explicit account and model.
+Chat selection saves immediately through the same confirmation flow. Unsaved Configure edits
+must be saved or discarded first. Environment keys do not populate workspace connections. Saving
 creates configuration snapshots in the background. Admission pins the selected
 account, model metadata, use grant, and effective policy before the shared Restate
 worker runs chat or tool rounds. Existing accepted work retains its selection when
