@@ -1232,6 +1232,15 @@ update. These bounded fixtures do not establish 1,000/10,000-root production cap
 
 ## Bounded native API response handling
 
+The shared model accounting module uses integer micro-USD quotes and a root-owned
+transactional ledger. Cache tokens are subsets of input, and reasoning tokens are
+subsets of output. They are not charged twice. Missing usage or prices remain
+unknown. A finite monetary cap requires a known upper reservation; uncertain
+outcomes retain that reservation until explicit reconciliation. Schema041 removes
+model-specific token/call SQL ceilings while keeping PostgreSQL integer integrity
+bounds. These accounting functions are foundations; the existing worker is not yet
+wired to them. No new model usage or cost analytics are claimed by this change.
+
 Native API release `native-api-v2` consumes immutable response policies from the structured
 request editor or the OpenAPI `x-kasitek-response` extension. Projection selects up to
 sixteen named JSON Pointer fields. Optional cursor pagination and transient-status retries
