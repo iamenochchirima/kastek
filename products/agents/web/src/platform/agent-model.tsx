@@ -73,13 +73,13 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
       {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
       <Input aria-label="Search chat models" placeholder="Search models" value={search} disabled={saving} onChange={event => setSearch(event.target.value)} />
       <div className="max-h-[50vh] space-y-1 overflow-auto" aria-label="Chat models" aria-busy={loading}>
-        <button type="button" disabled={saving || Boolean(defaultReason)} aria-pressed={pending === JSON.stringify({ kind: "organization_default" })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(JSON.stringify({ kind: "organization_default" }))}>
-          <span className="min-w-0"><span className="block text-sm font-medium">Organization default</span><span className="block break-words text-xs text-muted-foreground">{defaultReason ?? `${defaultChoice?.connection.name} · ${defaultChoice?.model.name}`}</span></span>{pending === JSON.stringify({ kind: "organization_default" }) && <Check className="size-4 shrink-0" />}
+        <button type="button" disabled={saving || Boolean(defaultReason)} title={defaultReason ?? undefined} aria-pressed={pending === JSON.stringify({ kind: "organization_default" })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(JSON.stringify({ kind: "organization_default" }))}>
+          <span className="min-w-0 text-sm font-medium">Organization default</span>{pending === JSON.stringify({ kind: "organization_default" }) && <Check className="size-4 shrink-0" />}
         </button>
         {matching.map(choice => {
           const key = JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id });
           const reason = modelIncompatibility(choice, requiresTools);
-          return <button type="button" key={key} disabled={saving || Boolean(reason)} aria-pressed={pending === key} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(key)}><span className="min-w-0"><span className="block break-words text-sm font-medium">{choice.model.name}</span><span className="block break-all text-xs text-muted-foreground">{choice.connection.name} · {choice.model.id}{reason ? ` · ${reason}` : ""}</span></span>{pending === key && <Check className="size-4 shrink-0" />}</button>;
+          return <button type="button" key={key} disabled={saving || Boolean(reason)} title={reason ?? undefined} aria-pressed={pending === key} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(key)}><span className="min-w-0 break-words text-sm font-medium">{choice.model.name}</span>{pending === key && <Check className="size-4 shrink-0" />}</button>;
         })}
         {!loading && !matching.length && <p className="px-3 py-2 text-sm text-muted-foreground">{choices.length ? "No matching models" : "No available models"}</p>}
       </div>
