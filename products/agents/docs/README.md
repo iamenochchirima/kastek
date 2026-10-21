@@ -46,6 +46,7 @@ implementation and boundaries:
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
+- [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
 - [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
 - [Threat model](THREAT_MODEL.md): enforced controls and release limits.

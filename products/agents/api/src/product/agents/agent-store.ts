@@ -55,7 +55,7 @@ function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfi
   ]);
   const old=atoms(before),next=atoms(after);
   return {expanded:[...next].some(value=>!old.has(value))||canonical(before.model.selection)!==canonical(after.model.selection),
-    reduced:[...old].some(value=>!next.has(value))||after.model.maxDurationSeconds<before.model.maxDurationSeconds||after.model.maxInputBytes<before.model.maxInputBytes||after.model.maxOutputTokens<before.model.maxOutputTokens||after.context.maxInputTokens<before.context.maxInputTokens};
+    reduced:[...old].some(value=>!next.has(value))};
 }
 
 export class AgentStore extends AuthorityStore {

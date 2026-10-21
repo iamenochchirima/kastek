@@ -70,7 +70,8 @@ Existing human and website conversations resolve saved settings at each new turn
 already accepted turns retain their admitted snapshot. Reconnect and exact retries follow
 the original task and snapshot even after a configuration save.
 
-Permission reductions immediately revoke affected historical grants. Adding permissions
+Lower model or context budgets govern future admissions and preserve previously accepted grants
+and limits. Permission reductions immediately revoke affected historical grants. Adding permissions
 or changing live customer channels requires explicit confirmation. A confirmed save
 revalidates each active website deployment and moves its routing to the new snapshot
 without replacing channel URLs, visitor sessions, Inbox ownership or conversation history.

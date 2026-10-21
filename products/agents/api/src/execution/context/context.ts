@@ -62,9 +62,10 @@ function validatePolicy(input: ContextInput): void {
     typeof policy.estimateRequestTokens !== "function" || input.model !== undefined && input.model !== policy.modelId) {
     throw new ModelOperationError("MODEL_PROFILE_UNSUPPORTED", "rejected", 400);
   }
-  for (const field of ["contextWindowTokens", "maxInputTokens", "maxOutputTokens", "maxMessages", "maxRequestBytes", "maxDurationSeconds"] as const) {
+  for (const field of ["contextWindowTokens", "maxInputTokens", "maxOutputTokens", "maxMessages", "maxRequestBytes"] as const) {
     if (!Number.isSafeInteger(policy[field]) || policy[field] < 1) throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
   }
+  if (!Number.isSafeInteger(Math.round(policy.maxDurationSeconds * 1000)) || Math.round(policy.maxDurationSeconds * 1000) / 1000 !== policy.maxDurationSeconds || policy.maxDurationSeconds <= 0) throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
   if (!Number.isSafeInteger(policy.safetyTokens) || policy.safetyTokens < 0 || !Number.isSafeInteger(policy.maxTools) || policy.maxTools < 0 ||
     BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextWindowTokens)) {
     throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);

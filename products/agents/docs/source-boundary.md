@@ -131,7 +131,11 @@ call deadline and keep separate bounded physical requests. Counter responses are
 64 KiB, an operator transport protection for the small count JSON response. Schema047 retains
 only count, precision, revision and payload digest privately. It does not retain another prompt.
 Compatible/custom routes use the explicitly labeled serialized-byte estimate until a qualified
-counter is installed. Sources: [OpenAI](https://developers.openai.com/api/docs/guides/token-counting),
+counter is installed. The estimator assigns one estimate unit per UTF-8 byte of the complete
+prepared JSON payload. The accepted request-byte cap bounds that value; the input allowance and
+context reserve can narrow it further. It does not estimate hidden provider prompt additions or
+guarantee the provider tokenizer count. Providers can still reject context overflow, which is
+reported without a hidden retry or model replacement. Sources: [OpenAI](https://developers.openai.com/api/docs/guides/token-counting),
 [Anthropic](https://platform.claude.com/docs/en/build-with-claude/token-counting) and
 [Google](https://ai.google.dev/api/tokens).
 
@@ -196,7 +200,13 @@ relative to `api/src/`. These values are not vendor capacity promises.
 | Catalogue2MiB/5,000 models, TTL5 minutes, refresh30 seconds, maximum backoff15 minutes and discovery30-second deadline | Setup transport/cache protections. These values bound provider setup separately from paid agent execution. | Injected validated `ModelSetupPolicy` in `product/model-providers/setup-policy.ts`. Store/discovery tests. |
 | Explicit probe256 output tokens,32KiB request,256KiB response and30 seconds | Setup policy bounds an explicitly billable model/tool test. Actual model capacity can lower the output allowance. | The same `ModelSetupPolicy`; provider probe tests. |
 | Counter response at most64KiB, additionally bounded by the accepted response limit | Transport protection for a small token-count document. Counter failure prevents generation. Native input counts and byte estimates retain separate precision labels. | `execution/models/dispatch.ts`, `adapters/models/input-count.ts`. Native counter success/overflow/failure tests. |
-| Per-call deadline and connection/idle/progress timers | Transport protection within the original operation and task deadlines. Preparation and counting do not reset accepted execution time. Semantic progress is distinct from incoming bytes. | Accepted `maxCallDurationMs`, operation `started_at + reserved_ms`, task deadline and `infrastructure/model-network.ts`. Runtime elapsed-deadline and network timeout/cancellation tests. |
+| Per-call deadline and connection/idle/progress timers | Transport protection within the original operation and task deadlines. Preparation and counting do not reset accepted execution time. Semantic progress is distinct from incoming bytes. Context preparation preserves whole-millisecond policies, including fractional seconds. | Accepted `maxCallDurationMs`, operation `started_at + reserved_ms`, task deadline and `infrastructure/model-network.ts`. Runtime elapsed-deadline and network timeout/cancellation tests. |
+| Root wall lifetime24 hours; staff chat grants and renewals30 minutes | Execution-lifecycle and authority bounds, separate from active-operation time. A renewal cannot extend the task deadline. | Schema001 task default and `composition/app.ts` grant creation/renewal. Admission, authority-expiry and deadline recovery tests. |
+| Worker loop bounded by accepted `maxModelCalls`, including compaction | Platform execution policy. The operation ledger also enforces root call counts shared with delegated work. There is no independent 40-iteration ceiling. | `execution/business/business.ts` and `execution/lifecycle/execution.ts`; accepted-policy and operation-budget tests. |
+| Capacity wait at most256 wake cycles; authority renewal and tool-authority retry at most8 attempts; child-result reconciliation at most400 checks with250ms between checks | Bounded durable control and recovery work. These guards do not grant model calls or reset task deadlines. | Fixed in `execution/business/business.ts`; scheduling, authority, delegation and runtime recovery tests. |
+| Compaction retains up to1 recent whole message group | Worker context-selection policy. The remaining prefix is summarized without splitting tool exchanges. It does not change the accepted input or output allowance. | `prepareCompaction` receives `min(1, groups.length - 1)` from the worker. Context and compaction tests. |
+| Tool names at most64 characters; model IDs512; provider IDs64; model and counter revisions128; endpoints2,048 | Contract and protocol identity protections, independent of token capacity. The Google parser additionally rejects more than1 response candidate. | `contracts/model-providers.ts`, `execution/context/context.ts`, `adapters/models/google-transport.ts`. Contract, context and native-adapter tests. |
+| Native Mistral SDK timeout2,147,483,647ms | Adapter protection against a shorter SDK default. It cannot extend the accepted outer operation deadline or network timers. | `adapters/models/pi-transport.ts` and `infrastructure/model-network.ts`; compatible-provider conformance and network timeout tests. |
 
 Context packing estimates the complete logical request, including protected instructions and tool
 schemas. The final native count additionally sees provider envelopes and private continuation.
@@ -209,8 +219,8 @@ up in integer USD micros; the bigint storage ceiling is9,223,372,036,854,775,807
 retains its reservation until authoritative reconciliation and never becomes zero.
 
 Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds.
-Schema049 sets the current task release to `model-bindings-v7`. The worker workflow is
-`AgentsBusinessRunV17`. Logical request and compaction digests now require an explicit accepted
+Schema051 sets the current task release to `model-bindings-v8`. The worker workflow is
+`AgentsBusinessRunV18`. Logical request and compaction digests require an explicit accepted
 context policy. The obsolete Nemotron-only transport, blanket reasoning rejection and implicit
 context fallback have been removed. Skill loading uses the accepted input/safety allowances and
 the same counter with private continuation costs as ordinary context packing. Older task releases
@@ -779,6 +789,8 @@ bindings remain immutable; each persisted task link proves its turn's snapshot.
 Ordinary settings changes preserve accepted turns. Reduced authority revokes old grants,
 and historical snapshots cannot mint removed permissions or larger budgets. Current
 connection, source, skill and Inbox authority checks still apply to every operation.
+Lower model or context budgets apply to future admissions. They do not revoke historical
+grants or rewrite the accepted limits of existing turns.
 
 ### Chat navigation and recovery
 
@@ -1117,6 +1129,11 @@ reviewer can inspect and decide an automation's exact report without assuming it
 execution identity. Only the owner can stop the task. A reviewer can download the selected prepared report; other private artifacts remain owner-only.
 
 ## Verification and release limits
+
+The [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md) reuses this document
+as the current feature map. Its owned browser fixture verifies model-provider settings and
+configured chat without changing shared accounts. Purpose-specific API verification uses the
+existing model-purpose matrix. These paths do not certify unrelated channels or production use.
 
 Focused PostgreSQL tests cover memory scope, candidate review, revision conflicts,
 forgetting, expiry, source-history deletion, immutable skills, and dispatch locking.

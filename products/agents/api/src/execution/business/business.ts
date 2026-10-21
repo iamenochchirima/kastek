@@ -328,10 +328,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           validateBuiltinResult("knowledge.initial",retrieved.value);
           initialKnowledge = retrieved.value;
         }
-        for (let step = 0; step < 40; step++) {
+        for (let step = 0; ; step++) {
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
           if (!("configuration" in execution)) return execution;
           const config = execution.configuration, policy = execution.models.primary.policy;
+          if (step >= policy.maxModelCalls) break;
           assertPublishedTools(config,execution.toolBindings);
           const contextResult = await ctx.run(`context:${step}`, async () => {
             try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, options, initialKnowledge, knownGeneration, knownExpiry) }; }

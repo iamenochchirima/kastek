@@ -42,6 +42,12 @@ describe("runtime-supplied context model policy", () => {
     expect(result.modelPolicy?.digest).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it.each([1.5, 1.001])("preserves millisecond call policies when assembling context: %s", maxDurationSeconds => {
+    const result = buildContext({ instructions: "Answer", currentInput: "Hi", modelPolicy: policy({ maxDurationSeconds }) });
+    expect(result.status).toBe("ready");
+    expect(result.modelPolicy?.maxDurationSeconds).toBe(maxDurationSeconds);
+  });
+
   it("pins model identity, policy revision and limits in context digests", () => {
     const input = { instructions: "Answer", currentInput: "Hi", modelPolicy: policy() };
     const original = buildContext(input);
@@ -73,7 +79,7 @@ describe("runtime-supplied context model policy", () => {
 
   it.each([
     { contextWindowTokens: 0 }, { maxInputTokens: -1 }, { maxOutputTokens: 0 }, { maxMessages: 0 },
-    { maxRequestBytes: 0 }, { maxTools: -1 }, { safetyTokens: -1 }, { contextWindowTokens: 60000 }, { maxDurationSeconds: 0 },
+    { maxRequestBytes: 0 }, { maxTools: -1 }, { safetyTokens: -1 }, { contextWindowTokens: 60000 }, { maxDurationSeconds: 0 }, { maxDurationSeconds: Infinity }, { maxDurationSeconds: NaN }, { maxDurationSeconds: 0.0001 },
   ])("validates explicit policy bounds and context reserve relationships: %j", changes => {
     expect(() => buildContext({ instructions: "Answer", currentInput: "Hi", modelPolicy: policy(changes) })).toThrow("MODEL_REQUEST_LIMIT");
   });
