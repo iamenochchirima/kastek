@@ -335,7 +335,16 @@ deployments. Schemas052–053 allow non-website canonical Inbox conversations wi
 identity and the existing human-ownership commands. Messaging ingress uses a separate verified
 channel admission port, not a manufactured website session. These records do not establish
 complete provider setup, verified webhook processing, execution admission or external delivery.
-External messaging channels remain unavailable until those ports are composed and enabled. Google Calendar appointments use their own reviewed service policy rather than a
+External messaging channels remain unavailable until those ports are composed and enabled.
+
+Installed Telegram, WhatsApp, Messenger and Instagram protocol adapters verify webhook
+authenticity, normalize provider event identities and send one native effect per invocation
+through an injected trusted transport. The installed-handler map validates catalogue references.
+No adapter reads ambient provider keys or retries an uncertain send. WhatsApp and Meta require
+an explicitly reviewed Graph version. Instagram outbound image/audio/video URLs are supported;
+document/reusable-ID sends remain an explicit unqualified implementation limit. Provider
+onboarding, durable dispatch and Inbox composition remain separate requirements, so installed
+protocol support does not label an account connected. Google Calendar appointments use their own reviewed service policy rather than a
 personal generic binding. The Tools catalogue exposes built-ins, native API and MCP integrations,
 agent-specific recommendations, and current connection readiness. Custom MCP setup supports encrypted
 keys, resumable OAuth, discovery, compatible tool selection, credential rotation, and disconnect.

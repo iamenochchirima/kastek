@@ -2,6 +2,7 @@ import { z } from "zod";
 import { channelKindSchema } from "../../contracts/channel-adapters";
 import { channelModeSchema } from "../../contracts/channel-connections";
 import definitions from "./catalogue.json";
+import { installedChannelHandlers } from "./providers";
 
 const attachment = z.enum(["image", "audio", "video", "document"]);
 export const channelDefinitionSchema = z.strictObject({
@@ -15,8 +16,8 @@ export const channelDefinitionSchema = z.strictObject({
   restrictions: z.array(z.string().min(1).max(256)).max(16),
 });
 export type ChannelDefinition = z.infer<typeof channelDefinitionSchema>;
-const reviewedHandlers = new Set(["website", "whatsapp", "telegram", "facebook", "instagram"]);
-export function parseChannelCatalogue(raw: unknown, installedHandlers: ReadonlySet<string> = reviewedHandlers): readonly ChannelDefinition[] {
+
+export function parseChannelCatalogue(raw: unknown, installedHandlers: ReadonlySet<string> = installedChannelHandlers): readonly ChannelDefinition[] {
   const parsed = z.array(channelDefinitionSchema).min(1).max(100).parse(raw);
   const seen = new Set<string>();
   for (const definition of parsed) {
