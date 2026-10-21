@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import type { ActionScope } from "../../contracts/connections";
-import { PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal, PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import { assertCurrentAuthority,loadExecution } from "../../execution/lifecycle/execution";
 import { notifyActionTask,requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
@@ -84,7 +84,7 @@ export class BookingService {
     if(principal.kind==="human") {
       const account=(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0];
       if(account?.id!==policy.ownerAccountId)throw denied();
-    }else if(principal.kind!=="visitor"||!execution.task.channel_binding)throw denied();
+    }else if(!isCustomerPrincipal(principal)||!execution.task.channel_binding)throw denied();
     return {execution,policy,scope:{organizationId:execution.task.organization_id,accountId:policy.ownerAccountId}};
   }
   async prepare(taskId:string,operationId:string,start:string):Promise<BookingConfirmation> {

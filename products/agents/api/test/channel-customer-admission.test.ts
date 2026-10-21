@@ -1,0 +1,85 @@
+import { randomBytes, randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setupPlatformSchema } from "../src/composition/setup";
+import { PlatformStore } from "../src/product/agents/store";
+import { ChannelStore } from "../src/product/channels/channel-store";
+import { ConnectionVault } from "../src/infrastructure/vault";
+import { composeInbox } from "../src/composition/inbox";
+import { transaction } from "../src/infrastructure/database";
+import { assertCurrentAuthority, loadExecution, settleTask } from "../src/execution/lifecycle/execution";
+import { MemoryStore } from "../src/execution/memory/memory";
+import { isCustomerPrincipal } from "../src/contracts/contracts";
+import { customerConfiguration } from "../src/product/offerings/offerings";
+import { connectFixtureModel } from "./model-fixture";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
+
+const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
+(databaseUrl ? describe : describe.skip)("canonical channel customer admission without inference", () => {
+  const database = `agents_channel_admission_${randomUUID().replaceAll("-", "")}`;
+  let admin: Pool, pool: Pool, platform: PlatformStore, channels: ChannelStore;
+  beforeAll(async () => {
+    admin = new Pool({ connectionString: databaseUrl }); await admin.query(`CREATE DATABASE "${database}"`);
+    const url = new URL(databaseUrl!); url.pathname = `/${database}`; pool = new Pool({ connectionString: url.href });
+    await setupPlatformSchema(pool); platform = new PlatformStore(pool);
+    channels = new ChannelStore(pool, new ConnectionVault("test", { test: randomBytes(32).toString("base64") }));
+  });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
+  async function fixture() {
+    const owner = await platform.ensureAccount({ issuer: "https://channel.fixture.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
+    const org = await platform.createOrganization(owner.id, "Customer channels"), scope = { accountId: owner.id, organizationId: org.id };
+    await connectFixtureModel(pool, owner.id, org.id, "fixture/channel-model");
+    const configured = await platform.createConfiguredAgent({ ...scope, name: "Support", offering: "faq" });
+    const connection = await channels.create(scope, { kind: "telegram", mode: "bot", name: "Support bot", assetId: randomUUID(), state: "active", credentials: { botToken: "fixture-bot-token" } });
+    const deployment = await channels.bind(scope, connection.id, { expectedRevision: 1, agentId: configured.agent.id });
+    const inbox = composeInbox(pool, { publicOrigin: "https://agents.fixture.test", assertServices: async () => undefined });
+    const receive = (key: string, body: string) => inbox.ingressChannel({ deploymentId: deployment.id, externalConversationId: "chat-1", senderId: "customer-1", requestKey: key, body });
+    return { scope, owner, org, ...configured, connection, deployment, inbox, receive };
+  }
+  it("admits current saved settings on the shared route and preserves history and human ownership across saves", async () => {
+    const f = await fixture(), first = await f.receive("one", "Hello");
+    const task = await loadExecution(pool, first.message.task_id!);
+    expect(task.task.principal).toEqual({ kind: "channel_customer", deploymentId: f.deployment.id, participantId: first.conversation.id });
+    expect(isCustomerPrincipal(task.task.principal)).toBe(true); expect(task.models.primary.binding.modelId).toBe("fixture/channel-model");
+    expect(task.task.root_token_limit).toBe(task.models.primary.policy.maxRootTokens);
+    const grant = (await pool.query("SELECT * FROM agents_platform.execution_grants WHERE id=$1", [task.task.grant_id])).rows[0];
+    expect(grant.connected_tool_binding_ids).toEqual([]); expect(grant.operations).not.toContain("memory.read"); expect(grant.operations).not.toContain("connected.execute");
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.website_sessions WHERE deployment_id=$1", [f.deployment.id])).rows[0].n).toBe(0);
+    await assertCurrentAuthority(pool, task);
+    const config = structuredClone(f.snapshot.configuration); config.instructions = "Use updated public support instructions.";
+    await expect(platform.saveConfiguration({ ...f.scope, agentId: f.agent.id, expectedRevision: 1, configuration: config })).rejects.toMatchObject({ code: "CONFIGURATION_CONFIRMATION_REQUIRED" });
+    const saved = await platform.saveConfiguration({ ...f.scope, agentId: f.agent.id, expectedRevision: 1, configuration: config, confirmImpact: true });
+    const binding = (await channels.listDeployments(f.scope, f.connection.id)).find(item => item.state === "active")!;
+    expect(binding.id).toBe(f.deployment.id); expect(binding.versionId).toBe(saved.snapshot.id);
+    expect((await loadExecution(pool, task.task.id)).task.version_id).toBe(f.snapshot.id);
+    await assertCurrentAuthority(pool, await loadExecution(pool, task.task.id));
+    const second = await f.receive("two", "Another question"); expect(second.conversation.id).toBe(first.conversation.id);
+    const next = await loadExecution(pool, second.message.task_id!); expect(next.task.version_id).toBe(saved.snapshot.id); expect(next.task.conversation_id).toBe(task.task.conversation_id);
+    await assertCurrentAuthority(pool, next);
+    await expect(new MemoryStore(pool).read({ organizationId: f.org.id, agentId: f.agent.id, principal: next.task.principal })).rejects.toMatchObject({ code: "MEMORY_SCOPE_DENIED" });
+    const command = async (action: "claim" | "takeover" | "return") => { const current = await f.inbox.readStaff(f.scope, first.conversation.id); return f.inbox.command(f.scope, first.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action }); };
+    await command("claim"); await command("takeover");
+    await expect(assertCurrentAuthority(pool, await loadExecution(pool, next.task.id))).rejects.toThrow();
+    await f.inbox.drainCancellations();
+    await settleTask(pool, task.task.id, { state: "cancelled" });
+    await settleTask(pool, next.task.id, { state: "cancelled" });
+    const human = await f.receive("three", "Please wait for a person"); expect(human.message.task_id).toBeNull();
+    await command("return");
+    const resumed = await f.receive("four", "Continue now"); expect(resumed.message.task_id).toBeTruthy();
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].n).toBe(3);
+    expect((await f.inbox.readStaff(f.scope, first.conversation.id)).messages.map(item => item.body)).toEqual(["Hello", "Another question", "Please wait for a person", "Continue now"]);
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.private_model_continuations WHERE organization_id=$1", [f.org.id])).rows[0].n).toBe(0);
+  });
+  it("denies forged participants, absent channel fences and private customer configuration before task creation", async () => {
+    const f = await fixture(), accepted = await f.receive("first", "Hello"), execution = await loadExecution(pool, accepted.message.task_id!);
+    await expect(transaction(pool, db => platform.createChannelGrantInTransaction(db, { deploymentId: f.deployment.id, participantId: randomUUID() }))).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const grant = await transaction(pool, db => platform.createChannelGrantInTransaction(db, { deploymentId: f.deployment.id, participantId: accepted.conversation.id }));
+    await expect(platform.admitTask({ versionId: f.snapshot.id, grantId: grant.id, authority: { product: "agents", organizationId: f.org.id, resourceId: f.deployment.id, callerClientId: "agents-channel", principal: execution.task.principal }, input: "Missing canonical message fence", requestKey: randomUUID(), configurationMode: "current" })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    const config = customerConfiguration("faq"); config.program = { id: "tool-directed", version: "1" }; config.memory.enabled = true;
+    await expect(platform.saveConfiguration({ ...f.scope, agentId: f.agent.id, expectedRevision: 1, configuration: config, confirmImpact: true })).rejects.toMatchObject({ code: "PRIVATE_AGENT_CONFIGURATION" });
+    expect((await platform.getAgent(f.scope.accountId, f.scope.organizationId, f.agent.id)).draft_revision).toBe(1);
+    expect((await channels.listDeployments(f.scope, f.connection.id)).find(item => item.state === "active")!.versionId).toBe(f.snapshot.id);
+    await channels.disconnect(f.scope, f.connection.id, f.connection.revision);
+    await expect(assertCurrentAuthority(pool, await loadExecution(pool, accepted.message.task_id!))).rejects.toMatchObject({ code: "DEPLOYMENT_SCOPE_DENIED" });
+  });
+});

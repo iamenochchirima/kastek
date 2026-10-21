@@ -11,7 +11,7 @@ import { toolDescriptor } from "../../capabilities/tool-descriptors";
 import { assertPublishedTools,builtinToolName,builtinToolEnabled,executeTool,fitUtf8,parseModelDelegationRequest,toolsFor } from "../../capabilities/tools";
 import { skillContext,skillReceiptGroups,skillLoadContextSource } from "../context/skills";
 import type { SkillLoadResult } from "../../capabilities/skills/runtime";
-import { PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
 import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy } from "../context/context";
 import { loadContinuation } from "../context/continuation";
@@ -204,7 +204,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
     sources.push(...memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
   }
-  const skills = !config.skillIds.length ? [] : ["automation","visitor"].includes(task.principal.kind) ?
+  const skills = !config.skillIds.length ? [] : (task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
     await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
   const loadedSkills = await skillContext(pool,taskId,skills);

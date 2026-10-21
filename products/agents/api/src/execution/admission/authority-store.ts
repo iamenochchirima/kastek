@@ -9,6 +9,7 @@ type ExecutionGrant
 
 import { transaction } from "../../infrastructure/database";
 import { assertAutomationAdmission } from "../lifecycle/automation-authority";
+import { assertChannelCustomerAuthority } from "./channel-authority";
 import { assertProductAuthority } from "./product-authority";
 
 import type { Account,VersionRecord,WebsiteDeployment } from "../../contracts/records";
@@ -62,6 +63,10 @@ export class AuthorityStore {
       if (authority.callerClientId !== "agents-website" || authority.resourceId !== authority.principal.deploymentId) denied();
       const deployment = (await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND id=$2 AND revoked_at IS NULL FOR SHARE", [authority.organizationId, authority.principal.deploymentId])).rows[0];
       if (!deployment || deployment.agent_id !== version.agent_id || options.currentDeployment && deployment.version_id !== version.id) denied();
+    } else if (authority.principal.kind === "channel_customer") {
+      if (authority.callerClientId !== "agents-channel" || authority.resourceId !== authority.principal.deploymentId) denied();
+      await assertChannelCustomerAuthority(db, { organizationId: authority.organizationId, principal: authority.principal,
+        agentId: version.agent_id, versionId: version.id, currentDeployment: options.currentDeployment });
     } else if(authority.principal.kind==="automation") await assertAutomationAdmission(db,authority,version);
     else denied();
   }

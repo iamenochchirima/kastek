@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts/capability-catalog";
 import type { ActionScope } from "../../contracts/connections";
-import { PlatformError, requestDigest, terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal, PlatformError, requestDigest, terminalTaskStates } from "../../contracts/contracts";
 import { assertCurrentAuthority, loadExecution } from "../../execution/lifecycle/execution";
 import { assertChildConnectedAuthority } from "../../execution/context/evidence";
 import { notifyActionTask, requireActionMember } from "../../infrastructure/action-authority";
@@ -44,7 +44,7 @@ export class ToolReviewStore {
       [binding.connection.id,execution.task.organization_id,binding.connection.policyRevision])).rows[0];
     if(!connection)throw denied();
     // Customer deployment authority requires its own verified identity/resource contract.
-    if(execution.task.principal.kind==="visitor")throw denied();
+    if(isCustomerPrincipal(execution.task.principal))throw denied();
     const principal=execution.task.principal;
     const actor=principal.kind==="automation"?await resolveAutomationOwner(db,execution.task.organization_id,principal):
       principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:undefined;

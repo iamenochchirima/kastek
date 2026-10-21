@@ -69,8 +69,10 @@ export class AdmissionStore extends AuthorityStore {
     assertGrantAuthority(grant, input.authority, input.versionId, config);
     assertRuntimeAvailable(config);
     await this.assertPrincipal(db, input.authority, version, { currentDeployment: true });
+    if (input.authority.principal.kind === "channel_customer" && (!input.channelBinding ||
+      channelBindingSchema.parse(input.channelBinding).customerConversationId !== input.authority.principal.participantId)) denied();
     if (input.configurationMode === "current") {
-      if (input.authority.product !== "agents" || input.evaluationTrialId || !["human", "visitor"].includes(input.authority.principal.kind)) denied();
+      if (input.authority.product !== "agents" || input.evaluationTrialId || !["human", "visitor", "channel_customer"].includes(input.authority.principal.kind)) denied();
       if (input.authority.principal.kind === "human") {
         const latest = (await db.query("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [input.authority.organizationId, version.agent_id])).rows[0];
         if (latest?.id !== version.id) throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Try again.");

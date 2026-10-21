@@ -43,6 +43,7 @@ export class PlatformStore {
   getWebsiteDeployment=(...args:Parameters<DeploymentStore["getWebsiteDeployment"]>)=>this.deploymentStore.getWebsiteDeployment(...args);
   createWebsiteGrant=(...args:Parameters<DeploymentStore["createWebsiteGrant"]>)=>this.deploymentStore.createWebsiteGrant(...args);
   createWebsiteGrantInTransaction=(...args:Parameters<DeploymentStore["createWebsiteGrantInTransaction"]>)=>this.deploymentStore.createWebsiteGrantInTransaction(...args);
+  createChannelGrantInTransaction=(...args:Parameters<DeploymentStore["createChannelGrantInTransaction"]>)=>this.deploymentStore.createChannelGrantInTransaction(...args);
   admitTask=(...args:Parameters<AdmissionStore["admitTask"]>)=>this.admissionStore.admitTask(...args);
   admitTaskInTransaction=(...args:Parameters<AdmissionStore["admitTaskInTransaction"]>)=>this.admissionStore.admitTaskInTransaction(...args);
   getTask=(...args:Parameters<AdmissionStore["getTask"]>)=>this.admissionStore.getTask(...args);

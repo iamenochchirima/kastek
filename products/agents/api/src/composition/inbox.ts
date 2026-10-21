@@ -29,6 +29,22 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
       });
       return result.task;
     },
+    async admitChannel(db, input) {
+      const deployment = (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d
+        JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
+        WHERE d.id=$1 AND d.state='active' AND c.state='active' AND c.kind<>'website' FOR SHARE OF d,c`, [input.deploymentId])).rows[0];
+      if (!deployment || deployment.version_id !== input.versionId || input.channelBinding.customerConversationId !== input.participantId) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel is unavailable");
+      const version = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2", [input.versionId, deployment.organization_id])).rows[0];
+      if (!version) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED", 403, "Customer channel is unavailable");
+      await options.assertServices(version.configuration);
+      const grant = await store.createChannelGrantInTransaction(db, { deploymentId: deployment.id, participantId: input.participantId });
+      const result = await store.admitTaskInTransaction(db, { versionId: input.versionId, grantId: grant.id,
+        authority: { product: "agents", organizationId: deployment.organization_id, resourceId: deployment.id, callerClientId: "agents-channel",
+          principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId } },
+        input: input.input, requestKey: input.requestKey, conversationId: input.executionConversationId ?? undefined,
+        channelBinding: input.channelBinding, configurationMode: "current" });
+      return result.task;
+    },
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {
       const task = (await db.query("SELECT output,state FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       if (!task || task.output !== body || !["completed", "incomplete"].includes(task.state)) return null;

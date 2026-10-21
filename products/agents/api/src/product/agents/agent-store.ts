@@ -109,6 +109,7 @@ export class AgentStore extends AuthorityStore {
         (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2)
         ORDER BY g.id FOR UPDATE OF g`,[input.organizationId,input.agentId]);
       let deployments=(await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) ORDER BY id FOR UPDATE",[input.organizationId,input.agentId])).rows;
+      const channelDeployments = (await db.query("SELECT id,agent_id FROM agents_platform.channel_deployments WHERE organization_id=$1 AND agent_id=$2 AND state='active' ORDER BY id FOR UPDATE", [input.organizationId,input.agentId])).rows;
       const name=input.name===undefined?agent.name:text(input.name,120);
       const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config);
       if(!changed&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
@@ -116,12 +117,16 @@ export class AgentStore extends AuthorityStore {
         agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }
-      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&deployments.length>0)||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
+      if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
       agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,draft_revision=draft_revision+1,updated_at=now()
         WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,input,agent);
       const deploymentStore=new DeploymentStore(this.pool);
       for(const deployment of deployments)await deploymentStore.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:deployment.agent_id,version:snapshot});
+      if (channelDeployments.length) {
+        await deploymentStore.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:input.agentId,version:snapshot});
+        await db.query("UPDATE agents_platform.channel_deployments SET version_id=$3,revision=revision+1,updated_at=now() WHERE organization_id=$1 AND agent_id=$2 AND state='active'",[input.organizationId,input.agentId,snapshot.id]);
+      }
       if(deployments.length)deployments=(await db.query<WebsiteDeployment>(`UPDATE agents_platform.website_deployments SET version_id=$3
         WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) RETURNING *`,[input.organizationId,input.agentId,snapshot.id])).rows;
       if(authority.reduced)await db.query(`UPDATE agents_platform.execution_grants SET revoked_at=now()

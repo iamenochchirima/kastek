@@ -95,4 +95,24 @@ export class DeploymentStore extends AuthorityStore {
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
       return this.insertGrant(db, grant);
   }
+  async createChannelGrantInTransaction(db: PoolClient, input: { deploymentId: string; participantId: string }): Promise<ExecutionGrant> {
+    const deployment = (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d
+      JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
+      JOIN agents_platform.customer_conversations p ON p.organization_id=d.organization_id AND p.channel_deployment_id=d.id
+      WHERE d.id=$1 AND p.id=$2 AND p.agent_id=d.agent_id AND p.state='automation_active'
+        AND d.state='active' AND c.state='active' AND c.kind<>'website' AND p.channel_kind=c.kind FOR SHARE OF d,c,p`,
+    [input.deploymentId, input.participantId])).rows[0] ?? absent();
+    const version = await this.version(db, deployment.organization_id, deployment.version_id);
+    await this.assertWebsiteConfigurationInTransaction(db, { organizationId: deployment.organization_id, agentId: deployment.agent_id, version });
+    const config = agentConfigurationSchema.parse(version.configuration);
+    const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
+      resourceId: deployment.id, callerClientId: "agents-channel", principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId },
+      versionId: version.id, operations: ["model.reply", "knowledge.read", ...(config.skillIds.length ? ["skill.read"] : []),
+        ...(config.capabilities.businessActions.enabled ? ["booking.read", "booking.execute"] : []), ...(config.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])],
+      sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: [], maxInputBytes: config.model.maxInputBytes,
+      maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: config.context.maxInputTokens,
+      expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
+    return this.insertGrant(db, grant);
+  }
+
 }

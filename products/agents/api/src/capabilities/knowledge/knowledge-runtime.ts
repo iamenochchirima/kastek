@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { z } from "zod";
-import { PlatformError } from "../../contracts/contracts";
+import { isCustomerPrincipal, PlatformError } from "../../contracts/contracts";
 import { EvidenceStore,type EvidencePassage } from "../../execution/context/evidence";
 import { assertCurrentAuthority,loadExecution } from "../../execution/lifecycle/execution";
 import type { QueryEmbeddingService } from "./query-embedding";
@@ -44,7 +44,7 @@ export class KnowledgeRuntime {
       vector = (await this.embeddings.embed({ taskId, operationId, profileRelease: config.retrievalProfile.embeddingRelease, query })).vector;
     }
     const hits = await this.retrieval.search({ organizationId: execution.task.organization_id, versionId: execution.task.version_id,
-      sourceRevisionIds: config.sourceRevisionIds, publicOnly: execution.task.principal.kind === "visitor" }, query,
+      sourceRevisionIds: config.sourceRevisionIds, publicOnly: isCustomerPrincipal(execution.task.principal) }, query,
     profile ?? { kind: "hybrid-v1", embeddingRelease: config.retrievalProfile.kind === "hybrid-v1" ? config.retrievalProfile.embeddingRelease : "", queryVector: vector! },
     async db => { await assertCurrentAuthority(db, await loadExecution(db, taskId)); });
     const observation: KnowledgeObservation = { profile: config.retrievalProfile.kind, passages: [], omitted: hits.length };

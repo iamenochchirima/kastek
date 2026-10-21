@@ -1,7 +1,7 @@
 import {parseSkillPackage} from "../../capabilities/skills/package";
 import type { Pool,PoolClient } from "pg";
 import { capabilityBindingSchema,type CapabilityBinding,type ResourceHandle } from "../../contracts/capability-catalog";
-import { connectedToolAuthorityIds,PlatformError,requestDigest } from "../../contracts/contracts";
+import { isCustomerPrincipal, connectedToolAuthorityIds,PlatformError,requestDigest } from "../../contracts/contracts";
 import type { Execution } from "../../contracts/execution";
 import {
 assertDependencyManifest,collectDependencyGraph,createDependencyManifest,evidenceReferenceSchema,
@@ -9,6 +9,7 @@ type DependencyManifest,type EvidenceDependency,type EvidenceReference
 } from "../../contracts/source-contracts";
 import { assertBaseAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
+import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
 
 export type Db = Pool | PoolClient;
@@ -25,7 +26,7 @@ export function dto(row: Record<string, any>): EvidenceReference { return eviden
 export function nodeDto(row: Record<string, any>): EvidenceNode { return { id: row.id, taskId: row.task_id, kind: row.kind, ownerId: row.owner_id, evidenceIds: row.evidence_ids, parents: row.parents, manifest: assertDependencyManifest(row.manifest) }; }
 export async function owner(db: Db, execution: Execution): Promise<string | null> {
   const principal = execution.task.principal;
-  if (principal.kind === "visitor") return null;
+  if (isCustomerPrincipal(principal)) return null;
   if (principal.kind === "automation") return principal.ownerAccountId;
   return (await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [principal.issuer, principal.subject])).rows[0]?.id ?? null;
 }
@@ -42,6 +43,9 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
   } else if (root.task.principal.kind === "visitor") {
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
       WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND s.expires_at>now() AND d.agent_id=$3 AND d.organization_id=$4 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.agentId, root.task.organization_id])).rowCount) throw unavailable();
+  } else if (root.task.principal.kind === "channel_customer") {
+    await assertChannelCustomerAuthority(db, { organizationId: root.task.organization_id, principal: root.task.principal,
+      agentId: root.agentId, versionId: root.task.version_id });
   } else throw unavailable();
   if ((await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.conversations c ON c.id=t.conversation_id
     WHERE t.root_task_id=$1 AND c.deleted_at IS NOT NULL LIMIT 1`, [root.task.id])).rowCount) throw unavailable();
@@ -160,7 +164,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     const row = (await db.query(`SELECT s.*,p.state AS revision_state FROM agents_platform.sources s
       JOIN agents_platform.source_revision_policy p ON p.source_id=s.id AND p.organization_id=s.organization_id
       WHERE s.id=$1 AND s.organization_id=$2 AND p.revision_id=$3 FOR SHARE OF s,p`, [dependency.sourceId, execution.task.organization_id, dependency.revisionId])).rows[0];
-    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation || row.visibility !== dependency.visibility || execution.task.principal.kind === "visitor" && row.visibility !== "public") throw unavailable();
+    if (!row || row.state !== "active" || row.revision_state !== "approved" || row.generation !== dependency.generation || row.visibility !== dependency.visibility || isCustomerPrincipal(execution.task.principal) && row.visibility !== "public") throw unavailable();
   }
   for (const dependency of dependencies.filter(item => item.kind === "connection")) {
     if (dependency.kind !== "connection") continue;

@@ -132,8 +132,12 @@ export const principalSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("human"), issuer: z.url(), subject: z.string().min(1).max(512) }),
   z.strictObject({ kind: z.literal("automation"), id: z.uuid(), ownerAccountId: z.uuid() }),
   z.strictObject({ kind: z.literal("visitor"), deploymentId: z.uuid(), sessionId: z.uuid() }),
+  z.strictObject({ kind: z.literal("channel_customer"), deploymentId: z.uuid(), participantId: z.uuid() }),
 ]);
 export type InitiatingPrincipal = z.infer<typeof principalSchema>;
+export function isCustomerPrincipal(principal: InitiatingPrincipal): principal is Extract<InitiatingPrincipal, { kind: "visitor" | "channel_customer" }> {
+  return principal.kind === "visitor" || principal.kind === "channel_customer";
+}
 
 export const executionGrantSchema = z.strictObject({
   id: z.uuid(),
