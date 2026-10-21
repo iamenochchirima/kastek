@@ -21,7 +21,9 @@ input counting is available on reviewed OpenAI, Anthropic and Google routes. Oth
 routes label estimates explicitly; unenforceable strict spending caps are rejected.
 Evaluation trials pin the exact model route and policy; the external
 Harbor adapter verifies those pins in retained evidence. Independent purpose-suite
-acceptance across compatible routes and live multi-provider acceptance are unfinished. Installed adapters do not establish live
+acceptance covers grounded FAQ, Inbox handoff and configured booking on reviewed native routes.
+Campaign publishing remains unsupported. An approved live OpenRouter chat/tool browser path
+passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were not live-tested. Installed adapters do not establish live
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 

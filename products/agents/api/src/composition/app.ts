@@ -71,7 +71,7 @@ import { registerInboxRoutes } from "../product/inbox/inbox-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 const uuid = z.uuid();
-const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max(16_384),
+const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
 const humanTaskInput = taskInput.omit({ versionId: true }).extend({ agentId: uuid.optional(), versionId: uuid.optional(),
@@ -88,10 +88,12 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
   outcome: terminalTaskStates.has((row as TaskRecord).state) ? (row as TaskRecord).state : null,
 } : {}) });
 
-export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean }) {
+export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean;
+  testModelProviderOptions?: ConstructorParameters<typeof ModelProviderStore>[3] }) {
   const { config, pool } = options;
   if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
   if(options.testConnectionLoopback&&config.NODE_ENV!=="test")throw new Error("TEST_CONNECTION_OPTIONS_DENIED");
+  if(options.testModelProviderOptions&&config.NODE_ENV!=="test")throw new Error("TEST_MODEL_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
@@ -236,9 +238,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   const modelVault = connectionVaultFromEnvironment();
-  registerModelProviderRoutes(app, { store: new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined), resolveScope });
+  const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
+  registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
-  registerModelPolicyRoutes(app, { store: new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined), resolveScope });
+  registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerGoogleCalendarRoutes(app,{store:googleCalendar,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

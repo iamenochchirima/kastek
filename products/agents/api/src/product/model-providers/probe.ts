@@ -66,6 +66,7 @@ export async function probeProviderModel(input: ModelProviderProbeRequest, optio
   const request: ProviderTransportRequest = {
     provider: provider.id, protocol: provider.protocol, model: model.id, baseUrl: endpoint.href.replace(/\/$/, ""),
     credentialRevision: "setup-probe", contextWindowTokens: context, maxOutputTokens,
+    reasoningCapable: model.capabilities.reasoning.value === true,
     maxRequestBytes: policy.probeMaxRequestBytes, maxResponseBytes: policy.probeMaxResponseBytes,
     messages: [{ role: "user", content: input.verifyTools
       ? `Call setup_echo exactly once with token ${nonce}. After receiving the tool result, reply with only that token.`

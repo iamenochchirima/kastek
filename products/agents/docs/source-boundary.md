@@ -201,7 +201,10 @@ relative to `api/src/`. These values are not vendor capacity promises.
 Context packing estimates the complete logical request, including protected instructions and tool
 schemas. The final native count additionally sees provider envelopes and private continuation.
 Serialized-byte estimates are estimates for unqualified tokenizers, not a universal upper bound.
-Accepted request and response byte caps remain independent. Estimated monetary usage is rounded
+Accepted request and response byte caps remain independent. The chat composer does not truncate
+input at an unrelated character count. HTTP accepts a string within its128,000-byte JSON envelope;
+admission then checks the saved and compiled input byte allowance. This distinguishes UTF-8 bytes
+from characters. Oversized rejected drafts remain editable in the client. Estimated monetary usage is rounded
 up in integer USD micros; the bigint storage ceiling is9,223,372,036,854,775,807. Unknown usage
 retains its reservation until authoritative reconciliation and never becomes zero.
 
@@ -238,9 +241,39 @@ unsupported fields, private reasoning/tool continuation, refusal, truncation, un
 output caps. Mistral uses the pinned library's native parser and a thin wire conversion, preserving
 native thinking chunks. Compatible routes retain provider-native thinking defaults; arbitrary SDK
 reasoning options are rejected. These tests establish protocol behavior, not live model access.
-Qualified counters for compatible routes, complete provider fault coverage, independent purpose
-acceptance across compatible routes, and live multi-provider acceptance remain separate work.
+Native fault fixtures cover401/402/403/404/429, malformed and truncated streams, cancellation
+and late authorization revocation. They assert no hidden SDK retry or billing-route fallback.
+Purpose acceptance uses actual PostgreSQL, Restate, EvaluationTrials and native HTTP fixtures on
+OpenRouter, OpenAI Responses, Anthropic, Google and Mistral. Independent graders check approved
+FAQ evidence/citations and canonical Inbox handoff. Booking cases on OpenRouter and Anthropic
+check zero Calendar inserts before approval, a confirmed effect after approval, zero inserts on
+conflict and zero duplicate effects on replay. Authenticated customer creation rejects research,
+content and campaign offerings. Growth/Agencies campaign publishing remains unsupported; generic
+research/read fixtures do not establish publishing outcomes.
+Qualified counters for compatible routes and live multi-provider acceptance remain separate work.
 No production or hosted capacity acceptance is claimed.
+
+`api/test/model-purpose-acceptance.test.ts` writes a supported/unsupported matrix with authoritative
+outcome evidence to `.audit/model-purpose-acceptance.json`. Run it with the isolated administrator
+`AGENTS_TEST_DATABASE_URL` and `pnpm --filter @kasitek/agents exec vitest run test/model-purpose-acceptance.test.ts`.
+The controlled browser fixture `api/test/model-provider-browser.ts` starts an owned database,
+Restate container, API, worker and frontend. It drives provider setup, a native tool probe, model
+selection/background saves, three chat/tool runs, model switching, rotation and revocation. It
+requires installed Playwright Chromium and Docker. It never changes shared application accounts.
+Run `pnpm --filter @kasitek/agents exec node --import tsx test/model-provider-browser.ts` with the
+same isolated administrator connection. `AGENTS_LIVE_MODEL_ACCEPTANCE=1` instead selects the
+explicit approved OpenRouter key and exact model for a live configured chat/tool path. Live calls
+are opt-in and separate from the default controlled fixture. Set `AGENTS_LIVE_MODEL_ID` to an
+explicitly selected current model; the fixture never chooses a replacement for a failed task.
+Receipts retain exact requested and reported identities; evidence contains no keys, provider-native
+thoughts or private continuation. On21 October2026, approved live OpenRouter acceptance passed
+with `minimax/minimax-m3.1-flash:free`: the browser submitted a configured agent question, the
+actual model requested approved knowledge search, the worker completed that tool, and a second
+physical model call produced the final answer. Both private receipts retained the exact route and
+reported identity. This route used explicitly labeled byte estimates. Other provider accounts were
+not configured for that acceptance run. An earlier Nemotron request failed with `MODEL_UNAVAILABLE`;
+its task was not retargeted. The controlled fixture separately passed the complete settings,
+probe, switch, rotation and revocation journey.
 
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
