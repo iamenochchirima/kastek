@@ -54,8 +54,8 @@ function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfi
     ...(config.memory.enabled?["memory"]:[]),`execution:${config.executionKind}`,`program:${canonical(config.program)}`,
   ]);
   const old=atoms(before),next=atoms(after);
-  return {expanded:[...next].some(value=>!old.has(value))||(before.model.model.endsWith(":free")&&!after.model.model.endsWith(":free")),
-    reduced:[...old].some(value=>!next.has(value))||(before.model.model!==after.model.model&&after.model.model.endsWith(":free"))||after.model.maxDurationSeconds<before.model.maxDurationSeconds||after.model.maxInputBytes<before.model.maxInputBytes||after.model.maxOutputTokens<before.model.maxOutputTokens||after.context.maxInputTokens<before.context.maxInputTokens};
+  return {expanded:[...next].some(value=>!old.has(value))||canonical(before.model.selection)!==canonical(after.model.selection),
+    reduced:[...old].some(value=>!next.has(value))||after.model.maxDurationSeconds<before.model.maxDurationSeconds||after.model.maxInputBytes<before.model.maxInputBytes||after.model.maxOutputTokens<before.model.maxOutputTokens||after.context.maxInputTokens<before.context.maxInputTokens};
 }
 
 export class AgentStore extends AuthorityStore {
@@ -145,6 +145,27 @@ export class AgentStore extends AuthorityStore {
   private async createVersionInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string},agent:AgentRecord):Promise<VersionRecord> {
       const config = agentConfigurationSchema.parse(agent.draft);
       const connectedAuthority = connectedToolAuthorityIds(config);
+      if (config.model.selection.kind === "connection") {
+        const selection = config.model.selection;
+        const active = await db.query(`SELECT 1 FROM agents_platform.model_provider_use_grants g
+          JOIN agents_platform.model_provider_connections c ON c.id=g.connection_id AND c.organization_id=g.organization_id
+          WHERE g.organization_id=$1 AND g.connection_id=$2 AND g.consumer=$3::jsonb AND g.state='active' AND c.state='active'
+          AND g.model_ids ? $4 AND g.roles ?& array['primary','compaction','delegated'] FOR SHARE OF g,c`,
+        [input.organizationId, selection.connectionId, JSON.stringify({ kind: "agent", agentId: agent.id }), selection.modelId]);
+        if (!active.rowCount) {
+          const published = (await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [input.organizationId, agent.id])).rows[0];
+          if (published && canonical(agentConfigurationSchema.parse(published.configuration).model.selection) === canonical(selection)) {
+            throw new PlatformError("MODEL_USE_REAUTHORIZATION_REQUIRED", 409, "An owner must reauthorize this model connection before it can be reused");
+          }
+          const owner = await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL FOR SHARE", [input.organizationId, input.accountId]);
+          if (!owner.rowCount) throw new PlatformError("MODEL_USE_DENIED", 403, "An owner must authorize a new model connection");
+          const connection = await db.query("SELECT 1 FROM agents_platform.model_provider_connections WHERE organization_id=$1 AND id=$2 AND state='active' FOR SHARE", [input.organizationId, selection.connectionId]);
+          if (!connection.rowCount) throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE", 409, "Reconnect the selected model provider");
+          await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
+            VALUES($1,$2,$3,$4,$5,$6)`, [randomUUID(), input.organizationId, selection.connectionId, { kind: "agent", agentId: agent.id },
+            JSON.stringify(["primary","compaction","delegated"]), JSON.stringify([selection.modelId])]);
+        }
+      }
       if(config.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,agent.id,config.capabilities.businessActions);
       if (config.capabilities.delegation.enabled) {
         for (const binding of config.capabilities.delegation.bindings) {

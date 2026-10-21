@@ -11,8 +11,8 @@ const model = { id: "vendor/model:variant", providerId: "router", name: "Model",
   capabilities: { tools: unknown, reasoning: unknown, structuredOutput: unknown },
   inputModalities: ["text"], outputModalities: ["text"], pricing: null, lifecycle: "unknown" };
 const policy = { revision: "1", digest: "a".repeat(64), contextTokens: 128000, maxInputTokens: 96000, maxOutputTokens: 8192,
-  safetyTokens: 1024, compactAtTokens: 80000, maxModelCalls: 20, maxToolCalls: 20, maxDurationMs: 300000,
-  maxInputBytes: 1000000, maxResponseBytes: 1000000, maxRootTokens: 200000, maxCostMicros: null };
+  safetyTokens: 1024, compactAtTokens: 80000, maxModelCalls: 20, maxToolCalls: 20, maxCallDurationMs: 120000, maxDurationMs: 300000,
+  maxInputBytes: 1000000, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 1000000, maxRootTokens: 200000, maxCostMicros: null };
 
 describe("model provider ownership and capacity contracts", () => {
   it("preserves unknown metadata without inventing capabilities or free pricing", () => {

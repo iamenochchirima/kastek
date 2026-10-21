@@ -1,3 +1,6 @@
+import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
+import { dispatchBoundModel } from "../src/execution/models/dispatch";
+import type { ModelFetch } from "../src/infrastructure/model-network";
 import {homedir} from "node:os";
 import {join} from "node:path";
 import {rm} from "node:fs/promises";
@@ -90,9 +93,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:address+"/deliveries",resource:"reports:controller"}];
     artifacts=new TaskArtifactStore(pool,{async put(key,value){objects.set(key,Buffer.from(value));},async get(key){const value=objects.get(key);if(!value)throw Error("Missing fixture object");return value;},async delete(key){objects.delete(key);}});
     connections=new ConnectionStore(pool,vault,targets);actions=new ActionService(pool,{vault,targets,artifacts});
-    businessOptions = {evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), openRouterApiKey: "fixture", fetch: async (_url, request) => {
-      const body = JSON.parse(String(request?.body)); calls.push(body); return provider(body, request!);
-    } };
+    businessOptions = {evidence:new EvidenceStore(pool,artifacts.objects),knowledgeRuntime:new KnowledgeRuntime(pool,new EvidenceStore(pool,artifacts.objects)),actions:{prepare:(...args)=>actions.prepare(...args),getReview:async(...args)=>{const review=await actions.getReview(...args);await afterReviewRead?.(review);return review;},reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlightActionCalls++;try{return await actions.execute(...args);}finally{inFlightActionCalls--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args), modelProvider: fixtureModelProviders(pool), modelRuntime: { dispatch: input => dispatchBoundModel(input, policy => {
+      const network = (async (url, request) => {
+        if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Fixture destination denied");
+        await policy.beforeDispatch?.();
+        const body = JSON.parse(String(request?.body)); calls.push(body);
+        const response = await provider(body, request!);
+        if (!response.ok) return response;
+        const result = await response.json(), choice = result.choices[0];
+        const delta = { ...choice.message, ...(choice.message.tool_calls ? { tool_calls: choice.message.tool_calls.map((call:any,index:number) => ({ ...call,index })) } : {}) };
+        return new Response(`data: ${JSON.stringify({ id:result.id, model:body.model, choices:[{index:0,delta,finish_reason:choice.finish_reason}],usage:result.usage })}\n\ndata: [DONE]\n\n`, {headers:{"content-type":"text/event-stream"}});
+      }) as ModelFetch;
+      network.markProgress = () => {}; return network;
+    }) } };
     workflow = createBusinessWorkflow(pool,businessOptions);
     await listen();
     const port = (server.address() as { port: number }).port;
@@ -117,6 +130,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     provider = async () => reply(); calls.length = 0;
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Harness fixture");
+    await connectFixtureModel(pool, account.id, org.id);
     const source = await publishFixtureSource(pool,{ accountId: account.id, organizationId: org.id, title: "Hours", content: sourceContent, visibility: "public" }, artifacts.objects);
     const config = { ...defaultBusinessConfiguration(), sourceRevisionIds: [source.id], ...changes };
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "Agent", configuration: config });
@@ -138,6 +152,28 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
     return eventually(async () => { await dispatchTasksOnce(pool,{ingressUrl,adminUrl}); const row = (await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0]; return terminalTaskStates.has(row.state) ? row : false; });
   }
+  it("runs the saved provider through the real Restate business workflow and private continuation store", async () => {
+    const f = await fixture({ sourceRevisionIds: [], instructions: "Reply with a greeting." });
+    provider = async () => reply("Hello from the configured provider.");
+    const result = await execute(f.task.id);
+    expect(result.state).toBe("completed"); expect(result.output).toBe("Hello from the configured provider.");
+    expect(calls).toHaveLength(1);
+    expect((await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE task_id=$1", [f.task.id])).rows).toEqual([{state:"completed"}]);
+    expect((await pool.query("SELECT state FROM agents_platform.model_cost_reservations WHERE task_id=$1", [f.task.id])).rows).toEqual([{state:"settled"}]);
+  });
+  it("continues a configured native tool round through the shared business workflow", async () => {
+    const f = await fixture({ sourceRevisionIds: [], instructions: "Search approved knowledge, then reply.", tools: ["knowledge.search"] });
+    let round = 0;
+    provider = async body => {
+      if (++round === 1) return reply("", "tool_calls", [tool("knowledge_search", { query: "opening hours" }, "native-tool-round")]);
+      expect(body.messages.some((message: any) => message.role === "tool" && message.tool_call_id === "native-tool-round")).toBe(true);
+      return reply("No approved opening hours were found.");
+    };
+    const result = await execute(f.task.id);
+    expect(result.state).toBe("completed"); expect(round).toBe(2);
+    expect((await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE task_id=$1", [f.task.id])).rows).toEqual([{state:"completed"},{state:"completed"}]);
+    expect((await pool.query("SELECT unknown_operations FROM agents_platform.root_model_accounts WHERE root_task_id=$1", [f.task.id])).rows[0].unknown_operations).toBe(0);
+  });
   it("waits durably for an exact connected-tool review, restarts, then sends once and retains authoritative evidence", async () => {
     const f=await fixture(); await execute(f.task.id); calls.length=0;
     let effects=0;
@@ -557,10 +593,10 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     for(const call of specialistCalls){expect(JSON.stringify(call.messages)).not.toContain("secret-language-preference");expect(call.tools!.map(tool=>tool.function.name)).toEqual(["knowledge_search"]);}
   },30000);
   it("retains explicit allocation and source narrowing for trusted child admission",async()=>{
-    const f=await researchFixture();const children=await admitChildren(pool,f.task.id,randomUUID(),{requests:[{bindingId:"first",brief:"Use the intentionally narrowed trusted scope.",maxTokens:4096,sourceRevisionIds:[],connectedToolBindingIds:[]}]});
+    const f=await researchFixture();const children=await admitChildren(pool,f.task.id,randomUUID(),{requests:[{bindingId:"first",brief:"Use the intentionally narrowed trusted scope.",maxTokens:6000,sourceRevisionIds:[],connectedToolBindingIds:[]}]});
     const child=(await pool.query("SELECT root_token_limit,effective_configuration,grant_id FROM agents_platform.tasks WHERE id=$1",[children[0]!.taskId])).rows[0];
-    expect(child.root_token_limit).toBe(4096);expect(child.effective_configuration.sourceRevisionIds).toEqual([]);expect(child.effective_configuration.tools).toEqual(["knowledge.search"]);
-    const grant=(await pool.query("SELECT root_token_limit,source_revision_ids FROM agents_platform.execution_grants WHERE id=$1",[child.grant_id])).rows[0];expect(grant).toEqual({root_token_limit:4096,source_revision_ids:[]});
+    expect(child.root_token_limit).toBe(6000);expect(child.effective_configuration.sourceRevisionIds).toEqual([]);expect(child.effective_configuration.tools).toEqual(["knowledge.search"]);
+    const grant=(await pool.query("SELECT root_token_limit,source_revision_ids FROM agents_platform.execution_grants WHERE id=$1",[child.grant_id])).rows[0];expect(grant).toEqual({root_token_limit:6000,source_revision_ids:[]});
     await requestTreeCancellation(pool,f.task.id);await settleTask(pool,children[0]!.taskId,{state:"cancelled"});await settleTask(pool,f.task.id,{state:"cancelled"});
   },30000);
   it("denies forbidden bindings, scope expansion and grandchildren before allocating work",async()=>{
@@ -741,9 +777,9 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(result.state).toBe("uncertain"); expect(calls).toHaveLength(1);
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.operation_usage u JOIN agents_platform.operations o ON o.id=u.operation_id WHERE u.task_id=$1 AND o.kind='model'", [f.task.id])).rows[0].count).toBe(1);
   }, 30_000);
-  it("ends truthfully when root budget cannot admit even the first model request", async () => {
-    const f = await fixture({ instructions: "Mandatory policy ".repeat(100) }, 2048);
-    expect(await execute(f.task.id)).toMatchObject({ state: "incomplete", error_code: "ROOT_LIMIT" }); expect(calls).toHaveLength(0);
+  it("rejects admission when the configured model call exceeds the root allowance", async () => {
+    await expect(fixture({ instructions: "Mandatory policy ".repeat(100) }, 2048)).rejects.toMatchObject({ code: "MODEL_POLICY_INVALID" });
+    expect(calls).toHaveLength(0);
   }, 30_000);
   it("does not dispatch with a revoked grant", async () => {
     const f = await fixture(); await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1", [f.grant.id]);
@@ -763,14 +799,14 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await settleTask(pool, f.task.id, { state: "uncertain" }); expect(calls).toHaveLength(0);
   });
   it("enforces root allocation atomically across competing operations", async () => {
-    const f = await fixture({}, 2048);
+    const f = await fixture({}, 16000);
     const claim = (suffix: string) => beginOperation(pool, f.task.id, { id: `budget:${f.task.id}:${suffix}`, kind: "model", name: "generate",
-      request: { suffix }, reservedTokens: 1500, reservedMs: 1000 });
+      request: { suffix }, reservedTokens: 10000, reservedMs: 1000 });
     const outcomes = await Promise.allSettled([claim("a"), claim("b")]);
     expect(outcomes.filter(o => o.status === "fulfilled")).toHaveLength(1);
     expect(outcomes.find(o => o.status === "rejected")).toMatchObject({ reason: { code: "ROOT_LIMIT" } });
     await settleTask(pool, f.task.id, { state: "uncertain" });
-    expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(1500);
+    expect((await pool.query("SELECT accounted_tokens FROM agents_platform.usage_ledger WHERE task_id=$1", [f.task.id])).rows[0].accounted_tokens).toBe(10000);
   });
   it("invalidates a prepared memory snapshot before dispatch when Forget wins admission", async () => {
     const f = await fixture({ memory: { enabled: true } , sourceRevisionIds: [] }); const item = await acceptedMemory(f, "My preferred report language is Shona.");

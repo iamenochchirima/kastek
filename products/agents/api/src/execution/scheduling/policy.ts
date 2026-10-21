@@ -20,8 +20,7 @@ export function operationCapacity(execution:Execution,input:OperationRequest,env
  const workload:CapacityRequest['workload']=task.evaluation_trial_id?'evaluation':input.name.includes('sandbox')?'sandbox':input.name.startsWith('source.')||input.name.startsWith('document.')?'ingestion':task.principal.kind==='automation'?'background':'interactive';
  const model=['model','compaction'].includes(input.kind),tenant=`${task.product}:${task.organization_id}`;
  const binding=execution.connectedBindings.find(binding=>binding.alias===input.name||binding.id===input.name);
- let account=model?environment.AGENTS_MODEL_ACCOUNT_ID??'deployment':binding?.connection?.id??'local';
- if(model&&environment.NODE_ENV==='production'&&!environment.AGENTS_MODEL_ACCOUNT_ID)throw Error('AGENTS_MODEL_ACCOUNT_ID required in production');
+ let account=model?`${task.organization_id}:${execution.models[input.kind==='compaction'?'compaction':'primary'].binding.connectionId}`:binding?.connection?.id??'local';
  if(binding?.connection&&environment.AGENTS_PROVIDER_ACCOUNT_MAP_JSON){
   const mapping=z.record(z.string(),z.string().min(1).max(128)).parse(JSON.parse(environment.AGENTS_PROVIDER_ACCOUNT_MAP_JSON));account=mapping[binding.connection.id]??binding.connection.id;
  }

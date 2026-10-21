@@ -21,11 +21,12 @@ describe("normalized model usage pricing", () => {
       { ...prices, inputMicrosPerMillionTokens: 999 })).toEqual(known(8998192055487n));
   });
   it("keeps missing usage and unknown priced components unknown", () => {
-    for (const changed of [null, { ...usage, inputTokens: null }, { ...usage, cacheReadTokens: null }, { ...usage, reasoningTokens: null },
+    for (const changed of [null, { ...usage, inputTokens: null }, { ...usage, cacheReadTokens: null },
       { ...usage, cacheReadTokens: 1001 }, { ...usage, reasoningTokens: 101 }, { ...usage, outputTokens: -1 }]) {
       expect(quoteNormalizedUsage(changed, prices).status).toBe("unknown");
     }
     expect(quoteNormalizedUsage(usage, { ...prices, cacheWriteMicrosPerMillionTokens: null }).status).toBe("unknown");
+    expect(quoteNormalizedUsage({ ...usage, reasoningTokens: null }, prices)).toEqual(quoteNormalizedUsage(usage, prices));
     expect(quoteNormalizedUsage(usage, { ...prices, cachedInputMicrosPerMillionTokens: null }).status).toBe("unknown");
     expect(quoteNormalizedUsage(usage, { ...prices, cachedInputMicrosPerMillionTokens: null, cacheReadBasePriceIsCeiling: true })).toEqual(known(3100n));
   });

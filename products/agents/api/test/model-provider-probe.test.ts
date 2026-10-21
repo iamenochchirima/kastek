@@ -73,6 +73,20 @@ describe("controlled billable provider setup probe", () => {
     const result = await probeProviderModel({ ...input, provider, model: { ...model, providerId: provider.id, protocol: provider.protocol } }, { testLoopback: true });
     expect(calls).toBe(1); expect(result.verification).toBe("inference_verified"); expect(result.usage.observed).toBe(true);
   });
+  it("tests Gemini through the protected REST path with header credentials", async () => {
+    let calls = 0;
+    const input = await fixture((body, req, res) => {
+      calls++; expect(req.url).toBe("/v1/models/fixture-model:streamGenerateContent?alt=sse");
+      expect(req.headers["x-goog-api-key"]).toBe("private-fixture-key"); expect(req.headers.authorization).toBeUndefined();
+      expect(body.generationConfig.maxOutputTokens).toBe(256);
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.end(`data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: "OK" }] }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 1 } })}\n\n`);
+    });
+    const provider = { ...getProviderDefinition("google")!, adapter: { ...getProviderDefinition("google")!.adapter, readiness: "installed" as const } };
+    const result = await probeProviderModel({ ...input, provider, model: { ...model, providerId: provider.id, protocol: provider.protocol } }, { testLoopback: true });
+    expect(calls).toBe(1); expect(result.verification).toBe("inference_verified"); expect(result.usage.inputTokens).toBe(5);
+  });
 
   it("allows genuinely missing usage without fabricated token counts", async () => {
     const input = await fixture((_body, _req, res) => chat(res, { content: "OK" }, "stop", null));
@@ -129,13 +143,11 @@ describe("controlled billable provider setup probe", () => {
     expect(calls).toBe(2);
   });
 
-  it("rejects missing metadata, missing key, Google and unapproved private destinations before dispatch", async () => {
+  it("rejects missing metadata, missing key and unapproved private destinations before dispatch", async () => {
     let calls = 0;
     const input = await fixture((_body, _req, res) => { calls++; chat(res); });
     await expect(probeProviderModel({ ...input, model: { ...model, contextTokens: { value: null, source: null } } }, { testLoopback: true })).rejects.toMatchObject({ code: "MODEL_PROBE_CAPACITY_UNKNOWN" });
     await expect(probeProviderModel({ ...input, apiKey: "" }, { testLoopback: true })).rejects.toMatchObject({ code: "MODEL_CONFIGURATION_INVALID" });
-    const google = { ...getProviderDefinition("google")!, adapter: { ...getProviderDefinition("google")!.adapter, readiness: "installed" as const } };
-    await expect(probeProviderModel({ ...input, provider: google, model: { ...model, providerId: google.id, protocol: google.protocol } })).rejects.toMatchObject({ code: "MODEL_PROBE_NETWORK_UNSUPPORTED" });
     await expect(probeProviderModel(input)).rejects.toMatchObject({ code: "MODEL_ENDPOINT_INVALID" });
     expect(calls).toBe(0);
   });

@@ -7,6 +7,7 @@ import { effectiveExecutionPolicySchema, modelDescriptorSchema, providerDefiniti
 import { callProviderModel, ProviderTransportError, type PrivateNativeState, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
 import { transaction } from "../../infrastructure/database";
 import { createModelFetch, type ModelFetch, type ModelNetworkPolicy } from "../../infrastructure/model-network";
+import { googleModelRequestUrl } from "../../adapters/models/google-transport";
 
 export interface AcceptedModelDispatch {
   binding: ResolvedModelBinding;
@@ -54,7 +55,6 @@ function validateAccepted(raw: AcceptedModelDispatch): AcceptedModelDispatch {
     (model.maxOutputTokens.value !== null && policy.maxOutputTokens > model.maxOutputTokens.value)) {
     throw rejected("MODEL_ACCEPTED_BINDING_MISMATCH", 409);
   }
-  if (binding.protocol === "google_generate_content") throw rejected("MODEL_ADAPTER_CONTROLLED_FETCH_UNSUPPORTED", 501);
   if (definition.adapter.readiness !== "installed") throw rejected("MODEL_ADAPTER_NOT_INSTALLED", 501);
   return accepted;
 }
@@ -71,9 +71,11 @@ export async function dispatchBoundModel(
     const accepted = validateAccepted(input.accepted);
     const { binding, model, policy, definition, consumer } = accepted;
     const messages = structuredClone(input.messages), tools = structuredClone(input.tools), nativeHistory = structuredClone(input.nativeHistory);
+    if (messages.length > policy.maxMessages || (tools?.length ?? 0) > policy.maxTools) throw rejected("MODEL_REQUEST_LIMIT");
+    const maxRequestBytes = Math.min(input.maxRequestBytes, policy.maxRequestBytes);
     if (!Number.isSafeInteger(input.maxRequestBytes) || input.maxRequestBytes < 1 ||
       (input.deadlineAt !== undefined && !Number.isSafeInteger(input.deadlineAt))) throw rejected("MODEL_NETWORK_POLICY_INVALID");
-    const durationDeadline = Date.now() + policy.maxDurationMs;
+    const durationDeadline = Date.now() + policy.maxCallDurationMs;
     const deadlineAt = Math.min(durationDeadline, input.deadlineAt ?? durationDeadline);
     if (!Number.isSafeInteger(deadlineAt)) throw rejected("MODEL_NETWORK_POLICY_INVALID");
     if (input.signal?.aborted) throw rejected("MODEL_CANCELLED_BEFORE_DISPATCH", 409);
@@ -84,12 +86,13 @@ export async function dispatchBoundModel(
     const suffix = binding.protocol === "openai_chat_completions" ? "/chat/completions" :
       binding.protocol === "openai_responses" ? "/responses" : "/messages";
     const path = endpoint.pathname.replace(/\/+$/, "") + suffix;
+    const googleUrl = binding.protocol === "google_generate_content" ? googleModelRequestUrl(binding.endpoint, binding.modelId).href : undefined;
     const headers = definition.auth.kind === "bearer" ? { authorization: `Bearer ${apiKey}` } : { [definition.auth.headerName]: apiKey };
     const fetch = networkFactory({
-      authorizeUrl: url => url.origin === endpoint.origin && url.pathname === path &&
+      authorizeUrl: url => googleUrl ? url.href === googleUrl : url.origin === endpoint.origin && url.pathname === path &&
         (!url.search || binding.protocol === "anthropic_messages" && url.search === "?beta=true") && !url.hash && !url.username && !url.password,
-      headers, maxRequestBytes: input.maxRequestBytes, maxResponseBytes: policy.maxResponseBytes, deadlineAt, signal: input.signal,
-      connectTimeoutMs: policy.maxDurationMs, idleTimeoutMs: policy.maxDurationMs, progressTimeoutMs: policy.maxDurationMs,
+      headers, maxRequestBytes, maxResponseBytes: policy.maxResponseBytes, deadlineAt, signal: input.signal,
+      connectTimeoutMs: policy.maxCallDurationMs, idleTimeoutMs: policy.maxCallDurationMs, progressTimeoutMs: policy.maxCallDurationMs,
       beforeDispatch: async () => {
         await input.beforeDispatch?.();
         const current = await transaction(input.pool, db => input.providerStore.resolveCredential(db, binding, consumer));
@@ -98,7 +101,7 @@ export async function dispatchBoundModel(
     });
     return await callProviderModel({ provider: binding.providerId, protocol: binding.protocol, model: binding.modelId,
       baseUrl: binding.endpoint, credentialRevision: String(binding.credentialRevision), contextWindowTokens: policy.contextTokens,
-      maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes: input.maxRequestBytes,
+      maxOutputTokens: policy.maxOutputTokens, messages, tools, nativeHistory, maxRequestBytes,
       maxResponseBytes: policy.maxResponseBytes }, { apiKey, signal: input.signal, fetch,
       onText: input.onText, onProgress: fetch.markProgress, beforePayloadDispatch: input.beforePayloadDispatch });
   } catch (error) {

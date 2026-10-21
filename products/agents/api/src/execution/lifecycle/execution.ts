@@ -20,6 +20,7 @@ export { loadExecution } from "./state";
 import { type Execution,type MemoryFence,type OperationRecord,type OperationRequest,type TaskOutcome } from "../../contracts/execution";
 import { assertCurrentAuthority } from "../context/evidence-policy";
 import { loadExecution } from "./state";
+import { quoteNormalizedUsage, reserveModelCost, settleModelCost } from "../models/accounting";
 export async function event(db: Pool | PoolClient, taskId: string, key: string, kind: string, payload: object = {}): Promise<void> {
   await recordEvent(db, taskId, key, kind, payload);
 }
@@ -68,12 +69,14 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     const model = input.kind === "model" || input.kind === "compaction";
     const root = (await db.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1", [task.root_task_id])).rows[0];
     const child = Boolean(task.parent_task_id);
+    const rootExecution = child ? await loadExecution(db, task.root_task_id) : execution;
+    const rootPolicy = rootExecution.models.primary.policy;
     if (!Number.isSafeInteger(input.reservedTokens) || input.reservedTokens < 0 || !Number.isSafeInteger(input.reservedMs) || input.reservedMs < 0 ||
       task.tokens_used + task.tokens_reserved + input.reservedTokens > task.root_token_limit ||
-      (model ? budget.model_calls >= (child ? 11 : 12) : budget.tool_calls >= 24) ||
+      (model ? budget.model_calls >= (child ? Math.max(0, rootPolicy.maxModelCalls - 1) : rootPolicy.maxModelCalls) : budget.tool_calls >= rootPolicy.maxToolCalls) ||
       (child && ((task as any).active_ms + (task as any).active_reserved_ms + input.reservedMs > task.allocation_active_ms)) ||
       (!child && (budget.tokens_used + budget.tokens_reserved + budget.child_reserved_tokens + input.reservedTokens > root.root_token_limit ||
-        budget.active_ms + budget.active_reserved_ms + budget.child_reserved_ms + input.reservedMs > 900_000)) ||
+        budget.active_ms + budget.active_reserved_ms + budget.child_reserved_ms + input.reservedMs > rootPolicy.maxDurationMs)) ||
       (child && (input.reservedTokens > budget.child_reserved_tokens || input.reservedMs > budget.child_reserved_ms))) {
       throw new PlatformError("ROOT_LIMIT", 429, "Task execution limit reached");
     }
@@ -84,6 +87,14 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
       return {waiting:true,replayed:false,capacity};
     }
     await activateCapacity(db,capacity.requestId,capacity.generation);
+    if (model) {
+      const route = execution.models[input.kind === "compaction" ? "compaction" : "primary"];
+      try {
+        await reserveModelCost(db, { organizationId: task.organization_id, rootTaskId: task.root_task_id, taskId, operationId: input.id,
+          upperQuote: quoteNormalizedUsage({ inputTokens: route.policy.maxInputTokens, outputTokens: route.policy.maxOutputTokens,
+            cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 }, route.model.pricing) });
+      } catch { throw new PlatformError("MODEL_COST_LIMIT", 429, "The model cost allowance cannot cover this request"); }
+    }
     const row = (await db.query<OperationRecord>(`INSERT INTO agents_platform.operations
       (id,task_id,kind,name,request_digest,request,state,reserved_tokens,reserved_ms,attempt_id)
       VALUES($1,$2,$3,$4,$5,$6,'started',$7,$8,$9) RETURNING *`,
@@ -113,10 +124,22 @@ async function checkMemoryFence(db: PoolClient, fence?: MemoryFence): Promise<vo
 
 async function finishOperationInTransaction(db: PoolClient, execution: Execution, op: OperationRecord,
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<OperationRecord> {
-  const accounted = Math.min(Math.max(0, tokens), op.reserved_tokens);
+  if (!Number.isSafeInteger(tokens) || tokens < 0 || tokens > 2147483647) throw new PlatformError("MODEL_USAGE_INVALID", 502, "Usage cannot be accounted");
+  const accounted = tokens;
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
   if (!charged.rowCount) return op;
+  if (op.kind === "model" || op.kind === "compaction") {
+    const route = execution.models[op.kind === "compaction" ? "compaction" : "primary"];
+    const usage = (output as { usage?: { observed?: boolean; inputTokens?: number; outputTokens?: number;
+      cachedInputTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number } } | null)?.usage;
+    const quote = state === "failed" && accounted === 0 ? { status: "known" as const, costMicros: 0n } :
+      quoteNormalizedUsage(usage?.observed === true ? { inputTokens: usage.inputTokens ?? null, outputTokens: usage.outputTokens ?? null,
+        cacheReadTokens: usage.cachedInputTokens ?? null, cacheWriteTokens: usage.cacheWriteTokens ?? null,
+        reasoningTokens: usage.reasoningTokens ?? null } : null, route.model.pricing);
+    await settleModelCost(db, { organizationId: execution.task.organization_id, rootTaskId: execution.task.root_task_id,
+      taskId: execution.task.id, operationId: op.id, outcome: state, quote });
+  }
   const elapsed = Math.max(0,Date.now()-new Date(op.started_at).getTime());
   const duration = state === "uncertain" ? Math.max(op.reserved_ms,elapsed) : elapsed;
   await db.query(`UPDATE agents_platform.operations SET state=$2,output=$3,error_code=$4,accounted_tokens=$5,completed_at=now() WHERE id=$1`,
@@ -125,7 +148,7 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
     active_ms=active_ms+$4,active_reserved_ms=active_reserved_ms-$5,updated_at=now() WHERE id=$1`,
   [execution.task.id, accounted, op.reserved_tokens, duration, op.reserved_ms]);
   await db.query(`UPDATE agents_platform.execution_roots SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
-    child_reserved_tokens=child_reserved_tokens+$4,active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
+    child_reserved_tokens=greatest(0,child_reserved_tokens+$4),active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
     child_reserved_ms=greatest(0,child_reserved_ms+$7) WHERE root_task_id=$1`,
   [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id?op.reserved_tokens-accounted:0,
     duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);

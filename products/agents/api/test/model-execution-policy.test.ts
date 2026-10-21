@@ -20,8 +20,8 @@ const descriptor = (): ModelDescriptor => ({
 const platform = (): ExecutionPolicyLayer => ({
   kind: "platform", reference: "platform-policy-v1", limits: {
     contextTokens: 128000, maxInputTokens: 100000, maxOutputTokens: 10000, safetyTokens: 1000,
-    compactAtTokens: 80000, maxModelCalls: 20, maxToolCalls: 20, maxDurationMs: 600000,
-    maxInputBytes: 2000000, maxResponseBytes: 4000000, maxRootTokens: 200000, maxCostMicros: null,
+    compactAtTokens: 80000, maxModelCalls: 20, maxToolCalls: 20, maxCallDurationMs: 120000, maxDurationMs: 600000,
+    maxInputBytes: 2000000, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 4000000, maxRootTokens: 200000, maxCostMicros: null,
   },
 });
 
@@ -32,14 +32,14 @@ describe("shared effective model execution policy compiler", () => {
     const layers: ExecutionPolicyLayer[] = [
       platform(),
       { kind: "product", reference: "growth-policy-v2", limits: { maxModelCalls: 10, maxToolCalls: 15 } },
-      { kind: "tenant", reference: "organization-policy-v3", limits: { maxDurationMs: 300000, safetyTokens: 2000 } },
+      { kind: "tenant", reference: "organization-policy-v3", limits: { maxCallDurationMs: 120000, maxDurationMs: 300000, safetyTokens: 2000 } },
       { kind: "agent", reference: "agent-config-v4", limits: { maxOutputTokens: 4000, maxModelCalls: 5 } },
     ];
     const result = compileEffectiveExecutionPolicy(model, layers);
     expect(result.policy).toMatchObject({
       contextTokens: 128000, maxInputTokens: 95000, maxOutputTokens: 4000, safetyTokens: 2000,
-      maxModelCalls: 5, maxToolCalls: 15, maxDurationMs: 300000, maxCostMicros: null,
-      maxInputBytes: 2000000, maxResponseBytes: 4000000,
+      maxModelCalls: 5, maxToolCalls: 15, maxCallDurationMs: 120000, maxDurationMs: 300000, maxCostMicros: null,
+      maxInputBytes: 2000000, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 4000000,
     });
     expect(result.decisions.find(decision => decision.field === "maxInputTokens")).toMatchObject({
       value: 95000, rule: "minimum", sources: expect.arrayContaining([

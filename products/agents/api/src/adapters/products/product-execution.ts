@@ -49,7 +49,7 @@ export class ProductExecutionAdapter {
       const authority={ product:claims.product,organizationId:tenant.organization_id,resourceId:claims.resourceId,callerClientId:this.trust.clientId,
         principal:{kind:"human" as const,issuer:claims.actorIssuer,subject:claims.sub} };
       const grant=executionGrantSchema.parse({...authority,id:claims.jti,versionId:version.id,operations:claims.operations,sourceRevisionIds:claims.sourceRevisionIds,
-        maxInputBytes:claims.maxInputBytes,maxOutputTokens:claims.maxOutputTokens,rootTokenLimit:claims.rootTokenLimit,expiresAt:new Date(claims.exp*1000).toISOString(),revokedAt:null});
+        maxInputBytes:claims.maxInputBytes,maxOutputTokens:claims.maxOutputTokens,maxContextTokens:claims.maxContextTokens,rootTokenLimit:claims.rootTokenLimit,expiresAt:new Date(claims.exp*1000).toISOString(),revokedAt:null});
       assertGrantAuthority(grant,authority,version.id,config);
       const existing=(await db.query("SELECT assertion_digest FROM agents_platform.product_execution_authorities WHERE grant_id=$1",[grant.id])).rows[0];
       if(existing && existing.assertion_digest!==assertionDigest) throw new PlatformError("PRODUCT_ASSERTION_CONFLICT",409,"The product assertion identity was reused");

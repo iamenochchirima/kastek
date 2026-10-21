@@ -13,7 +13,7 @@ import { skillContext,skillReceiptGroups,skillLoadContextSource } from "../conte
 import type { SkillLoadResult } from "../../capabilities/skills/runtime";
 import { PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
-import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource } from "../context/context";
+import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy } from "../context/context";
 import { loadContinuation } from "../context/continuation";
 import type { EvidenceStore } from "../context/evidence";
 import { admitChildren,readChildResults,type DelegatedChild } from "../delegation/delegation";
@@ -31,11 +31,11 @@ type TaskOutcome
 } from "../lifecycle/execution";
 import { MemoryStore, loadSkillRevisions } from "../memory/memory";
 import {
-callModel,estimateRequestTokens,
+estimateRequestTokens,
 ModelOperationError,
 requestDigest as modelRequestDigest,
 type HarnessMessage,
-type ModelAdapterOptions,
+
 type ModelRequest,
 type ModelResponse,
 type ToolDefinition
@@ -48,8 +48,24 @@ import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
 import type { BookingService } from "../../workflows/booking/bookings";
 import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
+import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
+function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map()): ContextModelPolicy {
+  const route = execution.models[role], policy = route.policy;
+  return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: "serialized-utf8-estimate-v1",
+    maxDurationSeconds: policy.maxCallDurationMs / 1000, contextWindowTokens: policy.contextTokens,
+    maxInputTokens: policy.maxInputTokens, maxOutputTokens: policy.maxOutputTokens, safetyTokens: policy.safetyTokens,
+    maxMessages: policy.maxMessages, maxTools: policy.maxTools, maxRequestBytes: policy.maxRequestBytes,
+    estimateRequestTokens: request => Buffer.byteLength(JSON.stringify(request), "utf8") + request.messages.reduce((sum, message) => sum + (message.role === "assistant" ? privateCosts.get(requestDigest(message)) ?? 0 : 0), 0) };
+}
+function accountedModelTokens(value: ModelResponse, reserved: number): number {
+  return value.usage.observed === true && Number.isSafeInteger(value.usage.inputTokens) && Number.isSafeInteger(value.usage.outputTokens)
+    ? value.usage.inputTokens! + value.usage.outputTokens! : reserved;
+}
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
-export interface BusinessOptions extends ModelAdapterOptions {
+export interface BusinessOptions {
+  modelProvider: Parameters<typeof invokeTaskModel>[0]["providerStore"];
+  modelRuntime?: Parameters<typeof invokeTaskModel>[1];
+  signal?: AbortSignal;
   actions?:ActionRuntime;
   evidence?: EvidenceStore;
   knowledgeRuntime?: KnowledgeRuntime;
@@ -86,7 +102,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
         const result = await perform();
         if(input.kind!=="delegation" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
         if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
-        if (result.tokens > input.reservedTokens) throw new ModelOperationError("MODEL_ACCOUNTING_BOUND_EXCEEDED", "uncertain");
+        if (!Number.isSafeInteger(result.tokens) || result.tokens < 0) throw new ModelOperationError("MODEL_ACCOUNTING_INVALID", "uncertain");
         return {receipt:{attemptId,state:"completed" as const,value:result.value,tokens:result.tokens,code:null}};
       } catch (error) {
         if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
@@ -217,7 +233,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const input = { ...(hasContinuation?{continuation}:{}), instructions: config.instructions, currentInput: task.input, history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
-    tools: modelTools, model: config.model.model, maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens };
+    tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution)), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
   let built;
   try { built = buildContext(input); }
   catch (error) {
@@ -227,7 +243,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     throw error;
   }
   const totalGroups = history.length + active.length;
-  if (built.status === "compaction_required" || (built.estimatedTokens >= config.context.compactAtTokens && totalGroups > 2)) {
+  if (built.status === "compaction_required" || (built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
   const selectedContinuation=built.continuation;
@@ -315,7 +331,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
         for (let step = 0; step < 40; step++) {
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
           if (!("configuration" in execution)) return execution;
-          const config = execution.configuration;
+          const config = execution.configuration, policy = execution.models.primary.policy;
           assertPublishedTools(config,execution.toolBindings);
           const contextResult = await ctx.run(`context:${step}`, async () => {
             try { return { ok: true as const, value: await buildSnapshot(pool, taskId, step, working, summary, omitted, options, initialKnowledge, knownGeneration, knownExpiry) }; }
@@ -329,10 +345,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
             const groups = [...assembled.history, ...assembled.working];
-            const plan = prepareCompaction(groups, { model: config.model.model, retainRecent: Math.min(1, groups.length - 1), maxInputTokens: config.context.maxInputTokens,
-              maxOutputTokens: Math.min(384, config.model.maxOutputTokens), previousSummary: summary });
-            const request: ModelRequest = { messages: plan.messages, model: config.model.model, maxDurationSeconds: config.model.maxDurationSeconds,
-              maxInputTokens: config.context.maxInputTokens, maxOutputTokens: Math.min(384, config.model.maxOutputTokens) };
+            const plan = prepareCompaction(groups, { model: execution.models.compaction.binding.modelId, modelPolicy: contextModelPolicy(execution, "compaction"), retainRecent: Math.min(1, groups.length - 1), maxInputTokens: execution.models.compaction.policy.maxInputTokens,
+              maxOutputTokens: execution.models.compaction.policy.maxOutputTokens, previousSummary: summary });
+            const request: ModelRequest = { messages: plan.messages, model: execution.models.compaction.binding.modelId, maxDurationSeconds: execution.models.compaction.policy.maxCallDurationMs / 1000,
+              maxInputTokens: execution.models.compaction.policy.maxInputTokens, maxOutputTokens: execution.models.compaction.policy.maxOutputTokens };
             await ctx.run(`compact-context:${step}`, async () => {
               const digest = modelRequestDigest(request);
               await pool.query(`INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
@@ -347,10 +363,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               return options.evidence!.taskManifest(taskId);
             }) : undefined;
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
-              request, reservedTokens: estimateRequestTokens(request) + 512 + request.maxOutputTokens,
-              reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
-                const value = await callModel(request, { ...options, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal });
-                return { value, tokens: value.usage.inputTokens + value.usage.outputTokens };
+              request, reservedTokens: Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens,
+              reservedMs: execution.models.compaction.policy.maxCallDurationMs, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
+                const value = await invokeTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+                return { value, tokens: accountedModelTokens(value, Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens) };
               });
             if (!compacted.ok) {
               if (["AUTHORITY_EXPIRED","CONTEXT_INVALIDATED"].includes(compacted.code)) continue;
@@ -364,13 +380,13 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             continue;
           }
           const snapshot = assembled.snapshot!;
-          const request: ModelRequest = { messages: snapshot.messages, tools: snapshot.tools, model: config.model.model,
-            maxInputTokens: config.context.maxInputTokens, maxOutputTokens: config.model.maxOutputTokens, maxDurationSeconds: config.model.maxDurationSeconds };
+          const request: ModelRequest = { messages: snapshot.messages, tools: snapshot.tools, model: execution.models.primary.binding.modelId,
+            maxInputTokens: policy.maxInputTokens, maxOutputTokens: policy.maxOutputTokens, maxDurationSeconds: policy.maxCallDurationMs / 1000 };
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
-            reservedTokens: estimateRequestTokens(request) + 512 + config.model.maxOutputTokens,
-            reservedMs: config.model.maxDurationSeconds * 1000, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
-              const value = await callModel(request, { ...options, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal });
-              return { value, tokens: value.usage.inputTokens + value.usage.outputTokens };
+            reservedTokens: Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens,
+            reservedMs: policy.maxCallDurationMs, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
+              const value = await invokeTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+              return { value, tokens: accountedModelTokens(value, Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens) };
             });
           if (!generated.ok) {
             if (["CONTEXT_INVALIDATED","AUTHORITY_EXPIRED"].includes(generated.code)) continue;
@@ -460,7 +476,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     const loaded=value as SkillLoadResult,source=skillSourceMessage(skillLoadContextSource(loaded,name));
                     const existing=snapshot.messages.some(message=>message.role==="system"&&message.content===source.content);
                     const receipt:HarnessMessage={role:"tool",tool_call_id:call.id,content:JSON.stringify({skillId:loaded.skillId,revision:loaded.revision,loaded:true,evidence:loaded.evidence})};
-                    if(estimateRequestTokens({...request,messages:[...snapshot.messages,...(existing?[]:[source]),response.message,receipt]})+512>config.context.maxInputTokens) {
+                    if(estimateRequestTokens({...request,messages:[...snapshot.messages,...(existing?[]:[source]),response.message,receipt]})+policy.safetyTokens>policy.maxInputTokens) {
                       throw new PlatformError("SKILL_CONTEXT_LIMIT",413,"The complete skill file cannot fit the current context budget");
                     }
                   }

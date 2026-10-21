@@ -21,6 +21,9 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow } from "../execution/business/business";
+import { ModelProviderStore } from "../product/model-providers/store";
+import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
+import { connectionVaultFromEnvironment } from "../infrastructure/vault";
 import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
@@ -73,7 +76,6 @@ async function main(): Promise<void> {
   }):undefined;
   const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:connected?.registry,createCatalog:createNativeApiCapabilityCatalog}):undefined;
   const automations=new AutomationService(pool,async configuration=>{
-    if(!process.env.OPENROUTER_API_KEY)throw new PlatformError('MODEL_CREDENTIAL_UNAVAILABLE',503,'Model connection is unavailable');
     if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError('OBJECT_STORE_UNAVAILABLE',503,'Private storage is unavailable');
     if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError('ACTIONS_UNAVAILABLE',503,'Delivery is unavailable');
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError('SANDBOX_UNAVAILABLE',503,'Analysis is unavailable');
@@ -89,12 +91,14 @@ async function main(): Promise<void> {
     }
   });
   const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin,
-    assertServices: async () => { if(!process.env.OPENROUTER_API_KEY) throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE",503,"Model connection is unavailable"); } });
+    assertServices: async () => {} });
   let cancellationPending: Promise<unknown> | undefined;
   const cancellationTimer = setInterval(() => {
     if(!cancellationPending) cancellationPending=inbox.drainCancellations().catch(()=>undefined).finally(()=>{cancellationPending=undefined;});
   },1000); cancellationTimer.unref();
-  const workflow = createBusinessWorkflow(pool, { openRouterApiKey: process.env.OPENROUTER_API_KEY, signal: abort.signal,
+  const modelVault = connectionVaultFromEnvironment();
+  const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
+  const workflow = createBusinessWorkflow(pool, { modelProvider, signal: abort.signal,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();

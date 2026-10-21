@@ -28,12 +28,14 @@ function money(value: bigint): bigint {
 }
 export function quoteNormalizedUsage(usage: AccountingUsage | null, prices: AccountingPrices | null): CostQuote {
   if (!usage) return { status: "unknown", reason: "Usage is unavailable" };
-  if (![usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheWriteTokens, usage.reasoningTokens].every(count)) {
+  if (![usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheWriteTokens].every(count) ||
+      usage.reasoningTokens !== null && !count(usage.reasoningTokens)) {
     return { status: "unknown", reason: "Usage components are unavailable or invalid" };
   }
   const input = BigInt(usage.inputTokens!), output = BigInt(usage.outputTokens!);
   const read = BigInt(usage.cacheReadTokens!), write = BigInt(usage.cacheWriteTokens!);
-  if (read + write > input || BigInt(usage.reasoningTokens!) > output) {
+  // Reasoning is already included in normalized output. Its missing breakdown does not make total output pricing unknown.
+  if (read + write > input || usage.reasoningTokens !== null && BigInt(usage.reasoningTokens) > output) {
     return { status: "unknown", reason: "Usage subsets exceed observed totals" };
   }
   if (!prices || prices.currency !== "USD") return { status: "unknown", reason: "USD pricing is unavailable" };

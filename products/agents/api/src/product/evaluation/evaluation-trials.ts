@@ -9,7 +9,7 @@ import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 export const prepareTrialSchema = z.strictObject({
   trialId: z.string().min(1).max(128), agentId: z.uuid(), versionId: z.uuid(),
   expectedCompositionDigest: z.string().regex(/^[a-f0-9]{64}$/),
-  maxTokens: z.number().int().min(2048).max(32000), expiresAt: z.iso.datetime({ offset: true }),
+  maxTokens: z.number().int().positive().max(2147483647), expiresAt: z.iso.datetime({ offset: true }),
 });
 interface TrialRow {
   id: string; trial_id: string; organization_id: string; account_id: string; agent_id: string; version_id: string;

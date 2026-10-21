@@ -10,7 +10,7 @@ describe("reviewed inference provider registry", () => {
     expect(builtinProviderRegistry.map(provider => provider.id)).toEqual([
       "openrouter", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai",
     ]);
-    expect(builtinProviderRegistry.filter(provider => provider.adapter.readiness === "installed").map(provider => provider.id)).toEqual(["openrouter", "openai", "anthropic"]);
+    expect(builtinProviderRegistry.filter(provider => provider.adapter.readiness === "installed").map(provider => provider.id)).toEqual(["openrouter", "openai", "anthropic", "google"]);
     expect(getProviderDefinition("missing")).toBeUndefined();
     expect(getProviderDefinition("anthropic")).toMatchObject({
       protocol: "anthropic_messages", auth: { kind: "header", headerName: "x-api-key" },

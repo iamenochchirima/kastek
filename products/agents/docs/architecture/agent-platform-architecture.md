@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Owner: Agents engineering. Last reviewed: 2026-10-21.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -374,8 +374,15 @@ live in `contracts/model-messages.ts`. Secret resolution belongs at physical dis
 DTOs, configuration snapshots, Restate journals and evaluation exports retain references only.
 Native provider continuation stays private and scoped to its compatible route and generation.
 
-These contracts and the registry are implemented. Replacing the current single-provider
-runtime and exposing provider settings require the implementation tracked in Linear.
+Provider settings, organization defaults and the per-agent picker now use these contracts.
+Admission pins routes and effective policy in the same transaction as the task and outbox.
+The Restate business worker resolves the accepted connection again before physical dispatch,
+with no environment-key fallback. Private native continuation stays in worker-only PostgreSQL
+records; durable step results contain public messages and usage. Exact request retries retain
+their accepted route. New turns resolve the saved configuration and current default.
+OpenRouter, OpenAI, Anthropic and Google have installed adapters. Controlled protocol fixtures
+do not establish live account acceptance. Further profiles and evaluation integration remain
+in progress; see the [implementation status](../source-boundary.md).
 
 ### Common platform lifecycle
 
@@ -541,19 +548,21 @@ including after midnight, uses that same accounting day. Every model call, tool 
 compaction has a stable operation identity. Unknown model outcomes conservatively retain their
 reservation and are not regenerated blindly.
 
-These are development policies, not provider capabilities or universal agent limits.
-The verified Nemotron routes advertise a 262,144-token context window; the platform
-currently supports a smaller accounting envelope. Raising it requires coordinated
-changes to model validation, context planning, grants, root reservations, schema
-constraints and evaluation budgets. A change to the configuration form alone is insufficient.
+Model capacity, operator allowances, execution grants and agent configuration intersect at
+admission. The resulting policy digest belongs to the accepted route. The operator can change
+service ceilings through `AGENTS_MODEL_POLICY_JSON`; this does not enlarge existing grants
+or accepted tasks. See the [defaults and configuration reference](../source-boundary.md) for
+the current values and their scope. New agents default to 4,096 reply tokens, an 8,192-token
+input estimate and 120 seconds per model call. Root grants and organization admission limits
+remain separate from the model's advertised capacity. Invalid combinations fail admission.
 
-The development profile limits model input to a conservative 8,192-token envelope, output to
-1,024 tokens, and each model request to 120 seconds. Serialized UTF-8 bytes bound the pinned
-byte-level tokenizer's content tokens, with 512 tokens reserved for provider framing. Ingestion
-still limits a user message to 16 KiB. Root limits are 12 model calls, 24 tool calls, 15 minutes
-of summed active operation time and a 24-hour wall deadline. Two accepted nonterminal roots per
-organization are distinct from the two model/four tool operation slots. Waiting work releases
-compute slots. Commercial billing and future product packaging remain separate decisions.
+The current context counter estimates serialized UTF-8 bytes, including tools and private
+continuation. Byte limits independently protect request and response transport. This estimate
+is not a qualified tokenizer bound for every supported model. Native counter qualification
+and strict monetary-cap acceptance remain unfinished. Unknown usage retains its reservation;
+unknown pricing remains unknown. Observed output already includes reasoning tokens, so the
+reasoning breakdown is not added to output a second time. Commercial billing and future
+product packaging remain separate decisions.
 
 ## Tenant isolation, memory, and capacity
 

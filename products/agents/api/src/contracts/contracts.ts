@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { programReferenceSchema } from "./programs";
+import { modelSelectionSchema } from "./model-providers";
+const storagePositiveInteger = z.number().int().positive().max(2147483647);
 
 export const executionKindSchema = z.enum(["business", "workspace"]);
 export type AgentExecutionKind = z.infer<typeof executionKindSchema>;
@@ -9,18 +11,18 @@ export type Product = z.infer<typeof productSchema>;
 
 export const initialLimits = Object.freeze({
   maxInputBytes: 16_384,
-  maxOutputTokens: 1_024,
+  maxOutputTokens: 4_096,
   maxDurationSeconds: 120,
   maxConcurrentTasks: 2,
   dailyTokenAllowance: 100_000,
 });
 
 export const modelSchema = z.strictObject({
-  provider: z.literal("openrouter"),
-  model: z.enum(["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-super-120b-a12b:free"]),
-  maxInputBytes: z.number().int().min(512).max(initialLimits.maxInputBytes),
-  maxOutputTokens: z.number().int().min(1).max(initialLimits.maxOutputTokens),
-  maxDurationSeconds: z.number().int().min(10).max(initialLimits.maxDurationSeconds),
+  selection: modelSelectionSchema.default({ kind: "organization_default" }),
+  maxInputBytes: storagePositiveInteger,
+  maxOutputTokens: storagePositiveInteger,
+  maxDurationSeconds: z.number().int().positive().max(2147483),
+  maxCostMicros: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().default(null),
 });
 
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
@@ -61,8 +63,8 @@ export const agentConfigurationSchema = z.strictObject({
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: businessCapabilitiesSchema,
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
-  context: z.strictObject({ maxInputTokens: z.number().int().min(2048).max(8192),
-    compactAtTokens: z.number().int().min(1024).max(6144) }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
+  context: z.strictObject({ maxInputTokens: storagePositiveInteger,
+    compactAtTokens: storagePositiveInteger }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
   tools: z.array(toolNameSchema).max(7).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists");
@@ -81,7 +83,7 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
     executionKind: "business",
     instructions: "Answer questions using the approved knowledge. Cite each fact from approved knowledge with its provided evidence label in square brackets, exactly as supplied. Never invent a citation or a fact. If the sources do not answer a question, say so.",
     model: {
-      provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b",
+      selection: { kind: "organization_default" }, maxCostMicros: null,
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },
@@ -141,10 +143,10 @@ export const executionGrantSchema = z.strictObject({
   versionId: z.uuid(),
   operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute"])).min(1).max(15),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
-  maxInputBytes: z.number().int().positive().max(initialLimits.maxInputBytes),
-  maxOutputTokens: z.number().int().positive().max(initialLimits.maxOutputTokens),
-  maxContextTokens: z.number().int().min(2048).max(8192).default(8192),
-  rootTokenLimit: z.number().int().min(2048).max(32000).default(32000),
+  maxInputBytes: storagePositiveInteger,
+  maxOutputTokens: storagePositiveInteger,
+  maxContextTokens: storagePositiveInteger.default(8192),
+  rootTokenLimit: storagePositiveInteger.default(32000),
   expiresAt: z.iso.datetime({ offset: true }),
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
 });

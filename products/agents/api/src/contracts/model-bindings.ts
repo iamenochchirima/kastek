@@ -25,7 +25,7 @@ export const acceptedModelRoutesSchema = z.strictObject({
   delegated: acceptedModelRouteSchema,
 }).superRefine((routes, context) => {
   for (const role of ["primary", "compaction", "delegated"] as const) {
-    if (routes[role].binding.role !== role) context.addIssue({ code: "custom", message: "Model role disagrees with route", path: [role] });
+    if (routes[role].binding.role !== role && !(role === "primary" && routes[role].binding.role === "delegated")) context.addIssue({ code: "custom", message: "Model role disagrees with route", path: [role] });
     if (routes[role].binding.organizationId !== routes.primary.binding.organizationId) {
       context.addIssue({ code: "custom", message: "Model roles must belong to one organization", path: [role] });
     }

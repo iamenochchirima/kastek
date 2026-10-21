@@ -14,8 +14,8 @@ function accepted(protocol: ModelProtocol = "openai_chat_completions"): Accepted
     discovery: { kind: "curated" as const }, officialDocsUrl: "https://fixture.invalid/docs",
     adapter: { id: "fixture-adapter", revision: "1", readiness: "installed" as const } };
   const policy = { revision: "fixture-1", digest: "b".repeat(64), contextTokens: 32000, maxInputTokens: 16000, maxOutputTokens: 32,
-    safetyTokens: 1000, compactAtTokens: 12000, maxModelCalls: 10, maxToolCalls: 10, maxDurationMs: 2000,
-    maxInputBytes: 100, maxResponseBytes: 100000, maxRootTokens: 32000, maxCostMicros: null };
+    safetyTokens: 1000, compactAtTokens: 12000, maxModelCalls: 10, maxToolCalls: 10, maxCallDurationMs: 2000, maxDurationMs: 2000,
+    maxInputBytes: 100, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 100000, maxRootTokens: 32000, maxCostMicros: null };
   return { definition, policy, consumer: { kind: "agent", agentId: randomUUID() },
     model: { id: "fixture-model", providerId: "fixture", name: "Fixture model", protocol, revision: "fixture-1",
       contextTokens: { value: 32000, source }, maxInputTokens: { value: 16000, source }, maxOutputTokens: { value: 32, source },
@@ -130,14 +130,12 @@ describe("authorized bound model dispatch", () => {
       expect(state.resolveCredential).not.toHaveBeenCalled();
     }
   });
-  it("rejects uninstalled adapters and Google's uncontrolled SDK before secret access", async () => {
-    for (const google of [false, true]) {
-      const route = accepted(google ? "google_generate_content" : "openai_chat_completions");
-      if (!google) { route.definition.adapter.readiness = "planned"; route.binding.providerDefinitionDigest = requestDigest(route.definition); }
-      const state = input(route);
-      await expect(dispatchBoundModel(state.request)).rejects.toMatchObject({ code: google ? "MODEL_ADAPTER_CONTROLLED_FETCH_UNSUPPORTED" : "MODEL_ADAPTER_NOT_INSTALLED", status: 501 });
-      expect(state.resolveCredential).not.toHaveBeenCalled();
-    }
+  it("rejects uninstalled adapters before secret access", async () => {
+    const route = accepted(); route.definition.adapter.readiness = "planned";
+    route.binding.providerDefinitionDigest = requestDigest(route.definition);
+    const state = input(route);
+    await expect(dispatchBoundModel(state.request)).rejects.toMatchObject({ code: "MODEL_ADAPTER_NOT_INSTALLED", status: 501 });
+    expect(state.resolveCredential).not.toHaveBeenCalled();
   });
   it("preserves the enclosing deadline and rejects pre-cancelled or expired calls", async () => {
     const state = input(), server = await fixture(), deadlineAt = Date.now() + 1000;

@@ -56,7 +56,7 @@ describe("native model transport", () => {
     expect(result.usage).toEqual({ observed: false });
   });
 
-  it.each([[401, "MODEL_AUTHENTICATION_FAILED"], [402, "MODEL_BILLING_REQUIRED"], [403, "MODEL_ACCESS_DENIED"],
+  it.each([[400, "MODEL_REQUEST_INVALID"], [422, "MODEL_REQUEST_INVALID"], [401, "MODEL_AUTHENTICATION_FAILED"], [402, "MODEL_BILLING_REQUIRED"], [403, "MODEL_ACCESS_DENIED"],
     [404, "MODEL_UNAVAILABLE"], [429, "MODEL_RATE_LIMITED"]])("classifies HTTP %s as rejection without SDK retries", async (status, code) => {
     let calls = 0;
     await expect(callProviderModel(request, { apiKey: "fixture-key", fetch: fetcher(() => {
@@ -133,31 +133,31 @@ describe("native model transport", () => {
     expect(calls).toBe(1);
   });
 
-  it("rejects missing keys and unsupported Google endpoints before dispatch", async () => {
+  it("rejects missing keys and missing protected Google transport before dispatch", async () => {
     await expect(callProviderModel(request, { apiKey: "" })).rejects.toMatchObject({ code: "MODEL_CONFIGURATION_INVALID" });
     await expect(callProviderModel({ ...request, protocol: "google_generate_content" }, { apiKey: "fixture" }))
-      .rejects.toMatchObject({ code: "MODEL_GOOGLE_ENDPOINT_UNSUPPORTED" });
+      .rejects.toMatchObject({ code: "MODEL_NETWORK_POLICY_REQUIRED" });
   });
 
   it("uses Google's native function calls and retains opaque thought signatures", async () => {
     const bodies: any[] = [];
-    vi.stubGlobal("fetch", fetcher(body => {
+    const googleFetch = fetcher(body => {
       bodies.push(body);
       return new Response(sse({ candidates: [{ content: { role: "model", parts: [{ functionCall: { name: "lookup", args: { id: "a" } }, thoughtSignature: "b3BhcXVlLWdvb2dsZQ==" }] }, finishReason: "STOP" }],
         usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 } }),
       { headers: { "Content-Type": "text/event-stream" } });
-    }));
-    try {
+    });
+    {
       const google = { ...request, protocol: "google_generate_content" as const, baseUrl: "https://generativelanguage.googleapis.com/v1beta" };
-      const first = await callProviderModel(google, { apiKey: "fixture-key" });
+      const first = await callProviderModel(google, { apiKey: "fixture-key", fetch: googleFetch });
       expect(first.message.tool_calls?.[0]?.function.name).toBe("lookup");
       expect(first.usage).toMatchObject({ observed: true, inputTokens: 5, outputTokens: 3 });
       expect(bodies[0].generationConfig.maxOutputTokens).toBe(32);
       await callProviderModel({ ...google, messages: [...google.messages, first.message,
-        { role: "tool", content: "found", tool_call_id: first.message.tool_calls![0]!.id }], nativeHistory: { 1: first.nativeState } }, { apiKey: "fixture-key" });
+        { role: "tool", content: "found", tool_call_id: first.message.tool_calls![0]!.id }], nativeHistory: { 1: first.nativeState } }, { apiKey: "fixture-key", fetch: googleFetch });
       expect(JSON.stringify(bodies[1])).toContain("b3BhcXVlLWdvb2dsZQ==");
       expect(JSON.stringify(bodies[1])).toContain("functionResponse");
-    } finally { vi.unstubAllGlobals(); }
+    }
   });
 
   it("rejects a completed empty response", async () => {
@@ -191,12 +191,14 @@ describe("native model transport", () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it("rejects ambient Google backend switching before inference", async () => {
+  it("keeps explicit Google REST routing independent of ambient SDK backend flags", async () => {
     vi.stubEnv("GOOGLE_GENAI_USE_VERTEXAI", "true");
     try {
-      await expect(callProviderModel({ ...request, protocol: "google_generate_content",
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta" }, { apiKey: "fixture" }))
-        .rejects.toMatchObject({ code: "MODEL_AMBIENT_CONFIGURATION_UNSUPPORTED", outcome: "rejected" });
+      const response = await callProviderModel({ ...request, protocol: "google_generate_content",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta" }, { apiKey: "fixture", fetch: fetcher(() => new Response(sse({
+          candidates: [{ content: { role: "model", parts: [{ text: "OK" }] }, finishReason: "STOP" }],
+        }), { headers: { "content-type": "text/event-stream" } })) });
+      expect(response.message.content).toBe("OK");
     } finally { vi.unstubAllEnvs(); }
   });
 });

@@ -19,7 +19,8 @@ export interface ModelRequest {
 }
 export interface ModelResponse {
   message: HarnessMessage; finishReason: "stop" | "tool_calls" | "length" | "refusal";
-  usage: { inputTokens: number; outputTokens: number }; providerRequestId?: string;
+  usage: { observed?: boolean; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number;
+    cacheWriteTokens?: number; reasoningTokens?: number }; providerRequestId?: string;
 }
 export interface ModelAdapterOptions { openRouterApiKey: string | undefined; fetch?: typeof fetch; signal?: AbortSignal }
 export class ModelOperationError extends Error {

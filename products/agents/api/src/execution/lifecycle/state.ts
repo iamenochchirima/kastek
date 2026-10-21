@@ -8,6 +8,7 @@ PlatformError
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { assertComposition } from "../programs/composition";
 import { compileValidatedComposition } from "./validated-composition";
+import { loadTaskModelRoutes } from "../models/persistence";
 export { transaction } from "../../infrastructure/database";
 
 import { HARNESS_RELEASE,type Execution } from "../../contracts/execution";
@@ -27,5 +28,6 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
   const current = compileValidatedComposition(configuration, connectedBindings);
   assertComposition(task.effective_composition, current);
   if (!task.parent_task_id) assertComposition(task.published_composition, current);
-  return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings, connectedBindings };
+  const models = await loadTaskModelRoutes(db, task.id, task.organization_id);
+  return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings, connectedBindings, models };
 }

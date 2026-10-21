@@ -27,6 +27,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
     WHERE organization_id=$1 AND id=$2 FOR SHARE`, [input.organizationId, connectionId])).rows[0];
   if (!connection || connection.state !== "active") throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE", 409, "Reconnect the selected model provider");
   const definition = providerDefinitionSchema.parse(connection.definition);
+  if (definition.adapter.readiness !== "installed") throw new PlatformError("MODEL_ADAPTER_NOT_INSTALLED", 503, "The selected model adapter is unavailable");
   if (definition.id !== connection.provider_id || definition.protocol !== connection.protocol) throw new PlatformError("MODEL_ROUTE_CHANGED", 409, "Model connection metadata has changed");
   const grant = (await db.query(`SELECT * FROM agents_platform.model_provider_use_grants WHERE organization_id=$1 AND connection_id=$2
     AND consumer=$3::jsonb AND state='active' AND model_ids ? $4 AND ($5::uuid IS NULL OR id=$5)

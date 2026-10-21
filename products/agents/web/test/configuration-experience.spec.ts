@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
-const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
+const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", context: { maxInputTokens:8192, compactAtTokens:6144 }, model: { selection: { kind:"organization_default" }, maxCostMicros:null, maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
 async function fixture(page: Page, impact = false) {
   let draft = configuration(), revision = 1;
   const snapshots = [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft), createdAt: "2026-10-20T10:00:00Z" }];
@@ -11,6 +11,9 @@ async function fixture(page: Page, impact = false) {
     const agent = () => ({ id: agentId, name: "Support", offering: "faq", draft, draftRevision: revision });
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
+    else if (path.endsWith("/model-providers/default")) data = {selection:{kind:"connection",connectionId:"provider-a",modelId:"model-a"},revision:1};
+    else if (path.endsWith("/model-providers")) data = {connections:[{id:"provider-a",providerId:"openai",name:"OpenAI account",state:"active"},{id:"provider-b",providerId:"anthropic",name:"Anthropic account",state:"active"}]};
+    else if (/model-providers\/provider-[ab]\/models$/.test(path)) data = {stale:false,result:{kind:"discovered",models:[{id:path.includes("provider-b")?"model-b":"model-a",name:path.includes("provider-b")?"Claude fixture":"GPT fixture",lifecycle:"active",inputModalities:["text"],outputModalities:["text"],contextTokens:{value:128000},maxOutputTokens:{value:32768},capabilities:{tools:{value:true,evidence:"discovered"}}}]}};
     else if (path.endsWith("/agents/summaries")) data = { agents: [{ ...agent(), latestVersion: snapshots[0], hasUnpublishedChanges: false }], nextCursor: null };
     else if (path.endsWith(`/agents/${agentId}`)) data = { agent: agent(), versions: snapshots, deployments };
     else if (path.endsWith("/configuration") && method === "POST") {
@@ -72,4 +75,27 @@ test("history restores through save; website setup uses current configuration on
   await expect(page.getByRole("link", { name: "Open website chat" })).toBeVisible(); expect(state.deployments[0].allowedOrigins).toEqual(["https://example.com"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("configuration-mobile.png") });
+});
+
+for (const width of [1440,768,390]) test(`model selection saves in the background at ${width}px`, async ({page}) => {
+  const state = await fixture(page,true); await page.setViewportSize({width,height:1000});
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  const picker = page.getByRole("combobox",{name:"Agent model",exact:true}); await expect(picker).toBeEnabled();
+  await page.getByRole("textbox",{name:"Search agent models"}).fill("Anthropic");
+  const selection={kind:"connection",connectionId:"provider-b",modelId:"model-b"};
+  await picker.selectOption(JSON.stringify(selection));
+  await page.getByText("Model limits",{exact:true}).click();
+  await page.getByLabel("Maximum reply tokens",{exact:true}).fill("8192");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button",{name:"Apply changes",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  expect(state.snapshots).toHaveLength(2);
+  expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).model).toMatchObject({selection,maxOutputTokens:8192});
+  expect(JSON.stringify(state.saves)).not.toMatch(/apiKey|provider.*openrouter|nemotron/);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:test.info().outputPath(`model-picker-${width}.png`),fullPage:true});
+  await page.route("**/model-providers/*/models",route=>route.fulfill({status:503,json:{error:{message:"Unavailable"}}}));
+  await page.reload(); await expect(page.getByRole("combobox",{name:"Agent model",exact:true})).toHaveValue(JSON.stringify(selection));
+  await expect(page.getByText("Some model lists are unavailable.")).toBeVisible();
+  expect(state.snapshots).toHaveLength(2);
 });

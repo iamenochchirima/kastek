@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { callProviderModel, ProviderTransportError, type ProviderTransportRequest, type ProviderTransportResponse } from "../../adapters/models/pi-transport";
 import { modelDescriptorSchema, modelEndpointSchema, providerDefinitionSchema, type ModelDescriptor, type ProviderDefinition } from "../../contracts/model-providers";
 import { createModelFetch } from "../../infrastructure/model-network";
+import { googleModelRequestUrl } from "../../adapters/models/google-transport";
 import { modelSetupPolicySchema, type ModelSetupPolicy } from "./setup-policy";
 
 export interface ModelProviderProbeRequest {
@@ -50,8 +51,6 @@ export async function probeProviderModel(input: ModelProviderProbeRequest, optio
       model.lifecycle === "retired" || !model.inputModalities.includes("text") || !model.outputModalities.includes("text")) {
     throw reject("MODEL_PROBE_UNSUPPORTED");
   }
-  // This adapter cannot inject the controlled network transport into Google's SDK.
-  if (provider.protocol === "google_generate_content") throw reject("MODEL_PROBE_NETWORK_UNSUPPORTED");
   let endpoint: URL;
   try { endpoint = new URL(input.endpoint); } catch { throw reject("MODEL_ENDPOINT_INVALID"); }
   const local = options.testLoopback === true && ["127.0.0.1", "::1", "localhost"].includes(endpoint.hostname.replace(/^\[|\]$/g, ""));
@@ -82,7 +81,8 @@ export async function probeProviderModel(input: ModelProviderProbeRequest, optio
   const responses: ProviderTransportResponse[] = [];
   async function run(): Promise<ProviderTransportResponse> {
     const path = `${endpoint.pathname.replace(/\/$/, "")}/${provider.protocol === "openai_responses" ? "responses" : provider.protocol === "anthropic_messages" ? "messages" : "chat/completions"}`;
-    const network = createModelFetch({ authorizeUrl: url => url.origin === endpoint.origin && url.pathname === path &&
+    const googleUrl = provider.protocol === "google_generate_content" ? googleModelRequestUrl(request.baseUrl, model.id).href : undefined;
+    const network = createModelFetch({ authorizeUrl: url => googleUrl ? url.href === googleUrl : url.origin === endpoint.origin && url.pathname === path &&
       (!url.search || provider.protocol === "anthropic_messages" && url.search === "?beta=true"),
       headers, maxRequestBytes: policy.probeMaxRequestBytes, maxResponseBytes: policy.probeMaxResponseBytes,
       deadlineAt, beforeDispatch: input.reauthorize, testLoopback: options.testLoopback });

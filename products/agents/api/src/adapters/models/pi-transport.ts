@@ -3,43 +3,18 @@ import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messa
 
 import type { ModelProtocol } from "../../contracts/model-providers";
 import { ModelNetworkError } from "../../infrastructure/model-network";
-export type ProviderProtocol = ModelProtocol;
-export interface PrivateNativeState {
-  provider: string; protocol: ProviderProtocol; model: string; baseUrl: string; credentialRevision: string;
-  assistant: unknown;
-}
-export interface ProviderTransportRequest {
-  provider: string; protocol: ProviderProtocol; model: string; baseUrl: string; credentialRevision: string;
-  contextWindowTokens: number; maxOutputTokens: number; messages: HarnessMessage[]; tools?: ToolDefinition[];
-  /** Native protocol options, supplied only by the trusted policy resolver. */
-  reasoning?: Record<string, unknown>;
-  nativeHistory?: Record<number, PrivateNativeState>;
-  maxRequestBytes?: number; maxResponseBytes?: number;
-}
-export interface ProviderTransportOptions {
-  apiKey: string; signal?: AbortSignal; fetch?: typeof fetch; onText?: (delta: string) => void;
-  onProgress?: () => void;
-  beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>) => Promise<void>;
-}
-export interface ProviderTransportResponse {
-  message: HarnessMessage; finishReason: "stop" | "tool_calls" | "length" | "refusal";
-  usage: { observed: boolean; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number;
-    cacheWriteTokens?: number; reasoningTokens?: number };
-  providerRequestId?: string; nativeState: PrivateNativeState;
-}
-export class ProviderTransportError extends Error {
-  constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502) {
-    super(code); this.name = "ProviderTransportError";
-  }
-}
+import { ProviderTransportError, type ProviderProtocol, type PrivateNativeState, type ProviderTransportRequest,
+  type ProviderTransportOptions, type ProviderTransportResponse } from "../../contracts/model-transport";
+export { ProviderTransportError } from "../../contracts/model-transport";
+export type { ProviderProtocol, PrivateNativeState, ProviderTransportRequest, ProviderTransportOptions, ProviderTransportResponse } from "../../contracts/model-transport";
+import { callGoogleProviderModel } from "./google-transport";
 
 // Keep native import: TypeScript's CommonJS transform otherwise emits require(),
 // which cannot resolve pi-ai's import-only package exports.
-const loaders: Record<ProviderProtocol, () => Promise<any>> = {
+const loaders: Record<Exclude<ProviderProtocol, "google_generate_content">, () => Promise<any>> = {
   openai_chat_completions: compileFunction('return import("@earendil-works/pi-ai/api/openai-completions")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
   openai_responses: compileFunction('return import("@earendil-works/pi-ai/api/openai-responses")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
   anthropic_messages: compileFunction('return import("@earendil-works/pi-ai/api/anthropic-messages")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
-  google_generate_content: compileFunction('return import("@earendil-works/pi-ai/api/google-generative-ai")', [], { filename: __filename, importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER }) as () => Promise<any>,
 };
 const piApi = { openai_chat_completions: "openai-completions", openai_responses: "openai-responses",
   anthropic_messages: "anthropic-messages", google_generate_content: "google-generative-ai" };
@@ -64,10 +39,10 @@ export async function getBundledProviderModels(providerId: string): Promise<Bund
 
 function failure(status: number | undefined, dispatched: boolean, cancelled: boolean): ProviderTransportError {
   if (cancelled) return new ProviderTransportError("MODEL_CANCELLED", dispatched ? "uncertain" : "rejected", 409);
-  const rejections: Record<number, string> = { 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED",
+  const rejections: Record<number, string> = { 400: "MODEL_REQUEST_INVALID", 422: "MODEL_REQUEST_INVALID", 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED",
     403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED" };
   if (status && rejections[status]) return new ProviderTransportError(rejections[status], "rejected", status);
-  return new ProviderTransportError("MODEL_REQUEST_FAILED", dispatched ? "uncertain" : "rejected", status ?? 502);
+  return new ProviderTransportError(status === undefined && dispatched ? "MODEL_OUTCOME_UNCERTAIN" : "MODEL_REQUEST_FAILED", dispatched ? "uncertain" : "rejected", status ?? 502);
 }
 
 function validate(request: ProviderTransportRequest, options: ProviderTransportOptions): void {
@@ -76,23 +51,13 @@ function validate(request: ProviderTransportRequest, options: ProviderTransportO
       !Number.isSafeInteger(request.contextWindowTokens) || request.contextWindowTokens <= request.maxOutputTokens || !request.messages.length) {
     throw new ProviderTransportError("MODEL_CONFIGURATION_INVALID", "rejected", 400);
   }
-  if (request.protocol !== "google_generate_content" && !options.fetch) {
+  if (!options.fetch) {
     throw new ProviderTransportError("MODEL_NETWORK_POLICY_REQUIRED", "rejected", 400);
   }
   let url: URL;
   try { url = new URL(request.baseUrl); } catch { throw new ProviderTransportError("MODEL_ENDPOINT_INVALID", "rejected", 400); }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new ProviderTransportError("MODEL_ENDPOINT_INVALID", "rejected", 400);
-  }
-  if (request.protocol === "google_generate_content" &&
-      (url.origin !== "https://generativelanguage.googleapis.com" || !["/v1beta", "/v1", "/v1beta/", "/v1/"].includes(url.pathname) || options.fetch)) {
-    throw new ProviderTransportError("MODEL_GOOGLE_ENDPOINT_UNSUPPORTED", "rejected", 400);
-  }
-  // This SDK consults these flags even with an explicit key and endpoint. The
-  // bundled adapter cannot override its constructor's cloud-backend selection.
-  if (request.protocol === "google_generate_content" &&
-      [process.env.GOOGLE_GENAI_USE_VERTEXAI, process.env.GOOGLE_GENAI_USE_ENTERPRISE].some(value => value !== undefined)) {
-    throw new ProviderTransportError("MODEL_AMBIENT_CONFIGURATION_UNSUPPORTED", "rejected", 400);
   }
   const pending = new Set<string>(), seen = new Set<string>();
   for (const message of request.messages) {
@@ -132,6 +97,7 @@ function history(request: ProviderTransportRequest): any[] {
 
 export async function callProviderModel(request: ProviderTransportRequest, options: ProviderTransportOptions): Promise<ProviderTransportResponse> {
   validate(request, options);
+  if (request.protocol === "google_generate_content") return callGoogleProviderModel(request, options);
   if (options.signal?.aborted) throw new ProviderTransportError("MODEL_CANCELLED_BEFORE_DISPATCH", "rejected", 409);
   let dispatched = false, httpStatus: number | undefined, physicalFailure: ModelNetworkError | undefined,
     observed = false, inputObserved = false, outputObserved = false, refused = false, bytes = 0;
@@ -152,7 +118,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
         description: t.function.description, parameters: t.function.parameters })) ?? [] }, ...history(request)] };
     const stream = adapter.stream(model, context, {
       ...request.reasoning, apiKey: options.apiKey, signal: control.signal, maxRetries: 0, maxTokens: request.maxOutputTokens,
-      transport: "sse", cacheRetention: "none", ...(request.protocol !== "google_generate_content" ? { fetch: (async (url, init) => {
+      transport: "sse", cacheRetention: "none", ...({ fetch: (async (url, init) => {
         try {
           const response = await options.fetch!(url, init);
           httpStatus = response.status; return response;
@@ -160,15 +126,13 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
           if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
           throw error;
         }
-      }) as typeof fetch } : {}),
+      }) as typeof fetch }),
       onResponse: (response: { status: number }) => { httpStatus = response.status; },
       onPayload: async (value: unknown) => {
         if (!object(value)) throw new ProviderTransportError("MODEL_PAYLOAD_INVALID", "rejected", 400);
         // Override SDK minimums/defaults with the exact approved physical-call cap.
         if (request.protocol === "openai_responses") value.max_output_tokens = request.maxOutputTokens;
-        else if (request.protocol === "google_generate_content") {
-          value.config = { ...value.config, maxOutputTokens: request.maxOutputTokens };
-        } else {
+        else {
           delete value.max_completion_tokens; value.max_tokens = request.maxOutputTokens;
         }
         if (request.provider === "openrouter") value.provider = { allow_fallbacks: false, require_parameters: true };

@@ -2,16 +2,22 @@
 
 Model provider setup is available at `/app/settings` under **Model providers**.
 Owners can save multiple encrypted API-key accounts, refresh models, run an explicit
-paid model/tool test, and choose an organization default. OpenRouter, OpenAI and
-Anthropic have installed adapters with controlled HTTP fixture coverage. This
-settings-to-chat integration is still in progress; the existing chat route does not
-yet consume that default. Browser verification starts at
-`web/test/model-providers.spec.ts`; backend authority and transport checks are in
-`api/test/model-provider-store.test.ts`, `model-provider-probe.test.ts` and
-`model-dispatch.test.ts`. See [implementation boundaries](source-boundary.md) for
-current provider limitations and schema/configuration requirements.
+paid generation or tool test, and choose an organization default. OpenRouter,
+OpenAI, Anthropic, and Google have installed adapters with controlled HTTP coverage.
+The agent editor selects that default or an explicit account and model. Saving
+creates configuration snapshots in the background. Admission pins the selected
+account, model metadata, use grant, and effective policy before the shared Restate
+worker runs chat or tool rounds. Existing accepted work retains its selection when
+the default changes; credential revocation still blocks later physical requests.
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Provider-native continuation stays in private worker records. Context packing,
+compaction, delegated allocation, and root usage settlement use accepted model
+bindings. Evaluation integration, the remaining provider profiles, and live
+multi-provider acceptance are unfinished. Installed adapters do not establish live
+account compatibility. See [implementation boundaries](source-boundary.md) for
+operator limits, verification scope, and remaining work.
+
+Owner: Agents engineering. Last reviewed: 2026-10-21.
 
 The standalone product targets customer-service, FAQ, booking, and intake agents across customer
 channels, with a shared inbox for staff support. Research and campaign experiences belong in

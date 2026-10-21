@@ -53,11 +53,13 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
       const effective={...childConfig,sourceRevisionIds,connectedToolBindingIds,tools:binding.tools,memory:{enabled:false}};
       const composition=compilePublishedComposition(effective,effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
-      prepared.push({request,binding,version,effective,composition,maxTokens:request.maxTokens??binding.maxTokens});
+      const maxTokens = request.maxTokens ?? binding.maxTokens;
+      const models = delegatedModelRoutes(parent.models, effective, maxTokens, binding.maxActiveMs);
+      prepared.push({request,binding,version,effective,composition,maxTokens,models});
     }
     const tokens=prepared.reduce((sum,item)=>sum+item.maxTokens,0), ms=prepared.reduce((sum,item)=>sum+item.binding.maxActiveMs,0);
-    if(!budget || budget.settled_at || budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens+tokens+4000>task.root_token_limit ||
-      budget.active_ms+budget.active_reserved_ms+budget.child_reserved_ms+ms+120000>900000) throw new PlatformError("ROOT_LIMIT",429,"Specialist allocations exceed the root budget");
+    if(!budget || budget.settled_at || budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens+tokens+parent.models.primary.policy.maxOutputTokens>task.root_token_limit ||
+      budget.active_ms+budget.active_reserved_ms+budget.child_reserved_ms+ms+parent.models.primary.policy.maxCallDurationMs>parent.models.primary.policy.maxDurationMs) throw new PlatformError("ROOT_LIMIT",429,"Specialist allocations exceed the root budget");
     const children:DelegatedChild[]=[];
     for(const [slot,item] of prepared.entries()) {
       const id=randomUUID(),conversationId=randomUUID();
@@ -75,6 +77,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
       [id,task.product,task.organization_id,item.version.agent_id,grant.callerClientId,task.principal,item.version.id,grant.id,conversationId,`child:${id}`,digest,
         item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,HARNESS_RELEASE,item.composition,task.evaluation_trial_id,task.channel_binding]);
+      await saveTaskModelRoutes(db, id, task.organization_id, item.models);
       await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest,input_manifest) VALUES($1,$2,$3,$4,$5,$6,$7)",[parentId,operationId,slot,id,item.binding.id,digest,inputManifest]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)",[id]);
       await event(db,id,"accepted","accepted",{rootTaskId:task.root_task_id,parentTaskId:parentId,slot});
@@ -106,3 +109,5 @@ export async function readChildResults(pool:Pool,parentId:string,children:Delega
     return {children:results,partial:results.some(child=>child.state!=="completed"||child.outputTruncated)};
   });
 }
+import { delegatedModelRoutes } from "../models/settings";
+import { saveTaskModelRoutes } from "../models/persistence";

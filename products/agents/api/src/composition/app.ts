@@ -73,7 +73,7 @@ const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1).max
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
 const websiteTaskInput = taskInput.omit({ versionId: true });
 const humanTaskInput = taskInput.omit({ versionId: true }).extend({ agentId: uuid.optional(), versionId: uuid.optional(),
-  evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().min(2048).max(32000).optional() })
+  evaluationTrialId: uuid.optional(), evaluationRootTokenLimit: z.number().int().positive().max(2147483647).optional() })
   .refine(input => Boolean(input.agentId) !== Boolean(input.versionId), "Choose an agent or an explicit evaluation snapshot")
   .refine(input => !input.agentId || !input.evaluationTrialId, "Evaluations require an explicit snapshot");
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -141,7 +141,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   async function assertServices(configuration:AgentConfiguration):Promise<void> {
     await assertBindings(configuration);
-    if(!config.OPENROUTER_API_KEY)throw new PlatformError("MODEL_CREDENTIAL_UNAVAILABLE",503,"Model connection is unavailable");
     if((configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled)&&!objects)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
     if(configuration.capabilities.workflows.enabled&&!actionServices)throw new PlatformError("ACTIONS_UNAVAILABLE",503,"Report delivery is unavailable");
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
@@ -292,7 +291,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/health", async () => ({ status: "ok", service: "agents-platform", schema: "001_platform" }));
   app.get("/ready", async (_request, reply) => {
     const result = await pool.query("SELECT version FROM agents_platform.schema_version");
-    const ready = result.rows[0]?.version === "001_platform" && Boolean(config.OPENROUTER_API_KEY);
+    const ready = result.rows[0]?.version === "001_platform";
     return reply.code(ready ? 200 : 503).send({ status: ready ? "ready" : "unavailable", business: ready, workspace: false });
   });
   registerPublicIdentityRoutes(app, { identity, store, secure, sessionCookie, loginCookie, signingSecret: config.AGENTS_LOGIN_RETURN_SECRET });

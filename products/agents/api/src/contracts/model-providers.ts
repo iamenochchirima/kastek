@@ -117,8 +117,9 @@ export const effectiveExecutionPolicySchema = z.strictObject({
   revision, digest: z.string().regex(/^[a-f0-9]{64}$/),
   contextTokens: positiveInteger, maxInputTokens: positiveInteger, maxOutputTokens: positiveInteger,
   safetyTokens: tokenCount, compactAtTokens: positiveInteger,
-  maxModelCalls: positiveInteger, maxToolCalls: tokenCount, maxDurationMs: positiveInteger,
-  maxInputBytes: positiveInteger, maxResponseBytes: positiveInteger, maxRootTokens: positiveInteger,
+  maxModelCalls: positiveInteger, maxToolCalls: tokenCount, maxDurationMs: positiveInteger, maxCallDurationMs: positiveInteger,
+  maxInputBytes: positiveInteger, maxRequestBytes: positiveInteger, maxResponseBytes: positiveInteger,
+  maxMessages: positiveInteger, maxTools: tokenCount, maxRootTokens: positiveInteger,
   maxCostMicros: tokenCount.nullable(),
 }).superRefine((policy, context) => {
   if (BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {

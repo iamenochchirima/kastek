@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {publishFixtureSource} from "./knowledge-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -29,6 +30,7 @@ suite("fresh platform PostgreSQL store", () => {
   async function fixture(kind: "business" | "workspace" = "business") {
     const account = await store.ensureAccount({ issuer: "http://localhost:8080/realms/test", subject: randomUUID(), email: "same@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Test organization");
+    await connectFixtureModel(pool, account.id, org.id);
     const config = defaultBusinessConfiguration(); config.executionKind = kind;
     const agent = await store.createAgent({ accountId: account.id, organizationId: org.id, name: "FAQ", configuration: config });
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });

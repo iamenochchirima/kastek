@@ -1,0 +1,163 @@
+import type { Pool, PoolClient } from "pg";
+import { z } from "zod";
+import { PlatformError, requestDigest } from "../../contracts/contracts";
+import type { Execution } from "../../contracts/execution";
+import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messages";
+import type { AcceptedModelRoute } from "../../contracts/model-bindings";
+import type { ModelRole } from "../../contracts/model-providers";
+import type { PrivateNativeState, ProviderTransportResponse } from "../../adapters/models/pi-transport";
+import { transaction } from "../../infrastructure/database";
+import { assertCurrentAuthority } from "../context/evidence-policy";
+import { loadExecution } from "../lifecycle/state";
+import { ModelOperationError, validateMessageGroups } from "../business/model";
+import { BoundModelDispatchError, dispatchBoundModel, type BoundModelDispatchInput } from "./dispatch";
+
+type Db = Pool | PoolClient;
+/** Private protocol bytes contribute to packing without returning native reasoning to a durable journal. */
+export async function nativeContextCosts(db: Db, execution: Execution): Promise<Map<string, number>> {
+  const rows = (await db.query(`SELECT assistant_digest,octet_length(native_state::text)::int AS bytes
+    FROM agents_platform.private_model_continuations WHERE organization_id=$1 AND task_id=$2
+    AND route_binding_digest=$3 AND state='completed' AND role<>'compaction'`,
+  [execution.task.organization_id, execution.task.id, requestDigest(execution.models.primary.binding)])).rows;
+  const costs = new Map<string, number>();
+  for (const row of rows) costs.set(row.assistant_digest, Math.max(costs.get(row.assistant_digest) ?? 0, row.bytes));
+  return costs;
+}
+const unavailable = () => new ModelOperationError("MODEL_ROUTES_UNAVAILABLE", "rejected", 409);
+export { saveTaskModelRoutes, loadTaskModelRoutes } from "./persistence";
+import { loadTaskModelRoutes } from "./persistence";
+const nativeSchema = z.strictObject({ provider: z.string(), protocol: z.enum(["openai_chat_completions", "openai_responses", "anthropic_messages", "google_generate_content"]),
+  model: z.string(), baseUrl: z.string(), credentialRevision: z.string(), assistant: z.record(z.string(), z.unknown()) });
+function compatible(state: PrivateNativeState, route: AcceptedModelRoute): boolean {
+  return state.provider === route.binding.providerId && state.protocol === route.binding.protocol && state.model === route.binding.modelId &&
+    state.baseUrl === route.binding.endpoint && state.credentialRevision === String(route.binding.credentialRevision);
+}
+/** Optional counters must describe the complete native protocol payload, including restored continuation. */
+export interface TaskModelInvocation {
+  pool: Pool;
+  providerStore: BoundModelDispatchInput["providerStore"];
+  execution: Execution;
+  operationId: string;
+  role: ModelRole;
+  messages: HarnessMessage[];
+  tools?: ToolDefinition[];
+  signal?: AbortSignal;
+  maxRequestBytes: number;
+  estimateRequestTokens?: (payload: Readonly<Record<string, unknown>>) => number | Promise<number>;
+  onText?: (delta: string) => void;
+}
+export type TaskModelResponse = Pick<ProviderTransportResponse, "message" | "finishReason" | "usage" | "providerRequestId">;
+export interface ModelRuntimeDependencies {
+  dispatch?: typeof dispatchBoundModel;
+  assertAuthority?: (db: PoolClient, execution: Execution) => Promise<void>;
+}
+async function currentAuthority(db: PoolClient, original: Execution): Promise<void> {
+  const current = await loadExecution(db, original.task.id, true);
+  if (current.task.organization_id !== original.task.organization_id) throw unavailable();
+  await assertCurrentAuthority(db, current);
+}
+async function nativeHistory(db: Db, taskId: string, organizationId: string, route: AcceptedModelRoute,
+  messages: HarnessMessage[]): Promise<Record<number, PrivateNativeState>> {
+  const candidates = messages.flatMap((message, index) => message.role === "assistant" ? [{ message, index, digest: requestDigest(message) }] : []);
+  const history: Record<number, PrivateNativeState> = {};
+  if (!candidates.length || route.binding.role === "compaction") return history;
+  const rows = (await db.query(`SELECT assistant_digest,tool_call_ids,native_state,native_state_digest FROM agents_platform.private_model_continuations
+    WHERE task_id=$1 AND organization_id=$2 AND route_binding_digest=$3 AND assistant_digest=ANY($4::text[])
+      AND state='completed' AND role<>'compaction' ORDER BY created_at,operation_id`,
+    [taskId, organizationId, requestDigest(route.binding), candidates.map(candidate => candidate.digest)])).rows;
+  for (const candidate of candidates) {
+    const ids = (candidate.message.tool_calls ?? []).map(call => call.id);
+    const matching = rows.filter(row => row.assistant_digest === candidate.digest && requestDigest(row.tool_call_ids) === requestDigest(ids));
+    // Identical public messages can hide different native reasoning. Ambiguity cannot select private history safely.
+    if (matching.length > 1 && new Set(matching.map(row => row.native_state_digest)).size > 1) {
+      throw new ModelOperationError("MODEL_NATIVE_HISTORY_AMBIGUOUS", "rejected", 409);
+    }
+    const row = matching[0]; if (!row) continue;
+    const parsed = nativeSchema.safeParse(row.native_state);
+    if (!parsed.success || requestDigest(row.native_state) !== row.native_state_digest || !compatible(parsed.data, route)) {
+      throw new ModelOperationError("MODEL_NATIVE_HISTORY_INTEGRITY", "rejected", 409);
+    }
+    history[candidate.index] = parsed.data;
+  }
+  return history;
+}
+/** Invoke only inside the durable operation boundary. Return public message/usage; keep native continuation out of journals. */
+export async function invokeTaskModel(input: TaskModelInvocation, dependencies: ModelRuntimeDependencies = {}): Promise<TaskModelResponse> {
+  let claimed = false, dispatched = false;
+  let guardFailure: ModelOperationError | PlatformError | undefined;
+  const retainGuardFailure = (error: unknown): never => {
+    if (error instanceof ModelOperationError || error instanceof PlatformError) guardFailure = error;
+    throw error;
+  };
+  const taskId = input.execution.task.id, organizationId = input.execution.task.organization_id;
+  const messages = structuredClone(input.messages), tools = structuredClone(input.tools);
+  try {
+    const prepared = await transaction(input.pool, async db => {
+      const routes = await loadTaskModelRoutes(db, taskId, organizationId), route = routes[input.role];
+      if (!messages.length || messages.length > route.policy.maxMessages || (tools?.length ?? 0) > route.policy.maxTools) {
+        throw new ModelOperationError("MODEL_REQUEST_LIMIT", "rejected", 400);
+      }
+      validateMessageGroups(messages);
+      const operation = (await db.query(`SELECT state,kind,reserved_tokens FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE`, [input.operationId, taskId])).rows[0];
+      if (!operation || operation.state !== "started" || (input.role === "compaction" ? operation.kind !== "compaction" : operation.kind !== "model")) {
+        throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
+      }
+      const restored = await nativeHistory(db, taskId, organizationId, route, messages);
+      const request = requestDigest({ role: input.role, messages, tools: tools ?? [] });
+      const inserted = await db.query(`INSERT INTO agents_platform.private_model_continuations(operation_id,organization_id,task_id,role,route_binding_digest,request_digest,state)
+        VALUES($1,$2,$3,$4,$5,$6,'started') ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`,
+        [input.operationId, organizationId, taskId, input.role, requestDigest(route.binding), request]);
+      if (!inserted.rowCount) throw new ModelOperationError("MODEL_NATIVE_OPERATION_ALREADY_RECORDED", "uncertain", 409);
+      return { route, restored, reservedTokens: operation.reserved_tokens };
+    });
+    claimed = true;
+    const response = await (dependencies.dispatch ?? dispatchBoundModel)({ pool: input.pool, providerStore: input.providerStore,
+      accepted: prepared.route, messages, tools, nativeHistory: prepared.restored, signal: input.signal,
+      maxRequestBytes: Math.min(input.maxRequestBytes, prepared.route.policy.maxRequestBytes), deadlineAt: new Date(input.execution.task.deadline_at).getTime(), onText: input.onText,
+      beforeDispatch: async () => {
+        try { await transaction(input.pool, async db => {
+          await (dependencies.assertAuthority ?? currentAuthority)(db, input.execution);
+          const operation = (await db.query(`SELECT state FROM agents_platform.operations WHERE id=$1 AND task_id=$2`, [input.operationId, taskId])).rows[0];
+          if (!operation || operation.state !== "started") throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
+        }); } catch (error) { retainGuardFailure(error); }
+      },
+      beforePayloadDispatch: async payload => {
+        try {
+          // This is a serialized-byte estimate until a qualified model-native counter is configured.
+          const estimate = input.estimateRequestTokens ? await input.estimateRequestTokens(payload) : Buffer.byteLength(JSON.stringify(payload), "utf8");
+        if (!Number.isSafeInteger(estimate) || estimate < 0 || estimate > prepared.route.policy.maxInputTokens ||
+          estimate + prepared.route.policy.maxOutputTokens > prepared.reservedTokens ||
+            BigInt(estimate) + BigInt(prepared.route.policy.maxOutputTokens) + BigInt(prepared.route.policy.safetyTokens) > BigInt(prepared.route.policy.contextTokens)) {
+            throw new ModelOperationError("CONTEXT_LIMIT", "rejected", 400);
+          }
+        } catch (error) { retainGuardFailure(error); }
+      },
+    });
+    dispatched = true;
+    try {
+      // Persist only JSON values. The provider SDK can include undefined fields that PostgreSQL drops.
+      const state: unknown = JSON.parse(JSON.stringify(response.nativeState));
+      const parsed = nativeSchema.safeParse(state);
+      if (!parsed.success || !compatible(parsed.data, prepared.route)) throw new Error("Native continuation route changed");
+      const stored = await transaction(input.pool, db => db.query(`UPDATE agents_platform.private_model_continuations
+        SET state='completed',assistant_digest=$3,tool_call_ids=$4,native_state=$5,native_state_digest=$6,completed_at=now()
+        WHERE operation_id=$1 AND task_id=$2 AND organization_id=$7 AND state='started' RETURNING operation_id`,
+        [input.operationId, taskId, requestDigest(response.message), (response.message.tool_calls ?? []).map(call => call.id), state, requestDigest(state), organizationId]));
+      if (!stored.rowCount) throw new Error("Native continuation was not persisted");
+    } catch { throw new ModelOperationError("MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN", "uncertain"); }
+    return { message: response.message, finishReason: response.finishReason, usage: response.usage,
+      ...(response.providerRequestId ? { providerRequestId: response.providerRequestId } : {}) };
+  } catch (caught) {
+    // SDKs can wrap callback failures; preserve a known pre-dispatch denial without masking uncertain physical outcomes.
+    const error = caught instanceof BoundModelDispatchError && caught.outcome === "rejected" && guardFailure ? guardFailure : caught;
+    const mapped = error instanceof ModelOperationError ? error : error instanceof BoundModelDispatchError ?
+      new ModelOperationError(error.code, error.outcome, error.status) : error instanceof PlatformError ?
+      new ModelOperationError(error.code, "rejected", error.statusCode) :
+      new ModelOperationError(dispatched ? "MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN" : "MODEL_RUNTIME_UNAVAILABLE", dispatched ? "uncertain" : "rejected");
+    if (claimed) {
+      try { await input.pool.query(`UPDATE agents_platform.private_model_continuations SET state=$3,completed_at=now()
+        WHERE operation_id=$1 AND task_id=$2 AND state='started'`, [input.operationId, taskId, mapped.outcome]); } catch {}
+    }
+    throw mapped;
+  }
+}

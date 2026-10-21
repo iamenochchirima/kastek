@@ -181,7 +181,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/pinned", expectedRevision: 0 });
     const layers: ExecutionPolicyLayer[] = [{ kind: "platform", reference: "fixture-policy", limits: {
       contextTokens: 32000, maxInputTokens: 20000, maxOutputTokens: 4096, safetyTokens: 1000, compactAtTokens: 16000,
-      maxModelCalls: 8, maxToolCalls: 8, maxDurationMs: 120000, maxInputBytes: 16384, maxResponseBytes: 1048576,
+      maxModelCalls: 8, maxToolCalls: 8, maxCallDurationMs: 120000, maxDurationMs: 120000, maxInputBytes: 16384, maxRequestBytes: 2097152, maxMessages: 256, maxTools: 64, maxResponseBytes: 1048576,
       maxRootTokens: 50000, maxCostMicros: null } }];
     const input = { organizationId: f.scope.organizationId, agentId: agent.id, product: "agents" as const,
       selection: { kind: "organization_default" as const }, layers, requiresTools: true };

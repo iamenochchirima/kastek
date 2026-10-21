@@ -18,6 +18,10 @@ import { assertEvaluationTrial } from "./trial-authority";
 import { recordEvent } from "../../observability/event-store";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
+import { resolveAcceptedModelRoutes } from "../models/resolution";
+import { executionModelLayers } from "../models/settings";
+import { saveTaskModelRoutes } from "../models/persistence";
+import { initializeRootModelAccount } from "../models/accounting";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -80,10 +84,14 @@ export class AdmissionStore extends AuthorityStore {
       if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
       return { task: existing, replayed: true };
     }
+    const models = await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
+      agentId: version.agent_id, product: input.authority.product, selection: config.model.selection,
+      layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.skillIds.length > 0 });
+    if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
     if(active.active_roots>=policy.maxConcurrentRoots)throw new PlatformError("CONCURRENCY_LIMIT",429,"Too many tasks are running");
-    const reservation = grant.rootTokenLimit;
+    const reservation = models.primary.policy.maxRootTokens;
     if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
     await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
@@ -111,6 +119,9 @@ export class AdmissionStore extends AuthorityStore {
     [randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
       input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
+    await saveTaskModelRoutes(db, task.id, task.organization_id, models);
+    await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id,
+      maxCostMicros: models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros) });
     await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
     await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
     await recordEvent(db, task.id, "accepted", "accepted");

@@ -37,7 +37,7 @@
     "auth": { "kind": "header", "headerName": "x-goog-api-key" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://ai.google.dev/api/models",
-    "adapter": { "id": "google-generate-content", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "google-generate-content", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "xai",

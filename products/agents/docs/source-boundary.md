@@ -1,6 +1,6 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Owner: Agents engineering. Last reviewed: 2026-10-21.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
@@ -10,11 +10,11 @@ startup. It does not migrate an older database or import Growth state.
 ## Product scope and implementation gaps
 
 Model-provider contracts and a reviewed JSON registry now exist under `api/src/contracts/`
-and `api/src/adapters/models/`. Registry records cover twelve providers. OpenRouter, OpenAI
-and Anthropic have installed fixture-tested adapters; other profiles remain `planned`.
+and `api/src/adapters/models/`. Registry records cover twelve providers. OpenRouter, OpenAI,
+Anthropic, and Google have installed fixture-tested adapters. Eight profiles remain `planned`.
 Installation does not claim live account verification. Shared messages no longer depend on
-the business adapter's file. The running agent configuration and model loop still use their
-existing OpenRouter/Nemotron route; the new registry alone does not enable another provider.
+the business adapter's file. The running business loop uses accepted model bindings through
+`execution/models/runtime.ts`; it does not select a deployment environment key or a fixed model.
 
 Authenticated organization routes at `/api/organizations/:organizationId/model-providers`
 now save labeled provider accounts, list public metadata, rotate keys, revoke access and
@@ -33,8 +33,13 @@ authority. Exact-model receipts bind endpoint, protocol, model metadata revision
 generation. A stale in-flight test cannot verify a rotated key. Schema042 stores these receipts
 and a revision-checked organization default. Choosing a default explicitly creates a service-use
 grant; changing it does not revoke the grants of previously accepted work. The admission resolver
-can pin primary, compaction and delegated role routes from saved metadata without network or
-secret access. Worker/admission integration is still required before this default governs chat.
+pins primary, compaction, and delegated role routes from saved metadata without network or
+secret access. Admission stores those routes and their integrity digest atomically with the
+root reservation and outbox command. An idempotent replay returns the original accepted task.
+Changing the organization default affects new admissions; it does not redirect accepted work.
+The agent editor also supports an explicit account/model selection and saves through the
+existing background configuration-snapshot flow. Unrelated configuration edits cannot restore
+a revoked model-use grant.
 
 Model discovery uses each saved connection's endpoint, authentication placement and credential
 generation. Its bounded server transport pins DNS addresses, rejects private destinations and
@@ -62,19 +67,25 @@ adapter receives explicit byte/item budgets and an injected transport; it cannot
 credentials or issue its own fetch. Cached-model reads currently require the organization owner.
 Stale snapshots remain available for display while refresh is a separate action.
 
-The new transport adapter uses pinned `@earendil-works/pi-ai@1.1.0` low-level streams for
-Chat, Responses, Messages and Gemini protocols. It disables retries and explicit prompt-cache
-requests, validates final output caps, rejects repaired tool JSON, distinguishes missing usage
-from zero, and scopes private continuation to provider/API/model/endpoint/credential generation.
-Public results exclude internal reasoning; private native state must stay out of transcript and
-evaluation projections when runtime integration is enabled. The pinned SDK receives instructions
-and tools through its leading system message; actual outgoing-body tests guard this contract.
-Anthropic's SDK base path is normalized while the accepted endpoint stays unchanged.
-The CommonJS application currently
-loads this import-only dependency through Node24's native VM loader, which emits an experimental
-warning. The Gemini library path permits only the official endpoint and rejects ambient cloud
-backend flags. Its failed HTTP status is unavailable through this adapter. This foundation is
-fixture-tested and not yet the running business loop.
+The transport adapter uses pinned `@earendil-works/pi-ai@1.1.0` low-level streams for
+Chat Completions, Responses, and Anthropic Messages. Google's GenerateContent protocol uses
+`adapters/models/google-transport.ts`, a native REST streaming adapter with the same protected
+fetch contract. All four protocols require an injected bounded transport. They disable retries,
+validate output caps, reject repaired tool JSON, and distinguish missing usage from zero.
+The adapters scope private continuation to provider, protocol, model, endpoint, and credential
+revision. Google requests use the saved endpoint and credential header without ambient SDK
+cloud-backend selection.
+
+The pinned SDK receives instructions and tools through its leading system message. Actual
+outgoing-body tests guard this contract. Anthropic's SDK base path is normalized while the
+accepted endpoint stays unchanged. The CommonJS application loads this import-only dependency
+through Node24's native VM loader, which emits an experimental warning.
+
+Schema043 adds immutable `task_model_routes` and private operation-scoped native continuation.
+The worker restores continuation only for matching accepted bindings and complete public
+assistant/tool groups. Native reasoning and signatures remain in the private table, outside
+ordinary transcript messages and Restate operation results. Persistence uncertainty does not
+authorize another physical model request.
 
 Discovery can enrich exact provider/model/API matches from the pinned bundled catalogue.
 Live metadata takes precedence. Bundled fields retain registry provenance; they do not prove
@@ -82,22 +93,68 @@ account access or tool support. Generated zero prices remain unknown rather than
 `execution/models/policy.ts` intersects explicit platform/product/tenant/agent allowances and
 sourced model capacities. Unknown context/output capacity requires an operator attestation.
 The compiler checks reserves and root/compaction relationships and pins its decisions in a digest.
-No default numeric model limits are hidden in the compiler. Worker, grant and agent-editor integration
-remain necessary before these policies govern live calls.
+No default numeric model limits are hidden in the compiler. Admission currently supplies
+platform, product-grant, and saved-agent layers. The compiler supports a tenant layer, but no
+separate tenant-policy management feature is implemented. Accepted policies govern the worker,
+compaction, delegated allocations, and the root token and monetary ledgers. Invalid context,
+reserve, or root-budget relationships fail admission instead of silently shrinking settings.
 
 `infrastructure/model-network.ts` supplies a separate streaming fetch for generation. It pins
 verified public DNS addresses, reauthorizes after lookup, sends only trusted credential headers,
 enforces explicit body/response budgets and independent total/connect/idle/progress clocks,
 and permits one physical request without redirects or retries. Semantic model deltas reset the
 progress clock; heartbeat bytes only reset idle time. Its compiled CommonJS/native-adapter
-path has a real HTTP fixture proof. Gemini's bundled SDK cannot consume this fetch port.
+path has a real HTTP fixture proof. The native Google adapter uses this same fetch port.
 
 Context packing and compaction accept `ContextModelPolicy` with explicit model/counter revisions,
 duration, capacities, message/tool/byte protections and a runtime-supplied counter. Serializable
-snapshots pin the policy and omit the callback. The new path does not use the global Nemotron
-allowlist or counter. Existing runtime callers still use their previous profile until accepted
-binding integration changes them. Root monetary reservation persistence exists in schema041;
-runtime accounting and account-scoped scheduling integration remain outstanding.
+snapshots pin the policy and omit the callback. The running path uses accepted model capacities
+rather than the old Nemotron allowlist. Native continuation byte estimates contribute to context
+packing without exposing the private content. Final native-payload preflight checks the accepted
+input/context limits and the operation reservation before dispatch. The default counter estimates
+serialized UTF-8 bytes; it is not a qualified universal tokenizer or a proof of a provider's actual
+bill. Model-native counter qualification remains unfinished. Scheduling groups model operations
+by organization and accepted connection, independently of a deployment-wide environment key.
+
+`execution/models/settings.ts` reads partial operator overrides from `AGENTS_MODEL_POLICY_JSON`.
+The JSON object is strict: unknown fields, invalid values, and inconsistent effective limits fail.
+These defaults bound service work. They do not describe every model's capacity. Model metadata,
+execution grants, and agent settings can reduce the effective allowances.
+
+| Operator field | Default | Purpose |
+| --- | --- | --- |
+| `contextTokens` | 262,144 | Service context ceiling, intersected with sourced model capacity. |
+| `maxInputTokens` | 196,608 | Input ceiling with space left for output and safety reserves. |
+| `maxOutputTokens` | 32,768 | Service output ceiling, also bounded by model and agent settings. |
+| `safetyTokens` | 1,024 | Explicit context reserve; contributing layers retain the largest reserve. |
+| `compactAtTokens` | 131,072 | Service compaction threshold, reduced by the saved agent threshold. |
+| `maxModelCalls`, `maxToolCalls` | 24, 48 | Root call limits shared with compaction and children. |
+| `maxDurationMs`, `maxCallDurationMs` | 900,000, 120,000 | Root active-operation time and each physical model call. Approval waits use separate durable waits. |
+| `maxInputBytes` | 65,536 | Raw user-input byte ceiling. |
+| `maxRequestBytes`, `maxResponseBytes` | 2,097,152, 4,194,304 | Serialized native request and response byte ceilings. |
+| `maxMessages`, `maxTools` | 256, 64 | Native request collection bounds. |
+| `maxRootTokens` | 1,000,000 | Service root allowance, reduced by the execution grant. |
+| `maxCostMicros` | `null` | No operator monetary cap. Finite caps also require known pricing. |
+
+For example, `AGENTS_MODEL_POLICY_JSON={"maxModelCalls":32,"maxToolCalls":64}` changes only
+the two call ceilings. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
+threshold, 4,096 reply tokens, 16,384 raw input bytes, and a 120-second model-call deadline.
+These are editable configuration defaults, not provider limits. Effective root grants can be
+smaller than the service allowance. The editor does not yet expose every effective-policy limit
+or provider reasoning control.
+
+Schema044 replaces model-specific input SQL ceilings with PostgreSQL integer integrity bounds
+and sets the current task release to `model-bindings-v6`. The worker workflow is
+`AgentsBusinessRunV16`. Database startup still checks the complete schema digest; an older local
+database is not silently upgraded by starting the application.
+
+Focused PostgreSQL tests cover accepted selection, default changes, revocation, delegated route
+inheritance, and native continuation. Controlled-provider tests with actual Restate workers cover
+chat, tool rounds, compaction, and restart recovery. Responsive browser fixtures cover settings
+and model selection through background configuration saves. These checks do not prove live model
+quality or account access. Evaluation adapter integration, the eight additional provider profiles,
+qualified native counters, complete provider fault coverage, and live multi-provider acceptance
+remain separate work. No production or hosted capacity acceptance is claimed.
 
 Schema039 adds dedicated model connection, credential and use-grant tables. Setup retains its
 fresh-database/checksum contract; existing databases are not silently rewritten. The routes
@@ -446,7 +503,10 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `composition/app.ts`, `composition/server.ts`, `adapters/channels/website/widget.ts` | Management and website APIs, continuation, history deletion, progress, cancellation, and widget delivery. |
 | `execution/lifecycle/execution.ts` | Current authority, task and operation identities, claims, receipts, and usage settlement. |
 | `execution/business/business.ts` | Restate business controller, model and tool rounds, ordered turns, and compaction coordination. |
-| `execution/business/model.ts`, `execution/context/context.ts`, `execution/context/continuation.ts` | Provider protocol, conservative request accounting, scoped snapshots, complete message groups and bounded execution checkpoints. |
+| `execution/models/runtime.ts`, `execution/models/persistence.ts`, `execution/models/dispatch.ts` | Immutable accepted model routes, private native continuation, current credential authority, and protected physical dispatch. |
+| `execution/models/policy.ts`, `execution/models/settings.ts`, `execution/models/accounting.ts` | Effective limits, operator defaults, delegated allocations, root monetary reservations, and normalized usage settlement. |
+| `adapters/models/pi-transport.ts`, `adapters/models/google-transport.ts` | Native model protocols and private continuation normalization. |
+| `execution/business/model.ts`, `execution/context/context.ts`, `execution/context/continuation.ts` | Shared message validation, request estimates, scoped snapshots, complete message groups, and bounded execution checkpoints. |
 | `execution/memory/memory.ts`, `product/agents/memory-routes.ts` | Personal memory candidates, authenticated acceptance, revisions, expiry, forgetting, source invalidation, and pinned skills. |
 | `infrastructure/object-store.ts`, `execution/artifacts/artifacts.ts`, `execution/artifacts/task-artifacts.ts` | Private S3-compatible content, root/task provenance, explicit transfers, downloads, integrity and deletion. |
 | `execution/delegation/delegation.ts`, `capabilities/tool-descriptors.ts` | Published specialist bindings, atomic child admission, bounded results and pinned adapter contracts. |
@@ -575,16 +635,17 @@ knowledge. Personal memory, memory tools, generic personal bindings, and private
 are denied for website publication and execution. Exact reviewed server-curated instruction packages
 and a separately pinned Google Calendar service policy have explicit public authority contracts.
 
-Provider requests use the explicitly selected Nemotron route through OpenRouter:
-`nvidia/nemotron-3-super-120b-a12b` (paid, the default for new drafts), or
-`nvidia/nemotron-3-super-120b-a12b:free`. Published versions retain their selected
-route; execution never silently switches a free version to paid. Both routes use
-the same approved tokenizer and accounting profile, with provider fallback disabled
-and reasoning effort `none`. The canonical response model alias is accepted only
-for this exact approved model. Input preflight conservatively
-counts serialized UTF-8 bytes against the configured token allowance and reserves
-framing separately. This estimate is not an exact tokenizer count. Returned usage,
-finish reasons, tool calls, and unexpected reasoning are validated.
+Provider requests use the account and model accepted at task admission. Each task records
+primary, compaction, and delegated role bindings with model metadata, credential revision,
+use-grant identity, effective policy, and integrity digests. The worker rechecks current authority
+before physical dispatch. An accepted route never silently switches accounts or models.
+Compaction uses its accepted role policy, and children inherit the accepted delegated route
+within their root allocation. Their configuration cannot introduce an unauthorized model route.
+
+Input preflight uses the configured counter over the complete native payload, including private
+continuation. The default estimates serialized UTF-8 bytes. Returned usage and finish reasons
+remain distinct from estimates. Native reasoning can be retained privately for protocol
+continuation, but ordinary assistant messages contain only public text and tool calls.
 
 HTTP 401, 402, 403, 404 and 429 produce bounded authentication, billing, access,
 availability and rate-limit error codes. Provider response bodies are not exposed
@@ -639,14 +700,15 @@ changed payloads conflict. Model, tool, and compaction operations have separate
 stable identities and receipts. A recorded result is reused after replay. An
 unconfirmed model request becomes uncertain rather than generating another reply.
 
-The development profile allows a root allocation up to 32,000 accounted tokens,
-12 model calls including compaction and children, and 24 tool calls. Its model input allowance
-is at most 8,192 conservative estimated tokens, with 1,024 output tokens and a
-120-second deadline per model call. Root wall lifetime is 24 hours. Accounted
-active operation time is bounded to 15 minutes. Every operation reserves time before claim. A late known completion is charged its
-actual elapsed time; an uncertain operation consumes at least its reservation. A timeout cannot
-hide overspent time or grant more root capacity. Organization limits are two
-accepted active roots, two model operations, and four tool operations in flight.
+Root limits come from the accepted effective model policy described above. The default
+execution grant allows 32,000 accounted tokens; the operator service ceiling alone does not
+increase that grant. Default call ceilings are 24 model calls, including compaction and children,
+and 48 tool calls. The saved agent starts with 8,192 estimated input tokens, 4,096 output tokens,
+and a 120-second model-call deadline. Root wall lifetime remains 24 hours, with 15 minutes of
+accounted active-operation time. Every operation reserves time before claim. A known late
+completion charges actual elapsed time; an uncertain operation consumes at least its reservation.
+Organization scheduling defaults allow two accepted roots, two model operations, and four tool
+operations in flight. `AGENTS_SCHEDULING_POLICY_JSON` configures these separate capacity limits.
 
 The 100,000-token organization allowance applies to the UTC admission day.
 Operations settle the original root reservation even after midnight. This is not
@@ -860,6 +922,11 @@ structured stdout diagnostics.
 
 ### Catalogue and booking release record
 
+This record covers the earlier catalogue and booking implementation. Its V15 runtime and
+schema038 identify that change; the current provider integration uses V16 and schema044
+as described above. The catalogue acceptance evidence has not been rerun against every
+new provider and does not qualify the provider integration.
+
 | Field | Decision and evidence |
 | --- | --- |
 | Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, skill requirement repair with contextual compatible Analysis access, Google Calendar policy and customer booking confirmation. |
@@ -1033,8 +1100,8 @@ queue index, but only measured workloads establish the total scheduling cost.
 product, tenant, workload and provider capacity, queue depth, maximum waiting time,
 root admission and daily token allowance. Replica policies must agree: requests
 cannot rewrite existing bucket limits. Workload derives from accepted task and
-operation metadata. Provider grouping uses the configured `AGENTS_MODEL_ACCOUNT_ID`
-(required for production model calls). Connected tools group by their pinned
+operation metadata. Model provider grouping uses the accepted connection ID within its
+organization. Connected tools group by their pinned
 connection ID unless an operator supplies a verified connection-to-account map in
 `AGENTS_PROVIDER_ACCOUNT_MAP_JSON`. Separate connections to the same external
 account do not share a provider limit without that map.
@@ -1255,8 +1322,10 @@ subsets of output. They are not charged twice. Missing usage or prices remain
 unknown. A finite monetary cap requires a known upper reservation; uncertain
 outcomes retain that reservation until explicit reconciliation. Schema041 removes
 model-specific token/call SQL ceilings while keeping PostgreSQL integer integrity
-bounds. These accounting functions are foundations; the existing worker is not yet
-wired to them. No new model usage or cost analytics are claimed by this change.
+bounds. Admission initializes the root ledger in the same transaction as accepted bindings.
+Operation start reserves a price quote, and settlement records normalized observed usage or
+retains explicit uncertainty. Listed-price estimates do not establish provider invoice totals.
+No new model cost analytics or complete finite-cap qualification is claimed by this change.
 
 Native API release `native-api-v2` consumes immutable response policies from the structured
 request editor or the OpenAPI `x-kasitek-response` extension. Projection selects up to
