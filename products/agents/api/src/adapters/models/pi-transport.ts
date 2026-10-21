@@ -142,12 +142,14 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
   try {
     const adapter = await loaders[request.protocol]();
     const model = { id: request.model, name: request.model, provider: request.provider, api: piApi[request.protocol],
-      baseUrl: request.baseUrl, contextWindow: request.contextWindowTokens, maxTokens: request.maxOutputTokens,
+      baseUrl: request.protocol === "anthropic_messages" ? request.baseUrl.replace(/\/v1\/?$/, "") : request.baseUrl,
+      contextWindow: request.contextWindowTokens, maxTokens: request.maxOutputTokens,
       reasoning: !!request.reasoning, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       compat: { supportsStore: false, maxTokensField: "max_tokens" } };
-    const context = { systemPrompt: request.messages.filter(m => m.role === "system").map(m => m.content ?? "").join("\n\n"),
-      messages: history(request), tools: request.tools?.map(t => ({ name: t.function.name,
-        description: t.function.description, parameters: t.function.parameters })) };
+    const context = { messages: [{ role: "system", timestamp: 0,
+      content: request.messages.filter(m => m.role === "system").map(m => m.content ?? "").join("\n\n"),
+      toolsAdded: request.tools?.map(t => ({ name: t.function.name,
+        description: t.function.description, parameters: t.function.parameters })) ?? [] }, ...history(request)] };
     const stream = adapter.stream(model, context, {
       ...request.reasoning, apiKey: options.apiKey, signal: control.signal, maxRetries: 0, maxTokens: request.maxOutputTokens,
       transport: "sse", cacheRetention: "none", ...(request.protocol !== "google_generate_content" ? { fetch: (async (url, init) => {

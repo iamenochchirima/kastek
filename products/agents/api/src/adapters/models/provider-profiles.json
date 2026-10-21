@@ -7,7 +7,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://openrouter.ai/docs/api/api-reference/models/get-models",
-    "adapter": { "id": "openrouter-chat-completions", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openrouter-chat-completions", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "openai",
@@ -17,7 +17,7 @@
     "auth": { "kind": "bearer" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://developers.openai.com/api/reference/overview",
-    "adapter": { "id": "openai-responses", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "openai-responses", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "anthropic",
@@ -27,7 +27,7 @@
     "auth": { "kind": "header", "headerName": "x-api-key" },
     "discovery": { "kind": "models_endpoint", "path": "/models" },
     "officialDocsUrl": "https://platform.claude.com/docs/en/api/overview",
-    "adapter": { "id": "anthropic-messages", "revision": "1", "readiness": "planned" }
+    "adapter": { "id": "anthropic-messages", "revision": "2", "readiness": "installed" }
   },
   {
     "id": "google",

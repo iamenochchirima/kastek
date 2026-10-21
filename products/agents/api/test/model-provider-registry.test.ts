@@ -10,7 +10,7 @@ describe("reviewed inference provider registry", () => {
     expect(builtinProviderRegistry.map(provider => provider.id)).toEqual([
       "openrouter", "openai", "anthropic", "google", "xai", "deepseek", "mistral", "groq", "together", "fireworks", "moonshot", "zai",
     ]);
-    expect(builtinProviderRegistry.every(provider => provider.adapter.readiness === "planned")).toBe(true);
+    expect(builtinProviderRegistry.filter(provider => provider.adapter.readiness === "installed").map(provider => provider.id)).toEqual(["openrouter", "openai", "anthropic"]);
     expect(getProviderDefinition("missing")).toBeUndefined();
     expect(getProviderDefinition("anthropic")).toMatchObject({
       protocol: "anthropic_messages", auth: { kind: "header", headerName: "x-api-key" },
@@ -37,7 +37,7 @@ describe("reviewed inference provider registry", () => {
     const input = copy();
     input.push({ ...input[0]!, id: "reviewed-provider", name: "Reviewed provider", baseUrl: "https://inference.example.com/v1" });
     const registry = parseProviderRegistry(input);
-    expect(getProviderDefinition("reviewed-provider", registry)?.adapter.readiness).toBe("planned");
+    expect(getProviderDefinition("reviewed-provider", registry)?.adapter.readiness).toBe("installed");
     expect(getProviderDefinition("reviewed-provider")).toBeUndefined();
   });
 

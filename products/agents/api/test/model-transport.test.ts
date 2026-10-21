@@ -14,6 +14,14 @@ const chat = (usage?: object) => new Response(sse({ id: "response-1", model: "fi
 const fetcher = (fn: (body: any) => Response) => (async (_url: unknown, init: RequestInit) => fn(JSON.parse(String(init.body)))) as typeof fetch;
 
 describe("native model transport", () => {
+  it("sends system instructions and tool declarations through the pinned SDK context contract", async () => {
+    let body: any;
+    await callProviderModel({ ...request, messages: [{ role: "system", content: "Follow the approved policy." }, ...request.messages],
+      tools: [{ type: "function", function: { name: "lookup", description: "Read a record", parameters: { type: "object", properties: {} } } }] },
+    { apiKey: "fixture-key", fetch: fetcher(value => { body = value; return chat(); }) });
+    expect(body.messages.some((message: any) => message.content === "Follow the approved policy.")).toBe(true);
+    expect(body.tools[0].function.name).toBe("lookup");
+  });
   it("requires a configured network policy and retains confirmed pre-dispatch rejection", async () => {
     await expect(callProviderModel(request, { apiKey: "fixture-key" })).rejects.toMatchObject({ code: "MODEL_NETWORK_POLICY_REQUIRED", outcome: "rejected" });
     let calls = 0;
