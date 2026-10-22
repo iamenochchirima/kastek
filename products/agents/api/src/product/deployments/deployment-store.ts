@@ -11,6 +11,7 @@ type ExecutionGrant
 
 import type { VersionRecord, WebsiteDeployment } from "../../contracts/records";
 import { assertPublicSkillPolicy } from "../../capabilities/skills/public-policy";
+import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { AuthorityStore } from "../../execution/admission/authority-store";
 
@@ -69,9 +70,10 @@ export class DeploymentStore extends AuthorityStore {
       if (version.configuration.capabilities.delegation.enabled || version.configuration.capabilities.sandbox.enabled || version.configuration.capabilities.workflows.enabled) throw new PlatformError("WEBSITE_CAPABILITY_DENIED",409,"Website agents cannot delegate or run analysis");
       assertRuntimeAvailable(version.configuration);
       const websiteConfig = agentConfigurationSchema.parse(version.configuration);
-      if (websiteConfig.memory.enabled || websiteConfig.connectedToolBindingIds.length || websiteConfig.tools.some(name=>name.startsWith("memory.")))
+      if (websiteConfig.memory.enabled || websiteConfig.tools.some(name=>name.startsWith("memory.")))
         throw new PlatformError("PRIVATE_AGENT_CONFIGURATION",409,"Website agents cannot use personal memory or protected skills");
       await assertPublicSkillPolicy(db,input.organizationId,input.agentId,websiteConfig.skillIds);
+      await assertCustomerNativeBindings(db,input.organizationId,websiteConfig.connectedToolBindingIds);
       if(websiteConfig.capabilities.businessActions.enabled)await loadBookingPolicy(db,input.organizationId,input.agentId,websiteConfig.capabilities.businessActions);
       if ((await db.query(`SELECT 1 FROM agents_platform.version_sources v JOIN agents_platform.sources s ON s.id=v.source_id
         JOIN agents_platform.source_revision_policy p ON p.revision_id=v.revision_id WHERE v.version_id=$1 AND (s.state<>'active' OR s.visibility<>'public' OR p.state<>'approved')`, [version.id])).rowCount) throw new PlatformError("PRIVATE_KNOWLEDGE", 409, "Website agents require approved public knowledge");
@@ -89,7 +91,7 @@ export class DeploymentStore extends AuthorityStore {
       assertRuntimeAvailable(version.configuration);
       const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
         resourceId: deployment.id, callerClientId: "agents-website", principal: { kind: "visitor", deploymentId: deployment.id, sessionId: input.sessionId },
-        versionId: version.id, operations: ["model.reply", "knowledge.read", ...(version.configuration.skillIds.length?["skill.read"]:[]),...(version.configuration.capabilities.businessActions.enabled?["booking.read","booking.execute"]:[]), ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: [],
+        versionId: version.id, operations: ["model.reply", "knowledge.read", ...(version.configuration.connectedToolBindingIds.length?["connected.read","connected.execute"]:[]), ...(version.configuration.skillIds.length?["skill.read"]:[]),...(version.configuration.capabilities.businessActions.enabled?["booking.read",...(version.configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.execute"]:[])]:[]), ...(version.configuration.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])], sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: version.configuration.connectedToolBindingIds,
         maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens:version.configuration.context.maxInputTokens,
         ...(input.rootTokenLimit?{rootTokenLimit:input.rootTokenLimit}:{}),
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });
@@ -107,9 +109,9 @@ export class DeploymentStore extends AuthorityStore {
     const config = agentConfigurationSchema.parse(version.configuration);
     const grant = executionGrantSchema.parse({ id: randomUUID(), product: "agents", organizationId: deployment.organization_id,
       resourceId: deployment.id, callerClientId: "agents-channel", principal: { kind: "channel_customer", deploymentId: deployment.id, participantId: input.participantId },
-      versionId: version.id, operations: ["model.reply", "knowledge.read", ...(config.skillIds.length ? ["skill.read"] : []),
-        ...(config.capabilities.businessActions.enabled ? ["booking.read", "booking.execute"] : []), ...(config.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])],
-      sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: [], maxInputBytes: config.model.maxInputBytes,
+      versionId: version.id, operations: ["model.reply", "knowledge.read", ...(config.connectedToolBindingIds.length?["connected.read","connected.execute"]:[]), ...(config.skillIds.length ? ["skill.read"] : []),
+        ...(config.capabilities.businessActions.enabled ? ["booking.read", ...(config.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.execute"]:[])] : []), ...(config.tools.includes("channel.request_handoff") ? ["channel.handoff"] : [])],
+      sourceRevisionIds: config.sourceRevisionIds, connectedToolBindingIds: config.connectedToolBindingIds, maxInputBytes: config.model.maxInputBytes,
       maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: config.context.maxInputTokens,
       ...(input.rootTokenLimit===undefined?{}:{rootTokenLimit:input.rootTokenLimit}),
       expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), revokedAt: null });

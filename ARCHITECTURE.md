@@ -49,8 +49,10 @@ workspace structures remain separately owned.
 The standalone client targets mostly plug-and-play support, FAQ, booking, and intake agents
 for customer channels, with a shared staff inbox. Research and campaign customer experiences
 belong in Growth or Agencies. The Agents client catalogue is separate from shared runtime
-capabilities. Website/widget execution exists; the shared customer inbox, staff takeover/reply/
-return controls, WhatsApp, Facebook, Instagram, and booking integrations are not implemented.
+capabilities. Website, WhatsApp, Telegram, Facebook and Instagram adapters share the customer
+Inbox, staff takeover/reply/return controls and delivery authority. Google and Microsoft Calendar
+share a confirmed booking workflow; HubSpot supports confirmed intake and staff-only contact
+lookup. Live provider setup and owner acceptance remain separate from fixture verification.
 
 External agents access product MCP through OAuth or deliberately supported scoped keys. Embedded
 product backends call the shared execution API. Executing agents call typed owning-product APIs

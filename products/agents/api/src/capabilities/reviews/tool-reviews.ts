@@ -3,12 +3,14 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts/capability-catalog";
 import type { ActionScope } from "../../contracts/connections";
-import { isCustomerPrincipal, PlatformError, requestDigest, terminalTaskStates } from "../../contracts/contracts";
+import { isCustomerPrincipal, principalSchema, PlatformError, requestDigest, terminalTaskStates } from "../../contracts/contracts";
 import { assertCurrentAuthority, loadExecution } from "../../execution/lifecycle/execution";
 import { assertChildConnectedAuthority } from "../../execution/context/evidence";
 import { notifyActionTask, requireActionMember } from "../../infrastructure/action-authority";
 import { transaction } from "../../infrastructure/database";
+import { assertCustomerNativeBindings, customerContactIntakeSchema } from "../connected-tools/customer-native-policy";
 import { resolveAutomationOwner } from "../../execution/lifecycle/automation-authority";
+import {channelPorts} from "../../infrastructure/channel-ports";
 
 export interface ToolReview {
   id:string;taskId:string;rootTaskId:string;operationId:string;bindingId:string;bindingDigest:string;
@@ -31,7 +33,7 @@ export class ToolReviewStore {
   private async authority(db:PoolClient,taskId:string,binding:CapabilityBinding) {
     const execution=await loadExecution(db,z.uuid().parse(taskId),true);
     await assertCurrentAuthority(db,execution);
-    if(!binding.connection || !["remote-mcp-v1","custom-api-v1"].includes(binding.connection.profileId)
+    if(!binding.connection || !["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection.profileId)
       || !execution.configuration.connectedToolBindingIds.includes(binding.id)
       || !execution.connectedBindings.some(selected=>selected.id===binding.id&&selected.digest===binding.digest)
       || binding.policy.approval!=="exact_single_use")throw denied();
@@ -43,8 +45,11 @@ export class ToolReviewStore {
       WHERE c.id=$1 AND c.organization_id=$2 AND c.state='active' AND c.expires_at>now() AND c.policy_revision=$3 FOR SHARE OF c,m`,
       [binding.connection.id,execution.task.organization_id,binding.connection.policyRevision])).rows[0];
     if(!connection)throw denied();
-    // Customer deployment authority requires its own verified identity/resource contract.
-    if(isCustomerPrincipal(execution.task.principal))throw denied();
+    if(isCustomerPrincipal(execution.task.principal)) {
+      const [authority]=await assertCustomerNativeBindings(db,execution.task.organization_id,[binding.id]);
+      if(!authority||authority.binding.digest!==binding.digest||authority.ownerAccountId!==connection.account_id)throw denied();
+      return {execution,connection};
+    }
     const principal=execution.task.principal;
     const actor=principal.kind==="automation"?await resolveAutomationOwner(db,execution.task.organization_id,principal):
       principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:undefined;
@@ -57,14 +62,20 @@ export class ToolReviewStore {
     const digest=requestDigest({bindingDigest:binding.digest,arguments:args});
     return transaction(this.pool,async db=>{
       const {execution,connection}=await this.authority(db,taskId,binding);
+      const publish=async(row:Record<string,any>)=>{
+        if(execution.task.principal.kind!=="channel_customer"||row.state!=="pending")return;
+        const port=channelPorts(db).publishToolReview;if(!port||!execution.task.channel_binding)throw new PlatformError("CHANNEL_REVIEW_UNAVAILABLE",503,"Channel contact confirmation is unavailable");
+        await port(db,{taskId,binding:execution.task.channel_binding,reviewId:row.id,requestDigest:row.request_digest,arguments:row.arguments});
+      };
+      if(isCustomerPrincipal(execution.task.principal))customerContactIntakeSchema.parse(args);
       const old=(await db.query("SELECT * FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];
-      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Tool review changed");return dto({...old,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});}
+      if(old){if(old.request_digest!==digest)throw new PlatformError("IDEMPOTENCY_CONFLICT",409,"Tool review changed");await publish(old);return dto({...old,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});}
       const row=(await db.query(`INSERT INTO agents_platform.tool_invocation_reviews(id,organization_id,task_id,root_task_id,operation_id,
         binding_id,binding_digest,request_digest,arguments,connection_id,connection_policy_revision,reviewer_account_id,state,expires_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',LEAST($13::timestamptz,now()+interval '15 minutes')) RETURNING *`,
       [randomUUID(),execution.task.organization_id,taskId,execution.task.root_task_id,operationId,binding.id,binding.digest,digest,
         JSON.stringify(args),connection.id,connection.policy_revision,connection.account_id,execution.task.deadline_at])).rows[0];
-      return dto({...row,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});
+      await publish(row);return dto({...row,operation_name:operationName(binding),connection_name:connection.name,destination:connection.resource,effect:binding.policy.effect});
     });
   }
   async list(scope:ActionScope,taskId:string):Promise<ToolReview[]> {
@@ -83,10 +94,11 @@ export class ToolReviewStore {
       let row=(await db.query(`SELECT * FROM agents_platform.tool_invocation_reviews WHERE id=$1 AND organization_id=$2 AND reviewer_account_id=$3`,[id,scope.organizationId,scope.accountId])).rows[0];
       if(!row)throw denied();
       if(row.request_digest!==input.requestDigest)throw new PlatformError("REVIEW_CHANGED",409,"Review the current tool request");
+      const execution=await loadExecution(db,row.task_id,true);
+      if(isCustomerPrincipal(execution.task.principal))throw denied();
       const desired=input.decision==="approve"?"approved":"rejected";
       if(row.state===desired)return dto(row);
       if(row.state!=="pending"||new Date(row.expires_at).getTime()<=Date.now())throw new PlatformError("REVIEW_EXPIRED",409,"Tool review is no longer pending");
-      const execution=await loadExecution(db,row.task_id,true);
       if(terminalTaskStates.has(execution.task.state))throw denied();
       const binding=execution.connectedBindings.find(selected=>selected.id===row.binding_id&&selected.digest===row.binding_digest);
       if(!binding)throw denied();await this.authority(db,row.task_id,binding);
@@ -95,6 +107,48 @@ export class ToolReviewStore {
       if(row.state!=="pending"||new Date(row.expires_at).getTime()<=Date.now())throw new PlatformError("REVIEW_EXPIRED",409,"Tool review is no longer pending");
       const updated=(await db.query(`UPDATE agents_platform.tool_invocation_reviews SET state=$2,approved_at=CASE WHEN $2='approved' THEN now() ELSE NULL END WHERE id=$1 RETURNING *`,[id,desired])).rows[0];
       await notifyActionTask(db,row.task_id);return dto(updated);
+    });
+  }
+  private publicReview(row:Record<string,any>,binding:CapabilityBinding) {
+    const arguments_=customerContactIntakeSchema.parse(row.arguments);
+    if(row.request_digest!==requestDigest({bindingDigest:binding.digest,arguments:row.arguments}))throw denied();
+    return {id:row.id,requestDigest:row.request_digest,arguments:arguments_,state:row.state,
+      expiresAt:new Date(row.expires_at).toISOString(),operationName:"Save contact details"};
+  }
+  async listForPrincipal(taskId:string,rawPrincipal:unknown) {
+    const principal=principalSchema.parse(rawPrincipal);if(!isCustomerPrincipal(principal))throw denied();
+    return transaction(this.pool,async db=>{
+      const execution=await loadExecution(db,z.uuid().parse(taskId),true);
+      if(requestDigest(execution.task.principal)!==requestDigest(principal))throw denied();
+      const rows=(await db.query("SELECT * FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 ORDER BY created_at,id LIMIT 8",[taskId])).rows;
+      const result=[];
+      for(const row of rows){
+        const binding=execution.connectedBindings.find(selected=>selected.id===row.binding_id&&selected.digest===row.binding_digest);
+        if(!binding||!execution.configuration.connectedToolBindingIds.includes(binding.id))throw denied();
+        const [current]=await assertCustomerNativeBindings(db,execution.task.organization_id,[binding.id]);
+        if(!current||current.binding.digest!==binding.digest||current.ownerAccountId!==row.reviewer_account_id)throw denied();
+        result.push(this.publicReview(row,binding));
+      }
+      return result;
+    });
+  }
+  async decideForPrincipal(taskId:string,rawPrincipal:unknown,id:string,input:{decision:"approve"|"reject";requestDigest:string}) {
+    const principal=principalSchema.parse(rawPrincipal);if(!isCustomerPrincipal(principal))throw denied();
+    z.uuid().parse(taskId);z.uuid().parse(id);
+    z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(input);
+    return transaction(this.pool,async db=>{
+      const execution=await loadExecution(db,taskId,true);
+      if(requestDigest(execution.task.principal)!==requestDigest(principal)||terminalTaskStates.has(execution.task.state))throw denied();
+      const row=(await db.query("SELECT * FROM agents_platform.tool_invocation_reviews WHERE id=$1 AND task_id=$2 FOR UPDATE",[id,taskId])).rows[0];
+      if(!row)throw denied();
+      if(row.request_digest!==input.requestDigest)throw new PlatformError("REVIEW_CHANGED",409,"Review the current contact details");
+      const binding=execution.connectedBindings.find(selected=>selected.id===row.binding_id&&selected.digest===row.binding_digest);
+      if(!binding)throw denied();await this.authority(db,taskId,binding);this.publicReview(row,binding);
+      const desired=input.decision==="approve"?"approved":"rejected";
+      if(row.state===desired)return this.publicReview(row,binding);
+      if(row.state!=="pending"||new Date(row.expires_at).getTime()<=Date.now())throw new PlatformError("REVIEW_EXPIRED",409,"Contact confirmation has expired");
+      const updated=(await db.query("UPDATE agents_platform.tool_invocation_reviews SET state=$2,approved_at=CASE WHEN $2='approved' THEN now() ELSE NULL END WHERE id=$1 RETURNING *",[id,desired])).rows[0];
+      await notifyActionTask(db,taskId);return this.publicReview(updated,binding);
     });
   }
   async claim(db:PoolClient,taskId:string,operationId:string,binding:CapabilityBinding,args:unknown) {

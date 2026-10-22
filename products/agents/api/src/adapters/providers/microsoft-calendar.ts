@@ -1,3 +1,5 @@
+import {calendarApiBase} from "./calendar-contracts";
+import {connectorConfiguration} from "./connector-registry";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
@@ -34,7 +36,7 @@ export class MicrosoftCalendarClient {
   private readonly base: string;
   constructor(private readonly token: string, private readonly options: CalendarOptions) {
     if (!token || token.length > 8192 || /[\x00-\x20\x7f]/.test(token)) throw failure("MICROSOFT_TOKEN_INVALID", "Microsoft credentials are unavailable");
-    this.base = (options.testBaseUrl ?? "https://graph.microsoft.com/v1.0").replace(/\/$/, "");
+    this.base = (options.testBaseUrl ?? calendarApiBase(options.apiBaseUrl??connectorConfiguration("microsoft-calendar").apiBaseUrl!)).replace(/\/$/, "");
     if (options.testBaseUrl) {
       const url = new URL(options.testBaseUrl);
       if (url.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.username || url.password || url.search || url.hash)

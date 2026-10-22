@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { channelAttachmentSchema, channelWebhookEventSchema, ChannelAdapterError, type ChannelAttachment, type ChannelProviderAdapter,
+import { channelAttachmentSchema,channelButtonsSchema, channelWebhookEventSchema, ChannelAdapterError, type ChannelAttachment, type ChannelProviderAdapter,
   type ChannelProviderContext, type ChannelSendRequest, type ChannelSendResult, type ChannelWebhookEvent, type ChannelWebhookRequest } from "../../../contracts/channel-adapters";
 
 const object = (value: unknown): Record<string, any> => value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -68,7 +68,10 @@ export async function sendWhatsapp(request: ChannelSendRequest, context: Channel
   const body: Record<string, unknown> = { messaging_product: "whatsapp", recipient_type: "individual", to: request.recipientId };
   if (request.replyToProviderMessageId) { if (/[\u0000-\u001f\u007f]/.test(request.replyToProviderMessageId)) throw invalid(); body.context = { message_id: request.replyToProviderMessageId }; }
   const attachment = request.attachments?.[0];
-  if (request.template) {
+  if(request.buttons){
+    const parsed=channelButtonsSchema.safeParse(request.buttons);if(!parsed.success||request.template||attachment||!request.text.trim()||[...request.text].length>1024)throw invalid();
+    body.type="interactive";body.interactive={type:"button",body:{text:request.text},action:{buttons:parsed.data.map(button=>({type:"reply",reply:{id:button.payload,title:button.title}}))}};
+  }else if (request.template) {
     if (attachment || request.text || !/^[a-z0-9_]{1,512}$/.test(request.template.name) || !/^[A-Za-z0-9_-]{1,32}$/.test(request.template.language) ||
       (request.template.components?.length ?? 0) > 16) throw invalid();
     body.type = "template"; body.template = { name: request.template.name, language: { code: request.template.language },

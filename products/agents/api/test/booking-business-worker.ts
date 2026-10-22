@@ -1,9 +1,10 @@
+import {nativeProviderConnectors} from "../src/adapters/providers/connector-registry";
 import {createServer,type ServerHttp2Session} from "node:http2";
 import {Pool} from "pg";
 import {createEndpointHandler} from "@restatedev/restate-sdk";
 import {createBusinessWorkflow} from "../src/execution/business/business";
 import {composeInbox} from "../src/composition/inbox";
-import {GoogleCalendarConnectionStore} from "../src/product/connections/google-calendar-connections";
+import {ProviderConnectionStore} from "../src/product/connections/provider-connections";
 import {BookingService} from "../src/workflows/booking/bookings";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {createBookingOAuthFixture} from "./booking-fixture";
@@ -13,7 +14,7 @@ async function main(){
  const pool=new Pool({connectionString:database,max:8});
  composeInbox(pool,{publicOrigin:origin,async assertServices(configuration){if(configuration.program.id!=="grounded-conversation"||!configuration.capabilities.businessActions.enabled)throw Error("Booking fixture requires the published customer booking program");}});
  const vault=new ConnectionVault("booking-test",JSON.parse(process.env.BOOKING_VAULT_KEYS!));
- const google=new GoogleCalendarConnectionStore(pool,vault,{oauth:createBookingOAuthFixture(),appUrl:origin,testApiBaseUrl:base});
+ const google=new ProviderConnectionStore(pool,vault,{definition:nativeProviderConnectors.find(item=>item.id==="google-calendar")!,oauth:createBookingOAuthFixture(),appUrl:origin,testApiBaseUrl:base});
  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>google.resolveBookingCalendar(...args),ensureFresh:(...args)=>google.ensureCredentialFresh(...args),testBaseUrl:base});
  const workflow=createBusinessWorkflow(pool,{bookings,openRouterApiKey:"booking-model-fixture",fetch:(_url,request)=>fetch(model,request)});
  const sessions=new Set<ServerHttp2Session>(),server=createServer(createEndpointHandler({services:[workflow]}));

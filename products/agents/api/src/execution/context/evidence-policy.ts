@@ -11,6 +11,7 @@ import { assertBaseAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -65,7 +66,7 @@ export async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionI
   if(grant?.revoked_at)throw unavailable();
   const row=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=$2",[root.task.organization_id,bindingId])).rows[0];
   const binding=row?capabilityBindingSchema.parse(row.binding):undefined;
-  const operation=["remote-mcp-v1","custom-api-v1"].includes(binding?.connection?.profileId??"")&&binding?.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
+  const operation=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding?.connection?.profileId??"")&&binding?.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
   if(!binding||!grant?.operations.includes(operation)||!grant.connected_tool_binding_ids.includes(bindingId)||!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[root.task.organization_id,root.task.version_id,bindingId])).rowCount)throw denied();
 }
 export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
@@ -111,9 +112,10 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
   if (!execution.configuration.connectedToolBindingIds.includes(bindingId) || !grant?.connected_tool_binding_ids.includes(bindingId)) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_connected_tools WHERE organization_id=$1 AND version_id=$2 AND binding_id=$3",[execution.task.organization_id,execution.task.version_id,bindingId])).rowCount) throw denied();
   const row = (await db.query("SELECT binding,account_id FROM agents_platform.capability_bindings WHERE id=$1 AND organization_id=$2", [bindingId, execution.task.organization_id])).rows[0];
-  if (!row || row.account_id !== await owner(db, execution)) throw denied();
+  const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[bindingId]))[0]?.ownerAccountId:await owner(db,execution);
+  if (!row || row.account_id !== expectedOwner) throw denied();
   const binding = capabilityBindingSchema.parse(row.binding);
-  const remote=["remote-mcp-v1","custom-api-v1"].includes(binding.connection?.profileId??""),reviewed=remote&&binding.policy.effect==="reviewed_write";
+  const remote=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection?.profileId??""),reviewed=remote&&binding.policy.effect==="reviewed_write";
   if(!grant.operations.includes(reviewed?"connected.execute":"connected.read"))throw denied();
   if (!binding.connection || (!remote && (binding.policy.effect !== "read" || binding.policy.disclosure !== (binding.connection.profileId === "stash-read-v1" ? "approved_resource_identifiers" : "public_identifiers")))) throw denied();
   if(reviewed&&operationId){
@@ -123,7 +125,7 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
       AND p.connection_id=$6 AND p.connection_policy_revision=$7 AND p.state IN ('claimed','completed')
       AND p.approved_at IS NOT NULL AND p.claimed_at IS NOT NULL FOR SHARE OF p`,
       [execution.task.organization_id,execution.task.id,operationId,binding.id,binding.digest,binding.connection.id,binding.connection.policyRevision])).rows[0];
-    if(!review||review.reviewer_account_id!==await owner(db,execution)
+    if(!review||review.reviewer_account_id!==expectedOwner
       ||review.request_digest!==requestDigest({bindingDigest:binding.digest,arguments:review.arguments})
       ||review.operation_request_digest!==requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args:review.arguments}))throw denied();
   }
@@ -170,7 +172,8 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     if (dependency.kind !== "connection") continue;
     const binding = await connectionEvidenceBinding(db,execution,dependency,origins);
     const row = (await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.connectionId, execution.task.organization_id])).rows[0];
-    if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== await owner(db, execution) || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
+    const expectedOwner=isCustomerPrincipal(execution.task.principal)?(await assertCustomerNativeBindings(db as PoolClient,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:await owner(db,execution);
+    if (!row || row.state !== "active" || row.policy_revision !== dependency.policyRevision || new Date(row.expires_at).getTime() <= Date.now() || row.account_id !== expectedOwner || binding.connection?.policyRevision !== row.policy_revision || !row.resource_handles.some((resource: ResourceHandle) => requestDigest(resource) === dependency.resource)) throw unavailable();
   }
   for(const dependency of dependencies){
     if(dependency.kind!=="skill")continue;

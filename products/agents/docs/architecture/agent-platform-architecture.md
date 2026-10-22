@@ -126,8 +126,11 @@ An explicit assigned-staff decision may continue later messages without resendin
 Account setup uses server-held credentials, explicit eligible-asset selection and revision checks.
 Setup claims serialize mutations and preserve uncertainty. Definitions select installed adapters;
 tenant records cannot install executable code. Live account prerequisites and provider acceptance
-remain owner-run. Google Calendar appointments retain their separate owner-authorized booking
-policy and exact customer confirmation. The standalone Booking creation offering remains unavailable. The
+remain owner-run. Google and Microsoft Calendar appointments share an owner-authorized booking policy and exact
+customer confirmation. Native account authorization uses shared lifecycle services and reviewed
+registry records. HubSpot exposes staff lookup and exact-confirmed customer intake. Service sharing
+does not permit customer contact lookup. Installed provider handlers retain protocol-specific
+reconciliation; provider metadata cannot authorize writes. The standalone Booking creation offering remains unavailable. The
 [implementation boundary](../source-boundary.md) records current behavior.
 
 ## Three integration boundaries
@@ -840,8 +843,10 @@ runtimes remain unavailable. Default FAQ setup does not expose unrelated capabil
 
 Trusted `grounded-conversation` and `tool-directed` program releases use the shared business loop.
 The grounded program permits knowledge search/read, customer handoff, reviewed procedural skills,
-and explicitly selected operator connections. Google Calendar booking capabilities require a
-separate pinned service policy; generic personal bindings remain unavailable to website visitors. The tool-directed program
+and explicitly selected operator connections. Google and Microsoft Calendar booking capabilities
+require a separate pinned service policy. Customer HubSpot intake requires explicit service sharing
+and exact principal confirmation. Customer contact lookup and generic personal bindings remain
+unavailable to website visitors. The tool-directed program
 permits the implemented memory, delegation, sandbox, connected-read and reviewed-report capabilities.
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission

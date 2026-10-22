@@ -1,3 +1,4 @@
+import {calendarApiBase} from "./calendar-contracts";
 import {googleCalendarConnector} from "./connector-registry";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -9,7 +10,7 @@ export interface GoogleBookingIntent { organizationId:string; bookingId:string; 
 export type GoogleBookingResult = {state:"confirmed";eventId:string;start:string;end:string;receiptDigest:string;htmlLink?:string}
   | {state:"uncertain";eventId:string;reason:string;receiptDigest?:string};
 export interface GoogleCalendarOptions {
-  deadlineAt:number;signal?:AbortSignal;testBaseUrl?:string;
+  deadlineAt:number;signal?:AbortSignal;testBaseUrl?:string;apiBaseUrl?:string;
   beforeAttempt?(operation:"calendars"|"freebusy"|"insert"|"reconcile"):Promise<void>;
   onAttempt?(attempt:NetworkAttempt):Promise<void>;
 }
@@ -28,7 +29,7 @@ export class GoogleCalendarClient {
   private readonly base:string;
   constructor(private readonly token:string,private readonly options:GoogleCalendarOptions) {
     if(!token||token.length>8192||/[\x00-\x20\x7f]/.test(token))throw failure("GOOGLE_TOKEN_INVALID","Google credentials are unavailable");
-    this.base=options.testBaseUrl??googleCalendarConnector.apiBaseUrl;
+    this.base=options.testBaseUrl??calendarApiBase(options.apiBaseUrl??googleCalendarConnector.apiBaseUrl);
     if(options.testBaseUrl){const url=new URL(options.testBaseUrl);if(url.protocol!=="http:"||!["localhost","127.0.0.1","[::1]"].includes(url.hostname)||url.username||url.password||url.search||url.hash)throw failure("GOOGLE_ENDPOINT_INVALID","Invalid provider test endpoint");}
   }
   private async request(operation:"calendars"|"freebusy"|"insert"|"reconcile",path:string,body?:unknown,admitted?:()=>void):Promise<{status:number;data:any;digest:string}> {

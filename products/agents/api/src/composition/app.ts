@@ -1,5 +1,4 @@
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
-import { googleCalendarConnector } from "../adapters/providers/connector-registry";
 import cookie from "@fastify/cookie";
 import Fastify,{ type FastifyRequest } from "fastify";
 import { createHash,randomBytes,randomUUID } from "node:crypto";
@@ -39,13 +38,13 @@ import { registerSkillPackageRoutes } from "../product/agents/skill-package-rout
 import { SkillPackageStore } from "../product/agents/skill-package-store";
 import { registerCatalogueRoutes } from "../product/catalogue/catalogue-routes";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
-import { GoogleCalendarConnectionStore } from "../product/connections/google-calendar-connections";
-import { GoogleCalendarOAuth,googleOAuthConfigFromEnvironment,type GoogleOAuthPort } from "../product/connections/google-calendar-oauth";
+import { ProviderServices } from "../product/connections/provider-services";
+import type { GoogleOAuthPort } from "../product/connections/google-calendar-oauth";
 import { BookingService } from "../workflows/booking/bookings";
 import { ApiConnectionStore } from "../product/connections/api-connections";
 import { ExecutableAdapterRegistry } from "../contracts/capability-catalog";
 import { nativeApiAdapterManifest,executeGenericNativeApi,createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
-import { registerGoogleCalendarRoutes } from "../product/connections/google-calendar-routes";
+import { registerProviderRoutes } from "../product/connections/provider-routes";
 import { registerBookingRoutes } from "../workflows/booking/routes";
 import { registerApiConnectionRoutes } from "../product/connections/api-connection-routes";
 import { registerModelPolicyRoutes } from "../product/model-providers/model-policy";
@@ -111,9 +110,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
   const toolReviews=new ToolReviewStore(pool);
-  const googleConfig=googleOAuthConfigFromEnvironment({...process.env,AGENTS_PUBLIC_URL:config.AGENTS_PUBLIC_URL});
-  const googleCalendar=new GoogleCalendarConnectionStore(pool,actionServices?.connections.vault,{appUrl:config.AGENTS_PUBLIC_URL,...(options.testGoogleOAuth?{oauth:options.testGoogleOAuth}:googleConfig?{oauth:new GoogleCalendarOAuth(googleConfig)}:{}),testApiBaseUrl:options.testGoogleApiBaseUrl});
-  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>googleCalendar.resolveBookingCalendar(...args),ensureFresh:(scope,id)=>googleCalendar.ensureCredentialFresh(scope,id),testBaseUrl:options.testGoogleApiBaseUrl});
+  const providers=new ProviderServices(pool,actionServices?.connections.vault,{appUrl:config.AGENTS_PUBLIC_URL,tests:{"google-calendar":{oauth:options.testGoogleOAuth,testApiBaseUrl:options.testGoogleApiBaseUrl}}});
+  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>providers.resolveCalendar(...args),ensureFresh:(scope,id)=>providers.ensureFresh(scope,id),testBaseUrl:options.testGoogleApiBaseUrl});
 
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
     testLoopback:options.testConnectionLoopback,
@@ -122,9 +120,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }):undefined;
   const evidence = new EvidenceStore(pool, sourceObjects);
   // API and worker use the same execution mode/build: source and compiled artifact digests intentionally differ.
-  const connected:ConnectedExecutor|undefined = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, actionServices.connections, sourceObjects, evidence,{
+  const connected:ConnectedExecutor|undefined = actionServices && sourceObjects && evidence ? new ConnectedExecutor(pool, providers.credentials(actionServices.connections), sourceObjects, evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
-    ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    ensureCredentialFresh:async(scope,id)=>{const native=await providers.forConnection(scope,id);if(native)await native.ensureCredentialFresh(scope,id);else await remoteConnections?.ensureCredentialFresh(scope,id);},
     recordRemoteScopeChallenge:remoteConnections?(scope,id,policyRevision,challenge)=>remoteConnections.recordPermissionChallenge(scope,id,policyRevision,challenge):undefined,
     resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
     testApiLoopback:options.testConnectionLoopback,
@@ -254,7 +252,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
-  registerGoogleCalendarRoutes(app,{store:googleCalendar,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
+  registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});
   if(remoteConnections) registerRemoteConnectionRoutes(app,{store:remoteConnections,resolveScope,accountId:async request=>(await account(request)).id});
@@ -264,17 +262,13 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const skillPackages = new SkillPackageStore(pool);
   registerCatalogueRoutes(app, { resolveScope,
     getAgent: (scope,id) => store.getAgent(scope.accountId,scope.organizationId,id),
-    connectorReadiness:{"google-calendar":googleCalendar.providerStatus()},
-    listConnections: async scope => {
-      const connections=await actionServices?.connections.list(scope,true)??[];
-      const rows=(await pool.query(`SELECT c.*,g.status,g.sharing FROM agents_platform.connections c JOIN agents_platform.google_calendar_connections g ON g.connection_id=c.id
-        JOIN agents_platform.memberships m ON m.organization_id=c.organization_id AND m.account_id=c.account_id AND m.revoked_at IS NULL AND m.role='owner'
-        WHERE c.organization_id=$1 AND c.account_id=$2 ORDER BY c.created_at DESC LIMIT 100`,[scope.organizationId,scope.accountId])).rows;
-      const eligible=new Set(rows.length?(await googleCalendar.list(scope)).filter(connection=>connection.customerDeploymentEligible).map(connection=>connection.id):[]);
-      return [...connections,...rows.map(row=>({id:row.id,name:row.name,targetId:row.target_id,targetLabel:googleCalendarConnector.name,resource:row.resource,
-        profileId:googleCalendarConnector.profileId,authentication:"bearer" as const,policyRevision:row.policy_revision,resources:[],selections:[],stashItemIds:[],revision:row.revision,
-        state:eligible.has(row.id)?"active" as const:"revoked" as const,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()}))];
+    connectorReadiness:providers.readiness(),
+    calendarProviderId:async(scope,agent)=>{
+      const reference=agent.draft.capabilities.businessActions;if(!reference.enabled)return;
+      const policy=(await pool.query("SELECT definition->>'providerId' provider_id FROM agents_platform.booking_policies WHERE id=$1 AND organization_id=$2 AND agent_id=$3 AND digest=$4",[reference.policyId,scope.organizationId,agent.id,reference.policyDigest])).rows[0];
+      return policy?.provider_id;
     },
+    listConnections: async scope => [...await actionServices?.connections.list(scope,true)??[],...await providers.catalogueConnections(scope)],
     listBindings: scope => connected?.catalogs.listBindings(scope) ?? Promise.resolve([]),
     permissions: async scope => ["agent.configure",...((await pool.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND role='owner' AND revoked_at IS NULL",[scope.organizationId,scope.accountId])).rowCount?["calendar.configure"]:[])],
     listSkills: async (scope,agentId) => {
@@ -411,7 +405,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
           AND t.parent_task_id IS NULL AND t.principal=$4::jsonb FOR SHARE OF t,m`,
       [rootTaskId, org, user.id, JSON.stringify({ kind: "human", issuer: user.issuer, subject: user.subject })]);
       if (!allowed.rowCount) throw new PlatformError("ACCESS_DENIED", 403, "Execution history is unavailable");
-    });
+    }, {objects:sourceObjects});
   });
   app.post(`${base}/agents/:agentId/model-preview`, async request => evaluationTrials.preview(
     (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId), request.body));
@@ -680,7 +674,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
     const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
     return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,
-      bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
+      intakeEnabled:Boolean(version?.configuration.connectedToolBindingIds.length),bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
     const deploymentId = uuid.parse(parameters(request).deploymentId);
@@ -696,7 +690,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
     return reply.code(201).send({ token });
   });
-  registerInboxRoutes(app, { inbox, bookings,publicRate,
+  registerInboxRoutes(app, { inbox, bookings,toolReviews,publicRate,
     resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
     resolveVisitor: async (request, reply) => {
       const { deployment, websiteOrigin } = await websiteContext(request, reply);

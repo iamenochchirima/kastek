@@ -27,7 +27,7 @@ export { actionMissing,notifyActionTask,requireActionMember } from "../../infras
 export class ConnectionStore {
  constructor(readonly pool:Pool,readonly vault:ConnectionVault,readonly targets:DeliveryTarget[]){}
  dto(row:Record<string,any>):ConnectionDTO{return{id:row.id,name:row.name,targetId:row.target_id,targetLabel:row.target_id==="provider:public-repository"?"Public repositories":row.target_id==="provider:stash"?"Stash":row.target_id==="provider:github"?"GitHub":this.targets.find(target=>target.id===row.target_id)?.label??"Unavailable destination",resource:row.resource,profileId:row.profile_id??"report-delivery-v1",authentication:row.profile_id==="public-repository-read-v1"?"none":"bearer",policyRevision:row.policy_revision??1,resources:z.array(resourceHandleSchema).parse(row.resource_handles??[]),selections:z.array(githubRepositorySelectionSchema).parse(row.selections??[]),stashItemIds:z.array(resourceHandleSchema).parse(row.resource_handles??[]).filter(handle=>handle.kind==="stash.item").map(handle=>z.uuid().parse(handle.id)),revision:row.revision,state:row.state,createdAt:new Date(row.created_at).toISOString(),expiresAt:new Date(row.expires_at).toISOString()};}
- async list(scope:ActionScope,includeRemote=false){return transaction(this.pool,async db=>{await requireActionMember(db,scope);return(await db.query("SELECT * FROM agents_platform.connections WHERE organization_id=$1 AND account_id=$2 AND profile_id<>'google-calendar-v1' AND ($3 OR profile_id NOT IN ('remote-mcp-v1','custom-api-v1')) ORDER BY created_at,id",[scope.organizationId,scope.accountId,includeRemote])).rows.map(row=>this.dto(row));});}
+ async list(scope:ActionScope,includeRemote=false){return transaction(this.pool,async db=>{await requireActionMember(db,scope);return(await db.query("SELECT * FROM agents_platform.connections WHERE organization_id=$1 AND account_id=$2 AND NOT EXISTS (SELECT 1 FROM agents_platform.native_provider_connections p WHERE p.connection_id=connections.id) AND ($3 OR profile_id NOT IN ('remote-mcp-v1','custom-api-v1')) ORDER BY created_at,id",[scope.organizationId,scope.accountId,includeRemote])).rows.map(row=>this.dto(row));});}
  async create(scope:ActionScope,raw:CreateConnectionInput){
  const input=createConnectionSchema.parse(raw),provider=input.profileId!=="report-delivery-v1",anonymous=input.profileId==="public-repository-read-v1";
  const target=this.targets.find(item=>item.id===input.targetId);
@@ -68,7 +68,7 @@ export class ConnectionStore {
    if(row.envelope!==null)throw new PlatformError("CONNECTION_AUTHENTICATION_INVALID",403,"Anonymous connection has unexpected credentials");
    return{connection:this.dto(row),authorization:""};
   }
-  if(row.profile_id==="google-calendar-v1")throw new PlatformError("GOOGLE_SCOPE_REQUIRED",403,"Google Calendar requires a booking service permission");
+  if((await db.query("SELECT 1 FROM agents_platform.native_provider_connections WHERE connection_id=$1",[id])).rowCount)throw new PlatformError("PROVIDER_SCOPE_REQUIRED",403,"Use the provider connection authority");
   if(row.envelope===null)throw new PlatformError("CONNECTION_AUTHENTICATION_INVALID",403,"Connection credentials are unavailable");
   if(row.profile_id==="remote-mcp-v1"){
    const metadata=(await db.query("SELECT status,auth_method FROM agents_platform.connection_onboarding WHERE connection_id=$1 FOR SHARE",[id])).rows[0];
@@ -91,7 +91,9 @@ export class ConnectionStore {
  await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[scope.organizationId]);await requireActionMember(db,scope);
  const digest=requestDigest({kind,id,...input}),old=await this.replay(db,scope,input.operationId,digest);if(old)return old;
  const row=(await db.query("SELECT * FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 FOR UPDATE",[id,scope.organizationId,scope.accountId])).rows[0];
- if(!row)throw actionMissing();if(row.revision!==input.expectedRevision||row.state!=="active"||(new Date(row.expires_at).getTime()<=Date.now()&&row.profile_id!=="public-repository-read-v1"&&(row.profile_id==="report-delivery-v1"||kind!=="rotate"||!input.expiresAt)))throw new PlatformError("CONNECTION_REVISION_CONFLICT",409,"Connection changed; refresh and try again");
+ if(!row)throw actionMissing();
+ if((await db.query("SELECT 1 FROM agents_platform.native_provider_connections WHERE connection_id=$1",[id])).rowCount)throw new PlatformError("PROVIDER_SCOPE_REQUIRED",403,"Use the provider connection controls");
+ if(row.revision!==input.expectedRevision||row.state!=="active"||(new Date(row.expires_at).getTime()<=Date.now()&&row.profile_id!=="public-repository-read-v1"&&(row.profile_id==="report-delivery-v1"||kind!=="rotate"||!input.expiresAt)))throw new PlatformError("CONNECTION_REVISION_CONFLICT",409,"Connection changed; refresh and try again");
  if(kind==="rotate"&&row.profile_id==="public-repository-read-v1")throw new PlatformError("CONNECTION_ROTATION_DENIED",400,"Anonymous connections have no key to rotate");
  if(row.profile_id==="public-repository-read-v1"&&input.apiKey!==undefined)throw new PlatformError("CONNECTION_KEY_INVALID",400,"Public repositories do not use an API key");
  if(kind==="rotate"&&!input.apiKey)throw new PlatformError("CONNECTION_KEY_INVALID",400,"Enter a scoped API key");

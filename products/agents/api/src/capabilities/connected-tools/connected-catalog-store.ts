@@ -26,6 +26,7 @@ export const PUBLIC_REPOSITORY_MCP_READ_OPERATIONS: ReadonlySet<string> = new Se
 export function connectedProviderOperationAllowed(profileId: string, transport: string, operation: string): boolean {
   if(profileId === "remote-mcp-v1") return transport === "mcp_http" && operation.length > 0 && operation.length <= 128;
   if(profileId === "custom-api-v1") return transport === "native_http" && /^api_[a-f0-9]{32}$/.test(operation);
+  if(profileId === "hubspot-contacts-v1") return transport === "native_http" && ["contacts.search","contacts.create"].includes(operation);
   if(profileId === "public-repository-read-v1") return transport === "native_http" ? githubOperationSchema.safeParse(operation).success : transport === "mcp_http" && PUBLIC_REPOSITORY_MCP_READ_OPERATIONS.has(operation);
   if(profileId === "stash-read-v1") return transport === "mcp_http" && STASH_MCP_READ_OPERATIONS.has(operation);
   return profileId === "github-public-read-v1" && githubProviderOperationAllowed(transport, operation);

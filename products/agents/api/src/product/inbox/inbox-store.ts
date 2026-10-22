@@ -7,6 +7,7 @@ import { transaction } from "../../infrastructure/database";
 import type { ChannelBinding } from "../../contracts/channel";
 import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
+import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -141,7 +142,7 @@ export class InboxStore {
   private async messages(db: Db, id: string, after: string, limit: number, before?: string): Promise<CustomerMessage[]> {
     const rows = (await db.query<CustomerMessage>(after === "0" || before ? `SELECT * FROM (SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND ($2::bigint IS NULL OR sequence<$2) ORDER BY sequence DESC LIMIT $3) m ORDER BY sequence` :
       "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
-    for (const message of rows) if (message.author_kind === "assistant") message.body = message.task_id ? await this.ports.readableOutput(db, message.task_id, message.body) ?? "[Response unavailable]" : "[Response unavailable]";
+    for (const message of rows) if (message.author_kind === "assistant") message.body = await this.readableMessage(db,message)??"[Response unavailable]";
     if (rows.length) {
       const facts = (await db.query("SELECT * FROM agents_platform.channel_message_facts WHERE message_id=ANY($1::uuid[])",[rows.map(row=>row.id)])).rows;
       const deliveries = (await db.query("SELECT id,message_id,segment,state,reason FROM agents_platform.channel_outbound WHERE message_id=ANY($1::uuid[]) ORDER BY segment",[rows.map(row=>row.id)])).rows;
@@ -257,6 +258,26 @@ export class InboxStore {
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
+  async publishToolReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;arguments:unknown}):Promise<void>{
+    const row=await this.conversation(db,input.binding.customerConversationId,true);
+    if(row.channel_kind==="website")return;
+    if(!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4",[input.taskId,row.id,input.binding.inputMessageId,input.binding.ownershipGeneration])).rowCount)denied();
+    if(row.state!=="automation_active"||row.ownership_generation!==input.binding.ownershipGeneration||!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Conversation ownership changed");
+    const key=`tool-review:${input.reviewId}`;
+    if((await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2",[row.id,key])).rowCount)return;
+    const body=channelToolReviewText(input.arguments),buttons=channelToolReviewButtons(input.reviewId),toolReview={id:input.reviewId,taskId:input.taskId,requestDigest:input.requestDigest};
+    await assertChannelToolReviewPrompt(db,{assetId:"pending",recipientId:"pending",text:body,buttons,toolReview},row.id);
+    const message=await this.append(db,row,{key,digest:requestDigest({body,toolReview}),kind:"assistant",body,taskId:input.taskId});
+    await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
+  }
+  private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(!message.task_id)return null;
+    const prompt=(await db.query(`SELECT r.arguments,r.request_digest,r.binding_digest,o.request FROM agents_platform.channel_outbound o
+      JOIN agents_platform.tool_invocation_reviews r ON r.id::text=o.request#>>'{toolReview,id}'
+      WHERE o.message_id=$1 AND r.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
+    if(prompt){const text=channelToolReviewText(prompt.arguments);return message.body===text&&prompt.request_digest===requestDigest({bindingDigest:prompt.binding_digest,arguments:prompt.arguments})&&prompt.request.toolReview?.requestDigest===prompt.request_digest?text:null;}
+    return this.ports.readableOutput(db,message.task_id,message.body);
+  }
   async publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void> {
     const row = await this.conversation(db, input.binding.customerConversationId, true);
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [input.taskId, row.id, input.binding.inputMessageId, input.binding.ownershipGeneration])).rowCount) denied();
@@ -275,7 +296,7 @@ export class InboxStore {
     const target = (await db.query("SELECT sequence FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2", [beforeMessageId, binding.customerConversationId])).rows[0]; if (!target) denied();
     const rows = (await db.query<CustomerMessage>("SELECT * FROM (SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence<$2 ORDER BY sequence DESC LIMIT 40) m ORDER BY sequence", [binding.customerConversationId, target.sequence])).rows;
     const result: { id: string; role: "user" | "assistant"; authorKind: CustomerMessage["author_kind"]; content: string; taskId: string | null }[] = [];
-    for (const row of rows) { const content = row.author_kind === "assistant" ? row.task_id && await this.ports.readableOutput(db, row.task_id, row.body) : row.body;
+    for (const row of rows) { const content = row.author_kind === "assistant" ? await this.readableMessage(db,row) : row.body;
       if (content) result.push({ id: row.id, role: row.author_kind === "visitor" ? "user" : "assistant", authorKind: row.author_kind, content, taskId: row.task_id }); }
     return result;
   }

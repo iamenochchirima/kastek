@@ -1,4 +1,4 @@
-import { ChannelAdapterError, channelAttachmentSchema, type ChannelProviderContext, type ChannelSendRequest, type ChannelSendResult } from "../../../contracts/channel-adapters";
+import { ChannelAdapterError,channelButtonsSchema, channelAttachmentSchema, type ChannelProviderContext, type ChannelSendRequest, type ChannelSendResult } from "../../../contracts/channel-adapters";
 
 const field = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value);
 function rejected(code: string): never { throw new ChannelAdapterError(code, "rejected", 400); }
@@ -20,6 +20,7 @@ export async function sendMetaMessage(kind: "facebook" | "instagram", request: C
   const attachments = request.attachments ?? [], text = request.text;
   if (typeof text !== "string" || attachments.length > 1 || attachments.length && text.length || !attachments.length && !text.trim()) rejected("CHANNEL_SEND_COMBINATION_UNSUPPORTED");
   const message: Record<string, unknown> = {};
+  if(request.buttons){const parsed=channelButtonsSchema.safeParse(request.buttons);if(!parsed.success||attachments.length)rejected("CHANNEL_BUTTONS_INVALID");message.quick_replies=parsed.data.map(button=>({content_type:"text",title:button.title,payload:button.payload}));}
   if (attachments.length) {
     const parsed = channelAttachmentSchema.safeParse(attachments[0]); if (!parsed.success) rejected("CHANNEL_ATTACHMENT_INVALID");
     const attachment = parsed.data;

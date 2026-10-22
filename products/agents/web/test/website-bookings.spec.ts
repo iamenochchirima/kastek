@@ -133,3 +133,52 @@ for (const reconcile of ["confirmed", "uncertain", "in_progress"] as const) test
   }
   await expect(page.getByRole("button", { name: "Confirm appointment", exact: true })).toHaveCount(0);
 });
+
+async function intakeFixture(page:Page,options:{enabled?:boolean;expired?:boolean}={}) {
+  let conversationState="automation_active";
+  let review={id:"intake-exact",state:"pending",requestDigest:"a".repeat(64),arguments:{email:"customer@example.test",firstName:"Customer <img src=x onerror=alert(1)>"},operationName:"Save contact details",expiresAt:options.expired?"2020-01-01T00:00:00Z":"2035-01-01T00:00:00Z"};
+  const decisions:{path:string;body:unknown;authorization:string|undefined}[]=[],errors:string[]=[],unexpected:string[]=[];let reads=0;
+  page.on("pageerror",error=>errors.push(error.message));
+  const server=createServer(async(request,response)=>{
+    const path=new URL(request.url!,"http://fixture.test").pathname;response.setHeader("content-type","application/json");let data:unknown;
+    if(path==="/"){response.setHeader("content-type","text/html");response.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><h1>Contact widget fixture</h1><script src="/api/website/intake/widget.js"></script></body></html>');return;}
+    if(path.endsWith("/widget.js")){response.setHeader("content-type","application/javascript");response.end(websiteWidgetScript("intake"));return;}
+    if(path==="/api/website/intake")data={name:"Customer assistant",bookingEnabled:false,intakeEnabled:options.enabled!==false};
+    else if(path.endsWith("/session"))data={token:"intake-session"};
+    else if(path.endsWith("/customer-conversations"))data={conversation:{id:"conversation"}};
+    else if(path.endsWith("/messages")){reads++;data={conversation:{state:conversationState},messages:[{authorKind:"assistant",body:"Please confirm your contact details."}]};}
+    else if(path.endsWith("/tool-reviews"))data={reviews:[review]};
+    else if(path.endsWith("/tool-reviews/intake-exact/decision")){
+      let text="";for await(const part of request)text+=part;const body=JSON.parse(text);decisions.push({path,body,authorization:request.headers.authorization});review={...review,state:body.decision==="approve"?"approved":"rejected"};data={review};
+    }else if(path==="/favicon.ico"){response.statusCode=204;response.end();return;}
+    else{unexpected.push(path);response.statusCode=404;data={error:{message:"Unexpected widget path"}};}
+    response.end(JSON.stringify(data));
+  });servers.push(server);await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+  await page.goto(`http://127.0.0.1:${(server.address() as {port:number}).port}`);await page.getByRole("button",{name:"Chat",exact:true}).click();
+  return {decisions,errors,unexpected,reads:()=>reads,change:()=>{review={...review,requestDigest:"b".repeat(64),arguments:{email:"updated@example.test",firstName:"Updated"}};},takeover:(state:string)=>{conversationState=state;}};
+}
+
+for(const width of [1440,768,390])test(`controlled API: generated widget exact contact intake and safe rendering at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:1000});const f=await intakeFixture(page);
+  await expect(page.getByText("Save contact details",{exact:true})).toBeVisible();
+  await expect(page.getByText("First name: Customer <img src=x onerror=alert(1)>",{exact:false})).toBeVisible();
+  expect(await page.locator("img").count()).toBe(0);expect(f.decisions).toEqual([]);
+  const input=page.getByRole("textbox",{name:"Message",exact:true});await input.fill("Draft message");await input.focus();const before=f.reads();await expect.poll(f.reads).toBeGreaterThan(before);await expect(input).toBeFocused();await expect(input).toHaveValue("Draft message");
+  await page.screenshot({path:resolve(test.info().config.rootDir,`../../../../.audit/controlled-widget-intake-${width}.png`),fullPage:true,animations:"disabled"});
+  await page.getByRole("button",{name:"Confirm",exact:true}).click();await expect(page.getByText("Saving contact details",{exact:true})).toBeVisible();
+  expect(f.decisions).toEqual([{path:"/api/website/intake/customer-conversations/conversation/tool-reviews/intake-exact/decision",body:{decision:"approve",requestDigest:"a".repeat(64)},authorization:"Bearer intake-session"}]);expect(f.errors).toEqual([]);expect(f.unexpected).toEqual([]);
+});
+
+test("controlled API: widget replaces contact details and submits the current exact digest",async({page})=>{
+  const f=await intakeFixture(page);await expect(page.getByRole("button",{name:"Confirm",exact:true})).toBeVisible();f.change();await expect(page.getByText("Email: updated@example.test",{exact:false})).toBeVisible();
+  await page.getByRole("button",{name:"Decline",exact:true}).click();await expect(page.getByText("Contact details declined",{exact:true})).toBeVisible();expect(f.decisions[0].body).toEqual({decision:"reject",requestDigest:"b".repeat(64)});
+});
+
+for(const state of ["human_owned","resolved","handoff_pending"])test(`controlled API: widget removes contact confirmation while ${state}`,async({page})=>{
+  const f=await intakeFixture(page);await expect(page.getByRole("button",{name:"Confirm",exact:true})).toBeVisible();f.takeover(state);await expect(page.getByRole("button",{name:"Confirm",exact:true})).toHaveCount(0);expect(f.decisions).toEqual([]);expect(f.errors).toEqual([]);
+});
+
+test("controlled API: expired intake and deployments without intake cannot confirm",async({page})=>{
+  const f=await intakeFixture(page,{expired:true});await expect(page.getByText("Contact confirmation expired",{exact:true})).toBeVisible();await expect(page.getByRole("button",{name:"Confirm",exact:true})).toHaveCount(0);expect(f.decisions).toEqual([]);
+  const disabled=await intakeFixture(page,{enabled:false});await expect(page.getByRole("button",{name:"Send",exact:true})).toBeEnabled();await expect(page.getByText("Save contact details",{exact:true})).toHaveCount(0);expect(disabled.decisions).toEqual([]);
+});

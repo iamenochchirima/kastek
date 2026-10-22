@@ -54,7 +54,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    provider.reset();
    const store=new PlatformStore(pool),account=await store.ensureAccount({issuer:"https://booking-identity.fixture.test",subject:randomUUID(),email:"booking-owner@example.test",displayName:"Owner"}),org=await store.createOrganization(account.id,"Public booking acceptance"),scope={accountId:account.id,organizationId:org.id};
    const session=await store.createSession({accountId:account.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+600000)}),staff={cookie:`agents_session=${session.token}`,origin:api,"content-type":"application/json"};
-   const base=`${api}/api/organizations/${org.id}`,google=`${base}/google-calendar/connections`,created=await json(google,staff,{name:"Bookings"});let connection=created.connection;
+   const base=`${api}/api/organizations/${org.id}`,google=`${base}/providers/google-calendar/connections`,created=await json(google,staff,{name:"Bookings",operations:["calendar.availability","calendar.book"]});let connection=created.connection;
    const authorize=await json(`${google}/${connection.id}/authorize`,staff,{});const callback=await fetch(authorize.authorizationUrl,{headers:staff,redirect:"manual"});expect(callback.status).toBe(302);
    connection=(await json(`${google}/${connection.id}`,staff)).connection;await json(`${google}/${connection.id}/calendars`,staff);
    connection=(await json(`${google}/${connection.id}/calendar`,staff,{generation:connection.generation,calendarId:provider.calendarId})).connection;
@@ -62,7 +62,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    const configuration=defaultBusinessConfiguration();configuration.program={id:"grounded-conversation",version:"1"};configuration.tools=[];
    const agent=await store.createAgent({...scope,name:"Customer appointments",configuration});
    const policy=(await json(`${base}/agents/${agent.id}/booking-policies`,staff,{connectionId:connection.id,title:"Consultation",durationMinutes:30,minimumNoticeMinutes:0,maximumAdvanceDays:30,days:[0,1,2,3,4,5,6],opensAt:"08:00",closesAt:"18:00"})).policy;
-   configuration.capabilities.businessActions={enabled:true,profileId:"google-calendar-booking-v1",policyId:policy.id,policyDigest:policy.policyDigest};const draft=await store.updateDraft({...scope,agentId:agent.id,configuration,expectedRevision:1}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:draft.draft_revision});
+   configuration.capabilities.businessActions={enabled:true,profileId:"calendar-booking-v1",policyId:policy.id,policyDigest:policy.policyDigest};const draft=await store.updateDraft({...scope,agentId:agent.id,configuration,expectedRevision:1}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:draft.draft_revision});
    const deployment=await store.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:[shop]}),publicBase=`${api}/api/website/${deployment.id}`;
    async function visitor(){const {token}=await json(`${publicBase}/session`,{origin:shop,"content-type":"application/json"},{}),headers={authorization:`Bearer ${token}`,origin:shop,"content-type":"application/json"};const {conversation}=await json(`${publicBase}/customer-conversations`,headers,{});return {headers,conversation,path:`${publicBase}/customer-conversations/${conversation.id}`};}
    const customer=await visitor(),staffPath=`${base}/inbox/${customer.conversation.id}`;

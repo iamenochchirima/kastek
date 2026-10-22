@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { channelAttachmentSchema, channelWebhookEventSchema, ChannelAdapterError, type ChannelAttachment, type ChannelProviderAdapter,
+import { channelAttachmentSchema,channelButtonsSchema, channelWebhookEventSchema, ChannelAdapterError, type ChannelAttachment, type ChannelProviderAdapter,
   type ChannelProviderContext, type ChannelSendRequest, type ChannelSendResult, type ChannelWebhookEvent, type ChannelWebhookRequest } from "../../../contracts/channel-adapters";
 
 const object = (value: unknown): Record<string, any> => value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -78,6 +78,7 @@ export async function sendTelegram(request: ChannelSendRequest, context: Channel
     request.replyToProviderMessageId !== undefined && (!id(request.replyToProviderMessageId) || Number(request.replyToProviderMessageId) <= 0)) throw invalid();
   if (context.credential.split(":")[0] !== request.assetId) throw new ChannelAdapterError("TELEGRAM_ASSET_MISMATCH", "rejected", 403);
   const body: Record<string, unknown> = { chat_id: request.recipientId };
+  if(request.buttons){const parsed=channelButtonsSchema.safeParse(request.buttons);if(!parsed.success||request.attachments?.length)throw invalid();body.reply_markup={inline_keyboard:[parsed.data.map(button=>({text:button.title,callback_data:button.payload}))]};}
   if (request.replyToProviderMessageId) body.reply_parameters = { message_id: Number(request.replyToProviderMessageId), allow_sending_without_reply: false };
   const attachment = request.attachments?.[0]; let method = "sendMessage";
   if (attachment) {

@@ -51,7 +51,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.capabilities.workflows.enabled && !program.workflows.includes(configuration.capabilities.workflows.profileId))) denied();
   const expectedTools: string[] = [...configuration.tools, ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
     ...(configuration.skillIds.length ? ["skills.activate", "skills.read",...(configuration.capabilities.sandbox.enabled&&configuration.tools.includes("sandbox.analyze")?["skills.run"]:[])] : []),
-    ...(configuration.capabilities.businessActions.enabled?["booking.availability","booking.reserve"]:[]),
+    ...(configuration.capabilities.businessActions.enabled?["booking.availability",...(configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.reserve"]:[])]:[]),
     ...(configuration.capabilities.workflows.enabled ? ["report.deliver"] : [])];
   if (new Set(dependencies.tools.map(tool => tool.name)).size !== dependencies.tools.length ||
       expectedTools.length !== dependencies.tools.length ||

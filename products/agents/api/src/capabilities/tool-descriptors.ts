@@ -10,7 +10,7 @@ export interface ToolDescriptor {
   inputSchema: Record<string,unknown>; outputSchema: Record<string,unknown>;
   requiredAuthority: readonly string[]; requiredResources: readonly string[]; reconciliation: string;
 }
-export const BOOKING_WORKFLOW_BINDING=Object.freeze({profileId:"google-calendar-booking-v1",version:"1",adapter:"google-calendar-v1",stages:["prepare_exact_intent","customer_confirmation","reserve_slot","validate_provider_availability","claim_once","provider_commit","reconcile","confirm_receipt"]});
+export const BOOKING_WORKFLOW_BINDING=Object.freeze({profileId:"calendar-booking-v1",version:"1",adapter:"calendar-provider-v1",stages:["prepare_exact_intent","customer_confirmation","reserve_slot","validate_provider_availability","claim_once","provider_commit","reconcile","confirm_receipt"]});
 const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"requiredAuthority"|"requiredResources"|"reconciliation">[] = [
   {name:"booking.availability",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"booking.reserve",version:"1",effect:"external_effect",maxDurationMs:60000,maxResultBytes:8192,retry:"status_only",cancel:"reconcile_claimed"},

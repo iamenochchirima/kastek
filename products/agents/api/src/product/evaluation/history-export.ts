@@ -6,6 +6,7 @@ import { effectiveCompositionSchema } from "../../contracts/programs";
 import type { HarnessMessage, ToolDefinition } from "../../execution/business/model";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { assertExportArtifact, exportReportEffects, withheldDependency } from "./history-policy";
+import { exportProviderEffects, type ProviderEffectExportOptions } from "./history-provider-effects";
 import { loadTaskModelRoutes } from "../../execution/models/persistence";
 import type { AcceptedModelRoutes } from "../../contracts/model-bindings";
 import type { ResolvedModelBinding, EffectiveExecutionPolicy } from "../../contracts/model-providers";
@@ -111,7 +112,7 @@ export function exportModelCalls(taskId: string, operations: OperationRow[], chi
 export type HistoryExportAuthorization = void | { evaluationTrialId: string; accountId: string };
 
 /** The mandatory hook verifies the requesting human's exact root ownership within this transaction. */
-export async function exportExecutionHistory(pool: Pool, rootTaskId: string, authorize: (db: PoolClient, rootTaskId: string) => Promise<HistoryExportAuthorization>): Promise<ExecutionHistoryExport> {
+export async function exportExecutionHistory(pool: Pool, rootTaskId: string, authorize: (db: PoolClient, rootTaskId: string) => Promise<HistoryExportAuthorization>, options: ProviderEffectExportOptions = {}): Promise<ExecutionHistoryExport> {
   return transaction(pool, async db => {
     const initial = (await db.query("SELECT organization_id FROM agents_platform.tasks WHERE id=$1 AND parent_task_id IS NULL", [rootTaskId])).rows[0];
     if (!initial) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
@@ -195,7 +196,8 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       for (const task of tasks) { task.input = null; task.output = null; task.modelCalls = []; task.initialOperations = []; task.compactions = []; task.contextSnapshots = []; task.evidenceManifest = null; task.evidenceReferences = []; }
       for (const key of ["modelInputs", "modelOutputs", "toolCalls", "toolResults", "artifacts"] as const) omit(coverage, key, "Rooted execution payload withheld because a transitive artifact dependency is unavailable");
     }
-    const effects = await exportReportEffects(db, root, visible);
+    const reports = await exportReportEffects(db, root, visible), providers = await exportProviderEffects(db, root, visible, options);
+    const effects = { records: [...reports.records, ...providers.records], omissions: [...reports.omissions, ...providers.omissions] };
     coverage.effects = { status: effects.omissions.length ? "partial" : "complete", omissions: [...new Set(effects.omissions)] };
     const eventRows = (await db.query(`SELECT e.task_id,e.observation FROM agents_platform.task_events e JOIN agents_platform.tasks t ON t.id=e.task_id
       WHERE t.root_task_id=$1 AND t.organization_id=$2 ORDER BY e.sequence LIMIT 10001`, [rootTaskId, root.organization_id])).rows;

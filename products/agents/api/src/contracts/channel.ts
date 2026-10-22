@@ -8,6 +8,7 @@ export interface ChannelExecutionPorts {
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string): Promise<{ state: "handoff_pending" }>;
   publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void>;
+  publishToolReview?(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;arguments:unknown}):Promise<void>;
   context(db: Pool | PoolClient, binding: ChannelBinding, beforeMessageId: string): Promise<{
     id: string; role: "user" | "assistant"; authorKind: "visitor" | "human" | "assistant"; content: string; taskId: string | null;
   }[]>;

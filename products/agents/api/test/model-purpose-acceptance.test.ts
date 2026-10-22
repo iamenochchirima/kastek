@@ -201,7 +201,7 @@ const profiles = builtinProviderRegistry.filter(profile => ["openrouter", "opena
         const policy = await f.service.createPolicy(f.scope, f.agent.id, f.policyInput);
         const configuration = customerConfiguration("customer-service"); configuration.tools = [];
         configuration.context = { maxInputTokens: 16000, compactAtTokens: 12000 };
-        configuration.capabilities.businessActions = { enabled: true, profileId: "google-calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest };
+        configuration.capabilities.businessActions = { enabled: true, profileId: "calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest };
         const draft = await platform.updateDraft({ ...f.scope, agentId: f.agent.id, configuration, expectedRevision: 1 });
         const snapshot = await platform.createVersion({ ...f.scope, agentId: f.agent.id, expectedRevision: draft.draft_revision });
         const preview = await trials.preview(f.account.id, f.organization.id, f.agent.id, { versionId: snapshot.id, rootTokenLimit: 64000 });

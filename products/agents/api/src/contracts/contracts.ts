@@ -27,6 +27,7 @@ export const modelSchema = z.strictObject({
   maxCostMicros: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().default(null),
 });
 
+export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
 export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff"]);
@@ -42,7 +43,7 @@ export const businessCapabilitiesSchema = z.strictObject({
     bindings: z.array(delegationBindingSchema).min(1).max(2).refine(bindings => new Set(bindings.map(binding => binding.id)).size === bindings.length, "Duplicate specialist binding"),
     maxChildren: z.literal(2), maxDepth: z.literal(1) })]),
   sandbox: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true), profileId: z.literal("python-analysis-v1") })]),
-  businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("google-calendar-booking-v1"),policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
+  businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("calendar-booking-v1"),permittedOperations:calendarOperationsSchema,policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
   workflows: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({enabled:z.literal(true),profileId:z.literal("report-delivery-v1"),
     connectionId:z.uuid(),reportArtifactName:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/).default("report.md"),title:z.string().trim().min(1).max(120).default("Report")})]),
   schedules: unavailableCapability,
@@ -186,7 +187,7 @@ export function assertGrantAuthority(
       (connectedAuthority.length > 0 && !grant.operations.includes("connected.read")) ||
       configuration.model.maxInputBytes > grant.maxInputBytes || configuration.model.maxOutputTokens > grant.maxOutputTokens ||
       configuration.context.maxInputTokens > grant.maxContextTokens ||
-      (configuration.capabilities.businessActions.enabled && (!grant.operations.includes("booking.read")||!grant.operations.includes("booking.execute"))) ||
+      (configuration.capabilities.businessActions.enabled && (!grant.operations.includes("booking.read")||configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")&&!grant.operations.includes("booking.execute"))) ||
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
       (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.workflows.enabled && (!grant.operations.includes("effect.deliver") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||

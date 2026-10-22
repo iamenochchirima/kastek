@@ -6,7 +6,7 @@ The standalone product targets mostly plug-and-play customer-service, FAQ, booki
 agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
 and campaign experiences belong in Growth or Agencies using the shared execution backend.
 The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
-explicit return to automation. Google Calendar appointments use explicit organization service access, a pinned booking policy, and
+explicit return to automation. Google and Microsoft Calendar appointments use explicit organization service access, a pinned booking policy, and
 exact customer confirmation. Other channel providers and the separate Booking creation offering
 remain unavailable. Live Google OAuth acceptance remains pending. See the
 [product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
@@ -24,7 +24,7 @@ The [architecture](docs/architecture/agent-platform-architecture.md) defines the
 The [implementation boundary](docs/source-boundary.md) records current behavior and limits.
 Growth and Agencies are later integrations. Neither is required to run Agents.
 
-Live provider acceptance is owned by the project owner. Optional Google Calendar and MCP
+Live provider acceptance is owned by the project owner. Optional native-provider and MCP
 OAuth settings are listed in [api/.env.example](api/.env.example); keep credentials in the private
 `api/.env`. Follow [connection setup](docs/mcp-integration.md) to connect accounts, select agent
 access, publish a version and test it. Controlled acceptance results do not certify live providers.
@@ -221,8 +221,8 @@ The package remains read-only, with bundled helpers and resources, no network, n
 no dependency installation. Other languages remain unavailable. Execution receipts and generated
 artifacts retain exact package/script digests and current withdrawal checks.
 See [approved package execution](docs/source-boundary.md#customer-agent-configuration) for limits.
-Connections includes custom MCP discovery/selection, native OpenAPI import, and Google Calendar
-setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
+Connections includes custom MCP discovery/selection, native OpenAPI import, and shared Google,
+Microsoft Calendar and HubSpot setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
 unsaved draft before navigation and preserves input if saving fails.
 Rich harness configurations use developer/product fixtures. In the ordinary client,
 Save changes validates the configuration and creates its immutable execution snapshot
@@ -259,25 +259,28 @@ global navigation; mobile exposes accessible navigation/history drawers and keep
 composer within the viewport.
 
 
-## Configure Google Calendar appointments
+## Connect business providers
 
-Configure `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and
-`GOOGLE_CALENDAR_CALLBACK_URL` on the API, plus the encrypted connection keyring.
-The callback is `/api/google-calendar/callback` on `AGENTS_PUBLIC_URL`. Production
-requires HTTPS. Missing or invalid configuration makes the provider unavailable.
-See [Google Calendar boundaries](docs/mcp-integration.md#google-calendar-bookings)
-for authority, credentials, and status recovery.
+Google Calendar, Microsoft 365 Calendar and HubSpot Contacts use the same owner-managed
+connection flow. Configure each provider's registered OAuth client and callback, plus the
+encrypted connection keyring. Missing configuration keeps that provider unavailable. See
+[native business providers](docs/mcp-integration.md#native-business-providers) for exact variables,
+permissions, supported actions and recovery rules.
 
-An owner signs in through **Connections**, selects a writable calendar, and explicitly allows
-its use for the organization booking service. In the agent's **General** settings, the owner
-creates and selects a booking policy, then applies it with Save changes. Customer-service
-agents expose this setup. Other available agents can open optional setup through **Tools**.
-Selecting a calendar alone does not authorize bookings or apply saved agent settings.
+In **Connections**, choose an account and actions. Calendar connections require a writable
+calendar and explicit customer-service sharing before a calendar policy can be selected in
+agent settings. Choose availability only or also allow bookings. Google and Microsoft use the
+same booking workflow and exact confirmation for writes.
+The standalone Booking creation offering remains unavailable.
 
-The customer confirms the exact appointment in website chat before an event can be created.
-**Check status** on an uncertain or claimed appointment performs a provider lookup. It never
-resends the event insertion. Google OAuth and provider calls have controlled local acceptance;
-no live configured Google account or production deployment is claimed.
+HubSpot supports exact-email lookup for staff and confirmed contact intake. An owner must
+explicitly allow customer intake and add only the intake action to a customer-deployed agent.
+Website cards and messaging buttons collect exact customer confirmation. Customer agents cannot
+look up contact records. Customer responses contain an intake outcome,
+not the provider contact ID or existing private record fields.
+
+Focused checks use signed OAuth fixtures, isolated databases and controlled provider servers.
+Live account registration, consent, reconnect acceptance and model evaluations remain owner-run.
 
 ## Customer channels
 

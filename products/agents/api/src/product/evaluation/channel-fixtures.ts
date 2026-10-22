@@ -2,7 +2,7 @@ import { createHmac, randomBytes,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
 import type { ActionScope } from "../../contracts/connections";
-import type { ChannelProviderContext } from "../../contracts/channel-adapters";
+import type { ChannelProviderContext,ChannelWebhookEvent } from "../../contracts/channel-adapters";
 import type { VersionRecord } from "../../contracts/records";
 import { canonicalJson,PlatformError,requestDigest } from "../../contracts/contracts";
 import { messagingChannelAdapter } from "../../adapters/channels/providers";
@@ -11,6 +11,7 @@ import { ConnectionVault } from "../../infrastructure/vault";
 import { DeploymentStore } from "../deployments/deployment-store";
 import type { ChannelDelivery } from "../channels/channel-delivery";
 import type { InboxStore } from "../inbox/inbox-store";
+import {channelToolReviewDecision} from "../channels/channel-tool-reviews";
 
 const fixtureSchema=z.strictObject({kind:z.enum(["telegram","whatsapp","facebook","instagram"]),mode:z.enum(["bot","cloud_api","meta","instagram_login"]),
   outcomes:z.array(z.enum(["accepted","rejected","lost_ack"])).min(1).max(64)});
@@ -84,6 +85,19 @@ export class EvaluationChannelFixtures {
     if(connection.organization_id!==row.organization_id||connection.kind!==row.kind||connection.asset_id!==row.asset_id||connection.revision!==row.connection_revision||message.conversation_id===undefined)throw denied();
     const allowed=await this.pool.query("SELECT 1 FROM agents_platform.customer_conversations WHERE id=$1 AND organization_id=$2 AND channel_deployment_id=$3",[message.conversation_id,row.organization_id,row.deployment_id]);
     if(!allowed.rowCount)throw denied();return true;
+  }
+  async acknowledgeContactReview(connectionId:string,event:ChannelWebhookEvent):Promise<void>{
+    const action=channelToolReviewDecision(event);if(!action)throw denied();
+    const row=await this.row(this.pool,connectionId);
+    if(event.assetId!==row.asset_id)throw denied();
+    const allowed=await this.pool.query(`SELECT 1 FROM agents_platform.customer_conversations c
+      JOIN agents_platform.customer_task_links l ON l.conversation_id=c.id JOIN agents_platform.tasks t ON t.id=l.task_id
+      JOIN agents_platform.tool_invocation_reviews r ON r.task_id=t.id
+      WHERE c.organization_id=$1 AND c.channel_deployment_id=$2 AND c.external_conversation_id=$3 AND c.external_sender_id=$4
+      AND t.evaluation_trial_id=$5 AND t.principal->>'kind'='channel_customer' AND t.principal->>'deploymentId'=$2::text
+      AND t.principal->>'participantId'=c.id::text AND r.id=$6`,
+      [row.organization_id,row.deployment_id,event.externalConversationId,event.senderId,row.trial_id,action.id]);
+    if(!allowed.rowCount)throw denied();
   }
   fixtureProviderContext(connection:Row,beforeAttempt:()=>Promise<void>):ChannelProviderContext|null{
     if(connection.metadata?.evaluationFixture!==true)return null;

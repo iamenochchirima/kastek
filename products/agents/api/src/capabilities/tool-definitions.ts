@@ -7,7 +7,7 @@ export const BUILTIN_MODEL_ALIASES = Object.freeze({ knowledge_search: "knowledg
   memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",channel_request_handoff: "channel.request_handoff" } as const);
 export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
   if(name==="skills.run")return config.skillIds.length>0&&config.capabilities.sandbox.enabled&&config.tools.includes("sandbox.analyze");
-  if(name==="booking.availability"||name==="booking.reserve")return config.capabilities.businessActions.enabled;
+  if(name==="booking.availability"||name==="booking.reserve")return config.capabilities.businessActions.enabled&&config.capabilities.businessActions.permittedOperations.includes(name==="booking.availability"?"calendar.availability":"calendar.book");
   return name === "skills.activate" || name === "skills.read" ? config.skillIds.length > 0 : config.tools.includes(name as AgentConfiguration["tools"][number]);
 }
 export function builtinToolName(alias: string): string | undefined { return Object.hasOwn(BUILTIN_MODEL_ALIASES, alias) ? BUILTIN_MODEL_ALIASES[alias as keyof typeof BUILTIN_MODEL_ALIASES] : undefined; }
@@ -83,8 +83,9 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
   if(permitted.has("sandbox.analyze") && config.capabilities.sandbox.enabled) result.push({type:"function",function:{
     name:"sandbox_analyze",description:"Run standard-library Python in the approved temporary no-network analysis environment. Read selected authorized inputs and write report files to the export directory.",
     parameters:{type:"object",properties:{code:{type:"string",minLength:1,maxLength:16384},inputArtifactIds:{type:"array",maxItems:32,items:{type:"string",format:"uuid"}}},required:["code"],additionalProperties:false}}});
-  if(config.capabilities.businessActions.enabled)result.push(
-    {type:"function",function:{name:"booking_availability",description:"Find open appointment times using the selected business calendar and booking rules. Returns slots only, never private calendar events.",parameters:{type:"object",properties:{start:{type:"string",format:"date-time"},end:{type:"string",format:"date-time"}},required:["start","end"],additionalProperties:false}}},
-    {type:"function",function:{name:"booking_reserve",description:"Propose one appointment at an available start time. The customer must confirm the exact appointment in the interface. Only a confirmed provider receipt means it is booked.",parameters:{type:"object",properties:{start:{type:"string",format:"date-time"}},required:["start"],additionalProperties:false}}});
+  if(config.capabilities.businessActions.enabled){result.push(
+    {type:"function",function:{name:"booking_availability",description:"Find open appointment times using the selected business calendar and booking rules. Returns slots only, never private calendar events.",parameters:{type:"object",properties:{start:{type:"string",format:"date-time"},end:{type:"string",format:"date-time"}},required:["start","end"],additionalProperties:false}}});
+    if(config.capabilities.businessActions.permittedOperations.includes("calendar.book"))result.push({type:"function",function:{name:"booking_reserve",description:"Propose one appointment at an available start time. The customer must confirm the exact appointment in the interface. Only a confirmed provider receipt means it is booked.",parameters:{type:"object",properties:{start:{type:"string",format:"date-time"}},required:["start"],additionalProperties:false}}});
+  }
   return [...result, ...connectedTools];
 }

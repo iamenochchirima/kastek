@@ -77,6 +77,8 @@ describe("bounded HubSpot Contacts adapter",()=>{
   it("validates input and fixture endpoints before sending",async()=>{
     await expect(client().createContact({...intent,email:"invalid"})).rejects.toThrow();
     expect(()=>new HubSpotContactsClient(token,{deadlineAt:Date.now()+5000,testBaseUrl:"https://example.test"})).toThrow();
+    expect(()=>new HubSpotContactsClient(token,{deadlineAt:Date.now()+5000,testBaseUrl:base,apiBaseUrl:"http://127.0.0.1/private"})).toThrow();
+    expect(()=>new HubSpotContactsClient(token,{deadlineAt:Date.now()+5000,testBaseUrl:base,apiBaseUrl:"https://credential@example.test/crm"})).toThrow();
     expect(requests).toHaveLength(0);
   });
 });

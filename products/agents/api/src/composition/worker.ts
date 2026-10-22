@@ -5,8 +5,7 @@ import { Pool } from "pg";
 import { ConnectedExecutor } from "../capabilities/connected-tools/connected-executor";
 import { ToolReviewStore } from "../capabilities/reviews/tool-reviews";
 import { RemoteConnectionStore } from "../product/connections/remote-connections";
-import { GoogleCalendarConnectionStore } from "../product/connections/google-calendar-connections";
-import { GoogleCalendarOAuth,googleOAuthConfigFromEnvironment } from "../product/connections/google-calendar-oauth";
+import { ProviderServices } from "../product/connections/provider-services";
 import { BookingService } from "../workflows/booking/bookings";
 import { ApiConnectionStore } from "../product/connections/api-connections";
 import { createNativeApiCapabilityCatalog } from "../capabilities/connected-tools/generic-connected-runtime";
@@ -60,17 +59,16 @@ async function main(): Promise<void> {
   const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;
   const knowledgeRuntime=sourceObjects?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
   const toolReviews=new ToolReviewStore(pool);
-  const googleConfig=googleOAuthConfigFromEnvironment({...process.env,AGENTS_PUBLIC_URL:(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100")});
-  const googleCalendar=new GoogleCalendarConnectionStore(pool,actionServices?.connections.vault,{appUrl:(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100"),...(googleConfig?{oauth:new GoogleCalendarOAuth(googleConfig)}:{})});
-  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>googleCalendar.resolveBookingCalendar(...args),ensureFresh:(scope,id)=>googleCalendar.ensureCredentialFresh(scope,id)});
+  const providers=new ProviderServices(pool,actionServices?.connections.vault,{appUrl:process.env.AGENTS_PUBLIC_URL??"http://localhost:3100"});
+  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>providers.resolveCalendar(...args),ensureFresh:(scope,id)=>providers.ensureFresh(scope,id)});
 
   const remoteConnections=actionServices?new RemoteConnectionStore(pool,actionServices.connections.vault,{
     callbackUrl:`${new URL(process.env.AGENTS_PUBLIC_URL??"http://localhost:3100").origin}/api/connections/oauth/callback`,
     ...remoteAuthOptionsFromEnvironment(process.env),
   }):undefined;
-  const connected:ConnectedExecutor|undefined=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,actionServices.connections,sourceObjects,evidence,{
+  const connected:ConnectedExecutor|undefined=actionServices&&sourceObjects&&evidence?new ConnectedExecutor(pool,providers.credentials(actionServices.connections),sourceObjects,evidence,{
     resolveRemoteEndpoint:remoteConnections?(db,scope,id,policy)=>remoteConnections.resolveRemoteEndpoint(db,scope,id,policy):undefined,
-    ensureCredentialFresh:remoteConnections?(scope,id)=>remoteConnections.ensureCredentialFresh(scope,id):undefined,
+    ensureCredentialFresh:async(scope,id)=>{const native=await providers.forConnection(scope,id);if(native)await native.ensureCredentialFresh(scope,id);else await remoteConnections?.ensureCredentialFresh(scope,id);},
     recordRemoteScopeChallenge:remoteConnections?(scope,id,policyRevision,challenge)=>remoteConnections.recordPermissionChallenge(scope,id,policyRevision,challenge):undefined,
     resolveApiOperation:(db,scope,id,policy,operation)=>apiConnections!.resolveApiOperation(db,scope,id,policy,operation),
     genericReview:toolReviews.port(),

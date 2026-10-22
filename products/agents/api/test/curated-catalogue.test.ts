@@ -43,7 +43,7 @@ describe("curated catalogue", () => {
     expect(find(context(), "knowledge-search").readiness.reasons[0]?.code).toBe("KNOWLEDGE_REQUIRED");
     expect(find(context(), "human-handoff").readiness.state).toBe("ready");
     expect(queryCatalogue("tools", { q: "gmail" }, context()).entries).toEqual([]);
-    expect(queryCatalogue("tools", { q: "calendar" }, context()).entries).toMatchObject([{id:"google-calendar",readiness:{state:"unavailable"}}]);
+    expect(queryCatalogue("tools", { q: "calendar" }, context()).entries).toMatchObject([{id:"google-calendar",readiness:{state:"unavailable"}},{id:"microsoft-calendar",readiness:{state:"unavailable"}}]);
   });
   it("keeps Google availability honest and routes selected calendars to appointment rules", () => {
     const ctx=context();ctx.purpose="customer-service";
@@ -52,9 +52,17 @@ describe("curated catalogue", () => {
     expect(find(ctx,"google-calendar")).toMatchObject({readiness:{state:"needs_connection"},action:{kind:"connect",connectionProfileId:"google-calendar-v1"},recommended:true,added:false});
     ctx.connections=[{...connection,id:"calendar-connection",profileId:"google-calendar-v1"}];
     expect(find(ctx,"google-calendar")).toMatchObject({readiness:{state:"needs_configuration",reasons:[{code:"BOOKING_POLICY_REQUIRED"}]},action:{kind:"configure",configurationSection:"configuration",connectionProfileId:"google-calendar-v1",connectionId:"calendar-connection"},configuration:{tools:[],connectedToolBindingIds:[],skillIds:[]}});
-    ctx.configuration!.capabilities.businessActions={enabled:true,profileId:"google-calendar-booking-v1",policyId:agentId,policyDigest:"a".repeat(64)};
+    ctx.calendarProviderId="google-calendar";ctx.configuration!.capabilities.businessActions={enabled:true,profileId:"calendar-booking-v1",permittedOperations:["calendar.availability","calendar.book"],policyId:agentId,policyDigest:"a".repeat(64)};
     expect(find(ctx,"google-calendar")).toMatchObject({added:true,action:{kind:"configure",configurationSection:"configuration"}});
     expect(queryCatalogue("tools",{view:"added"},ctx).entries.map(entry=>entry.id)).toEqual(["google-calendar"]);
+  });
+  it("marks only the provider pinned by the selected calendar policy as added",()=>{
+    const ctx=context();ctx.purpose="customer-service";ctx.connectorReadiness={"google-calendar":{available:true},"microsoft-calendar":{available:true}};
+    ctx.connections=[{...connection,id:"google-account",profileId:"google-calendar-v1"},{...connection,id:"microsoft-account",profileId:"microsoft-calendar-v1"}];
+    ctx.configuration!.capabilities.businessActions={enabled:true,profileId:"calendar-booking-v1",permittedOperations:["calendar.availability"],policyId:agentId,policyDigest:"a".repeat(64)};
+    expect(queryCatalogue("tools",{view:"added"},ctx).entries).toEqual([]);
+    ctx.calendarProviderId="google-calendar";expect(queryCatalogue("tools",{view:"added"},ctx).entries.map(entry=>entry.id)).toEqual(["google-calendar"]);
+    ctx.calendarProviderId="microsoft-calendar";expect(queryCatalogue("tools",{view:"added"},ctx).entries.map(entry=>entry.id)).toEqual(["microsoft-calendar"]);
   });
   it("requires calendar configuration permission even for an otherwise eligible agent", () => {
     const ctx=context();ctx.purpose="customer-service";ctx.connectorReadiness={"google-calendar":{available:true}};ctx.permissions=["agent.configure"];

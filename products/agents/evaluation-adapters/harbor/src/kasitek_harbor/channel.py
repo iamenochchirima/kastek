@@ -26,14 +26,29 @@ class VisitorClient:
     async def __aexit__(self, *_):
         await self.http.aclose()
 
-    async def post(self, path, body):
-        if path != self.path and not re.fullmatch(
-            re.escape(self.path) + r"/[0-9a-fA-F-]{36}/messages", path
-        ):
+    async def _request(self, method, path, body=None):
+        conversation = re.escape(self.path) + r"/[0-9a-fA-F-]{36}"
+        permitted = (
+            method == "POST"
+            and (
+                path == self.path
+                or re.fullmatch(conversation + r"/messages", path)
+                or re.fullmatch(
+                    conversation
+                    + r"/(?:bookings|tool-reviews)/[0-9a-fA-F-]{36}/decision",
+                    path,
+                )
+            )
+        ) or (
+            method == "GET"
+            and re.fullmatch(conversation + r"/(?:bookings|tool-reviews)", path)
+        )
+        if not permitted:
             raise ValueError("Visitor request escaped its prepared website publication")
         for attempt in range(2):
             try:
-                async with self.http.stream("POST", path, json=body) as response:
+                kwargs = {"json": body} if method == "POST" else {}
+                async with self.http.stream(method, path, **kwargs) as response:
                     if not response.is_success:
                         raise PlatformRequestError(response.status_code)
                     content = bytearray()
@@ -47,6 +62,55 @@ class VisitorClient:
             except httpx.TransportError:
                 if attempt:
                     raise
+
+    async def post(self, path, body):
+        return await self._request("POST", path, body)
+
+    async def _confirmations(self, conversation_id, kind, key):
+        UUID(conversation_id)
+        result = await self._request("GET", f"{self.path}/{conversation_id}/{kind}")
+        items = result.get(key) if isinstance(result, dict) else None
+        if not isinstance(items, list) or len(items) > 240:
+            raise ValueError("Missing bounded customer confirmations")
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid customer confirmation")
+            UUID(item["id"])
+            if not re.fullmatch(r"[a-f0-9]{64}", item.get("requestDigest", "")):
+                raise ValueError("Missing exact customer confirmation digest")
+        return items
+
+    async def bookings(self, conversation_id):
+        return await self._confirmations(conversation_id, "bookings", "bookings")
+
+    async def tool_reviews(self, conversation_id):
+        return await self._confirmations(conversation_id, "tool-reviews", "reviews")
+
+    async def _decide(self, conversation_id, kind, identity, decision, request_digest):
+        UUID(conversation_id)
+        UUID(identity)
+        if decision not in {"approve", "reject"} or not re.fullmatch(
+            r"[a-f0-9]{64}", request_digest
+        ):
+            raise ValueError("Expected an explicit decision and exact request digest")
+        return await self.post(
+            f"{self.path}/{conversation_id}/{kind}/{identity}/decision",
+            {"decision": decision, "requestDigest": request_digest},
+        )
+
+    async def decide_booking(
+        self, conversation_id, booking_id, decision, request_digest
+    ):
+        return await self._decide(
+            conversation_id, "bookings", booking_id, decision, request_digest
+        )
+
+    async def decide_tool_review(
+        self, conversation_id, review_id, decision, request_digest
+    ):
+        return await self._decide(
+            conversation_id, "tool-reviews", review_id, decision, request_digest
+        )
 
     async def open(self):
         result = await self.post(self.path, {})

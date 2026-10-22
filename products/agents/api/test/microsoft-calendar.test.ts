@@ -59,6 +59,9 @@ describe("bounded Microsoft Calendar provider", () => {
     expect(requests[0]!.url).toContain(`/me/calendars/${encodeURIComponent(intent.calendarId)}/calendarView?`);
     expect(new URL(requests[0]!.url, base).searchParams.get("startDateTime")).toBe("2026-10-20T08:00:00.000Z");
   });
+  it.each(["http://graph.microsoft.com/v1.0","https://localhost/v1.0","https://127.0.0.1/v1.0","https://user:secret@graph.microsoft.com/v1.0","https://graph.microsoft.com/v1.0?token=private"])("rejects unsafe reviewed base %s",apiBaseUrl=>{
+    expect(()=>new MicrosoftCalendarClient("fixture-private-token",{deadlineAt:Date.now()+5000,apiBaseUrl})).toThrow();expect(requests).toHaveLength(0);
+  });
   it("rejects invalid ranges and intents before sending", async () => {
     await expect(client().freeBusy(intent.calendarId, { start: intent.start, end: "2027-01-01T00:00:00Z" })).rejects.toMatchObject({ code: "MICROSOFT_RANGE_INVALID" });
     await expect(client().createBooking({ ...intent, timeZone: "invalid" })).rejects.toThrow(); expect(requests).toHaveLength(0);

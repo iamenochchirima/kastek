@@ -122,7 +122,7 @@ owner databases and running local services are not upgraded by verification fixt
 fresh setup command for an isolated environment. Disable new connection/binding admission before
 rolling back code; retain operation receipts and supported runtime releases for in-flight recovery.
 Production deployment, hosted telemetry retention and a live Google OAuth application remain
-separate acceptance steps. Google Calendar bookings is implemented through a separate customer service policy. The standalone
+separate acceptance steps. Native calendar bookings use a separate customer service policy. The standalone
 Booking creation offering remains unavailable; customer-service configuration can enable appointments.
 
 ## Connection observability
@@ -158,53 +158,96 @@ Focused evidence is in [connection-telemetry.test.ts](../api/test/connection-tel
 [generic-connected-runtime.test.ts](../api/test/generic-connected-runtime.test.ts) and
 [native-api-executor.test.ts](../api/test/native-api-executor.test.ts).
 
-## Google Calendar bookings
+## Native business providers
 
-Google Calendar is the implemented provider connector. The API requires
-`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and
-`GOOGLE_CALENDAR_CALLBACK_URL`, plus `AGENTS_CONNECTION_KEYS` and
-`AGENTS_CONNECTION_ACTIVE_KEY` for encrypted credentials. `AGENTS_PUBLIC_URL` names the
-application origin. The callback must be its `/api/google-calendar/callback` path.
-Production requires HTTPS. Missing or invalid configuration reports the provider unavailable.
-The local Google application is not configured, so live account acceptance remains pending.
+The reviewed JSON registry supplies provider identity, fixed endpoints, scopes, supported actions
+and installed-handler references. The registry cannot install executable code or grant an agent
+permission. Native OAuth is separate from MCP discovery and custom OpenAPI import.
 
-The owner signs in with the Google authorization-code/PKCE flow. The connector validates state,
-nonce, issuer, audience, email, granted scopes, and token subject. One-use encrypted attempts and
-refresh leases survive independent API instances. A verified Google identity belongs to this
-provider connector; generic MCP sign-in does not establish the same identity guarantee.
-Connections start private. Selecting a writable calendar does not authorize customer access.
-Explicit `organization_service` sharing is required before the owner creates a booking policy.
-Changing calendar, sharing, or connection authority invalidates prior policy revisions. Persisted
-connections and OAuth attempts also pin the connector/client execution definition. Changed issuer,
-client, scopes, API configuration, or capability-selection identity requires authorization again; existing token
-bytes are not sent under the replacement definition.
+| Provider | Server variables | Registered callback on `AGENTS_PUBLIC_URL` | Supported actions |
+| --- | --- | --- | --- |
+| Google Calendar | `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_CALLBACK_URL` | `/api/google-calendar/callback` | Selected-calendar availability and confirmed bookings |
+| Microsoft 365 Calendar | `MICROSOFT_CALENDAR_CLIENT_ID`, `MICROSOFT_CALENDAR_CLIENT_SECRET`, `MICROSOFT_CALENDAR_CALLBACK_URL` | `/api/providers/microsoft-calendar/callback` | Selected-calendar availability and confirmed bookings through Graph v1.0 |
+| HubSpot Contacts | `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET`, `HUBSPOT_CALLBACK_URL` | `/api/providers/hubspot/callback` | Staff exact-email lookup and confirmed contact intake through API version 2026-09 |
 
-A policy pins its owner, connection policy revision, calendar, time zone, appointment title,
-duration, notice, advance window, weekdays, and opening hours. The draft selects the policy ID
-and digest under `google-calendar-booking-v1`. Publication preserves those immutable pins.
-Customer-service agents expose policy setup in General. Other agents can explicitly open setup
-through the Google Calendar Tools entry. The separate Booking creation offering is unavailable.
+All require `AGENTS_CONNECTION_KEYS` and `AGENTS_CONNECTION_ACTIVE_KEY`. Production callbacks
+require HTTPS. Missing or invalid server configuration reports the provider unavailable. Fresh
+schema setup is required for this source revision; setup refuses an existing database with a
+different schema checksum. Do not initialize or replace an owner's existing database to test it.
 
-`booking.availability` offers policy-grid slots after provider busy checks and local reservations.
-`booking.reserve` prepares the exact appointment and waits durably for that task's principal.
-No provider insertion starts before confirmation. Current membership, policy, visitor session,
-channel ownership, and operation deadline still apply at the physical send. The deterministic
-event identity supports authoritative receipts and conflict handling; uncertainty never authorizes
-a second insertion. Google event IDs and credentials do not enter public booking projections.
+### Account lifecycle
 
-An uncertain website booking requests shared Inbox handoff only under its current automated
-ownership generation. A staff takeover remains human-owned. The selected staff conversation
-shows appointment status and offers reconciliation without approval or decline controls. Unrelated
-FAQ details do not fetch booking records.
+Owners select actions before consent. Scope step-up requires explicit reauthorization. Google and
+Microsoft use OIDC authorization code with S256 PKCE, nonce, issuer and audience validation.
+Microsoft validates tenant-specific issuers through the official discovery metadata and records
+`tid:sub` as identity. Google requires a verified email and stable subject. HubSpot's native
+confidential-client code flow uses one-use state and token introspection to verify client, Hub ID
+and scopes. Its native OAuth guide does not specify PKCE; MCP OAuth is a separate protocol.
 
-Operator, visitor, and authorized staff cards expose **Check status** for claimed or uncertain proposals.
-The scoped `/reconcile` endpoint uses a lease and only a provider GET for the deterministic event.
-It can record a recovered confirmation without rewriting the original uncertain task outcome.
-An active insertion claim returns `BOOKING_IN_PROGRESS`. A 404 or unresolved provider outcome
-keeps the appointment uncertain. Repeated checks never send another insertion.
+Connections start private. Encrypted one-use attempts bind browser account, organization, provider,
+generation, exact requested scopes and a validated agent return path. Refresh leases serialize
+refresh across API instances. An abandoned or identity-changing refresh requires reconnect.
+Reauthorization clears resource selections, bindings and service sharing. Changes to execution
+configuration fence existing credentials and callbacks; display edits do not broaden access.
+Disconnect cuts off local authority. Removing the external application's consent is a separate
+provider-account action.
 
-Controlled provider, signed OIDC, PostgreSQL, and isolated Restate tests establish local behavior.
-They do not establish live Google OAuth consent, a live calendar account, or production readiness.
+### Calendar booking authority
+
+Owners select a writable calendar, a time zone and explicit customer-service sharing. A policy pins provider,
+owner, connection policy revision, calendar, title, duration, notice, advance window and opening
+hours. The saved agent configuration uses `calendar-booking-v1`. Calendar selection alone grants
+neither customer access nor booking authority. Each policy pins availability-only access or availability
+plus booking. Read-only policies expose no reserve tool and cannot admit a booking effect. The
+standalone Booking creation offering remains
+unavailable.
+
+`booking.availability` combines provider busy checks with local reservations. Microsoft uses
+`calendarView` for the selected calendar, rather than mailbox-wide `getSchedule`. Its selected
+calendar time zone is explicit because Graph's calendar resource does not supply that setting.
+`booking.reserve` waits for exact principal confirmation, then rechecks membership, current grants,
+conflicts, channel ownership and deadline. Google uses a deterministic event ID. Microsoft uses
+`transactionId` and a pinned intent marker. Lost acknowledgements remain uncertain; reconciliation
+performs reads without another create. Provider event IDs and tokens stay out of customer cards.
+
+The website widget supports appointment confirmation and status recovery. Staff can inspect and
+reconcile appointments but cannot approve for a customer. Other messaging transports retain their
+existing booking-confirmation limitations; connecting a channel does not establish a booking UX.
+
+### HubSpot contact authority
+
+The two actions use explicit email and optional first/last name fields. Search returns only ID,
+email and those names. No arbitrary properties, updates, deletion, bulk export or other CRM objects
+are supported. HubSpot's OAuth grant covers account contacts, so staff lookup never becomes
+customer lookup merely because the account is connected.
+
+Staff can select lookup and intake. Customer deployments allow only `contacts.create`, explicit
+organization-service sharing and an exact customer confirmation. A customer agent containing a
+lookup binding must remove that binding before deployment. Sharing renews bindings at the current
+policy revision; previously published bindings remain fenced. Each effect rechecks membership,
+connection, sharing, deployment, selected action and ownership. Customers receive only the intake
+outcome, including when a matching contact already exists. Existing contact names and IDs remain
+private. The website widget shows exact Confirm/Decline cards. WhatsApp, Telegram, Facebook and
+Instagram send native confirmation buttons with the exact submitted fields. Verified callbacks
+must match the sender, thread, deployment, accepted prompt and current ownership. Expired prompts
+and staff takeover prevent approval. An unknown provider outcome requests Inbox handoff while
+automated ownership remains current.
+
+Creation first searches the exact email. A matching record completes intake without mutation.
+Otherwise the adapter sends one create and verifies the receipt. HubSpot search is eventually
+consistent and offers no create idempotency key. Timeout recovery performs a read-only exact-email
+lookup. An unresolved result stays uncertain and never authorizes a second create. A contact found
+later proves existence, not which request created it.
+
+### Verification and owner acceptance
+
+OAuth, connection lifecycle, adapter, runtime and widget tests use signed local identities,
+isolated PostgreSQL databases and controlled HTTP providers. They cover scope step-up, explicit
+resource selection, secret redaction, revocation, exact confirmation, receipt replay and uncertain
+outcomes. These checks do not certify live app registration, consent or production readiness.
+The owner runs live provider acceptance and purpose-specific model evaluations. Evaluation uses
+the existing external Harbor adapter and authoritative provider receipts; no separate agent loop
+is introduced for these providers.
 
 ## Skill packages
 
@@ -305,7 +348,7 @@ An unsupported or untested combination is not a passed compatibility case.
 | Public no-auth DeepWiki | Current-release live probe: `.audit/public-mcp-current-release-20261020.json`, checked 2026-10-20T18:33:24.104Z, endpoint `https://mcp.deepwiki.com/mcp`, protocol 2025-11-25. | `remote-mcp-v1-sdk2.3.1-content1` discovered three compatible tools and executed `read_wiki_structure` for `facebook/react` without authentication; the result was 7,763 bytes. This proves current-release public tool execution, not live resource/prompt RPCs, OAuth or a complete tenant browser journey. |
 | Approved live OAuth and keyed/API providers | Not verified. | No complete current-release live matrix is recorded. A chat connector's credentials do not establish Agents provider acceptance. |
 | OpenAPI 3.0/3.1 with none, bearer, Basic and header/query keys | Fixture: [openapi-import.test.ts](../api/test/openapi-import.test.ts), [api-connections.test.ts](../api/test/api-connections.test.ts), [native-api.test.ts](../api/test/native-api.test.ts), [native-api-executor.test.ts](../api/test/native-api-executor.test.ts). | Bounded import, safe references, fixed request compilation, encrypted credentials, selected published execution and private response bytes. Explicit GET read policies support bounded cursor pagination and optional retries for HTTP 429/502/503/504. JSON Pointer projection narrows model-visible fields; complete pages remain private receipts. The default and reviewed writes perform one physical request. See response-policy acceptance below. |
-| Google Calendar OAuth, identity and bookings | Fixture: [google-calendar-connections.test.ts](../api/test/google-calendar-connections.test.ts), [google-calendar.test.ts](../api/test/google-calendar.test.ts), [booking-business.test.ts](../api/test/booking-business.test.ts). | Controlled signed OIDC, explicit service sharing, account/configuration fences and booking recovery. The live Google application and approved test account remain unconfigured. Imported API OAuth and service client-credentials are unavailable outside an implemented provider contract. |
+| Native provider lifecycle and effects | [provider-oauth.test.ts](../api/test/provider-oauth.test.ts), [native-provider-connections.test.ts](../api/test/native-provider-connections.test.ts), [native-provider-runtime.test.ts](../api/test/native-provider-runtime.test.ts), [microsoft-calendar.test.ts](../api/test/microsoft-calendar.test.ts), [hubspot-contacts.test.ts](../api/test/hubspot-contacts.test.ts), [channel-tool-reviews.test.ts](../api/test/channel-tool-reviews.test.ts) and existing Google/booking tests. | Signed OIDC/token-introspection fixtures, selected-account/action isolation, exact customer confirmation, receipt replay, uncertainty and takeover fences. Live account consent and provider acceptance remain owner-run. |
 | Portable instruction and multi-file skills | Fixture: [skill-packages.test.ts](../api/test/skill-packages.test.ts), [skill-repository.test.ts](../api/test/skill-repository.test.ts), [skill-package-store.test.ts](../api/test/skill-package-store.test.ts). | Immutable package bytes, hostile archive/refusal cases, review, requirements and scoped activation. [skill-script-runtime.test.ts](../api/test/skill-script-runtime.test.ts) and [platform-business.test.ts](../api/test/platform-business.test.ts) verify exact reviewed Python execution through published tools and real gVisor, bundled helpers/resources, no mandatory script read, current withdrawal fences and cleanup. Other languages remain unavailable. |
 | Imported API plus reviewed skill through normal agent execution | External controlled Harbor trial: `.audit/harbor-eefdc68d-68f6-4cec-8ffb-873e41aca258/acceptance.json`; [fixture support](../api/test/harbor-connector-support.ts). | FAQ policy-read trial passed with authoritative provider checks. It records `mutationsVerified: false`; it is neither live provider consent nor booking-write acceptance. |
 | Browser connection execution and recovery | Controlled API/provider/Restate: [catalogue-execution-live.spec.ts](../web/test/catalogue-execution-live.spec.ts), five journeys passed, including seven successful approved provider invocations with seven completed private receipts. Mock transport: [remote-connections.spec.ts](../web/test/remote-connections.spec.ts), [api-connections.spec.ts](../web/test/api-connections.spec.ts), [google-calendar.spec.ts](../web/test/google-calendar.spec.ts). | Actual MCP publication/review/execution/reconnect/revoke, native credential expiry/repair, full-page OAuth cancellation/one-use callbacks across tabs, exact-revision skill repair, and selected resource/template/prompt execution have controlled browser evidence. The expired native credential also produces an additional denied request and an uncertain operation. The flow does not depend on a popup. These are not live-provider consent or fresh-user usability results. |

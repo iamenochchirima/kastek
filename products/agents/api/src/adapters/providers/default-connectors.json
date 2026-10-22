@@ -22,10 +22,7 @@
         "jwksUri": "https://www.googleapis.com/oauth2/v3/certs",
         "scopes": [
           "openid",
-          "email",
-          "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-          "https://www.googleapis.com/auth/calendar.events.freebusy",
-          "https://www.googleapis.com/auth/calendar.events"
+          "email"
         ],
         "callbackPath": "/api/google-calendar/callback",
         "environment": {
@@ -53,7 +50,7 @@
         "selection": {
           "kind": "capability",
           "capability": "businessActions",
-          "profileId": "google-calendar-booking-v1",
+          "profileId": "calendar-booking-v1",
           "setup": "booking"
         },
         "configurationRequired": {
@@ -69,7 +66,194 @@
         "kind": "calendar_service",
         "apiPath": "google-calendar",
         "identityLabel": "Google"
-      }
+      },
+      "operations": [
+        {
+          "id": "calendar.availability",
+          "name": "Check availability",
+          "description": "Read availability in the selected calendar.",
+          "effect": "read",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events.freebusy"
+          ]
+        },
+        {
+          "id": "calendar.book",
+          "name": "Book appointments",
+          "description": "Create an appointment after customer confirmation.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "microsoft-calendar",
+      "revision": 1,
+      "profileId": "microsoft-calendar-v1",
+      "adapterKey": "microsoft-calendar-v1",
+      "kind": "native_api",
+      "name": "Microsoft 365 Calendar",
+      "description": "Check availability and create confirmed appointments in a selected calendar.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "oidc",
+        "issuer": "https://login.microsoftonline.com/organizations/v2.0",
+        "authorizationEndpoint": "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
+        "tokenEndpoint": "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+        "jwksUri": "https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access"
+        ],
+        "callbackPath": "/api/providers/microsoft-calendar/callback",
+        "environment": {
+          "clientId": "MICROSOFT_CALENDAR_CLIENT_ID",
+          "clientSecret": "MICROSOFT_CALENDAR_CLIENT_SECRET",
+          "callbackUrl": "MICROSOFT_CALENDAR_CALLBACK_URL"
+        }
+      },
+      "apiBaseUrl": "https://graph.microsoft.com/v1.0",
+      "catalogue": {
+        "purposes": [
+          "booking",
+          "customer-service"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure",
+          "calendar.configure"
+        ],
+        "selection": {
+          "kind": "capability",
+          "capability": "businessActions",
+          "profileId": "calendar-booking-v1",
+          "setup": "booking"
+        },
+        "configurationRequired": {
+          "code": "BOOKING_POLICY_REQUIRED",
+          "message": "Choose a shared calendar and configure appointment rules."
+        },
+        "unavailable": {
+          "code": "PROVIDER_OAUTH_NOT_CONFIGURED",
+          "message": "Microsoft 365 Calendar needs server OAuth configuration."
+        }
+      },
+      "setup": {
+        "kind": "calendar_service",
+        "apiPath": "microsoft-calendar",
+        "identityLabel": "Microsoft"
+      },
+      "operations": [
+        {
+          "id": "calendar.availability",
+          "name": "Check availability",
+          "description": "Read availability in the selected calendar.",
+          "effect": "read",
+          "scopes": [
+            "Calendars.Read"
+          ]
+        },
+        {
+          "id": "calendar.book",
+          "name": "Book appointments",
+          "description": "Create an appointment after customer confirmation.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "Calendars.ReadWrite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hubspot",
+      "revision": 1,
+      "profileId": "hubspot-contacts-v1",
+      "adapterKey": "hubspot-contacts-v1",
+      "kind": "native_api",
+      "name": "HubSpot",
+      "description": "Find contacts and create confirmed customer records.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "oauth2",
+        "authorizationEndpoint": "https://app.hubspot.com/oauth/authorize",
+        "tokenEndpoint": "https://api.hubspot.com/oauth/2026-09/token",
+        "introspectionEndpoint": "https://api.hubspot.com/oauth/2026-09/token/introspect",
+        "scopes": [],
+        "callbackPath": "/api/providers/hubspot/callback",
+        "environment": {
+          "clientId": "HUBSPOT_CLIENT_ID",
+          "clientSecret": "HUBSPOT_CLIENT_SECRET",
+          "callbackUrl": "HUBSPOT_CALLBACK_URL"
+        }
+      },
+      "apiBaseUrl": "https://api.hubapi.com/crm/objects/2026-09",
+      "catalogue": {
+        "purposes": [
+          "customer-service"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure"
+        ],
+        "selection": {
+          "kind": "bindings"
+        },
+        "unavailable": {
+          "code": "PROVIDER_OAUTH_NOT_CONFIGURED",
+          "message": "HubSpot needs server OAuth configuration."
+        }
+      },
+      "setup": {
+        "kind": "crm_service",
+        "apiPath": "hubspot",
+        "identityLabel": "HubSpot"
+      },
+      "operations": [
+        {
+          "id": "contacts.search",
+          "name": "Find contacts",
+          "description": "Find a contact by exact email in operator chats.",
+          "effect": "read",
+          "scopes": [
+            "crm.objects.contacts.read"
+          ]
+        },
+        {
+          "id": "contacts.create",
+          "name": "Create contacts",
+          "description": "Create a contact after exact approval.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "crm.objects.contacts.read",
+            "crm.objects.contacts.write"
+          ]
+        }
+      ]
     },
     {
       "id": "github",

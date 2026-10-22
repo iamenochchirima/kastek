@@ -5,14 +5,14 @@ import {GoogleCalendarOAuth,googleOAuthConfigFromEnvironment,GOOGLE_CALENDAR_SCO
 const copy=()=>JSON.parse(JSON.stringify(defaults));
 describe("versioned installed connector configurations",()=>{
  it("loads immutable JSON records through the same future database snapshot boundary",()=>{
-   expect(loadConnectorRegistry(JSON.stringify(defaults))).toEqual(defaultConnectorRegistry);expect(defaultConnectorRegistry.connectors.map(record=>record.id)).toEqual(["google-calendar","github","stash","deepwiki"]);
-   expect(Object.isFrozen(defaultConnectorRegistry.connectors[0]!.auth)).toBe(true);expect(Object.isFrozen(googleCalendarConnector.auth.scopes)).toBe(true);expect(GOOGLE_CALENDAR_SCOPES).toBe(googleCalendarConnector.auth.scopes);
+   expect(loadConnectorRegistry(JSON.stringify(defaults))).toEqual(defaultConnectorRegistry);expect(defaultConnectorRegistry.connectors.map(record=>record.id)).toEqual(["google-calendar","microsoft-calendar","hubspot","github","stash","deepwiki"]);
+   expect(Object.isFrozen(defaultConnectorRegistry.connectors[0]!.auth)).toBe(true);expect(Object.isFrozen(googleCalendarConnector.auth.scopes)).toBe(true);expect(GOOGLE_CALENDAR_SCOPES).toEqual([...new Set([...googleCalendarConnector.auth.scopes,...googleCalendarConnector.operations.flatMap(operation=>operation.scopes)])]);
    expect(()=>connectorConfiguration("missing")).toThrow();
  });
  it("accepts additional metadata records only for already installed compatible handlers",()=>{
-   const input=copy();input.connectors.push({...input.connectors[1],id:"project-api",profileId:"custom-api-v1",adapterKey:"native-api",auth:{kind:"connection_defined"},apiBaseUrl:"https://api.example.com"});
-   input.connectors.push({...input.connectors[2],id:"project-mcp",profileId:"remote-mcp-v1",adapterKey:"remote-mcp",connectionDefaults:{endpoint:"https://mcp.example.com/mcp",authentication:"oauth"}});
-   expect(loadConnectorRegistry(input).connectors).toHaveLength(6);
+   const input=copy();input.connectors.push({...input.connectors.find((record:any)=>record.id==="github"),id:"project-api",profileId:"custom-api-v1",adapterKey:"native-api",auth:{kind:"connection_defined"},apiBaseUrl:"https://api.example.com"});
+   input.connectors.push({...input.connectors.find((record:any)=>record.id==="stash"),id:"project-mcp",profileId:"remote-mcp-v1",adapterKey:"remote-mcp",connectionDefaults:{endpoint:"https://mcp.example.com/mcp",authentication:"oauth"}});
+   expect(loadConnectorRegistry(input).connectors).toHaveLength(defaults.connectors.length+2);
    input.connectors.at(-1).adapterKey="arbitrary-plugin";expect(()=>loadConnectorRegistry(input)).toThrow("installed compatible handler");
  });
  it.each(["http://accounts.google.com","https://localhost","https://localhost.","https://127.0.0.1","https://0x7f000001","https://[::1]","https://provider.internal","https://user:secret@accounts.google.com","https://accounts.google.com?secret=token","https://accounts.google.com/#token","file:///etc/passwd"])("rejects unsafe fixed endpoint %s",endpoint=>{

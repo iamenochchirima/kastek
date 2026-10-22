@@ -11,7 +11,9 @@ import type { NativeApiOperationRuntime } from "../../adapters/providers/native-
 import { STASH_ADAPTER_RELEASE,STASH_MCP_ENDPOINT,stashItemObservation } from "../../adapters/providers/stash-adapter";
 import { ExecutableAdapterRegistry,capabilityBindingSchema,createCatalog,digestToolSchema,type CapabilityBinding,type CapabilityCatalog,type ResourceHandle } from "../../contracts/capability-catalog";
 import type { ActionScope,ConnectionCredentialPort } from "../../contracts/connections";
-import { PlatformError,requestDigest } from "../../contracts/contracts";
+import { isCustomerPrincipal,PlatformError,requestDigest } from "../../contracts/contracts";
+import { assertCustomerNativeBindings } from "./customer-native-policy";
+import {channelPorts} from "../../infrastructure/channel-ports";
 import { textDigest } from "../../contracts/source-contracts";
 import { writeExecutionObject } from "../../execution/artifacts/execution-objects";
 import { EvidenceStore,assertChildConnectedAuthority,assertCurrentEvidence,taskEvidenceManifest } from "../../execution/context/evidence";
@@ -24,6 +26,7 @@ import { recordEvent } from "../../observability/event-store";
 import { ConnectedCatalogStore,GITHUB_MCP_READ_OPERATIONS,connectedProviderOperationAllowed } from "./connected-catalog-store";
 import { assertConnectedBindingDependencies,connectedModelArguments,connectedModelTool,connectedParameters,type ConnectedModelArguments } from "./connected-tool-schema";
 import { executeGenericConnectedTool,executeGenericNativeApi,genericToolReviewDigest,remoteMcpAdapterManifest,nativeApiAdapterManifest,type GenericToolReviewInput,type GenericToolReviewPort } from "./generic-connected-runtime";
+import {executeNativeProviderTool,nativeProviderAdapterManifest} from "./native-provider-tools";
 
 const MAX_HANDLES=2000,MAX_BODY_BYTES=2097152;
 const denied=()=>new PlatformError("CONNECTED_SCOPE_DENIED",403,"Connected resource is outside the task's authorized scope");
@@ -36,6 +39,7 @@ export interface ConnectedExecutorOptions {testGithubOrigin?:string;testMcpEndpo
  ensureCredentialFresh?(scope:ActionScope,connectionId:string):Promise<void>;
  recordRemoteScopeChallenge?(scope:ActionScope,connectionId:string,policyRevision:number,challenge:RemoteMcpScopeChallenge):Promise<void>;
  testApiLoopback?:boolean;
+ testNativeProviderBaseUrl?:string;
  genericReview?:GenericToolReviewPort;
 }
 export interface ConnectedObservation {
@@ -49,7 +53,7 @@ function prefix(text:string,maximum=4096):{text:string;truncated:boolean}{const 
 export class ConnectedExecutor {
  readonly registry=new ExecutableAdapterRegistry<ConnectedExecutor>();
  readonly catalogs:ConnectedCatalogStore;
- readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;readonly remoteMcpAdapter;readonly nativeApiAdapter;
+ readonly nativeAdapter;readonly mcpAdapter;readonly stashAdapter;readonly publicMcpAdapter;readonly remoteMcpAdapter;readonly nativeApiAdapter;readonly nativeProviderAdapter;
  constructor(readonly pool:Pool,readonly connections:ConnectionCredentialPort,readonly objects:PrivateObjectStore,readonly evidence:EvidenceStore,private readonly options:ConnectedExecutorOptions={}){
   const extension=extname(__filename),modules=[
     ["connected-executor","./connected-executor"],["connected-tool-schema","./connected-tool-schema"],
@@ -66,6 +70,7 @@ export class ConnectedExecutor {
   this.publicMcpAdapter=this.registry.register({schemaVersion:1,id:"deepwiki-mcp-read",release:"public-repository-read-v1",executableDigest,transports:["mcp_http"],protocolVersions:["2026-07-28","2025-11-25"],boundedSchemaValidation:true},this);
   this.remoteMcpAdapter=this.registry.register(remoteMcpAdapterManifest(),this);
   this.nativeApiAdapter=this.registry.register(nativeApiAdapterManifest(),this);
+  this.nativeProviderAdapter=this.registry.register(nativeProviderAdapterManifest(),this);
   this.catalogs=new ConnectedCatalogStore(pool,connections,this.registry);
  }
  assertAvailable(bindings:readonly CapabilityBinding[]):void{assertConnectedBindingDependencies(bindings);for(const binding of bindings){capabilityBindingSchema.parse(binding);this.registry.resolve(binding);}}
@@ -115,10 +120,10 @@ export class ConnectedExecutor {
   const execution=await loadExecution(db,taskId);await assertCurrentAuthority(db,execution);
   if(!binding.connection||binding.organizationId!==execution.task.organization_id||!execution.configuration.connectedToolBindingIds.includes(binding.id)||!connectedProviderOperationAllowed(binding.connection.profileId,binding.transport,binding.definition.providerOperation))throw denied();
   const principal=execution.task.principal;
-  const accountId=principal.kind==="automation"?principal.ownerAccountId:principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:null;
+  const accountId=isCustomerPrincipal(principal)?(await assertCustomerNativeBindings(db,execution.task.organization_id,[binding.id]))[0]?.ownerAccountId:principal.kind==="automation"?principal.ownerAccountId:principal.kind==="human"?(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0]?.id:null;
   if(!accountId)throw denied();
   const grant=(await db.query("SELECT operations,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
-  const operation=["remote-mcp-v1","custom-api-v1"].includes(binding.connection.profileId)&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
+  const operation=["remote-mcp-v1","custom-api-v1","hubspot-contacts-v1"].includes(binding.connection.profileId)&&binding.policy.effect==="reviewed_write"?"connected.execute":"connected.read";
   if(!grant?.operations.includes(operation)||!grant.connected_tool_binding_ids.includes(binding.id))throw denied();
   if(!(await db.query(`SELECT 1 FROM agents_platform.version_connected_tools v JOIN agents_platform.capability_bindings b ON b.id=v.binding_id
     WHERE v.version_id=$1 AND v.organization_id=$2 AND b.id=$3 AND b.digest=$4 AND b.account_id=$5`,[execution.task.version_id,execution.task.organization_id,binding.id,binding.digest,accountId])).rowCount)throw denied();
@@ -152,9 +157,9 @@ export class ConnectedExecutor {
  async execute(taskId:string,operationId:string,bindingInput:CapabilityBinding,input:unknown,signal?:AbortSignal):Promise<ConnectedObservation>{
   const invokedAt=Date.now();
   const binding=capabilityBindingSchema.parse(bindingInput),args=connectedModelArguments(binding,input),digest=requestDigest({bindingId:binding.id,bindingDigest:binding.digest,args});
-  const remote=binding.connection?.profileId==="remote-mcp-v1",api=binding.connection?.profileId==="custom-api-v1",generic=remote||api,reviewed=generic&&binding.policy.effect==="reviewed_write";
+  const remote=binding.connection?.profileId==="remote-mcp-v1",api=binding.connection?.profileId==="custom-api-v1",managed=binding.connection?.profileId==="hubspot-contacts-v1",generic=remote||api||managed,reviewed=generic&&binding.policy.effect==="reviewed_write";
   const reviewInput:GenericToolReviewInput={taskId,operationId,binding,arguments:args,requestDigest:genericToolReviewDigest(binding,args)};
-  if(remote&&this.options.ensureCredentialFresh){
+  if((remote||managed)&&this.options.ensureCredentialFresh){
    const prior=(await this.pool.query("SELECT task_id,binding_id,request_digest,state,result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0];
    if(prior){
     if(prior.task_id!==taskId||prior.binding_id!==binding.id||prior.request_digest!==digest)throw new PlatformError("OPERATION_CONFLICT",409,"Connected operation identity changed");
@@ -191,7 +196,7 @@ export class ConnectedExecutor {
    else if(args.revisionId)handle=await this.handle(db,authorized.execution,binding,args.revisionId,"revision");else if(args.fileId)handle=await this.handle(db,authorized.execution,binding,args.fileId,"file");else if(args.releaseId)handle=await this.handle(db,authorized.execution,binding,args.releaseId,"release");
    if(!selected&&handle)selected=authorized.credential.connection.selections.find(selection=>githubRepositoryHandle(selection).id===handle!.resource.id);
    const stashResource=binding.connection?.profileId==="stash-read-v1"?binding.resources.find(resource=>resource.kind==="stash.item"&&resource.id===args.itemId):undefined;
-   const genericResource=generic?binding.resources.find(resource=>resource.kind===(api?"api.origin":"mcp.endpoint")):undefined;
+   const genericResource=generic?binding.resources.find(resource=>resource.kind===(managed?"provider.account":api?"api.origin":"mcp.endpoint")):undefined;
    if(!selected&&!stashResource&&!genericResource)throw denied();
    const remoteEndpoint=remote?await this.options.resolveRemoteEndpoint!(db,authorized.scope,binding.connection!.id,binding.connection!.policyRevision):undefined;
    const apiOperation=api?await this.options.resolveApiOperation!(db,authorized.scope,binding.connection!.id,binding.connection!.policyRevision,binding.definition.providerOperation):undefined;
@@ -232,7 +237,7 @@ export class ConnectedExecutor {
    });
    if(["tools/call","resources/read","prompts/get"].includes(attempt?.rpcMethod??""))genericEffectClaimed=true;
   };
-  const after=async(receipt:NetworkAttempt)=>{const attempt=generic?receipt.attempt:pending;await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,attempt,JSON.stringify({...receipt,attempt})]);};
+  const after=async(receipt:NetworkAttempt)=>{const attempt=generic&&!managed?receipt.attempt:pending;await this.pool.query("UPDATE agents_platform.connected_attempts SET state='completed',receipt=$3 WHERE operation_id=$1 AND ordinal=$2 AND state='started'",[operationId,attempt,JSON.stringify({...receipt,attempt})]);};
   let responseOrdinal=0;
   const capture=async(response:{body:unknown;digest:string;observedAt:string})=>{
     checkDeadline();
@@ -255,7 +260,18 @@ export class ConnectedExecutor {
   const native=()=>new GithubReadAdapter({authorization:claim.credential.authorization,...(claim.credential.connection.profileId==="public-repository-read-v1"?{authentication:"none" as const}:{}),selections:claim.credential.connection.selections,deadlineAt,signal,testLoopbackOrigin:this.options.testGithubOrigin,beforeAttempt:()=>before(),onAttempt:after,onResponse:capture,maxPhysicalRequests:binding.transport==="mcp_http"?1:3});
   try{
    let projection:Projection,full:unknown;
-   if(claim.genericResource){
+   if(managed&&claim.genericResource){
+    const observation=await executeNativeProviderTool(binding,claim.credential.authorization,args,{organizationId:claim.execution.task.organization_id,operationId,deadlineAt,signal,testBaseUrl:this.options.testNativeProviderBaseUrl,
+      beforeAttempt:phase=>before("read",phase==="effect"?{rpcMethod:"tools/call",phase:"read"} as RemoteMcpAttempt:undefined),onAttempt:after});
+    if(reviewed&&!genericEffectClaimed&&!observation.isError){
+      // An already-matching record completes the approved invocation without a physical write.
+      await transaction(this.pool,async db=>{await this.scope(db,taskId,binding);await assertClaim(db);await this.options.genericReview!.claim(db,reviewInput);});genericEffectClaimed=true;
+    }
+    full=observation.result;
+    const visible=isCustomerPrincipal(claim.execution.task.principal)?{state:observation.isError?"unavailable":"received"}:observation.result;
+    projection={...prefix(JSON.stringify(visible),binding.limits.maxModelResultBytes),resource:claim.genericResource,acquiredAt:new Date().toISOString(),digest:observation.resultDigest,isError:observation.isError,
+      provenance:{kind:"native_provider_observation",providerId:binding.definition.managed!.providerId,connectorDigest:binding.definition.managed!.connectorDigest}};
+   }else if(claim.genericResource){
     const observation=api?await executeGenericNativeApi(binding,claim.apiOperation!,args,{deadlineAt,signal,testLoopback:this.options.testApiLoopback,
       beforeAttempt:attempt=>before("read",{...attempt,rpcMethod:"tools/call"}),onAttempt:after,onResponse:capture})
      :await executeGenericConnectedTool(binding,{...claim.remoteEndpoint!,deadlineAt,effectiveAuthorityDigest:requestDigest({principal:claim.execution.task.principal,versionId:claim.execution.task.version_id,
@@ -328,7 +344,7 @@ export class ConnectedExecutor {
     throw genericUncertain();
    }
    checkDeadline();
-   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty result.",title:`${api?"Native API":generic?"Remote MCP":binding.connection?.profileId==="stash-read-v1"?"Stash":binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"?"DeepWiki":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
+   const passage=await this.evidence.recordConnected(taskId,operationId,{bindingId:binding.id,resource:projection.resource,text:projection.text||"The provider returned an empty result.",title:`${managed?"Business provider":api?"Native API":generic?"Remote MCP":binding.connection?.profileId==="stash-read-v1"?"Stash":binding.connection?.profileId==="public-repository-read-v1"&&binding.transport==="mcp_http"?"DeepWiki":"GitHub"} ${binding.definition.providerOperation}${projection.isError?" error":""}`,acquiredAt:projection.acquiredAt,receiptDigest:bodyDigest});
    const result:ConnectedObservation={status:projection.isError?"tool_error":"ok",bindingId:binding.id,operationId,content:passage.text,truncated:projection.truncated,evidence:{id:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,contentDigest:passage.reference.contentDigest},...(projection.handles?{handles:projection.handles}:{}),observation:{digest:projection.digest,acquiredAt:projection.acquiredAt,provenance:projection.provenance}};
    if(Buffer.byteLength(JSON.stringify(result))>8192)throw new PlatformError("CONNECTED_RESULT_LIMIT",413,"Connected observation exceeds its model result limit");
    checkDeadline();
@@ -351,6 +367,10 @@ export class ConnectedExecutor {
    if(reviewed&&this.options.genericReview?.failed)await transaction(this.pool,db=>this.options.genericReview!.failed!(db,reviewInput,{uncertain:genericEffectClaimed}));
    const settled=await this.pool.query("UPDATE agents_platform.connected_reads SET state=CASE WHEN $2 OR claim_expires_at<=clock_timestamp() THEN 'uncertain' ELSE 'failed' END,error_code=$3,updated_at=now() WHERE operation_id=$1 AND state='started' AND claim_token=$4 RETURNING state",[operationId,unknown,code(error),claim.claimToken]);
    if(generic)await recordEvent(this.pool,taskId,`connected-result:${operationId}`,"tool.connected_result",{operationId,connectionId:binding.connection!.id,bindingId:binding.id,policyRevision:binding.connection!.policyRevision,authorizationGeneration:claim.authorizationGeneration,outcome:unknown||settled.rows[0]?.state==="uncertain"?"uncertain":"failed",errorCode:code(error),durationMs:Math.max(0,Date.now()-invokedAt)});
+   if(managed&&reviewed&&(unknown||settled.rows[0]?.state==="uncertain")&&claim.execution.task.channel_binding){
+    try{await transaction(this.pool,async db=>{const current=await loadExecution(db,taskId,true);await assertCurrentAuthority(db,current);if(current.task.channel_binding)await channelPorts(db).requestHandoff(db,current.task.channel_binding,taskId);});}
+    catch(handoffError){if(!(handoffError instanceof PlatformError&&handoffError.statusCode<500))throw handoffError;}
+   }
    if(unknown||!settled.rowCount||settled.rows[0]?.state==="uncertain")throw generic?genericUncertain():uncertain();
    throw new PlatformError(code(error),502,"Connected read did not complete");
   }

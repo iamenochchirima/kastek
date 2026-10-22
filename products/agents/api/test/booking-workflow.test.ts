@@ -1,3 +1,4 @@
+import {toolsFor} from "../src/capabilities/tool-definitions";
 import {randomUUID} from "node:crypto";
 import {beginOperation,finishOperation,settleTask} from "../src/execution/lifecycle/execution";
 import {Pool} from "pg";
@@ -18,10 +19,21 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  async function admit(taskId:string,id:string,name="booking.reserve",request:unknown={}){const admission=await beginOperation(pool,taskId,{id,kind:"tool",name,request,reservedTokens:0,reservedMs:30000});expect(admission.waiting).not.toBe(true);}
  async function approved(){const f=await prepared();await f.service.decide(f.task.id,f.authority.principal,f.intent.id,{decision:"approve",requestDigest:f.intent.requestDigest});await admit(f.task.id,f.operationId,"booking.reserve",{start:f.start});return f;}
  it("requires explicit organization service sharing before policy creation and immutable publication",async()=>{
-   const f=await createBookingFixture(pool,provider,false);await expect(f.service.createPolicy(f.scope,f.agent.id,f.policyInput)).rejects.toMatchObject({code:"GOOGLE_AUTHORITY_CHANGED"});
+   const f=await createBookingFixture(pool,provider,false);await expect(f.service.createPolicy(f.scope,f.agent.id,f.policyInput)).rejects.toMatchObject({code:"PROVIDER_AUTHORITY_CHANGED"});
    expect(inserts()).toHaveLength(0);
    f.connection=await f.google.sharing(f.scope,f.connection.id,{generation:f.connection.generation,sharing:"organization_service"});
    const published=await publishBookingFixture(f);expect(published.version.configuration.capabilities.businessActions).toMatchObject({enabled:true,policyId:published.policy.id});
+ });
+ it("publishes availability-only policy with read grant, exposes no reserve tool and denies writes before effects",async()=>{
+   const f=await createBookingFixture(pool,provider,false),chosen=await f.google.selectOperations(f.scope,f.connection.id,{generation:f.connection.generation,operationIds:["calendar.availability"]});
+   const selected=await f.google.selectCalendar(f.scope,f.connection.id,{generation:chosen.generation,calendarId:provider.calendarId});await f.google.sharing(f.scope,selected.id,{generation:selected.generation,sharing:"organization_service"});
+   const published=await publishBookingFixture({...f,policyInput:{...f.policyInput,permittedOperations:["calendar.availability"]}}),operationId=randomUUID();
+   expect(published.grant.operations).toContain("booking.read");expect(published.grant.operations).not.toContain("booking.execute");
+   expect(toolsFor(published.version.configuration).map(tool=>tool.function.name)).toContain("booking_availability");expect(toolsFor(published.version.configuration).map(tool=>tool.function.name)).not.toContain("booking_reserve");
+   await admit(published.task.id,operationId,"booking.availability",{start:published.start,end:new Date(Date.parse(published.start)+3600000).toISOString()});
+   expect((await f.service.availability(published.task.id,operationId,{start:published.start,end:new Date(Date.parse(published.start)+3600000).toISOString()})).slots.length).toBeGreaterThan(0);
+   const count=provider.state.requests.length;await expect(f.service.prepare(published.task.id,randomUUID(),published.start)).rejects.toMatchObject({code:"BOOKING_SCOPE_DENIED"});expect(provider.state.requests).toHaveLength(count);
+   expect((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1",[published.task.id])).rowCount).toBe(0);expect(inserts()).toHaveLength(0);
  });
  it("requires exact customer approval and never executes proposals or changed intent",async()=>{
    const f=await prepared();expect(f.intent.state).toBe("pending");expect(await f.service.prepare(f.task.id,f.operationId,f.start)).toEqual(f.intent);
@@ -173,8 +185,8 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  it("refreshes an expired but refreshable credential outside policy creation locks",async()=>{
    const f=await createBookingFixture(pool,provider),oauth=f.google.options.oauth!,original=oauth.refresh.bind(oauth);let refreshes=0;
-   oauth.refresh=async(...args)=>{refreshes++;const db=await pool.connect();try{await db.query("BEGIN");await db.query("SELECT 1 FROM agents_platform.connections WHERE id=$1 FOR UPDATE NOWAIT",[f.connection.id]);await db.query("SELECT 1 FROM agents_platform.google_calendar_connections WHERE connection_id=$1 FOR UPDATE NOWAIT",[f.connection.id]);await db.query("ROLLBACK");}finally{db.release();}return original(...args);};
-   await pool.query("UPDATE agents_platform.google_calendar_connections SET token_expires_at=now()-interval '1 minute' WHERE connection_id=$1",[f.connection.id]);
+   oauth.refresh=async(...args)=>{refreshes++;const db=await pool.connect();try{await db.query("BEGIN");await db.query("SELECT 1 FROM agents_platform.connections WHERE id=$1 FOR UPDATE NOWAIT",[f.connection.id]);await db.query("SELECT 1 FROM agents_platform.native_provider_connections WHERE connection_id=$1 FOR UPDATE NOWAIT",[f.connection.id]);await db.query("ROLLBACK");}finally{db.release();}return original(...args);};
+   await pool.query("UPDATE agents_platform.native_provider_connections SET token_expires_at=now()-interval '1 minute' WHERE connection_id=$1",[f.connection.id]);
    expect(await f.service.createPolicy(f.scope,f.agent.id,f.policyInput)).toMatchObject({state:"active"});expect(refreshes).toBe(1);const current=await f.google.get(f.scope,f.connection.id);expect(current.policyRevision).toBe(f.connection.policyRevision);expect(current.revision).toBe(f.connection.revision+1);expect(inserts()).toHaveLength(0);
  });
 

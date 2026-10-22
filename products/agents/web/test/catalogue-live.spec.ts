@@ -239,7 +239,7 @@ test("actual API with controlled Google provider: sign-in, calendar sharing and 
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.reload(); await expect(page.getByRole("combobox", { name: "Booking policy", exact: true })).toHaveValue(policy.id);
   const saved = await (await page.request.get(`${fixture.url}/api/organizations/${fixture.organizationId}/agents/${fixture.bookingAgentId}`)).json();
-  expect(saved.agent.draft.capabilities.businessActions).toEqual({ enabled: true, profileId: "google-calendar-booking-v1", policyId: policy.id, policyDigest: policy.policyDigest });
+  expect(saved.agent.draft.capabilities.businessActions).toEqual({ enabled: true, profileId: "calendar-booking-v1", permittedOperations:["calendar.availability","calendar.book"], policyId: policy.id, policyDigest: policy.policyDigest });
   expect(errors).toEqual([]); expect(failures).toEqual([]);
 });
 

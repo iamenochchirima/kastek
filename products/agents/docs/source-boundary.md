@@ -304,7 +304,7 @@ not establish those offerings in the standalone Agents catalogue.
 The current application creates grounded FAQ or customer-service agents from the offering catalogue.
 The chosen offering is stored on the agent. Offering names remain separate from execution programs.
 The standalone Booking creation choice remains unavailable. Customer-service agents can explicitly
-configure Google Calendar appointments, and other agents can open optional setup through Tools.
+configure Google or Microsoft Calendar appointments, and other agents can open optional setup through Tools.
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
 resolution and explicit return to automation. Human-owned ingress does not admit model work.
@@ -397,7 +397,7 @@ adapted without introducing another iframe/postMessage authority bridge. Appeara
 changes use an owner-authorized digest check. Pause fences new grants and current publication
 checks, while staff history remains readable and unpause retains the same widget URL.
 
-Google Calendar appointments use their own reviewed service policy rather than a
+Google and Microsoft Calendar appointments use their own reviewed service policy rather than a
 personal generic binding. The Tools catalogue exposes built-ins, native API and MCP integrations,
 agent-specific recommendations, and current connection readiness. Custom MCP setup supports encrypted
 keys, resumable OAuth, discovery, compatible tool selection, credential rotation, and disconnect.
@@ -464,8 +464,9 @@ Unknown runtimes remain unavailable. Personal-memory, specialist and report conf
 outside the customer editor; shared-harness acceptance provisions those capabilities through authenticated APIs.
 Website publication permits only enabled, reviewed server-curated instruction packages with their
 exact shipped digest. Private and repository packages remain operator-only. Generic personal
-connection bindings remain unavailable to website visitors. Google Calendar uses a separate pinned
-service policy. Operator chat can publish reviewed procedural skills and selected generic tools.
+connection bindings remain unavailable to website visitors. Exact-confirmed HubSpot intake is an
+explicit service-sharing exception, validated at deployment and every physical effect. Customer
+contact lookup is denied. Google and Microsoft calendars use a separate pinned service policy. Operator chat can publish reviewed procedural skills and selected generic tools.
 Customer creation loads the actual catalogue, sends the selected FAQ/customer-service offering and
 keeps submission unavailable when catalogue loading fails. Website chat reads the canonical customer
 timeline; prior browser output caches are discarded before current-policy reads.
@@ -482,13 +483,14 @@ accounting, late-output suppression and canonical human context after restart. R
 admits only the next new visitor message; queued and human-owned messages are not replayed.
 The controlled local provider records physical calls without external model requests.
 
-## Google Calendar appointment authority
+## Native calendar and contact authority
 
-A server-configured Google connector and encrypted vault make connection setup available.
+Server-configured Google Calendar, Microsoft 365 Calendar and HubSpot connectors use a shared
+OAuth/account lifecycle with an encrypted vault. Calendar providers share the booking workflow.
 Owners explicitly select a writable calendar and opt into organization service sharing. A booking
 policy pins that calendar, owner, policy revision, time zone, duration, notice, advance window,
 and opening hours. Selecting a policy changes the agent draft; publication remains explicit.
-The separate Booking creation offering remains unavailable. The [integration reference](mcp-integration.md#google-calendar-bookings)
+The separate Booking creation offering remains unavailable. The [integration reference](mcp-integration.md#native-business-providers)
 records provider configuration and authority boundaries.
 
 Website proposals belong to the scoped visitor task and current conversation ownership generation.
@@ -500,7 +502,12 @@ human ownership is preserved. Staff can inspect the selected conversation's appo
 request GET-only reconciliation; staff cannot approve or decline for the customer.
 **Check status** uses only a leased provider GET for the deterministic event, never another insertion.
 It does not rewrite the original uncertain task outcome. Active claims return `BOOKING_IN_PROGRESS`.
-Public booking projections omit private task and Google event identities.
+Public booking projections omit private task and provider event identities.
+
+HubSpot contact intake uses exact principal-bound review. Website cards and messaging native
+buttons show only the submitted fields. Verified messaging callbacks require the original sender,
+thread, deployment and accepted prompt. Expiry, changed service sharing and staff takeover fence
+the effect. Unknown contact creation requests Inbox handoff without replacing a human owner.
 
 ## Published execution and evaluation contracts
 
@@ -508,8 +515,9 @@ Trusted `grounded-conversation` and `tool-directed` program releases share the b
 Publication validates exact tool/workflow closure and saves a digest of the effective configuration,
 program/runtime releases, context policies, tools and connected bindings. Admission saves that
 composition on the task; workers validate it before further execution. Task bindings and published
-compositions are immutable. Workspace programs remain unavailable. Google Calendar is the only
-implemented booking provider; availability still requires the configured OAuth application and vault.
+compositions are immutable. Workspace programs remain unavailable. Google Calendar and Microsoft 365 Calendar implement bookings; availability still requires
+the configured OAuth application and vault. HubSpot supports staff lookup and exact-confirmed
+customer contact intake. Customer contact lookup remains unavailable.
 
 Execution loading reads current task, version, and connected-binding records and validates their
 schemas on every call. A private cache reuses only successful pure composition compilation for
@@ -814,7 +822,7 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `adapters/providers/connector-registry.ts`, `adapters/providers/default-connectors.json` | Validated supported-connector records and installed-handler selection; metadata does not supply executable code. |
 | `product/catalogue/`, `product/agents/skill-package-store.ts`, `capabilities/skills/` | Contextual catalogues, immutable skill imports, family revisions, exact review, requirements, and current installation authority. |
 | `product/connections/remote-connections.ts`, `product/connections/api-connections.ts`, `capabilities/reviews/tool-reviews.ts` | Generic MCP/API onboarding, selected bindings, and exact tool approval. |
-| `product/connections/google-calendar-connections.ts`, `product/connections/google-calendar-oauth.ts`, `adapters/providers/google-calendar.ts`, `workflows/booking/` | Calendar OAuth, explicit service sharing, pinned booking policies, customer confirmation, conflict checks, and GET-only reconciliation. |
+| `product/connections/provider-connections.ts`, `product/connections/provider-oauth.ts`, `product/connections/provider-services.ts`, `adapters/providers/`, `workflows/booking/` | Shared native OAuth, selected actions, explicit service sharing, calendar booking policies, exact contact confirmation and read-only reconciliation. |
 | `composition/setup.ts` | Fresh database initialization and schema checks. |
 
 The management client is in `web/`. Its chat, configuration, management and explicit
@@ -831,7 +839,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
-| `/app/connections` | Restricted profiles, custom MCP OAuth and separate Tools/Resources/Templates/Prompts selection, native API preview/credentials/selection, and owner-managed Google Calendar sharing. | Connection browser contracts, published controlled MCP/API execution and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
+| `/app/connections` | Restricted profiles, custom MCP OAuth and separate Tools/Resources/Templates/Prompts selection, native API preview/credentials/selection, and owner-managed Google/Microsoft calendars and HubSpot action/sharing setup. | Connection browser contracts, published controlled MCP/API execution and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
 | External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
@@ -923,7 +931,7 @@ A minimal website FAQ uses this same controller with optional capabilities
 disabled. Public visitors receive conversation-scoped context and approved public
 knowledge. Personal memory, memory tools, generic personal bindings, and private or repository skills
 are denied for website publication and execution. Exact reviewed server-curated instruction packages
-and a separately pinned Google Calendar service policy have explicit public authority contracts.
+and separately pinned calendar/HubSpot intake service policies have explicit public authority contracts.
 
 Provider requests use the account and model accepted at task admission. Each task records
 primary, compaction, and delegated role bindings with model metadata, credential revision,
@@ -1233,19 +1241,19 @@ new provider and does not qualify the provider integration.
 
 | Field | Decision and evidence |
 | --- | --- |
-| Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, skill requirement repair with contextual compatible Analysis access, Google Calendar policy and customer booking confirmation. |
+| Change | Contextual Tools/Skills catalogues, immutable package lifecycle and approved isolated Python execution, generic MCP/API selection and exact review, skill requirement repair with contextual compatible Analysis access, Google/Microsoft calendar policy, read-only availability, customer booking confirmation and HubSpot staff lookup/customer intake. |
 | Owner | Agents engineering. |
 | Risk | High: encrypted provider credentials, external writes, visitor identity, and durable recovery. |
-| Affected services and surfaces | Agents API, business worker, PostgreSQL, management editor, Connections, task activity, website chat and generated widget. Other channel providers are unchanged and unavailable. |
-| Platform release version or ID | Runtime `AgentsBusinessRunV15` / `modular-programs-v5`. Canonical platform `VERSION` remains `0.1.0`; no production release tag or promoted deployment is claimed. Runtime, schema, and customer-created version identities remain separate. |
-| API/schema changes | Fresh ordered schema through `038_skill_script_runtime.sql`; 028–038 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V15 task default, immutable Google connector-definition pins, and immutable skill-script execution provenance. Setup validates the complete schema digest and does not migrate an existing owner database. |
-| Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, exact customer confirmation, and separately enabled isolated analysis for package scripts. Missing Google configuration is unavailable. The standalone Booking offering remains disabled. |
-| Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment, zero pre-confirmation inserts, correct current-policy denial, no insertion during status recovery, one sandbox command per admitted script operation, exact package provenance, current withdrawal denial, and resource cleanup. Adoption analytics and production alerting are not established. |
-| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V15 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
+| Affected services and surfaces | Agents API, business worker, PostgreSQL, management editor, Connections, task activity, website chat and generated widget. Messaging intake confirmations use the existing four provider adapters and canonical Inbox delivery. |
+| Platform release version or ID | Runtime `AgentsBusinessRunV19` / `channel-customers-v9`. Canonical platform `VERSION` remains `0.1.0`; no production release tag or promoted deployment is claimed. Runtime, schema, and customer-created version identities remain separate. |
+| API/schema changes | Fresh ordered schema through `062_native_provider_connections.sql`; 062 adds the shared native provider account/action lifecycle and authorization-attempt fences. Existing 028–038 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V15 task default, immutable Google connector-definition pins, and immutable skill-script execution provenance. Setup validates the complete schema digest and does not migrate an existing owner database. |
+| Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, exact customer confirmation, and separately enabled isolated analysis for package scripts. Missing native-provider configuration is unavailable. The standalone Booking offering remains disabled. |
+| Analytics and success criteria | New product analytics events: not applicable. Fixture success criteria are one insertion per approved appointment/contact intake, zero pre-confirmation writes, no customer contact lookup, read-only calendars without reserve authority, correct current-policy denial, no insertion during status recovery, one sandbox command per admitted script operation, exact package provenance, current withdrawal denial, and resource cleanup. Adoption analytics and production alerting are not established. |
+| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V19 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
 | Documentation | Current README, implementation/feature map, architecture, integration boundary, threat model, and runtime reference updated together. No new planning document. |
 | Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. `skill-requirements.spec.ts` verifies connection repair, explicit binding adoption, compatible Analysis opt-in and grounded-program denial. `catalogue-execution-live.spec.ts` verifies published controlled MCP/API execution and real API skill requirement repair. Real gVisor package execution in `api/test/skill-script-runtime.test.ts`, existing independent-cleanup suite in `api/test/platform-sandbox.test.ts`, and published activation/script/final-answer acceptance in `api/test/platform-business.test.ts`. See coverage below. |
 | Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V15 task to an incompatible worker or reverse the fresh SQL in place. |
-| Post-release review | At the first staging promotion and before enabling a live Google OAuth application. No production release date is assigned. |
+| Post-release review | At the first staging promotion and before enabling a live Google OAuth application. No production release date is assigned. Live provider registration/acceptance and model evaluations remain owner-run. |
 
 The real isolated booking journey verifies a durable pending visitor proposal with zero insertion,
 worker SIGKILL and a new process, the same accepted Restate invocation, exact scoped confirmation,

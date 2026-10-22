@@ -206,3 +206,56 @@ PYTHONPATH="$PWD/products/agents/evaluation-adapters/harbor/src" harbor run \
 ```
 
 Substitute the exact kind/mode from its manifest. Do not reuse a prepared scope between cases. For duplicates or staff takeover/return, drive the same authenticated fixture and Inbox ports while the trial is active; retain the exact saved payload and current staff command revision/command ID. These scripted HTTP cases are supplied as interface cases, not claimed as already executed Harbor scenarios. Owner credentials and receipt artifacts remain private.
+
+## Run native provider acceptance
+
+These cases are owner-run. The implementation has not run provider evaluations or live vendor sign-in. [Native provider owner cases](cases/native-providers.json) records the Google Calendar, Microsoft 365 Calendar, customer contact intake, and signed-in staff lookup coverage. It is an acceptance matrix, not a registered Harbor suite.
+
+Prepare the following before each case:
+
+1. Use a dedicated organization, fresh agent/version, isolated provider calendar or CRM namespace, and a private prepared scope. Start the API, worker, queue, and private object store.
+2. Configure the provider application and exact callback URL through the registry's environment keys: `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_CALLBACK_URL`; the corresponding `MICROSOFT_CALENDAR_*` keys; or `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET`, `HUBSPOT_CALLBACK_URL`. Configure the credential vault. Keep secrets out of scopes, prompts, and saved evidence.
+3. In Connections, select the provider, intended actions, and account. For calendars, select the calendar and explicit IANA booking time zone, allow customer bookings, and attach a booking policy to the saved agent. For customer intake, select `contacts.create`, allow customer intake, and attach only that exact binding to the customer agent. Attach `contacts.search` only to a signed-in staff agent.
+4. For a website case, prepare the normal evaluation channel session for the pinned website deployment and allowed origin. Keep the visitor Bearer client separate from the operator session. Record the pinned model route, composition, provider configuration, and expected resource before submitting the case.
+5. Give the independent verifier read-only access to that isolated provider namespace and its request audit. Capture actual event/contact fields and physical write counts. Native task completion, customer confirmation, HTTP acceptance, and observed provider state are separate outcomes.
+
+| Case | Providers / principal | Expected authoritative outcome |
+| --- | --- | --- |
+| Calendar setup | Google and Microsoft; owner | Verified account, explicitly selected calendar, least requested action scopes, and saved time zone; cancellation/reconnect preserves the intended agent return path. |
+| Confirmed booking | Google and Microsoft; customer | Exact proposed interval and time zone approved; one event matching the policy and request identity; native `confirmed` receipt agrees with the provider event. |
+| No consent / changed proposal | Both calendars; customer | Missing, rejected, expired, changed-digest, or other-session confirmation produces no event creation. |
+| Busy slot / duplicate | Both calendars; customer | Busy/conflicting slot creates no event. Replaying the same native invocation creates no second event. Concurrent slot claims cannot both reserve the same interval. |
+| Lost acknowledgement | Both calendars; customer | At most one create request. Native reconciliation observes the same event or retains `uncertain`; neither task text nor a second create establishes recovery. |
+| Time zone / permission change | Both calendars; customer | Offset/DST and explicit calendar selection match the policy; revoked scopes, private sharing, account/resource change, or disconnected authorization prevent new effects. |
+| Contact intake | HubSpot; customer | Exact email/name fields approved by that customer. One matching contact is created, or an already matching record is reused with zero creates. No existing contact fields/record IDs enter the customer response. |
+| Intake refusal / mismatch | HubSpot; customer | No consent, expired/changed review, wrong session/conversation, or human takeover produces no write. Existing mismatched or ambiguous contacts are not silently overwritten or disclosed. |
+| Staff lookup | HubSpot; signed-in staff | Exact-email query returns only the permitted bounded projection for the connected account; zero create requests. An unverified email in a customer message grants no lookup authority. |
+| CRM recovery / withdrawal | HubSpot; permitted principal | Replaying an accepted invocation does not create again. Unknown acceptance remains uncertain. Revoked membership, sharing, selected action/binding, or connection stops new effects. |
+
+### Drive exact customer decisions
+
+The host-side `VisitorClient` now exposes `bookings(conversation_id)`, `tool_reviews(conversation_id)`, `decide_booking(conversation_id, booking_id, decision, request_digest)`, and `decide_tool_review(conversation_id, review_id, decision, request_digest)`. These methods use only the prepared website publication and cookie-free visitor session, validate exact identifiers/digests, bound responses, and preserve the same decision on a transport retry. They never select or approve a proposal automatically.
+
+While the isolated trial is waiting, inspect its normal customer proposal and send the owner's explicit decision through the corresponding method. Decisions are `approve` or `reject` and must carry the current proposal's exact `requestDigest`. Use the same conversation/session that submitted the case. The underlying public endpoints are:
+
+```text
+GET  /api/website/:deploymentId/customer-conversations/:conversationId/bookings
+POST /api/website/:deploymentId/customer-conversations/:conversationId/bookings/:bookingId/decision
+GET  /api/website/:deploymentId/customer-conversations/:conversationId/tool-reviews
+POST /api/website/:deploymentId/customer-conversations/:conversationId/tool-reviews/:reviewId/decision
+```
+
+POST bodies contain only `decision` and `requestDigest`. For a staff lookup, use the prepared signed-in staff task and its exact allowed binding; a website visitor token cannot become a staff credential.
+
+### Grade provider receipts
+
+The authorized `execution-export.v1` retains two additional receipt schemas in `effectReceipts`:
+
+- `calendar-booking-receipt.v1`: provider, exact request/policy digest, proposed interval/time zone, confirmation/native state, sanitized event receipt, and bounded physical-attempt metadata.
+- `native-provider-operation-receipt.v1`: provider/action/binding digests, exact review digests, native operation state, sanitized provider result, and bounded physical attempts. `contacts.search` records have `effect: read` and expose match counts/record IDs without contact fields. Contact creation records preserve `created: false` when an existing matching contact was reused.
+
+Private CRM receipt bytes are read only through the authorized exporter, using the exact rooted object identity and verified byte/result digests. Exported receipts omit customer email/name fields, credentials, raw bodies, and object paths. Customer APIs retain their narrower confirmation DTOs. Missing private storage, changed policy, corrupt receipts, or withheld tasks make `coverage.effects` partial. Reviewed arbitrary MCP/API effects remain explicitly unsupported by this provider receipt contract. `complete` means the supported native records were exported; it does not mean a write succeeded or live vendor acceptance passed.
+
+Compare the exported event/contact receipt with the independent provider record and request audit. Check exact fields against the case's private baseline, create count, review/digest linkage, current authority, and native uncertainty. Keep purpose quality, authorization safety, delivery correctness, and evidence coverage as separate results. A confirmed write must not turn a missing model transcript into a passing model-quality result.
+
+The existing `booking-policy-connected-skill` suite still reads a notice policy; it does not reserve appointments. `KasitekAgent` has no automatic confirmation script or provider-specific independent verifier. There is no new `AGENTS_HARBOR_SUITE` selector for these mutation cases. Use the owner-controlled decision methods and independent provider inspection above; retain this limitation when recording results.

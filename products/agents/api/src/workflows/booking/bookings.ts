@@ -10,14 +10,15 @@ import { channelPorts } from "../../infrastructure/channel-ports";
 import { channelBindingSchema } from "../../contracts/channel";
 import { recordEvent } from "../../observability/event-store";
 import { bookingPolicySchema,bookingWindow,loadBookingPolicy,type BookingPolicy } from "./policy";
-import { GoogleCalendarClient,type GoogleBookingIntent } from "../../adapters/providers/google-calendar";
+import { calendarClient } from "../../adapters/providers/calendar-client";
+import type { BookingIntent } from "../../adapters/providers/calendar-contracts";
 
 export interface ResolvedBookingCalendar {
-  connectionId:string;ownerAccountId:string;organizationId:string;calendarId:string;calendarName:string;timeZone:string;
+  providerId:string;connectionId:string;ownerAccountId:string;organizationId:string;calendarId:string;calendarName:string;timeZone:string;
   policyRevision:number;generation:number;accessToken:string;
 }
 export interface BookingOptions {
-  resolveCalendar(db:PoolClient,scope:ActionScope,id:string,policyRevision:number,options:{requireOrganizationService:boolean}):Promise<ResolvedBookingCalendar>;
+  resolveCalendar(db:PoolClient,scope:ActionScope,id:string,policyRevision:number,options:{requireOrganizationService:boolean;operation?:"calendar.availability"|"calendar.book"}):Promise<ResolvedBookingCalendar>;
   ensureFresh(scope:ActionScope,id:string):Promise<void>;
   testBaseUrl?:string;
 }
@@ -53,7 +54,7 @@ export class BookingService {
     });
   }
   async createPolicy(scope:ActionScope,agentId:string,raw:unknown) {
-    const input=z.strictObject(bookingPolicySchema.shape).omit({ownerAccountId:true,calendarId:true,timeZone:true,connectionPolicyRevision:true}).parse(raw);
+    const input=z.strictObject(bookingPolicySchema.shape).omit({ownerAccountId:true,calendarId:true,timeZone:true,connectionPolicyRevision:true,providerId:true}).extend({timeZone:bookingPolicySchema.shape.timeZone.optional()}).parse(raw);
     await transaction(this.pool,db=>this.owner(db,scope));
     await this.options.ensureFresh(scope,input.connectionId);
     return transaction(this.pool,async db=>{
@@ -61,8 +62,8 @@ export class BookingService {
       if(!(await db.query("SELECT 1 FROM agents_platform.agents WHERE id=$1 AND organization_id=$2",[z.uuid().parse(agentId),scope.organizationId])).rowCount)throw missing();
       const connection=(await db.query("SELECT policy_revision FROM agents_platform.connections WHERE id=$1 AND organization_id=$2 AND account_id=$3 AND state='active' FOR SHARE",[input.connectionId,scope.organizationId,scope.accountId])).rows[0];
       if(!connection)throw denied();
-      const selected=await this.options.resolveCalendar(db,scope,input.connectionId,connection.policy_revision,{requireOrganizationService:true});
-      const definition=bookingPolicySchema.parse({...input,ownerAccountId:scope.accountId,connectionPolicyRevision:selected.policyRevision,calendarId:selected.calendarId,timeZone:selected.timeZone});
+      const selected=await this.options.resolveCalendar(db,scope,input.connectionId,connection.policy_revision,{requireOrganizationService:true,operation:input.permittedOperations.includes("calendar.book")?"calendar.book":"calendar.availability"});
+      const definition=bookingPolicySchema.parse({...input,ownerAccountId:scope.accountId,connectionPolicyRevision:selected.policyRevision,providerId:selected.providerId,calendarId:selected.calendarId,timeZone:input.timeZone??selected.timeZone});
       new Intl.DateTimeFormat("en-US",{timeZone:definition.timeZone}).format();
       const id=randomUUID(),digest=requestDigest(definition);
       await db.query("INSERT INTO agents_platform.booking_policies(id,organization_id,agent_id,owner_account_id,definition,digest) VALUES($1,$2,$3,$4,$5,$6)",[id,scope.organizationId,agentId,scope.accountId,definition,digest]);
@@ -75,11 +76,12 @@ export class BookingService {
       return {withdrawn:true};
     });
   }
-  private async authority(db:PoolClient,taskId:string) {
+  private async authority(db:PoolClient,taskId:string,operation:"calendar.availability"|"calendar.book"="calendar.book") {
     const execution=await loadExecution(db,taskId,true);await assertCurrentAuthority(db,execution);
     const reference=execution.configuration.capabilities.businessActions;
     if(!reference.enabled||execution.task.parent_task_id)throw denied();
     const policy=await loadBookingPolicy(db,execution.task.organization_id,execution.agentId,reference);
+    if(!policy.permittedOperations.includes(operation))throw denied();
     const principal=execution.task.principal;
     if(principal.kind==="human") {
       const account=(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0];
@@ -150,7 +152,7 @@ export class BookingService {
         await this.options.resolveCalendar(db,scope,target.policy.connectionId,target.policy.connectionPolicyRevision,{requireOrganizationService:true});
         if(!(await db.query("SELECT 1 FROM agents_platform.booking_intents WHERE id=$1 AND reconcile_lease=$2 AND reconcile_until>now() FOR SHARE",[id,lease])).rowCount)throw new PlatformError("BOOKING_RECONCILING",409,"Appointment status check changed");
       });
-      const intent:GoogleBookingIntent={organizationId:scope.organizationId,bookingId:id,calendarId:calendar.calendarId,start:new Date(target.row.starts_at).toISOString(),end:new Date(target.row.ends_at).toISOString(),timeZone:calendar.timeZone,summary:target.policy.title,requestDigest:target.row.request_digest};
+      const intent:BookingIntent={organizationId:scope.organizationId,bookingId:id,calendarId:calendar.calendarId,start:new Date(target.row.starts_at).toISOString(),end:new Date(target.row.ends_at).toISOString(),timeZone:target.policy.timeZone,summary:target.policy.title,requestDigest:target.row.request_digest};
       const receipt=await this.client(calendar,Date.now()+30000,undefined,beforeAttempt,id).reconcileBooking(intent);
       const result=await transaction(this.pool,async db=>{
         const result={state:receipt.state,bookingId:id,start:intent.start,end:intent.end,...(receipt.state==="confirmed"?{receiptDigest:receipt.receiptDigest}:{})};
@@ -166,7 +168,7 @@ export class BookingService {
   }
   private client(calendar:ResolvedBookingCalendar,deadlineAt:number,signal:AbortSignal|undefined,beforeAttempt:()=>Promise<void>,bookingId?:string) {
     let ordinal:number|undefined;
-    return new GoogleCalendarClient(calendar.accessToken,{deadlineAt,signal,testBaseUrl:this.options.testBaseUrl,
+    return calendarClient(calendar.providerId,calendar.accessToken,{deadlineAt,signal,testBaseUrl:this.options.testBaseUrl,
       beforeAttempt:async operation=>{
         await beforeAttempt();
         if(!bookingId)return;
@@ -191,14 +193,14 @@ export class BookingService {
     return deadline;
   }
   async availability(taskId:string,operationId:string,range:{start:string;end:string},signal?:AbortSignal) {
-    const prepared=await transaction(this.pool,async db=>({...await this.authority(db,taskId),deadline:await this.operationDeadline(db,taskId,operationId,"booking.availability")}));
+    const prepared=await transaction(this.pool,async db=>({...await this.authority(db,taskId,"calendar.availability"),deadline:await this.operationDeadline(db,taskId,operationId,"booking.availability")}));
     const start=new Date(range.start).getTime(),end=new Date(range.end).getTime();
     if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end-start>7*86400000)throw new PlatformError("BOOKING_RANGE_INVALID",400,"Choose a range of at most seven days");
     await this.options.ensureFresh(prepared.scope,prepared.policy.connectionId);
-    const calendar=await transaction(this.pool,db=>this.options.resolveCalendar(db,prepared.scope,prepared.policy.connectionId,prepared.policy.connectionPolicyRevision,{requireOrganizationService:true}));
-    const provider=this.client(calendar,prepared.deadline,signal,async()=>{await transaction(this.pool,async db=>{await this.authority(db,taskId);await this.operationDeadline(db,taskId,operationId,"booking.availability");});});
+    const calendar=await transaction(this.pool,db=>this.options.resolveCalendar(db,prepared.scope,prepared.policy.connectionId,prepared.policy.connectionPolicyRevision,{requireOrganizationService:true,operation:"calendar.availability"}));
+    const provider=this.client(calendar,prepared.deadline,signal,async()=>{await transaction(this.pool,async db=>{await this.authority(db,taskId,"calendar.availability");await this.operationDeadline(db,taskId,operationId,"booking.availability");});});
     const busy=await provider.freeBusy(calendar.calendarId,{start:range.start,end:range.end});
-    const held=(await this.pool.query("SELECT starts_at,ends_at FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND starts_at<$3 AND ends_at>$2",[calendar.calendarId,range.start,range.end])).rows;
+    const held=(await this.pool.query("SELECT starts_at,ends_at FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND starts_at<$3 AND ends_at>$2",[`${prepared.policy.providerId}:${calendar.calendarId}`,range.start,range.end])).rows;
     const intervals=[...busy.busy.map(span=>({start:Date.parse(span.start),end:Date.parse(span.end)})),...held.map(span=>({start:new Date(span.starts_at).getTime(),end:new Date(span.ends_at).getTime()}))];
     const slots:{start:string;end:string}[]=[];
     for(let cursor=Math.ceil(start/300000)*300000;cursor<end&&slots.length<100;cursor+=300000) {
@@ -212,7 +214,7 @@ export class BookingService {
       }catch(error){if(!(error instanceof PlatformError))throw error;}
     }
     await recordEvent(this.pool,taskId,`booking-availability:${operationId}`,"tool.booking_availability",{operationId,connectionId:calendar.connectionId,policyRevision:calendar.policyRevision,count:slots.length,outcome:"completed"});
-    return {slots,timeZone:calendar.timeZone};
+    return {slots,timeZone:prepared.policy.timeZone};
   }
   async execute(taskId:string,operationId:string,start:string,signal?:AbortSignal) {
     const existing=(await this.pool.query("SELECT * FROM agents_platform.booking_intents WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];
@@ -228,12 +230,12 @@ export class BookingService {
       const row=(await db.query("SELECT * FROM agents_platform.booking_intents WHERE id=$1 FOR UPDATE",[existing.id])).rows[0];
       if(row.state!=="approved"||new Date(row.expires_at).getTime()<=Date.now()||new Date(row.starts_at).toISOString()!==window.start)throw new PlatformError("BOOKING_CONFIRMATION_REQUIRED",409,"Confirm the exact appointment first");
       const deadline=await this.operationDeadline(db,taskId,operationId,"booking.reserve");
-      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`booking:google-calendar:${authorized.policy.calendarId}`]);
+      await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`booking:${authorized.policy.providerId}:${authorized.policy.calendarId}`]);
       await db.query(`UPDATE agents_platform.booking_slots s SET state='released' FROM agents_platform.booking_intents i
-        WHERE s.booking_id=i.id AND s.calendar_id=$1 AND s.state='held' AND i.state IN ('approved','expired','rejected') AND i.expires_at<=now()`,[authorized.policy.calendarId]);
-      const overlap=await db.query("SELECT 1 FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND booking_id<>$2 AND starts_at<$4 AND ends_at>$3 LIMIT 1",[authorized.policy.calendarId,row.id,window.start,window.end]);
+        WHERE s.booking_id=i.id AND s.calendar_id=$1 AND s.state='held' AND i.state IN ('approved','expired','rejected') AND i.expires_at<=now()`,[`${authorized.policy.providerId}:${authorized.policy.calendarId}`]);
+      const overlap=await db.query("SELECT 1 FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND booking_id<>$2 AND starts_at<$4 AND ends_at>$3 LIMIT 1",[`${authorized.policy.providerId}:${authorized.policy.calendarId}`,row.id,window.start,window.end]);
       if(overlap.rowCount){const result={state:"conflict",bookingId:row.id,...window};await db.query("UPDATE agents_platform.booking_intents SET state='conflict',result=$2 WHERE id=$1",[row.id,result]);return {...authorized,row,window,deadline,conflict:result};}
-      await db.query("INSERT INTO agents_platform.booking_slots(booking_id,connection_id,calendar_id,starts_at,ends_at,state) VALUES($1,$2,$3,$4,$5,'held') ON CONFLICT(booking_id) DO NOTHING",[row.id,authorized.policy.connectionId,authorized.policy.calendarId,window.start,window.end]);
+      await db.query("INSERT INTO agents_platform.booking_slots(booking_id,connection_id,calendar_id,starts_at,ends_at,state) VALUES($1,$2,$3,$4,$5,'held') ON CONFLICT(booking_id) DO NOTHING",[row.id,authorized.policy.connectionId,`${authorized.policy.providerId}:${authorized.policy.calendarId}`,window.start,window.end]);
       return {...authorized,row,window,deadline};
     });
     if("conflict" in prepared)return prepared.conflict;
@@ -246,9 +248,9 @@ export class BookingService {
       await this.operationDeadline(db,taskId,operationId,"booking.reserve");
       await this.options.resolveCalendar(db,prepared.scope,prepared.policy.connectionId,prepared.policy.connectionPolicyRevision,{requireOrganizationService:true});
       if(effect&&!claimed) {
-        await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`booking:google-calendar:${prepared.policy.calendarId}`]);
+        await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`booking:${prepared.policy.providerId}:${prepared.policy.calendarId}`]);
         const slot=(await db.query("SELECT state FROM agents_platform.booking_slots WHERE booking_id=$1 FOR UPDATE",[prepared.row.id])).rows[0];
-        const overlap=await db.query("SELECT 1 FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND booking_id<>$2 AND starts_at<$4 AND ends_at>$3 LIMIT 1",[prepared.policy.calendarId,prepared.row.id,prepared.window.start,prepared.window.end]);
+        const overlap=await db.query("SELECT 1 FROM agents_platform.booking_slots WHERE calendar_id=$1 AND state<>'released' AND booking_id<>$2 AND starts_at<$4 AND ends_at>$3 LIMIT 1",[`${prepared.policy.providerId}:${prepared.policy.calendarId}`,prepared.row.id,prepared.window.start,prepared.window.end]);
         if(slot?.state!=="held"||overlap.rowCount)throw new PlatformError("BOOKING_SLOT_CHANGED",409,"The appointment slot is no longer reserved");
         const row=(await db.query("UPDATE agents_platform.booking_intents SET state='claimed',claimed_at=now() WHERE id=$1 AND state='approved' AND expires_at>now() RETURNING id",[prepared.row.id])).rows[0];
         if(!row)throw new PlatformError("BOOKING_CONFIRMATION_REQUIRED",409,"Appointment confirmation is unavailable");
@@ -262,7 +264,7 @@ export class BookingService {
         const result={state:"conflict",bookingId:prepared.row.id,...prepared.window};
         await transaction(this.pool,async db=>{const changed=await db.query("UPDATE agents_platform.booking_intents SET state='conflict',result=$2 WHERE id=$1 AND state='approved'",[prepared.row.id,result]);if(!changed.rowCount)throw new PlatformError("BOOKING_CONFIRMATION_REQUIRED",409,"Appointment confirmation is unavailable");await db.query("UPDATE agents_platform.booking_slots SET state='released' WHERE booking_id=$1 AND state='held'",[prepared.row.id]);});return result;
       }
-      const intent:GoogleBookingIntent={organizationId:calendar.organizationId,bookingId:prepared.row.id,calendarId:calendar.calendarId,...prepared.window,timeZone:calendar.timeZone,summary:prepared.policy.title,requestDigest:prepared.row.request_digest};
+      const intent:BookingIntent={organizationId:calendar.organizationId,bookingId:prepared.row.id,calendarId:calendar.calendarId,...prepared.window,timeZone:prepared.policy.timeZone,summary:prepared.policy.title,requestDigest:prepared.row.request_digest};
       const receipt=await this.client(calendar,prepared.deadline,signal,()=>admit(true),prepared.row.id).createBooking(intent);
       const result={state:receipt.state,bookingId:prepared.row.id,...prepared.window,...(receipt.state==="confirmed"?{receiptDigest:receipt.receiptDigest}:{})};
       await transaction(this.pool,async db=>{

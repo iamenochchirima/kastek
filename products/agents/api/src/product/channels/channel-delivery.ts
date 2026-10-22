@@ -7,13 +7,15 @@ import { transaction } from "../../infrastructure/database";
 import { recordEvent } from "../../observability/event-store";
 import type { InboxScope, InboxStore } from "../inbox/inbox-store";
 import type { ChannelStore } from "./channel-store";
+import {assertChannelToolReviewPrompt,channelToolReviewDecision} from "./channel-tool-reviews";
 
 const rank: Record<string, number> = { accepted: 1, sent: 2, delivered: 3, read: 4 };
 type Row = Record<string, any>;
 export interface ChannelDeliveryPorts {
   context(connection: Row, credentials: Record<string,string>, beforeAttempt: () => Promise<void>): ChannelProviderContext;
   assertPolicy(connection: Row, message: Row, request: ChannelSendRequest & {templateAuthorization?:unknown;mediaAuthorization?:unknown}): Promise<void>;
-  acknowledgeInteraction?(connectionId:string,event:ChannelWebhookEvent):Promise<void>;
+  acknowledgeInteraction?(connectionId:string,event:ChannelWebhookEvent,outcome?:"confirmed"|"rejected"):Promise<void>;
+  handleInteraction?(connectionId:string,deploymentId:string,event:ChannelWebhookEvent):Promise<"confirmed"|"rejected"|null>;
 }
 export class ChannelDelivery {
   constructor(readonly pool: Pool, readonly channels: ChannelStore, readonly inbox: InboxStore, readonly ports: ChannelDeliveryPorts) {}
@@ -61,7 +63,10 @@ export class ChannelDelivery {
   private async processIngress(row: Row): Promise<void> {
     const event = channelWebhookEventSchema.parse(row.event);
     let messageId: string | null = null;
-    if (event.kind === "receipt") await this.receipt(row.connection_id,event);
+    const recognized=channelToolReviewDecision(event);
+    const interaction=recognized?(await this.ports.handleInteraction?.(row.connection_id,row.deployment_id,event)??"rejected"):null;
+    if(interaction){if(event.callbackQueryId)await this.ports.acknowledgeInteraction?.(row.connection_id,event,interaction);}
+    else if (event.kind === "receipt") await this.receipt(row.connection_id,event);
     else if(event.echo&&event.providerMessageId)await this.replayReceipts(row.connection_id,event.assetId,event.externalConversationId,event.providerMessageId);
     else if(event.kind==="interaction"&&event.callbackQueryId) await this.ports.acknowledgeInteraction?.(row.connection_id,event);
     else if (event.kind === "message" && !event.echo) {
@@ -77,7 +82,7 @@ export class ChannelDelivery {
     // Unsupported callback payloads remain evidence, never approval or executable tool authority.
     await this.pool.query(`UPDATE agents_platform.channel_ingress SET state='completed',completed_at=now(),message_id=$3,
       reason=$4,lease_until=NULL WHERE id=$1 AND claim_id=$2 AND state='processing'`,
-    [row.id,row.claim_id,messageId,event.kind === "interaction" ? "unsupported_interaction" : event.echo ? "echo_suppressed" : null]);
+    [row.id,row.claim_id,messageId,interaction?`contact_review_${interaction}`:event.kind === "interaction" ? "unsupported_interaction" : event.echo ? "echo_suppressed" : null]);
   }
   async receipt(connectionId: string, event: ChannelWebhookEvent): Promise<void> {
     const status = event.status;
@@ -136,6 +141,7 @@ export class ChannelDelivery {
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
+      if(row.request.toolReview)await assertChannelToolReviewPrompt(db,row.request,row.conversation_id);
       return result;
     });
   }

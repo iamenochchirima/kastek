@@ -33,7 +33,10 @@ export interface ChannelSendRequest {
   assetId: string; recipientId: string; text: string;
   attachments?: ChannelAttachment[]; replyToProviderMessageId?: string;
   template?: { name: string; language: string; components?: unknown[] };
+  buttons?: {title:string;payload:string}[];
+  toolReview?: {id:string;taskId:string;requestDigest:string};
 }
+export const channelButtonsSchema=z.array(z.strictObject({title:z.string().min(1).max(20).refine(value=>!/[\x00-\x1f\x7f]/.test(value)),payload:z.string().min(1).max(64).refine(value=>Buffer.byteLength(value)<=64&&!/[\x00-\x1f\x7f]/.test(value))})).min(1).max(2);
 /** Private invocation data. Product code supplies an authorized bounded fetch and current credentials. */
 export interface ChannelProviderContext {
   credential: string; fetch: typeof globalThis.fetch; signal?: AbortSignal;

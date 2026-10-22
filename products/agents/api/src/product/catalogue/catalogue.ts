@@ -77,7 +77,7 @@ function connectorDefinitions(records:readonly ConnectorConfiguration[]):Definit
 
 export type CatalogueConnection = Omit<ConnectionDTO, "profileId"> & { profileId: string };
 export interface CatalogueContext {
-  agentId?: string; configuration?: AgentConfiguration; purpose: CataloguePurpose;
+  agentId?: string; calendarProviderId?:string; configuration?: AgentConfiguration; purpose: CataloguePurpose;
   product: Product; permissions: readonly string[]; connections: readonly CatalogueConnection[];
   bindings: readonly CapabilityBinding[]; skills?: readonly CatalogueSkill[]; now?: Date; connectorReadiness?:Record<string,{available:boolean;reasons?:{code:string;message:string}[]}>;connectorRecords?:readonly ConnectorConfiguration[];
 }
@@ -95,7 +95,7 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   const newestRevision=definition.connectionId?Math.max(0,...bindings.map(binding=>binding.catalog.revision)):0;
   const availableBindings=definition.connectionId?bindings.filter(binding=>binding.catalog.revision===newestRevision):bindings;
   const selection = { tools: [...definition.tools], connectedToolBindingIds: (selectedBindings.length ? selectedBindings : connections.length === 1 ? availableBindings : []).map(binding => binding.id), skillIds: definition.skillId ? [definition.skillId] : [] };
-  const added = !!configuration && (capability ? configuration.capabilities.businessActions.enabled && configuration.capabilities.businessActions.profileId === capability.profileId : definition.skillId ? configuration.skillIds.includes(definition.skillId)
+  const added = !!configuration && (capability ? configuration.capabilities.businessActions.enabled && configuration.capabilities.businessActions.profileId === capability.profileId && context.calendarProviderId === definition.connectorId : definition.skillId ? configuration.skillIds.includes(definition.skillId)
     : definition.tools.length ? definition.tools.every(tool => configuration.tools.includes(tool)) : selectedBindings.length > 0);
   const reasons: CatalogueItemDTO["readiness"]["reasons"] = [];
   if (!definition.products.includes(context.product)) reasons.push({ code: "PRODUCT_UNSUPPORTED", message: "Unavailable for this product." });
@@ -108,7 +108,8 @@ function item(definition: Definition, context: CatalogueContext, pinnedDigest?: 
   }
   const provider=definition.connectorId?context.connectorReadiness?.[definition.connectorId]:undefined;
   if(definition.connectorId && provider && !provider.available) reasons.push(...(provider.reasons?.length?provider.reasons:[{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."}]));
-  if(definition.connectorId && !provider && (context.connectorRecords??defaultConnectorRegistry.connectors).find(record=>record.id===definition.connectorId)?.auth.kind==="oidc") reasons.push(definition.providerUnavailable??{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."});
+  const connectorAuth=(context.connectorRecords??defaultConnectorRegistry.connectors).find(record=>record.id===definition.connectorId)?.auth.kind;
+  if(definition.connectorId && !provider && connectorAuth && ["oidc","oauth2"].includes(connectorAuth)) reasons.push(definition.providerUnavailable??{code:"CONNECTOR_UNAVAILABLE",message:"This integration is not configured on the server."});
   if (definition.unavailableReason) reasons.push({ code: "DEPENDENCY_UNAVAILABLE", message: definition.unavailableReason });
   let state: CatalogueItemDTO["readiness"]["state"] = reasons.length ? "unavailable" : "ready";
   if (state === "ready" && definition.requires.connectionProfiles.length && !connections.length) {

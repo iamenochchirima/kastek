@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 import { agentSummary } from "./workspace-fixtures";
 import type { Configuration } from "../src/platform/api";
-const base: Configuration = { executionKind: "business", instructions: "Help customers book appointments.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, tools: [], capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+const base: Configuration = { executionKind: "business", instructions: "Help customers book appointments.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, context:{maxInputTokens:8192,compactAtTokens:6144}, tools: [], capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
 
 async function fixture(page: Page, mode: "pending" | "expired" | "foreign" | "uncertain" | "conflict" | "claimed" = "pending", recovery?: "confirmed" | "uncertain" | "in_progress") {
   let draft = structuredClone(base), revision = 1;
@@ -15,8 +15,8 @@ async function fixture(page: Page, mode: "pending" | "expired" | "foreign" | "un
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Bookings UI fixture", role: "owner" }] };
     else if (path.endsWith("/agents/root/booking-policies")) {
-      if (request.method() === "POST") { const body = request.postDataJSON(); expect(body).toMatchObject({ connectionId: "calendar1", title: "Consultation", durationMinutes: 30, minimumNoticeMinutes: 60, maximumAdvanceDays: 30 }); const policy = { id: "policy1", policyDigest: "policy-digest", state: "active", definition: { ...body, timeZone: "Africa/Johannesburg", calendarId: "primary", connectionPolicyRevision: 1 } }; policies.push(policy); data = { policy }; } else data = { policies };
-    } else if (path.endsWith("/google-calendar/connections")) data = { connections: [{ id: "calendar1", name: "Clinic", customerDeploymentEligible: true, calendar: { name: "Appointments", timeZone: "Africa/Johannesburg" } }, { id: "private-calendar", name: "Private calendar", customerDeploymentEligible: false, calendar: { name: "Personal", timeZone: "UTC" } }] };
+      if (request.method() === "POST") { const body = request.postDataJSON(); expect(body).toMatchObject({ title: "Consultation", durationMinutes: 30, minimumNoticeMinutes: 60, maximumAdvanceDays: 30 }); const policy = { id: "policy1", policyDigest: "policy-digest", state: "active", definition: { ...body, timeZone: "Africa/Johannesburg", calendarId: "primary", connectionPolicyRevision: 1 } }; policies.push(policy); data = { policy }; } else data = { policies };
+    } else if (path.endsWith("/provider-calendars/connections")) data = { connections: [{ providerId:"google-calendar", operations:["calendar.availability","calendar.book"], id: "calendar1", name: "Clinic", customerDeploymentEligible: true, calendar: { name: "Appointments", timeZone: "Africa/Johannesburg" } }, {providerId:"microsoft-calendar",id:"calendar-read",name:"Availability calendar",operations:["calendar.availability"],customerDeploymentEligible:true,calendar:{name:"Availability",timeZone:"UTC"}}, { providerId:"google-calendar", operations:["calendar.availability","calendar.book"], id: "private-calendar", name: "Private calendar", customerDeploymentEligible: false, calendar: { name: "Personal", timeZone: "UTC" } }] };
     else if (path.endsWith("/agents/root")) { if (request.method() === "PUT") { draft = request.postDataJSON().configuration; revision++; } data = { agent: { id: "root", name: "Booking assistant", offering: "booking", draft, draftRevision: revision }, versions: [], deployments: [] }; }
     else if (path.endsWith("/agents/root/configuration")) { expect(request.postDataJSON().expectedRevision).toBe(revision); draft = request.postDataJSON().configuration; revision++; data = { agent: { id: "root", name: "Booking assistant", offering: "booking", draft, draftRevision: revision }, snapshot: { id: `snapshot-${revision}`, number: revision, configuration: structuredClone(draft) }, deployments: [] }; }
     else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Booking assistant" })], nextCursor: null };
@@ -30,7 +30,7 @@ async function fixture(page: Page, mode: "pending" | "expired" | "foreign" | "un
     else { await route.fulfill({ status: 404, json: { error: { message: `Unexpected booking fixture ${path}` } } }); return; }
     await route.fulfill({ json: data });
   });
-  return { draft: () => draft, decisions, reconciles, errors };
+  return { draft: () => draft, decisions, reconciles, policies, errors };
 }
 
 test("mock transport: booking policy creation and exact draft pin are separate explicit actions", async ({ page }) => {
@@ -40,6 +40,7 @@ test("mock transport: booking policy creation and exact draft pin are separate e
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "Booking calendar" }).selectOption("calendar1");
   await expect(dialog).not.toContainText("Private calendar");
+  await expect(dialog.getByRole("checkbox",{name:"Allow bookings"})).toBeChecked();
   await dialog.getByRole("textbox", { name: "Appointment title" }).fill("Consultation");
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -52,11 +53,20 @@ test("mock transport: booking policy creation and exact draft pin are separate e
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: false });
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-  expect(state.draft().capabilities.businessActions).toEqual({ enabled: true, profileId: "google-calendar-booking-v1", policyId: "policy1", policyDigest: "policy-digest" });
+  expect(state.draft().capabilities.businessActions).toEqual({ enabled: true, profileId: "calendar-booking-v1", permittedOperations:["calendar.availability","calendar.book"], policyId: "policy1", policyDigest: "policy-digest" });
   await page.getByRole("combobox", { name: "Booking policy", exact: true }).selectOption("");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect(state.draft().capabilities.businessActions).toEqual({ enabled: false }); expect(state.errors).toEqual([]);
+});
+
+test("mock transport: read-only calendar publishes availability without booking permission",async({page})=>{
+  const state=await fixture(page);await page.goto("/app/agents/root?section=configuration");await page.getByRole("button",{name:"New booking policy"}).click();const dialog=page.getByRole("dialog");
+  await dialog.getByRole("combobox",{name:"Booking calendar"}).selectOption("calendar-read");await expect(dialog.getByRole("checkbox",{name:"Allow bookings"})).not.toBeChecked();await expect(dialog.getByRole("checkbox",{name:"Allow bookings"})).toBeDisabled();
+  await dialog.getByRole("textbox",{name:"Appointment title"}).fill("Consultation");await dialog.getByRole("button",{name:"Create policy",exact:true}).click();await expect(dialog).toBeHidden();
+  expect(state.policies).toHaveLength(1);expect(state.policies[0]).toMatchObject({definition:{connectionId:"calendar-read",permittedOperations:["calendar.availability"]}});
+  await page.getByRole("combobox",{name:"Booking policy",exact:true}).selectOption("policy1");await page.getByRole("button",{name:"Save changes",exact:true}).click();await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  expect(state.draft().capabilities.businessActions).toEqual({enabled:true,profileId:"calendar-booking-v1",permittedOperations:["calendar.availability"],policyId:"policy1",policyDigest:"policy-digest"});expect(state.errors).toEqual([]);
 });
 
 test("mock transport: exact appointment confirmation sends digest after a user confirmation", async ({ page }) => {

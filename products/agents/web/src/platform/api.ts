@@ -12,7 +12,7 @@ export type Configuration = {
   context?: { maxInputTokens: number; compactAtTokens: number };
   tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff")[];
   skillIds?: string[];
-  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "google-calendar-booking-v1"; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
+  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
 export type CatalogueItem = {
   connectorId?:string; selection?:{kind:"bindings"}|{kind:"capability";capability:"businessActions";profileId:string;setup:"booking"};
@@ -111,6 +111,7 @@ export type TaskSummary = { id: string; agentId: string; agentName: string; vers
 
 export type BookingConfirmation = { id: string; taskId: string; state: "pending" | "approved" | "rejected" | "claimed" | "confirmed" | "conflict" | "uncertain" | "expired"; start: string; end: string; timeZone: string; title: string; requestDigest: string; expiresAt: string };
 
-export type ConnectorRecord = { id: string; name: string; description: string; profileId: string; setup?: { kind: "calendar_service"; apiPath: string; identityLabel: string } | { kind: "existing_connections" }; readiness: { available: boolean; reasons: { code: string; message: string }[] } };
+export type ProviderOperation = { id: string; name: string; description: string; effect: "read" | "reviewed_write" };
+export type ConnectorRecord = { operations?: ProviderOperation[]; id: string; name: string; description: string; profileId: string; setup?: { kind: "calendar_service" | "crm_service"; apiPath: string; identityLabel: string } | { kind: "existing_connections" }; readiness: { available: boolean; reasons: { code: string; message: string }[] } };
 
-export type CalendarServiceConnector = ConnectorRecord & { setup: Extract<NonNullable<ConnectorRecord["setup"]>, { kind: "calendar_service" }> };
+export type NativeServiceConnector = ConnectorRecord & { setup: Extract<NonNullable<ConnectorRecord["setup"]>, { kind: "calendar_service" | "crm_service" }> };

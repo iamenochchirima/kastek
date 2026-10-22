@@ -13,6 +13,8 @@ import { WhatsappTemplates } from "../product/channels/whatsapp-templates";
 import { EvaluationChannelFixtures } from "../product/evaluation/channel-fixtures";
 import { assertChannelReplyPolicy } from "../product/channels/channel-policy";
 import { ChannelMediaReplies } from "../product/channels/channel-media-replies";
+import {ChannelToolReviews} from "../product/channels/channel-tool-reviews";
+import {ToolReviewStore} from "../capabilities/reviews/tool-reviews";
 
 /** Installed setup services are the only callers; destinations and credentials remain server controlled. */
 export const channelSetupFetch: typeof fetch = async (input, init={}) => {
@@ -45,18 +47,22 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
   const attachments=new ChannelAttachments(channels,{fetch:attachmentFetch,maximumBytes:2097152,mediaHostSuffixes});
   const media=new ChannelMediaReplies(channels,{mediaHostSuffixes});
   let fixtures:EvaluationChannelFixtures|undefined;
+  const contactReviews=new ChannelToolReviews(pool,new ToolReviewStore(pool));
   const delivery=new ChannelDelivery(pool,channels,inbox,{
-    async acknowledgeInteraction(connectionId,event) {
+    handleInteraction:(connectionId,deploymentId,event)=>contactReviews.handle(connectionId,deploymentId,event),
+    async acknowledgeInteraction(connectionId,event,outcome) {
       if(!event.callbackQueryId)return;
       const binding=await channels.resolveDeployment("telegram",event.assetId);
       if(!binding||binding.connection.id!==connectionId)throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Channel authority changed");
-      if(binding.connection.metadata.evaluationFixture||binding.connection.metadata.evaluationTrialId)
+      if(binding.connection.metadata.evaluationFixture||binding.connection.metadata.evaluationTrialId){
+        if(outcome&&fixtures){await fixtures.acknowledgeContactReview(connectionId,event);return;}
         throw new PlatformError("EVALUATION_CHANNEL_CALLBACK_UNSUPPORTED",403,"Interactive callbacks are unavailable in this fixture");
+      }
       const credentials=await channels.resolveCredential({organizationId:binding.connection.organizationId,connectionId,
         expectedRevision:binding.connection.revision,credentialRevision:binding.connection.credentialRevision});
       if(!/^\d+:[A-Za-z0-9_-]{1,256}$/.test(credentials.botToken??""))throw new PlatformError("CHANNEL_CREDENTIAL_UNAVAILABLE",503,"Channel credential is unavailable");
       const response=await channelSetupFetch(`https://api.telegram.org/bot${credentials.botToken}/answerCallbackQuery`,{
-        method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({callback_query_id:event.callbackQueryId,text:"This action is unavailable. Send a message for help.",show_alert:false})});
+        method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({callback_query_id:event.callbackQueryId,text:outcome==="confirmed"?"Selection received.":"This action is unavailable. Send a message for help.",show_alert:false})});
       if(!response.ok)throw new PlatformError("CHANNEL_CALLBACK_UNAVAILABLE",502,"Channel callback acknowledgement is unavailable");
     },
     context(connection,credentials,beforeAttempt) {

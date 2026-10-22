@@ -76,3 +76,67 @@ class ChannelMappingTests(unittest.IsolatedAsyncioTestCase):
             native["channelBinding"]["inputMessageId"] = str(uuid4())
             with self.assertRaisesRegex(ValueError, "channel binding"):
                 await submit_channel_turn(Operator(), Visitor(), mapping, turn, path)
+
+
+class VisitorConfirmationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_owner_driven_confirmation_is_exact_scoped_and_cookie_free(self):
+        import json
+        from types import SimpleNamespace
+        import httpx
+        from kasitek_harbor.channel import VisitorClient
+
+        deployment, conversation, identity = [str(uuid4()) for _ in range(3)]
+        digest = "a" * 64
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            self.assertEqual(request.headers["authorization"], "Bearer visitor-token")
+            self.assertNotIn("cookie", request.headers)
+            if request.method == "GET":
+                key = "reviews" if request.url.path.endswith("tool-reviews") else "bookings"
+                return httpx.Response(200, json={key: [{"id": identity, "requestDigest": digest}]})
+            self.assertEqual(json.loads(request.content), {"decision": "reject", "requestDigest": digest})
+            return httpx.Response(200, json={"state": "rejected"})
+
+        async with VisitorClient(
+            SimpleNamespace(origin="http://127.0.0.1:4101"),
+            SimpleNamespace(deployment_id=deployment, origin="https://widget.example.test"),
+            "visitor-token", timeout=1, transport=httpx.MockTransport(respond),
+        ) as visitor:
+            for listing, decision in [(visitor.bookings, visitor.decide_booking), (visitor.tool_reviews, visitor.decide_tool_review)]:
+                items = await listing(conversation)
+                self.assertEqual(len(requests), 1 if listing == visitor.bookings else 3)
+                await decision(conversation, items[0]["id"], "reject", items[0]["requestDigest"])
+            self.assertEqual(len(requests), 4)
+            with self.assertRaises(ValueError):
+                await visitor.decide_tool_review(conversation, identity, "approve", "not-current")
+            with self.assertRaises(ValueError):
+                await visitor.post(f"/api/website/{uuid4()}/customer-conversations/{conversation}/tool-reviews/{identity}/decision", {})
+            with self.assertRaises(ValueError):
+                await visitor._request("GET", "/api/organizations/private/connections")
+            self.assertEqual(len(requests), 4)
+
+    async def test_transport_retry_keeps_the_same_exact_decision(self):
+        from types import SimpleNamespace
+        import httpx
+        from kasitek_harbor.channel import VisitorClient
+
+        deployment, conversation, identity = [str(uuid4()) for _ in range(3)]
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            if len(requests) == 1:
+                raise httpx.ReadError("Lost acknowledgement", request=request)
+            return httpx.Response(200, json={"review": {"state": "approved"}})
+
+        async with VisitorClient(
+            SimpleNamespace(origin="http://127.0.0.1:4101"),
+            SimpleNamespace(deployment_id=deployment, origin="https://widget.example.test"),
+            "visitor-token", timeout=1, transport=httpx.MockTransport(respond),
+        ) as visitor:
+            await visitor.decide_tool_review(conversation, identity, "approve", "a" * 64)
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0].url, requests[1].url)
+        self.assertEqual(requests[0].content, requests[1].content)

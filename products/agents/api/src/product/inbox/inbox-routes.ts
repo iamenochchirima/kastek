@@ -1,6 +1,7 @@
 import { channelKindSchema } from "../../contracts/channel-adapters";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
 import type { BookingService } from "../../workflows/booking/bookings";
 import { PlatformError } from "../../contracts/contracts";
 import { InboxStore, type CustomerConversation, type CustomerMessage, type InboxScope, type VisitorScope } from "./inbox-store";
@@ -25,6 +26,7 @@ function visitorConversation(row: CustomerConversation) {
 export function registerInboxRoutes(app: FastifyInstance, options: {
   inbox: InboxStore;
   bookings?:BookingService;
+  toolReviews?:ToolReviewStore;
   resolveScope(request: FastifyRequest): Promise<InboxScope>;
   resolveVisitor(request: FastifyRequest, reply: FastifyReply): Promise<VisitorScope>;
   publicRate?(deploymentId: string): Promise<void>;
@@ -104,6 +106,34 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
       const id=uuid.parse((request.params as Record<string,string>).bookingId),input=z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.body);
       for(const row of current.rows){const scoped=await bookings.listForPrincipal(row.id,current.principal);if(scoped.some(booking=>booking.id===id))return {booking:publicBooking(await bookings.decide(row.id,current.principal,id,input))};}
       throw new PlatformError("BOOKING_NOT_FOUND",404,"Booking not found");
+    });
+  }
+  if(options.toolReviews) {
+    const reviews=options.toolReviews;
+    const reviewTasks=async(request:FastifyRequest,reply:FastifyReply)=>{
+      const scope=await options.resolveVisitor(request,reply);
+      const result=await options.inbox.readVisitor(scope,params(request).conversationId,"0",1);
+      const principal={kind:"visitor" as const,deploymentId:scope.deploymentId,sessionId:scope.sessionId};
+      const rows=(await options.inbox.pool.query(`SELECT DISTINCT t.id FROM agents_platform.tasks t
+        JOIN agents_platform.tool_invocation_reviews r ON r.task_id=t.id
+        WHERE t.conversation_id=$1 AND t.principal=$2::jsonb AND t.organization_id=$3 ORDER BY t.id LIMIT 30`,
+        [result.conversation.execution_conversation_id,JSON.stringify(principal),result.conversation.organization_id])).rows;
+      return {scope,principal,rows,conversation:result.conversation};
+    };
+    app.get(`${website}/:conversationId/tool-reviews`,async(request,reply)=>{
+      const current=await reviewTasks(request,reply);await options.publicRate?.(current.scope.deploymentId);
+      return {reviews:(await Promise.all(current.rows.map(row=>reviews.listForPrincipal(row.id,current.principal)))).flat()};
+    });
+    app.post(`${website}/:conversationId/tool-reviews/:reviewId/decision`,async(request,reply)=>{
+      const current=await reviewTasks(request,reply);await options.publicRate?.(current.scope.deploymentId);
+      if(current.conversation.state!=="automation_active")throw new PlatformError("TOOL_REVIEW_DENIED",403,"Contact confirmation is unavailable");
+      const id=uuid.parse((request.params as Record<string,string>).reviewId);
+      const input=z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.body);
+      for(const row of current.rows){
+        const items=await reviews.listForPrincipal(row.id,current.principal);
+        if(items.some(item=>item.id===id))return {review:await reviews.decideForPrincipal(row.id,current.principal,id,input)};
+      }
+      throw new PlatformError("TOOL_REVIEW_NOT_FOUND",404,"Contact confirmation not found");
     });
   }
   app.post(`${website}/:conversationId/messages`, async (request, reply) => {

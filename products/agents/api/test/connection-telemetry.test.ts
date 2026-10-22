@@ -11,10 +11,10 @@ it("projects captured authority and failures without provider bodies, credential
   const output=vi.spyOn(console,"info").mockImplementation(()=>{}),query=vi.fn(()=>{throw Error("Telemetry must not acquire a database connection");}),pool={query} as unknown as Pool;
   const organizationId=randomUUID(),connectionId=randomUUID(),error=new PlatformError("HOSTILE_PROVIDER_ERROR",502,"Bearer private-token https://private.provider/customer-text");
   await expect(observeConnectionControl(pool,"mcp","discover",{organizationId,connectionId},async()=>{
-    captureConnectionAuthority({id:connectionId,organization_id:organizationId,generation:4,policy_revision:3});throw error;
+    captureConnectionAuthority({id:connectionId,organization_id:organizationId,generation:4,policy_revision:3,provider_id:"hubspot"});throw error;
   })).rejects.toBe(error);
   const event=connectionControlEventSchema.parse(JSON.parse(output.mock.calls[0]![0] as string));
-  expect(event).toMatchObject({organizationId,connectionId,authorizationGeneration:4,policyRevision:3,outcome:"failed",failureClass:"provider"});
+  expect(event).toMatchObject({organizationId,connectionId,authorizationGeneration:4,policyRevision:3,providerId:"hubspot",outcome:"failed",failureClass:"provider"});
   expect(JSON.stringify(event)).not.toMatch(/private|Bearer|customer-text|taskId|errorMessage|scope/);expect(query).not.toHaveBeenCalled();
 });
 it("settles immediately when exporters fail or never settle, with no metadata database lookup",async()=>{

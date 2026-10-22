@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "kasitek-provider-owner-cases.v1",
+  "execution": "owner-run; not executed by implementation",
+  "runnableHarborSuite": false,
+  "driverMethods": [
+    "VisitorClient.bookings",
+    "VisitorClient.decide_booking",
+    "VisitorClient.tool_reviews",
+    "VisitorClient.decide_tool_review"
+  ],
+  "prerequisites": [
+    "dedicated provider namespace and fresh prepared agent scope",
+    "verified OAuth account and explicit action/resource selection",
+    "API, worker, queue, vault and private object store configured",
+    "independent read-only provider record and request audit access"
+  ],
+  "cases": [
+    {
+      "id": "calendar-verified-setup",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "owner_provider_ui",
+      "expectedOutcome": "Verified account, selected calendar, exact intended scopes and IANA time zone; reconnect returns to the same agent."
+    },
+    {
+      "id": "calendar-availability-only",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "website_customer_http",
+      "expectedOutcome": "Availability-only policy offers permitted slots without booking reserve tool or booking.execute grant; any direct reserve attempt produces no intent or provider write."
+    },
+    {
+      "id": "calendar-exact-booking",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "website_customer_http",
+      "expectedOutcome": "Exact customer confirmation, one matching event and confirmed native receipt."
+    },
+    {
+      "id": "calendar-no-consent",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "website_customer_http",
+      "expectedOutcome": "Missing, rejected, expired, changed or wrong-session approval creates no event."
+    },
+    {
+      "id": "calendar-busy-and-duplicate",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "controlled_http_fixture",
+      "expectedOutcome": "Busy/conflicting slot creates no event; stable invocation retry creates no duplicate."
+    },
+    {
+      "id": "calendar-lost-acknowledgement",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "controlled_http_fault_fixture",
+      "expectedOutcome": "At most one create; status reconciliation confirms same event or retains uncertainty."
+    },
+    {
+      "id": "calendar-time-zone-and-withdrawal",
+      "providerIds": [
+        "google-calendar",
+        "microsoft-calendar"
+      ],
+      "driver": "owner_provider_ui",
+      "expectedOutcome": "DST/offset and selected resource agree with policy; revoked permission prevents sends."
+    },
+    {
+      "id": "crm-reviewed-intake",
+      "providerIds": [
+        "hubspot"
+      ],
+      "driver": "website_customer_http",
+      "expectedOutcome": "Exact approved contact fields; one new record or zero creates for an already matching record; no customer-record disclosure."
+    },
+    {
+      "id": "crm-no-consent-or-customer-lookup",
+      "providerIds": [
+        "hubspot"
+      ],
+      "driver": "website_customer_http",
+      "expectedOutcome": "Unapproved, mismatched, expired, wrong-session or human-owned intake does not write; customer contacts.search denied."
+    },
+    {
+      "id": "crm-staff-lookup",
+      "providerIds": [
+        "hubspot"
+      ],
+      "driver": "signed_in_staff_task",
+      "expectedOutcome": "Exact-email, permitted account, bounded field projection and zero create requests."
+    },
+    {
+      "id": "crm-replay-and-withdrawal",
+      "providerIds": [
+        "hubspot"
+      ],
+      "driver": "controlled_http_fault_fixture",
+      "expectedOutcome": "Stable invocation does not create again; unknown effects remain uncertain; revoked authority prevents new sends."
+    }
+  ],
+  "receiptSchemas": [
+    "calendar-booking-receipt.v1",
+    "native-provider-operation-receipt.v1"
+  ],
+  "limitations": [
+    "No automatic customer decision in KasitekAgent",
+    "No new AGENTS_HARBOR_SUITE selector or provider-specific independent verifier",
+    "booking-policy-connected-skill is policy retrieval only",
+    "Native export completeness does not establish a successful write or live vendor acceptance"
+  ]
+}

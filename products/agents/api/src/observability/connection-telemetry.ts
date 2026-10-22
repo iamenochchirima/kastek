@@ -5,10 +5,10 @@ import { z } from "zod";
 import { PlatformError } from "../contracts/contracts";
 
 export const connectionFlowSchema=z.enum(["connect","authorize","callback","discover","refresh","credential_check","reconnect","rotate","disconnect","select","probe"]);
-const providerSchema=z.enum(["mcp","native_api","google_calendar","model_provider","whatsapp","telegram","facebook","instagram"]);
+const providerSchema=z.enum(["mcp","native_api","native_provider","google_calendar","model_provider","whatsapp","telegram","facebook","instagram"]);
 export const connectionControlEventSchema=z.strictObject({
   event:z.literal("connection.lifecycle"),traceId:z.string().regex(/^[a-f0-9]{32}$/),
-  provider:providerSchema,flow:connectionFlowSchema,outcome:z.enum(["completed","failed"]),
+  provider:providerSchema,providerId:z.string().regex(/^[a-z][a-z0-9_.-]{0,99}$/).optional(),flow:connectionFlowSchema,outcome:z.enum(["completed","failed"]),
   durationMs:z.number().int().nonnegative().max(86400000),organizationId:z.uuid().optional(),connectionId:z.uuid().optional(),
   authorizationGeneration:z.number().int().positive().optional(),policyRevision:z.number().int().positive().optional(),
   failureClass:z.enum(["authorization","conflict","validation","provider","internal"]).optional(),
@@ -31,11 +31,12 @@ function failureClass(error:unknown):ConnectionControlEvent["failureClass"] {
   if(error.statusCode>=500)return "provider";
   return "validation";
 }
-type Identity={organizationId?:string;connectionId?:string;authorizationGeneration?:number;policyRevision?:number;reconnect?:boolean};
+type Identity={providerId?:string;organizationId?:string;connectionId?:string;authorizationGeneration?:number;policyRevision?:number;reconnect?:boolean};
 const authority=new AsyncLocalStorage<Identity>();
 /** Capture metadata from rows already authorized/read by the operation. Never perform telemetry I/O. */
-export function captureConnectionAuthority(row:{id?:string;organization_id?:string;generation?:number;policy_revision?:number;status?:string;verified_identity?:unknown;account_subject?:string|null}):void{
+export function captureConnectionAuthority(row:{provider_id?:string;id?:string;organization_id?:string;generation?:number;policy_revision?:number;status?:string;verified_identity?:unknown;account_subject?:string|null}):void{
   const active=authority.getStore();if(!active)return;
+  if(typeof row.provider_id==="string"&&/^[a-z][a-z0-9_.-]{0,99}$/.test(row.provider_id))active.providerId=row.provider_id;
   if(z.uuid().safeParse(row.id).success)active.connectionId=row.id;
   if(z.uuid().safeParse(row.organization_id).success)active.organizationId=row.organization_id;
   if(Number.isSafeInteger(row.generation)&&row.generation!>0){active.authorizationGeneration=row.generation;}
@@ -56,7 +57,7 @@ export async function observeConnectionControl<T>(_pool:Pool,provider:z.infer<ty
         const organizationId=z.uuid().safeParse(context.organizationId??value.organizationId),connectionId=z.uuid().safeParse(context.connectionId??nested.id??value.connectionId);
         if(["discover","probe"].includes(flow)&&["failed","unsupported","authorization_required","credentials_required","reconnect_required"].includes(String(nested.status))){outcome="failed";failed=["authorization_required","credentials_required","reconnect_required"].includes(String(nested.status))?"authorization":"provider";}
         const generation=z.number().int().positive().safeParse(nested.generation??context.authorizationGeneration),policy=z.number().int().positive().safeParse(nested.policyRevision??context.policyRevision);
-        emitConnectionControlEvent({event:"connection.lifecycle",traceId,provider,flow:flow==="authorize"&&context.reconnect?"reconnect":flow,outcome,durationMs,
+        emitConnectionControlEvent({event:"connection.lifecycle",traceId,provider,...(context.providerId?{providerId:context.providerId}:{}),flow:flow==="authorize"&&context.reconnect?"reconnect":flow,outcome,durationMs,
           ...(organizationId.success?{organizationId:organizationId.data}:{}),...(connectionId.success?{connectionId:connectionId.data}:{}),
           ...(generation.success?{authorizationGeneration:generation.data}:{}),...(policy.success?{policyRevision:policy.data}:{}),...(failed?{failureClass:failed}:{})});
       }catch {/* Telemetry cannot turn settled work into a retry. */}

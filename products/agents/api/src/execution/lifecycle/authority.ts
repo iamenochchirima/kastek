@@ -19,6 +19,7 @@ import { assertEvaluationTrial } from "../admission/trial-authority";
 import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
+import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
@@ -77,8 +78,9 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
   } else if(task.principal.kind==="automation")await assertAutomationAuthority(db,execution);
   else throw new PlatformError("AUTOMATION_UNAVAILABLE", 403, "Automation execution is unavailable");
   if (isCustomerPrincipal(task.principal)) {
-    if (configuration.memory.enabled || configuration.connectedToolBindingIds.length || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Customer agents require public capabilities");
+    if (configuration.memory.enabled || configuration.capabilities.delegation.enabled || configuration.capabilities.sandbox.enabled || configuration.capabilities.workflows.enabled || configuration.tools.some(t => t.startsWith("memory."))) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Customer agents require public capabilities");
     await assertPublicSkillPolicy(db,task.organization_id,agentId,configuration.skillIds);
+    await assertCustomerNativeBindings(db as PoolClient,task.organization_id,configuration.connectedToolBindingIds);
   }
   await assertCurrentSkillPolicy(db,execution,grant.operations);
   if(configuration.capabilities.businessActions.enabled)await loadBookingPolicy(db,task.organization_id,agentId,configuration.capabilities.businessActions);
