@@ -29,7 +29,7 @@ passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were no
 account compatibility. See [implementation boundaries](source-boundary.md) for
 operator limits, verification scope, and remaining work.
 
-Owner: Agents engineering. Last reviewed: 2026-10-21.
+Owner: Agents engineering. Last reviewed: 2026-10-23.
 
 The standalone product targets customer-service, FAQ, booking, and intake agents across customer
 channels, with a shared inbox for staff support. Research and campaign experiences belong in
@@ -51,6 +51,7 @@ implementation and boundaries:
 - [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Growth integration](growth-integration.md): service keys, managed models, operator controls and product execution.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.
 - [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.

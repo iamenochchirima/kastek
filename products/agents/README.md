@@ -1,14 +1,14 @@
 # Kasitek Agents
 
-Owner: Agents engineering. Last reviewed: 2026-10-20.
+Owner: Agents engineering. Last reviewed: 2026-10-23.
 
 The standalone product targets mostly plug-and-play customer-service, FAQ, booking, and intake
 agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
 and campaign experiences belong in Growth or Agencies using the shared execution backend.
 The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
 explicit return to automation. Google and Microsoft Calendar appointments use explicit organization service access, a pinned booking policy, and
-exact customer confirmation. Other channel providers and the separate Booking creation offering
-remain unavailable. Live Google OAuth acceptance remains pending. See the
+exact customer confirmation. Configured messaging adapters share the same Inbox. The separate Booking creation offering
+remains unavailable. Live Google OAuth acceptance remains pending. See the
 [product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
 
 The standalone application creates customer agents with approved knowledge, simple chat, website
@@ -17,12 +17,16 @@ bounded specialist tasks, optional isolated analysis and reviewed report workflo
 and product contract fixtures. Skills expose scoped connection repair with explicit tool adoption;
 compatible tool-directed versions can open a contextual Analysis control. Grounded customer versions
 cannot enable analysis or silently switch programs. These capabilities do not define new standalone offerings.
-Restate coordinates durable execution. The technical kinds remain `business` and `workspace`; workspace
+Restate workflow `AgentsBusinessRunV20` and harness `growth-products-v10` coordinate durable execution.
+The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
 
 The [architecture](docs/architecture/agent-platform-architecture.md) defines the target.
 The [implementation boundary](docs/source-boundary.md) records current behavior and limits.
-Growth and Agencies are later integrations. Neither is required to run Agents.
+Growth embeds the shared business harness through a signed product contract. Its general assistant,
+Research, Content and WhatsApp Campaigns features use Growth-owned permissions and records.
+[Configure the Growth integration](docs/growth-integration.md) separately from standalone Agents.
+Agencies integration remains future work. Neither integration is required to run Agents.
 
 Live provider acceptance is owned by the project owner. Optional native-provider and MCP
 OAuth settings are listed in [api/.env.example](api/.env.example); keep credentials in the private

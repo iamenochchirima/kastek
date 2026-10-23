@@ -26,6 +26,8 @@ The optional service values are listed in api/.env.example. Configure the shared
 Growth's signing key and issuer, and the public keys/issuer permitted for destination actions.
 Private keys never enter browser configuration. Model credentials and permitted defaults belong
 to protected execution configuration, with explicit Growth use grants and tenant usage attribution.
+The [integration setup](../../../../agents/docs/growth-integration.md) lists both signature directions,
+exact browser origins, managed-model provisioning, and tenant/model disable controls.
 
 Ordinary Growth startup and business APIs do not require Agents. An unavailable execution service
 produces an unavailable agent state. It must not start a separate local model loop or replace
@@ -38,10 +40,30 @@ Content suggestions remain proposals until the user reviews the exact final fiel
 publishing account. Growth owns the durable review and draft-save receipt. The shared task retains
 the corresponding operation reference. A changed proposal, record or authorization cannot reuse
 an old approval. Saves use Growth's ordinary content service and retain the initiating actor.
+Workspace context includes a bounded product guide resolved from Growth's current page/capability
+map. It filters navigation and agent actions by current feature entitlement. The guide is private
+product evidence and changes the context revision when its allowed capabilities change.
 A lost acknowledgement is reconciled from the original operation before another save is considered.
+Recovery also checks an approved review for a previously committed draft, including after approval
+expiry, because its outer review transaction may have rolled back after the domain save.
 
 Current campaign context refers to Growth's WhatsApp campaigns. It does not create a generic
 social campaign model or authorize publishing, scheduling, recipient changes or campaign launch.
+
+## Product outcomes
+
+Growth owns the registered `growth.agent.command@1`, `growth.agent.review@1` and
+`growth.agent.draft_saved@1` events. Command acknowledgements count creation, turn admission and
+cancellation results. Review transitions and confirmed saves enqueue facts in the same Growth
+transaction as their durable state. Stable identities deduplicate retries and recovered receipts.
+The existing analytics publisher delivers the outbox independently of agent execution.
+
+Facts contain bounded feature, conversation, task, review and result identifiers. They exclude
+briefs, draft contents, credentials, user identifiers and retired installation/hosting fields.
+An accepted turn is an admission outcome; it does not establish a successful model result.
+Growth engineering owns product outcome counts and `kasitek.operation.duration` for bridge latency.
+Agents engineering owns task success, queue age and native root token/cost accounting. Hosted
+alert thresholds and model quality acceptance remain operator and owner work.
 
 ## Customer channels
 

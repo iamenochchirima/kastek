@@ -970,10 +970,14 @@ for exact limits, review semantics and uncertainty handling.
 Exactly two execution categories remain. Workspace tasks fail before acceptance until the Lina
 adapter is implemented. The initial connected action is exact reviewed report delivery through ReportDeliveryHTTP; arbitrary business-write adapters remain unavailable. Durable UTC one-shot/interval schedules and authenticated events use explicit automation authorization. Additional workflow profiles remain unavailable. Delegation and analysis require their published configuration, bounded current grants and available runtime/storage.
 Shared runtime probes verify coordination capabilities without establishing customer catalogue
-offerings. Selected outbound MCP reads are implemented. The trusted product execution adapter
-verifies short-lived signed initiating identities and registered tenant/version scope for model
-replies and approved public knowledge. Rich product tools and private record mappings remain
-unavailable through that adapter; it does not manufacture Agents membership.
+offerings. Selected outbound MCP reads are implemented. The generic signed product adapter retains
+its contract for model replies and public knowledge. Growth's separate typed product contract now maps verified
+Growth actors and businesses to shared features, private conversations and tasks without creating
+standalone Agents accounts. Growth owns current membership, resource reads, immutable content
+reviews and authoritative DRAFT saves. The shared harness pins the managed model route, accepted
+context revision and private product evidence through history, compaction and artifacts. Initial
+Growth features leave delegation, personal memory, external research and arbitrary writes disabled.
+See [Growth integration](../growth-integration.md) for setup and current boundaries.
 
 The external Harbor adapter submits isolated pinned trials through normal native interfaces.
 Trial preparation pins provider accounts, model and adapter revisions, metadata, effective policy
@@ -991,7 +995,7 @@ unsupported or inconclusive. Each result names the criterion and evidence it act
 Remaining suite, recovery and model-quality criteria stay in Linear.
 External-agent access to Growth/Agencies MCP remains separate product work.
 
-Remaining work includes embedded-product authorization/resource mapping, concrete third-party adapters,
+Remaining work includes Agencies resource mapping, additional concrete third-party adapters,
 commercial billing, production storage operations, other channels, Lina hosting and production
 containment certification, monitoring and deployment. Requirements and
 checklists stay in Linear. Repository documents describe maintained contracts and actual behavior.
