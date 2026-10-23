@@ -793,6 +793,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await beginOperation(pool, f.task.id, input)).operation).toMatchObject({ state: "completed", output: { result: "recorded" } });
     await finishOperation(pool, f.task.id, input.id, "completed", { result: "other" }, null, 99);
     expect((await pool.query("SELECT accounted_tokens FROM agents_platform.operation_usage WHERE operation_id=$1", [input.id])).rows[0].accounted_tokens).toBe(42);
+    const reviewed = { id: `tool:${f.task.id}:reviewed`, kind: "tool" as const, name: "fixture.reviewed_write",
+      request: { bindingDigest:"a".repeat(64),productReviewId:"opaque-product-review",productReviewDigest:"b".repeat(64) },
+      reservedTokens:0,reservedMs:1000,retrySafe:false,reconcile:true };
+    const initial=await beginOperation(pool,f.task.id,reviewed);
+    expect(initial.replayed).toBe(false);expect(initial.recovering).not.toBe(true);
+    const recovery=await beginOperation(pool,f.task.id,reviewed);
+    expect(recovery.replayed).toBe(false);expect(recovery.recovering).toBe(true);
+    expect(recovery.operation.id).toBe(initial.operation.id);expect(recovery.operation.attempt_id).not.toBe(initial.operation.attempt_id);
+    const reserved=(await pool.query("SELECT tool_calls,active_reserved_ms FROM agents_platform.execution_roots WHERE root_task_id=$1",[f.task.id])).rows[0];
+    expect(reserved.tool_calls).toBe(1);expect(Number(reserved.active_reserved_ms)).toBe(1000);
+    await finishOperation(pool,f.task.id,reviewed.id,"completed",{receipt:"authoritative-product-reconciliation"},null,0,recovery.operation.attempt_id);
+    expect((await beginOperation(pool,f.task.id,reviewed)).operation).toMatchObject({state:"completed",output:{receipt:"authoritative-product-reconciliation"}});
+    expect(Number((await pool.query("SELECT count(*) FROM agents_platform.operation_usage WHERE operation_id=$1",[reviewed.id])).rows[0].count)).toBe(1);
     const unknown = { ...input, id: input.id + ':unknown' };
     await beginOperation(pool, f.task.id, unknown);
     expect((await beginOperation(pool, f.task.id, unknown)).operation.state).toBe("uncertain");

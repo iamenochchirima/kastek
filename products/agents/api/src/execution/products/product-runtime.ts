@@ -6,7 +6,7 @@ import { ExecutableAdapterRegistry,type AdapterManifest,type CapabilityBinding }
 import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { registerProductAdapter,productDescriptor,assertProductBindings,type InstalledProductAdapter } from "../../capabilities/products/product-capabilities";
 import { registerProductPorts } from "../../infrastructure/product-ports";
-import { loadExecution } from "../lifecycle/execution";
+import { loadExecution,assertCurrentAuthority } from "../lifecycle/execution";
 import { inspectionAuthority } from "../context/evidence-policy";
 import { EvidenceStore } from "../context/evidence";
 const sourceSchema=z.strictObject({id:z.string().min(1).max(1024),revision:z.string().regex(/^[a-f0-9]{64}$/),title:z.string().min(1).max(512),text:z.string().min(1).max(8192),acquiredAt:z.iso.datetime({offset:true}),continuation:z.string().max(2048).nullable(),route:z.string().max(2048).refine(value=>value.startsWith("/")&&!value.startsWith("//")&&!/[\x00-\x20\x7f]/.test(value)).optional()});
@@ -43,7 +43,7 @@ export class ProductRuntime implements ProductRuntimePort {
     return {execution,scope:s};
   }
   private async dispatch(db:Pool|PoolClient,taskId:string,operationId:string,binding:CapabilityBinding,control:ProductCapabilityInvocation["control"],input:unknown,review?:ProductReviewReference,signal?:AbortSignal,originAuthorized=false):Promise<ProductCapabilityResult>{
-    const {execution}=await this.scope(db,taskId,binding);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
+    const {execution}=await this.scope(db,taskId,binding);if(["invoke","prepare","commit"].includes(control))await assertCurrentAuthority(db,execution);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
     const command:ProductCapabilityInvocation={version:"1",requestId:randomUUID(),operationId,taskId,conversationId:execution.task.conversation_id,
       actor:{issuer:p.issuer,subject:p.subject},authority:binding.authority!,bindingId:binding.id,bindingDigest:binding.digest,operation:binding.definition.providerOperation,control,input,...(review?{review}:{})};
     const timeout=AbortSignal.timeout(binding.limits.timeoutMs);
