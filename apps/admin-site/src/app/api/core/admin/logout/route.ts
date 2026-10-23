@@ -1,3 +1,4 @@
+import {operationsAuthProxy} from "@/lib/operations-api";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
@@ -5,6 +6,7 @@ const CORE_BACKEND_URL = process.env.CORE_BACKEND_URL ?? "http://localhost:4000"
 const ADMIN_SESSION_COOKIE = "kasitek_admin_session";
 
 export async function POST(req: Request) {
+  if(process.env.OPS_BACKEND_URL)return operationsAuthProxy(req,"logout");
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(ADMIN_SESSION_COOKIE);
 

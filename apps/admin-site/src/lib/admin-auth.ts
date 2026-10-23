@@ -1,3 +1,4 @@
+import {adminSessionTransport,loadAdminActor} from "./admin-session-transport";
 import { adminServiceHeaders } from "./admin-service-auth";
 import { adminCapabilities, requiredAdminCapability } from "@kasitek-labs/server-support/admin-authority";
 import { cookies } from "next/headers";
@@ -40,23 +41,7 @@ function unavailableJsonResponse(service: string, error: unknown): Response {
  * Must only be called from Server Components / Route Handlers.
  */
 export async function getAdminSession(): Promise<AdminUser | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(ADMIN_SESSION_COOKIE);
-  if (!sessionCookie?.value) return null;
-
-  try {
-    const res = await fetch(`${CORE_BACKEND_URL}/api/admin/me`, {
-      headers: {
-        Cookie: `${ADMIN_SESSION_COOKIE}=${sessionCookie.value}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-    return (await res.json()) as AdminUser;
-  } catch {
-    return null;
-  }
+  try {const transport=adminSessionTransport();return await loadAdminActor((await cookies()).get(transport.cookie)?.value);} catch {return null;}
 }
 
 /**
@@ -86,6 +71,12 @@ export async function fetchFromCore(
   if (cookieHeader) headers.set("Cookie", cookieHeader);
   else headers.delete("Cookie");
   headers.set("Origin", process.env.ADMIN_FRONTEND_URL ?? "http://localhost:3001");
+  if(process.env.OPS_BACKEND_URL){
+    const actor=await getAdminSession();if(!actor)return Response.json({error:"Unauthorized"},{status:401});
+    const method=init?.method??"GET",body=typeof init?.body==="string"?init.body:"";
+    if(!adminCapabilities(actor.role).has(requiredAdminCapability(method,path)))return Response.json({error:"Forbidden"},{status:403});
+    headers.delete("Cookie");for(const [key,value]of Object.entries(adminServiceHeaders(actor,"growth",method,path,body)))headers.set(key,value);
+  }
   return fetch(`${CORE_BACKEND_URL}${path}`, {...init, headers, cache: "no-store"});
 }
 
@@ -135,14 +126,13 @@ export async function proxyToCore(
   headers.set("Origin", process.env.ADMIN_FRONTEND_URL ?? "http://localhost:3001");
   if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
   if (correlationId) headers.set("X-Correlation-Id", correlationId);
-  return fetch(target, {
-    ...init,
-    method: req.method,
-    signal: req.signal,
-    headers,
-    body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
-    cache: "no-store",
-  });
+  const body=req.method!=="GET"&&req.method!=="HEAD"?await req.text():undefined;
+  if(process.env.OPS_BACKEND_URL){
+    const actor=await getAdminSession();if(!actor)return Response.json({error:"Unauthorized"},{status:401});
+    if(!adminCapabilities(actor.role).has(requiredAdminCapability(req.method,path+url.search)))return Response.json({error:"Forbidden"},{status:403});
+    headers.delete("Cookie");for(const [key,value]of Object.entries(adminServiceHeaders(actor,"growth",req.method,path+url.search,body??"")))headers.set(key,value);
+  }
+  return fetch(target, {...init,method:req.method,signal:req.signal,headers,body,cache:"no-store"});
 }
 
 /**

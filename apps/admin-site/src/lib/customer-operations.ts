@@ -3,6 +3,7 @@ import {adminCapabilities, createAdminAuthority, ADMIN_AUTHORITY_HEADER} from "@
 import {customerOperationsEnabled, customerActionEnabled, parseCustomerOperation, parseCustomerPage} from "@kasitek-labs/server-support/admin-customers";
 import type {CustomerProduct, CustomerOverview, CustomerRelationship} from "@kasitek-labs/contracts";
 import {getAdminSession} from "./admin-auth";
+import {adminSessionTransport} from "./admin-session-transport";
 import {validAdminMutationOrigin} from "./admin-request-policy";
 
 export async function customerProxy(request:Request,params:{product:string;customerId:string;resource?:string[]}) {
@@ -40,7 +41,7 @@ export async function customerProxy(request:Request,params:{product:string;custo
  const origin=product==="growth"?process.env.CORE_BACKEND_URL??"http://localhost:4000":product==="agency"?process.env.TENANTS_BACKEND_URL??"http://localhost:8090":process.env.AGENTS_BACKEND_URL??"http://localhost:4100";
  const headers:Record<string,string>={"Content-Type":"application/json","Origin":process.env.ADMIN_FRONTEND_URL??new URL(request.url).origin};
  try {
-  if(product==="growth")headers.Cookie=`kasitek_admin_session=${(await cookies()).get("kasitek_admin_session")?.value??""}`;
+  if(product==="growth"&&!adminSessionTransport().independent)headers.Cookie=`kasitek_admin_session=${(await cookies()).get("kasitek_admin_session")?.value??""}`;
   else {
    const secret=process.env.KASITEK_ADMIN_SERVICE_SECRET;if(!secret)return fail(503,"Product authority is not configured");
    headers[ADMIN_AUTHORITY_HEADER]=createAdminAuthority({secret,audience:product,actor,method:request.method,path,body,capability:read?"admin:read":"admin:operate"});

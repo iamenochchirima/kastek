@@ -3,6 +3,7 @@ import {adminCapabilities,createAdminAuthority,ADMIN_AUTHORITY_HEADER} from "@ka
 import {parseAdminReportQuery,collectAdminProductReports,applyAdminPopulationCoverage,type AdminReportSourceRequest} from "@kasitek-labs/server-support/admin-reporting";
 import {ADMIN_REPORT_METRICS,type AdminCrossProductReport,type AdminReportProduct} from "@kasitek-labs/contracts";
 import {getAdminSession} from "./admin-auth";
+import {adminSessionTransport} from "./admin-session-transport";
 export async function crossProductReport(request:Request,exporting=false):Promise<AdminCrossProductReport> {
  const actor=await getAdminSession();
  if(!actor)throw Object.assign(Error("Unauthorized"),{status:401});
@@ -27,7 +28,7 @@ export async function crossProductReport(request:Request,exporting=false):Promis
   const path="/api/admin/reporting?"+search;
   const origin=source==="growth"?process.env.CORE_BACKEND_URL??"http://localhost:4000":source==="agency"?process.env.TENANTS_BACKEND_URL??"http://localhost:8090":process.env.AGENTS_BACKEND_URL??"http://localhost:4100";
   let headers:Record<string,string>={};
-  if(source==="growth")headers={Cookie:`kasitek_admin_session=${cookie??""}`};
+  if(source==="growth"&&!adminSessionTransport().independent)headers={Cookie:`kasitek_admin_session=${cookie??""}`};
   else if(secret&&Buffer.byteLength(secret)>=32)headers={[ADMIN_AUTHORITY_HEADER]:createAdminAuthority({secret,audience:source,actor,method:"GET",path,capability:"admin:report"})};
   sources.push({product:source,query:scoped,url:new URL(path,origin).href,headers});
  };

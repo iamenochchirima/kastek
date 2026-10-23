@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { adminCapabilities, requiredAdminCapability } from "@kasitek-labs/server-support/admin-authority";
+import { adminCapabilities, requiredAdminCapability, verifyAdminAuthority, ADMIN_AUTHORITY_HEADER } from "@kasitek-labs/server-support/admin-authority";
 import { compare } from 'bcryptjs';
 import type { CookieSerializeOptions } from '@fastify/cookie';
 import type { FastifyRequest } from 'fastify';
@@ -7,6 +7,7 @@ import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
 import { unauthorized } from './provider.js';
 import type { RequestContext } from './request-context.js';
+export const adminRawBodies=new WeakMap<object,string>();
 export const adminAuditActors = new WeakMap<object, {id:string;role:string}>();
 export const ADMIN_SESSION_COOKIE='kasitek_admin_session';
 export interface AdminUser {id:string;name:string;email:string;password:string;role:string;createdAt:Date;updatedAt:Date}
@@ -28,6 +29,19 @@ export async function extractAdmin(request:FastifyRequest,core:CoreContext):Prom
   if (!['GET','HEAD','OPTIONS'].includes(request.method)) {
     const origin = request.headers.origin;
     if (!origin || ![core.config.adminFrontendUrl, core.config.frontendUrl].map(value => new URL(value).origin).includes(origin) || request.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403,'forbidden','Invalid request origin');
+  }
+  const assertion=request.headers[ADMIN_AUTHORITY_HEADER];
+  if(assertion!==undefined){
+    if(typeof assertion!=="string"||!core.config.env.KASITEK_ADMIN_SERVICE_SECRET)throw unauthorized();
+    let actor;try{actor=verifyAdminAuthority(assertion,{secret:core.config.env.KASITEK_ADMIN_SERVICE_SECRET,audience:"growth",method:request.method,path:request.url,body:adminRawBodies.get(request)??""});}catch{throw unauthorized();}
+    const result=await core.pool.query<AdminUser>('SELECT id,name,email,password,role,"createdAt","updatedAt" FROM "AdminUser" WHERE id=$1',[actor.id]);
+    const existing=result.rows[0];if(!existing)throw unauthorized();
+    if(!['GET','HEAD','OPTIONS'].includes(request.method)){
+      const nonce=await core.pool.query('INSERT INTO "AdminServiceAssertionNonce"(nonce,"expiresAt") VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING nonce',[actor.nonce,new Date(actor.expiresAt)]);
+      if(!nonce.rowCount)throw unauthorized();
+      await core.pool.query('DELETE FROM "AdminServiceAssertionNonce" WHERE nonce IN (SELECT nonce FROM "AdminServiceAssertionNonce" WHERE "expiresAt"<now() LIMIT 100)');
+    }
+    const admin={...existing,role:actor.role};adminAuditActors.set(request,{id:admin.id,role:admin.role});return admin;
   }
   const token=request.cookies[ADMIN_SESSION_COOKIE];if(!token || !/^[A-Za-z0-9_-]{43}$/.test(token))throw unauthorized();
   const result=await core.pool.query<AdminUser>('SELECT a.id,a.name,a.email,a.password,a.role,a."createdAt",a."updatedAt" FROM "AdminSession" s JOIN "AdminUser" a ON a.id=s."adminId" WHERE s."tokenHash"=$1 AND s."expiresAt">NOW() AND s."revokedAt" IS NULL',[sessionHash(token)]);

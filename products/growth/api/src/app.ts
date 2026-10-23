@@ -1,4 +1,4 @@
-import { adminAuditActors } from "./identity/admin-session.js";
+import { adminAuditActors, adminRawBodies } from "./identity/admin-session.js";
 import { installHttpObservability } from "./observability/http.js";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
@@ -91,6 +91,7 @@ export async function buildApp(
     { parseAs: "string" },
     (request, body, done) => {
       const text = typeof body === "string" ? body : body.toString("utf8");
+      adminRawBodies.set(request,text);
       let parsed: unknown;
       try {
         parsed = parseRequestJson(request, text);
