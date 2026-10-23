@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { growthAgents, isActiveTask, safeGrowthRoute, taskStateLabel, type GrowthAgentSource, type GrowthAgentTask } from "@/lib/growth-agents";
+import { growthAgents, isActiveTask, safeGrowthRoute, taskStateLabel, type GrowthAgentArtifact, type GrowthAgentSource, type GrowthAgentTask } from "@/lib/growth-agents";
 import { cn } from "@/lib/utils";
 import { useGrowthAgents } from "./agent-provider";
 import { ContextControl } from "./agent-context";
@@ -42,7 +42,7 @@ function AgentMarkdown({ text }: { text: string }) {
 }
 
 function TaskResults({ task }: { task: GrowthAgentTask }) {
-  const [artifact, setArtifact] = useState<{ title: string; text?: string } | null>(null);
+  const [artifact, setArtifact] = useState<GrowthAgentArtifact | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -54,7 +54,8 @@ function TaskResults({ task }: { task: GrowthAgentTask }) {
     catch (cause) { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to open this result."); }
     finally { if (!abort.signal.aborted) setBusy(false); }
   };
-  return <><div className="flex flex-wrap gap-2">{task.results?.map((result) => { const route = safeGrowthRoute(result.route); return route ? <Link key={result.id} href={route} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary"><span className="truncate">{result.title}</span><ArrowUpRight className="size-3.5 shrink-0" /></Link> : result.artifactId ? <Button key={result.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openArtifact(result.artifactId!)}>{result.title}</Button> : <span key={result.id} className="text-xs text-muted-foreground">{result.title}</span>; })}</div>{error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}<Dialog open={Boolean(artifact)} onOpenChange={(open) => { if (!open) setArtifact(null); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{artifact?.title}</DialogTitle><DialogDescription className="sr-only">Agent result</DialogDescription></DialogHeader><div className="min-w-0 whitespace-pre-wrap break-words text-sm">{artifact?.text || "No preview available."}</div></DialogContent></Dialog></>;
+  const download = safeGrowthRoute(artifact?.downloadPath);
+  return <><div className="flex flex-wrap gap-2">{task.results?.map((result) => { const route = safeGrowthRoute(result.route); return route ? <Link key={result.id} href={route} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary"><span className="truncate">{result.title}</span><ArrowUpRight className="size-3.5 shrink-0" /></Link> : result.artifactId ? <Button key={result.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openArtifact(result.artifactId!)}>{result.title}</Button> : <span key={result.id} className="text-xs text-muted-foreground">{result.title}</span>; })}</div>{error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}<Dialog open={Boolean(artifact)} onOpenChange={(open) => { if (!open) setArtifact(null); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{artifact?.title}</DialogTitle><DialogDescription className="sr-only">Agent result</DialogDescription></DialogHeader><div className="min-w-0 whitespace-pre-wrap break-words text-sm">{artifact?.text || "No preview available."}</div>{download ? <div className="flex justify-end"><Button asChild size="sm"><a href={download} download>Download</a></Button></div> : null}</DialogContent></Dialog></>;
 }
 
 export function AgentConversation({ expanded = false, onClose }: { expanded?: boolean; onClose?: () => void }) {

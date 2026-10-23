@@ -7,7 +7,7 @@ import type {
 export type {
   GrowthAgentBootstrap, GrowthAgentConversation, GrowthAgentContext, GrowthAgentFeature,
   GrowthAgentFeatureId, GrowthAgentMessage, GrowthAgentTask, GrowthAgentTaskState,
-  GrowthAgentEvent, GrowthAgentReview, GrowthAgentResult, GrowthAgentSource, GrowthDraftProposal,
+  GrowthAgentEvent, GrowthAgentReview, GrowthAgentResult, GrowthAgentSource, GrowthAgentArtifact, GrowthDraftProposal,
 } from "@kasitek-labs/contracts";
 
 export class GrowthAgentRequestError extends Error {
@@ -87,7 +87,8 @@ export function safeGrowthRoute(route: string | undefined): string | null {
   try {
     const url = new URL(route, "https://growth.invalid");
     if (url.origin !== "https://growth.invalid") return null;
-    if (!/^\/(agents|campaigns|content|analytics|workspace|connections)(\/|$)/.test(url.pathname)) return null;
+    const artifactDownload = /^\/api\/agents\/tasks\/[0-9a-f-]{36}\/artifacts\/[0-9a-f-]{36}\/download$/i.test(url.pathname);
+    if (!artifactDownload && !/^\/(agents|campaigns|content|analytics|workspace|connections)(\/|$)/.test(url.pathname)) return null;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch { return null; }
 }
