@@ -13,7 +13,7 @@ import {PlatformError,requestDigest} from "../../contracts/contracts";
 const inputSchema=z.strictObject({tenantId:z.string().min(1).max(256),providerId:z.string().min(1).max(64),
   modelId:z.string().min(1).max(256),apiKey:modelApiKeySchema,endpoint:modelEndpointSchema.optional()});
 /** Trusted operator setup only. Keys enter protected custody once, never the durable command or user API. */
-export async function provisionGrowthModel(pool:Pool,vault:ModelCredentialVault,raw:unknown,options:{discoveryFetch?:ModelDiscoveryFetch;now?:Date}={}) {
+export async function discoverGrowthModel(raw:unknown,options:{discoveryFetch?:ModelDiscoveryFetch;now?:Date}={}) {
   const input=inputSchema.parse(raw),definition=getProviderDefinition(input.providerId);
   if(!definition||definition.adapter.readiness!=="installed")throw new PlatformError("MODEL_PROVIDER_UNSUPPORTED",400,"Choose an installed model provider");
   const endpoint=input.endpoint??definition.baseUrl,observedAt=(options.now??new Date()).toISOString();
@@ -30,10 +30,26 @@ export async function provisionGrowthModel(pool:Pool,vault:ModelCredentialVault,
   if(!selected||discovered.kind==="discovered"&&discovered.unavailableModelIds?.includes(input.modelId))throw new PlatformError("MODEL_UNAVAILABLE",409,"The selected model was not discovered");
   const model=modelDescriptorSchema.parse(selected);
   if(model.providerId!==definition.id||model.protocol!==definition.protocol)throw new PlatformError("MODEL_ROUTE_CHANGED",409,"Model metadata does not cover the provider");
+  return {input,definition,endpoint,discovered,model};
+}
+export type PreparedGrowthModel=Awaited<ReturnType<typeof discoverGrowthModel>>;
+export async function provisionGrowthModel(pool:Pool,vault:ModelCredentialVault,raw:unknown,options:{discoveryFetch?:ModelDiscoveryFetch;now?:Date;prepared?:PreparedGrowthModel;preserveExisting?:boolean;validate?:(db:import("pg").PoolClient,organizationId:string)=>Promise<void>}={}) {
+  const input=inputSchema.parse(raw);
+  const prepared=options.prepared??await discoverGrowthModel(input,options);
+  const {definition,endpoint,discovered,model}=prepared;
+  if(requestDigest(input)!==requestDigest(prepared.input))throw new PlatformError("MODEL_PROFILE_CHANGED",409,"The managed profile changed");
   return transaction(pool,async db=>{
     const tenant=(await db.query("SELECT * FROM agents_platform.product_execution_tenants WHERE product='growth' AND tenant_id=$1 AND revoked_at IS NULL FOR SHARE",[input.tenantId])).rows[0];
     if(!tenant)throw new PlatformError("PRODUCT_TENANT_UNAVAILABLE",404,"Register the Growth business first");
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[tenant.organization_id]);
+    const existing=(await db.query("SELECT d.*,c.provider_id,c.endpoint,c.state FROM agents_platform.product_model_defaults d JOIN agents_platform.model_provider_connections c ON c.id=d.connection_id WHERE d.product='growth' AND d.organization_id=$1",[tenant.organization_id])).rows[0];
+    if(existing&&(options.preserveExisting||existing.provider_id===input.providerId&&existing.model_id===input.modelId&&existing.endpoint===endpoint)) {
+      if(existing.state!=="active")throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE",409,"The managed model was revoked");
+      await options.validate?.(db,tenant.organization_id);
+      return {organizationId:tenant.organization_id,connectionId:existing.connection_id,modelId:existing.model_id,revision:existing.revision};
+    }
+    if(options.preserveExisting&&(await db.query("SELECT 1 FROM agents_platform.model_provider_connections WHERE organization_id=$1 AND created_by_service->>'product'='growth' AND state='revoked' LIMIT 1",[tenant.organization_id])).rowCount)
+      throw new PlatformError("MODEL_CONNECTION_UNAVAILABLE",409,"The managed model was revoked");
     const connectionId=randomUUID(),useGrantId=randomUUID(),context={organizationId:tenant.organization_id,connectionId,credentialRevision:1,endpoint,protocol:definition.protocol};
     const envelope=vault.seal(context,input.apiKey);
     await db.query("INSERT INTO agents_platform.model_provider_connections(id,organization_id,created_by_service,provider_id,name,endpoint,protocol,definition,custody,verification) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'platform_managed','discovered')",
@@ -42,6 +58,7 @@ export async function provisionGrowthModel(pool:Pool,vault:ModelCredentialVault,
     await db.query("INSERT INTO agents_platform.model_provider_catalogues(organization_id,connection_id,connection_revision,credential_revision,snapshot,snapshot_digest) VALUES($1,$2,1,1,$3,$4)",[tenant.organization_id,connectionId,discovered,requestDigest(discovered)]);
     await db.query("INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids) VALUES($1,$2,$3,$4,$5,$6)",[useGrantId,tenant.organization_id,connectionId,{kind:"service",serviceId:"product-default",product:"growth"},JSON.stringify(["primary","compaction","delegated"]),JSON.stringify([model.id])]);
     const row=(await db.query("INSERT INTO agents_platform.product_model_defaults(product,organization_id,connection_id,model_id,use_grant_id) VALUES('growth',$1,$2,$3,$4) ON CONFLICT(product,organization_id) DO UPDATE SET connection_id=excluded.connection_id,model_id=excluded.model_id,use_grant_id=excluded.use_grant_id,revision=product_model_defaults.revision+1,updated_at=now() RETURNING revision",[tenant.organization_id,connectionId,model.id,useGrantId])).rows[0];
+    await options.validate?.(db,tenant.organization_id);
     return {organizationId:tenant.organization_id,connectionId,modelId:model.id,revision:row.revision};
   });
 }

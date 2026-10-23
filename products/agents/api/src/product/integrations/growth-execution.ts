@@ -32,11 +32,12 @@ export class GrowthExecutionService {
     return transaction(this.pool,async db=>{
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",["growth-tenant:"+command.tenantId]);
       const old=(await db.query("SELECT * FROM agents_platform.product_execution_tenants WHERE product='growth' AND tenant_id=$1",[command.tenantId])).rows[0];
-      if(old){if(old.revoked_at||old.issuer!==this.trust.issuer||old.client_id!=="growth-api")throw new PlatformError("PRODUCT_TENANT_UNAVAILABLE",403,"Growth agent access is unavailable");return old;}
-      const org=randomUUID(),provenance={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
-      await db.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2)",[org,"Growth business"]);
-      await db.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,'growth-api',$3)",[command.tenantId,org,this.trust.issuer]);
+      if(old&&(old.revoked_at||old.issuer!==this.trust.issuer||old.client_id!=="growth-api"))throw new PlatformError("PRODUCT_TENANT_UNAVAILABLE",403,"Growth agent access is unavailable");
+      const org=old?.organization_id??randomUUID(),provenance={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
+      if(!old)await db.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2)",[org,"Growth business"]);
+      if(!old)await db.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,'growth-api',$3)",[command.tenantId,org,this.trust.issuer]);
       for(const feature of growthFeatureDefinitions) {
+        if((await db.query("SELECT 1 FROM agents_platform.product_execution_features WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id])).rowCount)continue;
         const agentId=randomUUID(),versionId=randomUUID(),config=growthFeatureConfiguration(feature.id);
         await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by_service) VALUES($1,$2,$3,$4,$5)",[agentId,org,feature.name,config,provenance]);
         await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)",[versionId,org,agentId,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
@@ -138,7 +139,7 @@ export class GrowthExecutionService {
     return {task:{id:admitted.task.id,conversationId:admitted.task.conversation_id,featureId:feature.feature_id,state:state(admitted.task.state),input:admitted.task.input,output:null,errorCode:null,createdAt:iso(admitted.task.created_at),updatedAt:iso(admitted.task.updated_at)},replayed:false};
   }
   async execute(command:GrowthAgentCommand):Promise<unknown> {
-    await this.ensureTenant(command);
+    await this.tenant(this.pool,command);
     switch(command.operation) {
       case "features.list":return this.features(command);
       case "features.configure":return this.withReceipt(command,async db=>{

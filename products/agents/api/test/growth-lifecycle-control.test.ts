@@ -41,9 +41,9 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     await pool?.end();
     if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); }
   });
-  async function configureModel(tenantId:string) {
-    return provisionGrowthModel(pool, vault, { tenantId, providerId: "openrouter", modelId: "lab/fixture", apiKey: "synthetic-model-key" }, {
-      discoveryFetch: async () => ({ status: 200, body: JSON.stringify({ data: [{ id: "lab/fixture", name: "Fixture model", context_length: 131072,
+  async function configureModel(tenantId:string,modelId="lab/fixture") {
+    return provisionGrowthModel(pool, vault, { tenantId, providerId: "openrouter", modelId, apiKey: "synthetic-model-key" }, {
+      discoveryFetch: async () => ({ status: 200, body: JSON.stringify({ data: [{ id: modelId, name: "Fixture model", context_length: 131072,
         top_provider: { max_completion_tokens: 16384 }, supported_parameters: ["tools", "max_tokens", "temperature"],
         architecture: { input_modalities: ["text"], output_modalities: ["text"] }, pricing: { prompt: "0", completion: "0" } }] }) }),
     });
@@ -81,7 +81,7 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   });
   it("revokes actual model credentials, grants and defaults for one business, including former rotated connections", async () => {
     const first = await fixture(), other = await fixture();
-    await configureModel(first.tenantId); // Rotate the default; the admitted task still references the former connection.
+    await configureModel(first.tenantId,"lab/fixture-next"); // Rotate the default; the admitted task still references the former connection.
     const revoked = await controlGrowthExecution(pool, { tenantId: first.tenantId, action: "model.revoke" });
     expect(revoked).toMatchObject({ enabled: true, revokedModelConnections: 2, revokedModelCredentials: 2, revokedModelUseGrants: 2, removedModelDefaults: 1, requestedTaskTrees: 1, pendingTaskTrees: 0 });
     expect((await pool.query("SELECT state,envelope FROM agents_platform.model_provider_credentials WHERE organization_id=$1", [first.organizationId])).rows).toEqual([{ state: "revoked", envelope: null }, { state: "revoked", envelope: null }]);

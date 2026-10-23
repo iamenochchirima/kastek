@@ -76,6 +76,7 @@ import { registerChannelSupportRoutes } from "../product/channels/channel-suppor
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
+import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
 import { registerGrowthProductRoutes } from "../product/integrations/growth-routes";
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
 import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
@@ -172,6 +173,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     redact: ["req.headers.authorization", "req.headers[\"x-kasitek-admin-authority\"]", "req.headers.cookie", "res.headers.set-cookie"],
     serializers: { req: (request: { method: string; url: string }) => ({ method: request.method, path: request.url.split("?")[0] }) },
   } });
+  registerGrowthProvisionRoute(app,pool,growthServiceTrustFromEnvironment());
   const growthActions=growthActionClientFromEnvironment();
   registerGrowthProductRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),
     runtime:growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined});
@@ -191,7 +193,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });

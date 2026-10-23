@@ -18,8 +18,14 @@ export async function setupPlatformSchema(pool: Pool): Promise<void> {
     );
     if (existing.rowCount) {
       const version = await client.query<{ version: string; checksum: string }>("SELECT version,checksum FROM agents_platform.schema_version");
-      if (version.rowCount !== 1 || version.rows[0]?.version !== "001_platform" || version.rows[0].checksum !== checksum) {
-        throw new Error("Unsupported Agents platform schema");
+      if (version.rowCount !== 1 || version.rows[0]?.version !== "001_platform") throw new Error("Unsupported Agents platform schema");
+      if (version.rows[0].checksum !== checksum) {
+        // Only the exact preceding schema can receive this additive migration.
+        const addition = files.indexOf("068_product_default_provisions.sql");
+        const previous = (await Promise.all(files.slice(0, addition).map(name => readFile(join(directory, name), "utf8")))).join("\n");
+        if (addition < 0 || version.rows[0].checksum !== createHash("sha256").update(previous).digest("hex")) throw new Error("Unsupported Agents platform schema");
+        for (const name of files.slice(addition)) await client.query(await readFile(join(directory, name), "utf8"));
+        await client.query("UPDATE agents_platform.schema_version SET checksum=$1 WHERE version='001_platform'", [checksum]);
       }
       await client.query("COMMIT");
       return;
