@@ -46,5 +46,5 @@ export function customerOperationDigest(actorId:string,product:string,customerId
  const expected=Object.fromEntries(Object.entries(request.expected).sort(([a],[b])=>a.localeCompare(b)));
  return createHash("sha256").update(JSON.stringify({actorId,product,customerId,operationId:request.operationId,action:request.action,targetId:request.targetId,reason:request.reason,expected,selection:request.selection??[]})).digest("hex");
 }
-export function customerOperationsEnabled(env:NodeJS.ProcessEnv=process.env):boolean {return env.NODE_ENV!=="production"&&env.KASITEK_CUSTOMER_OPERATIONS==="1";}
+export function customerOperationsEnabled(env:NodeJS.ProcessEnv=process.env):boolean {return ["development","test"].includes(env.NODE_ENV??"")&&![env.ENVIRONMENT,env.TENANT_SERVER_ENVIRONMENT,env.AGENTS_ENVIRONMENT,env.KASITEK_ENVIRONMENT].some(value=>value?.toLowerCase()==="production")&&env.KASITEK_CUSTOMER_OPERATIONS==="1";}
 export function customerActionEnabled(action:CustomerAction,env:NodeJS.ProcessEnv=process.env):boolean {return customerOperationsEnabled(env)&&(env.KASITEK_CUSTOMER_ACTIONS??"").split(",").map(s=>s.trim()).includes(action);}

@@ -22,6 +22,8 @@ test('metadata and actions have independent development gates',()=>{
  assert.equal(customerOperationsEnabled(env),true);assert.equal(customerActionEnabled('task.cancel',env),true);assert.equal(customerActionEnabled('client.suspend',env),false);
  assert.equal(customerActionEnabled('task.cancel',{...env,NODE_ENV:'production'}),false);
  assert.equal(customerOperationsEnabled({}),false);
+ assert.equal(customerOperationsEnabled({...env,NODE_ENV:undefined}),false);
+ assert.equal(customerOperationsEnabled({...env,ENVIRONMENT:"production"}),false);
 });
 test('customer reads and commands require exact authority and correct capability',()=>{
  const path='/api/admin/customers/customer/operations';
