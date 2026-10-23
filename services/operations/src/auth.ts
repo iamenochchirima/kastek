@@ -120,7 +120,16 @@ export async function registerOperationsAuth(app: FastifyInstance, pool: Pool, e
         VALUES($1,$2,$3,$4,$5,$6,now()+($7 * interval '1 second'))`,[hash(sessionToken),actor.admin_id,actor.revision,typeof claims.sid==='string' ? claims.sid : null,encryptRefresh(tokens.refresh_token,config.key),expiresAt,Math.min(60,tokens.expires_in ?? 60)]);
       await audit('auth.login','completed',actor.admin_id,'explicit_principal');
       return reply.header('set-cookie',[cookie(TRANSACTION_COOKIE,'',0),cookie(SESSION_COOKIE,sessionToken,Math.floor((expiresAt.getTime()-Date.now())/1000))]).redirect(`${config.origin}/operations`);
-    } catch {await audit('auth.login','denied',null,'login_failed');return reply.code(401).send({error:'login_failed'});}
+    } catch(error) {
+      const failure=error as {code?:unknown;cause?:{code?:unknown;claim?:unknown}};
+      const rawCode=failure.code??failure.cause?.code,rawClaim=failure.cause?.claim;
+      const code=typeof rawCode==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(rawCode)?rawCode:'login_failed';
+      const knownClaims=['iss','aud','sub','nonce','auth_time','exp','iat','azp'];
+      const messages=[error,(error as {cause?:unknown}).cause].map(value=>value instanceof Error?value.message:'');
+      const claim=typeof rawClaim==='string'&&knownClaims.includes(rawClaim)?rawClaim:knownClaims.find(value=>messages.some(message=>message.includes(`"${value}"`)));
+      app.log.warn({event:'operations_oidc_login_failed',code,...(claim?{claim}:{})});
+      await audit('auth.login','denied',null,code);return reply.code(401).send({error:'login_failed'});
+    }
   });
   app.get('/auth/session',async (request,reply) => {reply.header('cache-control','no-store'); const actor=await authenticate(request); return actor ? {admin:actor} : reply.code(401).send({error:'unauthorized'});});
   app.post('/auth/logout',async (request,reply) => {

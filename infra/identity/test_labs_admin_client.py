@@ -19,6 +19,7 @@ class LabsAdminTests(unittest.TestCase):
         client=self.realm.clients['labs-admin']
         self.assertEqual(client['redirectUris'],['http://localhost:3001/api/operations-auth/callback'])
         self.assertEqual(client['attributes']['pkce.code.challenge.method'],'S256')
+        self.assertIn('basic',self.realm.attached[('labs-admin-id','default-client-scopes')])
         for field in ('publicClient','directAccessGrantsEnabled','serviceAccountsEnabled','implicitFlowEnabled','fullScopeAllowed'):
             self.assertFalse(client.get(field,False))
         self.assertEqual(self.realm.attached[('labs-admin-id','optional-client-scopes')],{})

@@ -88,7 +88,7 @@ test('real signed OIDC exchange validates PKCE and maps subject to explicit stab
  assert.equal((await complete(login)).statusCode,400,'callback replay rejected');
 });
 test('state, nonce, issuer, audience, missing principal and PKCE mismatch all fail closed',async()=>{
- for(const fault of ['state','nonce','issuer','audience','principal','pkce']){
+ for(const fault of ['state','nonce','issuer','audience','principal','pkce','auth_time']){
   const login=await begin();
   if(fault==='state')login.state='wrong-state';
   if(fault==='nonce')claimOverride={nonce:'wrong-nonce'};
@@ -96,6 +96,7 @@ test('state, nonce, issuer, audience, missing principal and PKCE mismatch all fa
   if(fault==='audience')claimOverride={aud:'customer-client'};
   if(fault==='principal')claimOverride={sub:'ungranted-customer'};
   if(fault==='pkce')expectedVerifier='invalid';
+  if(fault==='auth_time')claimOverride={auth_time:undefined};
   const response=await complete(login);assert([401,403].includes(response.statusCode),fault+':'+response.body);assert(!String(response.headers['set-cookie']).includes('labs_admin_session='));
  }
 });

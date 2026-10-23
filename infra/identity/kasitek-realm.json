@@ -230,7 +230,8 @@
       },
       "defaultClientScopes": [
         "profile",
-        "email"
+        "email",
+        "basic"
       ],
       "optionalClientScopes": []
     }
