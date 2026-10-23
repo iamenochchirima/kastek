@@ -58,7 +58,7 @@ test('invoice month-end clamping, source integer wrapping, typed DTO and support
 });
 
 test(
-  'admin CRM/outreach/invoice state, privacy scopes, distinct replay approvals and operator restrictions',
+  'admin CRM/outreach/invoice state, privacy scopes, distinct replay approvals and retired operator routes',
   { skip: !process.env.CORE_ADMIN_OPERATIONS_TEST_DATABASE_URL },
   async () => {
     installPgTimestampParsers();
@@ -461,34 +461,10 @@ test(
           .statusCode,
         403,
       );
-      assert.equal(
-        (
-          await request(
-            'POST',
-            '/operations/commands',
-            { commandType: 'test' },
-            'support',
-          )
-        ).statusCode,
-        403,
-      );
-      const global = await app.inject({
-        method: 'POST',
-        url: '/api/admin/operations/commands',
-        headers: {
-          cookie: 'kasitek_admin_session=admin',
-          'idempotency-key': 'fixture-global-key',
-        },
-        payload: {
-          commandType: 'kill_switch_enable',
-          payload: { scopeType: 'global' },
-        },
-      });
-      assert.equal(global.statusCode, 403);
-      assert.equal(
-        (await request('GET', '/operations/runs?limit=501')).statusCode,
-        400,
-      );
+      for (const actor of ['support','admin']) {
+        assert.equal((await request('POST','/operations/commands',{commandType:'test'},actor)).statusCode,404);
+      }
+      assert.equal((await request('GET','/operations/runs?limit=501')).statusCode,404);
       const ownNotification = (
         await pool.query(
           `SELECT id FROM "Notification" WHERE "recipientId"='admin' LIMIT 1`,
