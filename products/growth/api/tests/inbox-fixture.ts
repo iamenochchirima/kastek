@@ -103,7 +103,6 @@ export async function inboxFixture(
           },
         },
         publishEvent: async () => {},
-        forwardMessage: async () => {},
       };
     await run(pool, options);
   } finally {

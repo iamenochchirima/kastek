@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { createServer as tcpServer } from 'node:net';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -25,7 +25,7 @@ const port = async () => {
   return p;
 };
 test(
-  'actual Next/Core consumers preserve identity, chat and workspace product persistence',
+  'actual Next/Core consumers preserve identity and workspace product persistence without an agent runtime',
   { skip: !url, timeout: 120000 },
   async () => {
     const admin = new pg.Pool({ connectionString: url });
@@ -60,81 +60,10 @@ test(
       };
     let authorization: URL | undefined,
       exchanges = 0;
-    let expectedOrg = '',
-      expectedActor = '',
-      disconnected = false;
-    const agentRequests: string[] = [];
-    const streamText = 'event: message\ndata: {"text":"Fixture reply"}\n\n';
-    const binary = Buffer.from('524946460400000057415645000102ff', 'hex');
     const provider = createServer(async (request, response) => {
       try {
         const path = new URL(request.url!, issuer);
         response.setHeader('content-type', 'application/json');
-        if (path.pathname.startsWith('/v1/')) {
-          const token = request.headers.authorization!.slice(7),
-            [encoded, signature] = token.split('.');
-          assert.equal(
-            signature,
-            createHmac('sha256', 'fixture-agents-secret')
-              .update(encoded!)
-              .digest('base64url'),
-          );
-          const claims = JSON.parse(
-            Buffer.from(encoded!, 'base64url').toString(),
-          );
-          assert.equal(claims.organizationId, expectedOrg);
-          assert.equal(claims.actorId, expectedActor);
-          assert.equal(claims.audience, 'fixture-agents');
-          assert.ok(claims.expiresAt > Math.floor(Date.now() / 1000));
-          agentRequests.push(path.pathname);
-          if (path.pathname.endsWith('/platform/messages')) {
-            assert.deepEqual(claims.scopes, ['chat:write']);
-            let body = '';
-            for await (const chunk of request) body += chunk;
-            assert.equal(JSON.parse(body).message, 'Fixture chat');
-            response.writeHead(202);
-            return response.end(
-              '{"runId":"fixture-run","conversationId":"fixture-conversation"}',
-            );
-          }
-          if (path.pathname.endsWith('/events/stream')) {
-            assert.deepEqual(claims.scopes, ['agents:read']);
-            response.setHeader('content-type', 'text/event-stream');
-            response.write(streamText);
-            if (path.searchParams.get('after') === '1') {
-              const timer = setInterval(
-                () => response.write(': fixture heartbeat\n\n'),
-                25,
-              );
-              response.on('close', () => {
-                clearInterval(timer);
-                disconnected = true;
-              });
-              return;
-            }
-            return response.end();
-          }
-          if (path.pathname.endsWith('/platform/audio')) {
-            assert.deepEqual(claims.scopes, ['chat:write']);
-            assert.match(
-              request.headers['content-type']!,
-              /^multipart\/form-data; boundary=/,
-            );
-            const chunks: Buffer[] = [];
-            for await (const chunk of request) chunks.push(Buffer.from(chunk));
-            const body = Buffer.concat(chunks);
-            assert.ok(body.includes(binary));
-            assert.ok(body.includes(Buffer.from('fixture.wav')));
-            assert.equal(
-              request.headers['x-audio-conversation-id'],
-              'fixture-conversation',
-            );
-            response.writeHead(202);
-            return response.end('{"jobId":"fixture-audio","status":"queued"}');
-          }
-          response.writeHead(404);
-          return response.end('{}');
-        }
         if (path.pathname === '/.well-known/openid-configuration')
           return response.end(
             JSON.stringify({
@@ -230,7 +159,6 @@ test(
       OIDC_CLIENT_ID: 'fixture',
       OIDC_CLIENT_SECRET: 'fixture',
       OIDC_REDIRECT_URI: front + '/api/auth/callback',
-      AGENTS_API_URL: issuer,
       CORE_API_BASE_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_CORE_PUBLIC_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_MEDIA_STORAGE_PATH: mediaPath,
@@ -319,7 +247,6 @@ test(
       assert.equal(me.status, 200);
       const meBody = await me.json();
       assert.equal(meBody.user.email, 'fixture@example.test');
-      expectedActor = meBody.user.id;
       const orgs = await request('/api/orgs');
       assert.equal(orgs.status, 200);
       assert.equal((await orgs.json()).orgs.length, 0);
@@ -330,7 +257,6 @@ test(
       });
       assert.equal(created.status, 201, await created.clone().text());
       const id = (await created.json()).org.id;
-      expectedOrg = id;
       const read = await request(`/api/orgs/${id}`);
       assert.equal(read.status, 200);
       assert.equal((await read.json()).org.name, 'Fixture workspace');
@@ -361,51 +287,10 @@ test(
           .update(cookies.get('kasitek_session')!)
           .digest('hex'),
       );
-      const chat = await request(
-        '/api/agents/installations/fixture-installation/platform/messages',
-        {
-          method: 'POST',
-          headers: { origin: front, 'content-type': 'application/json' },
-          body: '{"message":"Fixture chat","conversationId":"fixture-conversation","idempotencyKey":"fixture-chat-key"}',
-        },
-      );
-      assert.equal(chat.status, 202, await chat.clone().text());
-      assert.equal((await chat.json()).runId, 'fixture-run');
-      const stream = await request(
-        '/api/agents/conversations/fixture-conversation/events/stream',
-      );
-      assert.equal(stream.status, 200);
-      assert.match(stream.headers.get('content-type')!, /text\/event-stream/);
-      assert.equal(await stream.text(), streamText);
-      const controller = new AbortController();
-      const live = await request(
-        '/api/agents/conversations/fixture-conversation/events/stream?after=1',
-        { signal: controller.signal },
-      );
-      const reader = live.body!.getReader();
-      assert.ok((await reader.read()).value!.length);
-      controller.abort();
-      await reader.cancel().catch(() => {});
-      const disconnectDeadline = Date.now() + 3000;
-      while (!disconnected && Date.now() < disconnectDeadline) await delay(25);
-      assert.ok(disconnected, 'Next/native SSE did not disconnect upstream');
-      const upload = await request(
-        '/api/agents/installations/fixture-installation/platform/audio',
-        {
-          method: 'POST',
-          headers: {
-            origin: front,
-            'content-type': 'audio/wav',
-            'x-audio-idempotency-key': 'fixture-audio-idempotency',
-            'x-audio-conversation-id': 'fixture-conversation',
-            'x-audio-file-name': 'fixture.wav',
-          },
-          body: binary,
-        },
-      );
-      assert.equal(upload.status, 202, await upload.clone().text());
-      assert.equal((await upload.json()).jobId, 'fixture-audio');
-      assert.equal(agentRequests.length, 4);
+      const retired = await request('/api/agents/installations/fixture-installation/platform/messages', {
+        method:'POST', headers:{origin:front,'content-type':'application/json'},body:'{"message":"old"}',
+      });
+      assert.equal(retired.status,404);
       // Actual product DTOs pass through the production Next proxy. Every row,
       // uploaded asset and credential below belongs to this isolated fixture.
       const json = async (

@@ -20,8 +20,6 @@ import {
   outboundTraceHeaders,
   currentCorrelationId,
 } from "../src/observability/context.js";
-import { providerSpan } from "../src/observability/operations.js";
-import { outboundTraceHeaders } from "../src/observability/context.js";
 import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 const require = createRequire(
