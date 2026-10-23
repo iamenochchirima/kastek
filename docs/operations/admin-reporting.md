@@ -313,7 +313,7 @@ and outbox data. Do not restore raw user-ID session cookies or delete accepted p
 | Release concern | Decision |
 | --- | --- |
 | Owner/change | Platform engineering, iamenochchirima; operational development reporting, read-only diagnostics and customer lookup |
-| Risk/services | Standard; privileged access and additive schema across admin, Growth, Agents, Agency, and Analytics |
+| Risk/services | High; development configuration, database selection, privileged access and additive schema across admin, Growth, Agents, Agency, and Analytics |
 | Identity | Repository `VERSION` is `0.1.0`. A deployment record must identify final commit and service artifacts. No release tag or production version bump is created here. |
 | Documentation | This reference, admin README, root architecture, Growth admin architecture, and feature map |
 | API/schema | Version-1 reporting and diagnostic DTOs, bounded customer-search query, optional reader pool and additive migrations above |
