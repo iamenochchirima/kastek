@@ -51,10 +51,10 @@ describe("fresh platform execution contract", () => {
     expect(() => assertRuntimeAvailable(defaultBusinessConfiguration())).not.toThrow();
   });
 
-  it("prevents paid fallback or caller-selected execution limits", () => {
+  it("rejects undeclared model properties and invalid execution limits", () => {
     const configuration = defaultBusinessConfiguration();
     expect(agentConfigurationSchema.safeParse({ ...configuration, model: { ...configuration.model, model: "paid/model" } }).success).toBe(false);
-    expect(agentConfigurationSchema.safeParse({ ...configuration, model: { ...configuration.model, maxOutputTokens: 100_000 } }).success).toBe(false);
+    expect(agentConfigurationSchema.safeParse({ ...configuration, model: { ...configuration.model, maxOutputTokens: -1 } }).success).toBe(false);
   });
 
   it("admits only authority matching the complete persisted grant", () => {

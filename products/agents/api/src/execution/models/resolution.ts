@@ -18,11 +18,12 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   let connectionId: string, modelId: string, grantId: string | undefined, consumer: ProviderUseGrant["consumer"];
   if (selection.kind === "organization_default") {
     // The owner authorizes this service route explicitly when choosing the default.
-    if (input.product !== "agents") throw new PlatformError("MODEL_USE_DENIED", 403, "Choose an authorized product model connection");
-    const row = (await db.query("SELECT * FROM agents_platform.model_provider_defaults WHERE organization_id=$1 FOR SHARE", [input.organizationId])).rows[0];
+    const row = input.product === "agents"
+      ? (await db.query("SELECT * FROM agents_platform.model_provider_defaults WHERE organization_id=$1 FOR SHARE", [input.organizationId])).rows[0]
+      : (await db.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1 AND product=$2 FOR SHARE", [input.organizationId,input.product])).rows[0];
     if (!row) throw new PlatformError("MODEL_DEFAULT_REQUIRED", 409, "Choose a default model in Model providers");
     connectionId = row.connection_id; modelId = row.model_id; grantId = row.use_grant_id;
-    consumer = { kind: "service", serviceId: "organization-default", product: "agents" };
+    consumer = { kind: "service", serviceId: input.product === "agents" ? "organization-default" : "product-default", product: input.product };
   } else {
     connectionId = selection.connectionId; modelId = selection.modelId;
     consumer = { kind: "agent", agentId: input.agentId };

@@ -62,7 +62,11 @@ function accountedModelTokens(value: ModelResponse, reserved: number): number {
     ? value.usage.inputTokens! + value.usage.outputTokens! : reserved;
 }
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
+import type { GrowthAgentReview, GrowthDraftProposal } from "@kasitek-labs/contracts";
+import type { GrowthProductRuntime } from "../../adapters/products/growth-runtime";
+import { awaitGrowthReview } from "./product-review";
 export interface BusinessOptions {
+  product?: GrowthProductRuntime;
   modelProvider: Parameters<typeof invokeTaskModel>[0]["providerStore"];
   modelRuntime?: Parameters<typeof invokeTaskModel>[1];
   signal?: AbortSignal;
@@ -76,7 +80,7 @@ export interface BusinessOptions {
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
-const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN"]);
+const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN", "GROWTH_EFFECT_UNCERTAIN"]);
 function uncertainOperation(error:ModelOperationError|PlatformError):boolean {return error instanceof ModelOperationError ? error.outcome === "uncertain" : unknownOperationCodes.has(error.code);}
 interface Snapshot { id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest }
@@ -366,6 +370,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
               request, reservedTokens: Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens,
               reservedMs: execution.models.compaction.policy.maxCallDurationMs, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
+                if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
+                  if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+                  await options.product.authorizeTask(taskId);
+                }
                 const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
                 return { value, tokens: accountedModelTokens(value, Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens) };
               });
@@ -386,6 +394,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
             reservedTokens: Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens,
             reservedMs: policy.maxCallDurationMs, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
+              if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
+                if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+                await options.product.authorizeTask(taskId);
+              }
               const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
               return { value, tokens: accountedModelTokens(value, Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens) };
             });
@@ -394,6 +406,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             outcome = failed(generated); break;
           }
           const response = generated.value;
+          if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
+            if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+            await guardedRun(ctx,"growth-output-authority:"+step,()=>options.product!.authorizeTask(taskId));
+          }
           if (response.finishReason !== "tool_calls") {
             outcome = { state: response.finishReason === "stop" ? (partialChildren?"incomplete":"completed") : response.finishReason === "refusal" ? "refused" : "incomplete",
               output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) }; break;
@@ -406,6 +422,16 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const binding = execution.connectedBindings.find(binding => binding.alias === call.function.name);
             const name = builtinToolName(call.function.name) ?? binding?.alias ?? "unavailable";
             const descriptor = toolDescriptor(name);
+            let growthReview:GrowthAgentReview|undefined;
+            if(name==="growth.draft_prepare") {
+              if(!options.product){outcome={state:"incomplete",errorCode:"PRODUCT_RUNTIME_UNAVAILABLE"};stop=true;break;}
+              let proposal:{draft:GrowthDraftProposal};
+              try {proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as {draft:GrowthDraftProposal};}
+              catch {outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              const reviewed=await awaitGrowthReview(ctx,pool,options.product,taskId,id,proposal.draft);
+              if("outcome" in reviewed){outcome=reviewed.outcome;stop=true;break;}
+              growthReview=reviewed.review;
+            }
             const resultBound = binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192;
             if(name==="booking.reserve") {
               if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
@@ -426,7 +452,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
               if (!("configuration" in authorized)) { outcome=authorized; stop=true; break; }
               result = await operation<unknown>(ctx, pool, taskId, { id, kind: descriptor?.effect==="delegation"?"delegation":descriptor?.effect==="resource"?"resource":"tool", name,
-                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}) }, reservedTokens: 0, reservedMs: binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
+                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}), ...(growthReview?{productReviewId:growthReview.id,productReviewDigest:growthReview.payloadDigest}:{}) }, reservedTokens: 0, reservedMs: binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
                 retrySafe: binding ? binding.policy.retry==="safe_read" : descriptor?.retry!=="adapter_reconcile",reconcile:!binding&&descriptor?.retry==="adapter_reconcile", maxResultBytes:resultBound,memoryFence: snapshot.memoryFence,evidenceManifest:snapshot.evidenceManifest }, async () => {
                   let args:unknown; try{args=JSON.parse(call.function.arguments);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Tool arguments must be JSON");}
                   if (binding) {
@@ -435,6 +461,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                   }
                   if(!builtinToolEnabled(config,name) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
                   args=validateBuiltinArguments(name,args);
+                  if(name==="growth.context_read"||name==="growth.draft_prepare") {
+                    if(execution.task.product!=="growth"||!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+                    if(name==="growth.context_read")return {value:await options.product.readContext(taskId,id),tokens:0};
+                    if(!growthReview)throw new PlatformError("PRODUCT_REVIEW_REQUIRED",409,"Review the exact draft before saving");
+                    return {value:await options.product.commit(taskId,id,growthReview),tokens:0};
+                  }
                   if(name==="booking.availability"||name==="booking.reserve") {
                     if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
                     const bookingArguments=args as {start:string;end:string};

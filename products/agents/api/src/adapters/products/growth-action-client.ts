@@ -1,0 +1,60 @@
+import { randomUUID } from "node:crypto";
+import { importPKCS8, SignJWT } from "jose";
+import type { GrowthAgentAction, GrowthAgentActionOperation, GrowthAgentActionOutputs } from "@kasitek-labs/contracts";
+import { PlatformError, requestDigest } from "../../contracts/contracts";
+
+export interface GrowthActionOptions {
+  origin: string; issuer: string; keyId: string; privateKey: string;
+  environment?: string; fetch?: typeof fetch;
+}
+export class GrowthActionClient {
+  private readonly key: ReturnType<typeof importPKCS8>;
+  private readonly endpoint: string;
+  constructor(readonly options: GrowthActionOptions) {
+    const url = new URL(options.origin);
+    if (url.username || url.password || url.search || url.hash || url.pathname !== "/" ||
+      url.protocol !== "https:" && !(options.environment !== "production" && url.protocol === "http:" && ["localhost","127.0.0.1","[::1]"].includes(url.hostname))) {
+      throw new Error("Invalid Growth product API origin");
+    }
+    this.endpoint = new URL("/internal/agents/actions",url).href;
+    this.key = importPKCS8(options.privateKey,"RS256");
+  }
+  async call<K extends GrowthAgentActionOperation>(command: GrowthAgentAction<K>): Promise<GrowthAgentActionOutputs[K]> {
+    const now = Math.floor(Date.now()/1000);
+    const token = await new SignJWT({ product:"growth",requestDigest:requestDigest(command) })
+      .setProtectedHeader({alg:"RS256",kid:this.options.keyId}).setIssuer(this.options.issuer)
+      .setAudience("growth-agent-actions").setSubject("agents-worker").setJti(randomUUID())
+      .setIssuedAt(now).setExpirationTime(now+60).sign(await this.key);
+    let response: Response;
+    try {
+      response = await (this.options.fetch ?? fetch)(this.endpoint,{
+        method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+token},
+        body:JSON.stringify(command),signal:AbortSignal.timeout(10000),redirect:"error",
+      });
+    } catch { throw new PlatformError("GROWTH_ACTION_UNAVAILABLE",503,"Growth is unavailable; the operation has not been confirmed"); }
+    const reader=response.body?.getReader();
+    let text="",bytes=0;const decoder=new TextDecoder();
+    if(reader)try {
+      for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;
+        if(bytes>131072){await reader.cancel();throw new PlatformError("GROWTH_RESULT_LIMIT",502,"Growth returned too much data");}
+        text+=decoder.decode(part.value,{stream:true});}
+    } finally {reader.releaseLock();}
+    text+=decoder.decode();
+    let value: unknown;
+    try {value=JSON.parse(text);}catch {throw new PlatformError("GROWTH_RESPONSE_INVALID",502,"Growth returned an invalid result");}
+    if(!response.ok) {
+      const body=value as {code?:unknown;error?:{code?:unknown}};
+      const candidate=body.code??body.error?.code;
+      const code=typeof candidate==="string"&&/^[a-zA-Z0-9_]{1,80}$/.test(candidate)?candidate.toUpperCase():"GROWTH_ACTION_DENIED";
+      throw new PlatformError(code,response.status>=500?503:response.status,"Growth could not authorize or complete this operation");
+    }
+    return value as GrowthAgentActionOutputs[K];
+  }
+}
+export function growthActionClientFromEnvironment(env:NodeJS.ProcessEnv=process.env):GrowthActionClient|undefined {
+  const configured=[env.GROWTH_PRODUCT_API_URL,env.AGENTS_PRODUCT_ACTION_PRIVATE_KEY];
+  if(configured.every(value=>!value))return;
+  if(configured.some(value=>!value))throw Error("Incomplete Growth action credentials");
+  return new GrowthActionClient({origin:env.GROWTH_PRODUCT_API_URL!,privateKey:env.AGENTS_PRODUCT_ACTION_PRIVATE_KEY!,
+    issuer:env.AGENTS_PRODUCT_ACTION_ISSUER??"https://agents.kasitek.co.za",keyId:env.AGENTS_PRODUCT_ACTION_KEY_ID??"agents-v1",environment:env.NODE_ENV});
+}

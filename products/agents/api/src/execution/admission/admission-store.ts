@@ -72,7 +72,7 @@ export class AdmissionStore extends AuthorityStore {
     if (input.authority.principal.kind === "channel_customer" && (!input.channelBinding ||
       channelBindingSchema.parse(input.channelBinding).customerConversationId !== input.authority.principal.participantId)) denied();
     if (input.configurationMode === "current") {
-      if (input.authority.product !== "agents" || input.evaluationTrialId || !["human", "visitor", "channel_customer"].includes(input.authority.principal.kind)) denied();
+      if (input.evaluationTrialId || !["human", "visitor", "channel_customer"].includes(input.authority.principal.kind) || input.authority.product !== "agents" && input.authority.principal.kind !== "human") denied();
       if (input.authority.principal.kind === "human") {
         const latest = (await db.query("SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1", [input.authority.organizationId, version.agent_id])).rows[0];
         if (latest?.id !== version.id) throw new PlatformError("CONFIGURATION_CHANGED",409,"Agent settings changed. Try again.");
@@ -119,7 +119,7 @@ export class AdmissionStore extends AuthorityStore {
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
       principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
+    [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
       input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);
@@ -147,8 +147,8 @@ export class AdmissionStore extends AuthorityStore {
     return this.transaction(async db=>{
       const conversation=(await db.query<{agent_id:string;principal:unknown;deployment_id:string|null;deleted_at:Date|null}>(
         "SELECT agent_id,principal,deployment_id,deleted_at FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2 FOR SHARE",[authority.organizationId,conversationId])).rows[0]??absent();
-      if(authority.product!=="agents"||canonicalJson(conversation.principal)!==canonicalJson(authority.principal)||
-        (authority.principal.kind==="human"&&conversation.agent_id!==authority.resourceId)||
+      if(canonicalJson(conversation.principal)!==canonicalJson(authority.principal)||
+        (authority.product==="agents"&&authority.principal.kind==="human"&&conversation.agent_id!==authority.resourceId)||
         (authority.principal.kind==="visitor"&&conversation.deployment_id!==authority.resourceId))denied();
       const first=(await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE organization_id=$1 AND conversation_id=$2
         AND product=$3 AND caller_client_id=$4 AND resource_id=$5 AND parent_task_id IS NULL ORDER BY turn_sequence LIMIT 1`,

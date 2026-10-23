@@ -30,7 +30,7 @@ export const modelSchema = z.strictObject({
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "growth.context_read", "growth.draft_prepare"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
@@ -68,7 +68,7 @@ export const agentConfigurationSchema = z.strictObject({
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
   context: z.strictObject({ maxInputTokens: storagePositiveInteger,
     compactAtTokens: storagePositiveInteger }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),
-  tools: z.array(toolNameSchema).max(7).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
+  tools: z.array(toolNameSchema).max(toolNameSchema.options.length).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists");
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
@@ -148,7 +148,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute"])).min(1).max(15),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute", "product.read", "product.write"])).min(1).max(17),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: storagePositiveInteger,
   maxOutputTokens: storagePositiveInteger,
@@ -178,6 +178,10 @@ export function assertGrantAuthority(
       grant.resourceId !== authority.resourceId || grant.callerClientId !== authority.callerClientId ||
       canonicalJson(grant.principal) !== canonicalJson(authority.principal) || grant.versionId !== versionId) {
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
+  }
+  if (configuration.tools.some(tool=>tool.startsWith("growth.")) && (grant.product !== "growth" || !grant.operations.includes("product.read") ||
+      configuration.tools.includes("growth.draft_prepare") && !grant.operations.includes("product.write"))) {
+    throw new PlatformError("GRANT_PRODUCT_DENIED",403,"The product capability is outside this execution grant");
   }
   if (!grant.operations.includes("model.reply") ||
       (configuration.skillIds.length > 0 && !grant.operations.includes("skill.read")) ||

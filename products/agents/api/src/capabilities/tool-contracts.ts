@@ -11,7 +11,15 @@ const digest=z.string().regex(/^[a-f0-9]{64}$/),skillEvidence=z.strictObject({pa
 const skillResult=z.strictObject({skillId:uuid,revision:z.number().int().positive(),name:z.string().min(1).max(64),content:z.string().max(4096),evidence:skillEvidence});
 
 const bookingSlot=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})});
+const growthDraft=z.strictObject({title:z.string().min(1).max(200),content:z.string().min(1).max(20000),
+  channels:z.array(z.string().min(1).max(64)).max(7),channelSelections:z.record(z.string(),z.string().min(1).max(256)),
+  variants:z.array(z.strictObject({platform:z.string().min(1).max(64),content:z.string().max(20000)})).max(10).optional()});
 const contracts={
+  "growth.context_read":{input:z.strictObject({}),output:z.strictObject({context:z.unknown(),revision:z.string(),data:z.unknown(),
+    sources:z.array(z.strictObject({id:z.string(),title:z.string(),url:z.string().optional(),route:z.string().optional(),revision:z.string().optional()})),passages:z.array(evidence).max(1).optional()}),
+    authority:["product.read"],resources:["current_product_membership","accepted_product_context"],reconciliation:"not_applicable"},
+  "growth.draft_prepare":{input:z.strictObject({draft:growthDraft}),output:z.strictObject({review:z.unknown(),result:z.unknown()}),
+    authority:["product.read","product.write"],resources:["exact_growth_review","current_product_membership","single_use_effect_authorization"],reconciliation:"growth_authoritative_draft_receipt"},
   "booking.availability":{input:bookingSlot,output:z.strictObject({slots:z.array(bookingSlot).max(100),timeZone:z.string().max(128)}),authority:["booking.read"],resources:["published_booking_service_policy"],reconciliation:"not_applicable"},
   "booking.reserve":{input:z.strictObject({start:z.iso.datetime({offset:true})}),output:z.strictObject({state:z.enum(["confirmed","conflict","uncertain"]),bookingId:uuid,start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true}),receiptDigest:digest.optional()}),authority:["booking.execute"],resources:["published_booking_service_policy","exact_customer_confirmation"],reconciliation:"deterministic_provider_event_lookup"},
   "knowledge.initial":{input:z.strictObject({query:z.string().min(1).max(1024)}),output:knowledgeResult,authority:["knowledge.read"],resources:["approved_source_revisions"],reconciliation:"not_applicable"},

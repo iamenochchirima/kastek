@@ -40,6 +40,8 @@ import { composeInbox } from "./inbox";
 import { composeChannels } from "./channels";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
+import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
+import { GrowthProductRuntime } from "../adapters/products/growth-runtime";
 async function main(): Promise<void> {
   const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");
@@ -100,7 +102,9 @@ async function main(): Promise<void> {
   },1000); cancellationTimer.unref();
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
+  const growthActions=growthActionClientFromEnvironment();
   const workflow = createBusinessWorkflow(pool, { modelProvider, signal: abort.signal,
+    product:growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();

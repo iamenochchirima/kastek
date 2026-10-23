@@ -4,7 +4,7 @@ import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts
 
 // These descriptors select trusted code policies. A prompt cannot register a program or release.
 interface ProgramDescriptor {
-  readonly id: ProgramReference["id"]; readonly version: "1"; readonly executionKind: "business";
+  readonly id: ProgramReference["id"]; readonly version: "1" | "2"; readonly executionKind: "business";
   readonly controller: string; readonly input: string; readonly output: string;
   readonly allowedTools: readonly string[]; readonly personalMemory: boolean;
   readonly delegation: boolean; readonly sandbox: boolean; readonly connectedTools: boolean; readonly workflows: readonly string[];
@@ -27,6 +27,11 @@ const programs: Readonly<Record<ProgramReference["id"], ProgramDescriptor>> = Ob
 export function resolveProgram(reference: ProgramReference) {
   const parsed = programReferenceSchema.safeParse(reference);
   if (!parsed.success) throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE", 503, "The trusted program release is unavailable");
+  if (parsed.data.version === "2") {
+    if (parsed.data.id !== "tool-directed") throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE",503,"The trusted program release is unavailable");
+    return { ...programs["tool-directed"], version: "2" as const,
+      allowedTools: [...programs["tool-directed"].allowedTools,"growth.context_read","growth.draft_prepare"] };
+  }
   return programs[parsed.data.id];
 }
 

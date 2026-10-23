@@ -75,6 +75,10 @@ import { registerChannelSupportRoutes } from "../product/channels/channel-suppor
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
+import { registerGrowthProductRoutes } from "../adapters/products/growth-routes";
+import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
+import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
+import { GrowthProductRuntime } from "../adapters/products/growth-runtime";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -167,6 +171,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     redact: ["req.headers.authorization", "req.headers.cookie", "res.headers.set-cookie"],
     serializers: { req: (request: { method: string; url: string }) => ({ method: request.method, path: request.url.split("?")[0] }) },
   } });
+  const growthActions=growthActionClientFromEnvironment();
+  registerGrowthProductRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),
+    runtime:growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined});
   await app.register(cookie);
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
@@ -183,7 +190,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });

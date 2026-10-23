@@ -14,7 +14,7 @@ describe('trusted scheduling policy',()=>{
   expect(()=>operationCapacity(execution,{...input,kind:'model'},{NODE_ENV:'production'})).toThrowError();
  });
  it('applies the optional local bound only to local operations, retaining provider fallback',()=>{
-  const execution={task:{id:'task',product:'agents',organization_id:'tenant',principal:{kind:'human'}},connectedBindings:[{id:'binding',alias:'tool',connection:{id:'connection'}}]} as unknown as Execution;
+  const execution={task:{id:'task',product:'agents',organization_id:'tenant',principal:{kind:'human'}},connectedBindings:[{id:'binding',alias:'tool',connection:{id:'connection'}}],models:{primary:{binding:{connectionId:'primary-connection'}},compaction:{binding:{connectionId:'compaction-connection'}}}} as unknown as Execution;
   const input={id:'op',kind:'tool' as const,name:'report.prepare',request:{localProviderActive:99999},reservedTokens:0,reservedMs:60000};
   const environment={AGENTS_SCHEDULING_POLICY_JSON:JSON.stringify({providerActive:10000,localProviderActive:1}),AGENTS_MODEL_ACCOUNT_ID:'model-account',AGENTS_PROVIDER_ACCOUNT_MAP_JSON:JSON.stringify({connection:'verified-account'})};
   const provider=(name:string,kind:'tool'|'model'|'compaction'|'delegation'|'resource'='tool')=>operationCapacity(execution,{...input,name,kind},environment).request.buckets.find(bucket=>bucket.key.startsWith('provider:'))!;
