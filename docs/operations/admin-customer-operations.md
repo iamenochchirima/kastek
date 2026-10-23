@@ -11,8 +11,9 @@ permissions, schemas and transitions. The admin BFF uses HTTP and never joins th
 
 Metadata requires `admin:read`; previews and commands require `admin:operate` at both
 the BFF and owning service. Viewers, support and security roles cannot issue these commands.
-Growth validates the opaque admin session. Agents and Agency validate destination, actor,
-capability, method, exact path/query and raw-body digest in a short-lived signed assertion.
+With independent Labs admin login configured, Operations validates the opaque session. Growth
+checks an explicitly mapped current product admin, and all product adapters validate destination,
+actor, capability, method, exact path/query, and raw-body digest in a short-lived signed assertion.
 Nonce rejection prevents assertion replay. Durable operation IDs separately prevent duplicate effects.
 
 Customer operations are available only in explicit development or test environments.
@@ -95,7 +96,9 @@ rejection, conflict and final outcome counts. Monitor pending age from `created_
 against the current receipt status. During development, review pending operations older than
 15 minutes; this is an investigation threshold, not an automatic cancellation or retry rule.
 Re-quarantined ingress and unknown effects require investigation. The admin history is the
-development operations view; no external paging integration or production monitoring claim is made.
+development customer operations view. The [incident centre](incident-centre.md) collects pure
+operational signals and links to these controls without invoking reconciliation reads or customer
+commands. No external paging integration or production monitoring claim is made.
 
 Do not log reasons, request bodies, assertions or customer content in general telemetry. Receipt
 storage contains the required reason under admin authorization. Development receipt/audit records

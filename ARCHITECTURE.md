@@ -23,6 +23,7 @@ membership, database access or permission to call internal operations.
 | `packages/contracts/` | Shared transport and event contracts |
 | `packages/server-support/` | Shared server implementation behind explicit exports |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
+| `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
 | `infra/observability/` | Collector configuration and deployment source |
@@ -45,14 +46,17 @@ Growth, Agents, and Agency retain independent databases and resource identities.
 current-state and financial values come from those APIs. Registered event trends come from Labs
 Analytics. The admin does not join product databases or duplicate shared execution accounting.
 
-Growth validates its opaque admin session. Other services verify request-bound, short-lived
-administrative actor assertions. Reporting, exports, commercial writes, and support-content access
+With `OPS_BACKEND_URL` configured, Labs Operations validates its own opaque admin session through
+the dedicated Keycloak client and explicit issuer/subject grants. Product adapters verify
+request-bound, short-lived administrative actor assertions. Growth also checks its existing
+explicit admin record; a product outage cannot supply a cached or inferred platform grant. Reporting, exports, commercial writes, and support-content access
 have separate capabilities. Organization/workspace display labels and IDs may appear in scoped customer records;
 messages, prompts, credentials, and raw provider payloads are excluded.
 
 Sources expose their own availability, freshness, completeness, and instrumented-scope coverage.
-Unknown or unsupported values remain explicit. `/operations` exposes read-only source publication
-and Analytics projection diagnostics; queue progress and historical completeness remain separate.
+Unknown or unsupported values remain explicit. `/operations` exposes durable incidents and
+monitor coverage while retaining source publication and Analytics projection diagnostics.
+Queue progress and historical completeness remain separate.
 Customer search filters safe name/ID records within product ownership, with a 100-character bound;
 it does not change aggregate metrics. Analytics can use a separate non-owner reporting pool while
 ingestion and workers retain their writer pool. The dedicated development process profile uses
@@ -123,3 +127,21 @@ Recovery uses explicit operate authority and durable actor/customer/request-boun
 Verified Agents execution mappings provide cross-product navigation; the BFF never joins product
 databases or impersonates customer sessions. The feature is development-only and independently
 gated for metadata and each action. See [Customer operations](docs/operations/admin-customer-operations.md).
+
+## Incident and operations centre
+
+Labs Operations runs a separate API and worker against its own PostgreSQL database. The worker
+collects fixed product-owned signal endpoints using destination-specific observer keys. It never
+receives human admin signing or identity-session credentials. Transactional leases and fencing
+protect collection; stable fingerprints and active-episode uniqueness protect incident state.
+The API independently observes worker progress. Unknown evidence cannot resolve an incident.
+
+Product services retain business recovery authority. Operations records human investigation and
+links to existing customer controls. Its transactional outbox delivers immutable per-recipient
+in-app events through Growth. Delivery outages preserve incidents and pending intent. Safe
+audit queries federate source-owned projections through a current human admin assertion.
+
+See the [incident-centre reference](docs/operations/incident-centre.md),
+[operator runbook](docs/labs/operations-centre-runbook.md), and
+[domain decision](docs/labs/adr/0002-labs-operations-and-admin-identity.md). Production rollout,
+external notifications, and an external uptime provider remain separate owner decisions.

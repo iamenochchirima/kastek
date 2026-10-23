@@ -190,7 +190,9 @@ Run `pnpm test:reporting-dev` for process ownership, listener collision and secr
 
 The [development reporting reference](../../docs/operations/admin-reporting.md#dedicated-development-profile)
 lists the current dedicated databases, owner migration steps, reader-role grants and recovery path.
-`/operations` shows only aggregate source/projection status; it cannot replay or rebuild data.
+`/operations` shows incidents and monitor coverage while retaining aggregate source/projection
+status. Monitoring cannot replay or rebuild product data. Existing human recovery controls remain
+separately authorized.
 Quarantined publication takes precedence over pending outbox/Agents receipts; an empty queue with
 no accepted publication is no activity. Source, ingestion, checkpoint and promotion timestamps
 remain separate, and global complete-through stays Unknown. Diagnostics require `admin:report`;
@@ -203,3 +205,19 @@ The customer workspace adds product-owned recovery previews and durable receipts
 metadata and action flags independently; production access remains disabled. See the
 [customer operations runbook](../../docs/operations/admin-customer-operations.md) for permissions,
 migrations, supported actions, focused verification and rollback. Evals remain owner-run.
+
+## Incident and operations centre
+
+Set `OPS_BACKEND_URL` to the dedicated Operations API to use independent Labs administrator login.
+The managed development profile uses port `14400`. Explicit issuer/subject grants and current
+role revisions govern access. The BFF never replaces a failed Operations session with Growth
+authority. Product permissions and customer recovery remain independently checked.
+
+`/operations` lists incidents and coverage. `/operations/incidents/:id` shows investigation state
+and evidence. `/operations/settings` manages permitted rules and maintenance. `/operations/audit`
+federates safe product-owned audit metadata for `admin:security` roles. Existing health, reporting,
+notification, customer, recovery, and support entries remain available.
+
+Follow the [operator runbook](../../docs/labs/operations-centre-runbook.md) for migrations, private
+API/worker profiles, flags, and rollback. The [reference](../../docs/operations/incident-centre.md)
+records permissions, thresholds, durable receipts, source limits, telemetry, and retention.

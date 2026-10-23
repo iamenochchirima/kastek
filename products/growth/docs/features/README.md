@@ -34,8 +34,8 @@ Routes below are under `web/src/app/`.
 
 The separate `apps/admin-site` client exposes `/analytics`, `/analytics/customers`,
 `/analytics/adoption`, `/analytics/usage`, `/analytics/revenue`, `/analytics/reliability`, and
-`/reports`. `/operations` adds read-only reporting status for Growth, Agents, Agency and Analytics
-alongside Growth recovery operations. Customer name/ID search filters bounded records; selecting a
+`/reports`. `/operations` adds persistent incident detection and monitor coverage for Growth,
+Agents, Agency, and Analytics, alongside the existing reporting diagnostics and recovery controls. Customer name/ID search filters bounded records; selecting a
 result opens its owning product scope. Growth supplies scoped organization, usage, billing, and safe customer metadata through
 `GET /api/admin/reporting`. Agents and Agency remain independent HTTP sources. Growth's main
 `/analytics` route above remains customer-facing and is not this privileged admin.
@@ -65,3 +65,17 @@ Agency own their respective APIs over HTTP. Metadata and actions are development
 independently gated. Verification uses `products/growth/api/tests/admin-customers.test.ts` and
 `scripts/customer-operations-smoke.mjs`; model/product eval execution remains with the owner.
 See [the operations runbook](../../../../docs/operations/admin-customer-operations.md).
+
+### Incident and operations centre
+
+The Labs admin exposes `/operations`, `/operations/incidents/:id`, `/operations/settings`, and
+`/operations/audit`. Operators investigate incidents, assign ownership, acknowledge conditions,
+manage scoped maintenance, and follow existing customer recovery links. Operations owns its
+independent admin sessions, durable worker, and database. Growth exposes pure source signals,
+authorized audit metadata, and an idempotent in-app notification bridge. Notification read state
+is recipient-scoped and does not acknowledge an incident.
+
+Focused verification starts with `services/operations/tests/engine.test.ts`, identity fixtures,
+`services/operations/tests/telemetry.test.ts`, and the shared/source operation tests. Actual
+development HTTP and browser evidence belong to the release handoff. Evals remain owner-run.
+See the [incident-centre reference](../../../../docs/operations/incident-centre.md).

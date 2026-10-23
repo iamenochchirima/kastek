@@ -195,11 +195,13 @@ For a feature release, link the relevant dashboard or query, alert, log search, 
 release record. If a new failure mode has no owner or response procedure, the release is not
 operationally complete; record the gap explicitly and assign follow-up work.
 
-The repository boundary is now running in the Railway Production environment with a debug
-Collector profile, and the running services are sending OTLP signals to it. The debug profile is
-transport evidence only: it does not provide durable retention, search, alerting, or incident
-history. The remaining work is to isolate and verify staging, record a real release/artifact
-identity, and approve and configure a durable backend. Track that evidence in the
-[OpenTelemetry infrastructure plan](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_PLAN.md) and
-its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md) and
-[release record](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).
+The checked-in Collector profiles describe local and staging verification plus a production
+configuration template. Current hosted deployment and live OTLP traffic have not been verified
+by this implementation. Hosted setup, endpoint changes, and production cutover remain deferred
+until the owner records runtime evidence. Debug output proves transport only; it does not prove
+retention, search, alerts, or incident history.
+
+Use the maintained [Collector runbook](../../../../../docs/labs/otel-collector-runbook.md) and
+[Collector configuration reference](../../../../../infra/observability/otel-collector/README.md).
+Labs Operations adds its own durable incident state and exports bounded metrics through the
+existing SDK. It does not turn the debug Collector into a production telemetry backend.

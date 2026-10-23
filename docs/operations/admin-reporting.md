@@ -2,6 +2,11 @@
 
 Owner: Platform engineering. Reviewed: 2026-10-23.
 
+The [incident centre](incident-centre.md) adds durable monitoring and independent administrator
+sessions. Reporting queries remain product-owned. With `OPS_BACKEND_URL` configured, the admin
+validates the current Labs session before issuing product-bound actor assertions. A Growth outage
+does not fall back to cached authority.
+
 ## Contract and coverage
 
 Shared types and definitions live in `packages/contracts/src/admin-reporting.ts`.
