@@ -35,7 +35,7 @@ A new user registers at Keycloak and verifies email before receiving a Growth se
 Dashboard server loaders use a cached workspace-session guard before organization-bound
 requests, because Next renders pages and layouts concurrently. A new account with no organization
 is redirected to `/onboarding` before these requests run. Onboarding creates their organization
-with its initial owner. A workspace invitation returns
+with its initial owner. Organisation creation asks only for a name; Core generates a unique URL slug. A workspace invitation returns
 through login to its original invitation URL; accepting requires an authenticated matching
 identity and grants the invitation's organization role. Signup does not grant access to existing
 organizations. Existing early-access activation is a product workflow and no longer creates
