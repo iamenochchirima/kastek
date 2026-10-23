@@ -1,3 +1,4 @@
+import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { queueSpan } from "../observability/operations.js";
 import type { Pool } from "pg";
 import type { ReconciliationCursor } from "@kasitek-labs/contracts";
@@ -161,6 +162,7 @@ export async function runAnalyticsPublisher(
   let nextReconciliation = 0;
   let cursor: ReconciliationCursor | undefined;
   while (!signal?.aborted) {
+    await recordOperationsWorkerHeartbeat(pool,"publisher",env);
     try {
       const stats = await queueSpan("analytics_publisher.publish", () =>
         publishOutboxOnce(pool, client, settings, new Date()),

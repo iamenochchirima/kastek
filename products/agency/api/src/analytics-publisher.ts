@@ -1,3 +1,4 @@
+import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { resultSpan } from "@kasitek-labs/server-support/telemetry";
 const queueSpan = <T>(name: string, run: () => Promise<T>): Promise<T> =>
   resultSpan("queue", name, run);
@@ -141,6 +142,7 @@ export async function runAnalyticsPublisher(
   let nextReconciliation = 0;
   let cursor: ReconciliationCursor | undefined;
   while (!signal?.aborted) {
+    await recordOperationsWorkerHeartbeat(pool,"publisher",env);
     try {
       const stats = await queueSpan("analytics_publisher.publish", () =>
         publishOutboxOnce(pool, client, settings, new Date()),

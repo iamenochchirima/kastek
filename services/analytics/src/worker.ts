@@ -1,3 +1,4 @@
+import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { setTimeout } from "node:timers/promises";
 import type { Pool } from "pg";
 import type { RegistrySnapshot } from "./registry-types.js";
@@ -73,6 +74,7 @@ export async function runWorker(
   });
   let next = BigInt(Date.now());
   while (!signal?.aborted) {
+    await recordOperationsWorkerHeartbeat(pool,"projection");
     try {
       await metrics.resultSpan(
         "worker",

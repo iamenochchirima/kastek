@@ -1,3 +1,4 @@
+import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { randomUUID } from "node:crypto";
 import {dispatcherPhases,type DispatcherPhase} from "../../contracts/execution";
 import {advanceCapacity} from "../scheduling/capacity";
@@ -159,6 +160,7 @@ export function startDispatcher(pool:Pool,options:DispatcherOptions):{stop():Pro
   const work=phaseWork(pool,options),wakers=new Set<()=>void>();let stopped=false;
   const loops=dispatcherPhases.map(phase=>(async()=>{
     while(!stopped){
+      await recordOperationsWorkerHeartbeat(pool,"dispatcher_"+phase);
       let committed=0;
       try{committed=await runPhase(options,phase,work[phase]);}
       catch{try{options.onError?.("RUNTIME_PUBLISHER_FAILED");}catch{}}

@@ -1,8 +1,10 @@
+import {registerOperationsSource} from "./operations-source.js";
 import type {FastifyInstance} from "fastify";
 import type {AnalyticsContext} from "./context.js";
 import {unavailableDiagnostics,recordDiagnosticMeasurements} from "@kasitek-labs/server-support/admin-reporting-diagnostics";
 import {verifyAdminAuthority,ADMIN_AUTHORITY_HEADER} from "@kasitek-labs/server-support/admin-authority";
 export function registerAdminReportingDiagnostics(app:FastifyInstance,context:AnalyticsContext){
+ registerOperationsSource(app,context);
  app.get("/v1/admin/reporting/diagnostics",async(request,reply)=>{
   const secret=context.config.admin_reporting_secret,token=request.headers[ADMIN_AUTHORITY_HEADER];
   try{if(!secret||typeof token!=="string")throw Error();verifyAdminAuthority(token,{secret,audience:"analytics",method:"GET",path:request.url,capability:"admin:report"});}
