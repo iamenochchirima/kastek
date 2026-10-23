@@ -1,4 +1,4 @@
-import type { GrowthAgentContext, GrowthAgentContextEvidence } from "@kasitek-labs/contracts";
+import { parseGrowthAgentContext,type GrowthAgentContext,type GrowthAgentContextEvidence } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { requireCapability } from "../services/billing.js";
@@ -55,7 +55,7 @@ export async function discoverGrowthRecords(core:CoreContext,scope:GrowthAgentSc
 }
 export async function readGrowthRecord(core:CoreContext,scope:GrowthAgentScope,context:GrowthAgentContext,input:unknown):Promise<GrowthAgentContextEvidence & {continuation:string|null}> {
   const value=object(input);
-  if(Object.keys(value).some(k=>!["resourceId","range","continuation"].includes(k)))throw bad();
+  if(Object.keys(value).some(k=>!["resourceId","range","report","continuation"].includes(k)))throw bad();
   const response=await readGrowthAgentContext(core,scope,context);
   const full=JSON.stringify(response.data);let offset=0;
   if(value.continuation!==undefined){
@@ -70,4 +70,18 @@ export async function readGrowthRecord(core:CoreContext,scope:GrowthAgentScope,c
   if(end<full.length&&/[\uD800-\uDBFF]/.test(full[end-1]!))end--;
   const continuation=end<full.length?encode({scope:growthAgentDigest({tenantId:scope.tenantId,actor:scope.actor,context}),revision:response.revision,offset:end}):null;
   return {...response,data:{format:"json_text",offset,text:full.slice(offset,end),complete:continuation===null},continuation};
+}
+
+export async function growthSourceHandle(core:CoreContext,scope:GrowthAgentScope,context:GrowthAgentContext):Promise<string> {
+  const id="growth-resource:"+growthAgentDigest({scope,context});
+  await core.pool.query(`INSERT INTO "GrowthAgentSourceHandle"(id,"orgId","actorId","actorIssuer",context)
+    VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING`,[id,scope.tenantId,scope.actor.subject,scope.actor.issuer,context]);
+  return id;
+}
+export async function resolveGrowthSourceHandle(core:CoreContext,scope:GrowthAgentScope,id:unknown):Promise<GrowthAgentContext> {
+  if(typeof id!=="string"||!/^growth-resource:[a-f0-9]{64}$/.test(id))throw new ApiError(403,"agent_source_denied","The source is unavailable");
+  const row=(await core.pool.query('SELECT context FROM "GrowthAgentSourceHandle" WHERE id=$1 AND "orgId"=$2 AND "actorId"=$3 AND "actorIssuer"=$4',
+    [id,scope.tenantId,scope.actor.subject,scope.actor.issuer])).rows[0];
+  if(!row||id!=="growth-resource:"+growthAgentDigest({scope,context:row.context}))throw new ApiError(403,"agent_source_denied","The source is unavailable");
+  return parseGrowthAgentContext(row.context);
 }

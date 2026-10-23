@@ -4,6 +4,8 @@ const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"o
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
 const page=object({search:{type:"string",maxLength:200},status:{type:"string",maxLength:40},limit:{type:"integer",minimum:1,maximum:20},cursor:continuation});
+const reportNames={type:"array",maxItems:20,items:{type:"string",minLength:1,maxLength:128}};
+const report=object({metrics:reportNames,breakdowns:reportNames,filters:{type:"object",maxProperties:20,additionalProperties:reportNames}},["metrics","breakdowns","filters"]);
 const range=object({from:{type:"string",format:"date-time"},to:{type:"string",format:"date-time"},timezone:{type:"string",maxLength:128}},["from","to","timezone"]);
 function descriptor(operation:string,description:string,inputSchema:Record<string,unknown>,authority:string,effect:"read"|"reviewed_write"="read"):ProductCapabilityDescriptor {
   return {operation,revision:"1",description,inputSchema,outputSchema:null,handlerRef:`growth.${operation}@1`,
@@ -18,7 +20,7 @@ const operations=[
   descriptor("content.read","Read a content post by resourceId from discovery or attached context. Follow continuation until complete and cite the returned source.",object({resourceId:identifier,continuation},["resourceId"]),"feature.content.manage"),
   descriptor("campaigns.list","Find this business's WhatsApp campaigns by literal name search and optional status. This does not launch or change a campaign.",page,"feature.campaigns.manage"),
   descriptor("campaigns.read","Read a permitted WhatsApp campaign by resourceId. Follow continuation and cite returned evidence. No recipient personal data is exposed.",object({resourceId:identifier,continuation},["resourceId"]),"feature.campaigns.manage"),
-  descriptor("analytics.read","Read business analytics for an explicit date-time range and timezone through the reporting gateway. No arbitrary SQL or descendant scope.",object({range,continuation},["range"]),"feature.analytics.view"),
+  descriptor("analytics.read","Read business analytics for an explicit date-time range and timezone through the reporting gateway. No arbitrary SQL or descendant scope.",object({range,report,continuation},["range"]),"feature.analytics.view"),
   descriptor("draft.prepare","Prepare an exact content draft for staff review. This does not publish or schedule. The user must review and approve before saving.",object({draft:object({title:{type:"string",maxLength:240},content:{type:"string",minLength:1,maxLength:32768},channels:{type:"array",items:{type:"string",maxLength:64},maxItems:16},channelSelections:{type:"object",additionalProperties:{type:"string",maxLength:256}},variants:{type:"array",maxItems:16,items:object({platform:{type:"string",maxLength:64},content:{type:"string",maxLength:32768}},["platform","content"])}},["title","content","channels","channelSelections"])},["draft"]),"feature.content.manage","reviewed_write"),
 ];
 export const growthAdapterManifest={schemaVersion:1 as const,id:"growth-product",release:"2",executableDigest:growthAgentDigest({release:"growth-product-v2",handlers:operations.map(o=>o.handlerRef)}),transports:["native_http" as const],protocolVersions:[],boundedSchemaValidation:true as const};

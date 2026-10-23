@@ -12,6 +12,7 @@ datasource db {
 model Organization {
   agentSetup GrowthAgentSetup?
   growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewOrganization")
+  growthAgentSourceHandles GrowthAgentSourceHandle[] @relation("GrowthAgentSourceOrganization")
   id      String  @id @default(cuid())
   name    String
   slug    String  @unique
@@ -871,6 +872,7 @@ model BillingReconciliationIssue {
 
 model User {
   growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewActor")
+  growthAgentSourceHandles GrowthAgentSourceHandle[] @relation("GrowthAgentSourceActor")
   id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
@@ -2824,4 +2826,16 @@ model GrowthAgentSetup {
 
   @@index([status, nextAttemptAt])
   @@index([status, leaseExpiresAt])
+}
+
+model GrowthAgentSourceHandle {
+  id String @id
+  orgId String
+  actorId String
+  actorIssuer String
+  context Json
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  org Organization @relation("GrowthAgentSourceOrganization",fields:[orgId],references:[id],onDelete:Cascade)
+  actor User @relation("GrowthAgentSourceActor",fields:[actorId],references:[id],onDelete:Cascade)
+  @@index([orgId,actorId])
 }

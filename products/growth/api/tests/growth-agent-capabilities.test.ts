@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import Fastify from "fastify";
@@ -37,6 +38,7 @@ test("real content discovery and continuation retain current tenant, actor, sour
       INSERT INTO "User" VALUES('user',now()),('outsider',now());
       INSERT INTO "OrganizationMember" VALUES('org','user');`);
     await pool.query(growthAgentSocialFixture);
+    await pool.query(await readFile(new URL("../../database/prisma/migrations/20261023183000_growth_agent_source_handles/migration.sql",import.meta.url),"utf8"));
     await pool.query(`INSERT INTO "SocialPost"(id,"userId","orgId",title,content,channels,status,"createdAt","updatedAt") VALUES
       ('a','user','org','First',$1,'{FACEBOOK}','DRAFT',now(),now()),
       ('b','user','org','Second','Other content','{FACEBOOK}','DRAFT',now(),now()),
@@ -68,7 +70,13 @@ test("real content discovery and continuation retain current tenant, actor, sour
     async function send(body:unknown){const token=await new SignJWT({product:"growth",requestDigest:growthAgentDigest(body)}).setProtectedHeader({alg:"RS256",kid:"agents-v1"})
       .setIssuer("https://agents.kasitek.co.za").setAudience("product-capability-actions").setSubject("agents-worker").setJti(randomUUID()).setIssuedAt().setExpirationTime("60s").sign(keys.privateKey);
       return app.inject({method:"POST",url:"/internal/agents/capabilities",headers:{authorization:"Bearer "+token},payload:body});}
-    assert.equal((await send(command)).statusCode,200);
+    const accepted=await send(command);assert.equal(accepted.statusCode,200);
+    const source=accepted.json().sources[0];assert.match(source.id,/^growth-resource:[a-f0-9]{64}$/);
+    assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,200);
+    await pool.query('INSERT INTO "OrganizationMember" VALUES(\'org\',\'outsider\')');
+    assert.equal((await send({...command,actor:{...scope.actor,subject:"outsider"},control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,403);
+    await pool.query('UPDATE "SocialPost" SET content=\'New source revision\',"updatedAt"=now() WHERE id=\'a\'');
+    assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,409);
     assert.equal((await send({...command,input:{resourceId:"c"}})).statusCode,404);
     assert.equal((await send({...command,authority:{...command.authority,destinationProduct:"agency"}})).statusCode,403);
     assert.equal((await send({...command,authority:{...command.authority,descriptorDigest:"0".repeat(64)}})).statusCode,403);
@@ -78,5 +86,38 @@ test("real content discovery and continuation retain current tenant, actor, sour
   } finally {
     if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;
     await app.close();await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();
+  }
+});
+
+test("analytics tools send explicit bounded selections to the scoped reporting gateway and keep unavailable gateways honest",async()=>{
+  const {createServer}=await import("node:http"),{generateKeyPairSync}=await import("node:crypto");
+  const keys=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+  let observed:Record<string,unknown>|undefined;
+  const server=createServer((request,response)=>{
+    const chunks:Buffer[]=[];request.on("data",chunk=>chunks.push(chunk));request.on("end",()=>{
+      response.setHeader("content-type","application/json");
+      if(request.url!.startsWith("/internal/reporting/scopes/resolve"))response.end(JSON.stringify({scope_id:17,root_scope_id:17,scope_kind:"core_organization",owning_source_service:"core",external_source_id:"org",parent_scope_id:null,reporting_timezone:"UTC"}));
+      else {observed=JSON.parse(Buffer.concat(chunks).toString("utf8"));response.end(JSON.stringify({scope_id:17,metrics:[],value:42}));}
+    });
+  });
+  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+  const address=server.address();assert(address&&typeof address==="object");
+  const config=readConfig({DATABASE_URL:"postgres://unused",ANALYTICS_REPORTING_URL:`http://127.0.0.1:${address.port}`,ANALYTICS_REPORTING_RESOLVER_TOKEN:"fixture-resolver",
+    ANALYTICS_REPORTING_PRIVATE_KEY:keys.privateKey.export({type:"pkcs8",format:"pem"}).toString()});
+  const core={config,pool:{query:async(sql:string)=>{if(sql.includes('FROM "OrganizationMember"'))return {rows:[{name:"Business"}]};throw Error("Unexpected query");}}} as unknown as CoreContext;
+  const scope={tenantId:"org",actor:{issuer:"https://growth.kasitek.co.za/identity",subject:"user"}};
+  const report={metrics:["campaign.recipients.sent"],breakdowns:["channel"],filters:{channel:["whatsapp"]}};
+  const range={from:"2030-01-01T00:00:00Z",to:"2030-02-01T00:00:00Z",timezone:"UTC"};
+  const previous=process.env.KASITEK_BILLING_ENFORCEMENT;process.env.KASITEK_BILLING_ENFORCEMENT="false";
+  try {
+    const result=await readGrowthRecord(core,scope,{kind:"analytics_report",range,report},{range,report});
+    assert.equal((JSON.parse((result.data as {text:string}).text) as {value:number}).value,42);
+    assert.deepEqual(observed!.metrics,report.metrics);assert.deepEqual(observed!.breakdowns,report.breakdowns);assert.deepEqual(observed!.filters,report.filters);
+    assert.equal(observed!.include_descendants,false);assert.equal(observed!.range_start,range.from);
+    const unavailable={...core,config:readConfig({DATABASE_URL:"postgres://unused"})};
+    await assert.rejects(readGrowthRecord(unavailable,scope,{kind:"analytics_report",range},{}),{code:"service_unavailable"});
+  } finally {
+    if(previous===undefined)delete process.env.KASITEK_BILLING_ENFORCEMENT;else process.env.KASITEK_BILLING_ENFORCEMENT=previous;
+    await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });

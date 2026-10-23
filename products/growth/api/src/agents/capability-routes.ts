@@ -4,11 +4,12 @@ import type { FastifyInstance } from "fastify";
 import { parseGrowthAgentContext, type ProductCapabilityInvocation, type ProductCapabilityResult, type ProductReviewReference, type GrowthAgentAction, type GrowthAgentReview } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
+import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
 import { growthCapabilityManifest } from "./manifest.js";
-import { discoverGrowthRecords, readGrowthRecord } from "./tools.js";
+import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
 const validators=new Map(growthCapabilityManifest.operations.map(o=>[o.operation,ajv.compile(o.inputSchema)]));
@@ -33,14 +34,16 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     const scope={tenantId:authority.tenantId,actor:command.actor};
     await authorizeGrowthAgentScope(core,scope);
     for(const permission of descriptor.requiredAuthority)await requireCapability(core.pool,scope.tenantId,permission);
-    if(command.control==="authorize")return {value:{authorized:true}};
+    if(command.control==="authorize") {
+      if(command.operation==="analytics.read") {
+        try {await reportingDependencies(core);}
+        catch(error){if(error instanceof ApiError&&error.status===503)return {value:{authorized:false,code:"REPORTING_UNAVAILABLE"}};throw error;}
+      }
+      return {value:{authorized:true}};
+    }
     if(command.control==="evidence"){
       const input=command.input as {source?:{id?:unknown;revision?:unknown}};
-      let context;
-      try {
-        if(typeof input?.source?.id!=="string"||!input.source.id.startsWith("growth-resource:")||input.source.id.length>4096)throw Error();
-        context=parseGrowthAgentContext(JSON.parse(Buffer.from(input.source.id.slice(16),"base64url").toString("utf8")));
-      } catch {throw new ApiError(403,"agent_source_denied","The source is unavailable");}
+      const context=await resolveGrowthSourceHandle(core,scope,input?.source?.id);
       const source=await readGrowthRecord(core,scope,context,{});
       if(source.revision!==input.source?.revision)throw new ApiError(409,"agent_source_changed","The source changed");
       return {value:{authorized:true,revision:source.revision}};
@@ -66,14 +69,14 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     if(command.control!=="invoke")throw new ApiError(403,"agent_capability_control_denied","The capability control is unavailable");
     if(command.operation==="content.list"||command.operation==="campaigns.list") {
       const result=await discoverGrowthRecords(core,scope,command.operation==="content.list"?"content_post":"whatsapp_campaign",input);
-      return {value:result,sources:result.items.map(item=>({id:"growth-resource:"+Buffer.from(JSON.stringify(item.context)).toString("base64url"),revision:item.revision,title:item.title,
-        text:JSON.stringify(item),acquiredAt:new Date().toISOString(),continuation:null}))};
+      return {value:result,sources:await Promise.all(result.items.map(async item=>({id:await growthSourceHandle(core,scope,item.context),revision:item.revision,title:item.title,route:item.route,
+        text:JSON.stringify(item),acquiredAt:new Date().toISOString(),continuation:null}))) };
     }
     const context=parseGrowthAgentContext(command.operation==="workspace.read"?{kind:"workspace",resourceId:scope.tenantId}:
       command.operation==="content.read"?{kind:"content_post",resourceId:input.resourceId}:
-      command.operation==="campaigns.read"?{kind:"whatsapp_campaign",resourceId:input.resourceId}:{kind:"analytics_report",resourceId:scope.tenantId,range:input.range});
+      command.operation==="campaigns.read"?{kind:"whatsapp_campaign",resourceId:input.resourceId}:{kind:"analytics_report",resourceId:scope.tenantId,range:input.range,...(input.report===undefined?{}:{report:input.report})});
     const result=await readGrowthRecord(core,scope,context,input);
-    return {value:result,sources:result.sources.map(source=>({id:"growth-resource:"+Buffer.from(JSON.stringify(result.context)).toString("base64url"),revision:source.revision!,title:source.title,
-      text:JSON.stringify({context:result.context,data:result.data}),acquiredAt:new Date().toISOString(),continuation:result.continuation}))};
+    return {value:result,sources:await Promise.all(result.sources.map(async source=>({id:await growthSourceHandle(core,scope,result.context),revision:source.revision!,title:source.title,...(source.route?{route:source.route}:{}),
+      text:JSON.stringify({context:result.context,data:result.data}),acquiredAt:new Date().toISOString(),continuation:result.continuation}))) };
   });
 }

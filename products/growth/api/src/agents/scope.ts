@@ -60,7 +60,7 @@ export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAge
     const range = context.range;
     if (!range) throw new ApiError(400, "agent_report_range_required", "Choose a report date range");
     data = await reportForOrganization(core, scope.actor.subject, scope.tenantId, { range_start: range.from, range_end: range.to,
-      timezone: range.timezone, metrics: [], breakdowns: [], filters: {}, include_descendants: false });
+      timezone: range.timezone, metrics: context.report?.metrics??[], breakdowns: context.report?.breakdowns??[], filters: context.report?.filters??{}, include_descendants: false });
     title = "Business analytics"; route = "/analytics";
   }
   const safe = wire(data), revision = growthAgentDigest(safe);

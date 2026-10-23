@@ -8,6 +8,7 @@ export type GrowthAgentContext = {
   kind: "workspace" | "content_post" | "whatsapp_campaign" | "analytics_report";
   resourceId?: string;
   range?: { from: string; to: string; timezone: string };
+  report?: { metrics: string[]; breakdowns: string[]; filters: Record<string,string[]> };
 };
 export interface GrowthAgentActor { issuer: string; subject: string }
 export interface GrowthAgentFeature {
@@ -147,7 +148,7 @@ function growthString(value: unknown, max = 256): string {
   return value;
 }
 export function parseGrowthAgentContext(value: unknown): GrowthAgentContext {
-  const item = growthObject(value, ["kind", "resourceId", "range"]);
+  const item = growthObject(value, ["kind", "resourceId", "range", "report"]);
   if (!["workspace", "content_post", "whatsapp_campaign", "analytics_report"].includes(String(item.kind))) return invalidGrowthContract();
   if (item.resourceId !== undefined) growthString(item.resourceId);
   if ((item.kind === "content_post" || item.kind === "whatsapp_campaign") && !item.resourceId) return invalidGrowthContract();
@@ -156,6 +157,14 @@ export function parseGrowthAgentContext(value: unknown): GrowthAgentContext {
     for (const field of ["from", "to", "timezone"]) growthString(range[field]);
     if (!Number.isFinite(Date.parse(String(range.from))) || !Number.isFinite(Date.parse(String(range.to))) || Date.parse(String(range.from)) >= Date.parse(String(range.to))) return invalidGrowthContract();
     try { new Intl.DateTimeFormat("en", { timeZone: String(range.timezone) }); } catch { return invalidGrowthContract(); }
+  }
+  if(item.report!==undefined) {
+    if(item.kind!=="analytics_report")return invalidGrowthContract();
+    const report=growthObject(item.report,["metrics","breakdowns","filters"]);
+    const names=(value:unknown):string[]=>{if(!Array.isArray(value)||value.length>20)return invalidGrowthContract();for(const entry of value)growthString(entry,128);return value as string[];};
+    names(report.metrics);names(report.breakdowns);
+    if(!report.filters||typeof report.filters!=="object"||Array.isArray(report.filters)||Object.keys(report.filters).length>20)return invalidGrowthContract();
+    for(const [key,values] of Object.entries(report.filters)){growthString(key,128);names(values);}
   }
   return item as unknown as GrowthAgentContext;
 }

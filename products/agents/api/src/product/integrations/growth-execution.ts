@@ -132,7 +132,7 @@ export class GrowthExecutionService {
     if(control)await this.runtime.authorizeControl(id);else await this.runtime.authorizeTask(id);return row;
   }
   async taskDto(row:Record<string,any>):Promise<GrowthAgentTask> {
-    const projections=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows;
+    const projections=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE product='growth' AND task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows;
     const reviews=[];for(const projected of projections)reviews.push((await this.runtime!.readReview(row.id,projected.projection.id)).review);
     const artifacts=(await this.pool.query("SELECT id,name FROM agents_platform.artifacts WHERE root_task_id=$1 AND state='available' ORDER BY created_at,id LIMIT 100",[row.root_task_id])).rows;
     for(const artifact of artifacts)await this.runtime!.evidence.artifactManifest(this.pool,row.id,artifact.id);
@@ -256,7 +256,7 @@ export class GrowthExecutionService {
           nextCursor:last?nextPageCursor({snapshot:new Date().toISOString(),position:String(last.sequence),id:""},scope):page.cursor??null};
       }
       case "reviews.list": {
-        const task=await this.task(command,command.input.taskId),rows=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[task.id])).rows;
+        const task=await this.task(command,command.input.taskId),rows=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE product='growth' AND task_id=$1 ORDER BY updated_at,review_id",[task.id])).rows;
         const reviews=[];
         for(const row of rows)reviews.push((await this.runtime!.readReview(task.id,row.projection.id)).review);
         return {reviews:[...new Map(reviews.map(review=>[review.id,review])).values()]};
