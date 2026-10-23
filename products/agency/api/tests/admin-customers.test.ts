@@ -15,7 +15,7 @@ test('Agency customer operations isolate metadata and atomically bind state, out
   await base.query(`CREATE SCHEMA "${schema}"`);
   const pool=new pg.Pool({connectionString:url,options:`-c search_path=${schema} -c timezone=UTC`});
   const secret='synthetic-agency-customer-test-secret';
-  const env={TENANT_DATABASE_URL:url,KASITEK_ADMIN_SERVICE_SECRET:secret,KASITEK_CUSTOMER_OPERATIONS:'1',KASITEK_CUSTOMER_ACTIONS:'client.suspend,client.resume',LOG_LEVEL:'silent'};
+  const env={NODE_ENV:'test',TENANT_DATABASE_URL:url,KASITEK_ADMIN_SERVICE_SECRET:secret,KASITEK_CUSTOMER_OPERATIONS:'1',KASITEK_CUSTOMER_ACTIONS:'client.suspend,client.resume',LOG_LEVEL:'silent'};
   const context={pool,config:readConfig(env)};
   const app=await buildApp(context,[registerAdminCustomerRoutes]);
   async function request(method:'GET'|'POST',path:string,value?:unknown,role='operator',capability:'admin:read'|'admin:operate'=method==='GET'?'admin:read':'admin:operate') {
