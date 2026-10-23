@@ -54,13 +54,18 @@ export async function agentsAdminReport(pool: Pool, q: AdminReportQuery): Promis
    {dimensions:{consumer:item.consumer,provider:item.provider,model:item.model},...(item.unknown_usage!=="0"||operations.length>100 ? {availability:"partial" as const,reason:"Missing usage or truncated model dimensions"} : {})}));
   if (!operations.length) for (const key of ["tokens_input","tokens_output"]) metrics.push(reportMetric(key,"0","agents.operations",null));
   const costs = (await db.query(`WITH scoped AS (${scoped}) SELECT s.consumer,
+   coalesce(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'providerId','unknown') AS provider,
+   coalesce(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'modelId','unknown') AS model,
    coalesce(sum(c.actual_micros) FILTER(WHERE c.state='settled'),0)::text AS known,
    count(*) FILTER(WHERE c.state='unknown')::text AS unknown,max(c.settled_at) AS observed
    FROM scoped s JOIN agents_platform.model_cost_reservations c ON c.task_id=s.id
-   WHERE c.settled_at>=$1 AND c.settled_at<$2 GROUP BY s.consumer ORDER BY s.consumer`, args)).rows;
-  for (const item of costs) {
-   metrics.push(reportMetric("model_cost",item.known,"agents.model_cost_reservations",iso(item.observed),{currency:"USD",dimensions:{consumer:item.consumer,exactness:"usage_estimate"},...(item.unknown!=="0"?{availability:"partial" as const,reason:"Some model operation costs are unknown"}:{})}));
-   metrics.push(reportMetric("unknown_model_operations",item.unknown,"agents.model_cost_reservations",iso(item.observed),{dimensions:{consumer:item.consumer}}));
+   JOIN agents_platform.operations o ON o.id=c.operation_id AND o.task_id=s.id
+   LEFT JOIN agents_platform.task_model_routes r ON r.task_id=s.id
+   WHERE c.settled_at>=$1 AND c.settled_at<$2 GROUP BY s.consumer,provider,model ORDER BY s.consumer,provider,model LIMIT 101`, args)).rows;
+  for (const item of costs.slice(0,100)) {
+   const dimensions={consumer:item.consumer,provider:item.provider,model:item.model};
+   metrics.push(reportMetric("model_cost",item.known,"agents.model_cost_reservations",iso(item.observed),{currency:"USD",dimensions:{...dimensions,exactness:"usage_estimate"},...(item.unknown!=="0"||costs.length>100?{availability:"partial" as const,reason:"Missing model cost or truncated model dimensions"}:{})}));
+   metrics.push(reportMetric("unknown_model_operations",item.unknown,"agents.model_cost_reservations",iso(item.observed),{dimensions,...(costs.length>100?{availability:"partial" as const,reason:"Truncated model dimensions"}:{})}));
   }
   if (!costs.length) {
    metrics.push(reportMetric("model_cost","0","agents.model_cost_reservations",null,{currency:"USD",dimensions:{exactness:"usage_estimate"}}));
