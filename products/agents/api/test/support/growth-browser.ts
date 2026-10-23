@@ -105,14 +105,14 @@ export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
     await expect(page).toHaveURL(origin + "/agents/conversations/" + conversationId);
     await page.reload();
     chat = page.getByRole("region", { name: "Agent conversation" });
-    await expect(chat.getByText(first, { exact: true })).toBeVisible();
-    await expect(chat.getByText("What should I do next?", { exact: true })).toBeVisible();
+    await expect(chat.locator("article").getByText(first, { exact: true })).toBeVisible();
+    await expect(chat.locator("article").getByText("What should I do next?", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Agents", exact: true }).last().click();
     await page.getByRole("tab", { name: "Conversations", exact: true }).click();
     await page.getByRole("textbox", { name: "Search conversations", exact: true }).fill(first);
     await page.getByRole("link", { name: new RegExp(first) }).click();
     await expect(page).toHaveURL(origin + "/agents/conversations/" + conversationId);
-    await expect(page.getByRole("region", { name: "Agent conversation" }).getByText("What should I do next?", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Agent conversation" }).locator("article").getByText("What should I do next?", { exact: true })).toBeVisible();
     assert.deepEqual(failures, []);
     await mkdir(artifacts, { recursive: true });
     await page.screenshot({ path: resolve(artifacts, "conversation.png"), fullPage: true });
