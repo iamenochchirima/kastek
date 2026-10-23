@@ -19,10 +19,12 @@ export async function runApi():Promise<void>{
  loadLocalEnvironment();
  const config=readConfig(),telemetry=initTelemetry('kasitek-analytics-api'),registry=await loadRegistry(),pool=createPool(config),metrics=new ProcessMetrics();
  metrics.log('info','service.startup',{process:'analytics-api',phase:'registry_loaded',registry_sha256:registry.sha256,metrics_registry_version:registry.metrics_registry_version});
- const app=await buildApp({pool,config,registry,metrics},'analytics-api');
+ const reportingPool=config.reporting_database_url?createPool({...config,database_url:config.reporting_database_url}):undefined;
+ const app=await buildApp({pool,reportingPool,config,registry,metrics},'analytics-api');
  let closing:Promise<void>|undefined;
  const close=()=>closing??=(async()=>{
   await app.close().catch(()=>{});
+  await reportingPool?.end().catch(()=>{});
   await pool.end().catch(()=>{});
   await telemetry.shutdown();
  })();

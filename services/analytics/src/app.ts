@@ -1,3 +1,4 @@
+import {registerAdminReportingDiagnostics} from "./admin-reporting-diagnostics.js";
 import {registerAdminReportingRoutes} from "./admin-reporting.js";
 import Fastify, {LogController} from 'fastify';
 import type {FastifyBodyParser,FastifyInstance,FastifyRequest,FastifyServerOptions} from 'fastify';
@@ -98,8 +99,10 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   registerMaintenanceRoutes(app,context);
   registerScopeResolutionRoutes(app,context);
   registerRolloutRoutes(app,context);
-  await registerReportingRoutes(app,context);
-  registerAdminReportingRoutes(app,context);
+  const reportingContext={...context,pool:context.reportingPool??context.pool};
+  await registerReportingRoutes(app,reportingContext);
+  registerAdminReportingRoutes(app,reportingContext);
+  registerAdminReportingDiagnostics(app,reportingContext);
  }
  app.addHook('onClose',async()=>{context.metrics.log('info','service.shutdown',{process});});
  return app;
