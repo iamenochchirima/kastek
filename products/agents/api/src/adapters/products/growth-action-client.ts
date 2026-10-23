@@ -28,7 +28,8 @@ export class GrowthActionClient {
     let response: Response;
     try {
       response = await (this.options.fetch ?? fetch)(this.endpoint,{
-        method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+token},
+        method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+token,
+          "x-correlation-id":command.requestId,"traceparent":`00-${requestDigest(command.taskId).slice(0,32)}-${requestDigest([command.taskId,command.operationId]).slice(0,16)}-01`},
         body:JSON.stringify(command),signal:AbortSignal.timeout(10000),redirect:"error",
       });
     } catch { throw new PlatformError("GROWTH_ACTION_UNAVAILABLE",503,"Growth is unavailable; the operation has not been confirmed"); }
@@ -38,6 +39,9 @@ export class GrowthActionClient {
       for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;
         if(bytes>131072){await reader.cancel();throw new PlatformError("GROWTH_RESULT_LIMIT",502,"Growth returned too much data");}
         text+=decoder.decode(part.value,{stream:true});}
+    } catch(error) {
+      if(error instanceof PlatformError)throw error;
+      throw new PlatformError("GROWTH_ACTION_UNAVAILABLE",503,"Growth response was interrupted; the operation has not been confirmed");
     } finally {reader.releaseLock();}
     text+=decoder.decode();
     let value: unknown;

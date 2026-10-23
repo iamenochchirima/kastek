@@ -31,7 +31,7 @@ function localOrigin(value: string): string {
 async function shutdown(): Promise<void> {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
-    try { await app?.close(); } finally {
+    try { app?.server.closeAllConnections(); await app?.close(); } finally {
       try { await pool?.end(); } finally {
         try {
           if (created && admin && /^growth_agents_e2e_[a-f0-9]{32}$/.test(database)) await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`);

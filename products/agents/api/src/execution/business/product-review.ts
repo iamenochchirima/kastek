@@ -1,7 +1,7 @@
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import type { GrowthDraftProposal, GrowthAgentReview } from "@kasitek-labs/contracts";
-import type { GrowthProductRuntime } from "../../adapters/products/growth-runtime";
+import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 import type { TaskOutcome } from "../../contracts/execution";
 import { PlatformError,terminalTaskStates } from "../../contracts/contracts";
 import { event } from "../lifecycle/execution";

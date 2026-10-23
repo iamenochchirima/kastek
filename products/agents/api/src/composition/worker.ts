@@ -41,7 +41,7 @@ import { composeChannels } from "./channels";
 import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
-import { GrowthProductRuntime } from "../adapters/products/growth-runtime";
+import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 async function main(): Promise<void> {
   const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");

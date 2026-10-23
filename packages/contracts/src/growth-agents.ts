@@ -58,7 +58,7 @@ export interface GrowthAgentReview {
   draft: GrowthDraftProposal; createdAt: string; expiresAt: string;
   result: GrowthDraftReceipt | null;
 }
-export interface GrowthAgentArtifact { id: string; title: string; mediaType: string; text?: string; downloadPath?: string }
+export interface GrowthAgentArtifact { id: string; title: string; mediaType: string; text?: string; downloadPath?: string; chunk?: { offset: number; nextOffset: number | null; bytes: number; digest: string; base64: string } }
 export interface GrowthAgentCommandInputs {
   "features.list": Record<string, never>;
   "features.configure": { featureId: GrowthAgentFeatureId; configuration: Record<string, unknown> };
@@ -74,7 +74,7 @@ export interface GrowthAgentCommandInputs {
   "reviews.list": { taskId: string };
   "reviews.decide": { taskId: string; reviewId: string; payloadDigest: string; decision: "approve" | "reject" };
   "artifacts.list": { taskId: string };
-  "artifacts.get": { taskId: string; artifactId: string };
+  "artifacts.get": { taskId: string; artifactId: string; offset?: number };
 }
 export type GrowthAgentCommandOperation = keyof GrowthAgentCommandInputs;
 export type GrowthAgentCommand<K extends GrowthAgentCommandOperation = GrowthAgentCommandOperation> = {
@@ -189,13 +189,13 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
     "tasks.get": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"],
     "reviews.list": ["taskId"], "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
-    "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],
+    "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId", "offset"],
   };
   const fields = Object.hasOwn(operations, String(item.operation)) ? operations[item.operation as GrowthAgentCommandOperation] : undefined; if (!fields) return invalidGrowthContract();
   const input = growthObject(item.input, fields);
   for (const [key, value] of Object.entries(input)) {
-    if (["context", "configuration", "limit"].includes(key)) continue;
-    growthString(value, key === "text" ? 131072 : key === "search" ? 200 : 256);
+    if (["context", "configuration", "limit", "offset"].includes(key)) continue;
+    growthString(value, key === "text" ? 131072 : key === "search" ? 200 : key === "cursor" ? 2048 : 256);
   }
   const required: Partial<Record<GrowthAgentCommandOperation, string[]>> = {
     "features.configure": ["featureId", "configuration"], "conversations.create": ["featureId"],
@@ -207,6 +207,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
   };
   for (const key of required[item.operation as GrowthAgentCommandOperation] ?? []) if (input[key] === undefined) return invalidGrowthContract();
   if (input.limit !== undefined && (!Number.isInteger(input.limit) || Number(input.limit) < 1 || Number(input.limit) > 100)) return invalidGrowthContract();
+  if (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || Number(input.offset) < 0)) return invalidGrowthContract();
   if (input.context !== undefined && input.context !== null) parseGrowthAgentContext(input.context);
   if (input.featureId !== undefined && !GROWTH_AGENT_FEATURE_IDS.includes(input.featureId as GrowthAgentFeatureId)) return invalidGrowthContract();
   if (["conversations.create", "features.configure"].includes(String(item.operation)) && input.featureId === undefined) return invalidGrowthContract();

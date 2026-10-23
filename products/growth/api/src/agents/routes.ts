@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { randomUUID } from "node:crypto";
 import { GROWTH_AGENT_FEATURE_IDS, GrowthAgentContractError, parseGrowthAgentContext as parseContextWire, parseGrowthDraftProposal as parseDraftWire, parseGrowthAgentCommand,
   type GrowthAgentBootstrap, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
@@ -8,6 +10,7 @@ import { GrowthAgentClient, type GrowthAgentTransport } from "./client.js";
 import { growthAgentActor } from "./security.js";
 import { authorizeGrowthAgentScope, readGrowthAgentContext, type GrowthAgentScope } from "./scope.js";
 import { GrowthAgentReviewStore } from "./reviews.js";
+import { enqueueGrowthAgentCommand } from "./analytics.js";
 function contract<T>(run: () => T): T {
   try { return run(); } catch (error) {
     if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
@@ -32,7 +35,7 @@ function page(request: FastifyRequest, fields: string[]) {
   const query = request.query as Record<string, unknown> ?? {};
   strict(query, [...fields, "cursor", "limit"]);
   const value: Record<string, unknown> = {};
-  for (const key of [...fields, "cursor"]) if (query[key] !== undefined) value[key] = string(query[key], key, key === "search" ? 200 : 256);
+  for (const key of [...fields, "cursor"]) if (query[key] !== undefined) value[key] = string(query[key], key, key === "search" ? 200 : key === "cursor" ? 2048 : 256);
   if (query.limit !== undefined) {
     const limit = Number(query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ApiError(400, "agent_request_invalid", "Check the page limit");
@@ -54,14 +57,26 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await authorizeGrowthAgentScope(core, resolved); return resolved;
   }
   async function invoke<K extends GrowthAgentCommandOperation>(request: FastifyRequest, operation: K, input: GrowthAgentCommandInputs[K], requestId?: string) {
-    const auth = await scope(request);
-    try {
-      parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId: requestId ?? "validation", ...auth, operation, input })));
-      return await client.command(auth, operation, input, requestId);
-    } catch (error) {
-      if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
+    const auth = await scope(request), commandId = requestId ?? randomUUID();
+    try { parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId: commandId, ...auth, operation, input }))); }
+    catch (error) { if (error instanceof GrowthAgentContractError) throw new ApiError(400, "agent_request_invalid", "Check the request fields"); throw error; }
+    let result;
+    try { result = await client.command(auth, operation, input, commandId); }
+    catch (error) {
+      if (error instanceof ApiError) await enqueueGrowthAgentCommand(core.pool, auth, {
+        operation, requestId: commandId, featureId: (input as { featureId?: GrowthAgentFeatureId }).featureId ?? null,
+        conversationId: (input as { conversationId?: string }).conversationId ?? null,
+        taskId: (input as { taskId?: string }).taskId ?? null,
+        outcome: error.status >= 500 ? "unavailable" : "rejected", failureCode: /^[a-zA-Z0-9_]{1,80}$/.test(error.code) ? error.code : "agent_command_failed",
+      });
       throw error;
     }
+    const acknowledged = result as { conversation?: { id: string; featureId: GrowthAgentFeatureId }; task?: { id: string; conversationId: string; featureId: GrowthAgentFeatureId } };
+    await enqueueGrowthAgentCommand(core.pool, auth, { operation, requestId: commandId,
+      featureId: acknowledged.task?.featureId ?? acknowledged.conversation?.featureId ?? (input as { featureId?: GrowthAgentFeatureId }).featureId ?? null,
+      conversationId: acknowledged.task?.conversationId ?? acknowledged.conversation?.id ?? (input as { conversationId?: string }).conversationId ?? null,
+      taskId: acknowledged.task?.id ?? null, outcome: "accepted", failureCode: null });
+    return result;
   }
   const id = (request: FastifyRequest, name: string) => string((request.params as Record<string, unknown>)[name], name);
   app.get("/api/agents/bootstrap", async request => {
@@ -138,5 +153,27 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   app.post("/api/agents/tasks/:taskId/reviews/:reviewId/decision", decision);
   app.post("/api/agents/reviews/:reviewId/decision", decision);
   app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/artifacts/:artifactId/download", async (request, reply) => {
+    const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream";
+    do {
+      const result = await invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId"), offset });
+      const part = result.artifact.chunk;
+      if (!part || part.offset !== offset || !Number.isSafeInteger(part.bytes) || part.bytes < 0 || part.bytes > 1048576 ||
+        !/^[a-f0-9]{64}$/.test(part.digest) || (digest !== undefined && (digest !== part.digest || bytes !== part.bytes)))
+        throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
+      digest = part.digest; bytes = part.bytes; mediaType = result.artifact.mediaType;
+      const chunk = Buffer.from(part.base64, "base64"), end = offset + chunk.length;
+      if (chunk.length > 65536 || end > bytes || part.nextOffset !== (end < bytes ? end : null) || end === offset && end !== bytes)
+        throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
+      chunks.push(chunk); offset = end;
+      if (part.nextOffset === null) break;
+    } while (true);
+    const content = Buffer.concat(chunks);
+    if (content.length !== bytes || createHash("sha256").update(content).digest("hex") !== digest)
+      throw new ApiError(502, "agent_artifact_invalid", "Artifact is unavailable");
+    reply.header("Cache-Control", "no-store").header("X-Content-Type-Options", "nosniff")
+      .header("Content-Disposition", 'attachment; filename="agent-result.bin"');
+    return reply.type(mediaType).send(content);
+  });
   app.get("/api/agents/tasks/:taskId/artifacts/:artifactId", request => invoke(request, "artifacts.get", { taskId: id(request, "taskId"), artifactId: id(request, "artifactId") }));
 }

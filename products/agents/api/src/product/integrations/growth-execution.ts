@@ -1,6 +1,6 @@
 import { randomUUID,createHash } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
-import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentContext,GrowthAgentContextEvidence } from "@kasitek-labs/contracts";
+import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence } from "@kasitek-labs/contracts";
 import { agentConfigurationSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,type AdmissionAuthority } from "../../contracts/contracts";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
 import { transaction } from "../../infrastructure/database";
@@ -13,8 +13,8 @@ import { executionModelLayers } from "../../execution/models/settings";
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
 import { growthFeatureConfiguration,growthFeatureDefinitions } from "./growth-features";
-import type { GrowthServiceTrust } from "./growth-service-auth";
-import type { GrowthProductRuntime } from "./growth-runtime";
+import type { GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
+import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 type Db=Pool|PoolClient;
 const absent=():never=>{throw new PlatformError("NOT_FOUND",404,"Conversation or task not found");};
 const iso=(value:Date|string)=>new Date(value).toISOString();
@@ -72,7 +72,7 @@ export class GrowthExecutionService {
     return row??absent();
   }
   conversationDto(row:Record<string,any>):GrowthAgentConversation {
-    return {id:row.conversation_id,featureId:row.feature_id,title:row.title,context:row.context,createdAt:iso(row.created_at),updatedAt:iso(row.updated_at)};
+    return {id:row.conversation_id,featureId:row.feature_id,title:row.title,context:row.context,...(row.context_display?{contextDisplay:row.context_display}:{}),createdAt:iso(row.created_at),updatedAt:iso(row.updated_at)};
   }
   async createConversation(db:PoolClient,command:GrowthAgentCommand,input:{featureId:GrowthAgentFeatureId;title?:string;context?:GrowthAgentContext|null}) {
     const feature=await this.feature(db,command,input.featureId);
@@ -101,18 +101,21 @@ export class GrowthExecutionService {
       return response;
     });
   }
-  async task(command:GrowthAgentCommand,id:string) {
+  async task(command:GrowthAgentCommand,id:string,control=false) {
     const tenant=await this.tenant(this.pool,command);
     const row=(await this.pool.query("SELECT t.*,p.feature_id,p.sources FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.id JOIN agents_platform.conversations c ON c.id=t.conversation_id WHERE t.product='growth' AND t.organization_id=$1 AND t.id=$2 AND t.principal=$3::jsonb AND p.tenant_id=$4 AND t.parent_task_id IS NULL AND c.deleted_at IS NULL",[tenant.organization_id,id,JSON.stringify(this.principal(command)),command.tenantId])).rows[0];
     if(!row)absent();
     if(!this.runtime)throw new PlatformError("PRODUCT_ACTIONS_UNAVAILABLE",503,"Growth agent services are unavailable");
-    await this.runtime.authorizeTask(id);return row;
+    if(control)await this.runtime.authorizeControl(id);else await this.runtime.authorizeTask(id);return row;
   }
   async taskDto(row:Record<string,any>):Promise<GrowthAgentTask> {
     const reviews=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows.map(r=>r.projection);
+    const artifacts=(await this.pool.query("SELECT id,name FROM agents_platform.artifacts WHERE root_task_id=$1 AND state='available' ORDER BY created_at,id LIMIT 100",[row.root_task_id])).rows;
+    for(const artifact of artifacts)await this.runtime!.evidence.artifactManifest(this.pool,row.id,artifact.id);
+    const artifactResults:GrowthAgentResult[]=artifacts.map(artifact=>({id:artifact.id,kind:"artifact",title:artifact.name??"Artifact",artifactId:artifact.id}));
     return {id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
       createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:reviews.map(r=>r.id),sources:row.sources??[],
-      results:reviews.filter(r=>r.result?.state==="saved").map(r=>({id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision}))};
+      results:[...reviews.filter(r=>r.result?.state==="saved").map(r=>({id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision})),...artifactResults]};
   }
   async submit(db:PoolClient,command:Extract<GrowthAgentCommand,{operation:"turns.submit"}>,snapshot:GrowthAgentContextEvidence,taskId:string) {
     if(!this.runtime)throw new PlatformError("PRODUCT_ACTIONS_UNAVAILABLE",503,"Growth agent services are unavailable");
@@ -131,6 +134,7 @@ export class GrowthExecutionService {
     const admitted=await this.store.admitTaskInTransaction(db,{authority,taskId,grantId:grant.id,versionId:feature.version_id,input:command.input.text,requestKey:command.requestId,conversationId:conversation.conversation_id,configurationMode:"current"});
     await db.query("INSERT INTO agents_platform.product_task_contexts(task_id,product,tenant_id,feature_id,conversation_id,context,context_revision,command_digest,sources) VALUES($1,'growth',$2,$3,$4,$5,$6,$7,$8)",[admitted.task.id,command.tenantId,feature.feature_id,conversation.conversation_id,snapshot.context,snapshot.revision,requestDigest(command),JSON.stringify(snapshot.sources)]);
     await db.query("UPDATE agents_platform.product_conversations SET title=CASE WHEN title='New conversation' THEN left($2,80) ELSE title END,updated_at=now() WHERE conversation_id=$1",[conversation.conversation_id,command.input.text]);
+    await db.query("UPDATE agents_platform.product_conversations SET context_display=$2 WHERE conversation_id=$1",[conversation.conversation_id,snapshot.sources[0]?{title:snapshot.sources[0].title,route:snapshot.sources[0].route}:null]);
     return {task:{id:admitted.task.id,conversationId:admitted.task.conversation_id,featureId:feature.feature_id,state:state(admitted.task.state),input:admitted.task.input,output:null,errorCode:null,createdAt:iso(admitted.task.created_at),updatedAt:iso(admitted.task.updated_at)},replayed:false};
   }
   async execute(command:GrowthAgentCommand):Promise<unknown> {
@@ -138,6 +142,8 @@ export class GrowthExecutionService {
     switch(command.operation) {
       case "features.list":return this.features(command);
       case "features.configure":return this.withReceipt(command,async db=>{
+        const tenant=await this.tenant(db,command);
+        await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[tenant.organization_id]);
         const previous=await this.feature(db,command,command.input.featureId),configuration=agentConfigurationSchema.parse(command.input.configuration),allowed=growthFeatureConfiguration(command.input.featureId);
         if(configuration.program.id!=="tool-directed"||configuration.program.version!=="2"||configuration.tools.some(t=>!allowed.tools.includes(t))||
           configuration.memory.enabled||configuration.skillIds.length||configuration.sourceRevisionIds.length||configuration.connectedToolBindingIds.length||
@@ -189,7 +195,13 @@ export class GrowthExecutionService {
         return {conversation:this.conversationDto(c),messages,nextCursor:page.nextCursor};
       }
       case "tasks.get":return {task:await this.taskDto(await this.task(command,command.input.taskId))};
-      case "tasks.cancel": {const task=await this.task(command,command.input.taskId);if(!terminalTaskStates.has(task.state))await requestTreeCancellation(this.pool,task.id);return {task:await this.taskDto(await this.task(command,task.id))};}
+      case "tasks.cancel": {
+        const task=await this.task(command,command.input.taskId,true);
+        if(!terminalTaskStates.has(task.state))await requestTreeCancellation(this.pool,task.id);
+        const current=await this.task(command,task.id,true);
+        return {task:{id:current.id,conversationId:current.conversation_id,featureId:current.feature_id,state:state(current.state),input:"",output:null,errorCode:null,
+          createdAt:iso(current.created_at),updatedAt:iso(current.updated_at),reviewIds:[],sources:[],results:[]}};
+      }
       case "tasks.list": {
         const input=command.input,scope={kind:"growth-tasks",tenant:command.tenantId,actor:command.actor,...input,cursor:undefined};
         delete scope.cursor;
@@ -228,17 +240,25 @@ export class GrowthExecutionService {
       case "artifacts.list": {
         const task=await this.task(command,command.input.taskId);
         const rows=(await this.pool.query("SELECT id,name,content_type FROM agents_platform.artifacts WHERE root_task_id=$1 AND state='available' ORDER BY created_at,id LIMIT 100",[task.root_task_id])).rows;
-        return {artifacts:rows.map(row=>({id:row.id,title:row.name??"Artifact",mediaType:row.content_type}))};
+        for(const row of rows)await this.runtime!.evidence.artifactManifest(this.pool,task.id,row.id);
+        return {artifacts:rows.map(row=>({id:row.id,title:row.name??"Artifact",mediaType:row.content_type,downloadPath:`/api/agents/tasks/${task.id}/artifacts/${row.id}/download`}))};
       }
       case "artifacts.get": {
         const task=await this.task(command,command.input.taskId);
         const row=(await this.pool.query("SELECT * FROM agents_platform.artifacts WHERE id=$1 AND root_task_id=$2 AND state='available'",[command.input.artifactId,task.root_task_id])).rows[0]??absent();
         const objects=privateStoreFromEnvironment();if(!objects)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
-        if(row.bytes>65536)throw new PlatformError("ARTIFACT_DOWNLOAD_REQUIRED",413,"This artifact needs the file download interface");
+        await this.runtime!.evidence.artifactManifest(this.pool,task.id,row.id);
         const content=await objects.get(row.object_key);
         if(content.byteLength!==row.bytes||createHash("sha256").update(content).digest("hex")!==row.content_digest)throw new PlatformError("ARTIFACT_INTEGRITY",502,"Artifact integrity check failed");
         await this.task(command,task.id);
-        return {artifact:{id:row.id,title:row.name??"Artifact",mediaType:row.content_type,text:new TextDecoder("utf-8",{fatal:true}).decode(content)}};
+        await this.runtime!.evidence.artifactManifest(this.pool,task.id,row.id);
+        const offset=command.input.offset??0;
+        if(offset>content.byteLength)throw new PlatformError("ARTIFACT_OFFSET_INVALID",400,"Invalid artifact offset");
+        const end=Math.min(offset+65536,content.byteLength);
+        return {artifact:{id:row.id,title:row.name??"Artifact",mediaType:row.content_type,
+          downloadPath:`/api/agents/tasks/${task.id}/artifacts/${row.id}/download`,
+          ...(command.input.offset===undefined&&/^(text\/|application\/json)/.test(row.content_type)?{text:new TextDecoder("utf-8").decode(content.slice(0,65536))}:{}),
+          ...(command.input.offset===undefined?{}:{chunk:{offset,nextOffset:end<content.byteLength?end:null,bytes:content.byteLength,digest:row.content_digest,base64:Buffer.from(content.slice(offset,end)).toString("base64")}})}};
       }
     }
   }

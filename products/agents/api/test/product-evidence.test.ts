@@ -10,7 +10,7 @@ import { buildContinuation } from "../src/execution/context/continuation";
 import { transaction } from "../src/infrastructure/database";
 import { productPorts, registerProductPorts } from "../src/infrastructure/product-ports";
 import { PlatformStore } from "../src/product/agents/store";
-import { growthFeatureConfiguration } from "../src/adapters/products/growth-features";
+import { growthFeatureConfiguration } from "../src/product/integrations/growth-features";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 

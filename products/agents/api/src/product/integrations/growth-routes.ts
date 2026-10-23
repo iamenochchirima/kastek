@@ -3,8 +3,8 @@ import type { Pool } from "pg";
 import { GROWTH_AGENT_COMMAND_PATH,GrowthAgentContractError,parseGrowthAgentCommand } from "@kasitek-labs/contracts";
 import { PlatformError,requestDigest } from "../../contracts/contracts";
 import { GrowthExecutionService } from "./growth-execution";
-import { GrowthServiceAuth,type GrowthServiceTrust } from "./growth-service-auth";
-import type { GrowthProductRuntime } from "./growth-runtime";
+import { GrowthServiceAuth,type GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
+import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 export function registerGrowthProductRoutes(app:FastifyInstance,options:{pool:Pool;trust?:GrowthServiceTrust;runtime?:GrowthProductRuntime}) {
   const auth=options.trust?new GrowthServiceAuth(options.trust):undefined;
   const service=options.trust?new GrowthExecutionService(options.pool,options.trust,options.runtime):undefined;

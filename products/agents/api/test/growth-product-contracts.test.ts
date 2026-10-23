@@ -3,7 +3,7 @@ import {generateKeyPair,exportSPKI,SignJWT} from "jose";
 import {beforeAll,describe,it,expect} from "vitest";
 import {GrowthServiceAuth} from "../src/adapters/products/growth-service-auth";
 import {GrowthActionClient} from "../src/adapters/products/growth-action-client";
-import {growthFeatureConfiguration} from "../src/adapters/products/growth-features";
+import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
 import {defaultBusinessConfiguration,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
 import type {GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
@@ -13,10 +13,10 @@ describe("Growth product contracts",()=>{
   const command:GrowthAgentCommand={version:"1",requestId:randomUUID(),tenantId:randomUUID(),actor,operation:"features.list",input:{}};
   beforeAll(async()=>{key=await generateKeyPair("RS256",{extractable:true});control=await generateKeyPair("RS256",{extractable:true});
     auth=new GrowthServiceAuth({issuer,actorIssuer:actor.issuer,keys:{live:await exportSPKI(key.publicKey)},controlKeys:{control:await exportSPKI(control.publicKey)}});});
-  async function token(cmd=command,options:{key?:typeof key;kid?:string;sub?:string;seconds?:number;actor?:string}={}) {
+  async function token(cmd=command,options:{key?:typeof key;kid?:string;sub?:string;seconds?:number;actor?:string;jti?:string}={}) {
     const now=Math.floor(Date.now()/1000);
     return new SignJWT({product:"growth",requestDigest:requestDigest(cmd)}).setProtectedHeader({alg:"RS256",kid:options.kid??"live"})
-      .setIssuer(issuer).setAudience("agents-product-api").setSubject(options.sub??"growth-api").setJti(randomUUID())
+      .setIssuer(issuer).setAudience("agents-product-api").setSubject(options.sub??"growth-api").setJti(options.jti??randomUUID())
       .setIssuedAt(now).setExpirationTime(now+(options.seconds??60)).sign((options.key??key).privateKey);
   }
   it("binds service authentication to the entire product/actor/request envelope",async()=>{
@@ -25,6 +25,7 @@ describe("Growth product contracts",()=>{
       await expect(auth.verify(signed,changed)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
   });
   it("requires the installed human identity namespace and short lived temporal claims",async()=>{
+    await expect(auth.verify(await token(command,{jti:"-".repeat(36)}),command)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
     await expect(auth.verify(await token(command,{seconds:600}),command)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
     await expect(auth.verify(await token(command,{seconds:-5}),command)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
     const changed={...command,actor:{...actor,issuer:"https://another.example.test"}};
@@ -58,6 +59,8 @@ describe("Growth product contracts",()=>{
       fetch:(async(_url,init)=>{observed=init;return new Response(new ReadableStream({start(c){c.enqueue(bytes.slice(0,split));c.enqueue(bytes.slice(split));c.close();}}),{status:200});}) as typeof fetch});
     const action:GrowthAgentAction={version:"1",requestId:randomUUID(),operationId:"authorization:test",tenantId:command.tenantId,actor,taskId:randomUUID(),conversationId:randomUUID(),featureId:"assistant",context:null,operation:"authorization.check",input:{}};
     expect(await client.call(action)).toMatchObject({authorized:true,name:"é"});expect(observed?.redirect).toBe("error");
+    const interrupted=new GrowthActionClient({...client.options,fetch:(async()=>new Response(new ReadableStream({start(controller){controller.error(new TypeError("socket reset"));}}),{status:200})) as typeof fetch});
+    await expect(interrupted.call(action)).rejects.toMatchObject({code:"GROWTH_ACTION_UNAVAILABLE",statusCode:503});
     expect(()=>new GrowthActionClient({origin:"http://169.254.169.254",issuer,keyId:"worker",privateKey:"irrelevant",environment:"production"})).toThrow("Invalid Growth product API origin");
   });
 });

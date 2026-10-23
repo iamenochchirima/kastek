@@ -1,10 +1,10 @@
 import {randomUUID} from "node:crypto";
 import type {Pool} from "pg";
 import {z} from "zod";
-import {getProviderDefinition} from "../models/registry";
-import {modelProviderAdapter} from "../models/model-adapter";
-import {enrichProviderModels} from "../models/model-metadata";
-import type {ModelDiscoveryFetch,ModelDiscoveryResult} from "../models/discovery";
+import {getProviderDefinition} from "../../adapters/models/registry";
+import {modelProviderAdapter} from "../../adapters/models/model-adapter";
+import {enrichProviderModels} from "../../adapters/models/model-metadata";
+import type {ModelDiscoveryFetch,ModelDiscoveryResult} from "../../adapters/models/discovery";
 import {modelDescriptorSchema,modelEndpointSchema} from "../../contracts/model-providers";
 import {ModelCredentialVault,modelApiKeySchema} from "../../infrastructure/model-credential-vault";
 import {createBoundedFetch} from "../../infrastructure/connected-network";

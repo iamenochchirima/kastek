@@ -3,7 +3,7 @@ import type { Pool,PoolClient } from "pg";
 import type { GrowthAgentAction, GrowthAgentActionInputs, GrowthAgentActionOperation, GrowthAgentActionOutputs,
   GrowthAgentContext, GrowthAgentFeatureId, GrowthAgentReview } from "@kasitek-labs/contracts";
 import { PlatformError } from "../../contracts/contracts";
-import { GrowthActionClient } from "./growth-action-client";
+import { GrowthActionClient } from "../../adapters/products/growth-action-client";
 import { registerProductPorts } from "../../infrastructure/product-ports";
 import { EvidenceStore,assertCurrentEvidence,taskEvidenceManifest } from "../../execution/context/evidence";
 import { fitUtf8 } from "../../capabilities/tool-definitions";
@@ -43,6 +43,14 @@ export class GrowthProductRuntime {
     const response=await this.call(taskId,"authorize:"+randomUUID(),"authorization.check",{context:s.context});
     if(response.authorized!==true)throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
     await assertCurrentEvidence(this.pool,taskId,await taskEvidenceManifest(this.pool,taskId),{requireActiveTask:false});
+  }
+  async authorizeControl(taskId:string):Promise<void> {
+    const row=(await this.pool.query("SELECT p.tenant_id,t.principal,t.conversation_id FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id WHERE t.id=$1 AND t.product='growth'",[taskId])).rows[0];
+    if(!row||row.principal.kind!=="human")throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
+    const response=await this.client.call({version:"1",requestId:randomUUID(),operationId:"control:"+randomUUID(),tenantId:row.tenant_id,
+      actor:{issuer:row.principal.issuer,subject:row.principal.subject},taskId,conversationId:row.conversation_id,
+      featureId:"assistant",context:null,contextRevision:null,operation:"authorization.check",input:{context:null}});
+    if(response.authorized!==true)throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
   }
   async readContext(taskId:string,operationId:string) {
     await this.authorizeTask(taskId);

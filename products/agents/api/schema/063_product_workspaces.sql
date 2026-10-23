@@ -31,6 +31,7 @@ CREATE TABLE agents_platform.product_conversations (
   title text NOT NULL CHECK(length(title) BETWEEN 1 AND 200),
   context jsonb,
   context_revision text,
+  context_display jsonb,
   updated_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY(product,tenant_id,feature_id) REFERENCES agents_platform.product_execution_features(product,tenant_id,feature_id)
 );
@@ -72,3 +73,12 @@ CREATE TABLE agents_platform.product_review_projections (
   projection jsonb NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Product artifacts belong to their actual task, without a standalone customer account.
+ALTER TABLE agents_platform.artifacts ALTER COLUMN account_id DROP NOT NULL;
+ALTER TABLE agents_platform.artifacts ADD COLUMN product_owner text;
+ALTER TABLE agents_platform.artifacts ADD CONSTRAINT artifact_creation_owner CHECK
+  ((account_id IS NOT NULL AND product_owner IS NULL) OR
+   (account_id IS NULL AND product_owner IS NOT NULL AND product_owner IN ('growth','agencies') AND task_id IS NOT NULL));
+
+ALTER TABLE agents_platform.tasks ALTER COLUMN harness_release SET DEFAULT 'growth-products-v10';

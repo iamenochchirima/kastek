@@ -9,6 +9,8 @@ import { provisionGrowthModel } from "../src/product/integrations/growth-model-p
 import { ModelCredentialVault } from "../src/infrastructure/model-credential-vault";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { setupPlatformSchema } from "../src/composition/setup";
+import {beginOperation} from "../src/execution/lifecycle/execution";
+import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
 import { requestDigest } from "../src/contracts/contracts";
 import type { GrowthAgentAction, GrowthAgentCommandOutputs } from "@kasitek-labs/contracts";
 
@@ -55,6 +57,15 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     const turn = await execution.execute({ ...command, requestId: randomUUID(), operation: "turns.submit", input: { conversationId: conversation.conversation.id, text: "Fixture request" } }) as GrowthAgentCommandOutputs["turns.submit"];
     return { tenantId, organizationId: tenant.organization_id, command, taskId: turn.task.id };
   }
+  it("enforces the shared root budget and refuses uninstalled specialist authority",async()=>{
+    const f=await fixture();
+    const root=(await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1",[f.taskId])).rows[0];
+    await expect(beginOperation(pool,f.taskId,{id:"model:"+f.taskId+":0",kind:"model",name:"model.reply",request:{},reservedTokens:root.root_token_limit+1,reservedMs:1000})).rejects.toMatchObject({code:"ROOT_LIMIT"});
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.operations WHERE task_id=$1",[f.taskId])).rows[0].n).toBe(0);
+    const configuration=growthFeatureConfiguration("assistant");
+    configuration.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"unexpected",versionId:randomUUID(),sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:2048,maxActiveMs:1000}]};
+    await expect(execution.execute({...f.command,requestId:randomUUID(),operation:"features.configure",input:{featureId:"assistant",configuration}})).rejects.toMatchObject({code:"PRODUCT_CAPABILITY_UNAVAILABLE"});
+  });
   it("fences existing reads and authority, cancels admitted roots, and enables future use without resurrecting old grants", async () => {
     const first = await fixture(), other = await fixture();
     const disabled = await controlGrowthExecution(pool, { tenantId: first.tenantId, action: "tenant.disable" });

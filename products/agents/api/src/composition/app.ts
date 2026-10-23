@@ -75,10 +75,10 @@ import { registerChannelSupportRoutes } from "../product/channels/channel-suppor
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
-import { registerGrowthProductRoutes } from "../adapters/products/growth-routes";
+import { registerGrowthProductRoutes } from "../product/integrations/growth-routes";
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
 import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
-import { GrowthProductRuntime } from "../adapters/products/growth-runtime";
+import { GrowthProductRuntime } from "../execution/products/growth-runtime";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });

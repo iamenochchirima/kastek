@@ -63,7 +63,7 @@ function accountedModelTokens(value: ModelResponse, reserved: number): number {
 }
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
 import type { GrowthAgentReview, GrowthDraftProposal } from "@kasitek-labs/contracts";
-import type { GrowthProductRuntime } from "../../adapters/products/growth-runtime";
+import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 import { awaitGrowthReview } from "./product-review";
 export interface BusinessOptions {
   product?: GrowthProductRuntime;

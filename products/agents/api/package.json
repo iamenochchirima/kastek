@@ -26,7 +26,9 @@
     "dev:document-reaper": "node --env-file-if-exists=.env --import tsx src/composition/document-reaper.ts",
     "start:document-reaper": "node --env-file-if-exists=.env dist/composition/document-reaper.js",
     "dev:source-object-reaper": "node --env-file-if-exists=.env --import tsx src/composition/source-object-reaper.ts",
-    "start:source-object-reaper": "node --env-file-if-exists=.env dist/composition/source-object-reaper.js"
+    "start:source-object-reaper": "node --env-file-if-exists=.env dist/composition/source-object-reaper.js",
+    "setup:growth-model": "node --env-file-if-exists=.env --import tsx src/composition/provision-growth-model.ts",
+    "control:growth": "node --env-file-if-exists=.env --import tsx src/composition/control-growth.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.1.0",

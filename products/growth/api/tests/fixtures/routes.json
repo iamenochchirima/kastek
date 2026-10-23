@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 319,
+  "routeCount": 320,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -70,6 +70,7 @@
     "GET /api/agents/tasks/:taskId",
     "GET /api/agents/tasks/:taskId/artifacts",
     "GET /api/agents/tasks/:taskId/artifacts/:artifactId",
+    "GET /api/agents/tasks/:taskId/artifacts/:artifactId/download",
     "GET /api/agents/tasks/:taskId/events",
     "GET /api/agents/tasks/:taskId/reviews",
     "GET /api/analytics/catalog",
