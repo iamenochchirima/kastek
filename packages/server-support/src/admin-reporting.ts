@@ -1,4 +1,4 @@
-import type { AdminReportQuery, AdminProductReport, AdminReportMetric } from "@kasitek-labs/contracts";
+import { ADMIN_REPORT_METRICS, type AdminReportQuery, type AdminProductReport, type AdminReportMetric } from "@kasitek-labs/contracts";
 
 /** Match the existing Analytics API range and pagination safety bounds. */
 export function parseAdminReportQuery(input: Record<string, unknown>, now = new Date()): AdminReportQuery {
@@ -47,4 +47,63 @@ export function reportCsv(reports: readonly AdminProductReport[]): string {
   for (const report of reports) for (const metric of report.metrics) rows.push([report.product,report.query.start,report.query.end,report.query.timezone,
     report.query.organizationId,metric.key,metric.value,metric.currency,JSON.stringify(metric.dimensions ?? {}),metric.availability,metric.reason,metric.source,metric.observedAt,report.completeThrough]);
   return rows.map(row=>row.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+import type {Pool, PoolClient} from "pg";
+/** Several report queries must describe the same committed snapshot. */
+export async function adminReportSnapshot<T>(pool: Pool, read: (db: PoolClient) => Promise<T>): Promise<T> {
+  const db=await pool.connect();
+  try {
+    await db.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await db.query("SET LOCAL statement_timeout = '5s'");
+    const result=await read(db);
+    await db.query("COMMIT");return result;
+  } catch(error) {await db.query("ROLLBACK");throw error;} finally {db.release();}
+}
+
+export interface AdminReportSourceRequest {product:AdminProductReport["product"];query:AdminReportQuery;url:string;headers?:HeadersInit}
+const availabilityStates=new Set(["available","partial","stale","unavailable","unsupported"]);
+/** Project the transport DTO instead of passing unexpected upstream fields into privileged UI or exports. */
+export function validateProductReport(raw:unknown,product:AdminProductReport["product"],query:AdminReportQuery):AdminProductReport {
+ const value=raw as AdminProductReport;
+ const string=(input:unknown,max=256):string=>{if(typeof input!=="string"||input.length>max)throw Error("Invalid source response");return input;};
+ const time=(input:unknown):string|null=>{if(input===null)return null;const v=string(input,40);if(!Number.isFinite(Date.parse(v)))throw Error("Invalid source timestamp");return v;};
+ if(!value||value.contractVersion!=="1"||value.product!==product||!availabilityStates.has(value.availability)||!Array.isArray(value.metrics)||value.metrics.length>1000||!Array.isArray(value.records)||value.records.length>query.pageSize||typeof value.hasMore!=="boolean")throw Error("Invalid source report");
+ const keys=new Set(ADMIN_REPORT_METRICS.map(metric=>metric.key));keys.add("source");
+ const metrics=value.metrics.map(metric=>{
+   if(!keys.has(metric.key)||!availabilityStates.has(metric.availability)||metric.value!==null&&(typeof metric.value!=="string"||!/^[-]?\d+(?:\.\d+)?$/.test(metric.value)||metric.value.length>80))throw Error("Invalid source metric");
+   if(metric.value===null&&metric.availability==="available")throw Error("Unknown metric cannot be available");
+   if(metric.currency!==undefined&&!/^[A-Z]{3}$/.test(metric.currency))throw Error("Invalid currency");
+   const dimensions:Record<string,string>={};
+   for(const [key,input] of Object.entries(metric.dimensions??{})) {
+     if(!["consumer","provider","model","productKey","metricKey","eventType","exactness","channel","state"].includes(key))throw Error("Invalid dimension");
+     dimensions[key]=string(input);
+   }
+   return {key:metric.key,value:metric.value,availability:metric.availability,source:string(metric.source),observedAt:time(metric.observedAt),
+     ...(metric.reason===undefined?{}:{reason:string(metric.reason,256)}),...(metric.currency===undefined?{}:{currency:metric.currency}),dimensions};
+ });
+ const records=value.records.map(record=>{
+   if(record.consumer!==undefined&&!["growth","agency","agents"].includes(record.consumer))throw Error("Invalid consumer");
+   return {id:string(record.id),kind:string(record.kind),organizationId:string(record.organizationId),state:string(record.state),occurredAt:time(record.occurredAt)!,
+     ...(record.consumer===undefined?{}:{consumer:record.consumer}),...(record.rootId===undefined?{}:{rootId:string(record.rootId)})};
+ });
+ return {contractVersion:"1",product,query,availability:value.availability,generatedAt:time(value.generatedAt)!,sourceObservedAt:time(value.sourceObservedAt),completeThrough:time(value.completeThrough),metrics,records,hasMore:value.hasMore};
+}
+export async function collectAdminProductReports(requests:readonly AdminReportSourceRequest[],signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AdminProductReport[]> {
+ if(requests.length>3)throw Error("Too many product sources");
+ return Promise.all(requests.map(async source=>{
+  try {
+   const response=await fetcher(source.url,{method:"GET",headers:source.headers,cache:"no-store",signal:signal?AbortSignal.any([signal,AbortSignal.timeout(8000)]):AbortSignal.timeout(8000)});
+   if(!response.ok)throw Error("Source unavailable");
+   if(Number(response.headers.get("content-length")??0)>2_000_000)throw Error("Oversized source report");
+   // Bound streamed response bytes as well as Content-Length.
+   const reader=response.body?.getReader();if(!reader)throw Error("Empty source report");
+   const chunks:Uint8Array[]=[];let size=0;
+   for(;;){const item=await reader.read();if(item.done)break;size+=item.value.byteLength;if(size>2_000_000){await reader.cancel();throw Error("Oversized source report");}chunks.push(item.value);}
+   return validateProductReport(JSON.parse(Buffer.concat(chunks).toString("utf8")),source.product,source.query);
+  } catch {
+   if(signal?.aborted)throw signal.reason;
+   return missingProductReport(source.product,source.query,"Reporting source unavailable");
+  }
+ }));
 }

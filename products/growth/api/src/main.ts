@@ -1,3 +1,4 @@
+import {registerAdminReportingRoutes} from "./routes/admin-reporting.js";
 import { config as loadEnvironment } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -194,6 +195,7 @@ export const CORE_REGISTRARS = [
   registerUnifiedInboxRoutes,
   registerLeadRoutes,
   registerAdminOperationsRoutes,
+  registerAdminReportingRoutes,
   registerWhatsappInboxRoutes,
   registerWhatsappCallRoutes,
   registerWhatsappCallbacks,
