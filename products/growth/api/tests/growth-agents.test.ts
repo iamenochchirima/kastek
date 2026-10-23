@@ -49,11 +49,13 @@ test("Growth signing binds full scope and fixed audience, rejects changed body a
 });
 test("Growth browser bridge enforces origin and membership and reports truthful unavailability", async () => {
   let member = true;
-  const core = { config: config(), pool: { query: async () => ({ rows: member ? [{ name: "Business" }] : [] }) } } as unknown as CoreContext;
+  const core = { config: config(), pool: { query: async (sql: string) => ({ rows: !member ? [] : sql.includes('SELECT status,"failureCode"') ? [{ status: "pending", failureCode: null, updatedAt: new Date() }] : [{ name: "Business" }] }) } } as unknown as CoreContext;
   const app = await buildApp(core, [(app, core) => registerGrowthAgentRoutes(app, core, { resolveScope: async () => ({ tenantId: "org", actor }) })]);
   try {
     const bootstrap = await app.inject("/api/agents/bootstrap");
     assert.equal(bootstrap.statusCode, 200); assert.equal(bootstrap.json().features.length, 4);
+    assert.equal(bootstrap.json().setup.state, "pending");
+    assert.equal(bootstrap.json().features[0].reasons[0].message, "Setting up");
     assert.equal(bootstrap.json().features.every((feature: { ready: boolean }) => !feature.ready), true);
     assert.deepEqual(bootstrap.json().scope, { businessId: "org", userId: "user", businessName: "Business" });
     assert.equal((await app.inject({ method: "POST", url: "/api/agents/conversations", payload: { requestId: "one", featureId: "assistant" } })).statusCode, 403);

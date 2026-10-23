@@ -10,6 +10,7 @@ import { GrowthAgentClient, type GrowthAgentTransport } from "./client.js";
 import { growthAgentActor } from "./security.js";
 import { authorizeGrowthAgentScope, readGrowthAgentContext, type GrowthAgentScope } from "./scope.js";
 import { GrowthAgentReviewStore } from "./reviews.js";
+import { ensureGrowthAgentSetup } from "./setup.js";
 import { enqueueGrowthAgentCommand } from "./analytics.js";
 function contract<T>(run: () => T): T {
   try { return run(); } catch (error) {
@@ -81,13 +82,17 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   const id = (request: FastifyRequest, name: string) => string((request.params as Record<string, unknown>)[name], name);
   app.get("/api/agents/bootstrap", async request => {
     const auth = await scope(request), business = await authorizeGrowthAgentScope(core, auth);
+    const setup = await ensureGrowthAgentSetup(core, auth.tenantId);
     let data;
-    try { data = await client.command(auth, "features.list", {}); }
+    try {
+      if (setup.state !== "ready") throw new ApiError(503, "agent_setup_pending", "Agent setup is pending");
+      data = await client.command(auth, "features.list", {});
+    }
     catch (error) {
       if (!(error instanceof ApiError) || error.status < 500) throw error;
       const names = { assistant: "Growth assistant", research: "Research", content: "Content", campaigns: "Campaigns" };
       data = { features: GROWTH_AGENT_FEATURE_IDS.map(featureId => ({ id: featureId, name: names[featureId], description: "", ready: false,
-        reasons: [{ code: error.code, message: "Agents is temporarily unavailable" }] })), model: null };
+        reasons: [{ code: error.code, message: setup.state === "pending" || setup.state === "running" ? "Setting up" : setup.state === "blocked" || setup.state === "failed" ? "Setup needs attention" : "Agents is temporarily unavailable" }] })), model: null };
     }
     data.features = await Promise.all(data.features.map(async feature => {
       try { await authorizeGrowthAgentScope(core, auth, feature.id); return feature; }
@@ -96,7 +101,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
         return { ...feature, ready: false, reasons: [{ code: error.code, message: "Unavailable for this business", route: "/billing" }] };
       }
     }));
-    const result: GrowthAgentBootstrap = { ...data, defaultFeatureId: "assistant", scope: { businessId: auth.tenantId, userId: auth.actor.subject, businessName: business.businessName } };
+    const result: GrowthAgentBootstrap = { ...data, setup, defaultFeatureId: "assistant", scope: { businessId: auth.tenantId, userId: auth.actor.subject, businessName: business.businessName } };
     return result;
   });
   app.get("/api/agents/conversations", request => invoke(request, "conversations.list", page(request, ["featureId", "search"])));

@@ -70,6 +70,9 @@ async function start() {
   await pool.query(`UPDATE "ContentMediaAsset" SET "orgId"=$1 WHERE "orgId"='org'`, [tenantId]);
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
+  await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023170000_growth_agent_setup/migration.sql", import.meta.url), "utf8"));
+  // This fixture's Agents side explicitly provisions its model before any browser request.
+  await pool.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision",status,"completedAt") VALUES($1,$2,'fixture','1','ready',NOW())`, [tenantId, randomUUID()]);
   process.env.KASITEK_BILLING_ENFORCEMENT = "true";
   const config = readConfig({ ...process.env, DATABASE_URL: scoped.href, ENVIRONMENT: "test", LOG_LEVEL: "silent", FRONTEND_URL: "http://localhost:3000" });
   if (config.env.AGENTS_PRODUCT_API_URL) config.env.AGENTS_PRODUCT_API_URL = localOrigin(config.env.AGENTS_PRODUCT_API_URL);
