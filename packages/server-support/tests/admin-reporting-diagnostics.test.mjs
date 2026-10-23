@@ -21,7 +21,11 @@ test('product diagnostics observe durable backlog without publication or secret 
   let result=await readProductDiagnostics(pool,'agency',{});assert.equal(result.schema.state,'incompatible_schema');assert.equal(result.publication,null);
   await pool.query(`CREATE TABLE workspaces(id text);CREATE TABLE analytics_outbox(delivery_status text,attempt_count int,created_at timestamptz,delivered_at timestamptz,last_error_code text,updated_at timestamptz);
    INSERT INTO analytics_outbox VALUES('pending',2,'2026-10-01',NULL,'upstream_timeout',now()),('delivered',1,'2026-09-01','2026-10-02',NULL,now()),('quarantined',4,'2026-09-01',NULL,'invalid_envelope',now());`);
-  result=await readProductDiagnostics(pool,'agency',{ANALYTICS_TENANT_INGESTION_TOKEN:'never-return-this'});assert.equal(result.reads.state,'ready');assert.equal(result.publication.pending,'1');assert.equal(result.publication.retrying,'1');assert.equal(result.publication.quarantined,'1');assert.equal(result.publication.lastPublishedAt,'2026-10-02T00:00:00.000Z');assert(!JSON.stringify(result).includes('never-return-this'));
+  result=await readProductDiagnostics(pool,'agency',{ANALYTICS_TENANT_INGESTION_TOKEN:'never-return-this'});assert.equal(result.reads.state,'ready');assert.equal(result.publication.pending,'1');assert.equal(result.publication.retrying,'1');assert.equal(result.publication.quarantined,'1');assert.equal(result.publication.state,'quarantined');assert.equal(result.publication.lastPublishedAt,'2026-10-02T00:00:00.000Z');assert(!JSON.stringify(result).includes('never-return-this'));
   assert.equal((await pool.query('SELECT count(*) FROM analytics_outbox')).rows[0].count,'3');
+  assert.equal(sanitizeReportingDiagnostics(result,'agency').publication.state,'quarantined');
+  await pool.query(`DELETE FROM analytics_outbox;CREATE SCHEMA agents_platform;CREATE TABLE agents_platform.tasks(id text);CREATE TABLE agents_platform.analytics_event_receipts(state text);INSERT INTO agents_platform.analytics_event_receipts VALUES('pending');`);
+  result=await readProductDiagnostics(pool,'agents',{});assert.equal(result.publication.pending,'0');assert.equal(result.publication.pendingReceipts,'1');assert.equal(result.publication.state,'backfilling');
+  await pool.query("UPDATE agents_platform.analytics_event_receipts SET state='queued'");result=await readProductDiagnostics(pool,'agents',{});assert.equal(result.publication.state,'no_activity');
  }finally{await pool.end();await parent.query(`DROP DATABASE "${name}"`);await parent.end();}
 });

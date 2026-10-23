@@ -10,6 +10,6 @@ export interface AdminReportingDiagnostics {
  connectivity: AdminDiagnosticCheck;
  schema: AdminDiagnosticCheck;
  reads: AdminDiagnosticCheck;
- publication: null | {state:"ready"|"no_activity"|"backfilling";pending:string;retrying:string;quarantined:string;oldestPendingAt:string|null;lastPublishedAt:string|null;failureCode:string|null;pendingReceipts:string|null};
+ publication: null | {state:"ready"|"no_activity"|"backfilling"|"quarantined";pending:string;retrying:string;quarantined:string;oldestPendingAt:string|null;lastPublishedAt:string|null;failureCode:string|null;pendingReceipts:string|null};
  projection: null | {registeredScopes:string;observedSourceAt:string|null;ingestedAt:string|null;checkpointAt:string|null;completeThrough:string|null;pending:string;oldestPendingAt:string|null;failed:string;backfilling:string;promotedGenerations:string;latestPromotedAt:string|null;sourceStates:Record<string,string>;coverage:"unknown"|"partial"};
 }
