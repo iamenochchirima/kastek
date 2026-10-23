@@ -208,12 +208,6 @@ function horizontalRule(line: string): boolean {
     [...trimmed].filter((character) => character === first).length >= 3
   );
 }
-export function validateAgentDeliveryIdempotencyKey(input: string): string {
-  const value = input.trim();
-  if (!value || Buffer.byteLength(value) > 240)
-    throw bad("A valid agent delivery idempotency key is required");
-  return value;
-}
 export function isProviderAuthenticationFailure(error: string): boolean {
   const normalized = error.replace(/[A-Z]/g, (character) =>
     character.toLowerCase(),

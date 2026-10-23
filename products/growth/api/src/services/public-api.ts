@@ -1,18 +1,15 @@
-import { parseSerdeValueJson } from "../json.js";
 import { createId } from "@paralleldrive/cuid2";
-import { randomBytes, randomUUID, createHash, createHmac } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { CoreConfig } from "../config.js";
 import type {
   RequestContext,
   PublicActionPolicy,
-  InstallationCapabilities,
 } from "../identity/request-context.js";
 import { ApiError } from "../error.js";
 import { transaction } from "../db.js";
 import {
   canonicalJson,
-  SerdeFloat,
   wireInteger,
 } from "@kasitek-labs/server-support/json";
 type Row = Record<string, unknown>;
@@ -301,148 +298,4 @@ export async function rotateApiKey(
     ).rows[0];
     return { key: keyMetadata(created), secret };
   });
-}
-export async function loadInstallationCapabilities(
-  config: CoreConfig,
-  context: RequestContext,
-): Promise<InstallationCapabilities> {
-  const env = config.env,
-    base = env.AGENTS_API_URL?.trim().replace(/\/+$/, ""),
-    secret = env.AGENTS_INTERNAL_AUTH_SECRET?.trim();
-  if (!base)
-    throw new ApiError(
-      503,
-      "service_unavailable",
-      "Agent Platform is not configured",
-    );
-  if (!secret)
-    throw new ApiError(
-      503,
-      "service_unavailable",
-      "Agent Platform authentication is not configured",
-    );
-  if (!context.installationId)
-    throw new ApiError(401, "unauthorized", "Unauthorized");
-  const correlationId = randomUUID(),
-    claims = {
-      organizationId: context.organizationId,
-      actorId: context.principal.id,
-      correlationId,
-      audience: env.AGENTS_INTERNAL_AUTH_AUDIENCE ?? "kasitek-agents",
-      expiresAt: Math.floor(Date.now() / 1000) + 60,
-      scopes: ["agents:read"],
-    },
-    payload = Buffer.from(JSON.stringify(claims)).toString("base64url"),
-    token = `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`,
-    credential = context.principal.clientId,
-    path = `/v1/installations/${encodeURIComponent(context.installationId)}/capabilities${credential?.trim() ? `?credentialId=${encodeURIComponent(credential)}` : ""}`;
-  let response: Response;
-  try {
-    response = await fetch(base + path, {
-      headers: {
-        authorization: `Bearer ${token}`,
-        "x-organization-id": context.organizationId,
-        "x-actor-id": context.principal.id,
-        "x-correlation-id": correlationId,
-      },
-      signal: AbortSignal.timeout(
-        Math.min(
-          120000,
-          Math.max(500, unsigned(env.AGENTS_API_TIMEOUT_MS, 15000)),
-        ),
-      ),
-    });
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError")
-    )
-      throw new ApiError(
-        504,
-        "gateway_timeout",
-        "Agent Platform request timed out",
-      );
-    const cause =
-      error instanceof Error
-        ? (error as Error & { cause?: { code?: string } }).cause?.code
-        : undefined;
-    if (
-      cause &&
-      ["ECONNREFUSED", "ENOTFOUND", "EHOSTUNREACH", "ENETUNREACH"].includes(
-        cause,
-      )
-    )
-      throw new ApiError(
-        503,
-        "service_unavailable",
-        "Agent Platform is unavailable",
-      );
-    throw new ApiError(502, "bad_gateway", "Agent Platform request failed");
-  }
-  if (!response.ok) {
-    let detail: Row = {};
-    try {
-      const parsed = parseSerdeValueJson(await response.text());
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        !(parsed instanceof SerdeFloat) &&
-        !Array.isArray(parsed)
-      )
-        detail = parsed as Row;
-    } catch {}
-    const message =
-        typeof detail.error === "string"
-          ? detail.error
-          : "Agent Platform request failed",
-      known = new Set([
-        "google_oauth_integration_not_supported",
-        "google_oauth_not_configured",
-        "google_token_exchange_failed",
-        "google_access_token_missing",
-        "mcp_oauth_not_configured",
-        "mcp_oauth_client_registration_unsupported",
-        "mcp_oauth_client_registration_failed",
-        "mcp_oauth_start_failed",
-        "mcp_oauth_state_incomplete",
-        "mcp_oauth_code_missing",
-        "mcp_oauth_connection_failed",
-      ]);
-    if (typeof detail.code === "string" && known.has(detail.code))
-      throw new ApiError(response.status, detail.code, message);
-    if (detail.code === "conversation_handoff_active")
-      throw new ApiError(409, "conversation_handoff_active", message);
-    const [status, code] =
-      response.status === 400 || response.status === 422
-        ? [400, "bad_request"]
-        : response.status === 401
-          ? [401, "unauthorized"]
-          : response.status === 403
-            ? [403, "forbidden"]
-            : response.status === 404
-              ? [404, "not_found"]
-              : response.status === 409
-                ? [409, "conflict"]
-                : response.status === 408 || response.status === 504
-                  ? [504, "gateway_timeout"]
-                  : response.status === 503
-                    ? [503, "service_unavailable"]
-                    : [502, "bad_gateway"];
-    throw new ApiError(
-      status as number,
-      code as string,
-      response.status === 401 ? "Unauthorized" : message,
-    );
-  }
-  try {
-    return parseSerdeValueJson(
-      await response.text(),
-    ) as InstallationCapabilities;
-  } catch {
-    throw new ApiError(
-      502,
-      "bad_gateway",
-      "Agent Platform returned an invalid response",
-    );
-  }
 }

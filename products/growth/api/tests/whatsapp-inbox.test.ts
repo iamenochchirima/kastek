@@ -15,7 +15,6 @@ import {
 import {
   formatWhatsappText,
   extractMarkdownImages,
-  validateAgentDeliveryIdempotencyKey,
   whatsappDeletedMessageResponderType,
   isProviderAuthenticationFailure,
 } from "../src/services/whatsapp/inbox-formatting.js";
@@ -62,12 +61,6 @@ test("WhatsApp agent rendering preserves the existing Rust examples and UTF-8 de
       images: ["https://core.test/media/asset-1"],
     },
   );
-  assert.equal(
-    validateAgentDeliveryIdempotencyKey("  run-1:channel  "),
-    "run-1:channel",
-  );
-  assert.throws(() => validateAgentDeliveryIdempotencyKey("é".repeat(121)));
-  assert.throws(() => validateAgentDeliveryIdempotencyKey(" "));
   assert.equal(
     whatsappDeletedMessageResponderType("customer", {
       _kasitek_agent_idempotency_key: "run",

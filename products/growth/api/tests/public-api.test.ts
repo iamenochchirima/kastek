@@ -13,7 +13,6 @@ import {
   revokeApiKey,
   listApiKeys,
   requestMetrics,
-  loadInstallationCapabilities,
 } from "../src/services/public-api.js";
 import {
   supportedEventTypes,
@@ -45,7 +44,6 @@ const principal: RequestContext = {
   organizationId: "org",
   userId: "user",
   clientId: null,
-  installationId: null,
   effectiveGrants: new Set(),
   apiScopes: new Set(["api:read"]),
   correlationId: "correlation",
@@ -121,58 +119,6 @@ test("native workers honor pre-aborted shutdown without queue effects", async ()
     controller.signal,
     logger,
   );
-});
-test("actual private capability client signs internal claims and scopes", async () => {
-  let claims: Record<string, unknown> | undefined;
-  const server = createServer((request, response) => {
-    assert.equal(
-      request.url,
-      "/v1/installations/install/capabilities?credentialId=credential",
-    );
-    const token = request.headers.authorization!.slice(7),
-      [encoded, signature] = token.split(".");
-    assert.equal(
-      signature,
-      createHmac("sha256", "synthetic-secret")
-        .update(encoded!)
-        .digest("base64url"),
-    );
-    claims = JSON.parse(Buffer.from(encoded!, "base64url").toString());
-    response.setHeader("content-type", "application/json");
-    response.end('{"apiScopes":["api:read"],"capabilities":[]}');
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  try {
-    const address = server.address() as { port: number },
-      context = {
-        ...principal,
-        installationId: "install",
-        principal: {
-          kind: "agent_installation" as const,
-          id: "install",
-          subjectUserId: null,
-          clientId: "credential",
-        },
-      };
-    assert.deepEqual(
-      await loadInstallationCapabilities(
-        readConfig({
-          DATABASE_URL: "postgres://unused",
-          AGENTS_API_URL: `http://127.0.0.1:${address.port}`,
-          AGENTS_INTERNAL_AUTH_SECRET: "synthetic-secret",
-        }),
-        context,
-      ),
-      { apiScopes: ["api:read"], capabilities: [] },
-    );
-    assert.equal(claims!.organizationId, "org");
-    assert.equal(claims!.actorId, "install");
-    assert.deepEqual(claims!.scopes, ["agents:read"]);
-    assert.equal(claims!.audience, "kasitek-agents");
-    assert.ok(Number(claims!.expiresAt) > Date.now() / 1000);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
 });
 test(
   "isolated PostgreSQL keys, distributed rate accounting and signed webhook delivery",

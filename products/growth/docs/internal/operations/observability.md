@@ -29,16 +29,15 @@ Growth Core / Tenants / Agents / Labs Analytics
 
 Growth Core, Agency Tenant, and Labs Analytics initialize the Node SDK before their Fastify and
 PostgreSQL modules. They use telemetry helpers from the private Labs TypeScript package. Agents
-initializes its Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
-Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
+uses its own current observability implementation. Refer to its source boundary for runtime-specific signals. HTTP instrumentation,
+Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
 PostgreSQL enhanced database reporting is disabled so query parameters and result data are not
 attached to database spans.
 Internal HTTP calls use the shared W3C propagator and construct/inject request headers inside the
 provider span, so downstream requests are children of the dependency operation rather than
-siblings of it. Temporal carries only bounded trace and correlation headers through its payload
-converter. The activity interceptor decodes those string payloads before restoring the async
-context; contract tests cover the provider-child HTTP injection and Temporal activity boundary.
+siblings of it. Growth's shared-execution bridge must preserve the same trace boundary.
+Shared Agents runtime-specific telemetry is documented in its current source boundary.
 
 The debug exporter is not durable storage. Production observability is not complete until a
 durable destination, retention, access policy, resource owner, and alerting policy are approved
@@ -56,9 +55,6 @@ Collector source and local operation instructions are maintained in the
 | Labs Analytics API | `kasitek-analytics-api` |
 | Labs Analytics worker | `kasitek-analytics-worker` |
 | Labs Analytics migration job | `kasitek-analytics-migrate` |
-| Agents API | `kasitek-agents` unless `OTEL_SERVICE_NAME` or `KASITEK_SERVICE_NAME` overrides it |
-| Agents worker | `kasitek-agents` unless overridden |
-| Agents gateway | `kasitek-agents` unless overridden |
 
 Every process attaches `service.version`, `deployment.environment.name`, `kasitek.release_id`,
 `kasitek.commit_sha`, and `kasitek.artifact_digest` when supplied. Application values are
@@ -128,24 +124,16 @@ The minimum event vocabulary is:
 | Retries | `operation.retry.scheduled`, `operation.retry.exhausted` |
 | Migrations | `migration.started`, `migration.completed`, `migration.failed` |
 | Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
-| Database isolation | `database.authorization.failed`, `database.context.missing` |
-| Memory embeddings | `memory.embedding.failed` |
-| Agent grounding | `agent.grounding.reviewed` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
 Event names are identifiers, not user-facing prose. Current services use structured logging with
 this event vocabulary. Do not reintroduce the retired Rust logging macros.
 
-Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Its
-operational logger accepts lowercase dot-separated event names and normalizes invalid event
-values to `operation.invalid.event` while retaining only a bounded diagnostic value. Core and Tenant
-source backfill workers, Core operational workers, the Growth Analytics outbox publisher, and Labs
-Analytics projection processing emit stable lifecycle/result events and shared operation metrics.
-Request summaries omit query strings and network addresses; credentials, authorization material,
-cookies, tokens, prompts, and message content are redacted in the application logger and Collector
-processor. Agents stdio and telemetry-bootstrap diagnostics are bounded and redacted before they
-reach stdout or stderr. Provider paths record bounded status/error metadata rather than raw response
-bodies or webhook payloads.
+Core and Tenant source backfill workers, Core operational workers, the Growth Analytics outbox
+publisher, and Labs Analytics projection processing emit lifecycle/result events through shared
+operation boundaries. Request summaries omit query strings and network addresses. Application
+logging and Collector redaction exclude credentials, tokens and private message bodies.
+Provider diagnostics retain bounded status/error metadata rather than raw response bodies.
 
 Use low-cardinality attributes for metrics and spans. Keep request IDs, customer identifiers,
 provider payloads, and message text in bounded body fields only when there is a documented support
@@ -160,24 +148,12 @@ background work. Health endpoints must distinguish process liveness from depende
 The current shared instrumentation provides `http.server.request.count`,
 `http.server.request.duration`, `http.server.request.error.count`, and
 `http.server.request.in_flight` for Growth Core, Agency Tenant, and Labs Analytics HTTP services.
-Agents provides
-`kasitek.operation.count`, `kasitek.operation.error.count`,
-`kasitek.operation.duration`, `kasitek.operation.in_flight`,
-`kasitek.operation.retry.count`, `kasitek.dependency.failure.count`, and
-`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries. Agents
-also emits `kasitek.database.authorization_failure.count` for PostgreSQL permission/RLS denials
-and `kasitek.database.context_missing.count` when a required background scope is absent. Core
-worker batch loops, Core/Tenant source backfill processing, Analytics outbox publication, and
+Core worker batch loops, Core/Tenant source backfill processing, Analytics outbox publication, and
 Analytics projection processing use the shared operation boundary; source queues that do not
 return an enqueue timestamp cannot emit a meaningful queue-age measurement yet.
 Collector internal metrics cover Collector health and processing. Queue age, retry, and
 dependency metrics are emitted only at boundaries that own those concepts; resource saturation is
 owned by the Collector/host platform rather than application request labels.
-
-The optional semantic retrieval path emits `kasitek.memory.embedding.request.count` with bounded
-`provider`, `outcome`, and `count` attributes. When an embedding provider fails, Agents emits
-`memory.embedding.failed` with the provider, model, bounded error code, and `fallback=lexical`.
-Neither path records memory text, prompts, vectors, credentials, or record IDs.
 
 The minimum metric contract is therefore:
 
@@ -190,9 +166,6 @@ The minimum metric contract is therefore:
 | Queue age | Queue owner only | `kasitek.queue.age` in seconds |
 | Retries | Retry owner only | `kasitek.operation.retry.count` |
 | Dependency failures | Provider/dependency boundary | `kasitek.dependency.failure.count` |
-| Database authorization failures | Agents PostgreSQL pool boundary | `kasitek.database.authorization_failure.count` |
-| Missing background database context | Agents background-process boundary | `kasitek.database.context_missing.count` |
-| Memory embedding requests and fallback | Agents memory write/retrieval boundary | `kasitek.memory.embedding.request.count` |
 | Resource saturation | Collector/host platform | Collector internal and platform resource metrics |
 
 Identifiers such as request IDs, run IDs, and customer IDs must not become metric attributes.

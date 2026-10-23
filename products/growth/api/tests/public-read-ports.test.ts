@@ -155,25 +155,10 @@ test(
           e.status === 404,
       );
       const summary = (
-        await workspaceSummary(core, 'org', 'user', {
-          client: () => ({
-            listAgents: async () => ({ agents: [{}] }),
-            operationsSummary: async () => ({
-              runs: {
-                runsByStatus: [
-                  { status: 'failed', count: 3 },
-                  { status: 'awaiting_human', count: 2n },
-                  { status: 'failed', count: 1.5 },
-                  { status: 'failed', count: 1n << 63n },
-                  { status: 'completed', count: 100 },
-                ],
-              },
-            }),
-          }),
-        })
+        await workspaceSummary(core, 'org', 'user')
       ).summary;
-      assert.equal(summary.agentCount, 1);
-      assert.equal(summary.attention.agentAttention, 5n);
+      assert.equal(summary.agentCount, null);
+      assert.equal(summary.attention.agentAttention, null);
       assert.equal(summary.socialPostCount, 1n);
       assert.equal(summary.contactsAggregate.total, 2n);
       assert.equal(summary.contactsAggregate.optedIn, 1n);
@@ -184,15 +169,6 @@ test(
       assert.equal(summary.templateStatusMap.PENDING, 1n);
       assert.equal(summary.reviewQueue[0]!.body, 'Private template');
       assert.equal(summary.connections[0]!.stats.estimatedRemainingToday, 10);
-      const unavailable = (
-        await workspaceSummary(core, 'org', 'user', {
-          client: () => {
-            throw new Error('unconfigured');
-          },
-        })
-      ).summary;
-      assert.equal(unavailable.agentCount, 0);
-      assert.equal(unavailable.attention.agentAttention, 0n);
       assert.ok(
         Number(
           (

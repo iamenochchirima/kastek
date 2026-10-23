@@ -21,6 +21,9 @@ Growth still owns its existing credit ledger operations in
 [`credits.ts`](../../../api/src/services/credits.ts). Their presence alone does not establish
 active customer-usage charging.
 
+The current Growth assistant uses shared execution model accounting. The removed direct ideas/caption
+path is historical. A new retail credit conversion is separate from execution usage settlement.
+
 ## Historical charging audit, 2026-09-10
 
 | Functionality | What the code does today | Credit status |
@@ -29,7 +32,7 @@ active customer-usage charging.
 | Agents model calls using BYOK | Preserves `fundingSource = user` and skips the KasiTek credit reservation. | **Not charged by design.** |
 | Agent read tools | No direct credit reservation or capture. | **Not charged.** |
 | Agent outbound tool effects | The tool itself does not use the credit ledger. A downstream action may use a separate meter or provider-specific policy. | **No general credit charge.** |
-| Core social ideas and captions | Core calls OpenRouter directly from [`ai.ts`](../../../api/src/services/ai.ts). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
+| Core social ideas and captions | Core calls OpenRouter directly from the retired ai.ts source. No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
 | Website chat | The intended plan says to charge AI response usage through the Agent boundary, but the credit implementation checklist still marks website-chat enforcement incomplete. | **Not confirmed as a complete credit contract.** Platform-funded model calls may be charged after reaching the worker; anonymous and end-to-end behavior need explicit tests. |
 | WhatsApp campaign recipients | Checks and records the monthly `campaign_recipients` meter around accepted sends. | **Not charged as credits.** Uses a separate monthly meter. |
 | Social publishing | Records the monthly `social_publishes` meter after successful publication. | **Not charged as credits.** |

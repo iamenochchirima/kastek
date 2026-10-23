@@ -11,7 +11,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch --include .env src/bootstrap.ts",
     "start": "node dist/bootstrap.js",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "contracts:check": "tsx scripts/refresh-route-contracts.ts",
+    "contracts:refresh": "tsx scripts/refresh-route-contracts.ts --write"
   },
   "dependencies": {
     "@fastify/cookie": "^10.0.1",

@@ -4,34 +4,6 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { agentWorkspaceReport } from '../src/services/workspace-reporting.js';
 import { apiJson } from '../src/json.js';
-import { buildApp } from '../src/app.js';
-import { readConfig } from '../src/config.js';
-import { registerInternalWorkspaceRoutes } from '../src/routes/internal-workspace.js';
-
-test('internal workspace HTTP rejects browser credentials before reading data and serializes authorized aggregate counts', async () => {
-  let reads = 0;
-  const pool = { query: async (query: string, parameters: unknown[]) => {
-    reads += 1;
-    assert.deepEqual(parameters, ['one']);
-    return { rows: query.includes('GROUP BY') ? [] : [{ count: '0' }] };
-  } } as unknown as pg.Pool;
-  const config = readConfig({ DATABASE_URL: 'postgres://unused', LOG_LEVEL: 'silent',
-    KASITEK_AGENTS_INTERNAL_TOKEN: 'synthetic-internal-token' });
-  const app = await buildApp({ pool, config }, [registerInternalWorkspaceRoutes]);
-  try {
-    const url = '/api/internal/agents/v1/workspace/report';
-    assert.equal((await app.inject({ url, headers: { cookie: 'kasitek_session=browser-cookie' } })).statusCode, 401);
-    assert.equal(reads, 0);
-    assert.equal((await app.inject({ url, headers: { authorization: 'Bearer wrong' } })).statusCode, 401);
-    assert.equal(reads, 0);
-    const headers = { authorization: 'Bearer synthetic-internal-token', 'x-organization-id': 'one' };
-    const result = await app.inject({ url, headers });
-    assert.equal(result.statusCode, 200);
-    assert.equal(result.json().organizationId, 'one');
-    assert.equal(result.json().content.postCount, 0);
-    assert.equal(reads, 10);
-  } finally { await app.close(); }
-});
 
 test('private workspace aggregates preserve exact i64 counts and propagate database failures', async () => {
   const value = '9007199254740993';

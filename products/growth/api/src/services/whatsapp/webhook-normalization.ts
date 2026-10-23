@@ -15,20 +15,6 @@ export function inboundText(message: unknown): string | null {
   const m = obj(message);
   return str(obj(m.text).body) ?? str(obj(m.button).text);
 }
-export function inboundApprovalToken(message: unknown): string | null {
-  const id = str(obj(obj(obj(message).interactive).button_reply).id);
-  return id?.startsWith("ka_approval_") ? id : null;
-}
-export function approvalAcknowledgement(value: unknown): string {
-  const r = obj(value);
-  if (r.status === "approval_group_already_signalled")
-    return "Already decided.";
-  if (r.status === "approval_group_signalled" && r.decision === "rejected")
-    return "Denied.";
-  if (r.status === "approval_group_signalled" && r.decision === "approved")
-    return "Approval received. Processing…";
-  return "Approval received.";
-}
 export function isOptOutMessage(value: string | null): boolean {
   return ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"].includes(
     (value ?? "").trim().replace(/[A-Z]/g, (c) => c.toLowerCase()),
@@ -58,86 +44,6 @@ export function incomingMedia(message: unknown): IncomingMedia | null {
   }
   return null;
 }
-export function normalizedMediaMime(value: string | null): string | null {
-  return value?.split(";")[0]?.trim().toLowerCase() || null;
-}
-export function mediaKindFromMime(value: string): string | null {
-  return value.startsWith("image/")
-    ? "image"
-    : value.startsWith("video/")
-      ? "video"
-      : value.startsWith("audio/") || value === "application/ogg"
-        ? "audio"
-        : null;
-}
-export function mediaMimeFromFilename(value: string | null): string | null {
-  const extension = value?.split(".").at(-1)?.trim().toLowerCase();
-  const values: Record<string, string> = {
-    gif: "image/gif",
-    jpeg: "image/jpeg",
-    jpg: "image/jpeg",
-    png: "image/png",
-    webp: "image/webp",
-    mp4: "video/mp4",
-    mov: "video/quicktime",
-    webm: "video/webm",
-    aac: "audio/aac",
-    flac: "audio/flac",
-    m4a: "audio/m4a",
-    mp3: "audio/mpeg",
-    ogg: "audio/ogg",
-    opus: "audio/opus",
-    wav: "audio/wav",
-  };
-  return extension ? (values[extension] ?? null) : null;
-}
-export function agentMediaKind(media: IncomingMedia): string | null {
-  const mime = normalizedMediaMime(media.mimeType);
-  if (
-    mime &&
-    !["application/octet-stream", "binary/octet-stream"].includes(mime)
-  )
-    return mediaKindFromMime(mime);
-  const fileMime = mediaMimeFromFilename(media.filename);
-  return (
-    (fileMime ? mediaKindFromMime(fileMime) : null) ??
-    (["image", "sticker"].includes(media.kind)
-      ? "image"
-      : ["video", "audio"].includes(media.kind)
-        ? media.kind
-        : null)
-  );
-}
-export function agentMediaLimit(kind: string): number {
-  return (kind === "video" ? 512 : kind === "audio" ? 25 : 20) * 1024 * 1024;
-}
-export function agentMediaMime(
-  media: IncomingMedia,
-  downloaded: string,
-  kind: string,
-): string {
-  return (
-    [
-      normalizedMediaMime(downloaded),
-      normalizedMediaMime(media.mimeType),
-      mediaMimeFromFilename(media.filename),
-    ].find((value) => value && mediaKindFromMime(value) === kind) ??
-    (kind === "video"
-      ? "video/mp4"
-      : kind === "audio"
-        ? "audio/ogg"
-        : "image/jpeg")
-  );
-}
-export function mediaFailureMessage(kind: string): string {
-  return kind === "audio"
-    ? "I couldn't access that audio. Please try sending it again."
-    : kind === "video"
-      ? "I couldn't process that video. Please try sending it again."
-      : "I couldn't process that image. Please try sending it again.";
-}
-export const INGEST_FAILURE_MESSAGE =
-  "I couldn't process that message right now. Please try again.";
 export function parseStatusFailureDetails(
   payload: unknown,
 ): [string | null, string | null] {

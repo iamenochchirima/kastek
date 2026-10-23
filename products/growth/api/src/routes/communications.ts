@@ -3,8 +3,6 @@ import formbody from "@fastify/formbody";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { extractUser, resolveActiveOrgId } from "../identity/session.js";
-import { canonicalJsonBody } from "../identity/json-body.js";
-import { AgentPlatformClient } from "../services/agent-platform/client.js";
 import * as calls from "../services/communications/calls.js";
 import { stringQueryMap } from "../typed-query.js";
 export async function registerCommunicationsRoutes(
@@ -120,22 +118,4 @@ export async function registerCommunicationsRoutes(
       );
     }
   });
-  app.post<{ Params: { connectionId: string }; Body: unknown }>(
-    "/api/webhooks/telegram/:connectionId",
-    async (request) => {
-      if (
-        !/^application\/(?:json|[^;]+\+json)(?:;|$)/i.test(
-          request.headers["content-type"] ?? "",
-        )
-      )
-        throw new ApiError(400, "bad_request", "Content type error");
-      const secret = request.headers["x-telegram-bot-api-secret-token"];
-      await new AgentPlatformClient(core.config).forwardTelegramWebhook(
-        request.params.connectionId.trim(),
-        typeof secret === "string" ? secret : null,
-        canonicalJsonBody(request),
-      );
-      return { ok: true };
-    },
-  );
 }

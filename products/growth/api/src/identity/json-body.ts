@@ -3,6 +3,7 @@ import {
   RUST_JSON_VALUE_ROUTES,
   RUST_JSON_VALUE_FIELDS,
 } from "./json-number-contracts.js";
+import { PRODUCT_AGENT_BODY_SHAPES } from "./product-agent-body-shapes.js";
 import { GENERATED_SERDE_BODY_SCHEMAS } from "./json-body-schemas.generated.js";
 import { parseSerdeValueJson } from "../json.js";
 import type { FastifyRequest } from "fastify";
@@ -29,6 +30,7 @@ const reportQueryBodySchema = {
   },
 };
 const manualTypedJsonBodySchemas: Record<string, unknown> = {
+  ...PRODUCT_AGENT_BODY_SHAPES,
   "POST /api/analytics/query": reportQueryBodySchema,
 };
 /** Preserve JSON number kinds separately while typed DTOs keep primitive numbers for Ajv. */

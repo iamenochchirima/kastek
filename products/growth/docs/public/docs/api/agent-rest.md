@@ -12,4 +12,4 @@ agent-management instructions have been removed with the old backend. They are n
 setup path for the new Agents product. Product OAuth MCP is unavailable.
 
 The standalone Agents FAQ journey and local setup are documented in `products/agents/README.md`
-in the repository. Growth's shared-execution integration is not implemented yet.
+in the repository. Embedded Growth agents use Growth authorization and the shared product execution API.

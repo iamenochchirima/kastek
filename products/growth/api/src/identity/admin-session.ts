@@ -38,5 +38,5 @@ export const canViewSupportAccess=(role:string):boolean=>['support','security','
 export const canUseEmergencyAccess=(role:string):boolean=>['superadmin','owner'].includes(normalize(role));
 export async function resolveAdminContext(request:FastifyRequest,core:CoreContext):Promise<RequestContext> {
   const admin=await extractAdmin(request,core);const grants=grantsForRole(admin.role);if(grants.size===0)throw new ApiError(403,'forbidden','Unsupported administrator role');
-  return {principal:{kind:'platform_admin',id:admin.id,subjectUserId:null,clientId:null},organizationId:'platform',userId:null,clientId:null,installationId:null,effectiveGrants:grants,apiScopes:null,correlationId:null,causationId:null,idempotencyKey:null};
+  return {principal:{kind:'platform_admin',id:admin.id,subjectUserId:null,clientId:null},organizationId:'platform',userId:null,clientId:null,effectiveGrants:grants,apiScopes:null,correlationId:null,causationId:null,idempotencyKey:null};
 }

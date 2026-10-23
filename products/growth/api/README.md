@@ -1,14 +1,12 @@
 # KasiTek Growth Core
 
-_Owner: engineering · Last reviewed: 2026-10-03_
+_Owner: engineering · Last reviewed: 2026-10-23_
 
 Native Node.js 24 and TypeScript backend for KasiTek Growth.
 
-TypeScript registers all 537 inventoried Core operations and ten worker modes.
-The previous Rust Core and Growth-local Rust libraries have been removed from
-this checkout after local API, worker, and consumer checks. The Rust source
-baseline is recoverable at commit `abd419c6`. SQL, database migrations,
-OpenAPI assets, and media storage remain in place.
+TypeScript owns the current Growth route contract and ten worker modes. The former installation,
+KasiAI, HMAC bridge and Growth-owned widget transports are removed. Route-census fixtures describe
+the current API. Historical source remains in Git; normal domain data is preserved.
 
 Hosted-service cutover is separate release work and is not part of completing
 the local TypeScript implementation. Shared packages resolve through the root workspace.
@@ -51,30 +49,22 @@ By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, a
 
 In private mode, the client app directs users to invitation redemption when they do not yet have an activated account. The invitation link or token is required before a new account can be created.
 
-## Agent Platform bridge
+## Embedded agents
 
-The direct product exposes authenticated KasiAi and platform-agent routes through `kasitek-core`.
-The browser authenticates with the normal user session; core resolves the active organization and
-calls the separately deployed Agent Platform with a short-lived HMAC token. Configure these values
-in the core environment and use the same signing secret in `agents`:
+Growth's normal session and organization checks protect /api/agents. The general assistant,
+Agents workspace and contextual page actions share the current product command contract.
+The api/src/agents/ directory contains the browser bridge, record scope, destination actions
+and exact business-review persistence. The configured shared Agents service runs durable work.
 
-```text
-AGENTS_API_URL=http://localhost:4100
-AGENTS_INTERNAL_AUTH_SECRET=
-AGENTS_INTERNAL_AUTH_AUDIENCE=kasitek-agents
-AGENTS_API_TIMEOUT_MS=15000
-```
+Configure the optional signed service connection using .env.example. Growth startup and
+ordinary business operations remain available without Agents. No fallback direct inference runs
+inside Growth. Protected model defaults, credentials and usage grants belong to execution
+configuration; browser users never receive provider keys.
 
-In production, `AGENTS_API_URL` and `AGENTS_INTERNAL_AUTH_SECRET` are required. The browser-facing
-routes are under `/api/agents`; they cover KasiAi installation, platform conversation/message
-operations, run inspection/cancellation, and the durable SSE event stream. Core deliberately
-accepts only route and page-title context from the browser; resource-specific context must be
-authorized by a future core read boundary before it is passed to an agent.
-
-Telegram webhooks are exposed at `/api/webhooks/telegram/{connectionId}`. Set the Agent Platform's
-`TELEGRAM_WEBHOOK_BASE_URL` to the public core origin so it can register that URL with Telegram.
-Core forwards the provider update over the existing Agent Platform bridge; no Telegram secret is
-stored in core.
+See [Growth agent execution](../docs/internal/architecture/growth-agent-execution.md) for ownership,
+setup boundaries, reviews and failure behavior. Customer channel automation uses the standalone
+Agents deployment/widget API. Growth no longer forwards personal pairing, customer agent messages
+or Telegram updates through its old installation bridge.
 
 If you need to disable embedded workers for a pure API process, set:
 
@@ -128,8 +118,8 @@ The deployment policy knobs `PUBLIC_API_DISABLED_ROUTES`,
 `PUBLIC_API_DEPRECATED_ROUTES`, `PUBLIC_API_SUNSET`, and
 `PUBLIC_API_DEPRECATION_LINK` control route flags and standard deprecation
 headers without changing the contract. `/v1/capabilities` exposes the current
-principal matrix: direct product users, workspace Developer API keys, and agent
-installations are supported; service accounts and OAuth grants remain explicitly
+principal matrix: direct product users and workspace Developer API keys are supported.
+Retired installation credentials, service accounts and OAuth grants remain explicitly
 unsupported until their issuers and resource policies are approved.
 
 Server runs on `http://localhost:4000` by default unless `PORT` is set.

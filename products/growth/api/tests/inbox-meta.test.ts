@@ -10,7 +10,6 @@ import { processMetaWebhookPayload } from '../src/services/inbox/meta-webhook.js
 import {
   sendConversationMessage,
   retryConversationMessage,
-  deliverAgentMetaMessage,
   markConversationRead,
 } from '../src/services/inbox/send.js';
 import {
@@ -93,7 +92,7 @@ test('Meta raw signature, exact sticker deduplication, receipt and attribution c
   );
 });
 test(
-  'isolated Meta inbox webhook, echo, replies, receipt ordering, reactions, attachments, retry and agent delivery',
+  'isolated Meta inbox webhook, echo, replies, receipt ordering, reactions, attachments, retry without agent forwarding',
   { skip: !process.env.CORE_INBOX_TEST_DATABASE_URL },
   async () =>
     inboxFixture(async (pool, options) => {
@@ -111,13 +110,9 @@ test(
       );
       await syncOrgConnections(pool, 'org');
       const channel = channels[0]!;
-      const events: unknown[] = [],
-        forwarded: unknown[] = [];
+      const events: unknown[] = [];
       options.publishEvent = async (_org, event) => {
         events.push(event);
-      };
-      options.forwardMessage = async (input) => {
-        forwarded.push(input);
       };
       let sendNumber = 0,
         failSend = false;
@@ -175,7 +170,6 @@ test(
         (await pool.query('SELECT count(*) FROM "Message"')).rows[0]!.count,
         '1',
       );
-      assert.equal(forwarded.length, 1);
       const conversation = (
         await pool.query(
           'SELECT id,"unreadCount","customerId" FROM "Conversation"',
@@ -326,29 +320,7 @@ test(
         ).status,
         'SENT',
       );
-      const agent = await deliverAgentMetaMessage(
-        pool,
-        'org',
-        conversation.id,
-        'Agent reply',
-        'run:key',
-        options,
-      );
-      assert.equal(agent.status, 'sent');
-      assert.equal(
-        (
-          await deliverAgentMetaMessage(
-            pool,
-            'org',
-            conversation.id,
-            'Other text',
-            'run:key',
-            options,
-          )
-        ).idempotentReplay,
-        true,
-      );
-      assert.equal(sendNumber, 3);
+      assert.equal(sendNumber, 2);
       const app = await buildApp({ pool, config: options.config }, [
         (app, context) => registerInboxRoutes(app, context, options),
       ]);

@@ -13,7 +13,8 @@ This is the canonical home for private Kasitek documentation.
 
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
 - [Credit Billing Coverage](./architecture/credit-billing-coverage.md)
-- [Audio Input and Transcription](./architecture/audio-transcription.md)
+- [Growth agent execution](./architecture/growth-agent-execution.md)
+- [Audio input support](./architecture/audio-transcription.md)
 - [Admin Analytics and Reporting](./architecture/admin-analytics.md)
 - [Customer Analytics Display Semantics](./architecture/customer-analytics.md)
 - [Access Control](./access-control.md)

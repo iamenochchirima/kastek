@@ -128,9 +128,7 @@ export function registerPublicV1Routes(
         context?: RequestContext;
         audit?: api.RequestAuditHandle;
       }
-    >(),
-    load = (context: RequestContext) =>
-      api.loadInstallationCapabilities(core.config, context);
+    >();
   app.register(
     async (routes) => {
       routes.addHook("onRequest", async (request) => {
@@ -232,7 +230,7 @@ export function registerPublicV1Routes(
           )
         )
           states.get(request)!.audit!.action = name;
-        await requirePublicAction(value, definition, name, load);
+        await requirePublicAction(value, definition, name);
         return value;
       }
       async function webhookContext(request: FastifyRequest, write: boolean) {
@@ -240,7 +238,7 @@ export function registerPublicV1Routes(
         states.get(request)!.audit!.action = write
           ? "webhooks.manage"
           : "webhooks.list";
-        await requireWebhookScope(value, write, load);
+        await requireWebhookScope(value, write);
         return value;
       }
       const requireIdempotency = (
@@ -295,30 +293,10 @@ export function registerPublicV1Routes(
             core.pool,
             value.organizationId,
           );
-        let grants: Set<string> | null = null,
+        const grants: Set<string> | null = policy.requiresInstallationCapabilities ? new Set<string>() : null,
           scopes = value.apiScopes;
         if (policy.requiresInstallationCapabilities) {
-          const result = await load(value);
-          grants = new Set();
-          if (Array.isArray(result.capabilities))
-            for (const item of result.capabilities) {
-              if (
-                item &&
-                typeof item === "object" &&
-                !["not_granted", "not_configured", "unhealthy"].includes(
-                  item.availability ?? "available",
-                ) &&
-                typeof item.manifest?.requiredScope === "string"
-              )
-                grants.add(item.manifest.requiredScope);
-            }
-          scopes = Array.isArray(result.apiScopes)
-            ? new Set(
-                result.apiScopes.filter(
-                  (item): item is string => typeof item === "string",
-                ),
-              )
-            : null;
+          throw new ApiError(403, "unsupported_principal", "Installation credentials are unavailable");
         }
         const definitions = [...domains.definitions()].filter(
           (d) =>

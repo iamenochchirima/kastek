@@ -28,3 +28,8 @@ Core proxy requests forward the browser cancellation signal, including activity
 streams. Quotation PDF downloads map Core's snake_case quotation record into
 the existing renderer's draft fields. Invoice records use Core's camelCase
 response and go directly to the existing invoice renderer.
+
+
+Operations now exposes Growth webhook recovery and support grants only. Old Agents runtime
+operator panels, projections and installation commands are removed. The old health, data-quality
+and audit page links redirect to Operations. Shared execution monitoring belongs to Agents.

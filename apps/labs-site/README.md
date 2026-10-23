@@ -39,12 +39,15 @@ Product destinations are defined in `src/lib/site-config.ts`:
 - Growth: `https://growth.kasitek.co.za`
 - Agency: `https://agencies.kasitek.co.za`
 
-Company and project enquiries stay on Labs routes. The existing chat widget remains enabled.
+Company and project enquiries stay on Labs routes. Chat uses an explicitly configured Agents publication; unavailable chat has a contact fallback.
 
 ## Configuration
 
-- `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` sets the public API origin used for the embedded chat
-  widget. It defaults to `https://api.kasitek.co.za`.
+- NEXT_PUBLIC_AGENTS_PUBLIC_URL and NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID select the
+  current Agents publication. Both are required, and the deployment must allow this site's origin.
+  There is no default tenant or deployment. See .env.example.
+- Invalid configuration or a script-load failure shows Contact us. HTTPS is required outside local
+  development. The fallback does not call the retired Growth widget API.
 - `NEXT_PUBLIC_KASITEK_CONTACT_EMAIL` sets the displayed contact address. It defaults to
   `hello@kasitek.co.za`.
 - `CORE_API_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` set
@@ -62,7 +65,7 @@ environment. Those remain separate cutover work.
 - Release identity: not applicable to this local source change; no deployment or release tag created.
 - API, schema, migrations and permissions: not applicable; demonstration data is illustrative.
 - Analytics and success metrics: no new events; verify each product CTA resolves to its configured
-  domain. Existing widget configuration is retained.
+  domain. Widget configuration is explicit. No hosted publication was enabled by this source change.
 - Structured logs, dashboards and alerts: not applicable; no server behavior changed.
 - Documentation: this README records implementation ownership, local commands and destinations.
 - Validation: production build, focused landing lint, product-boundary checks, browser checks at

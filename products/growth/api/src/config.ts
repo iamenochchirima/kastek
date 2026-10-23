@@ -32,7 +32,6 @@ export function readConfig(source: Record<string, string | undefined> = process.
   const environment = env.ENVIRONMENT ?? 'development';
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
-  if (env.AGENTS_API_URL) env.AGENTS_API_URL = origin(env.AGENTS_API_URL, 'AGENTS_API_URL');
   return {
     port: unsigned(env.PORT, 4000, 65_535),
     environment,

@@ -15,22 +15,18 @@ import { registerReferralRoutes } from "./routes/referrals.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerRealtimeRoutes } from "./routes/realtime.js";
 import { registerAnalyticsRoutes } from "./routes/analytics.js";
-import { registerInternalWorkspaceRoutes } from "./routes/internal-workspace.js";
 import { registerConnectionRoutes } from "./routes/connections.js";
 import { registerEarlyAccessRoutes } from "./routes/early-access.js";
 import { registerWhatsappConnectionRoutes } from "./routes/whatsapp-connections.js";
 import { registerWhatsappMarketingRoutes } from "./routes/whatsapp.js";
 import { registerSocialRoutes } from "./routes/social.js";
-import { registerAiRoutes } from "./routes/ai.js";
 import { registerEmailRoutes } from "./routes/email.js";
 import { registerInboxRoutes } from "./routes/inbox.js";
-import { registerWebsiteRoutes } from "./routes/website.js";
+import { registerLeadRoutes } from "./routes/leads.js";
 import { createWhatsappInboxPorts } from "./services/whatsapp/inbox.js";
 import { publishInboxEvent } from "./services/realtime.js";
 import type { FastifyInstance } from "fastify";
 import type { CoreContext } from "./context.js";
-import { registerAgentPlatformRoutes } from "./routes/agent-platform.js";
-import { registerAgentInternalRoutes } from "./routes/agent-internal.js";
 import { registerAdminOperationsRoutes } from "./routes/admin-operations.js";
 import { registerWhatsappInboxRoutes } from "./routes/whatsapp-inbox.js";
 import { registerWhatsappCallRoutes } from "./routes/whatsapp-calls.js";
@@ -43,9 +39,10 @@ import {
   createPublicDomainAdapter,
   createPublicReadPorts,
 } from "./capabilities/public-adapter.js";
+import { registerGrowthAgentRoutes } from "./agents/routes.js";
+import { registerGrowthAgentActionRoutes } from "./agents/action-routes.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerAdminLaunchAccessRoutes } from "./routes/admin-launch-access.js";
-import { closeAgentStreamDispatchers } from "./services/agent-platform/transport.js";
 import {
   API_WORKERS,
   apiWorkersEnabled,
@@ -111,19 +108,14 @@ export async function start(runtime?: {
   let workers: Promise<void> = Promise.resolve();
   app.addHook("preClose", async () => {
     controller.abort();
-    await closeAgentStreamDispatchers();
   });
   app.addHook("onClose", async () => {
     controller.abort();
     await workers.catch(() => {});
     try {
-      await closeAgentStreamDispatchers();
+      await pool.end();
     } finally {
-      try {
-        await pool.end();
-      } finally {
-        await runtime?.shutdownTelemetry();
-      }
+      await runtime?.shutdownTelemetry();
     }
   });
   const shutdown = () => {
@@ -193,18 +185,14 @@ export const CORE_REGISTRARS = [
   registerNotificationRoutes,
   registerRealtimeRoutes,
   registerAnalyticsRoutes,
-  registerInternalWorkspaceRoutes,
   registerConnectionRoutes,
   registerEarlyAccessRoutes,
   registerWhatsappConnectionRoutes,
   registerWhatsappMarketingRoutes,
   registerSocialRoutes,
-  registerAiRoutes,
   registerEmailRoutes,
   registerUnifiedInboxRoutes,
-  registerWebsiteRoutes,
-  registerAgentPlatformRoutes,
-  registerAgentInternalRoutes,
+  registerLeadRoutes,
   registerAdminOperationsRoutes,
   registerWhatsappInboxRoutes,
   registerWhatsappCallRoutes,
@@ -213,6 +201,8 @@ export const CORE_REGISTRARS = [
   registerDeveloperRoutes,
   registerPublicRoutes,
   registerWorkspaceRoutes,
+  registerGrowthAgentRoutes,
+  registerGrowthAgentActionRoutes,
   registerAdminLaunchAccessRoutes,
 ];
 

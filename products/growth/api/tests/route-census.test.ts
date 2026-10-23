@@ -13,51 +13,18 @@ test("Growth registers the recorded API route contract", async () => {
       new URL("./fixtures/routes.json", import.meta.url),
       "utf8",
     ),
-  ) as {
-    sourceCommit: string;
-    sourceFiles: Record<string, string>;
-    routeCount: number;
-    routes: string[];
-    typescriptExtensions: {
-      method: string;
-      path: string;
-      source: string;
-      sourceCommit: string;
-      reason: string;
-    }[];
-  };
-  assert.match(fixture.sourceCommit, /^[a-f0-9]{40}$/);
-  assert.ok(Object.keys(fixture.sourceFiles).length > 0);
-  for (const digest of Object.values(fixture.sourceFiles))
-    assert.match(digest, /^[a-f0-9]{64}$/);
-  assert.equal(fixture.routeCount, 537);
-  assert.equal(fixture.routes.length, fixture.routeCount);
-  assert.equal(fixture.typescriptExtensions.length, 2);
-  for (const extension of fixture.typescriptExtensions) {
-    assert.match(extension.sourceCommit, /^[a-f0-9]{40}$/);
-    assert.ok(extension.source.startsWith("server/kasitek-core/"));
-    assert.ok(extension.source.endsWith(".ts"));
-    assert.ok(extension.reason.length > 0);
-  }
-
-  const expected = new Set(
-    [
-      ...fixture.routes,
-      ...fixture.typescriptExtensions.map(
-        ({ method, path }) => `${method} ${path}`,
-      ),
-    ].map((route) => route.replace(/\{([^}]+)\}/g, ":$1")),
-  );
-  assert.equal(
-    expected.size,
-    fixture.routeCount + fixture.typescriptExtensions.length,
-  );
+  ) as {version:number;generatedBy:string;routeCount:number;routes:string[]};
+  assert.equal(fixture.version,1);
+  assert.equal(fixture.generatedBy,'scripts/refresh-route-contracts.ts');
+  assert.equal(fixture.routeCount,fixture.routes.length);
+  const expected=new Set(fixture.routes);
+  assert.equal(expected.size,fixture.routeCount);
+  for(const route of ['POST /api/quote-requests','POST /api/waitlist','GET /api/inbox/conversations','GET /api/agents/bootstrap','POST /internal/agents/actions'])assert.ok(expected.has(route),route);
+  assert.ok(![...expected].some(route=>route.includes('/api/widget/v1/')||route.includes('/api/agents/installations/')||route.includes('/api/internal/agents/v1/')));
   const actual = new Set<string>(["GET /", "GET /health"]);
   const config = readConfig({
     DATABASE_URL: "postgres://unused",
     FRONTEND_URL: "http://localhost:3000",
-    AGENTS_API_URL: "http://127.0.0.1:4100",
-    AGENTS_INTERNAL_AUTH_SECRET: "synthetic-route-census-key",
     LOG_LEVEL: "silent",
   });
   const context = {

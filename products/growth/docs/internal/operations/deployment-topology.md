@@ -1,224 +1,27 @@
 ---
-id: deployment-topology
-title: Railway Deployment Topology
-sidebar_position: 6
+title: Service deployment ownership
 owner: platform-ops
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-23
 ---
 
-# Railway Deployment Topology
+# Service deployment ownership
 
-This document records the legacy Railway topology configured while these services were still
-owned by the Growth monorepo. It is a snapshot of hosted state, not an instruction to change or
-cut over deployments. Future service deployment configuration belongs in the owning repository;
-deployment cutovers are tracked separately.
+This monorepo contains Growth, standalone Agents, Agency, Analytics, Labs and central Admin source.
+Source changes do not modify hosted services or authorize deployment.
 
-Analytics, Agency, and Agent source/build ownership lives in their respective repositories; the
-source moves do not change any existing hosted deployments.
+Growth web/API use products/growth/web and products/growth/api. Growth's independent workers use
+the process modes listed in the API README. The optional Growth-to-Agents connection is configured
+on Growth's backend only; normal Growth startup does not require it.
 
-## Deployment rules
+Agents API/worker use products/agents/api and its current Restate runtime. Follow that product's
+README and source boundary for exact commands, worker version and database setup. Retired Temporal,
+installation gateway and old private HMAC deployment commands are not supported.
 
-- Use the `main` branch for both environments.
-- Enable automatic deployment in Staging.
-- Disable automatic deployment in Production.
-- Deploy and verify the candidate in Staging before manually deploying the same commit to
-  Production.
-- Keep Production and Staging databases, credentials, domains, queues, and telemetry destinations
-  separate.
-- Use Railway private networking for backend-to-backend calls.
-- Use public domains only for browser-facing APIs or externally accessed protocols.
-- Do not create a Railway service for a migration command, local bridge, or process that is already
-  embedded in another service.
+Use separate databases, credentials, domains, service keys and telemetry destinations per
+environment. Backend calls authenticate independently. Public widget deployment/origin settings
+are explicit, while internal product commands use the approved service trust configuration.
 
-## Required application services
-
-The following are the long-running Production services documented from this repository.
-
-| Service | Root directory | Builder | Dockerfile path | Build command | Pre-deploy command | Start command | Health and port | Exposure |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Core API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-core && cp target/release/server bin/server` | Manual Prisma migration before deployment; see below | `./bin/server` | `/health`, `PORT=4000` | Public |
-| Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
-| Agents Worker | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Agents API first | `node dist/temporal/worker.js` | No HTTP health check | Private |
-The Agents Dockerfile is directly under `/agents`, so it does not need
-`RAILWAY_DOCKERFILE_PATH`.
-
-## Shared Railway variables
-
-Use Railway shared variables for values that are identical for every service in one environment.
-The current Production shared set is:
-
-```text
-NODE_ENV=production
-LOG_LEVEL=info
-OTEL_DEPLOYMENT_ENVIRONMENT=production
-OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-```
-
-Keep database URLs, service ports, provider credentials, signing keys, and other service-specific
-settings on the service that consumes them. Reference a database service's private URL using its
-actual exported variable, for example:
-
-```text
-DATABASE_URL=${{core-db.DATABASE_URL}}
-AGENTS_DATABASE_URL=${{agents-db.DATABASE_URL}}
-```
-
-Do not use `DATABASE_PRIVATE_URL` for these Railway Postgres services; this project exposes the
-private connection as `DATABASE_URL`. Do not put private signing keys in shared variables merely
-because more than one process needs related public configuration. Move any existing shared private
-key into service-scoped variables during the next key rotation.
-
-`OTEL_SERVICE_NAME` remains service-specific so telemetry can distinguish API, worker, Discord gateway,
-and migration processes. The shared OTLP endpoint is the transport boundary; it is not a durable
-telemetry destination by itself.
-
-## Migration behavior
-
-Migrations are release steps, not long-running services.
-
-The current Railway project does not expose a pre-deploy command field for these services. Run a
-migration as a one-shot deployment by temporarily changing the service's Start Command to the
-migration command, deploying once, verifying a successful exit, and restoring the normal Start
-Command immediately. Never leave a migration command as the long-running service command.
-
-### Agents
-
-The Agents image contains the compiled migration file. For a one-shot deployment, temporarily use:
-
-```text
-node dist/db/migrate.js
-```
-
-The migration process must receive `AGENTS_MIGRATION_DATABASE_URL` for a separately controlled
-DDL-capable migration role. `AGENTS_DATABASE_URL` remains the restricted application connection.
-Set the migration variable only for the one-shot migration deployment, verify the migration, then
-remove it before restoring the API start command. Never grant the runtime role `SUPERUSER` or
-`BYPASSRLS` as a migration workaround.
-
-After the command exits successfully, restore `node dist/http/server.js`. Do not use
-`pnpm run migrate` in the production image: that script references the source tree and the
-development `tsx` dependency, which are not included in the runtime image.
-
-The migrated Agents API image reconciles the protected KasiAi definition during startup, before it
-opens the API listener. It publishes an idempotent source-defined version, rolls it out to every
-active protected installation, and fails startup if any installation remains stale. Therefore a
-healthy `/health/ready` response is also evidence that the protected system agent is current.
-
-For operator recovery or a separately controlled one-shot release, use the compiled command from
-the migrated Agents API image:
-
-```text
-node dist/system/release-kasiai.js --rollout
-```
-
-Record the released agent version and release-gate result. The one-shot command is a recovery and
-audit tool; normal production deployments use the API startup release gate.
-
-### Core
-
-Core's operational schema, including the Core-owned Analytics outbox, is owned by the client Prisma
-migration chain. The Rust process does not run these migrations automatically. Before a new Core
-database is used, open a temporary Railway SSH tunnel and run the migrations from the repository
-root in a second terminal:
-
-```text
-railway connect core-db --environment production --tunnel-only --ssh --port 15432
-railway run --project <project-id> --environment production --service core --no-local -- sh -c 'url=$(printf "%s" "$DATABASE_URL" | sed "s/@[^/]*:5432/@127.0.0.1:15432/"); DIRECT_URL="$url" pnpm --dir database exec prisma migrate deploy'
-```
-
-Verify `No pending migrations to apply` before deploying or restarting Core. Existing databases must
-follow the baseline procedure in
-[Client database migration baseline](../architecture/client-database-migration-baseline.md),
-including backup and schema review before `migrate resolve`.
-
-The migration chain includes `analytics_outbox`, so a Core deployment must not be considered ready
-until the migration command reports success. Do not apply the standalone files under
-`api/sql/` as a substitute for the Prisma migration history; those files remain the
-source-service SQL inventory and are useful for isolated SQL verification.
-
-## MCP availability
-
-The standalone Agents MCP gateway, stdio bridge, and package have been removed from source.
-Do not configure a gateway service or advertise its old public endpoint. Growth product OAuth MCP
-is not implemented. Existing REST API keys remain usable. Source removal does not verify hosted
-service shutdown or change Railway routing.
-
-## Optional services
-
-Deploy these only when the related capability is enabled and has an operational owner.
-
-| Service | Root directory | Builder | Start command | Required when |
-| --- | --- | --- | --- | --- |
-| Discord Gateway | `/agents` | Dockerfile | `node dist/discord/server.js` | Discord gateway polling is enabled with `DISCORD_GATEWAY_ENABLED=true` |
-| Agents Analytics Publisher | `/agents` | Dockerfile | `node dist/analytics/publisher-worker.js` | Agents analytics ingestion is enabled and independently scaled |
-| Core Analytics Publisher | `/server` | Railpack | `./bin/server` | Core analytics ingestion is enabled; set `KASITEK_PROCESS=analytics-publisher` |
-
-Core's normal API process already starts the WhatsApp, social, campaign, webhook, and billing
-workers. Do not split these processes into separate Railway services until independent scaling,
-isolation, or reliability evidence justifies it.
-
-## Core TypeScript migration candidate
-
-The Core API row above records the legacy Rust hosted baseline. The Rust source has been removed
-from the current Growth checkout, but this local cleanup did not change or authorize changing the
-hosted service. Growth's TypeScript package is
-`api`; its compiled API commands are `pnpm build` and `pnpm start` from that
-directory. The API serves `/health` on `PORT` (default `4000`). A separate publisher process uses
-the same Node entrypoint with `KASITEK_PROCESS=analytics-publisher pnpm start`; this mode publishes
-and backfills Analytics outbox data without opening an HTTP listener.
-
-A clean Railway build is not ready yet. Growth currently pins the private Labs packages to
-`file:.artifacts/shared/*.tgz`, and those generated artifacts are ignored by Git. Local setup
-rebuilds them from a sibling Labs checkout, which is unavailable to an isolated Railway build.
-Complete and verify authenticated private-registry delivery before changing the hosted build or
-start commands. Keep the Core Prisma migration procedure above: TypeScript does not change schema
-ownership or replace the Prisma migration history. The previous Growth commit is the Rust source
-recovery point; hosted build configuration remains unchanged until a separately authorized cutover.
-
-## OpenTelemetry Collector ownership
-
-Labs owns the Collector source and service definition in
-[`kasitek-labs/infra/observability/otel-collector`](https://github.com/Kasitek-Labs/kasitek-labs/tree/main/infra/observability/otel-collector).
-The source move does not change or verify any hosted deployment. Deployment cutover, the running
-artifact, and the active endpoint remain separate follow-up work.
-
-Growth producers retain their OTLP exporter configuration. Do not change hosted endpoints as part
-of this repository move:
-
-```text
-OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-OTEL_DEPLOYMENT_ENVIRONMENT=production
-OTEL_SERVICE_NAME=<unique service name>
-```
-
-## Not Railway services
-
-The following are dependencies, tools, or deployment steps rather than application services:
-
-- Agents database migrations; use one-shot deployments when no pre-deploy field is available.
-- Core's individual embedded workers.
-- Temporal when using Temporal Cloud.
-- Vercel frontend deployments; those are configured separately from Railway.
-
-## Production deployment order
-
-1. Confirm Production shared variables, service-scoped variables, secrets, databases, and domains
-   are correct.
-2. Apply Agents migrations as a one-shot deployment and confirm it exits successfully. The Agents
-   API startup release gate must complete before the API is considered healthy.
-3. Apply the Core Prisma migration chain through the temporary database tunnel; confirm no pending
-   migrations remain.
-4. Deploy `agents-api`; confirm `/health/ready` is healthy and record the protected KasiAi version
-   reported by the release-completion log.
-5. Deploy `agents-worker`.
-6. Update Core's private Agents URL, then deploy Core with `PORT=4000` and confirm `/health` is
-   healthy. Analytics connectivity may remain disconnected until its separate integration work.
-7. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
-   durable backend is configured.
-8. Run production smoke checks using the release ID and commit SHA.
-
-Record the deployed commit, platform release ID, migration results, service revisions, health
-checks, and rollback target in the release record defined by
-[Feature and Platform Release Process](./release-process.md).
+Before a separately authorized hosted rollout, record exact code/schema/worker artifacts,
+environment ownership, configured readiness checks, current permission mappings and disable plan.
+Apply source migrations only to the intended environment with a matching source cutover.
+The obsolete Growth widget-table removal must never reset Growth's business database.

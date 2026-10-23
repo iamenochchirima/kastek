@@ -4,14 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
-import { generateKeyPair, exportSPKI, SignJWT } from "jose";
-import type { FastifyRequest } from "fastify";
 import type { CoreContext } from "../src/context.js";
 import { readConfig } from "../src/config.js";
-import {
-  claimDelegationReplay,
-  resolveDelegation,
-} from "../src/identity/internal-delegation.js";
 import {
   createPubsub,
   createRealtimeStream,
@@ -27,86 +21,6 @@ const core = (url: string) =>
       REDIS_URL: url,
     }),
   }) as CoreContext;
-test(
-  "Native Redis atomically prevents delegated replay, scopes issuer keys and fails closed on authentication/outage",
-  { skip: !process.env.CORE_REDIS_TEST_BINARY },
-  async () => {
-    const fixture = await nativeRedisFixture();
-    try {
-      const context = core(fixture.url),
-        claims = await Promise.all(
-          Array.from({ length: 12 }, () =>
-            claimDelegationReplay(context, "issuer", "race"),
-          ),
-        );
-      assert.equal(claims.filter(Boolean).length, 1);
-      assert(
-        (await fixture.inspector.pTTL("agents:delegation:issuer:race")) >
-          120000,
-      );
-      assert.equal(
-        await claimDelegationReplay(context, "other-issuer", "race"),
-        true,
-      );
-      const keys = await generateKeyPair("ES256"),
-        publicKey = await exportSPKI(keys.publicKey),
-        now = Math.floor(Date.now() / 1000);
-      context.config.env.AGENTS_DELEGATION_PUBLIC_KEY = publicKey;
-      const token = await new SignJWT({
-        organizationId: "org",
-        installationId: "installation",
-        capability: "customer_get",
-        capabilityVersion: "1",
-        runId: "run",
-        invocationId: "invoke",
-        correlationId: "correlation",
-      })
-        .setProtectedHeader({ alg: "ES256" })
-        .setIssuer("kasitek-agents")
-        .setAudience("kasitek-core-internal")
-        .setSubject("installation")
-        .setJti("signed-once")
-        .setIssuedAt(now)
-        .setExpirationTime(now + 60)
-        .sign(keys.privateKey);
-      const request = {
-        headers: { authorization: "Bearer " + token },
-      } as FastifyRequest;
-      assert.equal(
-        (await resolveDelegation(request, context)).organizationId,
-        "org",
-      );
-      await assert.rejects(
-        () => resolveDelegation(request, context),
-        (error) => (error as { status: number }).status === 401,
-      );
-      await assert.rejects(
-        () =>
-          claimDelegationReplay(
-            core(fixture.url.replace("fixture-password", "incorrect-password")),
-            "issuer",
-            "auth-failure",
-          ),
-        (error) => (error as { status: number }).status === 401,
-      );
-      await assert.rejects(
-        () =>
-          claimDelegationReplay(
-            core("redis://127.0.0.1:1"),
-            "issuer",
-            "outage",
-          ),
-        (error) => (error as { status: number }).status === 401,
-      );
-      assert.equal(
-        await fixture.inspector.exists("agents:delegation:issuer:auth-failure"),
-        0,
-      );
-    } finally {
-      await fixture.close();
-    }
-  },
-);
 test(
   "Native Redis realtime isolates organization channels, owns subscriber cleanup and drains inbox FIFO",
   { skip: !process.env.CORE_REDIS_TEST_BINARY },

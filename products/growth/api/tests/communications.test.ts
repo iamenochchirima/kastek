@@ -91,7 +91,7 @@ test("Twilio JWT grants, strict signature, browser scopes and exact TwiML contra
   assert.equal(calls.providerStatus(c).providers[0]!.configured, true);
 });
 test(
-  "Twilio persisted lifecycle, call status idempotency and org scope; Telegram real local callback transport",
+  "Twilio persisted lifecycle, call status idempotency and org scope; retired Telegram callback is unavailable",
   { skip: !process.env.CORE_COMMUNICATIONS_TEST_DATABASE_URL },
   async () => {
     installPgTimestampParsers();
@@ -105,7 +105,6 @@ test(
         options: `-c search_path=${schema} -c timezone=UTC`,
       }),
       app = Fastify(),
-      agents = Fastify(),
       c = config();
     try {
       for (const table of [
@@ -216,32 +215,6 @@ test(
       assert.equal(updated.durationSeconds, 5);
       assert.equal(updated.direction, "INBOUND");
       assert.equal((await calls.listCalls(pool, "other")).length, 0);
-      let forwarded = 0;
-      agents.post("/v1/webhooks/telegram/connection", async (request) => {
-        assert.equal(
-          request.headers["x-kasitek-core-forward-secret"],
-          "local-secret",
-        );
-        assert.equal(
-          request.headers["x-telegram-bot-api-secret-token"],
-          "provider-secret",
-        );
-        assert.match(String(request.body), /9007199254740993/);
-        assert.match(String(request.body), /1\.0/);
-        forwarded++;
-        return { accepted: true };
-      });
-      agents.removeContentTypeParser("application/json");
-      agents.addContentTypeParser(
-        "application/json",
-        { parseAs: "string" },
-        (_request, body, done) => done(null, body),
-      );
-      c.env.AGENTS_API_URL = await agents.listen({
-        port: 0,
-        host: "127.0.0.1",
-      });
-      c.env.AGENTS_INTERNAL_AUTH_SECRET = "local-secret";
       app.setReplySerializer(apiJson);
       installErrorHandler(app);
       app.removeContentTypeParser("application/json");
@@ -293,12 +266,10 @@ test(
             payload: '{"update_id":9007199254740993,"value":1.0}',
           })
         ).statusCode,
-        200,
+        404,
       );
-      assert.equal(forwarded, 1);
     } finally {
       await app.close();
-      await agents.close();
       await pool.end();
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
       await admin.end();

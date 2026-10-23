@@ -67,10 +67,8 @@ logs and revocation evidence belong to the Core implementation. Production relea
 promotion are not applicable until deployment is authorized. Disabling the provider does not
 restore the removed credential implementation; login fails closed until service is restored.
 
-## Existing build dependency repair
+## Agent interface ownership
 
-Four shared product-chat components were absent after the Agents extraction while Growth chat
-still imported them. The model picker, authorization action, media renderer and runtime bar are
-restored from the preserved Agents sources into Growth's `dashboard/kasiai` support directory.
-No agent-management pages or standalone Agent platform are restored. Old generated Next route
-files for the removed pages were moved to `/tmp` before regenerating current route types.
+Growth's current Agents UI uses neutral components under dashboard/agents and the typed product
+bridge. The old dashboard/kasiai controller, protected bootstrap and installation transport are
+removed. Shared login does not create standalone Agents product membership.

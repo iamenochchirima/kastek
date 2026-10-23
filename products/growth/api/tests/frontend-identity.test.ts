@@ -231,8 +231,6 @@ test(
       OIDC_CLIENT_SECRET: 'fixture',
       OIDC_REDIRECT_URI: front + '/api/auth/callback',
       AGENTS_API_URL: issuer,
-      AGENTS_INTERNAL_AUTH_SECRET: 'fixture-agents-secret',
-      AGENTS_INTERNAL_AUTH_AUDIENCE: 'fixture-agents',
       CORE_API_BASE_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_CORE_PUBLIC_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_MEDIA_STORAGE_PATH: mediaPath,

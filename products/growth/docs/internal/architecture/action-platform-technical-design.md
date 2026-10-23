@@ -45,13 +45,13 @@ Agency repository
   Kasitek-Labs/kasitek-agency/api/ (tenant business logic)
 
 Agents repository
-  gateway adapters for REST and MCP
+  shared execution, model/tool loop, product admission and channel deployments
 ```
 
 Growth's former Rust action and execution libraries have been retired from the working tree; their
-last source revision remains recoverable from Git history. Agency and Agents remain separate
-service owners; this design does not turn their business logic or protocol adapters into shared
-Growth packages.
+last source revision remains recoverable from Git history. Agency and Agents remain separate service owners within this monorepo. Growth agent features
+use the shared product execution API; the Growth action registry remains the owning business API.
+See [Growth agent execution](./growth-agent-execution.md).
 
 These names describe responsibility without encoding a temporary protocol or product name into the core.
 

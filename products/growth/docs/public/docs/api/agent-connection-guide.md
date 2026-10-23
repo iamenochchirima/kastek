@@ -9,7 +9,7 @@ There is no replacement MCP endpoint or package to configure.
 
 The standalone Agents product has its own workspace, configuration, test, and website-publication
 journey. Its current setup is documented in `products/agents/README.md` in the repository.
-Growth's connection to the shared execution backend is not implemented yet.
+Growth's embedded agents use its authenticated backend and the shared product execution API.
 
 Embedded Growth features will use Growth authorization without requiring an Agents-product
 account or subscription. The target architecture is recorded in

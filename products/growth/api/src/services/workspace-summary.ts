@@ -1,24 +1,7 @@
 import type { CoreContext } from '../context.js';
 import * as sql from './workspace-summary-sql.js';
 import { listWhatsappConnections } from './whatsapp/connections.js';
-import { AgentPlatformClient } from './agent-platform/client.js';
 type Row = Record<string, unknown>;
-export interface WorkspaceSummaryOptions {
-  client?: (
-    context: CoreContext,
-  ) => Pick<AgentPlatformClient, 'listAgents' | 'operationsSummary'>;
-}
-const object = (v: unknown): Row =>
-  v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {};
-const integer = (v: unknown): bigint => {
-  const value =
-    typeof v === 'bigint'
-      ? v
-      : typeof v === 'number' && Number.isSafeInteger(v)
-        ? BigInt(v)
-        : 0n;
-  return value >= -(1n << 63n) && value < 1n << 63n ? value : 0n;
-};
 const count = (rows: Row[]) => BigInt(rows[0]!.count as string);
 const buckets = (rows: Row[], key = 'status') =>
   new Map(rows.map((row) => [String(row[key]), BigInt(row.count as string)]));
@@ -26,7 +9,6 @@ export async function workspaceSummary(
   context: CoreContext,
   org: string,
   userId: string,
-  options: WorkspaceSummaryOptions = {},
 ) {
   const pool = context.pool,
     now = new Date(),
@@ -54,40 +36,6 @@ export async function workspaceSummary(
       async ([text, values]) => (await pool.query(text, values)).rows,
     ),
   );
-  let agentCount = 0,
-    agentAttention = 0n;
-  try {
-    const client = (
-        options.client ?? ((context) => new AgentPlatformClient(context.config))
-      )(context),
-      [agents, operations] = await Promise.allSettled([
-        client.listAgents(org, userId, null),
-        client.operationsSummary(org, userId),
-      ]);
-    if (
-      agents.status === 'fulfilled' &&
-      Array.isArray(object(agents.value).agents)
-    )
-      agentCount = (object(agents.value).agents as unknown[]).length;
-    if (operations.status === 'fulfilled') {
-      const statuses = object(object(operations.value).runs).runsByStatus;
-      if (Array.isArray(statuses))
-        for (const item of statuses) {
-          const entry = object(item);
-          if (
-            ['failed', 'awaiting_approval', 'awaiting_human'].includes(
-              String(entry.status),
-            )
-          )
-            agentAttention = BigInt.asIntN(
-              64,
-              agentAttention + integer(entry.count),
-            );
-        }
-    }
-  } catch {
-    /* The source summary remains available when Agents is unconfigured. */
-  }
   const aggregate = rows[2]![0]!,
     statusMap = buckets(rows[1]!),
     sendMap = buckets(rows[8]!),
@@ -118,7 +66,7 @@ export async function workspaceSummary(
   });
   return {
     summary: {
-      agentCount,
+      agentCount: null,
       socialPostCount: count(rows[0]!),
       connections: connectionViews,
       templateStatusMap: Object.fromEntries(statusMap),
@@ -156,7 +104,7 @@ export async function workspaceSummary(
       })),
       attention: {
         unreadConversations: count(rows[11]!),
-        agentAttention,
+        agentAttention: null,
         campaignFailures:
           BigInt(aggregate.failed_count) + BigInt(aggregate.blocked_count),
         socialAttention: count(rows[12]!),

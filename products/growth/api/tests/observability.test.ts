@@ -20,7 +20,8 @@ import {
   outboundTraceHeaders,
   currentCorrelationId,
 } from "../src/observability/context.js";
-import { AgentPlatformClient } from "../src/services/agent-platform/client.js";
+import { providerSpan } from "../src/observability/operations.js";
+import { outboundTraceHeaders } from "../src/observability/context.js";
 import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 const require = createRequire(
@@ -64,19 +65,13 @@ test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation 
   const config = readConfig({
     DATABASE_URL: "postgresql://fixture",
     AGENTS_API_URL: "http://127.0.0.1:65500",
-    AGENTS_INTERNAL_AUTH_SECRET: "secret-fixture",
   });
   app.get("/fixture/:id", async () => {
     assert.equal(currentCorrelationId(), "fixture-correlation");
-    await new AgentPlatformClient(config, {
-      fetch: async (_url, init) => {
-        seenActiveSpan = trace.getActiveSpan()?.spanContext().spanId;
-        seen = Object.fromEntries(new Headers(init?.headers));
-        return new Response('{"ok":true}', {
-          headers: { "content-type": "application/json" },
-        });
-      },
-    }).forwardTelegramWebhook("connection", null, {});
+    await providerSpan("kasitek-agents", "http.request", async () => {
+      seenActiveSpan = trace.getActiveSpan()?.spanContext().spanId;
+      seen = outboundTraceHeaders();
+    });
     return { ok: true };
   });
   app.get("/failed", async () => {

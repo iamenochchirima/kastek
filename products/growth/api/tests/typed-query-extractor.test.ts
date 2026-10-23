@@ -16,21 +16,11 @@ import { registerWhatsappMarketingRoutes } from '../src/routes/whatsapp.js';
 import { registerPublicV1Routes } from '../src/routes/public-v1.js';
 import { registerAdminOperationsRoutes } from '../src/routes/admin-operations.js';
 import { stringQueryMap } from '../src/typed-query.js';
-import { registerAgentPlatformRoutes } from '../src/routes/agent-platform.js';
-import { validatedQuery } from '../src/services/agent-platform/controller-support.js';
 
 test('typed queries preserve Actix extractor errors before route effects', async () => {
   const mapped = stringQueryMap({ duplicate: ['old', 'new'], only: 'value' });
   assert.equal(mapped.duplicate, 'new');
   assert.equal(mapped.only, 'value');
-  const agentQuery = validatedQuery(
-    { raw: { url: '/api/agents?unknown=one&unknown=two&limit=4' } } as never,
-    { limit: 32 },
-    ['limit'],
-  );
-  assert.equal(agentQuery.limit, 4);
-  assert.equal(Object.hasOwn(agentQuery, 'unknown'), false);
-
   const config = readConfig({
       DATABASE_URL: 'postgres://unused',
       FRONTEND_URL: 'http://localhost:3000',
@@ -227,34 +217,16 @@ test('typed queries preserve Actix extractor errors before route effects', async
   try {
     for (const [url, detail] of [
       [
-        '/api/admin/operations/runs?limit=1&limit=2',
+        '/api/admin/operations/webhooks/deliveries?limit=1&limit=2',
         'duplicate field `limit`',
       ],
       [
-        '/api/admin/operations/exports?limit=4294967296',
+        '/api/admin/operations/webhooks/deliveries?limit=4294967296',
         'number too large to fit in target type',
       ],
       [
-        '/api/admin/operations/audit?action=read&action=write',
-        'duplicate field `action`',
-      ],
-      ['/api/admin/operations/search', 'missing field `q`'],
-      [
-        '/api/admin/operations/search?q=first&q=second',
-        'duplicate field `q`',
-      ],
-      [
-        '/api/admin/operations/webhooks/deliveries?limit=invalid',
-        'invalid digit found in string',
-      ],
-      [
-        '/api/admin/operations/support-grants?organizationId=a&organizationId=b',
+        '/api/admin/operations/support-grants?organizationId=first&organizationId=second',
         'duplicate field `organizationId`',
-      ],
-      ['/api/admin/leads?status=new&status=active', 'duplicate field `status`'],
-      [
-        '/api/admin/web-services?callStatus=called&callStatus=pending',
-        'duplicate field `callStatus`',
       ],
       [
         '/api/admin/conversations?organizationId=a&organizationId=b',
@@ -357,29 +329,4 @@ test('typed queries preserve Actix extractor errors before route effects', async
     await publicApiApp.close();
   }
 
-  const agentProxyApp = await buildApp(context, [
-    (instance, core) => registerAgentPlatformRoutes(instance, core),
-  ]);
-  try {
-    for (const [url, detail] of [
-      [
-        '/api/agents/operations/runs?limit=10&limit=20',
-        'duplicate field `limit`',
-      ],
-      [
-        '/api/agents/conversations/handoffs?status=open&status=closed',
-        'duplicate field `status`',
-      ],
-      [
-        '/api/agents/runs/synthetic/memory-observatory?afterSequence=18446744073709551616',
-        'number too large to fit in target type',
-      ],
-    ] as const) {
-      const response = await agentProxyApp.inject({ url });
-      assert.equal(response.statusCode, 400);
-      assert.equal(response.body, `Query deserialize error: ${detail}`);
-    }
-  } finally {
-    await agentProxyApp.close();
-  }
 });

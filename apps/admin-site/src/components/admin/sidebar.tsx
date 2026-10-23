@@ -30,10 +30,7 @@ const navigation: NavGroup[] = [
     { href: "/reports", label: "Reports", icon: FileText },
   ] },
   { label: "Operations", items: [
-    { href: "/operations", label: "Agent operations", icon: Activity },
-    { href: "/operations/health", label: "System health", icon: Gauge },
-    { href: "/operations/data-quality", label: "Data quality", icon: BarChart3 },
-    { href: "/operations/audit", label: "Audit", icon: FileText },
+    { href: "/operations", label: "Operations", icon: Activity },
     { href: "/leads", label: "Leads", icon: Users },
     { href: "/conversations", label: "Conversations", icon: Inbox },
   ] },

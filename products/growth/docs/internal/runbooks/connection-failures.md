@@ -42,7 +42,7 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 7. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
 8. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
 9. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core.
-10. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
+10. Inspect Growth provider webhook and Inbox persistence logs. Growth does not forward customer messages to an agent. Inspect the separately configured Agents deployment when investigating automated customer replies.
 11. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
 12. If Instagram publishing reports `Media ID is not available`, the media container was not ready
     when publishing was attempted. The adapter now polls the container status for a bounded period
