@@ -1,3 +1,4 @@
+import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import type { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { buildObservation, buildScopeDefinition, enqueueOutbox, publishOutboxOnce, AnalyticsIngestionClient, type AnalyticsPublisherSettings } from "@kasitek-labs/server-support/analytics-producer";
@@ -64,7 +65,7 @@ export function startNativeAnalyticsPublisher(pool:Pool,environment:NodeJS.Proce
  if(!settings)return {async stop(){}};
  const client=new AnalyticsIngestionClient(settings.endpoint,settings.token,settings.request_timeout_ms);
  let stopped=false,pending:Promise<unknown>|undefined;
- const run=()=>{if(stopped||pending)return;pending=(async()=>{await queueNativeAnalytics(pool);return publishOutboxOnce(pool,client,settings);})().catch(()=>{process.stderr.write(JSON.stringify({event:'analytics.native.publish.failed',service:'agents-platform',error_code:'native_publish_failed',retryable:true})+'\n');}).finally(()=>{pending=undefined;});};
+ const run=()=>{if(stopped||pending)return;pending=(async()=>{await recordOperationsWorkerHeartbeat(pool,"native_publisher",environment);await queueNativeAnalytics(pool);return publishOutboxOnce(pool,client,settings);})().catch(()=>{process.stderr.write(JSON.stringify({event:'analytics.native.publish.failed',service:'agents-platform',error_code:'native_publish_failed',retryable:true})+'\n');}).finally(()=>{pending=undefined;});};
  const timer=setInterval(run,1000);timer.unref();run();
  return {async stop(){stopped=true;clearInterval(timer);await pending;}};
 }

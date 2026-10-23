@@ -12,7 +12,7 @@ import {growthAdminReport} from "../services/admin/reporting-source.js";
 export function registerAdminReportingRoutes(app:FastifyInstance,context:CoreContext) {
  registerOperationsSource(app,context.pool,context.config.env);
  registerOperationsNotifications(app,context.pool,context.config.env);
- app.get('/api/admin/operations/audit',async request=>{const actor=await extractAdmin(request,context);if(!grantsForRole(actor.role).has('admin:read'))throw new ApiError(403,'forbidden','Insufficient permissions');return readSourceAudit(context.pool,context.config.env,request.query as Record<string,unknown>);});
+ app.get('/api/admin/operations/audit',async request=>{const actor=await extractAdmin(request,context);if(!grantsForRole(actor.role).has('admin:security'))throw new ApiError(403,'forbidden','Insufficient permissions');return readSourceAudit(context.pool,context.config.env,request.query as Record<string,unknown>);});
  app.get("/api/admin/reporting/diagnostics",async request=>{
   const actor=await extractAdmin(request,context);
   if(!grantsForRole(actor.role).has("admin:report"))throw new ApiError(403,"forbidden","Insufficient permissions");

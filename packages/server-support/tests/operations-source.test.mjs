@@ -5,8 +5,8 @@ import {randomUUID} from 'node:crypto';
 import {readOperationsSource,publicationMeasurements,parseOperationsAuditQuery,readOperationsAudit,recordOperationsWorkerHeartbeat} from '../dist/operations-source.js';
 test('query bounds reject injection-shaped filters and never permit unbounded pages',()=>{
  for(const value of [0,101,-1,1.1,'x'])assert.throws(()=>parseOperationsAuditQuery({limit:value}));
- assert.throws(()=>parseOperationsAuditQuery({actor:'x\ncontent'}));
- assert.deepEqual(parseOperationsAuditQuery({limit:'25',actor:'a'}),{limit:25,cursor:null,actor:'a',action:null,customer:null});
+ assert.throws(()=>parseOperationsAuditQuery({actorId:'x\ncontent'}));
+ assert.deepEqual(parseOperationsAuditQuery({limit:'25',actorId:'a'}),{limit:25,cursor:null,actor:'a',action:null,customer:null,resource:null,status:null});
 });
 test('measurement failures preserve unknown and do not invalidate other source facts',async()=>{
  const statements=[];const db={async query(sql){statements.push(sql);if(sql==='broken')throw Error('missing table');if(sql==='good')return {rows:[{value:'7'}]};return {rows:[]};},release(){}};
@@ -24,6 +24,6 @@ test('due-only queues, SQL read-only isolation and audit pagination against disp
  await recordOperationsWorkerHeartbeat(pool,'publisher',{OPS_HEARTBEATS_ENABLED:'1',OPS_WORKER_INSTANCE:'test1',OPS_ENVIRONMENT:'development'});
  result=await readOperationsSource(pool,'growth',{OPS_EXPECTED_WORKERS:'publisher@test1,publisher@missing'},[]);assert.equal(result.signals[0].status,'available');assert.equal(result.signals[1].status,'unknown');assert.equal(result.signals[1].value,null);assert.equal(result.signals[0].expectedIntervalSeconds,30);
  await pool.query("UPDATE operations_worker_heartbeats SET observed_at=now()-interval '2 minutes'");result=await readOperationsSource(pool,'growth',{OPS_EXPECTED_WORKERS:'publisher@test1'},[]);assert(Number(result.signals[0].value)>=120);
- const page=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{limit:1});assert.equal(page.entries[0].id,'b');assert.equal(page.nextCursor,'b');const next=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{cursor:page.nextCursor});assert.equal(next.entries[0].id,'a');assert.equal(next.nextCursor,null);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{customer:'one',actor:'bob'})).entries.length,0);
+ const page=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{limit:1});assert.equal(page.entries[0].id,'b');assert.equal(page.nextCursor,'b');const next=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{cursor:page.nextCursor});assert.equal(next.entries[0].id,'a');assert.equal(next.nextCursor,null);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{resourceId:'task1',status:'confirmed'})).entries.length,1);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{resourceId:'task1',status:'failed'})).entries.length,0);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{customerId:'one',actorId:'bob'})).entries.length,0);
  }finally{await pool.end();await parent.query(`DROP SCHEMA "${name}" CASCADE`);await parent.end();}
 });

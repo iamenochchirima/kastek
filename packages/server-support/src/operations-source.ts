@@ -34,15 +34,15 @@ export const publicationMeasurements:OperationsMeasurement[]=[
  {key:"publication.overdue_seconds",group:"publication",unit:"seconds",sql:`SELECT COALESCE(GREATEST(0,floor(extract(epoch FROM now()-min(CASE WHEN delivery_status='leased' THEN lease_expires_at ELSE next_attempt_at END))))::text,'0') value FROM public.analytics_outbox WHERE (delivery_status='pending' AND next_attempt_at<=now()) OR (delivery_status='leased' AND lease_expires_at<=now())`},
  {key:"publication.quarantined",group:"publication",unit:"count",sql:`SELECT count(*)::text value FROM public.analytics_outbox WHERE delivery_status='quarantined'`}
 ];
-export function parseOperationsAuditQuery(query:Record<string,unknown>):{limit:number;cursor:string|null;actor:string|null;customer:string|null;action:string|null}{
+export function parseOperationsAuditQuery(query:Record<string,unknown>):{limit:number;cursor:string|null;actor:string|null;customer:string|null;resource:string|null;status:string|null;action:string|null}{
  const limit=Number(query.limit??50);if(!Number.isInteger(limit)||limit<1||limit>100)throw Error("Invalid audit page size");
  const field=(key:string)=>{const value=query[key];if(value===undefined||value===null||value==='')return null;if(typeof value!=="string"||value.length>256||/[\u0000-\u001f]/.test(value))throw Error("Invalid audit filter");return value;};
- return {limit,cursor:field("cursor"),actor:field("actor"),customer:field("customer"),action:field("action")};
+ return {limit,cursor:field("cursor"),actor:field("actorId"),customer:field("customerId"),resource:field("resourceId"),status:field("status"),action:field("action")};
 }
 /** SQL is product-owned and returns only normalized metadata columns, never reason or payload. */
 export async function readOperationsAudit(pool:Pool,source:OperationsSource,environment:string,sql:string,query:Record<string,unknown>):Promise<OperationsAuditPage>{
  const q=parseOperationsAuditQuery(query),db=await pool.connect();try{await db.query("BEGIN READ ONLY");await db.query("SET LOCAL statement_timeout='2s'");
- const rows=(await db.query(`SELECT * FROM (${sql}) audit WHERE ($1::text IS NULL OR id<$1) AND ($2::text IS NULL OR actor_id=$2) AND ($3::text IS NULL OR customer_id=$3) AND ($4::text IS NULL OR action=$4) ORDER BY id DESC LIMIT $5`,[q.cursor,q.actor,q.customer,q.action,q.limit+1])).rows;
+ const rows=(await db.query(`SELECT * FROM (${sql}) audit WHERE ($1::text IS NULL OR id<$1) AND ($2::text IS NULL OR actor_id=$2) AND ($3::text IS NULL OR customer_id=$3) AND ($4::text IS NULL OR action=$4) AND ($5::text IS NULL OR resource_id=$5) AND ($6::text IS NULL OR status=$6) ORDER BY id DESC LIMIT $7`,[q.cursor,q.actor,q.customer,q.action,q.resource,q.status,q.limit+1])).rows;
  await db.query("COMMIT");return {entries:rows.slice(0,q.limit).map(r=>({id:r.id,source,environment,occurredAt:new Date(r.occurred_at).toISOString(),actorId:r.actor_id,action:r.action,status:r.status,customerId:r.customer_id,resourceType:r.resource_type,resourceId:r.resource_id,operationId:r.operation_id,code:r.code})),nextCursor:rows.length>q.limit?rows[q.limit-1].id:null};
  }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}finally{db.release();}
 }
