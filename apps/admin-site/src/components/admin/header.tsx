@@ -11,6 +11,7 @@ const pageLabels: Array<[string, string]> = [
   ["/dashboard", "Overview"],
   ["/analytics", "Analytics"],
   ["/operations", "Operations"],
+  ["/customers", "Customers"],
   ["/leads", "Leads"],
   ["/conversations", "Conversations"],
   ["/quotations", "Quotations"],

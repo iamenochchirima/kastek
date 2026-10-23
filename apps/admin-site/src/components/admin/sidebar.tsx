@@ -29,6 +29,7 @@ const navigation: NavGroup[] = [
     { href: "/reports", label: "Reports", icon: FileText },
   ] },
   { label: "Operations", items: [
+    { href: "/customers", label: "Customers", icon: Users },
     { href: "/operations", label: "Operations", icon: Activity },
     { href: "/leads", label: "Leads", icon: Users },
     { href: "/conversations", label: "Conversations", icon: Inbox },
