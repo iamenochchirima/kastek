@@ -11,12 +11,17 @@ import { assertBaseAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
+import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
 export interface EvidenceNode { id: string; taskId: string; kind: EvidenceKind; ownerId: string; evidenceIds: string[]; parents: string[]; manifest: DependencyManifest }
 export interface EvidencePassage { reference: EvidenceReference; label: string; text: string; title: string; page: number | null; section: string | null }
+export interface ProductEvidenceInput {
+  product: "growth" | "agencies"; tenantId: string; contextRevision: string;
+  sources: { id: string }[]; text: string; title: string; acquiredAt: string;
+}
 export interface ConnectedEvidenceInput { bindingId: string; resource: ResourceHandle; text: string; title: string; acquiredAt: string; receiptDigest: string }
 export const denied = () => new PlatformError("EVIDENCE_SCOPE_DENIED", 403, "Evidence is outside the task's permitted scope");
 export const unavailable = () => new PlatformError("EVIDENCE_UNAVAILABLE", 403, "Evidence is no longer available");
@@ -38,7 +43,7 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
   if (!grant || grant.revoked_at) throw unavailable();
   if(root.task.product!=="agents") {
     await assertProductAuthority(db,{product:root.task.product,organizationId:root.task.organization_id,resourceId:root.task.resource_id,
-      callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id,root.task.grant_id);
+      callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id);
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
@@ -156,9 +161,20 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
   const origins=execution.task.parent_task_id?[]:await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
   const dependencies = [...manifest.dependencies].sort((a, b) => {
-    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.referenceId;
+    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.kind === "product" ? `${value.product}:${value.tenantId}:${value.taskId}:${value.sourceId}` : value.referenceId;
     return key(a).localeCompare(key(b));
   });
+  for (const dependency of dependencies) {
+    if (dependency.kind !== "product") continue;
+    const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
+    const origin = [root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
+    if (!origin || origin.task.product !== dependency.product || root.task.product !== dependency.product) throw denied();
+    try { await productPorts(db).assertCurrentEvidence(db, { consumerTaskId: taskId, dependency }); }
+    catch (error) {
+      if (error instanceof PlatformError && [403, 404, 409].includes(error.statusCode)) throw unavailable();
+      throw error;
+    }
+  }
   for(const dependency of dependencies)if(dependency.kind==="delegation_input")await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,taskId);
   for (const dependency of dependencies.filter(item => item.kind === "source")) {
     if (dependency.kind !== "source") continue;

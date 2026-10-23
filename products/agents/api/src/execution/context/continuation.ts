@@ -7,7 +7,7 @@ import { assertCurrentAuthority,loadExecution,transaction } from "../lifecycle/e
 const uuid = z.uuid();
 const operationId = z.string().min(1).max(160).regex(/^[A-Za-z0-9:_-]+$/);
 const state = z.enum(["completed","incomplete","refused","failed","cancelled","uncertain","running","accepted","waiting_authority","waiting_children","waiting_review"]);
-export interface ContinuationEvidence { id:string; citation:string; operationId:string; kind:"source"|"connection"|"memory" }
+export interface ContinuationEvidence { id:string; citation:string; operationId:string; kind:"source"|"connection"|"memory"|"product" }
 export interface ContinuationCheckpoint {
   counts:{completed:number;failed:number;uncertain:number;delegations:number;artifacts:number};
   operations:{id:string;name:string;kind:"tool"|"delegation"|"resource";state:string}[];
@@ -25,11 +25,11 @@ export interface ContinuationRecords {
 const integrity=()=>new PlatformError("CONTINUATION_INTEGRITY",409,"Execution continuation records are invalid");
 export function buildContinuation(records:ContinuationRecords) {
   if(!Number.isSafeInteger(records.evidenceOmitted??0)||(records.evidenceOmitted??0)<0)throw integrity();
-  for(const op of records.operations)if(!operationId.safeParse(op.id).success||!state.safeParse(op.state).success||!(["knowledge.search","knowledge.read","memory.search","memory.propose","skills.activate","skills.read","skills.run","agents.delegate","sandbox.analyze","report.prepare","report.deliver"].includes(op.name)||/^t_[a-f0-9]{32}$/.test(op.name))||!["tool","delegation","resource"].includes(op.kind))throw integrity();
+  for(const op of records.operations)if(!operationId.safeParse(op.id).success||!state.safeParse(op.state).success||!(["knowledge.search","knowledge.read","memory.search","memory.propose","skills.activate","skills.read","skills.run","agents.delegate","sandbox.analyze","report.prepare","report.deliver","growth.context_read","growth.draft_prepare"].includes(op.name)||/^t_[a-f0-9]{32}$/.test(op.name))||!["tool","delegation","resource"].includes(op.kind))throw integrity();
   for(const group of records.delegations){if(!operationId.safeParse(group.operationId).success)throw integrity();for(const child of group.children)if(!uuid.safeParse(child.taskId).success||!/^[A-Za-z0-9_-]{1,64}$/.test(child.bindingId)||!state.safeParse(child.state).success)throw integrity();}
   for(const handle of records.handles)if(!uuid.safeParse(handle.id).success||!["revision","file","release"].includes(handle.kind))throw integrity();
   if(records.artifacts.some(item=>!uuid.safeParse(item.id).success)||records.results.some(item=>!uuid.safeParse(item.taskId).success))throw integrity();
-  for(const item of records.evidence??[])if(!uuid.safeParse(item.id).success||!/^\[E[a-f0-9]{32}\]$/.test(item.citation)||!operationId.safeParse(item.operationId).success||!["source","connection","memory"].includes(item.kind))throw integrity();
+  for(const item of records.evidence??[])if(!uuid.safeParse(item.id).success||!/^\[E[a-f0-9]{32}\]$/.test(item.citation)||!operationId.safeParse(item.operationId).success||!["source","connection","memory","product"].includes(item.kind))throw integrity();
   const checkpoint:ContinuationCheckpoint={counts:{completed:records.operations.filter(op=>op.state==="completed").length,failed:records.operations.filter(op=>op.state==="failed").length,uncertain:records.operations.filter(op=>op.state==="uncertain").length,delegations:records.delegations.length,artifacts:records.artifacts.length},operations:records.operations.slice(-6),delegations:records.delegations.slice(-4),handles:records.handles.slice(-6),artifacts:records.artifacts.slice(-2),evidence:(records.evidence??[]).slice(-8),omitted:{operations:Math.max(0,records.operations.length-6),delegations:Math.max(0,records.delegations.length-4),handles:Math.max(0,records.handles.length-6),artifacts:Math.max(0,records.artifacts.length-2),evidence:(records.evidenceOmitted??0)+Math.max(0,(records.evidence?.length??0)-8),results:0}};
   while(Buffer.byteLength(JSON.stringify(checkpoint))>3072){
     if(checkpoint.operations.length){checkpoint.operations.shift();checkpoint.omitted.operations++;}
