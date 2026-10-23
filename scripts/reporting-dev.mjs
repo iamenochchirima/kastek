@@ -1,0 +1,150 @@
+import { readFile, writeFile, mkdir, stat, realpath, rm, readdir, readlink, rename } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { createServer, connect } from 'node:net';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const runtime = resolve(root, '.runtime/admin-reporting');
+const manifestPath = resolve(runtime, 'processes.json');
+const sleep = ms => new Promise(done => setTimeout(done, ms));
+const service = (name, folder, entry, env, port, extra = {}) => ({ name, cwd: resolve(root, folder), entry, env, port, ...extra });
+export const services = [
+  service('analytics', 'services/analytics', 'dist/api-main.js', 'analytics', 4300, { portKey: 'ANALYTICS_API_PORT' }),
+  service('analytics-worker', 'services/analytics', 'dist/worker-main.js', 'analytics'),
+  service('growth', 'products/growth/api', 'dist/bootstrap.js', 'growth', 4000, { overrides: { KASITEK_DISABLE_BACKGROUND_WORKERS: 'true' } }),
+  service('agency', 'products/agency/api', 'dist/bootstrap.js', 'agency', 8090, { portKey: 'TENANT_SERVER_PORT', startupMigrations: true }),
+  service('agents', 'products/agents/api', 'dist/composition/server.js', 'agents', 14100),
+  service('growth-publisher', 'products/growth/api', 'dist/bootstrap.js', 'growth', undefined, { overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
+  service('agency-publisher', 'products/agency/api', 'dist/bootstrap.js', 'agency', undefined, { startupMigrations: true, overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
+  service('admin', 'apps/admin-site', 'node_modules/next/dist/bin/next', 'admin', 3001, { args: ['start', '--port', '3001'], health: '/login' }),
+];
+export async function processIdentity(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 2) return null;
+  try {
+    const raw = await readFile(`/proc/${pid}/stat`, 'utf8'), fields = raw.slice(raw.lastIndexOf(')') + 2).split(' ');
+    if (fields[0] === 'Z') return null;
+    return { pid, started: fields[19], cwd: await realpath(`/proc/${pid}/cwd`), commandHash: createHash('sha256').update(await readFile(`/proc/${pid}/cmdline`)).digest('hex') };
+  } catch { return null; }
+}
+export function sameProcess(saved, actual) { return !!actual && ['pid', 'started', 'cwd', 'commandHash'].every(key => saved[key] === actual[key]); }
+export async function portFree(port) {
+  return new Promise(done => { const server = createServer(); server.once('error', () => done(false)); server.listen({ port, host: '127.0.0.1', exclusive: true }, () => server.close(() => done(true))); });
+}
+export async function ownsPort(pid, port) {
+  try {
+    const fds = await readdir(`/proc/${pid}/fd`);
+    const sockets = new Set((await Promise.all(fds.map(fd => readlink(`/proc/${pid}/fd/${fd}`).catch(() => '')))).map(value => /^socket:\[(\d+)\]$/.exec(value)?.[1]).filter(Boolean));
+    for (const family of ['tcp', 'tcp6']) {
+      const rows = (await readFile(`/proc/${pid}/net/${family}`, 'utf8')).trim().split('\n').slice(1);
+      if (rows.some(row => { const fields = row.trim().split(/\s+/); return fields[3] === '0A' && parseInt(fields[1].split(':')[1], 16) === port && sockets.has(fields[9]); })) return true;
+    }
+  } catch { /* A process may exit between status reads. */ }
+  return false;
+}
+async function tcp(host, port) {
+  return new Promise(done => { const socket = connect({ host, port }); const finish = result => { socket.destroy(); done(result); }; socket.setTimeout(1500, () => finish(false)); socket.once('error', () => finish(false)); socket.once('connect', () => finish(true)); });
+}
+export async function healthy(item) {
+  if (!item.port) return true;
+  try { return (await fetch(`http://127.0.0.1:${item.port}${item.health ?? '/health'}`, { signal: AbortSignal.timeout(1500), redirect: 'manual' })).status < 400; } catch { return false; }
+}
+async function readManifest() {
+  try { const data = JSON.parse(await readFile(manifestPath, 'utf8')); if (data.version !== 1 || !data.processes || typeof data.processes !== 'object') throw Error(); return data; }
+  catch (error) { if (error.code === 'ENOENT') return { version: 1, processes: {} }; throw Error('Invalid process manifest; inspect it locally.'); }
+}
+async function saveManifest(data) { const temporary = `${manifestPath}.${process.pid}.tmp`; await writeFile(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 }); await rename(temporary, manifestPath); }
+const dbKeys = { growth: ['DATABASE_URL'], agency: ['KASITEK_TENANTS_DATABASE_URL', 'TENANT_DATABASE_URL'], agents: ['AGENTS_DATABASE_URL'], analytics: ['ANALYTICS_DATABASE_URL'] };
+export async function configuration(item) {
+  const path = resolve(runtime, `${item.env}.env`), metadata = await stat(path).catch(() => null);
+  if (!metadata?.isFile() || (metadata.mode & 0o077)) throw Error(`${item.name}: configuration missing or not private (chmod 600).`);
+  const env = parseEnv(await readFile(path, 'utf8'));
+  if (env.NODE_ENV === 'production' || env.ANALYTICS_ENVIRONMENT === 'production') throw Error(`${item.name}: development profile required.`);
+  if (item.port && env[item.portKey ?? 'PORT'] && Number(env[item.portKey ?? 'PORT']) !== item.port) throw Error(`${item.name}: configured port differs from development profile.`);
+  const db = dbKeys[item.env]?.map(key => env[key]).find(Boolean);
+  if (dbKeys[item.env]) {
+    let url; try { url = new URL(db); } catch { throw Error(`${item.name}: database configuration missing or invalid.`); }
+    if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !url.pathname.endsWith('_reporting_dev')) throw Error(`${item.name}: dedicated loopback reporting development database required.`);
+    if (!await tcp(url.hostname.replaceAll(/[\[\]]/g, ''), Number(url.port || 5432))) throw Error(`${item.name}: database TCP endpoint unavailable.`);
+  }
+  if (!env.KASITEK_ADMIN_SERVICE_SECRET || Buffer.byteLength(env.KASITEK_ADMIN_SERVICE_SECRET) < 32) throw Error(`${item.name}: administrative service credential missing or too short.`);
+  const endpoint = (key, port) => {
+    let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
+    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || Number(url.port || 80) !== port || url.username || url.password) throw Error(`${item.name}: ${key} must target the loopback development service.`);
+  };
+  if (item.name === 'growth-publisher' || item.name === 'agency-publisher') {
+    const key = item.env === 'growth' ? 'ANALYTICS_CORE_INGESTION_TOKEN' : 'ANALYTICS_TENANT_INGESTION_TOKEN';
+    if (!(env[key] ?? env.ANALYTICS_INGESTION_TOKEN)?.trim()) throw Error(`${item.name}: ingestion credential missing.`);
+    endpoint('ANALYTICS_INGESTION_URL', 4300);
+  }
+  if (item.env === 'agents') {
+    if (!env.AGENTS_ANALYTICS_INGESTION_TOKEN?.trim()) throw Error(`${item.name}: native ingestion credential missing.`);
+    endpoint('AGENTS_ANALYTICS_INGESTION_URL', 4300);
+  }
+  if (item.env === 'admin') for (const [key, port] of [['CORE_BACKEND_URL', 4000], ['TENANTS_BACKEND_URL', 8090], ['AGENTS_BACKEND_URL', 14100]]) endpoint(key, port);
+  if (!existsSync(resolve(item.cwd, item.entry))) throw Error(`${item.name}: build entry point missing.`);
+  if (item.name === 'admin' && !existsSync(resolve(item.cwd, '.next/BUILD_ID'))) throw Error('admin: production build missing.');
+  return env;
+}
+export async function stopOwned(saved, identity = processIdentity, signal = process.kill) {
+  if (saved.ownership !== 'managed') return 'external: left running';
+  if (!sameProcess(saved, await identity(saved.pid))) return 'identity changed: left untouched';
+  signal(saved.pid, 'SIGTERM'); return 'shutdown requested';
+}
+export async function run(argv = process.argv.slice(2)) {
+  if (process.platform !== 'linux' || Number(process.versions.node.split('.')[0]) !== 24) throw Error('Linux with workspace Node 24 is required.');
+  const [action, ...args] = argv;
+  if (!['preflight', 'start', 'status', 'stop', 'adopt'].includes(action)) throw Error('Usage: pnpm reporting:dev preflight|start|status|stop [service ...] [--allow-startup-migrations]; adopt service PID');
+  if (args.some(arg => arg.startsWith('--') && arg !== '--allow-startup-migrations')) throw Error('Unknown reporting option.');
+  const names = action === 'adopt' ? [args[0]] : args.filter(arg => !arg.startsWith('--'));
+  const selected = names.length ? names.map(name => { const item = services.find(s => s.name === name); if (!item) throw Error('Unknown service name.'); return item; }) : services;
+  await mkdir(runtime, { recursive: true, mode: 0o700 });
+  if ((await stat(runtime)).mode & 0o077) throw Error('Reporting runtime directory must be private (chmod 700).');
+  const lock = resolve(runtime, 'process.lock');
+  try { await mkdir(lock); } catch { throw Error('Another reporting operation is active; inspect a stale process.lock before removing it.'); }
+  try {
+    const manifest = await readManifest();
+    if (action === 'status') {
+      for (const item of selected) {
+        const saved = manifest.processes[item.name], alive = saved && sameProcess(saved, await processIdentity(saved.pid)), ready = alive && await healthy(item) && (!item.port || await ownsPort(saved.pid, item.port));
+        console.log(`${item.name}: ${ready ? saved.ownership === 'managed' ? 'running (managed)' : 'running (external)' : alive ? 'running, unhealthy' : item.port && !await portFree(item.port) ? 'unowned port occupied' : 'stopped'}`);
+        if (!ready) process.exitCode = 1;
+      } return;
+    }
+    if (action === 'stop') { for (const item of [...selected].reverse()) { const saved = manifest.processes[item.name]; console.log(`${item.name}: ${saved ? await stopOwned(saved) : 'not managed'}`); } return; }
+    if (action === 'adopt') {
+      const item = selected[0], actual = await processIdentity(Number(args[1]));
+      if (!actual || actual.cwd !== await realpath(item.cwd) || !await healthy(item) || (item.port && !await ownsPort(actual.pid, item.port))) throw Error('External process identity or health does not match.');
+      const command = (await readFile(`/proc/${actual.pid}/cmdline`, 'utf8')).split('\0');
+      if (!command.some(part => resolve(item.cwd, part) === resolve(item.cwd, item.entry) || (item.name === 'admin' && part.startsWith('next-server (v')))) throw Error('External process entry point does not match.');
+      manifest.processes[item.name] = { ...actual, ownership: 'external' }; await saveManifest(manifest); console.log(`${item.name}: external process recorded; stop will leave it running.`); return;
+    }
+    const configs = new Map();
+    for (const item of selected) {
+      configs.set(item.name, await configuration(item));
+      const saved = manifest.processes[item.name], alive = saved && sameProcess(saved, await processIdentity(saved.pid));
+      if (item.port && !await portFree(item.port) && !(alive && await healthy(item) && await ownsPort(saved.pid, item.port))) throw Error(`${item.name}: port occupied by an unowned or unhealthy process.`);
+      if (action === 'start' && item.startupMigrations && !args.includes('--allow-startup-migrations')) throw Error(`${item.name}: startup runs migrations; pass --allow-startup-migrations after reviewing the dedicated development database.`);
+      console.log(`${item.name}: preflight passed (configuration, build and TCP checks)`);
+    }
+    if (action === 'preflight') return;
+    for (const item of selected) {
+      const saved = manifest.processes[item.name];
+      if (saved && sameProcess(saved, await processIdentity(saved.pid))) { if (!await healthy(item) || (item.port && !await ownsPort(saved.pid, item.port))) throw Error(`${item.name}: existing process unhealthy.`); console.log(`${item.name}: reused ${saved.ownership} process`); continue; }
+      const env = { PATH: process.env.PATH, HOME: process.env.HOME, TZ: 'UTC', ...configs.get(item.name), ...item.overrides };
+      if (item.port) env[item.portKey ?? 'PORT'] = String(item.port);
+      const child = spawn(process.execPath, [`--env-file=${resolve(runtime, `${item.env}.env`)}`, item.entry, ...(item.args ?? [])], { cwd: item.cwd, env, detached: true, stdio: 'ignore' });
+      await new Promise((done, reject) => { child.once('spawn', done); child.once('error', reject); }); child.unref();
+      const actual = await processIdentity(child.pid); if (!actual) throw Error(`${item.name}: exited during startup.`);
+      manifest.processes[item.name] = { ...actual, ownership: 'managed' }; await saveManifest(manifest);
+      let ready = false;
+      for (let attempt = 0; attempt < 40; attempt++) { await sleep(250); if (!(await processIdentity(child.pid))) break; if (await healthy(item) && (!item.port || await ownsPort(child.pid, item.port)) && (item.port || attempt >= 3)) { ready = true; break; } }
+      if (!ready) throw Error(`${item.name}: startup failed or health timed out. Previously started services remain owned.`);
+      manifest.processes[item.name] = { ...await processIdentity(child.pid), ownership: 'managed' }; await saveManifest(manifest);
+      console.log(`${item.name}: started`);
+    }
+  } finally { await rm(lock, { recursive: true, force: true }); }
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) run().catch(error => { console.error(error.message); process.exitCode = 1; });

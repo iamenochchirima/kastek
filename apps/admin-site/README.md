@@ -135,3 +135,49 @@ coverage, authorization, server-only configuration, per-owner migrations, runtim
 rollback. Activation, previous-period comparisons, refund facts, and cross-product unique people
 are unavailable where no authoritative measurement exists. Global trend coverage describes
 instrumented scopes rather than every current organization.
+
+## Development reporting processes
+
+From the repository root with Node 24, `pnpm reporting:dev` manages the dedicated local
+reporting profile. Prepare private `.runtime/admin-reporting/{growth,agency,agents,analytics,admin}.env`
+files (directory mode 700, file mode 600), build the affected services and admin, and apply
+reviewed migrations before starting. The profile accepts only loopback PostgreSQL databases
+whose names end in `_reporting_dev`; it never provisions databases or generates credentials.
+
+```sh
+pnpm reporting:dev preflight
+pnpm reporting:dev start --allow-startup-migrations
+pnpm reporting:dev status
+pnpm reporting:dev stop
+```
+
+Commands also accept service names: `analytics`, `analytics-worker`, `growth`, `agency`,
+`agents`, `growth-publisher`, `agency-publisher`, and `admin`. Ports are respectively 4300,
+4000, 8090, 14100 and 3001 for HTTP services. Existing Agents on 4100 remains separate.
+The Growth API disables unrelated background workers; the two dedicated product publishers
+run the existing publication and backfill entry points. The Agents API owns its native publisher.
+Agency startup applies its normal additive migrations, so starting it requires the explicit
+`--allow-startup-migrations` option against the reviewed development database.
+
+Preflight checks private configuration, dedicated database addresses, database TCP connectivity,
+entry point/build presence, configured reporting endpoints, ingestion credentials and port
+collisions. It does not prove database authentication, schema readiness or durable publication;
+use the reporting diagnostics and the development acceptance flow for those checks. Worker
+status confirms process identity, while HTTP status also probes service health.
+
+An occupied port fails rather than terminating or silently reusing another process. To record
+an intentionally external service, use `pnpm reporting:dev adopt SERVICE PID`; its entry point,
+working directory, listener ownership and health must match. `stop` leaves adopted processes
+running. Managed shutdown checks PID, process birth time, working directory and command hash
+before signalling; it never kills a process selected only by port. A stale identity is left
+untouched. Status exits nonzero if a selected service is stopped or unhealthy.
+
+Process identities are stored in the ignored private `processes.json` manifest. Operations use
+an exclusive `process.lock` directory; remove a stale lock only after confirming no reporting
+command is active. No child stdout/stderr is captured or printed, to avoid exposing credentials
+through startup errors. For service-specific debugging, run its normal entry point locally with
+that profile after stopping the managed instance. Do not paste private configuration or raw
+service output into tickets. Startup failure preserves already started managed services;
+inspect `status` and stop selected services explicitly.
+
+Run `pnpm test:reporting-dev` for process ownership, listener collision and secret-output checks.

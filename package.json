@@ -34,7 +34,9 @@
     "test:agents": "pnpm --filter @kasitek/agents test",
     "test:agency": "pnpm --filter @kasitek/agency-tenants test",
     "release:check": "node scripts/release-version.mjs check",
-    "verify:agents-modules": "node scripts/check-agents-boundaries.mjs && node --test scripts/check-agents-boundaries.test.mjs"
+    "verify:agents-modules": "node scripts/check-agents-boundaries.mjs && node --test scripts/check-agents-boundaries.test.mjs",
+    "reporting:dev": "node scripts/reporting-dev.mjs",
+    "test:reporting-dev": "node --test scripts/reporting-dev.test.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",
