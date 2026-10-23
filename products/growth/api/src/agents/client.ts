@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { GROWTH_AGENT_COMMAND_PATH, parseGrowthAgentCommand, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentCommandOutputs } from "@kasitek-labs/contracts";
 import type { CoreConfig } from "../config.js";
 import { ApiError } from "../error.js";
+import { outboundTraceHeaders } from "../observability/context.js";
+import { providerSpan } from "../observability/operations.js";
 import { growthAgentApiUrl, signGrowthAgentCommand } from "./security.js";
 export interface GrowthAgentTransport { fetch?: typeof fetch }
 export class GrowthAgentClient {
@@ -15,9 +17,13 @@ export class GrowthAgentClient {
     const token = await signGrowthAgentCommand(this.config, body);
     let response: Response;
     try {
-      response = await (this.transport.fetch ?? fetch)(base + GROWTH_AGENT_COMMAND_PATH, {
-        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-correlation-id": requestId },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(15000), redirect: "error",
+      response = await providerSpan("kasitek-agents", "http.request", () => {
+        const traceHeaders = outboundTraceHeaders();
+        return (this.transport.fetch ?? fetch)(base + GROWTH_AGENT_COMMAND_PATH, {
+          method: "POST", headers: { ...traceHeaders, authorization: `Bearer ${token}`, "content-type": "application/json",
+            "x-correlation-id": traceHeaders["x-correlation-id"] ?? requestId },
+          body: JSON.stringify(body), signal: AbortSignal.timeout(15000), redirect: "error",
+        });
       });
     } catch { throw new ApiError(503, "agent_service_unavailable", "Agents is temporarily unavailable"); }
     const text = await response.text();
