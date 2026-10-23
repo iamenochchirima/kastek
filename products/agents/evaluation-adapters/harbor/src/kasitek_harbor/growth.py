@@ -24,7 +24,8 @@ from pydantic import (
 
 from . import __version__
 from .config import ConversationTurn, PreparedScope
-from .growth_client import GrowthClient, TERMINAL_STATES, product_id
+from .growth_client import GrowthClient, GrowthRequestError, TERMINAL_STATES, product_id
+from .trajectory import to_atif_turns, UnsupportedMapping
 from .persistence import persist
 from .recovery import exclusive_recovery, recovery_path
 
@@ -34,6 +35,7 @@ class GrowthContext(BaseModel):
     kind: Literal["workspace", "content_post", "whatsapp_campaign", "analytics_report"]
     resourceId: str | None = None
     range: dict[str, str] | None = None
+    report: dict[str, object] | None = None
 
     @model_validator(mode="after")
     def complete(self):
@@ -45,6 +47,35 @@ class GrowthContext(BaseModel):
             not self.range or set(self.range) != {"from", "to", "timezone"}
         ):
             raise ValueError("Analytics context requires its actual report range")
+        if self.report is not None:
+            if self.kind != "analytics_report" or set(self.report) != {
+                "metrics",
+                "breakdowns",
+                "filters",
+            }:
+                raise ValueError("Report selection requires an analytics context")
+
+            def names(value):
+                return (
+                    isinstance(value, list)
+                    and len(value) <= 20
+                    and all(
+                        isinstance(item, str) and 0 < len(item) <= 128 for item in value
+                    )
+                )
+
+            filters = self.report["filters"]
+            if (
+                not names(self.report["metrics"])
+                or not names(self.report["breakdowns"])
+                or not isinstance(filters, dict)
+                or len(filters) > 20
+                or not all(
+                    isinstance(key, str) and 0 < len(key) <= 128 and names(value)
+                    for key, value in filters.items()
+                )
+            ):
+                raise ValueError("Report selection exceeds the product contract")
         return self
 
 
@@ -61,6 +92,15 @@ class GrowthPreparedScope(BaseModel):
     expires_at: AwareDatetime
     max_turns: int = Field(default=1, ge=1, le=8)
     isolation: Literal["operator-provisioned-per-trial-business"]
+    expected_composition_digest: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$"
+    )
+    expected_model_routes_digest: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$"
+    )
+    expected_manifest_digest: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$"
+    )
 
     @field_validator("origin")
     @classmethod
@@ -117,10 +157,34 @@ class GrowthAdapterOptions(AgentOptions):
         return self
 
 
+def verify_growth_capture_pins(scope, capture):
+    if (
+        scope.expected_composition_digest
+        and capture.effectiveComposition.digest != scope.expected_composition_digest
+    ):
+        raise ValueError("Native composition differs from the prepared pin")
+    if (
+        scope.expected_model_routes_digest
+        and capture.modelRoutesDigest != scope.expected_model_routes_digest
+    ):
+        raise ValueError("Native model route differs from the prepared pin")
+    if scope.expected_manifest_digest:
+        root = next(task for task in capture.tasks if task.id == capture.rootTaskId)
+        # Only platform-exported binding snapshots count. Model text/results are not authority.
+        bindings = root.model_dump(mode="json").get("productBindings", [])
+        manifests = {
+            binding.get("authority", {}).get("manifestDigest")
+            for binding in bindings
+            if isinstance(binding, dict)
+        }
+        if scope.expected_manifest_digest not in manifests:
+            raise ValueError("Native product manifest differs from the prepared pin")
+
+
 class GrowthHarborAgent(BaseAgent):
     options_model = GrowthAdapterOptions
-    # Growth's product API does not expose native model/tool snapshots. Never synthesize ATIF.
-    capabilities = AgentCapabilities(atif=False)
+    # ATIF is generated only from a validated, authorised native execution capture.
+    capabilities = AgentCapabilities(atif=True)
 
     @staticmethod
     def name():
@@ -146,10 +210,6 @@ class GrowthHarborAgent(BaseAgent):
             raise ValueError("Prepared Growth scope expired")
         if 1 + len(self.options.follow_ups) > scope.max_turns:
             raise ValueError("Script exceeds the prepared turn allocation")
-        if self.options.review_decision and scope.feature_id != "content":
-            raise ValueError(
-                "Only Content has an installed reviewed mutation in this adapter"
-            )
         return scope
 
     async def setup(self, environment):
@@ -242,6 +302,7 @@ class GrowthHarborAgent(BaseAgent):
             session = self._get_env(scope.session_cookie_env)
             if not session:
                 raise ValueError("Prepared Growth session is unavailable")
+            native_exports = []
             result = {
                 "schemaVersion": "kasitek-growth-evaluation-result.v1",
                 "scopeId": str(scope.scope_id),
@@ -325,12 +386,8 @@ class GrowthHarborAgent(BaseAgent):
                                     mapping["conversationId"], task["id"]
                                 )
                             await self._events(client, mapping, path, task["id"])
-                            reviews = (
-                                await client.reviews(
-                                    mapping["conversationId"], task["id"]
-                                )
-                                if scope.feature_id == "content"
-                                else []
+                            reviews = await client.reviews(
+                                mapping["conversationId"], task["id"]
                             )
                             outcomes = [
                                 await client.saved_outcome(
@@ -348,6 +405,52 @@ class GrowthHarborAgent(BaseAgent):
                                 "artifacts": await client.artifacts(task["id"]),
                                 "authoritativeOutcomes": outcomes,
                             }
+                            try:
+                                capture = await client.capture(
+                                    task["id"], mapping["conversationId"]
+                                )
+                            except GrowthRequestError as error:
+                                if error.status not in {404, 413, 501}:
+                                    raise
+                                if any(
+                                    (
+                                        scope.expected_composition_digest,
+                                        scope.expected_model_routes_digest,
+                                        scope.expected_manifest_digest,
+                                    )
+                                ):
+                                    raise ValueError(
+                                        "The prepared pins require an available native capture"
+                                    ) from error
+                                evidence["captureUnavailable"] = f"HTTP {error.status}"
+                            else:
+                                verify_growth_capture_pins(scope, capture)
+                                native_exports.append(capture)
+                                evidence["nativeCapture"] = capture.model_dump(
+                                    mode="json"
+                                )
+                                result["coverage"]["nativeModelToolSnapshots"] = (
+                                    "captured"
+                                )
+                                result["coverage"]["modelPolicyPins"] = (
+                                    "verified"
+                                    if scope.expected_model_routes_digest
+                                    else "captured"
+                                )
+                                try:
+                                    trajectory = to_atif_turns(native_exports)
+                                    persist(
+                                        self.logs_dir / "trajectory.json",
+                                        trajectory.model_dump(
+                                            mode="json", exclude_none=True
+                                        ),
+                                    )
+                                    result["coverage"]["atif"] = "captured"
+                                except UnsupportedMapping:
+                                    result["coverage"]["atif"] = "unavailable"
+                                    (self.logs_dir / "trajectory.json").unlink(
+                                        missing_ok=True
+                                    )
                             persist(
                                 self.logs_dir
                                 / "turns"

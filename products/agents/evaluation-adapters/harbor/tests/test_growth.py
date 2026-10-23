@@ -69,7 +69,7 @@ class GrowthScopeTests(unittest.TestCase):
             GrowthAdapterOptions(
                 scope_path=Path("/private/scope.json"), expected_answer="hidden"
             )
-        self.assertFalse(GrowthHarborAgent.capabilities.atif)
+        self.assertTrue(GrowthHarborAgent.capabilities.atif)
 
     def test_one_prepared_business_is_claimed_by_one_harbor_trial_and_requests_recover_stably(
         self,
@@ -395,6 +395,10 @@ class GrowthDriverContractTests(unittest.IsolatedAsyncioTestCase):
                     return httpx.Response(200, json={"events": [], "nextCursor": None})
                 if request.url.path.endswith("/artifacts"):
                     return httpx.Response(200, json={"artifacts": []})
+                if request.url.path.endswith("/reviews"):
+                    return httpx.Response(200, json={"reviews": []})
+                if request.url.path.endswith("/export"):
+                    return httpx.Response(404, json={"code": "capture_unavailable"})
                 raise AssertionError("Unexpected mocked product endpoint")
 
             client = GrowthClient(

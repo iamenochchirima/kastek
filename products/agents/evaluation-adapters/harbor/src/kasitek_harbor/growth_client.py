@@ -100,6 +100,19 @@ class GrowthClient:
             raise ValueError("The prepared Growth feature is unavailable")
         return value
 
+    async def capture(self, task_id, conversation_id):
+        from .native import ExecutionExport
+
+        value = await self.request(
+            "GET", f"/api/agents/tasks/{execution_id(task_id)}/export"
+        )
+        capture = ExecutionExport.model_validate(value.get("capture"))
+        if capture.rootTaskId != str(
+            UUID(str(task_id))
+        ) or capture.conversationId != str(UUID(str(conversation_id))):
+            raise ValueError("Native capture escaped the prepared task or conversation")
+        return capture
+
     async def unused(self):
         conversations = await self.request(
             "GET", "/api/agents/conversations", params={"limit": 1}

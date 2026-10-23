@@ -339,12 +339,25 @@ selected accounts. Assistant prose saying "saved" is never accepted as an outcom
 from the record response are not copied into outcome evidence. `evaluation-result.json` records
 observed completion and cleanup separately; the independent verifier determines pass/fail.
 
-Growth's current product API does not expose native model/tool snapshots, child trajectories,
-model-policy digests or the standalone server evaluation-trial reservation/revoke contract.
-This mode advertises `atif=False` and records those coverage gaps explicitly. It cannot establish
-per-call/model-pin quality evidence or replace the existing standalone native-export adapter for
-those checks. Artifact references are retained; binary downloads are not implemented in this mode.
-A product-aware authorized export is the next required platform addition for that deeper coverage.
+Growth exposes the initiating user's authorised native capture through
+`GET /api/agents/tasks/:id/export`. The adapter validates actual task/conversation identity,
+accepted model-route digests, model/tool operation records and current source access. It retains
+that capture with each turn and advertises ATIF support. ATIF is written only from validated
+native records; missing results or unsupported mappings are never invented. An older server's
+404/501 or an explicit capture-size limit remains an unavailable coverage state. Authentication,
+malformed capture and pin mismatches fail rather than silently weakening the evidence.
+
+Optional prepared-scope `expected_composition_digest`, `expected_model_routes_digest` and
+`expected_manifest_digest` pin the configuration under test. Manifest pins match the root task's
+platform-exported product binding snapshot, never a string in model output or tool results. A
+requested pin requires a usable capture. Each preset or customised composition can have its own
+prepared scope and purpose-specific suite. Review decisions follow actual task reviews and
+capability authority rather than the agent's display name.
+
+The standalone server evaluation-trial reservation/revoke contract is still unavailable in Growth.
+The adapter reports that gap separately. Artifact references are retained; binary downloads are
+not implemented in this mode. Installing capture support does not run an evaluation or establish
+model quality. All evaluation and grading runs remain owner-operated.
 
 The host lock/mapping and freshness check complement operator isolation; they are not a server
 admission fence or tenant-wide trial budget. Provision only isolated services/businesses, keep the
