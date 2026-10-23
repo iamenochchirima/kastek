@@ -199,7 +199,7 @@ export async function exportReport(
             ),
           ),
         ],
-        { record_delimiter: "\n" },
+        { record_delimiter: "\n", escape_formulas: true },
       ),
     );
   } catch (error) {
