@@ -104,6 +104,7 @@
     { "method": "POST", "path": "/api/admin/customers/:customerId/operations/preview" },
     { "method": "GET", "path": "/api/admin/reporting" },
     { "method": "GET", "path": "/api/admin/reporting/diagnostics" },
-    { "method": "POST", "path": "/api/partner/auth/activity" }
+    { "method": "POST", "path": "/api/partner/auth/activity" },
+    { "method": "POST", "path": "/internal/agents/capabilities", "reason": "Destination-authorized product metadata read." }
   ]
 }
