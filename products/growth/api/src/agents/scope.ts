@@ -8,6 +8,7 @@ import { getCampaignSummary } from "../services/whatsapp/campaigns.js";
 import { reportForOrganization } from "../services/analytics-reporting.js";
 import { SerdeFloat } from "@kasitek-labs/server-support/json";
 import { growthAgentDigest, growthAgentIdentityIssuer } from "./security.js";
+import { growthAgentProductGuide } from "./product-guide.js";
 export interface GrowthAgentScope { tenantId: string; actor: GrowthAgentActor }
 export async function authorizeGrowthAgentScope(core: CoreContext, scope: GrowthAgentScope, featureId?: GrowthAgentFeatureId,
   db: Pool | PoolClient = core.pool, lock = false): Promise<{ businessName: string }> {
@@ -37,7 +38,7 @@ export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAge
     const row = (await core.pool.query(`SELECT o.id,o.name,o."reportingTimezone",o."updatedAt",p.website,p.industry,p."primaryGoal",p."primaryGoals"
       FROM "Organization" o LEFT JOIN "OrganizationOnboardingProfile" p ON p."orgId"=o.id WHERE o.id=$1`, [scope.tenantId])).rows[0];
     if (!row) throw new ApiError(404, "agent_context_missing", "Business context is unavailable");
-    data = row; title = row.name; route = "/workspace/settings";
+    data = { ...row, productGuide: await growthAgentProductGuide(core, scope) }; title = row.name; route = "/workspace/settings";
   } else if (context.kind === "content_post") {
     await requireCapability(core.pool, scope.tenantId, "feature.content.manage");
     const post = await getSocialPost(core.pool, scope.tenantId, context.resourceId!);
@@ -54,6 +55,7 @@ export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAge
     data = Object.fromEntries(allowed.filter(key => campaign[key] !== undefined).map(key => [key, campaign[key]]));
     title = String(campaign.name ?? "WhatsApp campaign"); route = `/campaigns/${encodeURIComponent(context.resourceId!)}`;
   } else {
+    await requireCapability(core.pool, scope.tenantId, "feature.analytics.view");
     if (context.resourceId && context.resourceId !== scope.tenantId) throw new ApiError(403, "agent_context_denied", "Report context is unavailable");
     const range = context.range;
     if (!range) throw new ApiError(400, "agent_report_range_required", "Choose a report date range");
@@ -67,6 +69,7 @@ export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAge
 export async function assertGrowthAgentContext(core: CoreContext, scope: GrowthAgentScope, context: GrowthAgentContext | null, revision?: string | null): Promise<void> {
   if (!context) return;
   if (context.kind === "analytics_report") {
+    await requireCapability(core.pool, scope.tenantId, "feature.analytics.view");
     if (context.resourceId && context.resourceId !== scope.tenantId) throw new ApiError(403, "agent_context_denied", "Report context is unavailable");
     // Analytics runs behind its own current scope grant; no external query is needed just to authorize a model call.
     if (!context.range) throw new ApiError(400, "agent_report_range_required", "Choose a report date range");
