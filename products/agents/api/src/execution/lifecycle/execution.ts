@@ -256,13 +256,17 @@ export async function queueChildContinuations(pool:Pool,rootTaskId:string):Promi
   });
 }
 
+/** Caller must hold the organization lock. Runtime dispatch still owns settlement and cleanup. */
+export async function requestTreeCancellationInTransaction(db:PoolClient,taskId:string):Promise<string[]> {
+  const rows=(await db.query(`UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now()
+    WHERE root_task_id=$1 AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested') RETURNING id`,[taskId])).rows;
+  for(const row of rows) await event(db,row.id,`cancel-intent:${row.id}`,"cancel_requested",{requestedByTaskId:taskId});
+  return rows.map(row=>row.id as string);
+}
 export async function requestTreeCancellation(pool:Pool,taskId:string):Promise<string[]> {
   return transaction(pool,async db=>{
     const execution=await loadExecution(db,taskId);
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[execution.task.organization_id]);
-    const rows=(await db.query(`UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now()
-      WHERE (id=$1 OR parent_task_id=$1) AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') RETURNING id`,[taskId])).rows;
-    for(const row of rows) await event(db,row.id,`cancel-intent:${row.id}`,"cancel_requested",{requestedByTaskId:taskId});
-    return rows.map(row=>row.id as string);
+    return requestTreeCancellationInTransaction(db,taskId);
   });
 }

@@ -1,3 +1,4 @@
+import {registerAdminCustomerRoutes} from "../product/customers/routes";
 import {registerAdminReportingRoutes} from "../product/reporting/routes";
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import cookie from "@fastify/cookie";
@@ -735,5 +736,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { tasks: await Promise.all((await store.getConversation(authority, uuid.parse(parameters(request).conversationId))).map(readableTask)) };
   });
   registerAdminReportingRoutes(app,pool,process.env.KASITEK_ADMIN_SERVICE_SECRET);
+  registerAdminCustomerRoutes(app,pool,process.env.KASITEK_ADMIN_SERVICE_SECRET);
   return app;
 }
