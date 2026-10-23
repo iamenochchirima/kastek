@@ -2,7 +2,15 @@ import type {FastifyInstance} from "fastify";
 import type {Pool} from "pg";
 import {OPERATIONS_AUTHORITY_HEADER,verifyOperationsServiceAuthority} from "@kasitek-labs/server-support/operations-authority";
 import {readOperationsSource,readOperationsAudit,publicationMeasurements,type OperationsMeasurement} from "@kasitek-labs/server-support/operations-source";
-export const growthOperationsMeasurements:OperationsMeasurement[]=[...publicationMeasurements,
+const webhookFrom=`FROM "PublicApiWebhookDelivery" d JOIN "PublicApiWebhookSubscription" s ON s.id=d."subscriptionId"`;
+// Match the owning delivery worker's five-minute claim recovery and retry scheduling.
+const webhookDue=`s.status='ACTIVE' AND d."nextAttemptAt"<=now() AND (d.status='PENDING' OR (d.status='DELIVERING' AND d."updatedAt"<now()-interval '5 minutes'))`;
+const webhookEligibleAt=`CASE WHEN d.status='DELIVERING' THEN GREATEST(d."nextAttemptAt",d."updatedAt"+interval '5 minutes') ELSE d."nextAttemptAt" END`;
+export const growthWebhookMeasurements:OperationsMeasurement[]=[
+ {key:'webhook.overdue_seconds',group:'webhooks',unit:'seconds',sql:`SELECT COALESCE(GREATEST(0,floor(extract(epoch FROM now()-min(${webhookEligibleAt}))))::text,'0') value ${webhookFrom} WHERE ${webhookDue}`,sampleSql:`SELECT 'webhook_delivery' resource_type,d.id resource_id,s."orgId" customer_id ${webhookFrom} WHERE ${webhookDue} ORDER BY ${webhookEligibleAt},d.id LIMIT 20`},
+ {key:'webhook.failed',group:'webhooks',unit:'count',sql:`SELECT count(*)::text value ${webhookFrom} WHERE d.status='FAILED'`,sampleSql:`SELECT 'webhook_delivery' resource_type,d.id resource_id,s."orgId" customer_id ${webhookFrom} WHERE d.status='FAILED' ORDER BY d."updatedAt" DESC,d.id LIMIT 20`}
+];
+export const growthOperationsMeasurements:OperationsMeasurement[]=[...publicationMeasurements,...growthWebhookMeasurements,
  {key:"recovery.pending_age_seconds",group:"recovery",unit:"seconds",sql:`SELECT COALESCE(GREATEST(0,floor(extract(epoch FROM now()-min("updatedAt"))))::text,'0') value FROM "AdminWebhookReplayCommand" WHERE status='completed' AND \"customerId\" IS NOT NULL AND \"settledStatus\" IS NULL`},
 
 ];
