@@ -226,6 +226,7 @@ export async function customerOverview(
         state: "measured",
         facts: [
           { ...fact("used", m.used), period: "current UTC calendar month" },
+          { ...fact("configuredLimit", m.configuredLimit), enforced: false },
           { ...fact("limit", m.limit), enforced: billingEnforcementEnabled() },
         ],
       })),

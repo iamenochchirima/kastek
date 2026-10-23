@@ -58,6 +58,7 @@ test(
       );
       const first = await customerOverview(pool, "a");
       assert.equal(first.customer.id, "a");
+      assert.equal(first.customer.state, "present");
       assert.equal(
         first.sections.find((x) => x.id === "credits")!.records[0]!.facts[0]!
           .value,
