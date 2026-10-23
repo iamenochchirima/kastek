@@ -68,3 +68,7 @@ async function verifyGrowthAgentService(config: CoreConfig, authorization: strin
       payload.requestDigest !== growthAgentDigest(body)) throw unauthorized();
   } catch { throw unauthorized(); }
 }
+
+export async function verifyGrowthProductCapability(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
+  return verifyGrowthAgentService(config, authorization, body, "product-capability-actions", "agents-worker");
+}

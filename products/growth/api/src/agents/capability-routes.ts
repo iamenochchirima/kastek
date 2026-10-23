@@ -1,0 +1,79 @@
+import { Ajv } from "ajv";
+import addFormats from "ajv-formats";
+import type { FastifyInstance } from "fastify";
+import { parseGrowthAgentContext, type ProductCapabilityInvocation, type ProductCapabilityResult, type ProductReviewReference, type GrowthAgentAction, type GrowthAgentReview } from "@kasitek-labs/contracts";
+import type { CoreContext } from "../context.js";
+import { ApiError } from "../error.js";
+import { requireCapability } from "../services/billing.js";
+import { authorizeGrowthAgentScope } from "./scope.js";
+import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
+import { growthCapabilityManifest } from "./manifest.js";
+import { discoverGrowthRecords, readGrowthRecord } from "./tools.js";
+import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
+const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
+const validators=new Map(growthCapabilityManifest.operations.map(o=>[o.operation,ajv.compile(o.inputSchema)]));
+function reviewReference(review:GrowthAgentReview,operationId:string):ProductReviewReference {
+  return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
+    state:review.state==="executing"||review.state==="failed"?"uncertain":review.state,expiresAt:review.expiresAt};
+}
+export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreContext,options:{drafts?:GrowthDraftPorts}={}) {
+  const reviews=new GrowthAgentReviewStore(core,options.drafts);
+  app.post("/internal/agents/capabilities",{bodyLimit:131072},async (request):Promise<ProductCapabilityResult>=>{
+    await verifyGrowthProductCapability(core.config,request.headers.authorization,request.body);
+    const command=request.body as ProductCapabilityInvocation;
+    if(!command||command.version!=="1"||typeof command.requestId!=="string"||typeof command.operationId!=="string"||
+      typeof command.taskId!=="string"||typeof command.conversationId!=="string"||!command.actor||!command.authority||
+      typeof command.bindingId!=="string"||!/^[a-f0-9]{64}$/.test(command.bindingDigest)||
+      !["invoke","authorize","prepare","review","commit","evidence"].includes(command.control))throw new ApiError(400,"agent_capability_invalid","Check the capability request");
+    const authority=command.authority,descriptor=growthCapabilityManifest.operations.find(o=>o.operation===command.operation);
+    if(!descriptor||authority.kind!=="product"||authority.originProduct!=="growth"||authority.destinationProduct!=="growth"||
+      authority.originTenantId!==authority.tenantId||authority.mappingRef!==`growth:${authority.tenantId}`||authority.policyRevision!=="2"||
+      authority.manifestDigest!==growthCapabilityManifest.digest||authority.descriptorDigest!==growthAgentDigest(descriptor)||authority.handlerRef!==descriptor.handlerRef)
+      throw new ApiError(403,"agent_capability_denied","The capability is not authorized");
+    const scope={tenantId:authority.tenantId,actor:command.actor};
+    await authorizeGrowthAgentScope(core,scope);
+    for(const permission of descriptor.requiredAuthority)await requireCapability(core.pool,scope.tenantId,permission);
+    if(command.control==="authorize")return {value:{authorized:true}};
+    if(command.control==="evidence"){
+      const input=command.input as {source?:{id?:unknown;revision?:unknown}};
+      let context;
+      try {
+        if(typeof input?.source?.id!=="string"||!input.source.id.startsWith("growth-resource:")||input.source.id.length>4096)throw Error();
+        context=parseGrowthAgentContext(JSON.parse(Buffer.from(input.source.id.slice(16),"base64url").toString("utf8")));
+      } catch {throw new ApiError(403,"agent_source_denied","The source is unavailable");}
+      const source=await readGrowthRecord(core,scope,context,{});
+      if(source.revision!==input.source?.revision)throw new ApiError(409,"agent_source_changed","The source changed");
+      return {value:{authorized:true,revision:source.revision}};
+    }
+    if(["review","commit"].includes(command.control)) {
+      const reference=command.review;
+      if(command.operation!=="draft.prepare"||!reference||reference.product!=="growth"||reference.taskId!==command.taskId||reference.operationId!==command.operationId)
+        throw new ApiError(403,"agent_review_scope_denied","The review is outside this operation");
+      const action={version:"1",requestId:command.requestId,operationId:command.operationId,tenantId:scope.tenantId,actor:command.actor,
+        taskId:command.taskId,conversationId:command.conversationId,featureId:"content",context:null,contextRevision:null,
+        operation:command.control==="commit"?"draft.commit":"draft.reconcile",input:{reviewId:reference.id,payloadDigest:reference.payloadDigest}} as GrowthAgentAction<"draft.commit">|GrowthAgentAction<"draft.reconcile">;
+      const result=action.operation==="draft.commit"?await reviews.commit(action):await reviews.reconcile(action);
+      return {value:result,review:reviewReference(result.review,command.operationId),...(result.result?{receipt:{id:result.result.recordId,operationId:command.operationId,payloadDigest:result.result.payloadDigest,state:"saved" as const}}:{})};
+    }
+    if(!validators.get(command.operation)?.(command.input))throw new ApiError(422,"agent_tool_arguments_invalid","Check the tool arguments");
+    const input=command.input as Record<string,unknown>;
+    if(command.operation==="draft.prepare"){
+      if(command.control!=="prepare")throw new ApiError(403,"agent_review_required","The change requires review");
+      const result=await reviews.prepare({version:"1",requestId:command.requestId,operationId:command.operationId,tenantId:scope.tenantId,actor:command.actor,
+        taskId:command.taskId,conversationId:command.conversationId,featureId:"content",context:null,operation:"draft.prepare",input:command.input as {draft:import("@kasitek-labs/contracts").GrowthDraftProposal}});
+      return {value:result,review:reviewReference(result.review,command.operationId)};
+    }
+    if(command.control!=="invoke")throw new ApiError(403,"agent_capability_control_denied","The capability control is unavailable");
+    if(command.operation==="content.list"||command.operation==="campaigns.list") {
+      const result=await discoverGrowthRecords(core,scope,command.operation==="content.list"?"content_post":"whatsapp_campaign",input);
+      return {value:result,sources:result.items.map(item=>({id:"growth-resource:"+Buffer.from(JSON.stringify(item.context)).toString("base64url"),revision:item.revision,title:item.title,
+        text:JSON.stringify(item),acquiredAt:new Date().toISOString(),continuation:null}))};
+    }
+    const context=parseGrowthAgentContext(command.operation==="workspace.read"?{kind:"workspace",resourceId:scope.tenantId}:
+      command.operation==="content.read"?{kind:"content_post",resourceId:input.resourceId}:
+      command.operation==="campaigns.read"?{kind:"whatsapp_campaign",resourceId:input.resourceId}:{kind:"analytics_report",resourceId:scope.tenantId,range:input.range});
+    const result=await readGrowthRecord(core,scope,context,input);
+    return {value:result,sources:result.sources.map(source=>({id:"growth-resource:"+Buffer.from(JSON.stringify(result.context)).toString("base64url"),revision:source.revision!,title:source.title,
+      text:JSON.stringify({context:result.context,data:result.data}),acquiredAt:new Date().toISOString(),continuation:result.continuation}))};
+  });
+}

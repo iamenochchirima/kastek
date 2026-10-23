@@ -5,7 +5,7 @@ import { ApiError } from "../error.js";
 import { verifyGrowthAgentProvisioningCheck } from "./security.js";
 import { currentGrowthAgentSetup } from "./setup.js";
 export function registerGrowthAgentProvisioningRoutes(app: FastifyInstance, core: CoreContext): void {
-  app.post(GROWTH_AGENT_PROVISION_CHECK_PATH, { bodyLimit: 16384 }, async request => {
+  app.post(GROWTH_AGENT_PROVISION_CHECK_PATH, { bodyLimit: 131072 }, async request => {
     await verifyGrowthAgentProvisioningCheck(core.config, request.headers.authorization, request.body);
     let target;
     try { target = parseGrowthAgentProvisionRequest(request.body); }

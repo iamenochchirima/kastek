@@ -8,7 +8,7 @@ import { ApiError } from "../error.js";
 
 export type GrowthAgentSetupState = "pending" | "running" | "ready" | "blocked" | "failed" | "cancelled";
 export interface GrowthAgentSetupJob {
-  orgId: string; requestId: string; defaultsRevision: "1"; modelProfileId: string; modelProfileRevision: string;
+  orgId: string; requestId: string; defaultsRevision: string; modelProfileId: string; modelProfileRevision: string;
   status: GrowthAgentSetupState; attempts: number; generation: number; leaseOwner: string | null;
   failureCode: string | null; createdAt: Date; updatedAt: Date;
 }
@@ -18,8 +18,8 @@ const profile = (config: CoreConfig) => ({
 });
 export async function enqueueGrowthAgentSetup(tx: Pool | PoolClient, tenantId: string, config: CoreConfig): Promise<void> {
   const target = profile(config);
-  await tx.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision")
-    SELECT id,$2,$3,$4 FROM "Organization" WHERE id=$1 ON CONFLICT ("orgId") DO NOTHING`,
+  await tx.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision","defaultsRevision")
+    SELECT id,$2,$3,$4,'2' FROM "Organization" WHERE id=$1 ON CONFLICT ("orgId") DO NOTHING`,
   [tenantId, randomUUID(), target.id, target.revision]);
 }
 export async function readGrowthAgentSetup(pool: Pool, tenantId: string): Promise<GrowthAgentSetupDto | null> {
@@ -41,8 +41,8 @@ export async function retryGrowthAgentSetup(core: CoreContext, tenantId: string)
 export async function backfillGrowthAgentSetup(core: CoreContext, limit = 100): Promise<number> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error("Backfill limit must be between 1 and 1000");
   const target = profile(core.config);
-  return (await core.pool.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision")
-    SELECT o.id,gen_random_uuid()::text,$1,$2 FROM "Organization" o
+  return (await core.pool.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision","defaultsRevision")
+    SELECT o.id,gen_random_uuid()::text,$1,$2,'2' FROM "Organization" o
     WHERE NOT EXISTS (SELECT 1 FROM "GrowthAgentSetup" s WHERE s."orgId"=o.id)
     ORDER BY o.id LIMIT $3 ON CONFLICT ("orgId") DO NOTHING`, [target.id,target.revision,limit])).rowCount ?? 0;
 }
@@ -65,4 +65,11 @@ export async function readGrowthAgentSetupMetrics(pool: Pool): Promise<GrowthAge
       avg(EXTRACT(EPOCH FROM "completedAt"-"createdAt"))::double precision AS "averageSetupDurationSeconds"
     FROM "GrowthAgentSetup" GROUP BY status ORDER BY status`);
   return result.rows;
+}
+
+/** An explicit operator action updates future defaults without changing the managed model target. */
+export async function upgradeGrowthAgentDefaults(core:CoreContext,tenantId:string):Promise<boolean> {
+  return Boolean((await core.pool.query(`UPDATE "GrowthAgentSetup" SET "defaultsRevision"='2',"requestId"=$2,
+    status='pending',attempts=0,"nextAttemptAt"=NOW(),"failureCode"=NULL,"leaseOwner"=NULL,"leaseExpiresAt"=NULL,
+    generation=generation+1,"updatedAt"=NOW() WHERE "orgId"=$1 AND status<>'cancelled'`,[tenantId,randomUUID()])).rowCount);
 }

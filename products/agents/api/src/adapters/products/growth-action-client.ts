@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { importPKCS8, SignJWT } from "jose";
-import type { GrowthAgentAction, GrowthAgentActionOperation, GrowthAgentActionOutputs } from "@kasitek-labs/contracts";
+import type { ProductCapabilityInvocation,ProductCapabilityResult,GrowthAgentAction, GrowthAgentActionOperation, GrowthAgentActionOutputs } from "@kasitek-labs/contracts";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 
 export interface GrowthActionOptions {
@@ -20,17 +20,23 @@ export class GrowthActionClient {
     this.key = importPKCS8(options.privateKey,"RS256");
   }
   async call<K extends GrowthAgentActionOperation>(command: GrowthAgentAction<K>): Promise<GrowthAgentActionOutputs[K]> {
+    return this.request(command,this.endpoint,"growth-agent-actions") as Promise<GrowthAgentActionOutputs[K]>;
+  }
+  async invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> {
+    return this.request(command,new URL("/internal/agents/capabilities",this.options.origin).href,"product-capability-actions",signal) as Promise<ProductCapabilityResult>;
+  }
+  private async request(command:{requestId:string;taskId:string;operationId:string},endpoint:string,audience:string,signal?:AbortSignal):Promise<unknown> {
     const now = Math.floor(Date.now()/1000);
     const token = await new SignJWT({ product:"growth",requestDigest:requestDigest(command) })
       .setProtectedHeader({alg:"RS256",kid:this.options.keyId}).setIssuer(this.options.issuer)
-      .setAudience("growth-agent-actions").setSubject("agents-worker").setJti(randomUUID())
+      .setAudience(audience).setSubject("agents-worker").setJti(randomUUID())
       .setIssuedAt(now).setExpirationTime(now+60).sign(await this.key);
     let response: Response;
     try {
-      response = await (this.options.fetch ?? fetch)(this.endpoint,{
+      response = await (this.options.fetch ?? fetch)(endpoint,{
         method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+token,
           "x-correlation-id":command.requestId,"traceparent":`00-${requestDigest(command.taskId).slice(0,32)}-${requestDigest([command.taskId,command.operationId]).slice(0,16)}-01`},
-        body:JSON.stringify(command),signal:AbortSignal.timeout(10000),redirect:"error",
+        body:JSON.stringify(command),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000),redirect:"error",
       });
     } catch { throw new PlatformError("GROWTH_ACTION_UNAVAILABLE",503,"Growth is unavailable; the operation has not been confirmed"); }
     const reader=response.body?.getReader();
@@ -52,7 +58,7 @@ export class GrowthActionClient {
       const code=typeof candidate==="string"&&/^[a-zA-Z0-9_]{1,80}$/.test(candidate)?candidate.toUpperCase():"GROWTH_ACTION_DENIED";
       throw new PlatformError(code,response.status>=500?503:response.status,"Growth could not authorize or complete this operation");
     }
-    return value as GrowthAgentActionOutputs[K];
+    return value;
   }
 }
 export function growthActionClientFromEnvironment(env:NodeJS.ProcessEnv=process.env):GrowthActionClient|undefined {

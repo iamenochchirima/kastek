@@ -69,7 +69,7 @@ export class GrowthProvisionService {
     for(const feature of features) {
       const config=agentConfigurationSchema.parse(feature.configuration);
       await resolveAcceptedModelRoutes(db,{organizationId,agentId:feature.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,
-        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0});
+        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0||config.productBindings.length>0});
     }
   }
   async provision(input:GrowthAgentProvisionRequest):Promise<GrowthAgentProvisionResult> {
@@ -80,7 +80,7 @@ export class GrowthProvisionService {
     const profile=parsed.data;
     if(profile.id!==input.modelProfileId||profile.revision!==input.modelProfileRevision)return {...base,state:"blocked",code:"MODEL_PROFILE_MISMATCH"};
     const applied=(await this.pool.query("SELECT profile_id,profile_revision,profile_digest,defaults_revision FROM agents_platform.product_default_provisions WHERE product='growth' AND tenant_id=$1",[input.tenantId])).rows[0];
-    if(applied&&(applied.profile_id!==profile.id||applied.profile_revision!==profile.revision||applied.defaults_revision!==input.defaultsRevision||applied.profile_digest!==requestDigest(profile)))return {...base,state:"blocked",code:"MODEL_PROFILE_UPGRADE_REQUIRED"};
+    if(applied&&(applied.profile_id!==profile.id||applied.profile_revision!==profile.revision||(applied.defaults_revision!==input.defaultsRevision&&!input.upgradeDefaults)||applied.profile_digest!==requestDigest(profile)))return {...base,state:"blocked",code:"MODEL_PROFILE_UPGRADE_REQUIRED"};
     const secret=modelApiKeySchema.safeParse(this.options.credential(profile.credentialRef));
     if(!secret.success)return {...base,state:"blocked",code:"MODEL_CREDENTIAL_REQUIRED"};
     const execution=new GrowthExecutionService(this.pool,this.options.trust);
@@ -104,6 +104,7 @@ export class GrowthProvisionService {
       const validate=async(db:PoolClient,organizationId:string)=>{
         await this.validate(db,organizationId);
         await db.query("INSERT INTO agents_platform.product_default_provisions(product,tenant_id,profile_id,profile_revision,profile_digest,defaults_revision) VALUES('growth',$1,$2,$3,$4,$5) ON CONFLICT(product,tenant_id) DO NOTHING",[input.tenantId,profile.id,profile.revision,requestDigest(profile),input.defaultsRevision]);
+        if(input.upgradeDefaults)await db.query("UPDATE agents_platform.product_default_provisions SET defaults_revision=$2 WHERE product='growth' AND tenant_id=$1 AND profile_id=$3 AND profile_revision=$4 AND profile_digest=$5",[input.tenantId,input.defaultsRevision,profile.id,profile.revision,requestDigest(profile)]);
         const current=(await db.query("SELECT * FROM agents_platform.product_default_provisions WHERE product='growth' AND tenant_id=$1 FOR SHARE",[input.tenantId])).rows[0];
         if(current.profile_id!==profile.id||current.profile_revision!==profile.revision||current.profile_digest!==requestDigest(profile)||current.defaults_revision!==input.defaultsRevision)
           throw new PlatformError("MODEL_PROFILE_UPGRADE_REQUIRED",409,"A managed profile upgrade requires explicit authorization");

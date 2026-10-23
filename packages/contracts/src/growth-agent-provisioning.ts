@@ -2,19 +2,26 @@ import { GrowthAgentContractError } from "./growth-agents.js";
 
 export const GROWTH_AGENT_PROVISION_PATH = "/internal/v1/products/growth/provision";
 export const GROWTH_AGENT_PROVISION_CHECK_PATH = "/internal/agents/provisioning-check";
-export const GROWTH_AGENT_DEFAULTS_REVISION = "1" as const;
+export const GROWTH_AGENT_DEFAULTS_REVISION = "2" as const;
+export interface GrowthAgentPublication {
+  manifest: import("./product-capabilities.js").ProductCapabilityManifest;
+  presets: readonly {id: import("./growth-agents.js").GrowthAgentFeatureId;name:string;description:string;instructions:string;operations:string[]}[];
+  policy: {revision:string; optionalCapabilities:Record<"knowledge"|"skills"|"memory"|"delegation"|"sandbox"|"workflows"|"connections",boolean>};
+}
 export interface GrowthAgentProvisionRequest {
   version: "1";
   requestId: string;
   tenantId: string;
-  defaultsRevision: "1";
+  defaultsRevision: string;
   modelProfileId: string;
   modelProfileRevision: string;
+  publication?: GrowthAgentPublication;
+  upgradeDefaults?: boolean;
 }
 export interface GrowthAgentProvisionResult {
   version: "1";
   tenantId: string;
-  defaultsRevision: "1";
+  defaultsRevision: string;
   modelProfileId: string;
   modelProfileRevision: string;
   state: "ready" | "blocked";
@@ -36,14 +43,20 @@ function object(value: unknown, fields: string[]): Record<string, unknown> {
   return row;
 }
 export function parseGrowthAgentProvisionRequest(value: unknown): GrowthAgentProvisionRequest {
-  const row = object(value, ["version", "requestId", "tenantId", "defaultsRevision", "modelProfileId", "modelProfileRevision"]);
-  if (row.version !== "1" || row.defaultsRevision !== "1" || typeof row.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.requestId)) throw new GrowthAgentContractError("Invalid provisioning identity");
-  return {version: "1", requestId: row.requestId, tenantId: token(row.tenantId, 256), defaultsRevision: "1", modelProfileId: token(row.modelProfileId, 128), modelProfileRevision: token(row.modelProfileRevision, 128)};
+  const row = object(value, ["version", "requestId", "tenantId", "defaultsRevision", "modelProfileId", "modelProfileRevision", "publication", "upgradeDefaults"]);
+  if (row.version !== "1" || typeof row.defaultsRevision !== "string" || typeof row.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.requestId)) throw new GrowthAgentContractError("Invalid provisioning identity");
+  if (row.upgradeDefaults !== undefined && typeof row.upgradeDefaults !== "boolean") throw new GrowthAgentContractError("Invalid upgrade mode");
+  if (row.publication !== undefined) {
+    const publication=object(row.publication,["manifest","presets","policy"]);
+    if(!publication.manifest||!publication.policy||!Array.isArray(publication.presets)||publication.presets.length!==4||JSON.stringify(publication).length>131072)throw new GrowthAgentContractError("Invalid publication");
+  }
+  return {version: "1", requestId: row.requestId, tenantId: token(row.tenantId, 256), defaultsRevision: token(row.defaultsRevision,128), modelProfileId: token(row.modelProfileId, 128), modelProfileRevision: token(row.modelProfileRevision, 128),
+    ...(row.publication===undefined?{}:{publication:row.publication as GrowthAgentPublication}),...(row.upgradeDefaults===undefined?{}:{upgradeDefaults:row.upgradeDefaults as boolean})};
 }
 export function parseGrowthAgentProvisionResult(value: unknown): GrowthAgentProvisionResult {
   const row = object(value, ["version", "tenantId", "defaultsRevision", "modelProfileId", "modelProfileRevision", "state", "code"]);
-  if (row.version !== "1" || row.defaultsRevision !== "1" || !["ready", "blocked"].includes(String(row.state))) throw new GrowthAgentContractError("Invalid provisioning result");
+  if (row.version !== "1" || typeof row.defaultsRevision !== "string" || !["ready", "blocked"].includes(String(row.state))) throw new GrowthAgentContractError("Invalid provisioning result");
   if (row.code !== undefined && (typeof row.code !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/.test(row.code))) throw new GrowthAgentContractError("Invalid provisioning result code");
   if (row.state === "blocked" && !row.code || row.state === "ready" && row.code !== undefined) throw new GrowthAgentContractError("Invalid provisioning readiness");
-  return {version: "1", tenantId: token(row.tenantId, 256), defaultsRevision: "1", modelProfileId: token(row.modelProfileId, 128), modelProfileRevision: token(row.modelProfileRevision, 128), state: row.state as "ready" | "blocked", ...(row.code ? {code: row.code as string} : {})};
+  return {version: "1", tenantId: token(row.tenantId, 256), defaultsRevision: token(row.defaultsRevision,128), modelProfileId: token(row.modelProfileId, 128), modelProfileRevision: token(row.modelProfileRevision, 128), state: row.state as "ready" | "blocked", ...(row.code ? {code: row.code as string} : {})};
 }

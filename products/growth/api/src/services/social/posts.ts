@@ -67,11 +67,12 @@ async function loadPosts(
   pool: Pool,
   orgId: string,
   postId?: string,
+  page?: { limit: number; afterId?: string; search?: string; status?: string },
 ): Promise<SocialPost[]> {
   const posts = (
     await pool.query<SocialPostRow>(
-      postId === undefined ? SQL[1] : SQL[0],
-      postId === undefined ? [orgId] : [orgId, postId],
+      page ? SQL[0].replace('AND id = $2', 'AND ($2::text IS NULL OR id > $2) AND ($3::text IS NULL OR strpos(lower(coalesce(title, \'\') || \' \' || content), lower($3)) > 0) AND ($4::text IS NULL OR status::text = $4) ORDER BY id LIMIT $5') : postId === undefined ? SQL[1] : SQL[0],
+      page ? [orgId, page.afterId ?? null, page.search ?? null, page.status ?? null, page.limit] : postId === undefined ? [orgId] : [orgId, postId],
     )
   ).rows;
   if (!posts.length) return [];
@@ -105,8 +106,8 @@ async function loadPosts(
     publishJobs: jobs.filter((job) => job.post_id === post.id),
   }));
 }
-export function listSocialPosts(pool: Pool, orgId: string) {
-  return loadPosts(pool, orgId);
+export function listSocialPosts(pool: Pool, orgId: string, page?: { limit: number; afterId?: string; search?: string; status?: string }) {
+  return loadPosts(pool, orgId, undefined, page);
 }
 export async function getSocialPost(
   pool: Pool,

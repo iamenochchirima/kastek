@@ -54,8 +54,9 @@ async function requireCampaign(
   if (!row) throw missing("Campaign not found");
   return row;
 }
-export async function listCampaigns(pool: Pool, orgId: string): Promise<Row> {
-  const rows = (await pool.query(SQL.list_campaigns[0], [orgId])).rows;
+export async function listCampaigns(pool: Pool, orgId: string, page?: { limit: number; afterId?: string; search?: string; status?: string }): Promise<Row> {
+  const query = page ? SQL.list_campaigns[0].replace(/ORDER BY[\s\S]*$/i, 'AND ($2::text IS NULL OR c.id > $2) AND ($3::text IS NULL OR strpos(lower(c.name), lower($3)) > 0) AND ($4::text IS NULL OR c.status::text = $4) ORDER BY c.id LIMIT $5') : SQL.list_campaigns[0];
+  const rows = (await pool.query(query, page ? [orgId, page.afterId ?? null, page.search ?? null, page.status ?? null, page.limit] : [orgId])).rows;
   return {
     campaigns: rows.map((row) =>
       Object.fromEntries(

@@ -131,6 +131,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   });
   app.get("/api/agents/tasks", request => invoke(request, "tasks.list", page(request, ["conversationId", "state", "search"])));
   app.get("/api/agents/tasks/:taskId", request => invoke(request, "tasks.get", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/export", request => invoke(request, "tasks.export", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/events", request => invoke(request, "tasks.events", { ...page(request, []), taskId: id(request, "taskId") }));
   app.post("/api/agents/tasks/:taskId/cancel", request => {
     const input = body(request); strict(input, ["requestId"]);

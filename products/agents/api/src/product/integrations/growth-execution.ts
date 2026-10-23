@@ -1,6 +1,7 @@
+import { exportProductExecutionCapture } from "../evaluation/product-capture";
 import { randomUUID,createHash } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
-import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence } from "@kasitek-labs/contracts";
+import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication } from "@kasitek-labs/contracts";
 import { agentConfigurationSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,type AdmissionAuthority } from "../../contracts/contracts";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
 import { transaction } from "../../infrastructure/database";
@@ -12,7 +13,7 @@ import { resolveAcceptedModelRoutes } from "../../execution/models/resolution";
 import { executionModelLayers } from "../../execution/models/settings";
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
-import { growthFeatureConfiguration,growthFeatureDefinitions } from "./growth-features";
+import { growthFeatureConfiguration,validateGrowthPublication,assertGrowthOptionalAuthority } from "./growth-features";
 import type { GrowthServiceTrust } from "../../adapters/products/growth-service-auth";
 import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
 type Db=Pool|PoolClient;
@@ -28,7 +29,12 @@ export class GrowthExecutionService {
     if(!row)throw new PlatformError("PRODUCT_TENANT_UNAVAILABLE",403,"Growth agent access is unavailable");
     return row;
   }
-  async ensureTenant(command:{tenantId:string}) {
+  async publication(db:Db,tenantId:string):Promise<GrowthAgentPublication> {
+    const row=(await db.query("SELECT publication FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 ORDER BY created_at DESC,revision DESC LIMIT 1",[tenantId])).rows[0];
+    if(!row)throw new PlatformError("PRODUCT_MANIFEST_REQUIRED",409,"Growth capability publication is required");
+    return validateGrowthPublication(row.publication);
+  }
+  async ensureTenant(command:{tenantId:string;publication?:GrowthAgentPublication;defaultsRevision?:string;upgradeDefaults?:boolean}) {
     return transaction(this.pool,async db=>{
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",["growth-tenant:"+command.tenantId]);
       const old=(await db.query("SELECT * FROM agents_platform.product_execution_tenants WHERE product='growth' AND tenant_id=$1",[command.tenantId])).rows[0];
@@ -36,12 +42,28 @@ export class GrowthExecutionService {
       const org=old?.organization_id??randomUUID(),provenance={product:"growth",clientId:"growth-api",issuer:this.trust.issuer};
       if(!old)await db.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2)",[org,"Growth business"]);
       if(!old)await db.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,'growth-api',$3)",[command.tenantId,org,this.trust.issuer]);
-      for(const feature of growthFeatureDefinitions) {
-        if((await db.query("SELECT 1 FROM agents_platform.product_execution_features WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id])).rowCount)continue;
-        const agentId=randomUUID(),versionId=randomUUID(),config=growthFeatureConfiguration(feature.id);
+      const publication=command.publication?validateGrowthPublication(command.publication):await this.publication(db,command.tenantId);
+      if(command.defaultsRevision&&publication.manifest.revision!==command.defaultsRevision)throw new PlatformError("PRODUCT_MANIFEST_INVALID",409,"The default revision does not match its manifest");
+      const digest=requestDigest(publication),existing=(await db.query("SELECT digest FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision=$2",[command.tenantId,publication.manifest.revision])).rows[0];
+      if(existing&&existing.digest!==digest)throw new PlatformError("PRODUCT_MANIFEST_CONFLICT",409,"The published revision changed");
+      await db.query("INSERT INTO agents_platform.growth_capability_publications(tenant_id,revision,digest,publication,issuer) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",[command.tenantId,publication.manifest.revision,digest,publication,this.trust.issuer]);
+      for(const feature of publication.presets) {
+        const previous=(await db.query("SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2 FOR UPDATE OF f",[command.tenantId,feature.id])).rows[0];
+        if(previous){
+          if(command.upgradeDefaults&&previous.managed_defaults_revision!==publication.manifest.revision&&
+            (previous.managed_configuration_digest?previous.managed_configuration_digest===requestDigest(previous.configuration):previous.revision===1)){
+            const config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId),versionId=randomUUID(),number=previous.revision+1;
+            config.model=agentConfigurationSchema.parse(previous.configuration).model;
+            await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1",[previous.agent_id,config,number]);
+            await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
+            await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,managed_defaults_revision=$5,managed_configuration_digest=$6,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,versionId,number,publication.manifest.revision,requestDigest(config)]);
+          }
+          continue;
+        }
+        const agentId=randomUUID(),versionId=randomUUID(),config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId);
         await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by_service) VALUES($1,$2,$3,$4,$5)",[agentId,org,feature.name,config,provenance]);
         await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)",[versionId,org,agentId,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
-        await db.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id) VALUES('growth',$1,$2,$3,$4,$5)",[command.tenantId,feature.id,org,agentId,versionId]);
+        await db.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id,managed_defaults_revision,managed_configuration_digest) VALUES('growth',$1,$2,$3,$4,$5,$6,$7)",[command.tenantId,feature.id,org,agentId,versionId,publication.manifest.revision,requestDigest(config)]);
       }
       return this.tenant(db,command);
     });
@@ -53,13 +75,13 @@ export class GrowthExecutionService {
   async features(command:GrowthAgentCommand) {
     return transaction(this.pool,async db=>{
       const tenant=await this.tenant(db,command),features=[];
-      for(const def of growthFeatureDefinitions) {
+      for(const def of (await this.publication(db,command.tenantId)).presets) {
         const row=await this.feature(db,command,def.id),config=agentConfigurationSchema.parse(row.configuration),reasons=[];
         let model:null|{label:string;provider:string;modelId:string}=null;
         if(!row.enabled)reasons.push({code:"FEATURE_DISABLED",message:"Agent unavailable"});
         if(!this.runtime)reasons.push({code:"PRODUCT_ACTIONS_UNAVAILABLE",message:"Connect Growth agent services"});
         try {
-          const route=await resolveAcceptedModelRoutes(db,{organizationId:tenant.organization_id,agentId:row.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,layers:executionModelLayers(config,{id:row.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0});
+          const route=await resolveAcceptedModelRoutes(db,{organizationId:tenant.organization_id,agentId:row.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,layers:executionModelLayers(config,{id:row.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0||config.productBindings.length>0});
           model={label:route.primary.model.name,provider:route.primary.definition.name,modelId:route.primary.binding.modelId};
         }catch(error){if(error instanceof PlatformError)reasons.push({code:error.code,message:"Configure a Growth model provider"});else throw error;}
         features.push({id:def.id,name:def.name,description:def.description,ready:reasons.length===0,reasons,model});
@@ -110,13 +132,14 @@ export class GrowthExecutionService {
     if(control)await this.runtime.authorizeControl(id);else await this.runtime.authorizeTask(id);return row;
   }
   async taskDto(row:Record<string,any>):Promise<GrowthAgentTask> {
-    const reviews=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows.map(r=>r.projection);
+    const projections=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows;
+    const reviews=[];for(const projected of projections)reviews.push((await this.runtime!.readReview(row.id,projected.projection.id)).review);
     const artifacts=(await this.pool.query("SELECT id,name FROM agents_platform.artifacts WHERE root_task_id=$1 AND state='available' ORDER BY created_at,id LIMIT 100",[row.root_task_id])).rows;
     for(const artifact of artifacts)await this.runtime!.evidence.artifactManifest(this.pool,row.id,artifact.id);
     const artifactResults:GrowthAgentResult[]=artifacts.map(artifact=>({id:artifact.id,kind:"artifact",title:artifact.name??"Artifact",artifactId:artifact.id}));
     return {id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
       createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:reviews.map(r=>r.id),sources:row.sources??[],
-      results:[...reviews.filter(r=>r.result?.state==="saved").map(r=>({id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision})),...artifactResults]};
+      results:[...reviews.flatMap(r=>r.result?.state==="saved"?[{id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision}]:[]),...artifactResults]};
   }
   async submit(db:PoolClient,command:Extract<GrowthAgentCommand,{operation:"turns.submit"}>,snapshot:GrowthAgentContextEvidence,taskId:string) {
     if(!this.runtime)throw new PlatformError("PRODUCT_ACTIONS_UNAVAILABLE",503,"Growth agent services are unavailable");
@@ -125,7 +148,7 @@ export class GrowthExecutionService {
     if(command.input.context!==undefined&&canonicalJson(command.input.context)!==canonicalJson(conversation.context))throw new PlatformError("CONVERSATION_CONTEXT_CONFLICT",409,"Start a conversation for the new context");
     const config=agentConfigurationSchema.parse(feature.configuration),grant=executionGrantSchema.parse({
       id:randomUUID(),product:"growth",organizationId:feature.organization_id,resourceId:feature.feature_id,callerClientId:"growth-api",principal:this.principal(command),
-      versionId:feature.version_id,operations:["model.reply","product.read",...(config.tools.includes("growth.draft_prepare")?["product.write"]:[])],
+      versionId:feature.version_id,operations:["model.reply","product.read",...(config.productBindings.some(b=>b.policy.effect==="reviewed_write")?["product.write"]:[])],
       maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,
       rootTokenLimit:32000,expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null});
     await db.query("INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
@@ -145,17 +168,20 @@ export class GrowthExecutionService {
       case "features.configure":return this.withReceipt(command,async db=>{
         const tenant=await this.tenant(db,command);
         await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[tenant.organization_id]);
-        const previous=await this.feature(db,command,command.input.featureId),configuration=agentConfigurationSchema.parse(command.input.configuration),allowed=growthFeatureConfiguration(command.input.featureId);
-        if(configuration.program.id!=="tool-directed"||configuration.program.version!=="2"||configuration.tools.some(t=>!allowed.tools.includes(t))||
-          configuration.memory.enabled||configuration.skillIds.length||configuration.sourceRevisionIds.length||configuration.connectedToolBindingIds.length||
-          configuration.capabilities.delegation.enabled||configuration.capabilities.sandbox.enabled||configuration.capabilities.workflows.enabled||configuration.capabilities.businessActions.enabled)
-          throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The feature exceeds its installed Growth capabilities");
+        const previous=await this.feature(db,command,command.input.featureId),configuration=agentConfigurationSchema.parse(command.input.configuration),publication=await this.publication(db,command.tenantId);
+        assertGrowthOptionalAuthority(configuration,publication);
+        const preset=publication.presets.find(p=>p.id===command.input.featureId)!;
+        const oldConfig=agentConfigurationSchema.parse(previous.configuration);
+        if(configuration.program.id!=="tool-directed"||configuration.program.version!=="3"||configuration.tools.length||configuration.productBindings.some(binding=>{
+          const admitted=oldConfig.productBindings.find(b=>b.id===binding.id&&b.digest===binding.digest);
+          return !admitted||!preset.operations.includes(binding.definition.providerOperation);
+        }))throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The feature exceeds its authorized product capabilities");
         const versionId=randomUUID(),number=previous.revision+1,provenance={product:"growth",clientId:"growth-control",issuer:this.trust.issuer};
         await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[previous.organization_id]);
         await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1",[previous.agent_id,configuration,number]);
         await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,previous.organization_id,previous.agent_id,number,configuration,provenance,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
         await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,command.input.featureId,versionId,number]);
-        const def=growthFeatureDefinitions.find(f=>f.id===command.input.featureId)!;
+        const def=publication.presets.find(f=>f.id===command.input.featureId)!;
         return {feature:{id:def.id,name:def.name,description:def.description,ready:false,reasons:[{code:"CHECK_READINESS",message:"Refresh agent readiness"}]}};
       });
       case "conversations.create":
@@ -195,6 +221,14 @@ export class GrowthExecutionService {
           if(t.output)messages.push({id:t.id+":assistant",role:"assistant",text:t.output,createdAt:iso(t.updated_at),taskId:t.id,sources:t.sources??[]});}
         return {conversation:this.conversationDto(c),messages,nextCursor:page.nextCursor};
       }
+      case "tasks.export": {
+        const task=await this.task(command,command.input.taskId);
+        return exportProductExecutionCapture(this.pool,task.id,async(db,id)=>{
+          const row=(await db.query("SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id JOIN agents_platform.conversations c ON c.id=t.conversation_id JOIN agents_platform.product_execution_features f ON f.product=p.product AND f.tenant_id=p.tenant_id AND f.feature_id=p.feature_id JOIN agents_platform.product_execution_tenants n ON n.product=p.product AND n.tenant_id=p.tenant_id WHERE t.id=$1 AND t.product='growth' AND p.tenant_id=$2 AND t.principal=$3::jsonb AND c.deleted_at IS NULL AND f.enabled AND n.revoked_at IS NULL",[id,command.tenantId,JSON.stringify(this.principal(command))])).rows[0];
+          if(!row)throw new PlatformError("PRODUCT_CAPTURE_DENIED",403,"Execution capture is unavailable");
+          await this.runtime!.authorizeTask(id);
+        });
+      }
       case "tasks.get":return {task:await this.taskDto(await this.task(command,command.input.taskId))};
       case "tasks.cancel": {
         const task=await this.task(command,command.input.taskId,true);
@@ -224,11 +258,11 @@ export class GrowthExecutionService {
       case "reviews.list": {
         const task=await this.task(command,command.input.taskId),rows=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE task_id=$1 ORDER BY updated_at,review_id",[task.id])).rows;
         const reviews=[];
-        for(const row of rows)reviews.push((await this.runtime!.review(task.id,"review-read:"+randomUUID(),row.projection.id)).review);
+        for(const row of rows)reviews.push((await this.runtime!.readReview(task.id,row.projection.id)).review);
         return {reviews:[...new Map(reviews.map(review=>[review.id,review])).values()]};
       }
       case "reviews.decide": {
-        const task=await this.task(command,command.input.taskId),value=await this.runtime!.review(task.id,"review-decision:"+command.requestId,command.input.reviewId);
+        const task=await this.task(command,command.input.taskId),value=await this.runtime!.readReview(task.id,command.input.reviewId);
         if(value.review.payloadDigest!==command.input.payloadDigest||value.review.state!==(command.input.decision==="approve"?"approved":"rejected")&&value.review.state!=="saved")
           throw new PlatformError("PRODUCT_REVIEW_CONFLICT",409,"The exact Growth review decision could not be verified");
         await transaction(this.pool,async db=>{

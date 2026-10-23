@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { GROWTH_AGENT_ACTION_PATH, GrowthAgentContractError, growthAgentCanonicalJson, parseGrowthAgentAction } from "@kasitek-labs/contracts";
+import { registerGrowthCapabilityRoutes } from "./capability-routes.js";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { verifyGrowthAgentAction } from "./security.js";
 import { authorizeGrowthAgentScope, assertGrowthAgentContext, readGrowthAgentContext } from "./scope.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 export function registerGrowthAgentActionRoutes(app: FastifyInstance, core: CoreContext, options: { drafts?: GrowthDraftPorts } = {}): void {
+  registerGrowthCapabilityRoutes(app,core,options);
   const reviews = new GrowthAgentReviewStore(core, options.drafts);
   app.post(GROWTH_AGENT_ACTION_PATH, { bodyLimit: 1048576 }, async (request) => {
     let action;
@@ -26,8 +28,7 @@ export function registerGrowthAgentActionRoutes(app: FastifyInstance, core: Core
         if (!action.context || growthAgentCanonicalJson(action.input.context) !== growthAgentCanonicalJson(action.context)) throw new ApiError(403, "agent_context_denied", "The action does not cover this record");
         return readGrowthAgentContext(core, scope, action.input.context);
       case "draft.prepare":
-        if (!["assistant", "content"].includes(action.featureId)) throw new ApiError(403, "agent_action_denied", "This agent cannot prepare content changes");
-        return reviews.prepare(action);
+        throw new ApiError(403,"agent_capability_required","Use an admitted product capability for content changes");
       case "draft.commit": return reviews.commit(action);
       case "draft.reconcile": return reviews.reconcile(action);
     }
