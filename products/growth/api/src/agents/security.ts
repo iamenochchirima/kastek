@@ -38,6 +38,12 @@ export async function signGrowthAgentCommand(config: CoreConfig, body: unknown):
   }
 }
 export async function verifyGrowthAgentAction(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
+  return verifyGrowthAgentService(config, authorization, body, "growth-agent-actions", "agents-worker");
+}
+export async function verifyGrowthAgentProvisioningCheck(config: CoreConfig, authorization: string | undefined, body: unknown): Promise<void> {
+  return verifyGrowthAgentService(config, authorization, body, "growth-agent-provisioning-lifecycle", "agents-provisioner");
+}
+async function verifyGrowthAgentService(config: CoreConfig, authorization: string | undefined, body: unknown, audience: string, subject: string): Promise<void> {
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
   const unauthorized = () => new ApiError(401, "agent_action_unauthorized", "Agent action is unauthorized");
   if (!token || token.length > 16384) throw unauthorized();
@@ -55,7 +61,7 @@ export async function verifyGrowthAgentAction(config: CoreConfig, authorization:
     if (!key) throw unauthorized();
     const { payload } = await jwtVerify(token, await importSPKI(pem(key), "RS256"), {
       algorithms: ["RS256"], issuer: config.env.AGENTS_PRODUCT_ACTION_ISSUER ?? "https://agents.kasitek.co.za",
-      audience: "growth-agent-actions", subject: "agents-worker", requiredClaims: ["iat", "exp", "jti", "requestDigest"], clockTolerance: 5,
+      audience, subject, requiredClaims: ["iat", "exp", "jti", "requestDigest"], clockTolerance: 5,
     });
     if (!Number.isSafeInteger(payload.iat) || !Number.isSafeInteger(payload.exp) || payload.exp! - payload.iat! > 120 ||
       payload.exp! <= payload.iat! || payload.iat! > Date.now() / 1000 + 5 || (typeof payload.jti !== "string" || !payload.jti || payload.jti.length > 256) ||

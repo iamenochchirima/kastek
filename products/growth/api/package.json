@@ -12,6 +12,7 @@
     "dev": "tsx watch --include .env src/bootstrap.ts",
     "start": "node dist/bootstrap.js",
     "test": "tsx --test tests/*.test.ts",
+    "agents:setup": "tsx scripts/agent-setup.ts",
     "contracts:check": "tsx scripts/refresh-route-contracts.ts",
     "contracts:refresh": "tsx scripts/refresh-route-contracts.ts --write"
   },

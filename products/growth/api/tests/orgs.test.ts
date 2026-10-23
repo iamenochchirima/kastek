@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID,createHash } from 'node:crypto';
@@ -28,8 +29,10 @@ test('synthetic PostgreSQL: organization lifecycle, trial idempotency and atomic
  CREATE TABLE "CreditLedgerEntry"(id text PRIMARY KEY,"accountId" text,"orgId" text,"grantId" text,type text,amount bigint,"balanceAfter" bigint,"sourceType" text,"sourceId" text,"idempotencyKey" text UNIQUE,metadata jsonb,"createdAt" timestamp);
  CREATE TABLE "OrganizationInvitation"(id text PRIMARY KEY,"orgId" text,email text,role "OrgRole","tokenHash" text,"invitedById" text,"expiresAt" timestamp,"acceptedAt" timestamp,"revokedAt" timestamp,"createdAt" timestamp,"updatedAt" timestamp);
  CREATE TABLE analytics_outbox(outbox_id text PRIMARY KEY,source_service text,source_domain text,source_stream_key text,record_category text,record_id text,contract_name text,schema_version integer,scope_kind text,scope_external_id text,idempotency_key text,envelope jsonb,payload_hash text,source_sequence bigserial,UNIQUE(source_service,record_category,record_id));`);
+ await pool.query(await readFile(new URL('../../database/prisma/migrations/20261023170000_growth_agent_setup/migration.sql',import.meta.url),'utf8'));
  await pool.query('INSERT INTO "User"(id,name,email,"emailVerified") VALUES(\'owner\',\'Owner\',\'owner@example.test\',NOW()),(\'guest\',\'Guest\',\'guest@example.test\',NOW()),(\'wrong\',\'Wrong\',\'wrong@example.test\',NOW())');
  const context={pool,config:readConfig({DATABASE_URL:url})};const org=await createOrg(context,'owner','Synthetic organization','synthetic-org',null,1000n,14);
+ assert.equal((await pool.query('SELECT count(*) FROM "GrowthAgentSetup" WHERE "orgId"=$1',[org.id])).rows[0].count,'1');
  assert.equal(org.ownerId,'owner');assert.equal(org.reportingTimezone,'UTC');assert.equal((await pool.query('SELECT role FROM "OrganizationMember" WHERE "orgId"=$1',[org.id])).rows[0].role,'OWNER');
  assert.match((await pool.query('SELECT code FROM "ReferralCode" WHERE "orgId"=$1',[org.id])).rows[0].code,/^KASI-[A-Z0-9]{10}$/);
  assert.equal((await pool.query('SELECT balance FROM "CreditAccount" WHERE "orgId"=$1',[org.id])).rows[0].balance,'1000');await grantInitialTrial(pool,org.id,1000n,14);assert.equal((await pool.query('SELECT COUNT(*) FROM "CreditGrant" WHERE "orgId"=$1',[org.id])).rows[0].count,'1');
@@ -52,7 +55,13 @@ test('synthetic PostgreSQL: organization lifecycle, trial idempotency and atomic
  const text=String(messages.at(-1)!.Text);const token=text.match(/\/invite\/([A-Za-z0-9_-]{64})/)?.[1];assert.ok(token);assert.equal((await getInvitationByToken(pool,token))?.email,'new@example.test');
  assert.equal((await pool.query('SELECT COUNT(*) FROM "OrganizationInvitation" WHERE email=\'new@example.test\'')).rows[0].count,'1');
  }finally{await new Promise<void>((resolve,reject)=>sink.close(error=>error?reject(error):resolve()));}
+ // A missing setup migration fails atomically rather than creating an organisation without its setup intent.
+ await pool.query('ALTER TABLE "GrowthAgentSetup" RENAME TO "GrowthAgentSetup_hidden"');
+ await assert.rejects(createOrg(context,'owner','Setup rollback','setup-rollback',null,0n,14),/GrowthAgentSetup/);
+ assert.equal((await pool.query('SELECT count(*) FROM "Organization" WHERE slug=\'setup-rollback\'')).rows[0].count,'0');
+ await pool.query('ALTER TABLE "GrowthAgentSetup_hidden" RENAME TO "GrowthAgentSetup"');
  // Source-scope failure must roll back Organization and OWNER membership together.
- await pool.query('DROP TABLE analytics_outbox');await assert.rejects(createOrg(context,'owner','Rollback','rollback-org',null,1000n,14),/failed to queue organization/);assert.equal((await pool.query('SELECT COUNT(*) FROM "Organization" WHERE slug=\'rollback-org\'')).rows[0].count,'0');
+ const setupCount=(await pool.query('SELECT count(*) FROM "GrowthAgentSetup"')).rows[0].count;
+ await pool.query('DROP TABLE analytics_outbox');await assert.rejects(createOrg(context,'owner','Rollback','rollback-org',null,1000n,14),/failed to queue organization/);assert.equal((await pool.query('SELECT COUNT(*) FROM "Organization" WHERE slug=\'rollback-org\'')).rows[0].count, '0');assert.equal((await pool.query('SELECT count(*) FROM "GrowthAgentSetup"')).rows[0].count,setupCount);
  }finally{await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);await admin.end();}
 });

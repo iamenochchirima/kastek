@@ -38,6 +38,7 @@ test(
           "utf8",
         ),
       );
+      await pool.query(readFileSync(new URL("../../database/prisma/migrations/20261023170000_growth_agent_setup/migration.sql",import.meta.url),"utf8"));
       mail.post("/api/v1/send", async (request) => {
         const body = request.body as { To: { Email: string }[]; Text: string };
         assert.equal(body.To[0]!.Email, "fresh@example.test");
@@ -109,6 +110,7 @@ test(
       assert.equal(result.workspace.name, "New workspace");
       assert.equal(result.invitation.email, "fresh@example.test");
       assert.equal(delivered, 1);
+      assert.equal((await pool.query('SELECT count(*) FROM "GrowthAgentSetup"')).rows[0].count,"1");
       assert.equal(
         (
           await pool.query(
@@ -243,3 +245,20 @@ test(
     }
   },
 );
+
+test("administrative organisation creation records the durable agent setup intent",{skip:!process.env.CORE_ADMIN_ACCESS_TEST_DATABASE_URL},async()=>{
+  const { provisionLaunchUser }=await import("../src/services/admin/launch-access.js");
+  const fixture=await isolatedDatabase(process.env.CORE_ADMIN_ACCESS_TEST_DATABASE_URL!,"launch_agent_setup",[
+    "User","Organization","OrganizationMember","OrganizationInvitation","ReferralCode","CreditAccount","CreditGrant","CreditLedgerEntry",
+  ]);
+  const mail=Fastify();mail.post("/api/v1/send",async()=>({ID:"fixture"}));
+  try {
+    await fixture.pool.query(readFileSync(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql",import.meta.url),"utf8"));
+    await fixture.pool.query(readFileSync(new URL("../../database/prisma/migrations/20261023170000_growth_agent_setup/migration.sql",import.meta.url),"utf8"));
+    const core={pool:fixture.pool,config:readConfig({DATABASE_URL:process.env.CORE_ADMIN_ACCESS_TEST_DATABASE_URL!,LOCAL_MAILPIT_URL:await mail.listen({host:"127.0.0.1",port:0})})};
+    const result=await provisionLaunchUser(core,{name:"New User",email:"setup-fixture@example.test",workspaceName:"Setup fixture"});
+    const rows=(await fixture.pool.query('SELECT "orgId",status FROM "GrowthAgentSetup"')).rows;
+    assert.deepEqual(rows,[{orgId:result.workspace.id,status:"pending"}]);
+    assert.equal((await fixture.pool.query('SELECT count(*) FROM "OrganizationMember" WHERE "orgId"=$1',[result.workspace.id])).rows[0].count,"1");
+  } finally {await mail.close();await fixture.close();}
+});

@@ -10,6 +10,7 @@ datasource db {
 // ─── Organizations ─────────────────────────────────────────
 
 model Organization {
+  agentSetup GrowthAgentSetup?
   growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewOrganization")
   id      String  @id @default(cuid())
   name    String
@@ -2780,4 +2781,27 @@ model AdminOutreachSendAttempt {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @default(now()) @db.Timestamptz
   @@index([leadId, createdAt], map: "AdminOutreachSendAttempt_lead")
+}
+
+/// Durable product setup intent. Provider credentials remain exclusively in Agents.
+model GrowthAgentSetup {
+  orgId String @id
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestId String @unique
+  defaultsRevision String @default("1")
+  modelProfileId String
+  modelProfileRevision String
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseOwner String?
+  leaseExpiresAt DateTime?
+  generation Int @default(0)
+  failureCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  completedAt DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
 }

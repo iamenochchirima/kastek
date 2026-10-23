@@ -42,6 +42,7 @@ import {
   createPublicReadPorts,
 } from "./capabilities/public-adapter.js";
 import { registerGrowthAgentRoutes } from "./agents/routes.js";
+import { registerGrowthAgentProvisioningRoutes } from "./agents/provisioning-routes.js";
 import { registerGrowthAgentActionRoutes } from "./agents/action-routes.js";
 import { registerWorkspaceRoutes } from "./routes/workspace.js";
 import { registerAdminLaunchAccessRoutes } from "./routes/admin-launch-access.js";
@@ -201,6 +202,7 @@ export const CORE_REGISTRARS = [
   registerWorkspaceRoutes,
   registerGrowthAgentRoutes,
   registerGrowthAgentActionRoutes,
+  registerGrowthAgentProvisioningRoutes,
   registerAdminLaunchAccessRoutes,
 ];
 

@@ -1,3 +1,4 @@
+import { runGrowthAgentSetup } from "./growth-agent-setup.js";
 import type { CoreContext } from "../context.js";
 import { workerSpan } from "../observability/operations.js";
 import { publishInboxEvent } from "../services/realtime.js";
@@ -17,6 +18,7 @@ export interface WorkerLogger {
   error(fields: Record<string, unknown>, message?: string): void;
 }
 export const API_WORKERS = [
+  "growth_agent_setup",
   "whatsapp_inbox",
   "email_inbox",
   "social_publishing",
@@ -34,6 +36,7 @@ export type WorkerName = (typeof ALL_WORKERS)[number];
 export type WorkerRunner = (signal: AbortSignal) => Promise<void>;
 export type WorkerRunners = Record<WorkerName, WorkerRunner>;
 const PROCESSES: Record<string, readonly WorkerName[]> = {
+  "growth-agent-setup-worker": ["growth_agent_setup"],
   "social-publishing-worker": ["social_publishing"],
   "social-insights-worker": ["social_insights"],
   "whatsapp-marketing-worker": ["whatsapp_campaigns"],
@@ -68,6 +71,7 @@ export function createWorkerRunners(
 ): WorkerRunners {
   const { pool, config } = core;
   return {
+    growth_agent_setup: (signal) => runGrowthAgentSetup(core, log, signal),
     whatsapp_inbox: (signal) => runWhatsappInbox(core, log, signal),
     email_inbox: (signal) => runEmailInbox(pool, config, log, signal),
     social_publishing: (signal) =>
