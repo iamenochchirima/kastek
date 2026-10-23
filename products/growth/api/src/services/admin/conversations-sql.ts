@@ -3,7 +3,7 @@ export const LIST_CONVERSATIONS_0 = `SELECT id, "orgId", "customerId", channel, 
                "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
         FROM "Conversation"
         WHERE "orgId" = $1
-        ORDER BY "lastMessageAt" DESC`;
+        ORDER BY "lastMessageAt" DESC, id LIMIT 100`;
 
 export const GET_CONVERSATION_0 = `SELECT id, "orgId", "customerId", channel, "customerIdentifier", "customerName", status,
                "lastMessageAt" AT TIME ZONE 'UTC' AS "lastMessageAt",

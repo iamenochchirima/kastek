@@ -1,3 +1,4 @@
+import {registerAdminCustomerRoutes} from "./routes/admin-customers.js";
 import {loadServiceEnvironment} from "@kasitek-labs/server-support/config";
 import {registerAdminReportingRoutes} from "./routes/admin-reporting.js";
 import { config as loadEnvironment } from "dotenv";
@@ -193,6 +194,7 @@ export const CORE_REGISTRARS = [
   registerLeadRoutes,
   registerAdminOperationsRoutes,
   registerAdminReportingRoutes,
+  registerAdminCustomerRoutes,
   registerWhatsappInboxRoutes,
   registerWhatsappCallRoutes,
   registerWhatsappCallbacks,

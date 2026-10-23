@@ -63,6 +63,7 @@ model Organization {
   referralCodes                  ReferralCode[]          @relation("ReferralCodeOwner")
   referralsSent                  ReferralAttribution[]   @relation("ReferralReferrer")
   referralReceived               ReferralAttribution?   @relation("ReferralReferee")
+  customerReplayCommands         AdminWebhookReplayCommand[]
   supportAccessGrants            AdminSupportAccessGrant[]
   bookingServices                BookingService[]
   bookings                       Booking[]
@@ -1082,6 +1083,13 @@ model AdminWebhookReplayCommand {
   idempotencyKey       String   @unique
   deliveryId           String
   actorId              String
+  customerId           String?
+  customer             Organization? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  operationId          String? @unique
+  requestDigest        String?
+  reason               String?
+  settledStatus        String?
+  customerApprovals    AdminCustomerReplayApproval[]
   expectedStatus       String
   expectedAttemptCount Int
   approverIds          String[] @default([])
@@ -1095,7 +1103,19 @@ model AdminWebhookReplayCommand {
   auditEvents AdminWebhookReplayAuditEvent[]
 
   @@index([status, updatedAt])
+  @@index([customerId, id], map: "AdminWebhookReplayCommand_customer_history_idx")
   @@index([deliveryId, createdAt])
+}
+
+model AdminCustomerReplayApproval {
+  id String @id
+  commandId String
+  command AdminWebhookReplayCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  actorId String
+  digest String
+  reason String
+  createdAt DateTime @default(now())
+  @@unique([commandId, actorId])
 }
 
 model AdminWebhookReplayAuditEvent {

@@ -133,6 +133,7 @@ test(
       await pool.query(
         `CREATE TABLE "PublicApiWebhookSubscription"(id text PRIMARY KEY,"orgId" text,status text);CREATE TABLE "PublicApiWebhookDelivery"(id text PRIMARY KEY,"subscriptionId" text,"eventId" text,"eventType" text,status text,"attemptCount" int,"nextAttemptAt" timestamp,"lastStatusCode" int,"lastError" text,"deliveredAt" timestamp,"updatedAt" timestamp);`,
       );
+      await pool.query(readFileSync(resolve(migrations,'20261023130000_admin_customer_operations','migration.sql'),'utf8'));
       for (const [id, role] of [
         ['admin', 'admin'],
         ['support', 'support'],
