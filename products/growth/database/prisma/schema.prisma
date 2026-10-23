@@ -2756,3 +2756,27 @@ model AdminSession {
   @@index([expiresAt])
 }
 
+model AdminCommercialAudit {
+  id String @id
+  actorId String
+  action String
+  resourceId String
+  details Json @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz
+}
+model AdminOutreachSendAttempt {
+  id String @id
+  campaignId String
+  leadId String
+  fingerprint String @unique
+  actorId String
+  recipients Json
+  subject String
+  status String
+  accepted Json @default("[]")
+  rejected Json @default("[]")
+  providerMessageId String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @default(now()) @db.Timestamptz
+  @@index([leadId, createdAt], map: "AdminOutreachSendAttempt_lead")
+}

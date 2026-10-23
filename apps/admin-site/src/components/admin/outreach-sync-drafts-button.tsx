@@ -11,31 +11,28 @@ export default function OutreachSyncDraftsButton() {
   async function runSync() {
     setLoading(true);
     setResult(null);
-    const res = await fetch("/api/outreach/sync-drafts", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
-
-    if (!res.ok) {
-      setResult(data?.error || "Sync failed");
-      return;
-    }
-
-    setResult(
-      `Synced ${data.updated}/${data.matched} matched leads. Sendable now: ${data.sendable}.`
-    );
-    router.refresh();
+    try {
+      const res = await fetch("/api/outreach/sync-drafts", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Import failed");
+      const failures = Array.isArray(data.failures) ? data.failures : [];
+      setResult(`${data.updated}/${data.matched} imported${failures.length ? ` · ${failures.length} failed: ${failures.map((failure: {leadId:string;status:number}) => `${failure.leadId} (${failure.status})`).join(", ")}` : ""}`);
+      router.refresh();
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : "Import failed");
+    } finally { setLoading(false); }
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         onClick={runSync}
         disabled={loading}
         className="border border-border hover:bg-secondary text-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
       >
-        {loading ? "Syncing..." : "Sync Drafts to Leads"}
+        {loading ? "Importing…" : "Import drafts"}
       </button>
-      {result ? <p className="text-xs text-muted-foreground">{result}</p> : null}
+      {result ? <p role="status" className="break-all text-xs text-muted-foreground">{result}</p> : null}
     </div>
   );
 }

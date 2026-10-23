@@ -24,6 +24,7 @@ type Props = {
   currentRun?: InvoiceRun | null;
   recentRuns?: InvoiceRun[];
   operations?: {
+    recurringClient?: boolean;
     recurring_client?: boolean;
     needs_invoice_send?: boolean;
     needs_reminder?: boolean;
@@ -69,12 +70,19 @@ export default function InvoiceOperationsPanel({
     }
   }
 
+  async function refreshCycle() {
+    setLoadingAction("materialize"); setError("");
+    try { const response=await fetch(`/api/invoices/${invoiceId}/materialize`,{method:"POST"}); if(!response.ok) throw new Error("Could not update billing cycle"); router.refresh(); }
+    catch(error) {setError(error instanceof Error ? error.message : "Could not update cycle");}
+    finally {setLoadingAction(null);}
+  }
   return (
     <div className="space-y-6">
       <div className="v-card space-y-5 p-[var(--density-card-padding)]">
         <div>
           <p className="v-label">Billing operations</p>
           <h2 className="mt-1 text-lg font-semibold text-foreground">Current billing cycle</h2>
+          <button className={buttonClassName({variant:"outline",size:"sm"})} disabled={loadingAction!==null} onClick={()=>void refreshCycle()}>{loadingAction==="materialize" ? "Updating…" : "Update cycle"}</button>
           <p className="mt-1 text-sm text-muted-foreground">
             Operational tracking for monthly invoice send dates, overdue reminder follow-up, and payment confirmation.
           </p>
@@ -86,7 +94,7 @@ export default function InvoiceOperationsPanel({
           </div>
         ) : null}
 
-        {!operations?.recurring_client ? (
+        {!(operations?.recurringClient ?? operations?.recurring_client) ? (
           <div className="rounded-md border border-status-attention/25 bg-status-attention-soft px-4 py-4 text-sm text-foreground">
             This invoice is currently configured as a one-off record. Switch it to monthly recurring in the builder to start cycle tracking and reminder actions.
           </div>
@@ -109,6 +117,7 @@ export default function InvoiceOperationsPanel({
               </div>
             </div>
 
+            <p className="text-sm text-muted-foreground">Manual bookkeeping only. These actions do not send email.</p>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -116,7 +125,7 @@ export default function InvoiceOperationsPanel({
                 disabled={loadingAction !== null}
                 className={buttonClassName({ variant: "primary", size: "md" })}
               >
-                {loadingAction === "mark_sent" ? "Saving..." : "Mark Invoice Sent"}
+                {loadingAction === "mark_sent" ? "Saving..." : "Record invoice sent"}
               </button>
               <button
                 type="button"
@@ -124,7 +133,7 @@ export default function InvoiceOperationsPanel({
                 disabled={loadingAction !== null}
                 className={buttonClassName({ variant: "outline", size: "md" })}
               >
-                {loadingAction === "mark_reminder_sent" ? "Saving..." : "Mark Reminder Sent"}
+                {loadingAction === "mark_reminder_sent" ? "Saving..." : "Record reminder sent"}
               </button>
               <button
                 type="button"

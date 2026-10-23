@@ -1,9 +1,11 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+type Db = Pick<PoolClient, 'query'>;
 import { createId } from '@paralleldrive/cuid2';
 import { isDeepStrictEqual } from 'node:util';
 import * as sql from './invoices-sql.js';
 import {
   bad,
+  transaction,
   missing,
   requireString,
   present,
@@ -130,13 +132,13 @@ export function runState(
       : ['overdue', 'not_needed', due];
   return ['sent', 'not_needed', due];
 }
-async function fetchInvoice(pool: Pool, id: string): Promise<Invoice> {
+async function fetchInvoice(pool: Db, id: string, lock = false): Promise<Invoice> {
   return (
-    (await pool.query(sql.FETCH_INVOICE_0, [id])).rows[0] ??
+    (await pool.query(sql.FETCH_INVOICE_0 + (lock ? " FOR UPDATE" : ""), [id])).rows[0] ??
     missing('invoice not found')
   );
 }
-async function publishReminder(pool: Pool, invoice: Invoice, run: Run) {
+async function publishReminder(pool: Db, invoice: Invoice, run: Run) {
   const admins = (await pool.query(sql.LIST_ADMIN_IDS_0)).rows;
   if (!admins.length) return;
   const key = `invoice-reminder-due-${run.id}`;
@@ -165,7 +167,7 @@ async function publishReminder(pool: Pool, invoice: Invoice, run: Run) {
       admin.id,
     ]);
 }
-async function syncRun(pool: Pool, invoice: Invoice): Promise<Run | null> {
+async function syncRun(pool: Db, invoice: Invoice): Promise<Run | null> {
   if (!recurring(invoice)) return null;
   const now = new Date(),
     cycle = currentCycle(
@@ -217,8 +219,26 @@ async function syncRun(pool: Pool, invoice: Invoice): Promise<Run | null> {
   run = (await pool.query(expand(sql.SYNC_CURRENT_RUN_4), [run.id]))
     .rows[0] as Run;
   if (run.reminderStatus === 'pending')
-    await publishReminder(pool, invoice, run).catch(() => {});
+    await publishReminder(pool, invoice, run);
   return run;
+}
+async function readCurrentRun(pool: Db, invoice: Invoice): Promise<Run | null> {
+  if (!recurring(invoice)) return null;
+  const cycle = currentCycle(anchor(invoice.billingAnchorDay, day(invoice.date)), new Date());
+  const run = (await pool.query(expand(sql.SYNC_CURRENT_RUN_0), [invoice.id, cycle.key])).rows[0] as Run | undefined;
+  if (!run) return null;
+  const [status, reminderStatus, reminderDueAt] = runState(invoice, run, new Date());
+  return {...run, status, reminderStatus, reminderDueAt};
+}
+export async function materializeInvoiceRuns(pool: Pool, actorId: string, invoiceId?: string) {
+  return transaction(pool, async tx => {
+    const invoices = (await tx.query(invoiceId ? `${sql.FETCH_INVOICE_0} FOR UPDATE` : `${sql.LIST_INVOICES_0} FOR UPDATE`,invoiceId ? [invoiceId] : [])).rows as Invoice[];
+    if(invoiceId && !invoices.length) missing("Invoice not found");
+    let materialized = 0;
+    for (const invoice of invoices) if (await syncRun(tx, invoice)) materialized++;
+    await tx.query('INSERT INTO "AdminCommercialAudit" (id,"actorId",action,"resourceId",details) VALUES ($1,$2,$3,$4,$5)', [createId(), actorId, 'invoice.materialize', 'invoices', JSON.stringify({materialized})]);
+    return {materialized};
+  });
 }
 function operations(invoice: Invoice, run: Run | null) {
   return {
@@ -231,24 +251,8 @@ function operations(invoice: Invoice, run: Run | null) {
     cycleLabel: run?.cycleKey ?? null,
   };
 }
-async function response(pool: Pool, invoice: Invoice) {
-  const currentRun = await syncRun(pool, invoice);
-  if (currentRun) {
-    const next =
-      currentRun.status === 'paid'
-        ? 'paid'
-        : ['reminder_due', 'overdue', 'reminder_sent'].includes(
-              currentRun.status,
-            )
-          ? 'overdue'
-          : currentRun.status === 'sent'
-            ? 'sent'
-            : invoice.status;
-    if (next !== invoice.status) {
-      await pool.query(sql.INVOICE_RESPONSE_0, [next, invoice.id]);
-      invoice.status = next;
-    }
-  }
+async function response(pool: Db, invoice: Invoice) {
+  const currentRun = await readCurrentRun(pool, invoice);
   const recentRuns = (
     await pool.query(expand(sql.FETCH_RECENT_RUNS_0), [invoice.id, 6])
   ).rows;
@@ -259,10 +263,10 @@ async function response(pool: Pool, invoice: Invoice) {
     operations: operations(invoice, currentRun),
   };
 }
-export async function getInvoice(pool: Pool, id: string) {
+export async function getInvoice(pool: Db, id: string) {
   return response(pool, await fetchInvoice(pool, id));
 }
-export async function listInvoices(pool: Pool) {
+export async function listInvoices(pool: Db) {
   const invoices: unknown[] = [],
     actionItems: ObjectValue[] = [],
     summary = {
@@ -273,7 +277,7 @@ export async function listInvoices(pool: Pool) {
     };
   for (const invoice of (await pool.query(sql.LIST_INVOICES_0))
     .rows as Invoice[]) {
-    const run = await syncRun(pool, invoice),
+    const run = await readCurrentRun(pool, invoice),
       op = operations(invoice, run);
     summary.totalInvoices++;
     if (op.recurringClient) summary.recurringClients++;
@@ -326,7 +330,7 @@ export async function listInvoices(pool: Pool) {
   actionItems.sort((a, b) => +(a.dueAt as Date) - +(b.dueAt as Date));
   return { summary, actionItems, invoices };
 }
-export async function createInvoice(pool: Pool, input: ObjectValue) {
+async function createInvoiceRecord(pool: Db, input: ObjectValue) {
   const id = createId(),
     time = new Date(),
     date = parseDate(requireString(input, 'date')),
@@ -364,8 +368,8 @@ export async function createInvoice(pool: Pool, input: ObjectValue) {
   ]);
   return getInvoice(pool, id);
 }
-export async function updateInvoice(
-  pool: Pool,
+async function updateInvoiceRecord(
+  pool: Db,
   id: string,
   input: ObjectValue,
 ) {
@@ -441,41 +445,62 @@ export async function invoiceRunAction(
   invoiceId: string,
   runId: string,
   action: string,
+  actorId: string,
 ) {
-  const invoice = await fetchInvoice(pool, invoiceId),
+  await transaction(pool, async tx => {
+  const invoice = await fetchInvoice(tx, invoiceId, true),
     run =
-      (await pool.query(expand(sql.INVOICE_RUN_ACTION_0), [runId, invoiceId]))
+      (await tx.query(`${expand(sql.INVOICE_RUN_ACTION_0)} FOR UPDATE`, [runId, invoiceId]))
         .rows[0] ?? missing('invoice run not found'),
     time = new Date();
   switch (action) {
     case 'mark_sent':
-      await pool.query(sql.INVOICE_RUN_ACTION_1, [
+      await tx.query(sql.INVOICE_RUN_ACTION_1, [
         time,
         time,
         new Date(+run.dueDate + invoice.reminderDaysAfterDue * 86_400_000),
         runId,
       ]);
-      await pool.query(sql.INVOICE_RUN_ACTION_2, [time, invoiceId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_2, [time, invoiceId]);
       break;
     case 'mark_reminder_sent':
-      await pool.query(sql.INVOICE_RUN_ACTION_3, [time, runId]);
-      await pool.query(sql.INVOICE_RUN_ACTION_4, [time, invoiceId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_3, [time, runId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_4, [time, invoiceId]);
       break;
     case 'mark_paid':
-      await pool.query(sql.INVOICE_RUN_ACTION_5, [time, runId]);
-      await pool.query(sql.INVOICE_RUN_ACTION_6, [time, invoiceId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_5, [time, runId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_6, [time, invoiceId]);
       break;
     case 'reopen_cycle':
-      await pool.query(sql.INVOICE_RUN_ACTION_7, [runId]);
-      await pool.query(sql.INVOICE_RUN_ACTION_8, [invoiceId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_7, [runId]);
+      await tx.query(sql.INVOICE_RUN_ACTION_8, [invoiceId]);
       break;
     default:
       bad('unsupported invoice action');
   }
+  await tx.query('INSERT INTO "AdminCommercialAudit" (id,"actorId",action,"resourceId",details) VALUES ($1,$2,$3,$4,$5)', [createId(),actorId,`invoice.${action}`,runId,JSON.stringify({invoiceId, manualBookkeeping:true})]);
+  });
   return getInvoice(pool, invoiceId);
 }
-export async function deleteInvoice(pool: Pool, id: string) {
+async function deleteInvoiceRecord(pool: Db, id: string) {
   if (!(await pool.query(sql.DELETE_INVOICE_0, [id])).rows.length)
     missing('invoice not found');
   return { deleted: true };
+}
+
+async function auditedInvoiceChange<T>(pool: Pool, actorId: string, action: string, resourceId: string, change: (tx: Db) => Promise<T>) {
+  return transaction(pool, async tx => {
+    const result = await change(tx);
+    await tx.query('INSERT INTO "AdminCommercialAudit" (id,"actorId",action,"resourceId",details) VALUES ($1,$2,$3,$4,$5)', [createId(),actorId,`invoice.${action}`,resourceId,JSON.stringify({manualBookkeeping:true})]);
+    return result;
+  });
+}
+export async function createInvoice(pool: Pool, input: ObjectValue, actorId: string) {
+  return auditedInvoiceChange(pool,actorId,'create','new',async tx => { const result=await createInvoiceRecord(tx,input); await syncRun(tx,result as Invoice); return getInvoice(tx,result.id as string); });
+}
+export async function updateInvoice(pool: Pool, id: string, input: ObjectValue, actorId: string) {
+  return auditedInvoiceChange(pool,actorId,'update',id,async tx => { const result=await updateInvoiceRecord(tx,id,input); await syncRun(tx,result as Invoice); return getInvoice(tx,id); });
+}
+export async function deleteInvoice(pool: Pool, id: string, actorId: string) {
+  return auditedInvoiceChange(pool,actorId,'delete',id,tx => deleteInvoiceRecord(tx,id));
 }

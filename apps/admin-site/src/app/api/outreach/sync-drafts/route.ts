@@ -1,15 +1,8 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { applyDraftUpdates } from "@/lib/outreach-import";
+import { allOutreachPages } from "@/lib/outreach-pages";
 import { NextResponse } from "next/server";
 import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
-import { resolveOutreachDraftDirectory } from "@/lib/outreach-drafts";
-
-type DraftLead = {
-  website?: string;
-  contact_emails?: string[];
-  subject?: string;
-  email_body?: string;
-};
+import { resolveOutreachDraftDirectory, loadOutreachFiles, type DraftLead } from "@/lib/outreach-drafts";
 
 type OutreachLeadRow = {
   id: string;
@@ -59,29 +52,20 @@ function upsertSubjectInNotes(notes: string | null, subject: string) {
 }
 
 async function fetchAllLeads(campaignId: string | null): Promise<OutreachLeadRow[]> {
-  // Fetch campaigns first to get all campaign IDs when no specific campaign is given
-  if (campaignId) {
-    const res = await fetchFromCore(`/api/admin/outreach/${campaignId}/leads`);
-    if (!res.ok) return [];
-    const data = await res.json() as OutreachLeadRow[];
-    return Array.isArray(data) ? data.filter((l) => l.website) : [];
-  }
+  if (campaignId) return (await allOutreachPages<OutreachLeadRow>(`/api/admin/outreach/${campaignId}/leads`,fetchFromCore)).filter(l=>l.website);
+  const campaigns=await allOutreachPages<{id:string}>("/api/admin/outreach",fetchFromCore);
+  const result:OutreachLeadRow[]=[];
+  for (const campaign of campaigns) result.push(...await fetchAllLeads(campaign.id));
+  return result;
+}
 
-  // No campaign filter: fetch all campaigns then all their leads
-  const campaignsRes = await fetchFromCore("/api/admin/outreach");
-  if (!campaignsRes.ok) return [];
-  const campaignsData = await campaignsRes.json() as Array<{ id: string }>;
-  const campaigns = Array.isArray(campaignsData) ? campaignsData : [];
-
-  const allLeads: OutreachLeadRow[] = [];
-  for (const campaign of campaigns) {
-    const res = await fetchFromCore(`/api/admin/outreach/${campaign.id}/leads`);
-    if (!res.ok) continue;
-    const data = await res.json() as OutreachLeadRow[];
-    const filtered = Array.isArray(data) ? data.filter((l) => l.website) : [];
-    allLeads.push(...filtered);
+async function draftMap(directory: string) {
+  const map = new Map<string, DraftLead>();
+  for (const file of await loadOutreachFiles(directory)) for (const lead of file.leads) {
+    const key = normalizeWebsite(lead.website);
+    if (key && (!map.has(key) || lead.email_body.length > map.get(key)!.email_body.length)) map.set(key, lead);
   }
-  return allLeads;
+  return map;
 }
 
 export async function POST(req: Request) {
@@ -97,32 +81,12 @@ export async function POST(req: Request) {
       : null;
 
   const draftsDir = await resolveOutreachDraftDirectory();
-  const files = await fs.readdir(draftsDir).catch(() => []);
-  const websiteMap = new Map<string, DraftLead>();
-
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    const fullPath = path.join(draftsDir, file);
-    try {
-      const raw = await fs.readFile(fullPath, "utf8");
-      const parsed = JSON.parse(raw) as { leads?: DraftLead[] };
-      for (const lead of parsed.leads || []) {
-        const key = normalizeWebsite(lead.website);
-        if (!key || !lead.email_body?.trim()) continue;
-        const existing = websiteMap.get(key);
-        if (!existing || (lead.email_body?.length || 0) > (existing.email_body?.length || 0)) {
-          websiteMap.set(key, lead);
-        }
-      }
-    } catch {
-      // ignore invalid file
-    }
-  }
+  const websiteMap = await draftMap(draftsDir);
 
   const leads = await fetchAllLeads(campaignId);
 
   let matched = 0;
-  let updated = 0;
+  const patches:Array<{id:string;campaignId:string;body:Record<string,unknown>}>=[];
   const debugSamples: Array<Record<string, string | boolean | number | null>> = [];
   const unmatchedKeys: string[] = [];
 
@@ -158,19 +122,16 @@ export async function POST(req: Request) {
     if (emailAddress) patchBody.emailAddress = emailAddress;
     if (subject) patchBody.notes = upsertSubjectInNotes(lead.notes, subject);
 
-    await fetchFromCore(`/api/admin/outreach/${lead.campaignId}/leads/${lead.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patchBody),
-    });
-    updated += 1;
+    patches.push({id:lead.id,campaignId:lead.campaignId,body:patchBody});
   }
+  const {updated,failures}=await applyDraftUpdates(patches,patch=>fetchFromCore(`/api/admin/outreach/${patch.campaignId}/leads/${patch.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch.body)}));
 
   const draftKeySamples = debug ? Array.from(websiteMap.keys()).slice(0, 80) : [];
   const dbKeySamples = debug ? leads.map((l) => normalizeWebsite(l.website)).slice(0, 80) : [];
 
   return NextResponse.json({
-    ok: true,
+    ok: failures.length === 0,
+    failures,
     campaignId,
     draftWebsites: websiteMap.size,
     dbLeadsWithWebsite: leads.length,
@@ -198,27 +159,7 @@ export async function GET(req: Request) {
   const includeDraftData = searchParams.get("includeDraftData") === "1";
 
   const draftsDir = await resolveOutreachDraftDirectory();
-  const files = await fs.readdir(draftsDir).catch(() => []);
-  const websiteMap = new Map<string, DraftLead>();
-
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    const fullPath = path.join(draftsDir, file);
-    try {
-      const raw = await fs.readFile(fullPath, "utf8");
-      const parsed = JSON.parse(raw) as { leads?: DraftLead[] };
-      for (const lead of parsed.leads || []) {
-        const key = normalizeWebsite(lead.website);
-        if (!key || !lead.email_body?.trim()) continue;
-        const existing = websiteMap.get(key);
-        if (!existing || (lead.email_body?.length || 0) > (existing.email_body?.length || 0)) {
-          websiteMap.set(key, lead);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const websiteMap = await draftMap(draftsDir);
 
   const allLeads = await fetchAllLeads(campaignId);
   const leads = allLeads.slice(0, limit);

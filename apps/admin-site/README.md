@@ -56,3 +56,36 @@ controls do not mount until the authoritative catalogue loads. Route transitions
 The unsupported Web services Delete All control and collection DELETE proxy are removed. Bulk
 lead actions retain failed selections; field and add-lead forms retain input and show errors.
 SMTP acceptance is distinct from confirmed delivery.
+
+## Commercial workflow safety
+
+Set `OUTREACH_DRAFTS_DIR` to a readable draft directory. Discovery is recursive;
+preview and import accept the same snake_case and camelCase fields. Missing configuration
+and invalid files are errors, not empty successful imports. Import reports per-record failures.
+
+Outreach submission claims a durable attempt in Growth before SMTP. `accepted` means SMTP
+accepted the recipient; it does not mean delivery. Partial rejection is retained per recipient.
+Transport ambiguity or a database failure after SMTP leaves the attempt blocked. Open **Send
+attempts** on the lead, verify the provider evidence, then record the outcome. Retry is available
+only after confirmed non-submission or rejection. Never resolve uncertainty based only on a
+client timeout. Preserve accepted recipients when reconciling a partial outcome.
+
+Invoice GET requests only read records. **Update cycle** explicitly materializes the current
+invoice's recurring cycle and reminder notifications. Saving an invoice also updates its cycle.
+Recording sent/reminded/paid is manual bookkeeping; these buttons do not send email.
+All invoice mutations and send reconciliation record the authenticated administrator.
+
+Apply migration `20261023095000_admin_commercial_safety` before enabling these routes.
+The migration adds the send-attempt and commercial-audit tables; it preserves existing records.
+Rollback disables SMTP submission and invoice mutation controls before reverting application code;
+keep attempt/audit rows for reconciliation. No database migration or provider submission is part
+of development verification.
+
+Focused checks (mocked SMTP and an isolated disposable PostgreSQL database only):
+
+```sh
+CORE_COMMERCIAL_TEST_DATABASE_URL=postgres://... products/growth/api/node_modules/.bin/tsx --test products/growth/api/tests/admin-commercial.test.ts
+products/growth/api/node_modules/.bin/tsx --test apps/admin-site/scripts/admin-commercial.test.ts
+```
+
+The SQL tests create and remove their own random schema. Do not point them at a customer database.
