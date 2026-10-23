@@ -20,7 +20,7 @@ test("Agency product metadata API enforces explicit destination mappings, exact 
   const call: ProductCapabilityInvocation = {
     version: "1", requestId: "request-1", operationId: "op-1", taskId: "task-1", conversationId: "conversation-1",
     actor: { issuer: "https://growth.test/identity", subject: "growth-user" },
-    authority: { kind: "product", originProduct: "growth", destinationProduct: "agency", originTenantId: "growth-org",
+    authority: { kind: "product", originProduct: "growth", destinationProduct: "agencies", originTenantId: "growth-org",
       tenantId: "w", mappingRef: "mapping-1", policyRevision: "policy-1", manifestDigest: agencyCapabilityManifest.digest,
       descriptorDigest: capabilityDigest(workspaceAgentMetadataDescriptor), handlerRef: workspaceAgentMetadataDescriptor.handlerRef },
     bindingId: "binding-1", bindingDigest: "binding-digest", operation: workspaceAgentMetadataDescriptor.operation, input: { limit: 1 }, control: "invoke",

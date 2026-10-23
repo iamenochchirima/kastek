@@ -1,5 +1,8 @@
 # Agency product capabilities
 
+The shared execution product namespace is `agencies`; the installed operation
+namespace is `agency.workspace_agents.read`.
+
 Agency exposes `POST /internal/agents/capabilities` for the installed
 `agency.workspace_agents.read` operation. It returns permitted workspace-agent
 IDs, names, statuses and timestamps from `workspace_agents`. It excludes agent
@@ -36,7 +39,11 @@ manifest through the trusted publication/control path or selecting a tool does
 not create a mapping or grant. The Agents runtime must register the compatible
 installed adapter and validate this product-owned manifest through shared
 contracts; it never imports Agency private runtime source. Live Agency remains
-unavailable until that trusted installation and explicit mapping exist. No standalone
+unavailable until that trusted installation and explicit mapping exist.
+`registerAgencyProductCapabilities` installs the signed HTTP transport when
+`AGENCY_PRODUCT_API_URL` and `AGENTS_PRODUCT_ACTION_PRIVATE_KEY` are configured.
+Its compatible manifest descriptors still come from the product-owned trusted
+publication; configuring transport does not publish tools or grant their use. No standalone
 Agents account or membership is created. An operator must obtain the exact
 validated immutable binding digest before issuing its grant; a changed binding
 requires a newly authorized grant.

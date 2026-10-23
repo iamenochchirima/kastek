@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ProductCapabilityDescriptor, ProductCapabilityManifest } from "@kasitek-labs/contracts";
+import { createProductHttpAdapterManifest, type ProductCapabilityDescriptor, type ProductCapabilityManifest } from "@kasitek-labs/contracts";
 
 export function capabilityDigest(value: unknown): string {
   const canonical = (item: unknown): string => {
@@ -26,14 +26,10 @@ export const workspaceAgentMetadataDescriptor: ProductCapabilityDescriptor = {
   evidence: "versioned_sources",
   limits: { timeoutMs: 5000, maxPhysicalAttempts: 1, maxResponseBytes: 65536, maxModelResultBytes: 8192 },
 };
-export const agencyCapabilityAdapterManifest = {
-  schemaVersion: 1 as const, id: "agency-product", release: "1",
-  executableDigest: capabilityDigest({ transport: "signed-product-http-v1", handler: workspaceAgentMetadataDescriptor.handlerRef, release: "agency-metadata-v1" }),
-  transports: ["native_http" as const], protocolVersions: [], boundedSchemaValidation: true as const,
-};
+export const agencyCapabilityAdapterManifest = createProductHttpAdapterManifest("agencies", "1", capabilityDigest);
 const manifest = {
-  schemaVersion: 1 as const, product: "agency", revision: "agency-metadata-v1",
-  adapter: { id: "agency-product", release: "1", manifestDigest: capabilityDigest(agencyCapabilityAdapterManifest) },
+  schemaVersion: 1 as const, product: "agencies", revision: "agency-metadata-v1",
+  adapter: { id: agencyCapabilityAdapterManifest.id, release: agencyCapabilityAdapterManifest.release, manifestDigest: capabilityDigest(agencyCapabilityAdapterManifest) },
   operations: [workspaceAgentMetadataDescriptor],
 };
 export const agencyCapabilityManifest: ProductCapabilityManifest = { ...manifest, digest: capabilityDigest(manifest) };

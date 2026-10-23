@@ -8,7 +8,7 @@ import { agencyCapabilityManifest, capabilityDigest, workspaceAgentMetadataDescr
 type Metadata = { id: string; name: string; status: string; created_at: Date; updated_at: Date };
 export async function readWorkspaceAgentMetadata(context: TenantContext, call: ProductCapabilityInvocation): Promise<ProductCapabilityResult> {
   const a = call.authority;
-  if (a.destinationProduct !== "agency" || call.operation !== workspaceAgentMetadataDescriptor.operation ||
+  if (a.destinationProduct !== "agencies" || call.operation !== workspaceAgentMetadataDescriptor.operation ||
       a.manifestDigest !== agencyCapabilityManifest.digest || a.descriptorDigest !== capabilityDigest(workspaceAgentMetadataDescriptor) ||
       a.handlerRef !== workspaceAgentMetadataDescriptor.handlerRef) throw forbidden();
   return transaction(context.pool, async db => {
