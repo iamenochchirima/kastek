@@ -36,7 +36,13 @@
     "release:check": "node scripts/release-version.mjs check",
     "verify:agents-modules": "node scripts/check-agents-boundaries.mjs && node --test scripts/check-agents-boundaries.test.mjs",
     "reporting:dev": "node scripts/reporting-dev.mjs",
-    "test:reporting-dev": "node --test scripts/reporting-dev.test.mjs"
+    "test:reporting-dev": "node --test scripts/reporting-dev.test.mjs",
+    "build:operations": "pnpm build:shared && pnpm --filter @kasitek/operations build",
+    "dev:operations": "pnpm --filter @kasitek/operations dev",
+    "start:operations": "pnpm --filter @kasitek/operations start",
+    "start:operations-worker": "pnpm --filter @kasitek/operations start:worker",
+    "migrate:operations": "pnpm --filter @kasitek/operations migrate",
+    "test:operations": "pnpm --filter @kasitek/operations test"
   },
   "devDependencies": {
     "typescript": "5.9.3",

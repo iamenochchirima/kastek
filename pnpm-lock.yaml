@@ -902,6 +902,46 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  services/operations:
+    dependencies:
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.1.2
+      '@kasitek-labs/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@kasitek-labs/server-support':
+        specifier: workspace:*
+        version: link:../../packages/server-support
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
+      openid-client:
+        specifier: ^6.8.1
+        version: 6.8.8
+      pg:
+        specifier: ^8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.10.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      tsx:
+        specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
@@ -11289,7 +11329,7 @@ snapshots:
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/chai@5.2.3':
     dependencies:
@@ -11298,7 +11338,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/d3-array@3.2.2': {}
 
@@ -11371,13 +11411,13 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/ms@2.1.0': {}
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/node@20.19.33':
     dependencies:
@@ -11401,7 +11441,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -11431,7 +11471,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/unist@2.0.11': {}
 
@@ -11441,7 +11481,7 @@ snapshots:
 
   '@types/web-push@3.6.4':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.10.1
 
   '@types/yauzl@3.4.0':
     dependencies:

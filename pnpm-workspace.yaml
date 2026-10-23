@@ -12,6 +12,7 @@ packages:
   - packages/contracts
   - packages/server-support
   - services/analytics
+  - services/operations
 
 onlyBuiltDependencies:
   - '@prisma/client'
