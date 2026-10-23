@@ -54,7 +54,7 @@ test(
           ),
         );
       await pool.query(
-        `INSERT INTO "Organization" VALUES('a','Customer A'),('b','Customer B');INSERT INTO "AdminUser" VALUES('operator','Operator','op@example.test','x','operator',now()),('second','Second','second@example.test','x','operator',now()),('viewer','Viewer','view@example.test','x','viewer',now());INSERT INTO "PublicApiWebhookSubscription" VALUES('sub','a','ACTIVE'),('sub-b','b','ACTIVE');INSERT INTO "PublicApiWebhookDelivery"(id,"subscriptionId","eventType",status,"attemptCount","updatedAt") VALUES('d1','sub','event.test','FAILED',3,now()),('d2','sub','event.test','FAILED',4,now()),('other','sub-b','event.test','FAILED',3,now());INSERT INTO "CreditAccount" VALUES('account','a',9007199254740993,3);INSERT INTO "CreditGrant" VALUES('expired','a','MANUAL',7,now()-interval '1 month',now()-interval '1 day');INSERT INTO "Conversation" VALUES('conversation','a',NULL,'web','private-identity','Private','open',now(),now());INSERT INTO "Message" VALUES('message','conversation','user','DO NOT AUDIT THIS BODY',now());`,
+        `INSERT INTO "Organization" VALUES('a','Customer A'),('b','Customer B');INSERT INTO "AdminUser" VALUES('operator','Operator','op@example.test','x','operator',now()),('second','Second','second@example.test','x','operator',now()),('viewer','Viewer','view@example.test','x','viewer',now());INSERT INTO "PublicApiWebhookSubscription" VALUES('sub','a','ACTIVE'),('sub-b','b','ACTIVE');INSERT INTO "PublicApiWebhookDelivery"(id,"subscriptionId","eventType",status,"attemptCount","updatedAt") VALUES('d1','sub','event.test','FAILED',3,now()),('d2','sub','event.test','FAILED',4,now()),('d3','sub','event.test','FAILED',3,now()),('other','sub-b','event.test','FAILED',3,now());INSERT INTO "CreditAccount" VALUES('account','a',9007199254740993,3);INSERT INTO "CreditGrant" VALUES('expired','a','MANUAL',7,now()-interval '1 month',now()-interval '1 day');INSERT INTO "Conversation" VALUES('conversation','a',NULL,'web','private-identity','Private','open',now(),now());INSERT INTO "Message" VALUES('message','conversation','user','DO NOT AUDIT THIS BODY',now());`,
       );
       const first = await customerOverview(pool, "a");
       assert.equal(first.customer.id, "a");
@@ -107,6 +107,38 @@ test(
         request,
       );
       assert.equal(created.status, "awaiting_approval");
+      const race = await Promise.allSettled(
+        ["parallel_0001", "parallel_0002"].map((operationId) =>
+          executeCustomerOperation(pool, "a", "operator", {
+            ...request,
+            operationId,
+            targetId: "d3",
+          }),
+        ),
+      );
+      assert.equal(race.filter((x) => x.status === "fulfilled").length, 1);
+      assert.equal(race.filter((x) => x.status === "rejected").length, 1);
+      assert.equal(
+        (
+          await pool.query(
+            `SELECT count(*) FROM "AdminWebhookReplayCommand" WHERE "deliveryId"='d3'`,
+          )
+        ).rows[0].count,
+        "1",
+      );
+      await assert.rejects(
+        executeCustomerOperation(pool, "a", "operator", {
+          ...request,
+          operationId: "new_request_same_delivery",
+        }),
+        /already active/,
+      );
+      assert.equal(
+        (await customerCollection(pool, "a", "failures", {})).records.find(
+          (r) => r.id === "d1",
+        )!.actions!.length,
+        0,
+      );
       assert.equal(
         (await executeCustomerOperation(pool, "a", "operator", request)).id,
         created.id,

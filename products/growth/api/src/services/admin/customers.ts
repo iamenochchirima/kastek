@@ -45,7 +45,7 @@ export async function customerCollection(
   if (collection === "failures") {
     const rows = (
       await pool.query(
-        `SELECT d.id,d.status,d."attemptCount",d."eventType",s.status AS "subscriptionState" FROM "PublicApiWebhookDelivery" d JOIN "PublicApiWebhookSubscription" s ON s.id=d."subscriptionId" WHERE s."orgId"=$1 AND d.status='FAILED' AND ($2::text IS NULL OR d.id>$2) ORDER BY d.id LIMIT $3`,
+        `SELECT d.id,d.status,d."attemptCount",d."eventType",s.status AS "subscriptionState",EXISTS(SELECT 1 FROM "AdminWebhookReplayCommand" c WHERE c."deliveryId"=d.id AND (c.status='awaiting_approval' OR (c."customerId" IS NOT NULL AND c.status='completed' AND c."settledStatus" IS NULL))) AS "replayActive" FROM "PublicApiWebhookDelivery" d JOIN "PublicApiWebhookSubscription" s ON s.id=d."subscriptionId" WHERE s."orgId"=$1 AND d.status='FAILED' AND ($2::text IS NULL OR d.id>$2) ORDER BY d.id LIMIT $3`,
         [id, cursor, limit + 1],
       )
     ).rows;
@@ -58,7 +58,7 @@ export async function customerCollection(
         fact("subscriptionState", r.subscriptionState),
       ],
       actions:
-        r.subscriptionState === "ACTIVE"
+        r.subscriptionState === "ACTIVE" && !r.replayActive
           ? [
               {
                 action: "webhook.replay",
@@ -379,6 +379,15 @@ export async function previewCustomerOperation(
       r.subscriptionState !== "ACTIVE"
     )
       conflict("Webhook delivery changed; refresh customer");
+    if (
+      (
+        await pool.query(
+          `SELECT id FROM "AdminWebhookReplayCommand" WHERE "deliveryId"=$1 AND (status='awaiting_approval' OR ("customerId" IS NOT NULL AND status='completed' AND "settledStatus" IS NULL)) LIMIT 1`,
+          [request.targetId],
+        )
+      ).rowCount
+    )
+      conflict("A replay operation is already active for this delivery");
   } else bad("Unsupported Growth customer action");
   return {
     customer: { product: "growth" as const, id: customerId },

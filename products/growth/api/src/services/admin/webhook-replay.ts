@@ -129,6 +129,15 @@ export async function createReplay(
       conflict("Webhook delivery changed; refresh the operator queue");
     if (delivery.subscription_status !== "ACTIVE")
       conflict("Webhook subscription is not active");
+    if (
+      (
+        await tx.query(
+          `SELECT id FROM "AdminWebhookReplayCommand" WHERE "deliveryId"=$1 AND (status='awaiting_approval' OR ("customerId" IS NOT NULL AND status='completed' AND "settledStatus" IS NULL)) LIMIT 1`,
+          [request.deliveryId],
+        )
+      ).rowCount
+    )
+      conflict("A replay operation is already active for this delivery");
     const command = (
       await tx.query(sql.CREATE_1, [
         createId(),
