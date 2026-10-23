@@ -1,3 +1,4 @@
+import { startNativeAnalyticsPublisher } from "../product/reporting/native-analytics";
 import { Pool } from "pg";
 import { loadPlatformConfig } from "../infrastructure/config";
 import { buildPlatformApp } from "./app";
@@ -12,7 +13,8 @@ async function main(): Promise<void> {
   const app = await buildPlatformApp({ config, pool });
   const telemetry = startObservationPublisher(pool, createObservationTelemetry("agents-api"));
   const metrics = createNativeMetrics(pool,"api");
-  app.addHook("onClose", async () => { await telemetry.stop(); await metrics?.shutdown(); await pool.end(); });
+  const analytics = startNativeAnalyticsPublisher(pool);
+  app.addHook("onClose", async () => { await telemetry.stop(); await analytics.stop(); await metrics?.shutdown(); await pool.end(); });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });
   try { await app.listen({ host: config.HOST, port: config.PORT }); }
   catch { await app.close(); throw new Error("Agents platform could not start"); }

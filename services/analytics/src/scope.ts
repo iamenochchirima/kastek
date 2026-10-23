@@ -1,6 +1,6 @@
 export const MAX_REPORTING_GRANT_VALIDITY_SECONDS = 120;
 export type ScopeKind =
-  'core_organization' | 'tenant_workspace' | 'tenant_client';
+  'core_organization' | 'tenant_workspace' | 'tenant_client' | 'agents_organization';
 export type ScopeStatus = 'active' | 'suspended' | 'deleted';
 export type PrincipalType = 'user' | 'service_identity' | 'agent_installation';
 export type DescendantMode = 'none' | 'all' | 'explicit';
@@ -98,6 +98,7 @@ const debugKind = (kind: ScopeKind) =>
     core_organization: 'CoreOrganization',
     tenant_workspace: 'TenantWorkspace',
     tenant_client: 'TenantClient',
+    agents_organization: 'AgentsOrganization',
   })[kind];
 export class ScopeCatalog {
   private readonly scopes = new Map<bigint, ScopeNode>();

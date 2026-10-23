@@ -442,6 +442,22 @@
       "owner": "growth",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.native.execution.metric@1",
+      "schema": "events/agent/native_execution_metric/v1.schema.json",
+      "examples": ["examples/agent/native_execution_metric.json"],
+      "owner": "agent-platform",
+      "category": "observation",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.scope.definition@1",
+      "schema": "events/agent/native_scope/v1.schema.json",
+      "examples": ["examples/agent/native_scope.json"],
+      "owner": "agent-platform",
+      "category": "scope_definition",
+      "privacy_class": "aggregate"
     }
   ]
 }

@@ -1,0 +1,18 @@
+{
+  "provider": "agents-native",
+  "provider_account_ref": null,
+  "connection_ref": null,
+  "metric_key": "agent.native.root_tasks.completed",
+  "numeric_value": 1,
+  "unit": "count",
+  "reporting_window_start": "2026-10-23T00:00:00Z",
+  "reporting_window_end": "2026-10-23T00:00:00.001Z",
+  "observed_at": "2026-10-23T00:00:00Z",
+  "synchronization_run_id": "task-event:1",
+  "dimensions": {},
+  "source_evidence": {
+    "task_id": "10000000-0000-4000-8000-000000000001",
+    "root_task_id": "10000000-0000-4000-8000-000000000001",
+    "operation_id": null
+  }
+}

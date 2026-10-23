@@ -1,0 +1,290 @@
+{
+  "kind": "metrics",
+  "definitions": [
+    {
+      "key": "agent.native.root_tasks.completed",
+      "version": 1,
+      "domain": "agents",
+      "owner": "agent-platform",
+      "lifecycle": "active",
+      "description": "Durably completed native root tasks. Child tasks do not increase this count.",
+      "value_type": "integer",
+      "unit": "count",
+      "precision": 0,
+      "sources": [
+        "agent.native.execution.metric@1"
+      ],
+      "formula": "observation(agent.native.root_tasks.completed)",
+      "eligible_population": "Current native execution records outside evaluation trials",
+      "exclusions": [
+        "evaluation trials",
+        "unknown token measurements from token totals"
+      ],
+      "time_semantics": "reporting_window",
+      "default_aggregation": "sum",
+      "temporal_aggregation": "sum",
+      "comparison": "previous_period",
+      "deduplication": "none",
+      "descendant_aggregation": "sum",
+      "supported_intervals": [
+        "hour",
+        "day",
+        "week",
+        "month"
+      ],
+      "scope_kinds": [
+        "core_organization",
+        "tenant_workspace",
+        "agents_organization"
+      ],
+      "dimensions": [],
+      "permissions": [
+        "analytics:read"
+      ],
+      "privacy_class": "aggregate",
+      "exactness": "exact",
+      "freshness": {
+        "max_age_seconds": 3600,
+        "late_data_window_seconds": 86400
+      },
+      "coverage": {
+        "mode": "partial",
+        "required_sources": [
+          "agent.native.execution.metric@1"
+        ]
+      },
+      "availability": "when_instrumented",
+      "effective_from": "2026-10-23T00:00:00Z",
+      "applicability": "Current native durable task observation adapter is enabled; historical installation contracts are not sources.",
+      "dependencies": []
+    },
+    {
+      "key": "agent.native.root_tasks.failed",
+      "version": 1,
+      "domain": "agents",
+      "owner": "agent-platform",
+      "lifecycle": "active",
+      "description": "Durably failed native root tasks. Other terminal outcomes are separate.",
+      "value_type": "integer",
+      "unit": "count",
+      "precision": 0,
+      "sources": [
+        "agent.native.execution.metric@1"
+      ],
+      "formula": "observation(agent.native.root_tasks.failed)",
+      "eligible_population": "Current native execution records outside evaluation trials",
+      "exclusions": [
+        "evaluation trials",
+        "unknown token measurements from token totals"
+      ],
+      "time_semantics": "reporting_window",
+      "default_aggregation": "sum",
+      "temporal_aggregation": "sum",
+      "comparison": "previous_period",
+      "deduplication": "none",
+      "descendant_aggregation": "sum",
+      "supported_intervals": [
+        "hour",
+        "day",
+        "week",
+        "month"
+      ],
+      "scope_kinds": [
+        "core_organization",
+        "tenant_workspace",
+        "agents_organization"
+      ],
+      "dimensions": [],
+      "permissions": [
+        "analytics:read"
+      ],
+      "privacy_class": "aggregate",
+      "exactness": "exact",
+      "freshness": {
+        "max_age_seconds": 3600,
+        "late_data_window_seconds": 86400
+      },
+      "coverage": {
+        "mode": "partial",
+        "required_sources": [
+          "agent.native.execution.metric@1"
+        ]
+      },
+      "availability": "when_instrumented",
+      "effective_from": "2026-10-23T00:00:00Z",
+      "applicability": "Current native durable task observation adapter is enabled; historical installation contracts are not sources.",
+      "dependencies": []
+    },
+    {
+      "key": "agent.native.model.input_tokens",
+      "version": 1,
+      "domain": "agents",
+      "owner": "agent-platform",
+      "lifecycle": "active",
+      "description": "Observed model input tokens from unique settled durable operations, including child work.",
+      "value_type": "integer",
+      "unit": "tokens",
+      "precision": 0,
+      "sources": [
+        "agent.native.execution.metric@1"
+      ],
+      "formula": "observation(agent.native.model.input_tokens)",
+      "eligible_population": "Current native execution records outside evaluation trials",
+      "exclusions": [
+        "evaluation trials",
+        "unknown token measurements from token totals"
+      ],
+      "time_semantics": "reporting_window",
+      "default_aggregation": "sum",
+      "temporal_aggregation": "sum",
+      "comparison": "previous_period",
+      "deduplication": "none",
+      "descendant_aggregation": "sum",
+      "supported_intervals": [
+        "hour",
+        "day",
+        "week",
+        "month"
+      ],
+      "scope_kinds": [
+        "core_organization",
+        "tenant_workspace",
+        "agents_organization"
+      ],
+      "dimensions": [],
+      "permissions": [
+        "analytics:read"
+      ],
+      "privacy_class": "aggregate",
+      "exactness": "exact",
+      "freshness": {
+        "max_age_seconds": 3600,
+        "late_data_window_seconds": 86400
+      },
+      "coverage": {
+        "mode": "partial",
+        "required_sources": [
+          "agent.native.execution.metric@1"
+        ]
+      },
+      "availability": "when_instrumented",
+      "effective_from": "2026-10-23T00:00:00Z",
+      "applicability": "Current native durable task observation adapter is enabled; historical installation contracts are not sources.",
+      "dependencies": []
+    },
+    {
+      "key": "agent.native.model.output_tokens",
+      "version": 1,
+      "domain": "agents",
+      "owner": "agent-platform",
+      "lifecycle": "active",
+      "description": "Observed model output tokens from unique settled durable operations, including child work.",
+      "value_type": "integer",
+      "unit": "tokens",
+      "precision": 0,
+      "sources": [
+        "agent.native.execution.metric@1"
+      ],
+      "formula": "observation(agent.native.model.output_tokens)",
+      "eligible_population": "Current native execution records outside evaluation trials",
+      "exclusions": [
+        "evaluation trials",
+        "unknown token measurements from token totals"
+      ],
+      "time_semantics": "reporting_window",
+      "default_aggregation": "sum",
+      "temporal_aggregation": "sum",
+      "comparison": "previous_period",
+      "deduplication": "none",
+      "descendant_aggregation": "sum",
+      "supported_intervals": [
+        "hour",
+        "day",
+        "week",
+        "month"
+      ],
+      "scope_kinds": [
+        "core_organization",
+        "tenant_workspace",
+        "agents_organization"
+      ],
+      "dimensions": [],
+      "permissions": [
+        "analytics:read"
+      ],
+      "privacy_class": "aggregate",
+      "exactness": "exact",
+      "freshness": {
+        "max_age_seconds": 3600,
+        "late_data_window_seconds": 86400
+      },
+      "coverage": {
+        "mode": "partial",
+        "required_sources": [
+          "agent.native.execution.metric@1"
+        ]
+      },
+      "availability": "when_instrumented",
+      "effective_from": "2026-10-23T00:00:00Z",
+      "applicability": "Current native durable task observation adapter is enabled; historical installation contracts are not sources.",
+      "dependencies": []
+    },
+    {
+      "key": "agent.native.model.unknown_usage",
+      "version": 1,
+      "domain": "agents",
+      "owner": "agent-platform",
+      "lifecycle": "active",
+      "description": "Settled durable model operations whose usage is unavailable.",
+      "value_type": "integer",
+      "unit": "count",
+      "precision": 0,
+      "sources": [
+        "agent.native.execution.metric@1"
+      ],
+      "formula": "observation(agent.native.model.unknown_usage)",
+      "eligible_population": "Current native execution records outside evaluation trials",
+      "exclusions": [
+        "evaluation trials",
+        "unknown token measurements from token totals"
+      ],
+      "time_semantics": "reporting_window",
+      "default_aggregation": "sum",
+      "temporal_aggregation": "sum",
+      "comparison": "previous_period",
+      "deduplication": "none",
+      "descendant_aggregation": "sum",
+      "supported_intervals": [
+        "hour",
+        "day",
+        "week",
+        "month"
+      ],
+      "scope_kinds": [
+        "core_organization",
+        "tenant_workspace",
+        "agents_organization"
+      ],
+      "dimensions": [],
+      "permissions": [
+        "analytics:read"
+      ],
+      "privacy_class": "aggregate",
+      "exactness": "exact",
+      "freshness": {
+        "max_age_seconds": 3600,
+        "late_data_window_seconds": 86400
+      },
+      "coverage": {
+        "mode": "partial",
+        "required_sources": [
+          "agent.native.execution.metric@1"
+        ]
+      },
+      "availability": "when_instrumented",
+      "effective_from": "2026-10-23T00:00:00Z",
+      "applicability": "Current native durable task observation adapter is enabled; historical installation contracts are not sources.",
+      "dependencies": []
+    }
+  ]
+}

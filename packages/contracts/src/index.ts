@@ -22,6 +22,7 @@ export type RecordCategory =
   | "scope_definition"
   | "manifest";
 export type ScopeKind =
+  | "agents_organization"
   | "core_organization"
   | "tenant_workspace"
   | "tenant_client";
