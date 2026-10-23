@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const programReferenceSchema = z.strictObject({
   id: z.enum(["grounded-conversation", "tool-directed"]),
-  version: z.enum(["1", "2"]),
+  version: z.enum(["1", "2", "3"]),
 });
 export type ProgramReference = z.infer<typeof programReferenceSchema>;
 
@@ -19,6 +19,7 @@ export const effectiveCompositionSchema = z.strictObject({
   capabilities: z.array(releaseSchema),
   workflows: z.array(releaseSchema),
   connectedBindings: z.array(z.strictObject({ id: z.string().uuid(), digest: z.string().regex(/^[a-f0-9]{64}$/) })),
+  productBindings: z.array(z.strictObject({ id:z.uuid(),digest:z.string().regex(/^[a-f0-9]{64}$/) })).default([]),
   configurationDigest: z.string().regex(/^[a-f0-9]{64}$/),
   digest: z.string().regex(/^[a-f0-9]{64}$/),
 });

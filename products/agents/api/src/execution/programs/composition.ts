@@ -1,10 +1,11 @@
+import { assertProductBindings } from "../../capabilities/products/product-capabilities";
 import { PlatformError, requestDigest, type AgentConfiguration } from "../../contracts/contracts";
 import { effectiveCompositionSchema, programReferenceSchema, type EffectiveComposition, type ProgramReference } from "../../contracts/programs";
 import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts/capability-catalog";
 
 // These descriptors select trusted code policies. A prompt cannot register a program or release.
 interface ProgramDescriptor {
-  readonly id: ProgramReference["id"]; readonly version: "1" | "2"; readonly executionKind: "business";
+  readonly id: ProgramReference["id"]; readonly version: "1" | "2" | "3"; readonly executionKind: "business";
   readonly controller: string; readonly input: string; readonly output: string;
   readonly allowedTools: readonly string[]; readonly personalMemory: boolean;
   readonly delegation: boolean; readonly sandbox: boolean; readonly connectedTools: boolean; readonly workflows: readonly string[];
@@ -27,10 +28,9 @@ const programs: Readonly<Record<ProgramReference["id"], ProgramDescriptor>> = Ob
 export function resolveProgram(reference: ProgramReference) {
   const parsed = programReferenceSchema.safeParse(reference);
   if (!parsed.success) throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE", 503, "The trusted program release is unavailable");
-  if (parsed.data.version === "2") {
-    if (parsed.data.id !== "tool-directed") throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE",503,"The trusted program release is unavailable");
-    return { ...programs["tool-directed"], version: "2" as const,
-      allowedTools: [...programs["tool-directed"].allowedTools,"growth.context_read","growth.draft_prepare"] };
+  if (parsed.data.version !== "1") {
+    if(parsed.data.id!=="tool-directed"||parsed.data.version!=="3")throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE",503,"The trusted program release is unavailable");
+    return {...programs["tool-directed"],version:"3" as const};
   }
   return programs[parsed.data.id];
 }
@@ -45,6 +45,8 @@ export interface CompositionDependencies {
 /** Publication and admission use the same compiler, with freshly authorized dependencies. */
 export function compileComposition(reference: ProgramReference, configuration: AgentConfiguration, dependencies: CompositionDependencies): EffectiveComposition {
   const program = resolveProgram(reference);
+  assertProductBindings(configuration.productBindings);
+  if(configuration.productBindings.length && (reference.id!=="tool-directed"||reference.version!=="3"))throw new PlatformError("PROGRAM_COMPOSITION_DENIED",409,"Product tools require a compatible program");
   const denied = () => { throw new PlatformError("PROGRAM_COMPOSITION_DENIED", 409, "The configuration exceeds the trusted program contract"); };
   if (configuration.program.id !== reference.id || configuration.program.version !== reference.version) denied();
   if (configuration.executionKind !== program.executionKind) throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "The program requires an available compatible runtime");
@@ -54,7 +56,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.capabilities.sandbox.enabled && !program.sandbox) ||
       (configuration.connectedToolBindingIds.length > 0 && !program.connectedTools) ||
       (configuration.capabilities.workflows.enabled && !program.workflows.includes(configuration.capabilities.workflows.profileId))) denied();
-  const expectedTools: string[] = [...configuration.tools, ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
+  const expectedTools: string[] = [...configuration.tools,...configuration.productBindings.map(binding=>binding.alias), ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
     ...(configuration.skillIds.length ? ["skills.activate", "skills.read",...(configuration.capabilities.sandbox.enabled&&configuration.tools.includes("sandbox.analyze")?["skills.run"]:[])] : []),
     ...(configuration.capabilities.businessActions.enabled?["booking.availability",...(configuration.capabilities.businessActions.permittedOperations.includes("calendar.book")?["booking.reserve"]:[])]:[]),
     ...(configuration.capabilities.workflows.enabled ? ["report.deliver"] : [])];
@@ -72,6 +74,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
   const bindings = dependencies.connectedBindings.map(binding => capabilityBindingSchema.parse(binding));
   if (new Set(bindings.map(binding => binding.id)).size !== bindings.length || bindings.length !== configuration.connectedToolBindingIds.length ||
       bindings.some(binding => !configuration.connectedToolBindingIds.includes(binding.id))) denied();
+  if(new Set([...bindings,...configuration.productBindings].map(binding=>binding.alias)).size!==bindings.length+configuration.productBindings.length)denied();
   const content = {
     schemaVersion: 1 as const,
     program: { id: program.id, version: program.version, digest: requestDigest(program) },
@@ -84,6 +87,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
     capabilities: [...dependencies.tools].sort((a, b) => a.name.localeCompare(b.name)).map(tool => ({ id: tool.name, version: tool.version, digest: tool.digest })),
     workflows: [...workflows].sort((a, b) => a.id.localeCompare(b.id)),
     connectedBindings: bindings.map(binding => ({ id: binding.id, digest: binding.digest })).sort((a, b) => a.id.localeCompare(b.id)),
+    productBindings:configuration.productBindings.map(binding=>({id:binding.id,digest:binding.digest})).sort((a,b)=>a.id.localeCompare(b.id)),
     configurationDigest: requestDigest(configuration),
   };
   return effectiveCompositionSchema.parse({ ...content, digest: requestDigest(content) });

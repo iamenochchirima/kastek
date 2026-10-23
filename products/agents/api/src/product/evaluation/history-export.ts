@@ -26,6 +26,7 @@ export interface NativeModelCall {
 }
 export interface NativeTask {
   id: string; agentId: string; versionId: string; effectiveComposition: unknown; parentTaskId: string | null; parentOperationId: string | null; state: string;
+  productBindings:unknown[];
   input: string | null; output: string | null; modelCalls: NativeModelCall[]; modelRoutes: AcceptedModelRoutes; modelRoutesDigest: string;
   initialOperations: unknown[]; compactions: unknown[]; contextSnapshots: unknown[]; evidenceManifest: unknown; evidenceReferences: unknown[];
 }
@@ -171,6 +172,7 @@ export async function exportExecutionHistory(pool: Pool, rootTaskId: string, aut
       const operations: OperationRow[] = authorized ? (await db.query("SELECT * FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id LIMIT 4097", [task.id])).rows : [];
       if (operations.length > 4096) throw new PlatformError("EXPORT_LIMIT", 413, "Execution history exceeds the export limit");
       tasks.push({ id: task.id, agentId: task.agent_id, versionId: task.version_id, effectiveComposition: task.effective_composition, parentTaskId: task.parent_task_id, parentOperationId: task.delegation_operation_id ?? null, state: task.state,
+        productBindings:authorized?(await db.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[task.version_id])).rows[0]?.configuration?.productBindings??[]:[],
         input: authorized ? task.input : null, output: authorized ? task.output : null,
         modelRoutes: models, modelRoutesDigest: requestDigest(models),
         modelCalls: exportModelCalls(task.id, operations, rows, coverage, models), initialOperations: operations.filter(row => !["model", "compaction"].includes(row.kind) && !row.id.startsWith("tool:")).map(receipt),

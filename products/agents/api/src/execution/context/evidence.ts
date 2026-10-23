@@ -92,15 +92,17 @@ export class EvidenceStore {
     boundedText(input.text); z.iso.datetime().parse(input.acquiredAt);
     if (!input.sources.length || input.sources.length > SOURCE_LIMITS.manifestNodes) throw integrity();
     return this.scoped(taskId, async (db, execution) => {
-      if (execution.task.product !== input.product) throw denied();
-      await this.operation(db, taskId, operationId, [`${input.product}.context_read`]);
+      if(!input.bindingId||!input.bindingDigest||!input.operationName)throw denied();
+      const binding=execution.configuration.productBindings.find(value=>value.id===input.bindingId&&value.digest===input.bindingDigest);
+      if(!binding?.authority||binding.authority.destinationProduct!==input.product||binding.authority.tenantId!==input.tenantId||binding.alias!==input.operationName)throw denied();
+      await this.operation(db, taskId, operationId, [binding.alias]);
       const grant = (await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1", [execution.task.grant_id])).rows[0];
       if (!grant?.operations.includes("product.read")) throw denied();
       const manifest = createDependencyManifest(input.sources.map(source => ({ kind: "product" as const,
         product: input.product, tenantId: input.tenantId, taskId: execution.task.root_task_id,
-        contextRevision: input.contextRevision, sourceId: source.id })));
+        contextRevision: input.contextRevision,bindingId:input.bindingId,bindingDigest:input.bindingDigest, sourceId: source.id })));
       const prior = (await db.query(`SELECT e.id,e.content_digest,e.manifest,c.title FROM agents_platform.evidence_references e
-        JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.task_id=$1 AND e.operation_id=$2`, [taskId, operationId])).rows;
+        JOIN agents_platform.evidence_contents c ON c.reference_id=e.id WHERE e.task_id=$1 AND e.operation_id=$2 AND e.manifest=$3`, [taskId, operationId,manifest])).rows;
       if (prior.length) {
         if (prior.length !== 1 || prior[0].content_digest !== textDigest(input.text) || prior[0].manifest.digest !== manifest.digest || prior[0].title !== input.title.slice(0, 200)) throw integrity();
         return this.passage(db, taskId, prior[0].id);

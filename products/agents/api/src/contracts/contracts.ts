@@ -1,3 +1,4 @@
+import type { CapabilityBinding } from "./capability-catalog";
 import { modelGenerationSchema } from "./model-generation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -30,7 +31,7 @@ export const modelSchema = z.strictObject({
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "growth.context_read", "growth.draft_prepare"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
@@ -62,6 +63,7 @@ export const agentConfigurationSchema = z.strictObject({
   model: modelSchema,
   sourceRevisionIds: z.array(z.uuid()).max(20).refine(ids => new Set(ids).size === ids.length, "Duplicate source revision").default([]),
   connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),
+  productBindings: z.array(z.custom<CapabilityBinding>((value): value is CapabilityBinding => !!value && typeof value === "object" && (value as CapabilityBinding).authority?.kind === "product", "Product bindings require destination authority")).max(24).default([]),
   retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: businessCapabilitiesSchema,
@@ -90,7 +92,7 @@ export function defaultBusinessConfiguration(): AgentConfiguration {
       maxInputBytes: initialLimits.maxInputBytes, maxOutputTokens: initialLimits.maxOutputTokens,
       maxDurationSeconds: initialLimits.maxDurationSeconds,
     },
-    sourceRevisionIds: [], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" },
+    sourceRevisionIds: [], connectedToolBindingIds: [], productBindings:[], retrievalProfile: { kind: "lexical-v1" },
     memory: { enabled: false }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, tools: [], skillIds: [],
     capabilities: {
       delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false },
@@ -179,8 +181,8 @@ export function assertGrantAuthority(
       canonicalJson(grant.principal) !== canonicalJson(authority.principal) || grant.versionId !== versionId) {
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
   }
-  if (configuration.tools.some(tool=>tool.startsWith("growth.")) && (grant.product !== "growth" || !grant.operations.includes("product.read") ||
-      configuration.tools.includes("growth.draft_prepare") && !grant.operations.includes("product.write"))) {
+  if (configuration.productBindings.length>0 && (!grant.operations.includes("product.read") || configuration.productBindings.some(binding=>binding.authority?.originProduct!==grant.product)||
+      configuration.productBindings.some(binding=>binding.policy.effect==="reviewed_write") && !grant.operations.includes("product.write"))) {
     throw new PlatformError("GRANT_PRODUCT_DENIED",403,"The product capability is outside this execution grant");
   }
   if (!grant.operations.includes("model.reply") ||

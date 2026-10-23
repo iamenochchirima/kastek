@@ -305,4 +305,6 @@ export * from "./growth-agent-provisioning.js";
 
 export * from "./admin-customers.js";
 
+export * from "./product-capabilities.js";
+
 export * from "./product-capability-transport.js";

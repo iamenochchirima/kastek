@@ -62,11 +62,12 @@ function accountedModelTokens(value: ModelResponse, reserved: number): number {
     ? value.usage.inputTokens! + value.usage.outputTokens! : reserved;
 }
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
-import type { GrowthAgentReview, GrowthDraftProposal } from "@kasitek-labs/contracts";
-import type { GrowthProductRuntime } from "../../execution/products/growth-runtime";
-import { awaitGrowthReview } from "./product-review";
+import type { ProductReviewReference } from "@kasitek-labs/contracts";
+import { productModelTools } from "../../capabilities/products/product-capabilities";
+import type { ProductRuntimePort } from "../products/product-runtime";
+import { awaitProductReview } from "./product-review";
 export interface BusinessOptions {
-  product?: GrowthProductRuntime;
+  product?: ProductRuntimePort;
   modelProvider: Parameters<typeof invokeTaskModel>[0]["providerStore"];
   modelRuntime?: Parameters<typeof invokeTaskModel>[1];
   signal?: AbortSignal;
@@ -80,7 +81,7 @@ export interface BusinessOptions {
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
-const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN", "GROWTH_EFFECT_UNCERTAIN"]);
+const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN", "PRODUCT_EFFECT_UNCERTAIN"]);
 function uncertainOperation(error:ModelOperationError|PlatformError):boolean {return error instanceof ModelOperationError ? error.outcome === "uncertain" : unknownOperationCodes.has(error.code);}
 interface Snapshot { id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
   memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest }
@@ -90,7 +91,7 @@ type JournaledOperation<T> = {result:Result<T>} | {waiting:Extract<CapacityDecis
   receipt:{attemptId:string;state:"completed"|"failed"|"uncertain";value:T|null;tokens:number;code:string|null}
 };
 async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
-  perform: () => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
+  perform: (recovering?:boolean) => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
   for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
     const attemptName=capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`;
     const outcome:JournaledOperation<T> = await ctx.run(`${attemptName}:perform`, async () => {
@@ -103,7 +104,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
           return {result:{ok:false as const,code:admission.operation.error_code??"OPERATION_OUTCOME_UNCERTAIN",uncertain:admission.operation.state==="uncertain"}};
         }
         attemptId=admission.operation.attempt_id;
-        const result = await perform();
+        const result = await perform(admission.recovering);
         if(input.kind!=="delegation" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
         if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
         if (!Number.isSafeInteger(result.tokens) || result.tokens < 0) throw new ModelOperationError("MODEL_ACCOUNTING_INVALID", "uncertain");
@@ -193,10 +194,12 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
     revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
-  const modelTools = toolsFor(config, execution.connectedBindings.length ? (() => {
+  if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+  const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
+  const modelTools = toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : []).filter(tool => Boolean(task.channel_binding) || tool.function.name !== "channel_request_handoff");
+  })() : [])]).filter(tool => Boolean(task.channel_binding) || tool.function.name !== "channel_request_handoff");
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {
@@ -370,8 +373,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
               request, reservedTokens: Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens,
               reservedMs: execution.models.compaction.policy.maxCallDurationMs, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
-                if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
-                  if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+                if(config.productBindings.length>0) {
+                  if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
                   await options.product.authorizeTask(taskId);
                 }
                 const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
@@ -394,8 +397,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
             reservedTokens: Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens,
             reservedMs: policy.maxCallDurationMs, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
-              if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
-                if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
+              if(config.productBindings.length>0) {
+                if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
                 await options.product.authorizeTask(taskId);
               }
               const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
@@ -406,9 +409,9 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             outcome = failed(generated); break;
           }
           const response = generated.value;
-          if(execution.task.product==="growth" && config.tools.some(tool=>tool.startsWith("growth."))) {
-            if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
-            await guardedRun(ctx,"growth-output-authority:"+step,()=>options.product!.authorizeTask(taskId));
+          if(config.productBindings.length>0) {
+            if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+            await guardedRun(ctx,"product-output-authority:"+step,()=>options.product!.authorizeTask(taskId));
           }
           if (response.finishReason !== "tool_calls") {
             outcome = { state: response.finishReason === "stop" ? (partialChildren?"incomplete":"completed") : response.finishReason === "refusal" ? "refused" : "incomplete",
@@ -420,19 +423,19 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
           for (let callIndex = 0; callIndex < response.message.tool_calls!.length; callIndex++) {
             const call = response.message.tool_calls![callIndex]!, id = `tool:${taskId}:${step}:${callIndex}`;
             const binding = execution.connectedBindings.find(binding => binding.alias === call.function.name);
-            const name = builtinToolName(call.function.name) ?? binding?.alias ?? "unavailable";
+            const productBinding=config.productBindings.find(value=>value.alias===call.function.name);
+            const name = builtinToolName(call.function.name) ?? binding?.alias ?? productBinding?.alias ?? "unavailable";
             const descriptor = toolDescriptor(name);
-            let growthReview:GrowthAgentReview|undefined;
-            if(name==="growth.draft_prepare") {
+            let productReview:ProductReviewReference|undefined,productArgumentError:string|undefined;
+            if(productBinding?.policy.approval==="exact_single_use") {
               if(!options.product){outcome={state:"incomplete",errorCode:"PRODUCT_RUNTIME_UNAVAILABLE"};stop=true;break;}
-              let proposal:{draft:GrowthDraftProposal};
-              try {proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as {draft:GrowthDraftProposal};}
-              catch {outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
-              const reviewed=await awaitGrowthReview(ctx,pool,options.product,taskId,id,proposal.draft);
-              if("outcome" in reviewed){outcome=reviewed.outcome;stop=true;break;}
-              growthReview=reviewed.review;
+              let args:unknown;
+              try{args=JSON.parse(call.function.arguments);}catch{productArgumentError="TOOL_ARGUMENTS_INVALID";}
+              if(!productArgumentError){const reviewed=await awaitProductReview(ctx,pool,options.product,taskId,id,productBinding,args);
+                if("outcome" in reviewed){outcome=reviewed.outcome;stop=true;break;}
+                if("errorCode" in reviewed)productArgumentError=reviewed.errorCode;else productReview=reviewed.review;}
             }
-            const resultBound = binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192;
+            const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192);
             if(name==="booking.reserve") {
               if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
               let proposal:{start:string};
@@ -452,21 +455,24 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
               if (!("configuration" in authorized)) { outcome=authorized; stop=true; break; }
               result = await operation<unknown>(ctx, pool, taskId, { id, kind: descriptor?.effect==="delegation"?"delegation":descriptor?.effect==="resource"?"resource":"tool", name,
-                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}), ...(growthReview?{productReviewId:growthReview.id,productReviewDigest:growthReview.payloadDigest}:{}) }, reservedTokens: 0, reservedMs: binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
-                retrySafe: binding ? binding.policy.retry==="safe_read" : descriptor?.retry!=="adapter_reconcile",reconcile:!binding&&descriptor?.retry==="adapter_reconcile", maxResultBytes:resultBound,memoryFence: snapshot.memoryFence,evidenceManifest:snapshot.evidenceManifest }, async () => {
+                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}), ...(productBinding?{product:productBinding.authority!.destinationProduct,productBindingId:productBinding.id,bindingDigest:productBinding.digest,productOperation:productBinding.definition.providerOperation,manifestDigest:productBinding.authority!.manifestDigest,descriptorDigest:productBinding.authority!.descriptorDigest,adapter:productBinding.adapter}:{}),...(productReview?{productReviewId:productReview.id,productReviewDigest:productReview.payloadDigest}:{}) }, reservedTokens: 0, reservedMs: productBinding?.limits.timeoutMs ?? binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
+                retrySafe: productBinding?productBinding.policy.retry==="safe_read":binding ? binding.policy.retry==="safe_read" : descriptor?.retry!=="adapter_reconcile",reconcile:productBinding?.policy.retry==="status_only"||!binding&&descriptor?.retry==="adapter_reconcile", maxResultBytes:resultBound,memoryFence: snapshot.memoryFence,evidenceManifest:snapshot.evidenceManifest }, async (recovering) => {
                   let args:unknown; try{args=JSON.parse(call.function.arguments);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Tool arguments must be JSON");}
+                  if(productBinding){
+                    if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+                    if(productArgumentError)throw new PlatformError(productArgumentError,400,"Check the arguments against the tool schema");
+                    if(productBinding.policy.effect==="reviewed_write"){
+                      if(!productReview)throw new PlatformError("PRODUCT_REVIEW_REQUIRED",409,"Review the exact operation before continuing");
+                      return {value:await options.product.commit(taskId,id,productBinding,productReview,ctx.request().attemptCompletedSignal,recovering),tokens:0};
+                    }
+                    return {value:await options.product.invoke(taskId,id,productBinding,args,ctx.request().attemptCompletedSignal),tokens:0};
+                  }
                   if (binding) {
                     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE",503,"Connected reads are unavailable");
                     return {value: await options.connected.execute(taskId,id,binding,args,ctx.request().attemptCompletedSignal),tokens:0};
                   }
                   if(!builtinToolEnabled(config,name) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
                   args=validateBuiltinArguments(name,args);
-                  if(name==="growth.context_read"||name==="growth.draft_prepare") {
-                    if(execution.task.product!=="growth"||!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Growth execution is unavailable");
-                    if(name==="growth.context_read")return {value:await options.product.readContext(taskId,id),tokens:0};
-                    if(!growthReview)throw new PlatformError("PRODUCT_REVIEW_REQUIRED",409,"Review the exact draft before saving");
-                    return {value:await options.product.commit(taskId,id,growthReview),tokens:0};
-                  }
                   if(name==="booking.availability"||name==="booking.reserve") {
                     if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
                     const bookingArguments=args as {start:string;end:string};
@@ -551,10 +557,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
               result={ok:true,value:joined.value};
               await ctx.run(`children-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
             }
-            if(result.ok&&!binding)validateBuiltinResult(name,result.value);
+            if(result.ok&&!binding&&!productBinding)validateBuiltinResult(name,result.value);
             if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
             if(result.ok && name==="channel.request_handoff") { outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break; }
-            if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED"].includes(result.code))) {
+            if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED", "PRODUCT_AUTHORITY_INACTIVE", "PRODUCT_MANIFEST_INVALID", "PRODUCT_REVIEW_SCOPE_DENIED", "ADAPTER_RELEASE_UNAVAILABLE", "EVIDENCE_INTEGRITY", "PRODUCT_EFFECT_UNCERTAIN"].includes(result.code))) {
               outcome = failed(result); stop = true; break;
             }
             if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}

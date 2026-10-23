@@ -31,7 +31,7 @@ async function taskIdentity(db:PoolClient,taskId:string):Promise<{organization_i
   return task;
 }
 
-export type OperationAdmission={waiting?:false;replayed:boolean;operation:OperationRecord}|{waiting:true;replayed:false;capacity:Extract<CapacityDecision,{state:"waiting"}>};
+export type OperationAdmission={waiting?:false;replayed:boolean;operation:OperationRecord;recovering?:boolean}|{waiting:true;replayed:false;capacity:Extract<CapacityDecision,{state:"waiting"}>};
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<OperationAdmission> {
   return transaction(pool, async db => {
     const preliminary = await taskIdentity(db, taskId);
@@ -42,7 +42,7 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     if (existing) {
       if (existing.task_id !== taskId || existing.request_digest !== requestDigest(input.request)) throw new PlatformError("OPERATION_CONFLICT", 409, "Operation identity conflict");
       if (existing.state === "started") {
-        if ((input.kind === "tool" || input.kind === "delegation") && input.retrySafe || input.kind === "resource" && input.reconcile) {
+        if ((input.kind === "tool" || input.kind === "delegation") && input.retrySafe || (input.kind === "resource" || input.kind === "tool") && input.reconcile) {
           await assertCurrentAuthority(db, execution);
           try {
             await checkMemoryFence(db, input.memoryFence);
@@ -56,7 +56,7 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
           const attemptId=randomUUID();
           await db.query("UPDATE agents_platform.operations SET attempt_id=$2 WHERE id=$1", [existing.id,attemptId]);
           await event(db, taskId, `attempt:${input.id}:${attemptId}`, "operation.retried", {operationId:input.id});
-          return { replayed: false, operation: {...existing,attempt_id:attemptId} };
+          return { replayed: false, operation: {...existing,attempt_id:attemptId},recovering:input.kind==="tool"&&input.reconcile===true };
         }
         await finishOperationInTransaction(db, execution, existing, "uncertain", null, "OPERATION_OUTCOME_UNCERTAIN", existing.reserved_tokens);
         existing.state = "uncertain";

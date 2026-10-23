@@ -19,7 +19,8 @@ export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "chil
 export interface EvidenceNode { id: string; taskId: string; kind: EvidenceKind; ownerId: string; evidenceIds: string[]; parents: string[]; manifest: DependencyManifest }
 export interface EvidencePassage { reference: EvidenceReference; label: string; text: string; title: string; page: number | null; section: string | null }
 export interface ProductEvidenceInput {
-  product: "growth" | "agencies"; tenantId: string; contextRevision: string;
+  product: string; tenantId: string; contextRevision: string;
+  bindingId?:string;bindingDigest?:string;operationName?:string;
   sources: { id: string }[]; text: string; title: string; acquiredAt: string;
 }
 export interface ConnectedEvidenceInput { bindingId: string; resource: ResourceHandle; text: string; title: string; acquiredAt: string; receiptDigest: string }
@@ -168,7 +169,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     if (dependency.kind !== "product") continue;
     const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
     const origin = [root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
-    if (!origin || origin.task.product !== dependency.product || root.task.product !== dependency.product) throw denied();
+    if (!origin || (!dependency.bindingId && (origin.task.product !== dependency.product || root.task.product !== dependency.product))) throw denied();
     try { await productPorts(db).assertCurrentEvidence(db, { consumerTaskId: taskId, dependency }); }
     catch (error) {
       if (error instanceof PlatformError && [403, 404, 409].includes(error.statusCode)) throw unavailable();

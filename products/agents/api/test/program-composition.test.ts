@@ -19,7 +19,7 @@ describe("trusted program composition", () => {
     expect(() => assertComposition(published, changed)).toThrowError(expect.objectContaining({ code: "PROGRAM_RELEASE_UNAVAILABLE" }));
   });
   it("rejects model-selected, unknown or incompatible program releases", () => {
-    for (const reference of [{ id: "campaign-manager", version: "1" }, { id: "tool-directed", version: "3" }, { ...faq, handler: "unsafe" }]) {
+    for (const reference of [{ id: "campaign-manager", version: "1" }, { id: "tool-directed", version: "4" }, { ...faq, handler: "unsafe" }]) {
       expect(() => resolveProgram(reference as never)).toThrowError(expect.objectContaining({ code: "PROGRAM_RELEASE_UNAVAILABLE" }));
     }
     expect(() => compileComposition(faq, { ...faqConfiguration(), executionKind: "workspace" }, dependencies))

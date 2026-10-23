@@ -121,6 +121,7 @@ export const catalogToolSchema = z.strictObject({
   providerOperation: identifierSchema, description: z.string().max(4096),
   inputSchema: toolSchema, outputSchema: toolSchema.nullable(), inputDigest: digestSchema, outputDigest: digestSchema.nullable(),
   remote: z.strictObject({ definitionDigest: digestSchema, transport: z.enum(["streamable_http", "legacy_sse"]),target:remoteTargetSchema.optional() }).optional(),
+  product: z.strictObject({revision:identifierSchema,handlerRef:identifierSchema,requiredAuthority:z.array(identifierSchema).min(1).max(16),evidence:z.enum(["none","versioned_sources"])}).optional(),
   nativeApi: z.strictObject({ templateDigest: digestSchema, importDigest: digestSchema }).optional(),
   managed: z.strictObject({ providerId:identifierSchema,connectorDigest:digestSchema }).optional(),
 }).superRefine((value, ctx) => {
@@ -158,7 +159,12 @@ export const capabilityPolicySchema = z.strictObject({
   if (policy.effect === "reviewed_write" && (policy.approval !== "exact_single_use" || policy.retry !== "status_only" || policy.disclosure !== "exact_reviewed_payload" || policy.cancel !== "reconcile_claimed")) ctx.addIssue({ code: "custom", message: "Writes require exact review and status-only recovery" });
   if (policy.retry === "safe_read" && policy.effect !== "read") ctx.addIssue({ code: "custom", message: "Only reads may use safe-read retry" });
 });
+export const productCapabilityAuthoritySchema = z.strictObject({
+  kind:z.literal("product"),originProduct:identifierSchema,destinationProduct:identifierSchema,originTenantId:z.string().min(1).max(256),tenantId:z.string().min(1).max(256),
+  mappingRef:z.string().min(1).max(256),policyRevision:identifierSchema,manifestDigest:digestSchema,descriptorDigest:digestSchema,handlerRef:identifierSchema,
+});
 const bindingFields = {
+  authority: productCapabilityAuthoritySchema.optional(),
   schemaVersion: z.literal(1), id: z.uuid(), organizationId: z.uuid(), alias: z.string().regex(/^t_[a-f0-9]{32}$/),
   catalog: z.strictObject({ id: z.uuid(), revision: z.number().int().positive(), digest: digestSchema }),
   definition: catalogToolSchema, adapter: adapterReferenceSchema, transport: capabilityTransportSchema,
@@ -175,7 +181,7 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   const { digest, ...content } = binding;
   if (digest !== requestDigest(content)) ctx.addIssue({ code: "custom", message: "Binding digest mismatch" });
   if (binding.alias !== createModelAlias(binding.id)) ctx.addIssue({ code: "custom", message: "Alias must match the immutable binding identity" });
-  if (transportIssue({ ...binding, connectionId: binding.connection?.id ?? null })) ctx.addIssue({ code: "custom", message: "Invalid transport connection or protocol" });
+  if (binding.authority ? binding.transport !== "native_http" || binding.connection !== null || binding.protocolVersion !== null : transportIssue({ ...binding, connectionId: binding.connection?.id ?? null })) ctx.addIssue({ code: "custom", message: "Invalid transport connection or protocol" });
   if (new Set(binding.resources.map(resourceKey)).size !== binding.resources.length) ctx.addIssue({ code: "custom", message: "Duplicate resource handle" });
   const publicRepository = binding.connection?.profileId === "public-repository-read-v1";
   if(publicRepository && (!(binding.transport === "native_http" ? githubOperationSchema.safeParse(binding.definition.providerOperation).success : binding.transport === "mcp_http" && publicRepositoryMcpReadOperationSchema.safeParse(binding.definition.providerOperation).success) || binding.resources.some(resource=>resource.kind !== "github.repository" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(resource.id) || [".",".."].includes(resource.id.split("/")[1]!)))) ctx.addIssue({code:"custom",message:"Public repository bindings require approved native or MCP reads"});
@@ -201,7 +207,7 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
     try { if(!managed){const endpoint = new URL(binding.resources[0]?.id ?? ""); if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash||nativeApi&&endpoint.origin!==binding.resources[0]?.id) throw Error();} }
     catch { ctx.addIssue({ code: "custom", message: "Generic connection destination resource is invalid" }); }
   }
-  if (binding.transport !== "builtin" && !generic && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
+  if (binding.transport !== "builtin" && !binding.authority && !generic && (binding.policy.effect !== "read" || binding.policy.retry !== "safe_read" || binding.policy.approval !== "none" || binding.policy.disclosure !== (stash ? "approved_resource_identifiers" : "public_identifiers") || binding.resources.length === 0 || binding.limits.timeoutMs > 30000 || (binding.transport === "mcp_http" && binding.limits.maxResponseBytes > 262144))) ctx.addIssue({ code: "custom", message: "Connected bindings must satisfy the read-only connection profile" });
 });
 export type CapabilityBinding = z.infer<typeof capabilityBindingSchema>;
 

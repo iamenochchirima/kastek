@@ -45,8 +45,8 @@ const connectionDependency = z.strictObject({ kind: z.literal("connection"), con
   resource: z.string().min(1).max(2048), catalogDigest: digest });
 const delegationDependency = z.strictObject({kind:z.literal("delegation_input"),referenceId:id,manifestDigest:digest});
 const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId: id, generation });
-const productDependency = z.strictObject({ kind: z.literal("product"), product: z.enum(["growth", "agencies"]),
-  tenantId: z.string().min(1).max(256), taskId: id, contextRevision: digest, sourceId: z.string().min(1).max(1024) });
+const productDependency = z.strictObject({ kind: z.literal("product"), product: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
+  tenantId: z.string().min(1).max(256), taskId: id, contextRevision: digest,bindingId:id.optional(),bindingDigest:digest.optional(), sourceId: z.string().min(1).max(1024) });
 export const evidenceDependencySchema = z.discriminatedUnion("kind", [productDependency, sourceDependency, connectionDependency, memoryDependency, delegationDependency, z.strictObject({kind:z.literal("skill"),skillId:id,agentId:id,packageDigest:digest})]);
 export const dependencyManifestSchema = z.strictObject({ version: z.literal(1), dependencies: z.array(evidenceDependencySchema).max(SOURCE_LIMITS.manifestNodes), digest });
 export const evidenceReferenceSchema = z.strictObject({
@@ -73,7 +73,7 @@ export const textDigest = (value: string | Uint8Array): string => createHash("sh
 
 function dependencyKey(dependency: EvidenceDependency): string {
   switch (dependency.kind) {
-    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.sourceId}`;
+    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId??""}:${dependency.sourceId}:${dependency.contextRevision}`;
     case "skill": return `skill:${dependency.agentId}:${dependency.skillId}`;
     case "source": return `source:${dependency.sourceId}:${dependency.revisionId}`;
     case "connection": return `connection:${dependency.connectionId}:${dependency.resource}:${dependency.catalogDigest}`;
