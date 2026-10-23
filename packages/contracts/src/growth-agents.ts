@@ -16,6 +16,7 @@ export interface GrowthAgentFeature {
   model?: { label: string; provider: string; modelId: string } | null;
 }
 export interface GrowthAgentBootstrap {
+  setup?: import("./growth-agent-provisioning.js").GrowthAgentSetupDto;
   features: GrowthAgentFeature[]; defaultFeatureId: "assistant";
   scope: { businessId: string; userId: string; businessName: string };
   model: { label: string; ready: boolean } | null;
