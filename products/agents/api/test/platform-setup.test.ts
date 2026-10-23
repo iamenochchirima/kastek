@@ -54,6 +54,20 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.accounts")).rows[0].count).toBe(0);
   });
 
+  it("applies recognized additive product capability schemas without resetting installed records",async()=>{
+    const {pool}=await freshDatabase(),directory=resolve(__dirname,"../schema");
+    const files=(await readdir(directory)).filter(name=>/^\d+_[a-z_]+\.sql$/.test(name)).sort();
+    const first=files.indexOf("070_product_capability_reviews.sql");expect(first).toBeGreaterThan(0);
+    const source=(await Promise.all(files.slice(0,first).map(file=>readFile(resolve(directory,file),"utf8")))).join("\n");
+    await pool.query(source);
+    await pool.query("CREATE TABLE agents_platform.schema_version(version text PRIMARY KEY,checksum text NOT NULL)");
+    await pool.query("INSERT INTO agents_platform.schema_version VALUES('001_platform',$1)",[createHash("sha256").update(source).digest("hex")]);
+    const organizationId=randomUUID();await pool.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Existing organisation')",[organizationId]);
+    await setupPlatformSchema(pool);await setupPlatformSchema(pool);
+    expect((await pool.query("SELECT name FROM agents_platform.organizations WHERE id=$1",[organizationId])).rows[0].name).toBe("Existing organisation");
+    expect((await pool.query("SELECT column_default FROM information_schema.columns WHERE table_schema='agents_platform' AND table_name='tasks' AND column_name='harness_release'")).rows[0].column_default).toContain("product-capabilities-v11");
+    expect((await pool.query("SELECT to_regclass('agents_platform.growth_capability_publications') name")).rows[0].name).toBeTruthy();
+  });
   it("refuses an installed schema whose checksum differs from the current SQL source", async () => {
     const { pool } = await freshDatabase(); await setupPlatformSchema(pool);
     await pool.query("UPDATE agents_platform.schema_version SET checksum=$1", ["0".repeat(64)]);

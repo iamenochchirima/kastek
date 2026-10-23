@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { modelServicePolicy } from "../../execution/models/settings";
 import type { GrowthAgentFeatureId, GrowthAgentPublication } from "@kasitek-labs/contracts";
 import { defaultBusinessConfiguration, PlatformError, type AgentConfiguration } from "../../contracts/contracts";
 import { registerProductManifest, createProductBindings } from "../../capabilities/products/product-capabilities";
@@ -16,7 +17,8 @@ export function validateGrowthPublication(input:unknown):GrowthAgentPublication 
 export function growthFeatureConfiguration(publication:GrowthAgentPublication,id:GrowthAgentFeatureId,organizationId:string,tenantId:string):AgentConfiguration {
   const definition=publication.presets.find(item=>item.id===id);
   if(!definition)throw new PlatformError("PRODUCT_PRESET_UNAVAILABLE",409,"The product preset is unavailable");
-  const config=defaultBusinessConfiguration();
+  const config=defaultBusinessConfiguration(),allowance=modelServicePolicy();
+  config.context={maxInputTokens:allowance.maxInputTokens,compactAtTokens:allowance.compactAtTokens};
   config.program={id:"tool-directed",version:"3"};config.instructions=definition.instructions;config.tools=[];
   config.productBindings=createProductBindings(publication.manifest,organizationId,{originProduct:"growth",originTenantId:tenantId,tenantId,mappingRef:`growth:${tenantId}`,policyRevision:publication.policy.revision},definition.operations);
   return config;

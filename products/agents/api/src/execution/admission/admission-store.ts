@@ -91,7 +91,7 @@ export class AdmissionStore extends AuthorityStore {
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
     const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
-      layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.skillIds.length > 0 });
+      layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0 });
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");

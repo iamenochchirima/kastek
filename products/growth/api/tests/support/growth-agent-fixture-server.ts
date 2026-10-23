@@ -7,6 +7,7 @@ import { buildApp } from "../../src/app.js";
 import { readConfig } from "../../src/config.js";
 import { installPgTimestampParsers } from "../../src/db.js";
 import { ApiError } from "../../src/error.js";
+import { growthAgentPublication } from "../../src/agents/manifest.js";
 import { registerGrowthAgentActionRoutes } from "../../src/agents/action-routes.js";
 import { registerGrowthAgentRoutes } from "../../src/agents/routes.js";
 import { growthAgentActor } from "../../src/agents/security.js";
@@ -66,6 +67,7 @@ async function start() {
   await pool.query(`INSERT INTO "OrganizationEntitlementGrant"("orgId",key,value,"startsAt")
     SELECT $1,key,'true'::jsonb,now() FROM unnest(ARRAY['feature.agents.manage','feature.content.manage','feature.campaigns.manage']) key`, [tenantId]);
   await pool.query(growthAgentSocialFixture);
+  await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023183000_growth_agent_source_handles/migration.sql",import.meta.url),"utf8"));
   await pool.query(`UPDATE "SocialChannelConnection" SET id='fixture-account',"orgId"=$1,"userId"=$2,"displayName"='Fixture Facebook account' WHERE id='channel'`, [tenantId, userId]);
   await pool.query(`UPDATE "ContentMediaAsset" SET "orgId"=$1 WHERE "orgId"='org'`, [tenantId]);
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
@@ -100,7 +102,7 @@ async function start() {
   });
   const address = await app.listen({ port: 0, host: "127.0.0.1" });
   config.frontendUrl = address;
-  emit({ type: "ready", port: Number(new URL(address).port), tenantId, userId, allowedOrigin: address });
+  emit({ type: "ready", port: Number(new URL(address).port), tenantId, userId, allowedOrigin: address, publication: growthAgentPublication });
   return { core, scope };
 }
 const startup = start();
@@ -129,6 +131,9 @@ try {
       if (message.enabled) await core.pool.query('INSERT INTO "OrganizationMember" VALUES($1,$2,\'OWNER\') ON CONFLICT DO NOTHING', [scope.tenantId, scope.actor.subject]);
       else await core.pool.query('DELETE FROM "OrganizationMember" WHERE "orgId"=$1 AND "userId"=$2', [scope.tenantId, scope.actor.subject]);
       emit({ type: "membership", enabled: message.enabled });
+    } else if (message.type === "profile" && typeof message.name === "string" && message.name.length <= 128 && Object.keys(message).every(key => ["type", "name"].includes(key))) {
+      await core.pool.query('UPDATE "Organization" SET name=$2,"updatedAt"=now() WHERE id=$1',[scope.tenantId,message.name]);
+      emit({type:"profile"});
     } else if (message.type === "shutdown" && Object.keys(message).length === 1) {
       lines.close(); break;
     } else throw new Error("Unknown fixture control message");

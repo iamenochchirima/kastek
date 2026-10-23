@@ -4,13 +4,14 @@ import type { Pool,PoolClient } from "pg";
 import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication } from "@kasitek-labs/contracts";
 import { agentConfigurationSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,type AdmissionAuthority } from "../../contracts/contracts";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
+import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { transaction } from "../../infrastructure/database";
 import { pageQuery,readPageCursor,finishPage,nextPageCursor } from "../../infrastructure/read-pages";
 import { AdmissionStore } from "../../execution/admission/admission-store";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 import { publishedToolBindings } from "../../capabilities/tool-definitions";
 import { resolveAcceptedModelRoutes } from "../../execution/models/resolution";
-import { executionModelLayers } from "../../execution/models/settings";
+import { modelServicePolicy, executionModelLayers } from "../../execution/models/settings";
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../../infrastructure/object-store";
 import { growthFeatureConfiguration,validateGrowthPublication,assertGrowthOptionalAuthority } from "./growth-features";
@@ -81,7 +82,7 @@ export class GrowthExecutionService {
         if(!row.enabled)reasons.push({code:"FEATURE_DISABLED",message:"Agent unavailable"});
         if(!this.runtime)reasons.push({code:"PRODUCT_ACTIONS_UNAVAILABLE",message:"Connect Growth agent services"});
         try {
-          const route=await resolveAcceptedModelRoutes(db,{organizationId:tenant.organization_id,agentId:row.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,layers:executionModelLayers(config,{id:row.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0||config.productBindings.length>0});
+          const route=await resolveAcceptedModelRoutes(db,{organizationId:tenant.organization_id,agentId:row.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,layers:executionModelLayers(config,{id:row.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:config.tools.length>0||config.productBindings.length>0});
           model={label:route.primary.model.name,provider:route.primary.definition.name,modelId:route.primary.binding.modelId};
         }catch(error){if(error instanceof PlatformError)reasons.push({code:error.code,message:"Configure a Growth model provider"});else throw error;}
         features.push({id:def.id,name:def.name,description:def.description,ready:reasons.length===0,reasons,model});
@@ -132,6 +133,12 @@ export class GrowthExecutionService {
     if(control)await this.runtime.authorizeControl(id);else await this.runtime.authorizeTask(id);return row;
   }
   async taskDto(row:Record<string,any>):Promise<GrowthAgentTask> {
+    try {await assertCurrentEvidence(this.pool,row.id,await taskEvidenceManifest(this.pool,row.id),{requireActiveTask:false});}
+    catch(error){
+      if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;
+      return {id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:null,errorCode:"EVIDENCE_UNAVAILABLE",
+        createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:[],sources:[],results:[]};
+    }
     const projections=(await this.pool.query("SELECT projection FROM agents_platform.product_review_projections WHERE product='growth' AND task_id=$1 ORDER BY updated_at,review_id",[row.id])).rows;
     const reviews=[];for(const projected of projections)reviews.push((await this.runtime!.readReview(row.id,projected.projection.id)).review);
     const artifacts=(await this.pool.query("SELECT id,name FROM agents_platform.artifacts WHERE root_task_id=$1 AND state='available' ORDER BY created_at,id LIMIT 100",[row.root_task_id])).rows;
@@ -150,7 +157,7 @@ export class GrowthExecutionService {
       id:randomUUID(),product:"growth",organizationId:feature.organization_id,resourceId:feature.feature_id,callerClientId:"growth-api",principal:this.principal(command),
       versionId:feature.version_id,operations:["model.reply","product.read",...(config.productBindings.some(b=>b.policy.effect==="reviewed_write")?["product.write"]:[])],
       maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,
-      rootTokenLimit:32000,expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null});
+      rootTokenLimit:modelServicePolicy().maxRootTokens,expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null});
     await db.query("INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
       [grant.id,grant.product,grant.organizationId,grant.resourceId,grant.callerClientId,grant.principal,grant.versionId,JSON.stringify(grant.operations),grant.maxInputBytes,grant.maxOutputTokens,grant.maxContextTokens,grant.rootTokenLimit,grant.expiresAt,grant.sourceRevisionIds,grant.connectedToolBindingIds]);
     await db.query("INSERT INTO agents_platform.product_execution_authorities(grant_id,product,organization_id,client_id,issuer,assertion_digest) VALUES($1,'growth',$2,'growth-api',$3,$4)",[grant.id,grant.organizationId,this.trust.issuer,requestDigest(command)]);

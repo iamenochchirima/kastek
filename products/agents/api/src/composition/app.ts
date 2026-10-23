@@ -82,6 +82,7 @@ import { registerGrowthProductRoutes } from "../product/integrations/growth-rout
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
 import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
+import { registerAgencyProductCapabilities } from "../adapters/products/agency-capability-client";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -176,8 +177,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   } });
   registerGrowthProvisionRoute(app,pool,growthServiceTrustFromEnvironment());
   const growthActions=growthActionClientFromEnvironment();
+  const productRuntime=growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined;
+  if(productRuntime){await productRuntime.loadPublications();registerAgencyProductCapabilities(productRuntime);}
   registerGrowthProductRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),
-    runtime:growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined});
+    runtime:productRuntime});
   await app.register(cookie);
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));

@@ -71,6 +71,7 @@ export interface GrowthAgentCommandInputs {
   "turns.submit": { conversationId: string; text: string; context?: GrowthAgentContext | null };
   "tasks.list": { conversationId?: string; state?: string; search?: string; cursor?: string; limit?: number };
   "tasks.get": { taskId: string };
+  "tasks.export": { taskId: string };
   "tasks.events": { taskId: string; cursor?: string; limit?: number };
   "tasks.cancel": { taskId: string };
   "reviews.list": { taskId: string };
@@ -92,6 +93,7 @@ export interface GrowthAgentCommandOutputs {
   "turns.submit": { task: GrowthAgentTask; replayed: boolean };
   "tasks.list": { tasks: GrowthAgentTask[]; nextCursor: string | null };
   "tasks.get": { task: GrowthAgentTask };
+  "tasks.export": { capture: unknown };
   "tasks.events": { events: GrowthAgentEvent[]; nextCursor: string | null };
   "tasks.cancel": { task: GrowthAgentTask };
   "reviews.list": { reviews: GrowthAgentReview[] };
@@ -197,7 +199,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "conversations.create": ["featureId", "title", "context"], "conversations.list": ["featureId", "search", "cursor", "limit"],
     "conversations.get": ["conversationId", "cursor", "limit"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
-    "tasks.get": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"],
+    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"],
     "reviews.list": ["taskId"], "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId", "offset"],
   };
@@ -210,7 +212,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
   const required: Partial<Record<GrowthAgentCommandOperation, string[]>> = {
     "features.configure": ["featureId", "configuration"], "conversations.create": ["featureId"],
     "conversations.get": ["conversationId"], "conversations.context": ["conversationId", "context"],
-    "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.events": ["taskId"],
+    "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId"],
     "tasks.cancel": ["taskId"], "reviews.list": ["taskId"],
     "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],

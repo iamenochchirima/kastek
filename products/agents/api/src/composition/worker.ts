@@ -42,6 +42,7 @@ import { databasePoolOptions } from "../infrastructure/pool-policy";
 
 import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
+import { registerAgencyProductCapabilities } from "../adapters/products/agency-capability-client";
 async function main(): Promise<void> {
   const dispatchPolicy = dispatchPolicyFromEnvironment();
   const telemetryTransport = createObservationTelemetry("agents-worker");
@@ -103,8 +104,10 @@ async function main(): Promise<void> {
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
   const growthActions=growthActionClientFromEnvironment();
+  const productRuntime=growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined;
+  if(productRuntime){await productRuntime.loadPublications();registerAgencyProductCapabilities(productRuntime);}
   const workflow = createBusinessWorkflow(pool, { modelProvider, signal: abort.signal,
-    product:growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined,
+    product:productRuntime,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();

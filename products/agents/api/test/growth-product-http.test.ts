@@ -1,3 +1,4 @@
+import {writeFileSync,mkdirSync} from "node:fs";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {createServer as httpServer} from "node:http";
 import {createServer as http2Server} from "node:http2";
@@ -23,7 +24,7 @@ import {createBusinessWorkflow} from "../src/execution/business/business";
 import {dispatchTasksOnce} from "../src/execution/lifecycle/dispatcher";
 import {dispatchBoundModel} from "../src/execution/models/dispatch";
 import {requestDigest,terminalTaskStates} from "../src/contracts/contracts";
-import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
+
 import {verifyGrowthBrowser} from "./support/growth-browser";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {transaction} from "../src/infrastructure/database";
@@ -38,6 +39,8 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   let ingress:string,restAdmin:string,origin:string,runtime:GrowthProductRuntime,workerFactory:()=>ReturnType<typeof http2Server>;
   const workerSessions=new Set<import("node:http2").ServerHttp2Session>();
   function trackWorker(){worker.on("session",session=>{workerSessions.add(session);session.once("close",()=>workerSessions.delete(session));});}
+  let artifactHeld=false,releaseArtifact:()=>void=()=>{};
+  const artifactBarrier=new Promise<void>(resolve=>{releaseArtifact=resolve;});
   let modelCalls=0,growthOrigin:string,objects:ReturnType<typeof httpServer>;const artifactBytes=Buffer.alloc(90000,65);const controls:any[]=[];
   async function controlFixture(message:unknown,type:string){growth.stdin.write(JSON.stringify(message)+"\n");await until(async()=>controls.findIndex(item=>item.type===type)>=0?controls.splice(controls.findIndex(item=>item.type===type),1)[0]:false);}
   async function browser(path:string,body?:unknown,method=body===undefined?"GET":"POST"){return fetch(growthOrigin+path,{method,headers:{origin:growthOrigin,...(body===undefined?{}:{"content-type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)})});}
@@ -77,22 +80,51 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     vi.stubEnv("GROWTH_AGENTS_PUBLIC_KEY",await exportSPKI(keys.publicKey));vi.stubEnv("GROWTH_AGENTS_CONTROL_PUBLIC_KEYS_JSON",JSON.stringify({control:await exportSPKI(control.publicKey)}));
     vi.stubEnv("GROWTH_PRODUCT_API_URL",growthOrigin);vi.stubEnv("AGENTS_PRODUCT_ACTION_PRIVATE_KEY",await exportPKCS8(workerKeys.privateKey));vi.stubEnv("AGENTS_PRODUCT_ACTION_ISSUER","https://agents.fixture.test");
     vi.stubEnv("NODE_ENV","test");vi.stubEnv("AGENTS_OIDC_CLIENT_SECRET","isolated-growth-product-cursor-secret");
-    vi.stubEnv("AGENTS_SCHEDULING_POLICY_JSON",JSON.stringify({maxConcurrentRoots:10,dailyTokenAllowance:1000000}));
+    vi.stubEnv("AGENTS_SCHEDULING_POLICY_JSON",JSON.stringify({maxConcurrentRoots:10,dailyTokenAllowance:100000000}));
     objects=httpServer((_req,res)=>res.end(artifactBytes));
     const objectOrigin=await listen(objects);
     for(const [name,value] of Object.entries({AGENTS_S3_ENDPOINT:objectOrigin,AGENTS_S3_REGION:"test",AGENTS_S3_BUCKET:"growth-fixture",AGENTS_S3_ACCESS_KEY_ID:"fixture",AGENTS_S3_SECRET_ACCESS_KEY:"fixture"}))vi.stubEnv(name,value);
     runtime=new GrowthProductRuntime(pool,new GrowthActionClient({origin:growthOrigin,issuer:"https://agents.fixture.test",keyId:"agents-v1",privateKey:await exportPKCS8(workerKeys.privateKey),environment:"test"}));
-    await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId});
+    await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId,publication:ready.publication});
     app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:target.href,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"isolated-growth-product-cursor-secret"})});
     origin=await app.listen({port:0,host:"127.0.0.1"});
     await controlFixture({type:"configure",agentsOrigin:origin},"configured");
+    const scriptStates=new Map<string,{step:number;resourceId?:string;citations:string[]}>();
     provider=httpServer(async(req,res)=>{
       let raw="";for await(const chunk of req)raw+=chunk;const body=JSON.parse(raw);modelCalls++;
-      const last=body.messages.at(-1),write=body.tools?.some((tool:any)=>tool.function?.name==="growth_draft_prepare"),tool=write?"growth_draft_prepare":"growth_context_read";
-      const args=write?{draft:{title:"Fixture draft",content:"Reviewed content",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"fixture-account"}}}:{};
+      const last=body.messages.at(-1),userText=body.messages.filter((message:any)=>message.role==="user").at(-1)?.content??"";
+      if(body.messages[0]?.content?.startsWith("Summarize")){
+        const packed=JSON.stringify(body.messages),citations=[...new Set(packed.match(/\[E[a-f0-9]+\]/g)??[])];
+        res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"compact-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:"stop",delta:{role:"assistant",content:"Observed business evidence "+citations.join(" ")}}],usage:{prompt_tokens:100,completion_tokens:15}})+"\n\ndata: [DONE]\n\n");return;
+      }
+      const state=scriptStates.get(String(userText))??{step:0,citations:[]};scriptStates.set(String(userText),state);
+      const observations=body.messages.filter((message:any)=>message.role==="tool").map((message:any)=>JSON.parse(message.content));
+      const values=observations.map((item:any)=>item.value??item);
+      state.resourceId=values.find((value:any)=>value.data?.items)?.data.items?.[0]?.context.resourceId??state.resourceId;
+      state.citations=[...new Set([...state.citations,...values.flatMap((value:any)=>value.passages??[]).map((passage:any)=>passage.citation)])];
+      const find=(prefix:string)=>body.tools?.find((tool:any)=>(tool.function?.description??"").startsWith(prefix))?.function.name;
+      const write=/save a draft|prepare reviewed draft/i.test(userText);
+      const multi=String(userText).includes("Contract multi-tool"),correct=String(userText).includes("Contract correct arguments"),zero=String(userText).includes("Contract zero-tool");
+      let prefix=write?"Prepare an exact content draft":"Read the current business profile";
+      let args:any=write?{draft:{title:"Fixture draft",content:"Reviewed content",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"fixture-account"}}}:{};
+      let wantsTool=state.step===0;
+      if(multi){
+        const discovered=state.resourceId;
+        const sequence=["Find permitted content posts","Read a content post","Read the current business profile","Read a content post"];
+        wantsTool=state.step<sequence.length;prefix=sequence[state.step]??prefix;
+        args=prefix==="Read a content post"?{resourceId:discovered}:{};
+      }
+      if(correct){wantsTool=state.step<2;args=state.step?{}:{unexpected:true};}
+      if(zero)wantsTool=false;
       let delta:any,finish:string;
-      if(last.role!=="tool"){delta={role:"assistant",tool_calls:[{index:0,id:"call-"+modelCalls,type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]};finish="tool_calls";}
-      else {const observed=JSON.parse(last.content),citation=observed.passages?.[0]?.citation??"";delta={role:"assistant",content:write?"Saved the reviewed draft.":"Fixture business "+citation};finish="stop";}
+      if(wantsTool){
+        const tool=find(prefix);if(!tool){res.statusCode=500;res.end(JSON.stringify({error:"Required fixture operation is unavailable"}));return;}
+        state.step++;delta={role:"assistant",tool_calls:[{index:0,id:"call-"+modelCalls,type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]};finish="tool_calls";
+      }else{
+        if(String(userText).includes("Artifact fixture")){artifactHeld=true;await artifactBarrier;}
+        const citations=state.citations.join(" ");
+        delta={role:"assistant",content:write?"Saved the reviewed draft.":zero?"Hello without tools.":"Fixture business "+citations};finish="stop";
+      }
       res.setHeader("content-type","text/event-stream");res.end("data: "+JSON.stringify({id:"growth-fixture-"+modelCalls,model:body.model,choices:[{index:0,finish_reason:finish,delta}],usage:{prompt_tokens:100,completion_tokens:15}})+"\n\ndata: [DONE]\n\n");
     });
     const providerOrigin=await listen(provider);
@@ -112,6 +144,9 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     if(growth&&growth.exitCode===null){growth.stdin.end();await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>{growth.kill("SIGTERM");reject(Error("Growth fixture teardown timed out"));},15000);growth.once("exit",()=>{clearTimeout(timeout);resolve();});});}
     await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}vi.unstubAllEnvs();
   },30000);
+  async function currentConfiguration(featureId:string){
+    return (await pool.query("SELECT v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2",[tenantId,featureId])).rows[0].configuration;
+  }
   async function finished(taskId:string,state?:string){
     return until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin});const task=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];return (state?task.state===state:terminalTaskStates.has(task.state))?task:false;});
   }
@@ -158,10 +193,37 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await browserOk("/__fixture/posts")).posts).toHaveLength(1);
     expect((await browserOk("/api/agents/tasks/"+task.id+"/reviews")).reviews[0].state).toBe("saved");
   },40000);
+  it("lets presets share tools, change read order, correct arguments and answer without tools",async()=>{
+    for(const [featureId,text] of [["assistant","Contract zero-tool"],["content","Contract correct arguments"],["research","Contract multi-tool"],["campaigns","Contract multi-tool"]] as const){
+      const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId})).conversation;
+      const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:text+" "+featureId})).task;
+      const done=await finished(task.id);expect(done.state,done.error_code).toBe("completed");
+      const {capture}=await browserOk(`/api/agents/tasks/${task.id}/export`);
+      expect(capture.rootTaskId).toBe(task.id);expect(capture.conversationId).toBe(conversation.id);
+      expect(capture.effectiveComposition.programVersion).toBe("3");expect(capture.modelRoutesDigest).toMatch(/^[a-f0-9]{64}$/);
+      const root=capture.tasks.find((item:any)=>item.id===task.id);
+      expect(root.productBindings.length).toBeGreaterThan(0);
+      const tools=root.modelCalls.flatMap((call:any)=>call.toolResults);
+      if(text.includes("zero-tool"))expect(tools).toHaveLength(0);
+      if(text.includes("correct")){expect(tools).toHaveLength(2);expect(JSON.stringify(tools[0])).toContain("TOOL_ARGUMENTS_INVALID");}
+      if(text.includes("multi-tool")){
+        expect(tools).toHaveLength(4);
+        const names=(await pool.query("SELECT request->>'productOperation' name FROM agents_platform.operations WHERE task_id=$1 AND kind='tool' ORDER BY id",[task.id])).rows.map(row=>row.name);
+        expect(names).toEqual(["content.list","content.read","workspace.read","content.read"]);
+        expect(root.output).toMatch(/\[E[a-f0-9]+\]/);
+        expect(capture.coverage.modelInputs.status).toBe("complete");
+        mkdirSync(resolve("../../../.audit"),{recursive:true});
+        writeFileSync(resolve("../../../.audit/product-capabilities-native-capture.json"),JSON.stringify(capture),{mode:0o600});
+      }
+      await controlFixture({type:"membership",enabled:false},"membership");
+      expect((await browser(`/api/agents/tasks/${task.id}/export`)).status).toBe(403);
+      await controlFixture({type:"membership",enabled:true},"membership");
+    }
+  },40000);
   it("uses new configuration only for a new turn while authenticated retries stay pinned",async()=>{
     const conversation=(await ok(command("conversations.create",{featureId:"assistant"}))).conversation,turn=command("turns.submit",{conversationId:conversation.id,text:"Pinned turn"});
     const first=(await ok(turn)).task,old=(await pool.query("SELECT version_id FROM agents_platform.tasks WHERE id=$1",[first.id])).rows[0].version_id;
-    await ok(command("features.configure",{featureId:"assistant",configuration:{...growthFeatureConfiguration("assistant"),instructions:"Updated Growth instructions. Read the authorized context."}}),true);
+    await ok(command("features.configure",{featureId:"assistant",configuration:{...await currentConfiguration("assistant"),instructions:"Updated Growth instructions. Read the authorized context."}}),true);
     expect((await ok(turn)).task.id).toBe(first.id);
     const next=(await ok(command("turns.submit",{conversationId:conversation.id,text:"New settings"}))).task;
     expect((await pool.query("SELECT version_id FROM agents_platform.tasks WHERE id=$1",[next.id])).rows[0].version_id).not.toBe(old);
@@ -169,10 +231,12 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   it("downloads exact product-owned artifact bytes and rechecks private evidence without an Agents account",async()=>{
     const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"research"})).conversation;
     const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Artifact fixture"})).task;
+    const completing=finished(task.id);await until(async()=>artifactHeld);
     const row=(await pool.query("SELECT t.*,c.agent_id FROM agents_platform.tasks t JOIN agents_platform.conversations c ON c.id=t.conversation_id WHERE t.id=$1",[task.id])).rows[0],context=(await pool.query("SELECT * FROM agents_platform.product_task_contexts WHERE task_id=$1",[task.id])).rows[0],artifactId=randomUUID();
     const digest=createHash("sha256").update(artifactBytes).digest("hex");
     await pool.query("INSERT INTO agents_platform.artifacts(id,organization_id,agent_id,account_id,product_owner,operation_id,request_digest,object_key,content_type,bytes,content_digest,state,task_id,root_task_id,name) VALUES($1,$2,$3,NULL,'growth','fixture:artifact',$4,$5,'application/octet-stream',$6,$4,'available',$7,$7,'Private report')",[artifactId,row.organization_id,row.agent_id,digest,"fixture/"+artifactId,artifactBytes.length,task.id]);
-    await transaction(pool,db=>runtime.evidence.deriveWithin(db,task.id,"artifact",artifactId,[{kind:"product",product:"growth",tenantId,taskId:task.id,contextRevision:context.context_revision,sourceId:context.sources[0].id}]));
+    await transaction(pool,async db=>runtime.evidence.deriveWithin(db,task.id,"artifact",artifactId,[{kind:"product",product:"growth",tenantId,taskId:task.id,contextRevision:context.sources.find((source:any)=>source.bindingId).revision,sourceId:context.sources.find((source:any)=>source.bindingId).id,bindingId:context.sources.find((source:any)=>source.bindingId).bindingId,bindingDigest:(await currentConfiguration("research")).productBindings.find((binding:any)=>binding.id===context.sources.find((source:any)=>source.bindingId).bindingId).digest}]));
+    releaseArtifact();expect((await completing).state).toBe("completed");
     const metadata=(await browserOk(`/api/agents/tasks/${task.id}/artifacts`)).artifacts[0];
     const download=await browser(metadata.downloadPath);expect(download.status).toBe(200);expect(Buffer.from(await download.arrayBuffer())).toEqual(artifactBytes);
     expect(download.headers.get("content-disposition")).toContain("attachment");expect(download.headers.get("cache-control")).toBe("no-store");
@@ -181,12 +245,15 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     await controlFixture({type:"membership",enabled:true},"membership");
     await pool.query("UPDATE agents_platform.artifacts SET content_digest=$2 WHERE id=$1",[artifactId,"0".repeat(64)]);
     expect((await browser(metadata.downloadPath)).status).toBe(503);
-    await pool.query("UPDATE agents_platform.product_task_contexts SET context_revision=$2 WHERE task_id=$1",[task.id,"0".repeat(64)]);
-    const cancelled=(await browserOk(`/api/agents/tasks/${task.id}/cancel`,{requestId:randomUUID()})).task;
-    expect(cancelled.state).toBe("cancel_requested");expect(cancelled.output).toBeNull();expect(cancelled.sources).toEqual([]);
-  });
+    await controlFixture({type:"profile",name:"Withdrawn original workspace source"},"profile");
+    const withdrawn=(await browserOk(`/api/agents/tasks/${task.id}`)).task;
+    expect(withdrawn.output).toBeNull();expect(withdrawn.sources).toEqual([]);
+    const {capture}=await browserOk(`/api/agents/tasks/${task.id}/export`);
+    expect(capture.tasks[0].input).toBeNull();expect(capture.tasks[0].modelCalls).toEqual([]);
+    expect(capture.coverage.modelInputs.status).toBe("partial");
+  },15000);
   it("serializes distinct concurrent configuration updates without version collisions",async()=>{
-    const config=growthFeatureConfiguration("campaigns");
+    const config=await currentConfiguration("campaigns");
     await Promise.all([ok(command("features.configure",{featureId:"campaigns",configuration:{...config,instructions:"First permitted update"}}),true),
       ok(command("features.configure",{featureId:"campaigns",configuration:{...config,instructions:"Second permitted update"}}),true)]);
     const versions=await pool.query("SELECT v.number FROM agents_platform.agent_versions v JOIN agents_platform.product_execution_features f ON f.agent_id=v.agent_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id='campaigns' ORDER BY v.number",[tenantId]);

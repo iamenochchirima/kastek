@@ -252,7 +252,7 @@ separate from this implementation.
 
 ## Apply or roll back the execution release
 
-Apply recognized Agents additive schemas070–072 with the explicit setup command before enabling
+Apply recognized Agents additive schemas 070–072 with the explicit setup command before enabling
 new admissions. They store generic review projections, trusted Growth publications and managed
 configuration markers, and set new tasks to `product-capabilities-v11`. Register the matching
 `AgentsBusinessRunV21` worker and install current product handlers before publishing defaults
@@ -263,3 +263,12 @@ Route or drain that work on its pinned release. Do not point an existing journal
 stops new admissions and restores a compatible installed selection for future turns. Preserve
 accepted snapshots, review/effect receipts and uncertain results; additive tables are not a reason
 to reinterpret older tasks. These are operator release requirements, not an automatic deployment.
+
+
+Growth defaults use the configured `AGENTS_MODEL_POLICY_JSON` service input and compaction allowances,
+intersected with discovered model capacity at admission. They do not impose the former 8,192-token
+context ceiling. The accepted root allowance also comes from that policy; current service defaults
+are 196,608 input tokens and 1,000,000 tokens per root. These are operator budgets, not provider limits.
+Set `AGENTS_SCHEDULING_POLICY_JSON.dailyTokenAllowance` to cover the intended outstanding root
+reservations plus consumed usage. A quota smaller than a root reservation rejects admission; it does
+not silently reduce an accepted run's budget. Custom configurations retain their saved limits.
