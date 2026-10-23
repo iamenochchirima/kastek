@@ -27,8 +27,14 @@ still prevents new login and eventually invalidates sessions when refresh become
 
 The BFF binds each product assertion to the current administrator, destination, capability,
 HTTP method, exact path and query, and request-body digest. Growth accepts only an explicitly
-mapped current `AdminUser` with a matching role. Operations never creates a customer session.
+mapped existing `AdminUser` ID. Its fresh signed Labs grant supplies the current role; the stored
+Growth role does not replace that grant. Operations never creates a customer session.
 A legacy Growth session is not an outage fallback for the Operations login mode.
+
+In Operations login mode, password settings are read-only and identify the shared identity
+provider as the credential owner. The admin BFF rejects legacy Growth password changes. The
+legacy Growth password form remains available only when `OPS_BACKEND_URL` is absent. This
+compatibility boundary does not add an account-management console or an authentication fallback.
 
 | Operation | Required permission |
 | --- | --- |
@@ -174,7 +180,9 @@ The implementation commits identify source changes. Package `0.1.0` is not a dep
 The controlled development walkthrough verified Labs OIDC login while Growth was stopped, one
 incident after three failed polls, acknowledgement, assignment with revision checks, same-ID
 command replay, rejection of resolution during a breach, pending delivery through the outage,
-and recovery after two successful polls. Audit remained source-owned. Browser checks covered
+and recovery after two successful polls. An authorized Agency customer workflow also previewed and confirmed fixture suspension and
+resumption, restored the initial state, and recorded its audit. Audit remained source-owned.
+Browser checks covered
 1,440-, 768-, and 390-pixel widths without recorded errors. Local incident proof is
 `/tmp/kasitek-operations-incident.png`; the final handoff records the related runtime evidence.
 These checks do not establish production availability or durability.

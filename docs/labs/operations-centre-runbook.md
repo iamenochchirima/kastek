@@ -57,7 +57,8 @@ external alerts, business recovery automation, or owner-run evals.
 8. Provision an explicit verified issuer, subject, stable admin ID, role, operator ID, and reason
    through `services/operations/dist/provision-admin.js`. Use `--active false` to revoke a grant.
    Existing IDs cannot be reassigned to another provider identity. Growth adapters require the
-   existing explicit product admin record with the same ID and role.
+   existing explicit product admin record with the same ID. The fresh signed Labs grant supplies
+   the authoritative role.
 9. Generate `.runtime/admin-reporting/operations-worker.env` with the process manager's
    `operationsWorkerProfile` helper. Copy only its allowlisted values. Never copy human assertion,
    OIDC-client, session-encryption, or browser-session credentials into that file.

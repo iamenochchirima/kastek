@@ -212,6 +212,8 @@ Set `OPS_BACKEND_URL` to the dedicated Operations API to use independent Labs ad
 The managed development profile uses port `14400`. Explicit issuer/subject grants and current
 role revisions govern access. The BFF never replaces a failed Operations session with Growth
 authority. Product permissions and customer recovery remain independently checked.
+Password settings use the shared identity provider in Operations mode; the BFF rejects legacy
+Growth password changes. The old password form is available only without `OPS_BACKEND_URL`.
 
 `/operations` lists incidents and coverage. `/operations/incidents/:id` shows investigation state
 and evidence. `/operations/settings` manages permitted rules and maintenance. `/operations/audit`
