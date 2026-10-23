@@ -1,5 +1,5 @@
 import {ReportingDiagnosticsPanel} from "@/components/admin/reporting-diagnostics-panel";
-import { AdminPageHeader } from "@/components/admin/page-header";
+import { OperationsOverview } from "@/components/admin/operations/overview";
 import { AdminWebhookReplayButton } from "@/components/admin/admin-webhook-replay-button";
 import { SupportAccessPanel } from "@/components/admin/support-access-panel";
 import { fetchFromCore, requireAdminSession } from "@/lib/admin-auth";
@@ -19,7 +19,8 @@ export default async function OperationsPage() {
     canViewSupport?load<{grants:Grant[]}>("/api/admin/operations/support-grants"):Promise.resolve(null),
   ]);
   return <div className="admin-page">
-    <AdminPageHeader title="Operations" />
+    <OperationsOverview actor={admin}/>
+    <details className="mt-8 rounded-md border border-border p-4"><summary className="cursor-pointer text-sm font-medium">Diagnostics and recovery</summary>
     <div className="mt-5 space-y-5">
       <ReportingDiagnosticsPanel/>
       <section className="v-card overflow-hidden">
@@ -36,5 +37,6 @@ export default async function OperationsPage() {
         {support===null?<p role="status" className="p-5 text-sm text-muted-foreground">Support access unavailable</p>:<div className="p-5"><SupportAccessPanel initialGrants={support.grants} adminId={admin.id} canManage={["admin","superadmin","owner"].includes(role)}/></div>}
       </section>:null}
     </div>
+    </details>
   </div>;
 }
