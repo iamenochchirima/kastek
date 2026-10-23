@@ -94,7 +94,10 @@ export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
         output = task.output ?? "";
         return task.state === "completed" && output.length > 0;
       }, "actual shared-worker completion");
-      await expect(chat.locator("article").filter({ hasText: output }).last()).toBeVisible({ timeout: 10000 });
+      const visibleOutput = output.replace(/\[E[0-9a-f]{32}\]/gi, "").replace(/\s+/g, " ").trim();
+      assert.ok(visibleOutput.length > 0);
+      await expect.poll(async () => (await chat.locator("article").allTextContents()).some((text: string) =>
+        text.replace(/\[\d+\]/g, "").replace(/\s+/g, " ").includes(visibleOutput)), { timeout: 10000 }).toBe(true);
       return output;
     }
     const first = "Review my business through the Growth assistant";

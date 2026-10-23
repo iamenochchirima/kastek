@@ -82,16 +82,7 @@ export const contextLabel = (context: GrowthAgentContext) => ({
   workspace: "Business", content_post: "Content post", whatsapp_campaign: "WhatsApp campaign", analytics_report: "Analytics report",
 })[context.kind];
 
-export function safeGrowthRoute(route: string | undefined): string | null {
-  if (!route || !route.startsWith("/") || route.startsWith("//") || /[\\\u0000-\u001f]/.test(route)) return null;
-  try {
-    const url = new URL(route, "https://growth.invalid");
-    if (url.origin !== "https://growth.invalid") return null;
-    const artifactDownload = /^\/api\/agents\/tasks\/[0-9a-f-]{36}\/artifacts\/[0-9a-f-]{36}\/download$/i.test(url.pathname);
-    if (!artifactDownload && !/^\/(agents|campaigns|content|analytics|workspace|connections)(\/|$)/.test(url.pathname)) return null;
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch { return null; }
-}
+export { safeGrowthRoute } from "./growth-agent-sources";
 
 export type GrowthDraftDestination = { id: string; platform: string; label: string; ready: boolean };
 export function getDraftDestinations(signal?: AbortSignal) {

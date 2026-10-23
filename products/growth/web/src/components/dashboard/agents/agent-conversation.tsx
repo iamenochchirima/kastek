@@ -12,28 +12,23 @@ import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { growthAgents, isActiveTask, safeGrowthRoute, taskStateLabel, type GrowthAgentArtifact, type GrowthAgentSource, type GrowthAgentTask } from "@/lib/growth-agents";
 import { cn } from "@/lib/utils";
+import { safeSourceLink, sourceCitations } from "@/lib/growth-agent-sources";
 import { useGrowthAgents } from "./agent-provider";
 import { ContextControl } from "./agent-context";
 import { AgentDraftReview } from "./agent-review";
 
-function safeSourceLink(source: GrowthAgentSource) {
-  const route = safeGrowthRoute(source.route);
-  if (route) return route;
-  if (source.url) { try { const url = new URL(source.url); if (["https:", "http:"].includes(url.protocol)) return url.href; } catch { /* Invalid source links remain text. */ } }
-  return null;
-}
 export function AgentSources({ sources }: { sources: GrowthAgentSource[] }) {
   if (!sources.length) return null;
-  return <details className="mt-3 text-xs"><summary className="cursor-pointer text-muted-foreground">Sources · {sources.length}</summary><ul className="mt-2 space-y-2">{sources.map((source) => { const href = safeSourceLink(source); return <li key={source.id}>{href ? <a href={href} target={href.startsWith("/") ? undefined : "_blank"} rel="noreferrer" className="text-primary underline underline-offset-2">{source.title}</a> : <span className="text-muted-foreground">{source.title}</span>}</li>; })}</ul></details>;
+  return <details className="mt-3 text-xs"><summary className="cursor-pointer text-muted-foreground">Sources · {sources.length}</summary><ol className="mt-2 list-decimal space-y-2 pl-5">{sources.map((source) => { const href = safeSourceLink(source); return <li key={source.id}>{href ? <a href={href} target={href.startsWith("/") ? undefined : "_blank"} rel="noreferrer" className="text-primary underline underline-offset-2">{source.title}</a> : <span className="text-muted-foreground">{source.title}</span>}</li>; })}</ol></details>;
 }
-function AgentMarkdown({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{
+function AgentMarkdown({ text, sources = [] }: { text: string; sources?: GrowthAgentSource[] }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm, sourceCitations(sources)]} skipHtml components={{
     p: ({ children }) => <p className="mt-3 first:mt-0">{children}</p>,
     h1: ({ children }) => <h3 className="mt-4 text-base font-semibold first:mt-0">{children}</h3>,
     h2: ({ children }) => <h4 className="mt-4 text-sm font-semibold first:mt-0">{children}</h4>,
     ul: ({ children }) => <ul className="mt-2 list-disc space-y-1 pl-5">{children}</ul>,
     ol: ({ children }) => <ol className="mt-2 list-decimal space-y-1 pl-5">{children}</ol>,
-    a: ({ href, children }) => { let safe: string | null = safeGrowthRoute(href); if (!safe && href) { try { const url = new URL(href); if (["https:", "http:"].includes(url.protocol)) safe = url.href; } catch { /* Leave unsafe links as plain text. */ } } return safe ? <a href={safe} target={safe.startsWith("/") ? undefined : "_blank"} rel="noreferrer" className="text-primary underline underline-offset-2">{children}</a> : <span>{children}</span>; },
+    a: ({ href, title, children }) => { let safe: string | null = safeGrowthRoute(href); if (!safe && href) { try { const url = new URL(href); if (["https:", "http:"].includes(url.protocol)) safe = url.href; } catch { /* Leave unsafe links as plain text. */ } } return safe ? <a href={safe} title={title} aria-label={title || undefined} target={safe.startsWith("/") ? undefined : "_blank"} rel="noreferrer" className="text-primary underline underline-offset-2">{children}</a> : <span>{children}</span>; },
     code: ({ children, className }) => <code className={cn("rounded bg-secondary px-1 py-0.5 text-xs", className && "my-2 block overflow-x-auto p-3")}>{children}</code>,
     table: ({ children }) => <div className="my-3 overflow-x-auto"><table className="w-full text-left text-xs">{children}</table></div>,
     th: ({ children }) => <th className="border-b border-border px-2 py-2 font-medium">{children}</th>,
@@ -93,8 +88,8 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
         {agents.loading ? <div className="space-y-4" role="status" aria-label="Loading conversation"><Skeleton className="ml-auto h-16 w-2/3" /><Skeleton className="h-5 w-5/6" /><Skeleton className="h-5 w-2/3" /></div> : <>
           {agents.hasOlder ? <div className="text-center"><Button type="button" variant="ghost" size="sm" onClick={() => { stayAtBottom.current = false; void agents.older(); }}>Load earlier messages</Button></div> : null}
           {!agents.messages.length && agents.conversation ? <div className="py-12 text-center"><Bot className="mx-auto mb-3 size-6 text-primary" /><h3 className="text-base font-medium">What would you like to work on?</h3></div> : null}
-          {agents.messages.map((message) => <article key={message.id} data-message-id={message.id} className={cn("text-sm leading-6", message.role === "user" ? "ml-auto max-w-[90%] rounded-xl bg-secondary px-4 py-3 sm:max-w-[80%]" : "min-w-0 break-words")}><span className="sr-only">{message.role === "user" ? "You" : "Agent"}</span>{message.role === "assistant" ? <AgentMarkdown text={message.text} /> : <p className="whitespace-pre-wrap">{message.text}</p>}{message.sources ? <AgentSources sources={message.sources} /> : null}</article>)}
-          {agents.tasks.filter((item) => item.output && !agents.messages.some((message) => message.role === "assistant" && message.taskId === item.id)).map((item) => <article key={item.id} className="min-w-0 break-words text-sm leading-6"><AgentMarkdown text={item.output!} />{item.sources ? <AgentSources sources={item.sources} /> : null}</article>)}
+          {agents.messages.map((message) => <article key={message.id} data-message-id={message.id} className={cn("text-sm leading-6", message.role === "user" ? "ml-auto max-w-[90%] rounded-xl bg-secondary px-4 py-3 sm:max-w-[80%]" : "min-w-0 break-words")}><span className="sr-only">{message.role === "user" ? "You" : "Agent"}</span>{message.role === "assistant" ? <AgentMarkdown text={message.text} sources={message.sources} /> : <p className="whitespace-pre-wrap">{message.text}</p>}{message.sources ? <AgentSources sources={message.sources} /> : null}</article>)}
+          {agents.tasks.filter((item) => item.output && !agents.messages.some((message) => message.role === "assistant" && message.taskId === item.id)).map((item) => <article key={item.id} className="min-w-0 break-words text-sm leading-6"><AgentMarkdown text={item.output!} sources={item.sources} />{item.sources ? <AgentSources sources={item.sources} /> : null}</article>)}
           {pendingReviews.map((review) => <AgentDraftReview key={review.id} review={review} />)}
           {agents.tasks.filter((item) => item.results?.length).map((item) => <TaskResults key={item.id} task={item} />)}
           {agents.tasks.filter((item) => ["failed", "uncertain", "refused", "cancelled", "incomplete"].includes(item.state)).map((item) => <p key={item.id} className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground" role="status">{taskStateLabel[item.state]}{item.state === "uncertain" ? ". An action may have completed. Check its result before repeating it." : ""}</p>)}
