@@ -3,7 +3,7 @@ import { growthAgentDigest } from "./security.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
-const page=object({search:{type:"string",maxLength:200},status:{type:"string",pattern:"^[_A-Z]{1,40}$"},limit:{type:"integer",minimum:1,maximum:20},cursor:continuation});
+const page=object({search:{type:"string",maxLength:200},status:{type:"string",maxLength:40},limit:{type:"integer",minimum:1,maximum:20},cursor:continuation});
 const range=object({from:{type:"string",format:"date-time"},to:{type:"string",format:"date-time"},timezone:{type:"string",maxLength:128}},["from","to","timezone"]);
 function descriptor(operation:string,description:string,inputSchema:Record<string,unknown>,authority:string,effect:"read"|"reviewed_write"="read"):ProductCapabilityDescriptor {
   return {operation,revision:"1",description,inputSchema,outputSchema:null,handlerRef:`growth.${operation}@1`,
