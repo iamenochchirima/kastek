@@ -13,18 +13,18 @@ async function fixture(run: (pool:pg.Pool)=>Promise<void>) {
  finally { await pool.end();try{await admin.query(`DROP SCHEMA "${schema}" CASCADE`);}finally{await admin.end();} }
 }
 const enabled=!!process.env.TENANT_TEST_DATABASE_URL;
-test('concurrent native startup applies fourteen real source migrations once, retaining SQLx checksums', {skip:!enabled}, async()=>fixture(async pool=>{
+test('concurrent native startup applies real source migrations once, retaining SQLx checksums', {skip:!enabled}, async()=>fixture(async pool=>{
  const migrations=await readMigrations();
  await Promise.all([runMigrations(pool,migrations),runMigrations(pool,migrations)]);
  const rows=(await pool.query('SELECT version,description,success,checksum,execution_time FROM _sqlx_migrations ORDER BY version')).rows;
- assert.equal(rows.length,14);
+ assert.equal(rows.length,migrations.length);
  for(let i=0;i<rows.length;i++) {
   assert.equal(rows[i].version,migrations[i]!.version);assert.equal(rows[i].description,migrations[i]!.description);
   assert.equal(rows[i].success,true);assert.deepEqual(rows[i].checksum,migrations[i]!.checksum);assert.ok(BigInt(rows[i].execution_time)>=0n);
  }
  assert.ok((await pool.query(`SELECT to_regclass('tenant_client_assignments') AS name`)).rows[0].name);
  await runMigrations(pool,migrations);
- assert.equal((await pool.query('SELECT count(*) FROM _sqlx_migrations')).rows[0].count,'14');
+ assert.equal((await pool.query('SELECT count(*) FROM _sqlx_migrations')).rows[0].count,String(migrations.length));
  const changed=migrations.map((migration,i)=>i?migration:{...migration,checksum:Buffer.alloc(48)});
  await assert.rejects(runMigrations(pool,changed),/checksum mismatch/);
  await assert.rejects(runMigrations(pool,migrations.slice(1)),/missing from source/);

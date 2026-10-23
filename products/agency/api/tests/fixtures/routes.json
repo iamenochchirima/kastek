@@ -96,6 +96,14 @@
     { "method": "GET", "path": "/api/partner/businesses", "reason": "List only businesses owned by the partner." },
     { "method": "POST", "path": "/api/partner/businesses", "reason": "Create an owned business workspace." },
     { "method": "GET", "path": "/api/partner/businesses/:id", "reason": "Read an owned business and branding." },
-    { "method": "PATCH", "path": "/api/partner/businesses/:id/branding", "reason": "Update owned business branding." }
+    { "method": "PATCH", "path": "/api/partner/businesses/:id/branding", "reason": "Update owned business branding." },
+    { "method": "GET", "path": "/api/admin/customers/:customerId" },
+    { "method": "GET", "path": "/api/admin/customers/:customerId/:collection" },
+    { "method": "GET", "path": "/api/admin/customers/:customerId/operations/:operationId" },
+    { "method": "POST", "path": "/api/admin/customers/:customerId/operations" },
+    { "method": "POST", "path": "/api/admin/customers/:customerId/operations/preview" },
+    { "method": "GET", "path": "/api/admin/reporting" },
+    { "method": "GET", "path": "/api/admin/reporting/diagnostics" },
+    { "method": "POST", "path": "/api/partner/auth/activity" }
   ]
 }
