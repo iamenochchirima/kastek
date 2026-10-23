@@ -1,11 +1,18 @@
 import type {Pool, PoolClient} from "pg";
 import type {OperationsAuditPage,OperationsSource,OperationsSnapshot,OperationsSignal} from "@kasitek-labs/contracts";
 export interface OperationsMeasurement {key:string;group:string;unit:OperationsSignal["unit"];sql?:string;unsupported?:boolean;minimumSamples?:number;sampleSql?:string;}
+/** A late pool acquisition is released instead of leaking a connection after the observer times out. */
+export async function connectOperationsSource(pool:Pool,timeoutMs=2000):Promise<PoolClient>{
+ let expired=false,timer:ReturnType<typeof setTimeout>|undefined;
+ const connection=pool.connect().then(client=>{if(expired){client.release();throw Error('Source connection deadline exceeded');}return client;});
+ const timeout=new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{expired=true;reject(Error('Source connection deadline exceeded'));},timeoutMs);});
+ try{return await Promise.race([connection,timeout]);}finally{if(timer)clearTimeout(timer);}
+}
 /** Each statement is isolated: an unavailable measurement cannot turn the others into healthy zeroes. */
 export async function readOperationsSource(pool:Pool,source:OperationsSource,environment:NodeJS.ProcessEnv,measurements:OperationsMeasurement[]):Promise<OperationsSnapshot>{
  const result:OperationsSnapshot={contractVersion:"1",source,environment:environment.OPS_ENVIRONMENT??"development",observedAt:new Date().toISOString(),release:(environment.KASITEK_RELEASE_ID??environment.RELEASE_VERSION??environment.GIT_SHA??"development").replace(/[^a-zA-Z0-9._:-]/g,"_").slice(0,128),signals:[]};
  let db:PoolClient|undefined;
- try {db=await pool.connect();await db.query("BEGIN READ ONLY");await db.query("SET LOCAL statement_timeout='2s'");
+ try {db=await connectOperationsSource(pool);await db.query("BEGIN READ ONLY");await db.query("SET LOCAL statement_timeout='2s'");
  for(const measurement of measurements){
   const signal:OperationsSignal={key:measurement.key,group:measurement.group,unit:measurement.unit,status:measurement.unsupported?"unsupported":"unknown",value:null,coverage:"unknown",evidence:[]};
   if(measurement.sql){await db.query("SAVEPOINT measurement");try{
@@ -27,7 +34,8 @@ export async function readOperationsSource(pool:Pool,source:OperationsSource,env
   await db.query('SAVEPOINT heartbeat');try{const row=(await db.query("SELECT GREATEST(0,floor(extract(epoch FROM now()-observed_at)))::text age FROM operations_worker_heartbeats WHERE worker=$1 AND instance=$2 AND environment=$3",[worker,instance,result.environment])).rows[0];if(row){signal.status='available';signal.value=row.age;signal.coverage='complete';}else signal.code='heartbeat_not_observed';}catch{await db.query('ROLLBACK TO SAVEPOINT heartbeat');signal.code='heartbeat_unavailable';}await db.query('RELEASE SAVEPOINT heartbeat');result.signals.push(signal);
  }
  await db.query("COMMIT");
- }catch{if(db)await db.query("ROLLBACK").catch(()=>{});result.signals=measurements.map(m=>({key:m.key,group:m.group,unit:m.unit,status:m.unsupported?"unsupported":"unknown",value:null,coverage:"unknown",evidence:[],code:"source_read_unavailable"}));}
+ result.signals.push({key:"source.read_ready",group:"source",unit:"count",status:"available",value:"1",coverage:"complete",evidence:[]});
+ }catch{if(db)await db.query("ROLLBACK").catch(()=>{});result.signals=measurements.map(m=>({key:m.key,group:m.group,unit:m.unit,status:m.unsupported?"unsupported":"unknown",value:null,coverage:"unknown",evidence:[],code:"source_read_unavailable"}));result.signals.push({key:"source.read_ready",group:"source",unit:"count",status:"available",value:"0",coverage:"complete",evidence:[],code:"source_read_unavailable"});}
  finally{db?.release();}return result;
 }
 export const publicationMeasurements:OperationsMeasurement[]=[

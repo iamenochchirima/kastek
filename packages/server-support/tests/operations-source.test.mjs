@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import {randomUUID} from 'node:crypto';
-import {readOperationsSource,publicationMeasurements,parseOperationsAuditQuery,readOperationsAudit,recordOperationsWorkerHeartbeat} from '../dist/operations-source.js';
+import {readOperationsSource,publicationMeasurements,parseOperationsAuditQuery,readOperationsAudit,recordOperationsWorkerHeartbeat,connectOperationsSource} from '../dist/operations-source.js';
 test('query bounds reject injection-shaped filters and never permit unbounded pages',()=>{
  for(const value of [0,101,-1,1.1,'x'])assert.throws(()=>parseOperationsAuditQuery({limit:value}));
  assert.throws(()=>parseOperationsAuditQuery({actorId:'x\ncontent'}));
@@ -26,4 +26,18 @@ test('due-only queues, SQL read-only isolation and audit pagination against disp
  await pool.query("UPDATE operations_worker_heartbeats SET observed_at=now()-interval '2 minutes'");result=await readOperationsSource(pool,'growth',{OPS_EXPECTED_WORKERS:'publisher@test1'},[]);assert(Number(result.signals[0].value)>=120);
  const page=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{limit:1});assert.equal(page.entries[0].id,'b');assert.equal(page.nextCursor,'b');const next=await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{cursor:page.nextCursor});assert.equal(next.entries[0].id,'a');assert.equal(next.nextCursor,null);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{resourceId:'task1',status:'confirmed'})).entries.length,1);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{resourceId:'task1',status:'failed'})).entries.length,0);assert.equal((await readOperationsAudit(pool,'growth','development','SELECT * FROM audit_rows',{customerId:'one',actorId:'bob'})).entries.length,0);
  }finally{await pool.end();await parent.query(`DROP SCHEMA "${name}" CASCADE`);await parent.end();}
+});
+
+test('HTTP-alive source snapshots explicitly distinguish transaction readiness from unavailable database',async()=>{
+ const result=await readOperationsSource({connect:async()=>{throw Error('database refused');}},'growth',{},publicationMeasurements);
+ assert.equal(result.signals.find(s=>s.key==='source.read_ready').value,'0');assert.equal(result.signals.find(s=>s.key==='publication.quarantined').status,'unknown');assert(!JSON.stringify(result).includes('database refused'));
+ const db={async query(sql){if(sql==='BEGIN READ ONLY')throw Error('database shutdown');return {rows:[]};},release(){}};
+ const beginFailure=await readOperationsSource({connect:async()=>db},'growth',{},[]);assert.equal(beginFailure.signals.find(s=>s.key==='source.read_ready').value,'0');
+ const working={async query(){return {rows:[]};},release(){}};
+ const ready=await readOperationsSource({connect:async()=>working},'growth',{},[]);assert.equal(ready.signals.find(s=>s.key==='source.read_ready').value,'1');
+});
+test('observer acquisition timeout releases a client that arrives after the response deadline',async()=>{
+ let resolve,released=0;const connection=new Promise(done=>{resolve=done;});
+ await assert.rejects(()=>connectOperationsSource({connect:()=>connection},10),/deadline exceeded/);
+ resolve({release(){released++;}});await new Promise(done=>setImmediate(done));assert.equal(released,1);
 });
