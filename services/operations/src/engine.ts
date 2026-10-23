@@ -405,6 +405,18 @@ export async function retention(pool: pg.Pool, now: Date): Promise<void> {
       "DELETE FROM ops_commands WHERE operation_id IN(SELECT operation_id FROM ops_commands WHERE created_at<$1::timestamptz-interval '90 days' ORDER BY created_at LIMIT 500)",
       [now],
     );
+    await c.query(
+      "DELETE FROM ops_outbox WHERE id IN(SELECT id FROM ops_outbox WHERE delivered_at<$1::timestamptz-interval '90 days' ORDER BY delivered_at LIMIT 500)",
+      [now],
+    );
+    await c.query(
+      `DELETE FROM ops_transitions WHERE id IN(SELECT t.id FROM ops_transitions t JOIN ops_incidents i ON i.id=t.incident_id WHERE t.created_at<$1::timestamptz-interval '90 days' AND i.status='resolved' AND i.resolved_at<$1::timestamptz-interval '90 days' AND NOT EXISTS(SELECT 1 FROM ops_outbox o WHERE o.transition_id=t.id) ORDER BY t.created_at LIMIT 500)`,
+      [now],
+    );
+    await c.query(
+      "DELETE FROM ops_worker_progress WHERE id IN(SELECT id FROM ops_worker_progress WHERE updated_at<$1::timestamptz-interval '1 day' ORDER BY updated_at LIMIT 100)",
+      [now],
+    );
   });
 }
 export async function watchdog(

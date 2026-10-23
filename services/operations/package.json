@@ -12,7 +12,9 @@
     "test": "tsx --test tests/*.test.ts",
     "start": "node dist/api-main.js",
     "start:worker": "node dist/worker-main.js",
-    "migrate": "node dist/migrate-main.js"
+    "migrate": "node dist/migrate-main.js",
+    "dev": "tsx watch src/api-main.ts",
+    "dev:worker": "tsx watch src/worker-main.ts"
   },
   "dependencies": {
     "@kasitek-labs/contracts": "workspace:*",

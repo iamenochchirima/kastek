@@ -116,6 +116,24 @@ test(
       "Only explicitly named test database allowed",
     );
     await migrate(database!);
+    const checksumPool = createPool(database!);
+    const savedChecksum = (
+      await checksumPool.query(
+        "SELECT checksum FROM ops_migrations WHERE name='003_delivery_retention.sql'",
+      )
+    ).rows[0].checksum;
+    await checksumPool.query(
+      "UPDATE ops_migrations SET checksum='invalid' WHERE name='003_delivery_retention.sql'",
+    );
+    try {
+      await assert.rejects(() => migrate(database!), /checksum differs/);
+    } finally {
+      await checksumPool.query(
+        "UPDATE ops_migrations SET checksum=$1 WHERE name='003_delivery_retention.sql'",
+        [savedChecksum],
+      );
+      await checksumPool.end();
+    }
     const pool = createPool(database!),
       config = loadConfig(baseEnv);
     const tables = [
@@ -421,6 +439,164 @@ test(
           409,
           "breach cannot manually resolve",
         );
+        const ruleResult = await app.inject({ url: "/v1/rules", headers });
+        assert.equal(ruleResult.statusCode, 200);
+        const targetRule = ruleResult
+          .json()
+          .items.find((r: any) => r.id === "growth:publication.quarantined");
+        const policy = {
+          ...targetRule,
+          operationId: randomUUID(),
+          expectedRevision: targetRule.revision,
+          reason: "Fixture policy adjustment",
+          threshold: "1",
+        };
+        const policySaved = await app.inject({
+          method: "PUT",
+          url: "/v1/rules/" + encodeURIComponent(targetRule.id),
+          headers,
+          payload: policy,
+        });
+        assert.equal(policySaved.statusCode, 200, policySaved.body);
+        assert.equal(
+          (
+            await pool.query(
+              "SELECT reason FROM ops_rule_versions WHERE rule_id=$1 ORDER BY revision DESC LIMIT 1",
+              [targetRule.id],
+            )
+          ).rows[0].reason,
+          "Fixture policy adjustment",
+        );
+        assert.equal(
+          (
+            await app.inject({
+              method: "PUT",
+              url: "/v1/rules/" + encodeURIComponent(targetRule.id),
+              headers,
+              payload: { ...policy, operationId: randomUUID() },
+            })
+          ).statusCode,
+          409,
+        );
+        const maintenance = await app.inject({
+          method: "POST",
+          url: "/v1/maintenance",
+          headers,
+          payload: {
+            operationId: randomUUID(),
+            source: "growth",
+            startsAt: new Date().toISOString(),
+            endsAt: new Date(Date.now() + 60000).toISOString(),
+            reason: "Fixture deployment maintenance",
+          },
+        });
+        assert.equal(maintenance.statusCode, 200, maintenance.body);
+        assert.equal(
+          (
+            await app.inject({
+              method: "POST",
+              url: "/v1/maintenance/" + maintenance.json().id + "/expire",
+              headers,
+              payload: {
+                operationId: randomUUID(),
+                reason: "Fixture deployment finished",
+              },
+            })
+          ).statusCode,
+          200,
+        );
+        const seen = new Set<string>();
+        let auditCursor: string | null = null;
+        for (let i = 0; i < 4; i++) {
+          const query = new URLSearchParams({
+            source: "operations",
+            limit: "1",
+            ...(auditCursor ? { cursor: auditCursor } : {}),
+          });
+          const response = await app.inject({
+            url: "/v1/audit?" + query,
+            headers,
+          });
+          assert.equal(response.statusCode, 200, response.body);
+          const payload = response.json();
+          assert.ok(payload.items.length <= 1);
+          for (const entry of payload.items) {
+            assert.equal(
+              seen.has(entry.id),
+              false,
+              "audit pages do not repeat",
+            );
+            seen.add(entry.id);
+          }
+          auditCursor = payload.nextCursor;
+          if (!auditCursor) break;
+        }
+        assert.ok(seen.size > 1);
+        const viewerToken = randomBytes(32).toString("base64url");
+        await pool.query(
+          "INSERT INTO operations.admin_principals(admin_id,issuer,subject,role,name) VALUES('viewer','http://127.0.0.1:12345','viewer-subject','viewer','Viewer')",
+        );
+        await pool.query(
+          "INSERT INTO operations.admin_sessions(token_hash,admin_id,principal_revision,refresh_token,expires_at,refresh_after) VALUES($1,'viewer',1,'unused',now()+interval '1 hour',now()+interval '1 hour')",
+          [createHash("sha256").update(viewerToken).digest("hex")],
+        );
+        const viewerHeaders = {
+          ...headers,
+          cookie: "labs_admin_session=" + viewerToken,
+        };
+        assert.equal(
+          (await app.inject({ url: "/v1/incidents", headers: viewerHeaders }))
+            .statusCode,
+          200,
+        );
+        assert.equal(
+          (await app.inject({ url: "/v1/audit", headers: viewerHeaders }))
+            .statusCode,
+          403,
+        );
+        assert.equal(
+          (
+            await app.inject({
+              method: "POST",
+              url: endpoint,
+              headers: viewerHeaders,
+              payload: { ...action, operationId: randomUUID() },
+            })
+          ).statusCode,
+          403,
+        );
+        assert.equal(
+          (
+            await app.inject({
+              method: "PUT",
+              url: "/v1/rules/" + encodeURIComponent(targetRule.id),
+              headers: viewerHeaders,
+              payload: policy,
+            })
+          ).statusCode,
+          403,
+        );
+        const parallel = await Promise.all(
+          ["assign", "acknowledge"].map((actionName) =>
+            app.inject({
+              method: "POST",
+              url: endpoint,
+              headers,
+              payload: {
+                ...action,
+                operationId: randomUUID(),
+                expectedRevision: acknowledged.json().incident.revision,
+                action: actionName,
+                assignedTo: "operator",
+              },
+            }),
+          ),
+        );
+        assert.deepEqual(
+          parallel.map((r) => r.statusCode).sort(),
+          [200, 409],
+          "competing actors cannot overwrite same revision",
+        );
         await pool.query(
           "UPDATE operations.admin_principals SET active=false WHERE admin_id='operator'",
         );
@@ -507,7 +683,7 @@ test(
       ] as const) {
         mode = kind;
         await pool.query(
-          "UPDATE ops_monitors SET next_poll_at=now(),lease_until=NULL,last_observed_at=NULL",
+          "UPDATE ops_monitors SET next_poll_at=now()-interval '1 second',lease_until=NULL,last_observed_at=NULL",
         );
         const claim = (await claimMonitors(pool, new Date()))[0]!;
         assert.ok(claim);
@@ -529,7 +705,7 @@ test(
       assert.equal(redirects, 0, "collector refuses redirects");
       assert.equal(requests, 6);
       await pool.query(
-        "UPDATE ops_monitors SET next_poll_at=now(),lease_until=NULL,last_observed_at=NULL",
+        "UPDATE ops_monitors SET next_poll_at=now()-interval '1 second',lease_until=NULL,last_observed_at=NULL",
       );
       const claim = (await claimMonitors(pool, new Date()))[0]!;
       const fail = async () => {

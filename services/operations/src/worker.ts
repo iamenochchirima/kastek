@@ -127,7 +127,12 @@ export async function deliverNotifications(
   await Promise.all(
     claimed.rows.map(async (row) => {
       let success = false;
+      let suppressed = false;
       try {
+        const superseded = await pool.query(
+          `SELECT 1 FROM ops_outbox later JOIN ops_transitions lt ON lt.id=later.transition_id JOIN ops_transitions current ON current.id=$2 WHERE later.incident_id=$1 AND lt.revision>current.revision LIMIT 1`,
+          [row.incident_id, row.transition_id],
+        );
         const recipientRows = await pool.query(
           "SELECT admin_id FROM operations.admin_principals WHERE active=true AND admin_id=ANY($1::text[])",
           [row.payload.recipients],
@@ -150,8 +155,10 @@ export async function deliverNotifications(
           );
           return;
         }
-        if (!payload.recipients.length) success = true;
-        else {
+        if (superseded.rowCount || !payload.recipients.length) {
+          success = true;
+          suppressed = true;
+        } else {
           const path = "/internal/operations/notifications",
             body = JSON.stringify(payload);
           const authority = createOperationsServiceAuthority({
@@ -181,8 +188,13 @@ export async function deliverNotifications(
       }
       if (success) {
         const result = await pool.query(
-          "UPDATE ops_outbox SET delivered_at=$3,lease_until=NULL,attempts=attempts+1 WHERE id=$1 AND fence=$2 AND lease_until>$3",
-          [row.id, row.fence, new Date()],
+          "UPDATE ops_outbox SET delivered_at=$3,disposition=$4,lease_until=NULL,attempts=attempts+1 WHERE id=$1 AND fence=$2 AND lease_until>$3",
+          [
+            row.id,
+            row.fence,
+            new Date(),
+            suppressed ? "suppressed" : "delivered",
+          ],
         );
         if (result.rowCount) delivered++;
       } else

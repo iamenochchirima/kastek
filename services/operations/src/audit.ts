@@ -124,7 +124,13 @@ export function registerAudit(
       }
     }
     const selected = allowed.filter((s) => !q.source || q.source === s);
-    const pageLimit = Math.max(1, Math.floor(limit / selected.length)),
+    const collecting = selected
+      .filter((s) => !cursor.states[s]?.done)
+      .slice(0, limit);
+    const pageLimit = Math.max(
+        1,
+        Math.floor(limit / Math.max(1, collecting.length)),
+      ),
       items: OperationsAuditEntry[] = [],
       sources: {
         source: string;
@@ -135,6 +141,10 @@ export function registerAudit(
         const state = cursor.states[source] ?? {};
         if (state.done) {
           sources.push({ source, status: "available" });
+          return;
+        }
+        if (!collecting.includes(source)) {
+          sources.push({ source, status: "deferred" });
           return;
         }
         if (source === "operations") {
@@ -160,7 +170,11 @@ export function registerAudit(
             } catch {
               bad();
             }
-            if (!safe(pair?.id) || !Number.isFinite(Date.parse(pair?.at)))
+            if (
+              !safe(pair?.id) ||
+              !/^[0-9a-f-]{36}$/i.test(pair.id) ||
+              !Number.isFinite(Date.parse(pair?.at))
+            )
               bad();
             vals.push(pair.at, pair.id);
             clauses.push(

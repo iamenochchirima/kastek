@@ -226,6 +226,9 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
   app.get("/health/ready", async (_req, reply) => {
     try {
       await pool.query("SELECT 1 FROM ops_monitors LIMIT 1");
+      await pool.query("SELECT reason FROM ops_rule_versions LIMIT 1");
+      await pool.query("SELECT disposition FROM ops_outbox LIMIT 1");
+      await pool.query("SELECT 1 FROM operations.admin_sessions LIMIT 1");
       return { status: "ready" };
     } catch {
       return reply.code(503).send({ status: "unavailable" });
@@ -493,8 +496,8 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
       if (!row) throw new HttpError(409, "Rule changed; refresh before acting");
       const result = rule(row);
       await c.query(
-        "INSERT INTO ops_rule_versions(rule_id,revision,value,actor_id) VALUES($1,$2,$3,$4)",
-        [row.id, row.revision, result, a.id],
+        "INSERT INTO ops_rule_versions(rule_id,revision,value,actor_id,reason) VALUES($1,$2,$3,$4,$5)",
+        [row.id, row.revision, result, a.id, why],
       );
       await audit(
         c,
@@ -618,10 +621,20 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
     });
   });
   registerAudit(app, pool, config, actor);
+  let watching = false;
   const watchdogTimer = setInterval(() => {
-    void watchdog(pool, config, new Date()).catch(() => {
-      app.log.error({ event: "watchdog_failed", code: "database_unavailable" });
-    });
+    if (watching) return;
+    watching = true;
+    void watchdog(pool, config, new Date())
+      .catch(() => {
+        app.log.error({
+          event: "watchdog_failed",
+          code: "database_unavailable",
+        });
+      })
+      .finally(() => {
+        watching = false;
+      });
   }, 15000);
   watchdogTimer.unref();
   app.addHook("onClose", async () => clearInterval(watchdogTimer));
