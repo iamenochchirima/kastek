@@ -19,6 +19,7 @@ const pageLabels: Array<[string, string]> = [
   ["/web-services", "Web services"],
   ["/access", "Access"],
   ["/agencies", "Agencies"],
+  ["/organizations", "Growth organizations"],
   ["/settings", "Settings"],
 ];
 

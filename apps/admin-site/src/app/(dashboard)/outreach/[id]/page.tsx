@@ -49,20 +49,24 @@ export default async function CampaignDetailPage({
 }) {
   const { id } = await params;
   const filters = await searchParams;
-  const currentPage = Math.max(1, parseInt(filters.page || "1", 10));
+  const currentPage = Math.max(1, Number(filters.page) || 1);
 
   // Fetch campaign + leads + delivery logs in parallel
   const leadsUrl = new URL(`http://x/api/admin/outreach/${id}/leads`);
   if (filters.emailStatus) leadsUrl.searchParams.set("emailStatus", filters.emailStatus);
   if (filters.search) leadsUrl.searchParams.set("search", filters.search);
 
+  leadsUrl.searchParams.set("paginate", "true");
+  leadsUrl.searchParams.set("page", String(currentPage));
+  leadsUrl.searchParams.set("limit", String(PAGE_SIZE));
   const [campaignRes, leadsRes, logsRes] = await Promise.all([
     fetchFromCore(`/api/admin/outreach/${id}`),
     fetchFromCore(`/api/admin/outreach/${id}/leads?${leadsUrl.searchParams.toString()}`),
     fetchFromCore(`/api/admin/outreach/delivery?campaignId=${id}&limit=100`),
   ]);
 
-  if (!campaignRes.ok) notFound();
+  if (campaignRes.status === 404) notFound();
+  if (!campaignRes.ok || !leadsRes.ok || !logsRes.ok) throw new Error("Campaign unavailable");
 
   const campaign = await campaignRes.json() as {
     id: string;
@@ -74,13 +78,14 @@ export default async function CampaignDetailPage({
     replies: number;
   };
 
-  const allLeads: Lead[] = leadsRes.ok ? await leadsRes.json() : [];
+  const data = await leadsRes.json() as { items: Lead[]; total: number };
+  const allLeads = data.items;
   const deliveryLogs: DeliveryLog[] = logsRes.ok ? (await logsRes.json() as DeliveryLog[]) : [];
 
-  // Client-side pagination for leads
-  const filteredCount = allLeads.length;
+  // The API applies filtering and pagination.
+  const filteredCount = data.total;
   const totalPages = Math.ceil(filteredCount / PAGE_SIZE);
-  const leads = allLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const leads = allLeads;
 
   const rate =
     campaign.emailsSent > 0

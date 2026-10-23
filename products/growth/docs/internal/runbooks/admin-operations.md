@@ -23,3 +23,14 @@ Support grants do not grant shared execution control. For agent incidents, inspe
 Agents service using its current task/operation identifiers and current authorization.
 Do not restore obsolete installation credentials, disable tenant checks, or place secrets or
 customer message text in logs.
+
+## Admin lists and failed requests
+
+The central admin applies filters and bounded pages in the Growth API. Web services, outreach
+campaigns, campaign leads and delivery attempts accept `page`, `limit` and `paginate=true`.
+Normal page sizes are at most 200. Delivery CSV exports include at most 20,000 matching attempts.
+Cards marked "on page" describe only that page. Delivery totals describe all matching attempts.
+
+Use Retry after a failed page read. Do not treat unavailable results as zero or an empty catalogue.
+When a partial bulk lead action fails, refresh and retry only records still requiring the action.
+Do not recreate a Web services collection-delete route; that action is unsupported.

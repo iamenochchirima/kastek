@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 
 export default async function QuotationsPage() {
   const res = await fetchFromCore("/api/admin/quotations");
+  if (!res.ok) throw new Error("Quotations unavailable");
   const quotations: Array<{
     id: string;
     businessName: string;
@@ -18,13 +19,13 @@ export default async function QuotationsPage() {
     status: string;
     pricingItems: Array<{ amount?: string }>;
     createdAt: string;
-  }> = res.ok ? await res.json() : [];
+  }> = await res.json();
 
   return (
     <div className="admin-page">
       <AdminPageHeader title="Quotations" description="Create, update, download, and track standalone quotation records." actions={<Link href="/quotations/new" className={buttonClassName()}><Plus className="size-4" />New quotation</Link>} />
 
-      <div className="v-card overflow-hidden">
+      <div className="v-card overflow-x-auto">
         <div className="grid min-w-[780px] grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] gap-4 border-b border-border px-5 py-3 admin-table-head">
           <div>Business</div>
           <div>Contact</div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-request";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -12,6 +13,7 @@ export default function AddWebServiceLead() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     businessName: "",
     category: "",
@@ -28,15 +30,18 @@ export default function AddWebServiceLead() {
     if (!form.businessName || !form.category) return;
 
     setSaving(true);
-    await fetch("/api/web-services/add", {
+    setError(null);
+    try {
+    await adminRequest("/api/web-services/add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    setSaving(false);
     setOpen(false);
     setForm({ businessName: "", category: "", website: "", address: "", bizbayUrl: "", phone: "", email: "", notes: "" });
     router.refresh();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save lead"); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -55,6 +60,7 @@ export default function AddWebServiceLead() {
             <DialogDescription className="sr-only">Add a lead to the web services pipeline.</DialogDescription>
           </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
+              {error ? <p role="alert" className="text-sm text-status-danger">{error}</p> : null}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Business Name *</label>
                 <Input

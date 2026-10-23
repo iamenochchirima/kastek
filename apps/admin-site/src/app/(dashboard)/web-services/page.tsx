@@ -2,7 +2,6 @@ import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import WebServicesTable from "@/components/admin/web-services-table";
 import WebServicesFilters from "@/components/admin/web-services-filters";
-import DeleteAllButton from "@/components/admin/web-services-delete-all";
 import AddWebServiceLead from "@/components/admin/add-web-service-lead";
 import Pagination from "@/components/admin/pagination";
 import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
@@ -30,17 +29,22 @@ export default async function WebServicesPage({
 }) {
   const filters = await searchParams;
   const PAGE_SIZE = 50;
-  const currentPage = Math.max(1, parseInt(filters.page ?? "1", 10));
+  const currentPage = Math.max(1, Number(filters.page) || 1);
 
   const qs = new URLSearchParams();
   if (filters.callStatus) qs.set("callStatus", filters.callStatus);
   if (filters.category) qs.set("category", filters.category);
   if (filters.search) qs.set("search", filters.search);
 
+  qs.set("paginate", "true");
+  qs.set("page", String(currentPage));
+  qs.set("limit", String(PAGE_SIZE));
   const res = await fetchFromCore(`/api/admin/web-services?${qs.toString()}`);
-  const allLeads: WebServiceLead[] = res.ok ? await res.json() : [];
+  if (!res.ok) throw new Error("Web services unavailable");
+  const data = await res.json() as { items: WebServiceLead[]; total: number };
+  const allLeads = data.items;
 
-  // Derive stats from the full list
+  // Summaries describe only the current page.
   const statusMap: Record<string, number> = {};
   const categoryMap: Record<string, number> = {};
   for (const l of allLeads) {
@@ -48,11 +52,11 @@ export default async function WebServicesPage({
     categoryMap[l.category] = (categoryMap[l.category] ?? 0) + 1;
   }
 
-  const total = allLeads.length;
+  const total = data.total;
   const filteredCount = total;
 
-  // Paginate client-side (the Core API returns all filtered results)
-  const leads = allLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // The API applies filtering and pagination.
+  const leads = allLeads;
   const totalPages = Math.ceil(filteredCount / PAGE_SIZE);
 
   const serialized = leads.map((l) => ({
@@ -84,7 +88,7 @@ export default async function WebServicesPage({
   return (
     <div className="admin-page">
       <AdminPageHeader title="Web services" description={`${total} business lead${total === 1 ? "" : "s"} in the service-call pipeline.`} actions={<>
-          {total > 0 && <DeleteAllButton count={total} />}
+
           <AddWebServiceLead />
           <Link
             href="/web-services/import"
@@ -95,12 +99,12 @@ export default async function WebServicesPage({
       </>} />
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><AdminMetric label="Total" value={total} detail={`${statusMap.pending ?? 0} pending`} /><AdminMetric label="Called" value={called} tone="info" /><AdminMetric label="Interested" value={interested} detail={`${conversionRate}% conversion`} tone="success" /><AdminMetric label="Callback" value={statusMap.callback ?? 0} tone="attention" /><AdminMetric label="No answer" value={statusMap.no_answer ?? 0} tone="danger" /><AdminMetric label="Dead" value={statusMap.dead ?? 0} /></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><AdminMetric label="Filtered leads" value={total} detail={`${allLeads.length} on this page`} /><AdminMetric label="Called on page" value={called} tone="info" /><AdminMetric label="Interested on page" value={interested} detail={`${conversionRate}% conversion`} tone="success" /><AdminMetric label="Callbacks on page" value={statusMap.callback ?? 0} tone="attention" /><AdminMetric label="No answer on page" value={statusMap.no_answer ?? 0} tone="danger" /><AdminMetric label="Dead on page" value={statusMap.dead ?? 0} /></div>
 
       {/* Category breakdown */}
       {categories.length > 0 && (
         <div className="v-card p-[var(--density-card-padding)]">
-          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">By category</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Categories on this page</h2>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <Link

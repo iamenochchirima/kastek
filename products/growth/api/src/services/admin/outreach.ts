@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { createId } from '@paralleldrive/cuid2';
 import * as sql from './outreach-sql.js';
+import { adminPage } from './pagination.js';
 import { rowView } from './rows.js';
 import {
   bad,
@@ -18,10 +19,12 @@ const expand = (text: string) =>
     .replaceAll('{LEAD_COLS}', sql.LEAD_COLS);
 const campaignView = (r: ObjectValue) => rowView('outreach.CampaignRow', r),
   leadView = (r: ObjectValue) => rowView('outreach.LeadRow', r);
-export async function listCampaigns(pool: Pool) {
-  return (await pool.query(expand(sql.LIST_CAMPAIGNS_0))).rows.map(
-    campaignView,
-  );
+export async function listCampaigns(pool: Pool, query: ObjectValue = {}) {
+  const { page, limit, offset } = adminPage(query, 50, 200);
+  const count = await pool.query('SELECT COUNT(*) AS total FROM "OutreachCampaign"');
+  const rows = await pool.query(expand(sql.LIST_CAMPAIGNS_0).replace('ORDER BY "createdAt" DESC', 'ORDER BY "createdAt" DESC, id ASC') + ' LIMIT $1 OFFSET $2', [limit, offset]);
+  const items = rows.rows.map(campaignView);
+  return query.paginate === 'true' ? { items, total: Number(count.rows[0]!.total), page, limit } : items;
 }
 export async function getCampaign(pool: Pool, id: string) {
   return campaignView(
@@ -79,18 +82,19 @@ export async function listOutreachLeads(
   campaignId: string,
   query: ObjectValue,
 ) {
-  return (await pool.query(expand(sql.LIST_LEADS_0), [campaignId])).rows
-    .filter(
-      (r) =>
-        (query.emailStatus == null || r.emailStatus === query.emailStatus) &&
-        (query.search == null ||
-          ['businessName', 'website', 'emailAddress'].some((k) =>
-            String(r[k] ?? '')
-              .toLowerCase()
-              .includes(String(query.search).toLowerCase()),
-          )),
-    )
-    .map(leadView);
+  const { page, limit, offset } = adminPage(query);
+  const args: unknown[] = [campaignId];
+  const conditions = ['"campaignId"=$1'];
+  if (query.emailStatus != null) { args.push(query.emailStatus); conditions.push(`"emailStatus"=$${args.length}`); }
+  if (query.search != null) {
+    args.push(`%${String(query.search)}%`);
+    conditions.push(`("businessName" ILIKE $${args.length} OR website ILIKE $${args.length} OR "emailAddress" ILIKE $${args.length})`);
+  }
+  const where = ` WHERE ${conditions.join(' AND ')}`;
+  const count = await pool.query(`SELECT COUNT(*) AS total FROM "OutreachLead"${where}`, args);
+  const rows = await pool.query(`SELECT ${sql.LEAD_COLS} FROM "OutreachLead"${where} ORDER BY "createdAt" DESC, id ASC LIMIT $${args.length + 1} OFFSET $${args.length + 2}`, [...args, limit, offset]);
+  const items = rows.rows.map(leadView);
+  return query.paginate === 'true' ? { items, total: Number(count.rows[0]!.total), page, limit } : items;
 }
 export async function getOutreachLead(
   pool: Pool,
@@ -285,16 +289,10 @@ export async function listDeliveryLogs(pool: Pool, query: ObjectValue) {
         `l."attemptedAt" ${operator} ?::timestamptz`,
         `${query[key]}T${time}Z`,
       );
-  args.push(Math.min(20000, Number(query.limit ?? 20000)));
-  const rows = (
-    await pool.query(
-      sql.LIST_DELIVERY_LOGS_0.replace(
-        '{where_clause}',
-        conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
-      ).replace('{limit}', `$${args.length}`),
-      args,
-    )
-  ).rows;
+  const { page, limit, offset } = adminPage(query, query.format === 'csv' ? 1000 : 100, query.format === 'csv' ? 20000 : 200);
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const counts = query.paginate === 'true' ? (await pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE l.status='sent') AS sent, COUNT(*) FILTER (WHERE l.status='failed') AS failed FROM "OutreachEmailDeliveryLog" l LEFT JOIN "OutreachCampaign" c ON c.id=l."campaignId" ${where}`, args)).rows[0]! : null;
+  const rows = (await pool.query(sql.LIST_DELIVERY_LOGS_0.replace('{where_clause}', where).replace('ORDER BY l."attemptedAt" DESC', 'ORDER BY l."attemptedAt" DESC, l.id ASC').replace('{limit}', `$${args.length + 1}`) + ` OFFSET $${args.length + 2}`, [...args, limit, offset])).rows;
   if (query.format === 'csv')
     return (
       'attempted_at,status,recipient,subject,campaign,category,business,website,provider,error\n' +
@@ -318,5 +316,6 @@ export async function listDeliveryLogs(pool: Pool, query: ObjectValue) {
         )
         .join('')
     );
-  return rows.map((r) => rowView('outreach.DeliveryLogRow', r));
+  const items = rows.map((r) => rowView('outreach.DeliveryLogRow', r));
+  return counts ? { items, total: Number(counts.total), sent: Number(counts.sent), failed: Number(counts.failed), page, limit } : items;
 }

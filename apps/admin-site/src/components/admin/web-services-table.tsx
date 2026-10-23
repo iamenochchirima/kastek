@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-request";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import ConfirmModal from "./confirm-modal";
@@ -46,47 +47,41 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const allSelected = leads.length > 0 && selected.size === leads.length;
 
   async function updateLead(id: string, data: Record<string, unknown>) {
-    const scrollY = window.scrollY;
-    await fetch(`/api/web-services/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    router.refresh();
-    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    setError(null);
+    try {
+      await adminRequest(`/api/web-services/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      router.refresh();
+      return true;
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save lead"); return false; }
   }
 
   async function bulkUpdateStatus(status: string) {
     setUpdating(true);
-    await Promise.all(
-      Array.from(selected).map((id) => updateLead(id, { callStatus: status }))
-    );
-    setSelected(new Set());
-    setSelectMode(false);
+    const outcomes = await Promise.all(Array.from(selected).map((id) => updateLead(id, { callStatus: status })));
+    if (outcomes.every(Boolean)) { setSelected(new Set()); setSelectMode(false); }
     setUpdating(false);
   }
 
   async function handleBulkDelete() {
     setUpdating(true);
-    await Promise.all(
-      Array.from(selected).map((id) =>
-        fetch(`/api/web-services/${id}`, { method: "DELETE" })
-      )
-    );
-    setSelected(new Set());
-    setSelectMode(false);
-    setShowDeleteModal(false);
+    setError(null);
+    const results = await Promise.allSettled(Array.from(selected).map((id) => adminRequest(`/api/web-services/${id}`, { method: "DELETE" })));
+    const failed = results.filter((result) => result.status === "rejected").length;
+    if (failed) setError(`${failed} deletion(s) failed. Refresh and retry the remaining leads.`);
+    else { setSelected(new Set()); setSelectMode(false); setShowDeleteModal(false); }
     setUpdating(false);
     router.refresh();
   }
 
   return (
     <>
+      {error ? <p role="alert" className="text-sm text-status-danger">{error}</p> : null}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         {!selectMode ? (
@@ -335,19 +330,23 @@ function EditableField({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save(newValue: string) {
     setSaving(true);
+    setError(null);
+    try {
     const scrollY = window.scrollY;
-    await fetch(`/api/web-services/${id}`, {
+    await adminRequest(`/api/web-services/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: newValue || null }),
     });
-    setSaving(false);
     setOpen(false);
     router.refresh();
     requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save field"); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -365,6 +364,7 @@ function EditableField({
         placeholder={placeholder}
         type={field === "notes" ? "textarea" : type}
         loading={saving}
+        error={error}
         onSave={save}
         onCancel={() => setOpen(false)}
       />

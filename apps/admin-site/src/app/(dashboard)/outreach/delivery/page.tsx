@@ -41,7 +41,7 @@ export default async function OutreachDeliveryPage({
   }>;
 }) {
   const filters = await searchParams;
-  const currentPage = Math.max(1, parseInt(filters.page || "1", 10));
+  const currentPage = Math.max(1, Number(filters.page) || 1);
 
   // Build query params for the Core API endpoint.
   const q = new URLSearchParams();
@@ -54,49 +54,40 @@ export default async function OutreachDeliveryPage({
   if (filters.dateTo) q.set("dateTo", filters.dateTo);
 
   const [campaignsRes, logsRes] = await Promise.all([
-    fetchFromCore("/api/admin/outreach"),
-    fetchFromCore(`/api/admin/outreach/delivery?${q.toString()}&limit=20000`),
+    fetchFromCore("/api/admin/outreach?limit=200"),
+    fetchFromCore(`/api/admin/outreach/delivery?${q.toString()}&paginate=true&page=${currentPage}&limit=${PAGE_SIZE}`),
   ]);
 
-  const campaigns: Campaign[] = campaignsRes.ok ? await campaignsRes.json() : [];
-  const allLogs: DeliveryLog[] = logsRes.ok ? await logsRes.json() : [];
+  if (!campaignsRes.ok || !logsRes.ok) throw new Error("Delivery monitoring unavailable");
+  const campaigns: Campaign[] = await campaignsRes.json();
+  const data = await logsRes.json() as { items: DeliveryLog[]; total: number; sent: number; failed: number };
+  const allLogs = data.items;
 
-  // Compute stats from returned logs
-  const totalItems = allLogs.length;
-  const sentCount = allLogs.filter((l) => l.status === "sent").length;
-  const failedCount = allLogs.filter((l) => l.status === "failed").length;
+  // The API aggregates all matching attempts.
+  const totalItems = data.total;
+  const sentCount = data.sent;
+  const failedCount = data.failed;
   const failRate = totalItems > 0 ? Math.round((failedCount / totalItems) * 100) : 0;
 
-  // Client-side pagination
+  // The API applies filtering and pagination.
   const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-  const logs = allLogs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const logs = allLogs;
 
   const exportParams = new URLSearchParams(q);
 
   return (
     <div className="admin-page">
-      <AdminPageHeader eyebrow="Outreach" title="Delivery monitoring" description="Global send attempts across outreach campaigns." actions={<><a href={`/api/outreach/delivery/export?${exportParams.toString()}`} className={buttonClassName({ variant: "outline", size: "sm" })}>Export CSV</a><Link href="/outreach" className={buttonClassName({ variant: "ghost", size: "sm" })}>Back to outreach</Link></>} />
+      <AdminPageHeader eyebrow="Outreach" title="Delivery monitoring" description="Global send attempts across outreach campaigns." actions={<><a href={`/api/outreach/delivery/export?${exportParams.toString()}`} className={buttonClassName({ variant: "outline", size: "sm" })}>Export CSV (up to 20,000)</a><Link href="/outreach" className={buttonClassName({ variant: "ghost", size: "sm" })}>Back to outreach</Link></>} />
 
       <form className="v-card grid gap-3 p-4 md:grid-cols-7">
-        <select
-          name="campaignId"
-          defaultValue={filters.campaignId || ""}
-          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <option value="">All campaigns</option>
-          {campaigns.map((campaign) => (
-            <option key={campaign.id} value={campaign.id}>
-              {campaign.name}
-            </option>
-          ))}
-        </select>
+        <div><input name="campaignId" aria-label="Campaign ID" list="delivery-campaigns" defaultValue={filters.campaignId || ""} placeholder="Campaign ID" className="h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm" /><datalist id="delivery-campaigns">{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</datalist></div>
         <select
           name="status"
           defaultValue={filters.status || ""}
           className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="">All statuses</option>
-          <option value="sent">Sent</option>
+          <option value="sent">Accepted by SMTP</option>
           <option value="failed">Failed</option>
         </select>
         <select
@@ -151,7 +142,7 @@ export default async function OutreachDeliveryPage({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AdminMetric label="Filtered attempts" value={totalItems} />
-        <AdminMetric label="Sent" value={sentCount} tone="success" />
+        <AdminMetric label="Accepted by SMTP" value={sentCount} tone="success" />
         <AdminMetric label="Failed" value={failedCount} tone="danger" />
         <AdminMetric label="Failure rate" value={`${failRate}%`} tone={failRate ? "attention" : "default"} />
       </div>

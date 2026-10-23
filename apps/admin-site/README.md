@@ -33,3 +33,26 @@ response and go directly to the existing invoice renderer.
 Operations now exposes Growth webhook recovery and support grants only. Old Agents runtime
 operator panels, projections and installation commands are removed. The old health, data-quality
 and audit page links redirect to Operations. Shared execution monitoring belongs to Agents.
+
+## Admin route and list behavior
+
+Analytics is the primary reporting entry. `/dashboard` remains a redirect without a second
+navigation item. Outreach campaigns, drafts and delivery history stay grouped separately from
+Operations and Commercial. Operations contains Growth webhook recovery and support grants;
+retired Agents operator panels remain removed.
+
+Growth organization links open `/organizations?q=<id>`. This searches the existing Growth
+organization lookup and shows at most 25 matches. Agency workspace identifiers are separate.
+
+Web services, outreach campaign leads and delivery history filter and page in Growth SQL.
+List callers request `paginate=true&page=1&limit=50` for `{ items, total, page, limit }`.
+Delivery list metadata also includes `sent` and `failed` matching the full filter. Normal pages
+are capped at 200 records; CSV exports are capped at 20,000 attempts and labelled accordingly.
+The bounded array response remains available to existing list callers without `paginate=true`.
+Campaign and Web service summary cards explicitly describe the current page where appropriate.
+
+Page read failures render an error with Retry, including failed catalogue reads. Billing editing
+controls do not mount until the authoritative catalogue loads. Route transitions show a skeleton.
+The unsupported Web services Delete All control and collection DELETE proxy are removed. Bulk
+lead actions retain failed selections; field and add-lead forms retain input and show errors.
+SMTP acceptance is distinct from confirmed delivery.

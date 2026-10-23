@@ -16,9 +16,6 @@ type NavItem = { href: string; label: string; icon: typeof Gauge };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navigation: NavGroup[] = [
-  { label: "Overview", items: [
-    { href: "/dashboard", label: "Dashboard", icon: Gauge },
-  ] },
   { label: "Analytics", items: [
     { href: "/analytics", label: "Overview", icon: Gauge },
     { href: "/analytics/usage", label: "Usage", icon: BarChart3 },
@@ -40,7 +37,7 @@ const navigation: NavGroup[] = [
     { href: "/billing", label: "Product billing", icon: Handshake },
   ] },
   { label: "Outreach", items: [
-    { href: "/outreach", label: "AI services", icon: Send },
+    { href: "/outreach", label: "Campaigns", icon: Send },
     { href: "/outreach/drafts", label: "Email drafts", icon: Mail },
     { href: "/outreach/delivery", label: "Delivery log", icon: Inbox },
     { href: "/web-services", label: "Web services", icon: Globe2 },

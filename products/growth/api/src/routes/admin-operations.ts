@@ -106,7 +106,7 @@ export function registerAdminOperationsRoutes(
       search?: string;
     }>(r.query, ['callStatus', 'category', 'search']);
     await extractAdmin(r, context);
-    return web.listWebServices(pool, query('web_services.ListQuery', q));
+    return web.listWebServices(pool, { ...query('web_services.ListQuery', q), ...typedQuery(r.query, ['page', 'limit', 'paginate']) });
   });
   app.get('/api/admin/web-services/:id', async (r) => {
     await extractAdmin(r, context);
@@ -160,7 +160,7 @@ export function registerAdminOperationsRoutes(
   });
   app.get('/api/admin/outreach', async (r) => {
     await extractAdmin(r, context);
-    return outreach.listCampaigns(pool);
+    return outreach.listCampaigns(pool, obj(typedQuery<{ page?: string; limit?: string; paginate?: string }>(r.query, ['page', 'limit', 'paginate'])));
   });
   app.get('/api/admin/outreach/:id', async (r) => {
     await extractAdmin(r, context);
@@ -272,7 +272,7 @@ export function registerAdminOperationsRoutes(
       ]),
       parsedLimit = queryI64(queryValues.limit, 'limit');
     await extractAdmin(r, context);
-    const q: ObjectValue = { ...queryValues, limit: parsedLimit ?? null };
+    const q: ObjectValue = { ...queryValues, limit: parsedLimit ?? null, ...typedQuery(r.query, ['page', 'paginate']) };
     const result = await outreach.listDeliveryLogs(pool, q);
     return typeof result === 'string'
       ? reply
@@ -304,7 +304,7 @@ export function registerAdminOperationsRoutes(
     return outreach.listOutreachLeads(
       pool,
       param(r),
-      query('outreach.LeadQuery', q),
+      { ...query('outreach.LeadQuery', q), ...typedQuery(r.query, ['page', 'limit', 'paginate']) },
     );
   });
   app.post('/api/admin/outreach/:id/leads', async (r, reply) => {
