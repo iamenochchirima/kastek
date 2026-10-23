@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import LegacyLogin from "./legacy-login";
 import {buttonClassName} from "@/components/ui/button";
 export default function LoginPage(){
