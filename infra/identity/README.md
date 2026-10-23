@@ -106,3 +106,32 @@ Check readiness/discovery and use the actual Growth browser code flow. Test fres
 - [Keycloak administration, passkeys, recovery codes and session settings](https://www.keycloak.org/docs/latest/server_admin/index.html)
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
 - [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html)
+
+## Labs admin contract
+
+Labs administration uses the independent confidential `labs-admin` client. Its callback is
+`http://localhost:3001/api/operations-auth/callback`; its logout return is
+`http://localhost:3001/login`. Backchannel logout goes through
+`http://localhost:3001/api/operations-auth/backchannel-logout` to Operations.
+PKCE S256 is required. Password, implicit and service-account grants are disabled.
+The client receives no customer membership or realm-management roles.
+
+Set an independent `LABS_ADMIN_OIDC_CLIENT_SECRET` in the ignored identity `.env` and run
+`./identity.sh configure`. Copy that secret into the Operations service's private profile as
+`OPS_OIDC_CLIENT_SECRET`, alongside `OPS_OIDC_ISSUER`, `OPS_OIDC_CLIENT_ID=labs-admin`,
+`OPS_PUBLIC_URL=http://localhost:3001`, the exact `OPS_OIDC_REDIRECT_URI`, and
+`OPS_SESSION_ENCRYPTION_KEY` (32 random bytes encoded as 64 hex characters).
+Production requires HTTPS and separately reviewed client registration and operator grants.
+
+Identity login grants no administrator access. Provision an explicit issuer, provider subject
+and stable administrator ID in the Operations database with the service's `provision-admin`
+command. The operator ID, reason and resulting grant are audited. Name and email are display
+metadata; neither assigns roles or links customer accounts. Existing IDs cannot be reassigned
+to a different identity. Principal disable or role changes revoke existing sessions through
+an incremented grant revision.
+
+Operations stores only hashed opaque cookies and encrypts provider refresh tokens server-side.
+Sessions have a 30-minute inactivity deadline and an 8-hour absolute deadline. Provider refresh
+is required at most every 60 seconds; unavailable or revoked refresh credentials invalidate the
+session. Local logout remains effective during provider outages. A Growth outage does not
+prevent existing Operations sessions or new shared-provider logins.

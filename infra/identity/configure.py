@@ -84,11 +84,12 @@ def validate_local_configuration(env):
         'AGENCY_PARTNER_SESSION_ADMIN_SECRET',
         'AGENTS_OIDC_CLIENT_SECRET',
         'AGENTS_EXECUTION_CLIENT_SECRET',
+        'LABS_ADMIN_OIDC_CLIENT_SECRET',
     )
     missing = [key for key in required if not env.get(key) or env[key].startswith('replace-')]
     if missing:
         raise RuntimeError('Set required local identity settings in .env: ' + ', '.join(missing))
-    for key in ('AGENTS_OIDC_CLIENT_SECRET', 'AGENTS_EXECUTION_CLIENT_SECRET'):
+    for key in ('AGENTS_OIDC_CLIENT_SECRET', 'AGENTS_EXECUTION_CLIENT_SECRET', 'LABS_ADMIN_OIDC_CLIENT_SECRET'):
         if any(env[key] == env[other] for other in required
                if other != key and other.endswith(('PASSWORD', 'SECRET'))):
             raise RuntimeError(key + ' must use an independent secret')
@@ -147,6 +148,38 @@ def configure_agents_clients(admin, template, env, scopes):
     admin('users/' + service_user['id'] + '/role-mappings/clients/' + execution['id'], 'POST', [role])
 
 
+def configure_labs_admin_client(admin, template, env, scopes):
+    """Register a separate admin login client without customer or realm-management roles."""
+    secret = env.get('LABS_ADMIN_OIDC_CLIENT_SECRET', '')
+    if not secret or secret.startswith('replace-'):
+        raise RuntimeError('Set LABS_ADMIN_OIDC_CLIENT_SECRET for Labs admin identity')
+    if any(secret == value for key, value in env.items()
+           if key != 'LABS_ADMIN_OIDC_CLIENT_SECRET' and key.endswith(('PASSWORD', 'SECRET'))):
+        raise RuntimeError('LABS_ADMIN_OIDC_CLIENT_SECRET must use an independent secret')
+    desired = next(item for item in template['clients'] if item['clientId'] == 'labs-admin')
+    clients = {item['clientId']: item for item in admin('clients')}
+    settings = {key: value for key, value in desired.items()
+                if key not in ('defaultClientScopes', 'optionalClientScopes', 'protocolMappers')}
+    settings['secret'] = secret
+    if 'labs-admin' not in clients:
+        admin('clients', 'POST', settings)
+        clients = {item['clientId']: item for item in admin('clients')}
+    endpoint = 'clients/' + clients['labs-admin']['id']
+    current = admin(endpoint)
+    current.update(settings)
+    admin(endpoint, 'PUT', current)
+    for kind, field in (('default', 'defaultClientScopes'), ('optional', 'optionalClientScopes')):
+        scope_endpoint = endpoint + '/' + kind + '-client-scopes'
+        for scope in admin(scope_endpoint):
+            if scope['name'] not in desired[field]:
+                admin(scope_endpoint + '/' + scope['id'], 'DELETE')
+        for name in desired[field]:
+            admin(scope_endpoint + '/' + scopes[name]['id'], 'PUT')
+    mapper_endpoint = endpoint + '/protocol-mappers/models'
+    for mapper in admin(mapper_endpoint):
+        admin(mapper_endpoint + '/' + mapper['id'], 'DELETE')
+
+
 def configure():
     env = environment()
     template, smtp = validate_local_configuration(env)
@@ -180,6 +213,7 @@ def configure():
             else:
                 admin(endpoint, 'POST', mapper)
     configure_agents_clients(admin, template, env, scopes)
+    configure_labs_admin_client(admin, template, env, scopes)
     executions = admin('authentication/flows/browser/executions')
     recovery = [item for item in executions if item.get('providerId') == 'auth-recovery-authn-code-form']
     if len(recovery) != 1:

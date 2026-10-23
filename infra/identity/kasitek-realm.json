@@ -202,6 +202,37 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "labs-admin",
+      "name": "Labs administration",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${LABS_ADMIN_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "http://localhost:3001/api/operations-auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3001"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3001/login",
+        "backchannel.logout.url": "http://localhost:3001/api/operations-auth/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true"
+      },
+      "defaultClientScopes": [
+        "profile",
+        "email"
+      ],
+      "optionalClientScopes": []
     }
   ],
   "identityProviders": [

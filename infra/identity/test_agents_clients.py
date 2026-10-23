@@ -117,7 +117,8 @@ class AgentsIdentityTests(unittest.TestCase):
             'IDENTITY_DB_PASSWORD', 'KEYCLOAK_ADMIN', 'KEYCLOAK_ADMIN_PASSWORD',
             'GROWTH_OIDC_CLIENT_SECRET', 'GROWTH_SESSION_ADMIN_SECRET',
             'AGENCY_PARTNER_OIDC_CLIENT_SECRET', 'AGENCY_PARTNER_SESSION_ADMIN_SECRET',
-            'AGENTS_OIDC_CLIENT_SECRET', 'AGENTS_EXECUTION_CLIENT_SECRET')}
+            'AGENTS_OIDC_CLIENT_SECRET', 'AGENTS_EXECUTION_CLIENT_SECRET',
+            'LABS_ADMIN_OIDC_CLIENT_SECRET')}
         env['AGENTS_EXECUTION_CLIENT_SECRET'] = env['AGENTS_OIDC_CLIENT_SECRET']
         with self.assertRaisesRegex(RuntimeError, 'must use an independent secret'):
             validate_local_configuration(env)
