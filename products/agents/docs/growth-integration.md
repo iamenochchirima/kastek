@@ -77,28 +77,81 @@ To rotate verifier keys, use `GROWTH_AGENTS_PUBLIC_KEYS_JSON` or
 configuration control key in `GROWTH_AGENTS_CONTROL_PUBLIC_KEYS_JSON`; its separate private key
 never belongs to the Growth browser service. Restart matching services after configuration changes.
 
-## Provision the Growth model
+## Automatically provision organisation defaults
 
-Configure the Agents credential vault before provisioning a model. In private operator
-configuration, set `GROWTH_MODEL_TENANT_ID` to the actual Growth organization ID, then set
-`GROWTH_MODEL_PROVIDER_ID`, `GROWTH_MODEL_ID` and `GROWTH_MODEL_API_KEY` explicitly.
-An optional `GROWTH_MODEL_ENDPOINT` must pass the provider setup policy.
+Growth records a durable setup job in the same transaction as each organisation and owner
+membership. The setup worker creates Growth assistant, Research, Content and Campaigns through
+an independent signed provisioning API. Existing organisations enqueue missing setup on their
+first authorised bootstrap request or through the bounded operator backfill below.
 
-From the repository root, run:
+Apply Growth migration `20261023170000_growth_agent_setup` before deploying the API or worker.
+Run Agents `setup:db` to apply the exact supported additive schema upgrade. Unknown schema
+checksums remain rejected; do not reset an existing database to work around a mismatch.
 
-```sh
-pnpm --dir products/agents/api setup:growth-model
+Create an independent RSA provisioning keypair. Configure Growth API/worker with:
+
+```dotenv
+GROWTH_AGENTS_PROVISION_PRIVATE_KEY="<provisioning private PEM>"
+GROWTH_AGENTS_PROVISION_KEY_ID=growth-provision-v1
+GROWTH_AGENTS_DEFAULT_MODEL_PROFILE_ID=growth-default
+GROWTH_AGENTS_DEFAULT_MODEL_PROFILE_REVISION=1
 ```
 
-The command registers the Growth execution tenant, discovers model metadata, encrypts the key,
-and records an explicit Growth service-use grant and default. It does not run a model-quality
-evaluation or establish live inference compatibility. A normal server environment key does not
-become a model connection or runtime fallback.
+Configure Agents API with the matching verifier and explicit managed model profile:
 
-Open Growth **Agents**. Missing service trust, current permissions, enabled features or a usable
-managed model produces an unavailable state. New messages pin the current feature configuration,
-model route and context revision. In-progress work retains its accepted route and still checks
-current credentials and Growth authorization before use.
+```dotenv
+GROWTH_AGENTS_PROVISION_PUBLIC_KEYS_JSON={"growth-provision-v1":"<public PEM>"}
+GROWTH_MANAGED_MODEL_PROFILE_JSON={"id":"growth-default","revision":"1","providerId":"<installed-provider>","modelId":"<approved-model>","credentialRef":"GROWTH_MODEL_DEFAULT_API_KEY"}
+GROWTH_MODEL_DEFAULT_API_KEY=<protected-provider-key>
+```
+
+The profile is trusted operator configuration. `credentialRef` names a protected Agents environment
+secret, never a field accepted from Growth or its browser. Set provider, model and limits deliberately;
+there is no implicit fallback key or automatic model substitution. Credentials enter organisation-scoped
+vault custody and product use grants. Existing valid defaults and explicit revocations are preserved.
+A profile revision change requires an explicit operator upgrade rather than a retry.
+
+Provisioning uses `POST /internal/v1/products/growth/provision`, audience
+`agents-product-provisioning`, subject `growth-provisioner`. Its full request digest covers the
+organisation and target revisions. User execution and general configuration credentials cannot
+invoke it. Agents checks current Growth eligibility at `POST /internal/agents/provisioning-check`,
+with audience `growth-agent-provisioning-lifecycle`, subject `agents-provisioner`, and the existing
+Agents action signing key. Both service origins and action verifier configuration remain required.
+
+Run the existing API workers, or start a dedicated Growth worker with
+`KASITEK_PROCESS=growth-agent-setup-worker`. If `KASITEK_DISABLE_BACKGROUND_WORKERS=true`, the
+API does not deliver setup jobs; start the dedicated worker explicitly. No model inference runs
+as part of provisioning. Discovery validates provider metadata; live-model acceptance and evaluations
+remain owner-run.
+
+From `products/growth/api`, with the intended protected environment profile, use:
+
+```sh
+node --import tsx scripts/agent-setup.ts status
+node --import tsx scripts/agent-setup.ts backfill 100
+node --import tsx scripts/agent-setup.ts retry <organisation-id>
+node --import tsx scripts/agent-setup.ts cancel <organisation-id>
+```
+
+Backfill only inserts missing setup jobs. Retry preserves the job's original target and operation
+identity. Cancel fences the source job; it does not revoke already accepted conversations or
+replace the independent Agents tenant-control operation. Missing or invalid configuration becomes
+blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
+
+The operator status reports state counts, attempts, pending age and completed setup duration.
+Structured `agent.setup.*` logs include organisation/operation/generation and safe failure codes.
+OpenTelemetry records `growth.agent_setup.backlog`, transition counts and setup duration through
+Growth's existing telemetry. Provisioning does not add customer Analytics events or expose keys,
+prompts or private profile data in telemetry.
+
+Growth shows all four defaults during setup and refreshes pending/running state with bounded polling.
+A completed setup still requires current membership, entitlements, a healthy runtime and any
+operation-specific account or context. Setup must not silently grant publishing or campaign rights.
+
+The manual `setup:growth-model` command remains available for explicit operator model changes.
+Automatic repair does not overwrite those settings. For rollback, disable setup delivery first and
+retain the additive tables and queued jobs. Apply service configuration/schema before enabling
+workers. No production deployment is implied by this local setup.
 
 ## Check the available work
 

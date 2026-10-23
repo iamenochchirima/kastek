@@ -977,7 +977,7 @@ standalone Agents accounts. Growth owns current membership, resource reads, immu
 reviews and authoritative DRAFT saves. The shared harness pins the managed model route, accepted
 context revision and private product evidence through history, compaction and artifacts. Initial
 Growth features leave delegation, personal memory, external research and arbitrary writes disabled.
-See [Growth integration](../growth-integration.md) for setup and current boundaries.
+Growth organisation creation records durable setup intent in the same local transaction as its owner membership. A dedicated service-only worker provisions the four managed defaults and an explicit model profile through signed HTTP. Agents reconciles missing defaults without overwriting customisation or revocation; repeated delivery converges on the same model custody and grants. Setup status is separate from current execution and operation-specific permissions. See [Growth integration](../growth-integration.md) for setup, repair and current boundaries.
 
 The external Harbor adapter submits isolated pinned trials through normal native interfaces.
 Trial preparation pins provider accounts, model and adapter revisions, metadata, effective policy

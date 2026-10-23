@@ -155,3 +155,13 @@ variables are absent or `OTEL_SDK_DISABLED=true`. For Collector operation, see t
   release record.
 
 For release work, follow the internal [Feature and Platform Release Process](../operations/release-process.md).
+
+## Growth agent setup worker
+
+New organisations queue four managed agents and their model automatically. Configure the explicit
+model profile and independent provisioning keypair in [Growth integration](../../../../agents/docs/growth-integration.md#automatically-provision-organisation-defaults).
+When API background workers are disabled, start a dedicated API process with
+`KASITEK_PROCESS=growth-agent-setup-worker`. Run `pnpm --filter @kasitek/growth-core agents:setup status`
+to inspect setup counts, attempts, pending age and duration; use its bounded `backfill 100` command
+for organisations created before this worker was enabled. No model inference or evaluations run
+as part of setup.

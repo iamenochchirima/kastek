@@ -72,7 +72,7 @@ export async function processGrowthAgentSetupBatch(core: CoreContext, log: Worke
       transitions.add(1,{state,code: code??"NONE"});
       if (state === "pending") recordRetry("worker","growth_agent_setup",1);
       if (state === "ready") duration.record(Math.max(0,(Date.now()-job.createdAt.getTime())/1000));
-      log.info({ ...fields,event: "agent.setup.transition", state,code,next_attempt_delay_ms:Math.round(delay) });
+      log.info({ ...fields,event: "agent.setup.transition", setup_state:state,failure_code:code,next_attempt_delay_ms:Math.round(delay) });
     } else log.info({...fields,event:"agent.setup.stale_completion"});
   }));
   return jobs.length;
