@@ -214,8 +214,10 @@ export type UserWhereInput = {
   phone?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
+  externalIdentity?: Prisma.XOR<Prisma.ExternalIdentityNullableScalarRelationFilter, Prisma.ExternalIdentityWhereInput> | null
   ownedOrganizations?: Prisma.OrganizationListRelationFilter
   orgMemberships?: Prisma.OrganizationMemberListRelationFilter
   sentInvitations?: Prisma.OrganizationInvitationListRelationFilter
@@ -223,6 +225,8 @@ export type UserWhereInput = {
   businessProfile?: Prisma.XOR<Prisma.BusinessProfileNullableScalarRelationFilter, Prisma.BusinessProfileWhereInput> | null
   conversations?: Prisma.OnboardingConversationListRelationFilter
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  emailConnections?: Prisma.EmailConnectionListRelationFilter
+  emailOAuthStates?: Prisma.EmailOAuthStateListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
@@ -237,7 +241,6 @@ export type UserWhereInput = {
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
   billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -250,8 +253,10 @@ export type UserOrderByWithRelationInput = {
   phone?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  growthAgentReviews?: Prisma.GrowthAgentReviewOrderByRelationAggregateInput
   accounts?: Prisma.AccountOrderByRelationAggregateInput
   sessions?: Prisma.SessionOrderByRelationAggregateInput
+  externalIdentity?: Prisma.ExternalIdentityOrderByWithRelationInput
   ownedOrganizations?: Prisma.OrganizationOrderByRelationAggregateInput
   orgMemberships?: Prisma.OrganizationMemberOrderByRelationAggregateInput
   sentInvitations?: Prisma.OrganizationInvitationOrderByRelationAggregateInput
@@ -259,6 +264,8 @@ export type UserOrderByWithRelationInput = {
   businessProfile?: Prisma.BusinessProfileOrderByWithRelationInput
   conversations?: Prisma.OnboardingConversationOrderByRelationAggregateInput
   socialChannelConnections?: Prisma.SocialChannelConnectionOrderByRelationAggregateInput
+  emailConnections?: Prisma.EmailConnectionOrderByRelationAggregateInput
+  emailOAuthStates?: Prisma.EmailOAuthStateOrderByRelationAggregateInput
   socialPosts?: Prisma.SocialPostOrderByRelationAggregateInput
   socialPublishJobs?: Prisma.SocialPublishJobOrderByRelationAggregateInput
   socialPublishBatches?: Prisma.SocialPublishBatchOrderByRelationAggregateInput
@@ -273,7 +280,6 @@ export type UserOrderByWithRelationInput = {
   pushSubscriptions?: Prisma.PushSubscriptionOrderByRelationAggregateInput
   billingCheckouts?: Prisma.BillingCheckoutOrderByRelationAggregateInput
   productTours?: Prisma.UserProductTourOrderByRelationAggregateInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -289,8 +295,10 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   phone?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
+  externalIdentity?: Prisma.XOR<Prisma.ExternalIdentityNullableScalarRelationFilter, Prisma.ExternalIdentityWhereInput> | null
   ownedOrganizations?: Prisma.OrganizationListRelationFilter
   orgMemberships?: Prisma.OrganizationMemberListRelationFilter
   sentInvitations?: Prisma.OrganizationInvitationListRelationFilter
@@ -298,6 +306,8 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   businessProfile?: Prisma.XOR<Prisma.BusinessProfileNullableScalarRelationFilter, Prisma.BusinessProfileWhereInput> | null
   conversations?: Prisma.OnboardingConversationListRelationFilter
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  emailConnections?: Prisma.EmailConnectionListRelationFilter
+  emailOAuthStates?: Prisma.EmailOAuthStateListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
@@ -312,7 +322,6 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
   billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -355,8 +364,10 @@ export type UserCreateInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -364,6 +375,8 @@ export type UserCreateInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -378,7 +391,6 @@ export type UserCreateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -391,8 +403,10 @@ export type UserUncheckedCreateInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -400,6 +414,8 @@ export type UserUncheckedCreateInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -414,7 +430,6 @@ export type UserUncheckedCreateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUpdateInput = {
@@ -427,8 +442,10 @@ export type UserUpdateInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -436,6 +453,8 @@ export type UserUpdateInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -450,7 +469,6 @@ export type UserUpdateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -463,8 +481,10 @@ export type UserUncheckedUpdateInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -472,6 +492,8 @@ export type UserUncheckedUpdateInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -486,7 +508,6 @@ export type UserUncheckedUpdateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -608,6 +629,34 @@ export type UserUpdateOneRequiredWithoutSentInvitationsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSentInvitationsInput, Prisma.UserUpdateWithoutSentInvitationsInput>, Prisma.UserUncheckedUpdateWithoutSentInvitationsInput>
 }
 
+export type UserCreateNestedOneWithoutEmailConnectionsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEmailConnectionsInput, Prisma.UserUncheckedCreateWithoutEmailConnectionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEmailConnectionsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutEmailConnectionsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEmailConnectionsInput, Prisma.UserUncheckedCreateWithoutEmailConnectionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEmailConnectionsInput
+  upsert?: Prisma.UserUpsertWithoutEmailConnectionsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutEmailConnectionsInput, Prisma.UserUpdateWithoutEmailConnectionsInput>, Prisma.UserUncheckedUpdateWithoutEmailConnectionsInput>
+}
+
+export type UserCreateNestedOneWithoutEmailOAuthStatesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedCreateWithoutEmailOAuthStatesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEmailOAuthStatesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutEmailOAuthStatesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedCreateWithoutEmailOAuthStatesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEmailOAuthStatesInput
+  upsert?: Prisma.UserUpsertWithoutEmailOAuthStatesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutEmailOAuthStatesInput, Prisma.UserUpdateWithoutEmailOAuthStatesInput>, Prisma.UserUncheckedUpdateWithoutEmailOAuthStatesInput>
+}
+
 export type UserCreateNestedOneWithoutProductToursInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutProductToursInput, Prisma.UserUncheckedCreateWithoutProductToursInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutProductToursInput
@@ -634,20 +683,6 @@ export type UserUpdateOneRequiredWithoutCreatedDeveloperApiKeysNestedInput = {
   upsert?: Prisma.UserUpsertWithoutCreatedDeveloperApiKeysInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutCreatedDeveloperApiKeysInput, Prisma.UserUpdateWithoutCreatedDeveloperApiKeysInput>, Prisma.UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput>
-}
-
-export type UserCreateNestedOneWithoutAgentWebsiteDeploymentsInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput
-  connect?: Prisma.UserWhereUniqueInput
-}
-
-export type UserUpdateOneRequiredWithoutAgentWebsiteDeploymentsNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput
-  upsert?: Prisma.UserUpsertWithoutAgentWebsiteDeploymentsInput
-  connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput, Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput>, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
 }
 
 export type UserCreateNestedOneWithoutBillingCheckoutsInput = {
@@ -704,6 +739,20 @@ export type UserUpdateOneRequiredWithoutSessionsNestedInput = {
   upsert?: Prisma.UserUpsertWithoutSessionsInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSessionsInput, Prisma.UserUpdateWithoutSessionsInput>, Prisma.UserUncheckedUpdateWithoutSessionsInput>
+}
+
+export type UserCreateNestedOneWithoutExternalIdentityInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutExternalIdentityInput, Prisma.UserUncheckedCreateWithoutExternalIdentityInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutExternalIdentityInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutExternalIdentityNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutExternalIdentityInput, Prisma.UserUncheckedCreateWithoutExternalIdentityInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutExternalIdentityInput
+  upsert?: Prisma.UserUpsertWithoutExternalIdentityInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutExternalIdentityInput, Prisma.UserUpdateWithoutExternalIdentityInput>, Prisma.UserUncheckedUpdateWithoutExternalIdentityInput>
 }
 
 export type UserCreateNestedOneWithoutBusinessProfileInput = {
@@ -902,6 +951,20 @@ export type UserUpdateOneRequiredWithoutWhatsappSendEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutWhatsappSendEventsInput, Prisma.UserUpdateWithoutWhatsappSendEventsInput>, Prisma.UserUncheckedUpdateWithoutWhatsappSendEventsInput>
 }
 
+export type UserCreateNestedOneWithoutGrowthAgentReviewsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedCreateWithoutGrowthAgentReviewsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGrowthAgentReviewsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutGrowthAgentReviewsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedCreateWithoutGrowthAgentReviewsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGrowthAgentReviewsInput
+  upsert?: Prisma.UserUpsertWithoutGrowthAgentReviewsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutGrowthAgentReviewsInput, Prisma.UserUpdateWithoutGrowthAgentReviewsInput>, Prisma.UserUncheckedUpdateWithoutGrowthAgentReviewsInput>
+}
+
 export type UserCreateWithoutOwnedOrganizationsInput = {
   id?: string
   name?: string | null
@@ -912,14 +975,18 @@ export type UserCreateWithoutOwnedOrganizationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -934,7 +1001,6 @@ export type UserCreateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
@@ -947,14 +1013,18 @@ export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -969,7 +1039,6 @@ export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutOwnedOrganizationsInput = {
@@ -998,14 +1067,18 @@ export type UserUpdateWithoutOwnedOrganizationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1020,7 +1093,6 @@ export type UserUpdateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
@@ -1033,14 +1105,18 @@ export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1055,7 +1131,6 @@ export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutOrgMembershipsInput = {
@@ -1068,14 +1143,18 @@ export type UserCreateWithoutOrgMembershipsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -1090,7 +1169,6 @@ export type UserCreateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutOrgMembershipsInput = {
@@ -1103,14 +1181,18 @@ export type UserUncheckedCreateWithoutOrgMembershipsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -1125,7 +1207,6 @@ export type UserUncheckedCreateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutOrgMembershipsInput = {
@@ -1154,14 +1235,18 @@ export type UserUpdateWithoutOrgMembershipsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1176,7 +1261,6 @@ export type UserUpdateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
@@ -1189,14 +1273,18 @@ export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1211,7 +1299,6 @@ export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSentInvitationsInput = {
@@ -1224,14 +1311,18 @@ export type UserCreateWithoutSentInvitationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -1246,7 +1337,6 @@ export type UserCreateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSentInvitationsInput = {
@@ -1259,14 +1349,18 @@ export type UserUncheckedCreateWithoutSentInvitationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -1281,7 +1375,6 @@ export type UserUncheckedCreateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSentInvitationsInput = {
@@ -1310,14 +1403,18 @@ export type UserUpdateWithoutSentInvitationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1332,7 +1429,6 @@ export type UserUpdateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSentInvitationsInput = {
@@ -1345,14 +1441,18 @@ export type UserUncheckedUpdateWithoutSentInvitationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1367,10 +1467,9 @@ export type UserUncheckedUpdateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
-export type UserCreateWithoutProductToursInput = {
+export type UserCreateWithoutEmailConnectionsInput = {
   id?: string
   name?: string | null
   email?: string | null
@@ -1380,8 +1479,10 @@ export type UserCreateWithoutProductToursInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -1389,6 +1490,7 @@ export type UserCreateWithoutProductToursInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -1402,10 +1504,10 @@ export type UserCreateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
 }
 
-export type UserUncheckedCreateWithoutProductToursInput = {
+export type UserUncheckedCreateWithoutEmailConnectionsInput = {
   id?: string
   name?: string | null
   email?: string | null
@@ -1415,8 +1517,10 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -1424,6 +1528,7 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -1437,7 +1542,343 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutEmailConnectionsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutEmailConnectionsInput, Prisma.UserUncheckedCreateWithoutEmailConnectionsInput>
+}
+
+export type UserUpsertWithoutEmailConnectionsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutEmailConnectionsInput, Prisma.UserUncheckedUpdateWithoutEmailConnectionsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutEmailConnectionsInput, Prisma.UserUncheckedCreateWithoutEmailConnectionsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutEmailConnectionsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutEmailConnectionsInput, Prisma.UserUncheckedUpdateWithoutEmailConnectionsInput>
+}
+
+export type UserUpdateWithoutEmailConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutEmailConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutEmailOAuthStatesInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutEmailOAuthStatesInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutEmailOAuthStatesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedCreateWithoutEmailOAuthStatesInput>
+}
+
+export type UserUpsertWithoutEmailOAuthStatesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedUpdateWithoutEmailOAuthStatesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedCreateWithoutEmailOAuthStatesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutEmailOAuthStatesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutEmailOAuthStatesInput, Prisma.UserUncheckedUpdateWithoutEmailOAuthStatesInput>
+}
+
+export type UserUpdateWithoutEmailOAuthStatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutEmailOAuthStatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutProductToursInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutProductToursInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutProductToursInput = {
@@ -1466,8 +1907,10 @@ export type UserUpdateWithoutProductToursInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -1475,6 +1918,8 @@ export type UserUpdateWithoutProductToursInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1488,7 +1933,6 @@ export type UserUpdateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutProductToursInput = {
@@ -1501,8 +1945,10 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -1510,6 +1956,8 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1523,7 +1971,6 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
@@ -1536,14 +1983,18 @@ export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -1558,7 +2009,6 @@ export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
@@ -1571,14 +2021,18 @@ export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -1593,7 +2047,6 @@ export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutCreatedDeveloperApiKeysInput = {
@@ -1622,14 +2075,18 @@ export type UserUpdateWithoutCreatedDeveloperApiKeysInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1644,7 +2101,6 @@ export type UserUpdateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
@@ -1657,171 +2113,18 @@ export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
-  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
-  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
-  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
-}
-
-export type UserCreateWithoutAgentWebsiteDeploymentsInput = {
-  id?: string
-  name?: string | null
-  email?: string | null
-  emailVerified?: Date | string | null
-  image?: string | null
-  password?: string | null
-  phone?: string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
-  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
-  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
-  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
-  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
-  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
-  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
-  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
-  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
-  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
-  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
-  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
-  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
-  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-}
-
-export type UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput = {
-  id?: string
-  name?: string | null
-  email?: string | null
-  emailVerified?: Date | string | null
-  image?: string | null
-  password?: string | null
-  phone?: string | null
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
-  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
-  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
-  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
-  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
-  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
-  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
-  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
-  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
-  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-}
-
-export type UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput = {
-  where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-}
-
-export type UserUpsertWithoutAgentWebsiteDeploymentsInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
-  create: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  where?: Prisma.UserWhereInput
-}
-
-export type UserUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput = {
-  where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
-}
-
-export type UserUpdateWithoutAgentWebsiteDeploymentsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
-  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
-  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
-  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
-  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
-  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
-  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
-  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
-  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
-  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-}
-
-export type UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
-  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
-  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
-  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
-  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
-  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
-  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
-  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1848,8 +2151,10 @@ export type UserCreateWithoutBillingCheckoutsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -1857,6 +2162,8 @@ export type UserCreateWithoutBillingCheckoutsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -1870,7 +2177,6 @@ export type UserCreateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
@@ -1883,8 +2189,10 @@ export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -1892,6 +2200,8 @@ export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -1905,7 +2215,6 @@ export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutBillingCheckoutsInput = {
@@ -1934,8 +2243,10 @@ export type UserUpdateWithoutBillingCheckoutsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -1943,6 +2254,8 @@ export type UserUpdateWithoutBillingCheckoutsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -1956,7 +2269,6 @@ export type UserUpdateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
@@ -1969,8 +2281,10 @@ export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -1978,6 +2292,8 @@ export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -1991,7 +2307,6 @@ export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutPushSubscriptionsInput = {
@@ -2004,8 +2319,10 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -2013,6 +2330,8 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2026,7 +2345,6 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
@@ -2039,8 +2357,10 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -2048,6 +2368,8 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2061,7 +2383,6 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutPushSubscriptionsInput = {
@@ -2090,8 +2411,10 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -2099,6 +2422,8 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2112,7 +2437,6 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
@@ -2125,8 +2449,10 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -2134,6 +2460,8 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2147,7 +2475,6 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -2160,7 +2487,9 @@ export type UserCreateWithoutAccountsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -2168,6 +2497,8 @@ export type UserCreateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2182,7 +2513,6 @@ export type UserCreateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -2195,7 +2525,9 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -2203,6 +2535,8 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2217,7 +2551,6 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -2246,7 +2579,9 @@ export type UserUpdateWithoutAccountsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -2254,6 +2589,8 @@ export type UserUpdateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2268,7 +2605,6 @@ export type UserUpdateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -2281,7 +2617,9 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -2289,6 +2627,8 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2303,7 +2643,6 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -2316,7 +2655,9 @@ export type UserCreateWithoutSessionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -2324,6 +2665,8 @@ export type UserCreateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2338,7 +2681,6 @@ export type UserCreateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -2351,7 +2693,9 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -2359,6 +2703,8 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2373,7 +2719,6 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -2402,7 +2747,9 @@ export type UserUpdateWithoutSessionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -2410,6 +2757,8 @@ export type UserUpdateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2424,7 +2773,6 @@ export type UserUpdateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -2437,7 +2785,9 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -2445,6 +2795,8 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2459,10 +2811,9 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
-export type UserCreateWithoutBusinessProfileInput = {
+export type UserCreateWithoutExternalIdentityInput = {
   id?: string
   name?: string | null
   email?: string | null
@@ -2472,14 +2823,18 @@ export type UserCreateWithoutBusinessProfileInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2494,10 +2849,9 @@ export type UserCreateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
-export type UserUncheckedCreateWithoutBusinessProfileInput = {
+export type UserUncheckedCreateWithoutExternalIdentityInput = {
   id?: string
   name?: string | null
   email?: string | null
@@ -2507,14 +2861,18 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2529,7 +2887,174 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
+}
+
+export type UserCreateOrConnectWithoutExternalIdentityInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutExternalIdentityInput, Prisma.UserUncheckedCreateWithoutExternalIdentityInput>
+}
+
+export type UserUpsertWithoutExternalIdentityInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutExternalIdentityInput, Prisma.UserUncheckedUpdateWithoutExternalIdentityInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutExternalIdentityInput, Prisma.UserUncheckedCreateWithoutExternalIdentityInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutExternalIdentityInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutExternalIdentityInput, Prisma.UserUncheckedUpdateWithoutExternalIdentityInput>
+}
+
+export type UserUpdateWithoutExternalIdentityInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutExternalIdentityInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutBusinessProfileInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutBusinessProfileInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutBusinessProfileInput = {
@@ -2558,14 +3083,18 @@ export type UserUpdateWithoutBusinessProfileInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2580,7 +3109,6 @@ export type UserUpdateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutBusinessProfileInput = {
@@ -2593,14 +3121,18 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2615,7 +3147,6 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutConversationsInput = {
@@ -2628,14 +3159,18 @@ export type UserCreateWithoutConversationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2650,7 +3185,6 @@ export type UserCreateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutConversationsInput = {
@@ -2663,14 +3197,18 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2685,7 +3223,6 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutConversationsInput = {
@@ -2714,14 +3251,18 @@ export type UserUpdateWithoutConversationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2736,7 +3277,6 @@ export type UserUpdateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutConversationsInput = {
@@ -2749,14 +3289,18 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2771,7 +3315,6 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappConnectionsInput = {
@@ -2784,8 +3327,10 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -2793,6 +3338,8 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2806,7 +3353,6 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
@@ -2819,8 +3365,10 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -2828,6 +3376,8 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2841,7 +3391,6 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappConnectionsInput = {
@@ -2870,8 +3419,10 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -2879,6 +3430,8 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -2892,7 +3445,6 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
@@ -2905,8 +3457,10 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -2914,6 +3468,8 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -2927,7 +3483,6 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappCallSessionsInput = {
@@ -2940,8 +3495,10 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -2949,6 +3506,8 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -2962,7 +3521,6 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
@@ -2975,8 +3533,10 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -2984,6 +3544,8 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -2997,7 +3559,6 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappCallSessionsInput = {
@@ -3026,8 +3587,10 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3035,6 +3598,8 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -3048,7 +3613,6 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
@@ -3061,8 +3625,10 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -3070,6 +3636,8 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -3083,7 +3651,6 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialChannelConnectionsInput = {
@@ -3096,14 +3663,18 @@ export type UserCreateWithoutSocialChannelConnectionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -3118,7 +3689,6 @@ export type UserCreateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
@@ -3131,14 +3701,18 @@ export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -3153,7 +3727,6 @@ export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialChannelConnectionsInput = {
@@ -3182,14 +3755,18 @@ export type UserUpdateWithoutSocialChannelConnectionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -3204,7 +3781,6 @@ export type UserUpdateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
@@ -3217,14 +3793,18 @@ export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
   createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -3239,7 +3819,6 @@ export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialPostsInput = {
@@ -3252,8 +3831,10 @@ export type UserCreateWithoutSocialPostsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -3261,6 +3842,8 @@ export type UserCreateWithoutSocialPostsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
@@ -3274,7 +3857,6 @@ export type UserCreateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialPostsInput = {
@@ -3287,8 +3869,10 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -3296,6 +3880,8 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
@@ -3309,7 +3895,6 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialPostsInput = {
@@ -3338,8 +3923,10 @@ export type UserUpdateWithoutSocialPostsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3347,6 +3934,8 @@ export type UserUpdateWithoutSocialPostsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
@@ -3360,7 +3949,6 @@ export type UserUpdateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialPostsInput = {
@@ -3373,8 +3961,10 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -3382,6 +3972,8 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
@@ -3395,7 +3987,6 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialPublishJobsInput = {
@@ -3408,8 +3999,10 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -3417,6 +4010,8 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
@@ -3430,7 +4025,6 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
@@ -3443,8 +4037,10 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -3452,6 +4048,8 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
@@ -3465,7 +4063,6 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialPublishJobsInput = {
@@ -3494,8 +4091,10 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3503,6 +4102,8 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
@@ -3516,7 +4117,6 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
@@ -3529,8 +4129,10 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -3538,6 +4140,8 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
@@ -3551,7 +4155,6 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialPublishBatchesInput = {
@@ -3564,8 +4167,10 @@ export type UserCreateWithoutSocialPublishBatchesInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -3573,6 +4178,8 @@ export type UserCreateWithoutSocialPublishBatchesInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
@@ -3586,7 +4193,6 @@ export type UserCreateWithoutSocialPublishBatchesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
@@ -3599,8 +4205,10 @@ export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -3608,6 +4216,8 @@ export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
@@ -3621,7 +4231,6 @@ export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialPublishBatchesInput = {
@@ -3650,8 +4259,10 @@ export type UserUpdateWithoutSocialPublishBatchesInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3659,6 +4270,8 @@ export type UserUpdateWithoutSocialPublishBatchesInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
@@ -3672,7 +4285,6 @@ export type UserUpdateWithoutSocialPublishBatchesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
@@ -3685,8 +4297,10 @@ export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -3694,6 +4308,8 @@ export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
@@ -3707,7 +4323,6 @@ export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutUploadedContentMediaAssetsInput = {
@@ -3720,8 +4335,10 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -3729,6 +4346,8 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -3742,7 +4361,6 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
@@ -3755,8 +4373,10 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -3764,6 +4384,8 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -3777,7 +4399,6 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutUploadedContentMediaAssetsInput = {
@@ -3806,8 +4427,10 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3815,6 +4438,8 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -3828,7 +4453,6 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
@@ -3841,8 +4465,10 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -3850,6 +4476,8 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -3863,7 +4491,6 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappContactsInput = {
@@ -3876,8 +4503,10 @@ export type UserCreateWithoutWhatsappContactsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -3885,6 +4514,8 @@ export type UserCreateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -3898,7 +4529,6 @@ export type UserCreateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappContactsInput = {
@@ -3911,8 +4541,10 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -3920,6 +4552,8 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -3933,7 +4567,6 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappContactsInput = {
@@ -3962,8 +4595,10 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -3971,6 +4606,8 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -3984,7 +4621,6 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
@@ -3997,8 +4633,10 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -4006,6 +4644,8 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -4019,7 +4659,6 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappContactListMembershipsInput = {
@@ -4032,8 +4671,10 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -4041,6 +4682,8 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -4054,7 +4697,6 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
@@ -4067,8 +4709,10 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -4076,6 +4720,8 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -4089,7 +4735,6 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappContactListMembershipsInput = {
@@ -4118,8 +4763,10 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -4127,6 +4774,8 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -4140,7 +4789,6 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
@@ -4153,8 +4801,10 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -4162,6 +4812,8 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -4175,7 +4827,6 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappTemplatesInput = {
@@ -4188,8 +4839,10 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -4197,6 +4850,8 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -4210,7 +4865,6 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
@@ -4223,8 +4877,10 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -4232,6 +4888,8 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -4245,7 +4903,6 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappTemplatesInput = {
@@ -4274,8 +4931,10 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -4283,6 +4942,8 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -4296,7 +4957,6 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
@@ -4309,8 +4969,10 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -4318,6 +4980,8 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -4331,7 +4995,6 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappCampaignsInput = {
@@ -4344,8 +5007,10 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -4353,6 +5018,8 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -4366,7 +5033,6 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
@@ -4379,8 +5045,10 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -4388,6 +5056,8 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -4401,7 +5071,6 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappCampaignsInput = {
@@ -4430,8 +5099,10 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -4439,6 +5110,8 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -4452,7 +5125,6 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
@@ -4465,8 +5137,10 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -4474,6 +5148,8 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -4487,7 +5163,6 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappSendEventsInput = {
@@ -4500,8 +5175,10 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
@@ -4509,6 +5186,8 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
@@ -4522,7 +5201,6 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
@@ -4535,8 +5213,10 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
@@ -4544,6 +5224,8 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
   conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
@@ -4557,7 +5239,6 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappSendEventsInput = {
@@ -4586,8 +5267,10 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
@@ -4595,6 +5278,8 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
@@ -4608,7 +5293,6 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
@@ -4621,8 +5305,10 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
@@ -4630,6 +5316,8 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
@@ -4643,7 +5331,174 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
+}
+
+export type UserCreateWithoutGrowthAgentReviewsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutGrowthAgentReviewsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutGrowthAgentReviewsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedCreateWithoutGrowthAgentReviewsInput>
+}
+
+export type UserUpsertWithoutGrowthAgentReviewsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedUpdateWithoutGrowthAgentReviewsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedCreateWithoutGrowthAgentReviewsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutGrowthAgentReviewsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutGrowthAgentReviewsInput, Prisma.UserUncheckedUpdateWithoutGrowthAgentReviewsInput>
+}
+
+export type UserUpdateWithoutGrowthAgentReviewsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutGrowthAgentReviewsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -4652,6 +5507,7 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
  */
 
 export type UserCountOutputType = {
+  growthAgentReviews: number
   accounts: number
   sessions: number
   ownedOrganizations: number
@@ -4660,6 +5516,8 @@ export type UserCountOutputType = {
   createdDeveloperApiKeys: number
   conversations: number
   socialChannelConnections: number
+  emailConnections: number
+  emailOAuthStates: number
   socialPosts: number
   socialPublishJobs: number
   socialPublishBatches: number
@@ -4674,10 +5532,10 @@ export type UserCountOutputType = {
   pushSubscriptions: number
   billingCheckouts: number
   productTours: number
-  agentWebsiteDeployments: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  growthAgentReviews?: boolean | UserCountOutputTypeCountGrowthAgentReviewsArgs
   accounts?: boolean | UserCountOutputTypeCountAccountsArgs
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   ownedOrganizations?: boolean | UserCountOutputTypeCountOwnedOrganizationsArgs
@@ -4686,6 +5544,8 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   createdDeveloperApiKeys?: boolean | UserCountOutputTypeCountCreatedDeveloperApiKeysArgs
   conversations?: boolean | UserCountOutputTypeCountConversationsArgs
   socialChannelConnections?: boolean | UserCountOutputTypeCountSocialChannelConnectionsArgs
+  emailConnections?: boolean | UserCountOutputTypeCountEmailConnectionsArgs
+  emailOAuthStates?: boolean | UserCountOutputTypeCountEmailOAuthStatesArgs
   socialPosts?: boolean | UserCountOutputTypeCountSocialPostsArgs
   socialPublishJobs?: boolean | UserCountOutputTypeCountSocialPublishJobsArgs
   socialPublishBatches?: boolean | UserCountOutputTypeCountSocialPublishBatchesArgs
@@ -4700,7 +5560,6 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   pushSubscriptions?: boolean | UserCountOutputTypeCountPushSubscriptionsArgs
   billingCheckouts?: boolean | UserCountOutputTypeCountBillingCheckoutsArgs
   productTours?: boolean | UserCountOutputTypeCountProductToursArgs
-  agentWebsiteDeployments?: boolean | UserCountOutputTypeCountAgentWebsiteDeploymentsArgs
 }
 
 /**
@@ -4711,6 +5570,13 @@ export type UserCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensi
    * Select specific fields to fetch from the UserCountOutputType
    */
   select?: Prisma.UserCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountGrowthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentReviewWhereInput
 }
 
 /**
@@ -4767,6 +5633,20 @@ export type UserCountOutputTypeCountConversationsArgs<ExtArgs extends runtime.Ty
  */
 export type UserCountOutputTypeCountSocialChannelConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.SocialChannelConnectionWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountEmailConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EmailConnectionWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountEmailOAuthStatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EmailOAuthStateWhereInput
 }
 
 /**
@@ -4867,13 +5747,6 @@ export type UserCountOutputTypeCountProductToursArgs<ExtArgs extends runtime.Typ
   where?: Prisma.UserProductTourWhereInput
 }
 
-/**
- * UserCountOutputType without action
- */
-export type UserCountOutputTypeCountAgentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.AgentWebsiteDeploymentWhereInput
-}
-
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -4885,8 +5758,10 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   phone?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  growthAgentReviews?: boolean | Prisma.User$growthAgentReviewsArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  externalIdentity?: boolean | Prisma.User$externalIdentityArgs<ExtArgs>
   ownedOrganizations?: boolean | Prisma.User$ownedOrganizationsArgs<ExtArgs>
   orgMemberships?: boolean | Prisma.User$orgMembershipsArgs<ExtArgs>
   sentInvitations?: boolean | Prisma.User$sentInvitationsArgs<ExtArgs>
@@ -4894,6 +5769,8 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   businessProfile?: boolean | Prisma.User$businessProfileArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
   socialChannelConnections?: boolean | Prisma.User$socialChannelConnectionsArgs<ExtArgs>
+  emailConnections?: boolean | Prisma.User$emailConnectionsArgs<ExtArgs>
+  emailOAuthStates?: boolean | Prisma.User$emailOAuthStatesArgs<ExtArgs>
   socialPosts?: boolean | Prisma.User$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.User$socialPublishJobsArgs<ExtArgs>
   socialPublishBatches?: boolean | Prisma.User$socialPublishBatchesArgs<ExtArgs>
@@ -4908,7 +5785,6 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
   billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
-  agentWebsiteDeployments?: boolean | Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -4950,8 +5826,10 @@ export type UserSelectScalar = {
 
 export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "emailVerified" | "image" | "password" | "phone" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  growthAgentReviews?: boolean | Prisma.User$growthAgentReviewsArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  externalIdentity?: boolean | Prisma.User$externalIdentityArgs<ExtArgs>
   ownedOrganizations?: boolean | Prisma.User$ownedOrganizationsArgs<ExtArgs>
   orgMemberships?: boolean | Prisma.User$orgMembershipsArgs<ExtArgs>
   sentInvitations?: boolean | Prisma.User$sentInvitationsArgs<ExtArgs>
@@ -4959,6 +5837,8 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   businessProfile?: boolean | Prisma.User$businessProfileArgs<ExtArgs>
   conversations?: boolean | Prisma.User$conversationsArgs<ExtArgs>
   socialChannelConnections?: boolean | Prisma.User$socialChannelConnectionsArgs<ExtArgs>
+  emailConnections?: boolean | Prisma.User$emailConnectionsArgs<ExtArgs>
+  emailOAuthStates?: boolean | Prisma.User$emailOAuthStatesArgs<ExtArgs>
   socialPosts?: boolean | Prisma.User$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.User$socialPublishJobsArgs<ExtArgs>
   socialPublishBatches?: boolean | Prisma.User$socialPublishBatchesArgs<ExtArgs>
@@ -4973,7 +5853,6 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
   billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
-  agentWebsiteDeployments?: boolean | Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -4982,8 +5861,10 @@ export type UserIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
 export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "User"
   objects: {
+    growthAgentReviews: Prisma.$GrowthAgentReviewPayload<ExtArgs>[]
     accounts: Prisma.$AccountPayload<ExtArgs>[]
     sessions: Prisma.$SessionPayload<ExtArgs>[]
+    externalIdentity: Prisma.$ExternalIdentityPayload<ExtArgs> | null
     ownedOrganizations: Prisma.$OrganizationPayload<ExtArgs>[]
     orgMemberships: Prisma.$OrganizationMemberPayload<ExtArgs>[]
     sentInvitations: Prisma.$OrganizationInvitationPayload<ExtArgs>[]
@@ -4991,6 +5872,8 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     businessProfile: Prisma.$BusinessProfilePayload<ExtArgs> | null
     conversations: Prisma.$OnboardingConversationPayload<ExtArgs>[]
     socialChannelConnections: Prisma.$SocialChannelConnectionPayload<ExtArgs>[]
+    emailConnections: Prisma.$EmailConnectionPayload<ExtArgs>[]
+    emailOAuthStates: Prisma.$EmailOAuthStatePayload<ExtArgs>[]
     socialPosts: Prisma.$SocialPostPayload<ExtArgs>[]
     socialPublishJobs: Prisma.$SocialPublishJobPayload<ExtArgs>[]
     socialPublishBatches: Prisma.$SocialPublishBatchPayload<ExtArgs>[]
@@ -5005,7 +5888,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     pushSubscriptions: Prisma.$PushSubscriptionPayload<ExtArgs>[]
     billingCheckouts: Prisma.$BillingCheckoutPayload<ExtArgs>[]
     productTours: Prisma.$UserProductTourPayload<ExtArgs>[]
-    agentWebsiteDeployments: Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -5411,8 +6293,10 @@ readonly fields: UserFieldRefs;
  */
 export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  growthAgentReviews<T extends Prisma.User$growthAgentReviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$growthAgentReviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   accounts<T extends Prisma.User$accountsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$accountsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AccountPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  externalIdentity<T extends Prisma.User$externalIdentityArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$externalIdentityArgs<ExtArgs>>): Prisma.Prisma__ExternalIdentityClient<runtime.Types.Result.GetResult<Prisma.$ExternalIdentityPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   ownedOrganizations<T extends Prisma.User$ownedOrganizationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$ownedOrganizationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   orgMemberships<T extends Prisma.User$orgMembershipsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$orgMembershipsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationMemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sentInvitations<T extends Prisma.User$sentInvitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sentInvitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationInvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -5420,6 +6304,8 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   businessProfile<T extends Prisma.User$businessProfileArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$businessProfileArgs<ExtArgs>>): Prisma.Prisma__BusinessProfileClient<runtime.Types.Result.GetResult<Prisma.$BusinessProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   conversations<T extends Prisma.User$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OnboardingConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialChannelConnections<T extends Prisma.User$socialChannelConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialChannelConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialChannelConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailConnections<T extends Prisma.User$emailConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$emailConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EmailConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailOAuthStates<T extends Prisma.User$emailOAuthStatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$emailOAuthStatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EmailOAuthStatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPosts<T extends Prisma.User$socialPostsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialPostsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPublishJobs<T extends Prisma.User$socialPublishJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialPublishJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPublishBatches<T extends Prisma.User$socialPublishBatchesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$socialPublishBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishBatchPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -5434,7 +6320,6 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   pushSubscriptions<T extends Prisma.User$pushSubscriptionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$pushSubscriptionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PushSubscriptionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   billingCheckouts<T extends Prisma.User$billingCheckoutsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$billingCheckoutsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BillingCheckoutPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   productTours<T extends Prisma.User$productToursArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$productToursArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserProductTourPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  agentWebsiteDeployments<T extends Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -5861,6 +6746,30 @@ export type UserDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Internal
 }
 
 /**
+ * User.growthAgentReviews
+ */
+export type User$growthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentReview
+   */
+  select?: Prisma.GrowthAgentReviewSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentReview
+   */
+  omit?: Prisma.GrowthAgentReviewOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentReviewInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentReviewWhereInput
+  orderBy?: Prisma.GrowthAgentReviewOrderByWithRelationInput | Prisma.GrowthAgentReviewOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentReviewWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentReviewScalarFieldEnum | Prisma.GrowthAgentReviewScalarFieldEnum[]
+}
+
+/**
  * User.accounts
  */
 export type User$accountsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -5906,6 +6815,25 @@ export type User$sessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   take?: number
   skip?: number
   distinct?: Prisma.SessionScalarFieldEnum | Prisma.SessionScalarFieldEnum[]
+}
+
+/**
+ * User.externalIdentity
+ */
+export type User$externalIdentityArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ExternalIdentity
+   */
+  select?: Prisma.ExternalIdentitySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ExternalIdentity
+   */
+  omit?: Prisma.ExternalIdentityOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ExternalIdentityInclude<ExtArgs> | null
+  where?: Prisma.ExternalIdentityWhereInput
 }
 
 /**
@@ -6069,6 +6997,54 @@ export type User$socialChannelConnectionsArgs<ExtArgs extends runtime.Types.Exte
   take?: number
   skip?: number
   distinct?: Prisma.SocialChannelConnectionScalarFieldEnum | Prisma.SocialChannelConnectionScalarFieldEnum[]
+}
+
+/**
+ * User.emailConnections
+ */
+export type User$emailConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailConnection
+   */
+  select?: Prisma.EmailConnectionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailConnection
+   */
+  omit?: Prisma.EmailConnectionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailConnectionInclude<ExtArgs> | null
+  where?: Prisma.EmailConnectionWhereInput
+  orderBy?: Prisma.EmailConnectionOrderByWithRelationInput | Prisma.EmailConnectionOrderByWithRelationInput[]
+  cursor?: Prisma.EmailConnectionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EmailConnectionScalarFieldEnum | Prisma.EmailConnectionScalarFieldEnum[]
+}
+
+/**
+ * User.emailOAuthStates
+ */
+export type User$emailOAuthStatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailOAuthState
+   */
+  select?: Prisma.EmailOAuthStateSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailOAuthState
+   */
+  omit?: Prisma.EmailOAuthStateOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailOAuthStateInclude<ExtArgs> | null
+  where?: Prisma.EmailOAuthStateWhereInput
+  orderBy?: Prisma.EmailOAuthStateOrderByWithRelationInput | Prisma.EmailOAuthStateOrderByWithRelationInput[]
+  cursor?: Prisma.EmailOAuthStateWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EmailOAuthStateScalarFieldEnum | Prisma.EmailOAuthStateScalarFieldEnum[]
 }
 
 /**
@@ -6405,30 +7381,6 @@ export type User$productToursArgs<ExtArgs extends runtime.Types.Extensions.Inter
   take?: number
   skip?: number
   distinct?: Prisma.UserProductTourScalarFieldEnum | Prisma.UserProductTourScalarFieldEnum[]
-}
-
-/**
- * User.agentWebsiteDeployments
- */
-export type User$agentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the AgentWebsiteDeployment
-   */
-  select?: Prisma.AgentWebsiteDeploymentSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the AgentWebsiteDeployment
-   */
-  omit?: Prisma.AgentWebsiteDeploymentOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.AgentWebsiteDeploymentInclude<ExtArgs> | null
-  where?: Prisma.AgentWebsiteDeploymentWhereInput
-  orderBy?: Prisma.AgentWebsiteDeploymentOrderByWithRelationInput | Prisma.AgentWebsiteDeploymentOrderByWithRelationInput[]
-  cursor?: Prisma.AgentWebsiteDeploymentWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.AgentWebsiteDeploymentScalarFieldEnum | Prisma.AgentWebsiteDeploymentScalarFieldEnum[]
 }
 
 /**

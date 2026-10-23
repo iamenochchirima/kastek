@@ -206,10 +206,14 @@ export type OrganizationWhereInput = {
   reportingTimezone?: Prisma.StringFilter<"Organization"> | string
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   owner?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   members?: Prisma.OrganizationMemberListRelationFilter
   invitations?: Prisma.OrganizationInvitationListRelationFilter
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  emailConnections?: Prisma.EmailConnectionListRelationFilter
+  emailInboxBindings?: Prisma.EmailInboxBindingListRelationFilter
+  emailOAuthStates?: Prisma.EmailOAuthStateListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
@@ -251,7 +255,6 @@ export type OrganizationWhereInput = {
   bookings?: Prisma.BookingListRelationFilter
   onboardingProfile?: Prisma.XOR<Prisma.OrganizationOnboardingProfileNullableScalarRelationFilter, Prisma.OrganizationOnboardingProfileWhereInput> | null
   productTours?: Prisma.UserProductTourListRelationFilter
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }
 
 export type OrganizationOrderByWithRelationInput = {
@@ -263,10 +266,14 @@ export type OrganizationOrderByWithRelationInput = {
   reportingTimezone?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  growthAgentReviews?: Prisma.GrowthAgentReviewOrderByRelationAggregateInput
   owner?: Prisma.UserOrderByWithRelationInput
   members?: Prisma.OrganizationMemberOrderByRelationAggregateInput
   invitations?: Prisma.OrganizationInvitationOrderByRelationAggregateInput
   socialChannelConnections?: Prisma.SocialChannelConnectionOrderByRelationAggregateInput
+  emailConnections?: Prisma.EmailConnectionOrderByRelationAggregateInput
+  emailInboxBindings?: Prisma.EmailInboxBindingOrderByRelationAggregateInput
+  emailOAuthStates?: Prisma.EmailOAuthStateOrderByRelationAggregateInput
   socialPosts?: Prisma.SocialPostOrderByRelationAggregateInput
   socialPublishJobs?: Prisma.SocialPublishJobOrderByRelationAggregateInput
   socialPublishBatches?: Prisma.SocialPublishBatchOrderByRelationAggregateInput
@@ -308,7 +315,6 @@ export type OrganizationOrderByWithRelationInput = {
   bookings?: Prisma.BookingOrderByRelationAggregateInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileOrderByWithRelationInput
   productTours?: Prisma.UserProductTourOrderByRelationAggregateInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentOrderByRelationAggregateInput
 }
 
 export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
@@ -323,10 +329,14 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   reportingTimezone?: Prisma.StringFilter<"Organization"> | string
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
   owner?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   members?: Prisma.OrganizationMemberListRelationFilter
   invitations?: Prisma.OrganizationInvitationListRelationFilter
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
+  emailConnections?: Prisma.EmailConnectionListRelationFilter
+  emailInboxBindings?: Prisma.EmailInboxBindingListRelationFilter
+  emailOAuthStates?: Prisma.EmailOAuthStateListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
@@ -368,7 +378,6 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   bookings?: Prisma.BookingListRelationFilter
   onboardingProfile?: Prisma.XOR<Prisma.OrganizationOnboardingProfileNullableScalarRelationFilter, Prisma.OrganizationOnboardingProfileWhereInput> | null
   productTours?: Prisma.UserProductTourListRelationFilter
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }, "id" | "slug">
 
 export type OrganizationOrderByWithAggregationInput = {
@@ -407,10 +416,14 @@ export type OrganizationCreateInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -452,7 +465,6 @@ export type OrganizationCreateInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateInput = {
@@ -464,9 +476,13 @@ export type OrganizationUncheckedCreateInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -508,7 +524,6 @@ export type OrganizationUncheckedCreateInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUpdateInput = {
@@ -519,10 +534,14 @@ export type OrganizationUpdateInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -564,7 +583,6 @@ export type OrganizationUpdateInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateInput = {
@@ -576,9 +594,13 @@ export type OrganizationUncheckedUpdateInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -620,7 +642,6 @@ export type OrganizationUncheckedUpdateInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateManyInput = {
@@ -774,6 +795,48 @@ export type OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput =
   upsert?: Prisma.OrganizationUpsertWithoutExternalConnectionsInput
   connect?: Prisma.OrganizationWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutExternalConnectionsInput, Prisma.OrganizationUpdateWithoutExternalConnectionsInput>, Prisma.OrganizationUncheckedUpdateWithoutExternalConnectionsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutEmailConnectionsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedCreateWithoutEmailConnectionsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailConnectionsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutEmailConnectionsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedCreateWithoutEmailConnectionsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailConnectionsInput
+  upsert?: Prisma.OrganizationUpsertWithoutEmailConnectionsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutEmailConnectionsInput, Prisma.OrganizationUpdateWithoutEmailConnectionsInput>, Prisma.OrganizationUncheckedUpdateWithoutEmailConnectionsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutEmailInboxBindingsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedCreateWithoutEmailInboxBindingsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailInboxBindingsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutEmailInboxBindingsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedCreateWithoutEmailInboxBindingsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailInboxBindingsInput
+  upsert?: Prisma.OrganizationUpsertWithoutEmailInboxBindingsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutEmailInboxBindingsInput, Prisma.OrganizationUpdateWithoutEmailInboxBindingsInput>, Prisma.OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutEmailOAuthStatesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedCreateWithoutEmailOAuthStatesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailOAuthStatesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutEmailOAuthStatesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedCreateWithoutEmailOAuthStatesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutEmailOAuthStatesInput
+  upsert?: Prisma.OrganizationUpsertWithoutEmailOAuthStatesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutEmailOAuthStatesInput, Prisma.OrganizationUpdateWithoutEmailOAuthStatesInput>, Prisma.OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput>
 }
 
 export type OrganizationCreateNestedOneWithoutProductToursInput = {
@@ -984,20 +1047,6 @@ export type OrganizationUpdateOneRequiredWithoutDeveloperApiKeysNestedInput = {
   upsert?: Prisma.OrganizationUpsertWithoutDeveloperApiKeysInput
   connect?: Prisma.OrganizationWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutDeveloperApiKeysInput, Prisma.OrganizationUpdateWithoutDeveloperApiKeysInput>, Prisma.OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput>
-}
-
-export type OrganizationCreateNestedOneWithoutAgentWebsiteDeploymentsInput = {
-  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput
-  connect?: Prisma.OrganizationWhereUniqueInput
-}
-
-export type OrganizationUpdateOneRequiredWithoutAgentWebsiteDeploymentsNestedInput = {
-  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput
-  upsert?: Prisma.OrganizationUpsertWithoutAgentWebsiteDeploymentsInput
-  connect?: Prisma.OrganizationWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput>, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
 }
 
 export type OrganizationCreateNestedOneWithoutPublicApiWebhookSubscriptionsInput = {
@@ -1416,6 +1465,20 @@ export type OrganizationUpdateOneWithoutWhatsappSendEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutWhatsappSendEventsInput, Prisma.OrganizationUpdateWithoutWhatsappSendEventsInput>, Prisma.OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput>
 }
 
+export type OrganizationCreateNestedOneWithoutGrowthAgentReviewsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutGrowthAgentReviewsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutGrowthAgentReviewsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutGrowthAgentReviewsInput
+  upsert?: Prisma.OrganizationUpsertWithoutGrowthAgentReviewsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutGrowthAgentReviewsInput, Prisma.OrganizationUpdateWithoutGrowthAgentReviewsInput>, Prisma.OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput>
+}
+
 export type OrganizationCreateWithoutMembersInput = {
   id?: string
   name: string
@@ -1424,9 +1487,13 @@ export type OrganizationCreateWithoutMembersInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -1468,7 +1535,6 @@ export type OrganizationCreateWithoutMembersInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutMembersInput = {
@@ -1480,8 +1546,12 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -1523,7 +1593,6 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutMembersInput = {
@@ -1550,9 +1619,13 @@ export type OrganizationUpdateWithoutMembersInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -1594,7 +1667,6 @@ export type OrganizationUpdateWithoutMembersInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutMembersInput = {
@@ -1606,8 +1678,12 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -1649,7 +1725,6 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutOnboardingProfileInput = {
@@ -1660,10 +1735,14 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -1704,7 +1783,6 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
@@ -1716,9 +1794,13 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -1759,7 +1841,6 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutOnboardingProfileInput = {
@@ -1786,10 +1867,14 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -1830,7 +1915,6 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
@@ -1842,9 +1926,13 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -1885,7 +1973,6 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutInvitationsInput = {
@@ -1896,9 +1983,13 @@ export type OrganizationCreateWithoutInvitationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -1940,7 +2031,6 @@ export type OrganizationCreateWithoutInvitationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutInvitationsInput = {
@@ -1952,8 +2042,12 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -1995,7 +2089,6 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutInvitationsInput = {
@@ -2022,9 +2115,13 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -2066,7 +2163,6 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
@@ -2078,8 +2174,12 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -2121,7 +2221,6 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutExternalConnectionsInput = {
@@ -2132,10 +2231,14 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -2176,7 +2279,6 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
@@ -2188,9 +2290,13 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -2231,7 +2337,6 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutExternalConnectionsInput = {
@@ -2258,10 +2363,14 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -2302,7 +2411,6 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
@@ -2314,9 +2422,13 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -2357,10 +2469,9 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
-export type OrganizationCreateWithoutProductToursInput = {
+export type OrganizationCreateWithoutEmailConnectionsInput = {
   id?: string
   name: string
   slug: string
@@ -2368,10 +2479,13 @@ export type OrganizationCreateWithoutProductToursInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -2412,10 +2526,10 @@ export type OrganizationCreateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
 }
 
-export type OrganizationUncheckedCreateWithoutProductToursInput = {
+export type OrganizationUncheckedCreateWithoutEmailConnectionsInput = {
   id?: string
   name: string
   slug: string
@@ -2424,9 +2538,12 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -2467,7 +2584,751 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutEmailConnectionsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedCreateWithoutEmailConnectionsInput>
+}
+
+export type OrganizationUpsertWithoutEmailConnectionsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedUpdateWithoutEmailConnectionsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedCreateWithoutEmailConnectionsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutEmailConnectionsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailConnectionsInput, Prisma.OrganizationUncheckedUpdateWithoutEmailConnectionsInput>
+}
+
+export type OrganizationUpdateWithoutEmailConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutEmailConnectionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutEmailInboxBindingsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutEmailInboxBindingsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutEmailInboxBindingsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedCreateWithoutEmailInboxBindingsInput>
+}
+
+export type OrganizationUpsertWithoutEmailInboxBindingsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedCreateWithoutEmailInboxBindingsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutEmailInboxBindingsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailInboxBindingsInput, Prisma.OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput>
+}
+
+export type OrganizationUpdateWithoutEmailInboxBindingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutEmailOAuthStatesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutEmailOAuthStatesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutEmailOAuthStatesInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedCreateWithoutEmailOAuthStatesInput>
+}
+
+export type OrganizationUpsertWithoutEmailOAuthStatesInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedCreateWithoutEmailOAuthStatesInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutEmailOAuthStatesInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutEmailOAuthStatesInput, Prisma.OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput>
+}
+
+export type OrganizationUpdateWithoutEmailOAuthStatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutProductToursInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutProductToursInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutProductToursInput = {
@@ -2494,10 +3355,14 @@ export type OrganizationUpdateWithoutProductToursInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -2538,7 +3403,6 @@ export type OrganizationUpdateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutProductToursInput = {
@@ -2550,9 +3414,13 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -2593,7 +3461,6 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSubscriptionsInput = {
@@ -2604,10 +3471,14 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -2648,7 +3519,6 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
@@ -2660,9 +3530,13 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -2703,7 +3577,6 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSubscriptionsInput = {
@@ -2730,10 +3603,14 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -2774,7 +3651,6 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
@@ -2786,9 +3662,13 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -2829,7 +3709,6 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutEntitlementGrantsInput = {
@@ -2840,10 +3719,14 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -2884,7 +3767,6 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
@@ -2896,9 +3778,13 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -2939,7 +3825,6 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutEntitlementGrantsInput = {
@@ -2966,10 +3851,14 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -3010,7 +3899,6 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
@@ -3022,9 +3910,13 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -3065,7 +3957,6 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutUsageEventsInput = {
@@ -3076,10 +3967,14 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -3120,7 +4015,6 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
@@ -3132,9 +4026,13 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -3175,7 +4073,6 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutUsageEventsInput = {
@@ -3202,10 +4099,14 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -3246,7 +4147,6 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
@@ -3258,9 +4158,13 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -3301,7 +4205,6 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutReferralCodesInput = {
@@ -3312,10 +4215,14 @@ export type OrganizationCreateWithoutReferralCodesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -3356,7 +4263,6 @@ export type OrganizationCreateWithoutReferralCodesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
@@ -3368,9 +4274,13 @@ export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -3411,7 +4321,6 @@ export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutReferralCodesInput = {
@@ -3438,10 +4347,14 @@ export type OrganizationUpdateWithoutReferralCodesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -3482,7 +4395,6 @@ export type OrganizationUpdateWithoutReferralCodesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
@@ -3494,9 +4406,13 @@ export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -3537,7 +4453,6 @@ export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutReferralsSentInput = {
@@ -3548,10 +4463,14 @@ export type OrganizationCreateWithoutReferralsSentInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -3592,7 +4511,6 @@ export type OrganizationCreateWithoutReferralsSentInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
@@ -3604,9 +4522,13 @@ export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -3647,7 +4569,6 @@ export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutReferralsSentInput = {
@@ -3663,10 +4584,14 @@ export type OrganizationCreateWithoutReferralReceivedInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -3707,7 +4632,6 @@ export type OrganizationCreateWithoutReferralReceivedInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
@@ -3719,9 +4643,13 @@ export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -3762,7 +4690,6 @@ export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutReferralReceivedInput = {
@@ -3789,10 +4716,14 @@ export type OrganizationUpdateWithoutReferralsSentInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -3833,7 +4764,6 @@ export type OrganizationUpdateWithoutReferralsSentInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
@@ -3845,9 +4775,13 @@ export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -3888,7 +4822,6 @@ export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUpsertWithoutReferralReceivedInput = {
@@ -3910,10 +4843,14 @@ export type OrganizationUpdateWithoutReferralReceivedInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -3954,7 +4891,6 @@ export type OrganizationUpdateWithoutReferralReceivedInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
@@ -3966,9 +4902,13 @@ export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -4009,7 +4949,6 @@ export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditAccountInput = {
@@ -4020,10 +4959,14 @@ export type OrganizationCreateWithoutCreditAccountInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -4064,7 +5007,6 @@ export type OrganizationCreateWithoutCreditAccountInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
@@ -4076,9 +5018,13 @@ export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -4119,7 +5065,6 @@ export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditAccountInput = {
@@ -4146,10 +5091,14 @@ export type OrganizationUpdateWithoutCreditAccountInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -4190,7 +5139,6 @@ export type OrganizationUpdateWithoutCreditAccountInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
@@ -4202,9 +5150,13 @@ export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -4245,7 +5197,6 @@ export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditGrantsInput = {
@@ -4256,10 +5207,14 @@ export type OrganizationCreateWithoutCreditGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -4300,7 +5255,6 @@ export type OrganizationCreateWithoutCreditGrantsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
@@ -4312,9 +5266,13 @@ export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -4355,7 +5313,6 @@ export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditGrantsInput = {
@@ -4382,10 +5339,14 @@ export type OrganizationUpdateWithoutCreditGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -4426,7 +5387,6 @@ export type OrganizationUpdateWithoutCreditGrantsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
@@ -4438,9 +5398,13 @@ export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -4481,7 +5445,6 @@ export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
@@ -4492,10 +5455,14 @@ export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -4536,7 +5503,6 @@ export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
@@ -4548,9 +5514,13 @@ export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -4591,7 +5561,6 @@ export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditLedgerEntriesInput = {
@@ -4618,10 +5587,14 @@ export type OrganizationUpdateWithoutCreditLedgerEntriesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -4662,7 +5635,6 @@ export type OrganizationUpdateWithoutCreditLedgerEntriesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
@@ -4674,9 +5646,13 @@ export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -4717,7 +5693,6 @@ export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditReservationsInput = {
@@ -4728,10 +5703,14 @@ export type OrganizationCreateWithoutCreditReservationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -4772,7 +5751,6 @@ export type OrganizationCreateWithoutCreditReservationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
@@ -4784,9 +5762,13 @@ export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -4827,7 +5809,6 @@ export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditReservationsInput = {
@@ -4854,10 +5835,14 @@ export type OrganizationUpdateWithoutCreditReservationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -4898,7 +5883,6 @@ export type OrganizationUpdateWithoutCreditReservationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
@@ -4910,9 +5894,13 @@ export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -4953,7 +5941,6 @@ export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditUsageEventsInput = {
@@ -4964,10 +5951,14 @@ export type OrganizationCreateWithoutCreditUsageEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -5008,7 +5999,6 @@ export type OrganizationCreateWithoutCreditUsageEventsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
@@ -5020,9 +6010,13 @@ export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -5063,7 +6057,6 @@ export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditUsageEventsInput = {
@@ -5090,10 +6083,14 @@ export type OrganizationUpdateWithoutCreditUsageEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -5134,7 +6131,6 @@ export type OrganizationUpdateWithoutCreditUsageEventsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
@@ -5146,9 +6142,13 @@ export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -5189,7 +6189,6 @@ export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCreditAdminOperationsInput = {
@@ -5200,10 +6199,14 @@ export type OrganizationCreateWithoutCreditAdminOperationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -5244,7 +6247,6 @@ export type OrganizationCreateWithoutCreditAdminOperationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
@@ -5256,9 +6258,13 @@ export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -5299,7 +6305,6 @@ export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCreditAdminOperationsInput = {
@@ -5326,10 +6331,14 @@ export type OrganizationUpdateWithoutCreditAdminOperationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -5370,7 +6379,6 @@ export type OrganizationUpdateWithoutCreditAdminOperationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
@@ -5382,9 +6390,13 @@ export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -5425,7 +6437,6 @@ export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutPublicApiRequestsInput = {
@@ -5436,10 +6447,14 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -5480,7 +6495,6 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
@@ -5492,9 +6506,13 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -5535,7 +6553,6 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutPublicApiRequestsInput = {
@@ -5562,10 +6579,14 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -5606,7 +6627,6 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
@@ -5618,9 +6638,13 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -5661,7 +6685,6 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutDeveloperApiKeysInput = {
@@ -5672,10 +6695,14 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -5716,7 +6743,6 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
@@ -5728,9 +6754,13 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -5771,7 +6801,6 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutDeveloperApiKeysInput = {
@@ -5798,10 +6827,14 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -5842,7 +6875,6 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
@@ -5854,9 +6886,13 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -5879,243 +6915,6 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
   usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
   publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
-  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
-  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
-  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
-  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
-  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
-  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
-  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
-  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
-  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
-  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
-  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
-  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
-  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
-  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
-  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
-  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
-  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
-}
-
-export type OrganizationCreateWithoutAgentWebsiteDeploymentsInput = {
-  id?: string
-  name: string
-  slug: string
-  logo?: string | null
-  reportingTimezone?: string
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
-  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
-  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
-  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
-  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
-  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
-  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
-  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
-  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
-  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
-  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
-  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
-  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
-  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
-  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
-  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
-  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
-  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
-  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
-  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
-  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
-  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
-  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
-  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
-  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
-  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
-  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
-  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
-  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
-  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
-  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
-  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
-  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
-  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
-  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
-  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
-  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
-  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
-  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
-  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-}
-
-export type OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput = {
-  id?: string
-  name: string
-  slug: string
-  logo?: string | null
-  ownerId: string
-  reportingTimezone?: string
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
-  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
-  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
-  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
-  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
-  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
-  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
-  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
-  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
-  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
-  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
-  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
-  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
-  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
-  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
-  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
-  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
-  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
-  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
-  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
-  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
-  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
-  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
-  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
-  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
-  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
-  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
-  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
-  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
-  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
-  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
-  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
-  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
-  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-}
-
-export type OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput = {
-  where: Prisma.OrganizationWhereUniqueInput
-  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-}
-
-export type OrganizationUpsertWithoutAgentWebsiteDeploymentsInput = {
-  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
-  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
-  where?: Prisma.OrganizationWhereInput
-}
-
-export type OrganizationUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput = {
-  where?: Prisma.OrganizationWhereInput
-  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
-}
-
-export type OrganizationUpdateWithoutAgentWebsiteDeploymentsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.StringFieldUpdateOperationsInput | string
-  slug?: Prisma.StringFieldUpdateOperationsInput | string
-  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
-  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
-  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
-  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
-  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
-  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
-  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
-  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
-  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
-  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
-  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
-  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
-  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
-  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
-  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
-  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
-  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
-  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
-  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
-  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
-  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
-  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
-  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
-  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
-  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
-  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
-  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
-  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
-  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
-  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
-  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
-  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
-  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
-  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
-  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-}
-
-export type OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  name?: Prisma.StringFieldUpdateOperationsInput | string
-  slug?: Prisma.StringFieldUpdateOperationsInput | string
-  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
-  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
-  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
-  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
-  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
-  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
-  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
-  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
-  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
-  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
-  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
-  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
-  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
-  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
-  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
-  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
-  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
-  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
-  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
-  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
-  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
   publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
   billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
@@ -6144,10 +6943,14 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -6188,7 +6991,6 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput = {
@@ -6200,9 +7002,13 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -6243,7 +7049,6 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutPublicApiWebhookSubscriptionsInput = {
@@ -6270,10 +7075,14 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -6314,7 +7123,6 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput = {
@@ -6326,9 +7134,13 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -6369,7 +7181,6 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingCheckoutsInput = {
@@ -6380,10 +7191,14 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -6424,7 +7239,6 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
@@ -6436,9 +7250,13 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -6479,7 +7297,6 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingCheckoutsInput = {
@@ -6506,10 +7323,14 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -6550,7 +7371,6 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
@@ -6562,9 +7382,13 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -6605,7 +7429,6 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingInvoicesInput = {
@@ -6616,10 +7439,14 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -6660,7 +7487,6 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
@@ -6672,9 +7498,13 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -6715,7 +7545,6 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingInvoicesInput = {
@@ -6742,10 +7571,14 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -6786,7 +7619,6 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
@@ -6798,9 +7630,13 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -6841,7 +7677,6 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingIssuesInput = {
@@ -6852,10 +7687,14 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -6896,7 +7735,6 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
@@ -6908,9 +7746,13 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -6951,7 +7793,6 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingIssuesInput = {
@@ -6978,10 +7819,14 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -7022,7 +7867,6 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
@@ -7034,9 +7878,13 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -7077,7 +7925,6 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutOwnerInput = {
@@ -7088,9 +7935,13 @@ export type OrganizationCreateWithoutOwnerInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -7132,7 +7983,6 @@ export type OrganizationCreateWithoutOwnerInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutOwnerInput = {
@@ -7143,9 +7993,13 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -7187,7 +8041,6 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutOwnerInput = {
@@ -7238,10 +8091,14 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -7282,7 +8139,6 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
@@ -7294,9 +8150,13 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -7337,7 +8197,6 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSupportAccessGrantsInput = {
@@ -7364,10 +8223,14 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -7408,7 +8271,6 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
@@ -7420,9 +8282,13 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -7463,7 +8329,6 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCustomersInput = {
@@ -7474,10 +8339,14 @@ export type OrganizationCreateWithoutCustomersInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -7518,7 +8387,6 @@ export type OrganizationCreateWithoutCustomersInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCustomersInput = {
@@ -7530,9 +8398,13 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -7573,7 +8445,6 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCustomersInput = {
@@ -7600,10 +8471,14 @@ export type OrganizationUpdateWithoutCustomersInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -7644,7 +8519,6 @@ export type OrganizationUpdateWithoutCustomersInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCustomersInput = {
@@ -7656,9 +8530,13 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -7699,7 +8577,6 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCustomerIdentitiesInput = {
@@ -7710,10 +8587,14 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -7754,7 +8635,6 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
@@ -7766,9 +8646,13 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -7809,7 +8693,6 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCustomerIdentitiesInput = {
@@ -7836,10 +8719,14 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -7880,7 +8767,6 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
@@ -7892,9 +8778,13 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -7935,7 +8825,6 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBookingServicesInput = {
@@ -7946,10 +8835,14 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -7990,7 +8883,6 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
@@ -8002,9 +8894,13 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -8045,7 +8941,6 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBookingServicesInput = {
@@ -8072,10 +8967,14 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -8116,7 +9015,6 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
@@ -8128,9 +9026,13 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -8171,7 +9073,6 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBookingsInput = {
@@ -8182,10 +9083,14 @@ export type OrganizationCreateWithoutBookingsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -8226,7 +9131,6 @@ export type OrganizationCreateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBookingsInput = {
@@ -8238,9 +9142,13 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -8281,7 +9189,6 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBookingsInput = {
@@ -8308,10 +9215,14 @@ export type OrganizationUpdateWithoutBookingsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -8352,7 +9263,6 @@ export type OrganizationUpdateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBookingsInput = {
@@ -8364,9 +9274,13 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -8407,7 +9321,6 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutConversationsInput = {
@@ -8418,10 +9331,14 @@ export type OrganizationCreateWithoutConversationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -8462,7 +9379,6 @@ export type OrganizationCreateWithoutConversationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutConversationsInput = {
@@ -8474,9 +9390,13 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -8517,7 +9437,6 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutConversationsInput = {
@@ -8544,10 +9463,14 @@ export type OrganizationUpdateWithoutConversationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -8588,7 +9511,6 @@ export type OrganizationUpdateWithoutConversationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutConversationsInput = {
@@ -8600,9 +9522,13 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -8643,7 +9569,6 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCallsInput = {
@@ -8654,10 +9579,14 @@ export type OrganizationCreateWithoutCallsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -8698,7 +9627,6 @@ export type OrganizationCreateWithoutCallsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCallsInput = {
@@ -8710,9 +9638,13 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -8753,7 +9685,6 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCallsInput = {
@@ -8780,10 +9711,14 @@ export type OrganizationUpdateWithoutCallsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -8824,7 +9759,6 @@ export type OrganizationUpdateWithoutCallsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCallsInput = {
@@ -8836,9 +9770,13 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -8879,7 +9817,6 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappConnectionsInput = {
@@ -8890,10 +9827,14 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -8934,7 +9875,6 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
@@ -8946,9 +9886,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -8989,7 +9933,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappConnectionsInput = {
@@ -9016,10 +9959,14 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -9060,7 +10007,6 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
@@ -9072,9 +10018,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -9115,7 +10065,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
@@ -9126,10 +10075,14 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -9170,7 +10123,6 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
@@ -9182,9 +10134,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -9225,7 +10181,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappCallSessionsInput = {
@@ -9252,10 +10207,14 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -9296,7 +10255,6 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
@@ -9308,9 +10266,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -9351,7 +10313,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
@@ -9362,9 +10323,13 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -9406,7 +10371,6 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
@@ -9418,8 +10382,12 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -9461,7 +10429,6 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialChannelConnectionsInput = {
@@ -9488,9 +10455,13 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -9532,7 +10503,6 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
@@ -9544,8 +10514,12 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -9587,7 +10561,6 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPostsInput = {
@@ -9598,10 +10571,14 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
@@ -9642,7 +10619,6 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
@@ -9654,9 +10630,13 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
@@ -9697,7 +10677,6 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPostsInput = {
@@ -9724,10 +10703,14 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
@@ -9768,7 +10751,6 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
@@ -9780,9 +10762,13 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
@@ -9823,7 +10809,6 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPublishJobsInput = {
@@ -9834,10 +10819,14 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
@@ -9878,7 +10867,6 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
@@ -9890,9 +10878,13 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
@@ -9933,7 +10925,6 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPublishJobsInput = {
@@ -9960,10 +10951,14 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
@@ -10004,7 +10999,6 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
@@ -10016,9 +11010,13 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
@@ -10059,7 +11057,6 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPublishBatchesInput = {
@@ -10070,10 +11067,14 @@ export type OrganizationCreateWithoutSocialPublishBatchesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
@@ -10114,7 +11115,6 @@ export type OrganizationCreateWithoutSocialPublishBatchesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
@@ -10126,9 +11126,13 @@ export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
@@ -10169,7 +11173,6 @@ export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPublishBatchesInput = {
@@ -10196,10 +11199,14 @@ export type OrganizationUpdateWithoutSocialPublishBatchesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
@@ -10240,7 +11247,6 @@ export type OrganizationUpdateWithoutSocialPublishBatchesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
@@ -10252,9 +11258,13 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
@@ -10295,7 +11305,6 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
@@ -10306,10 +11315,14 @@ export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -10350,7 +11363,6 @@ export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput = {
@@ -10362,9 +11374,13 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -10405,7 +11421,6 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPostInsightObservationsInput = {
@@ -10432,10 +11447,14 @@ export type OrganizationUpdateWithoutSocialPostInsightObservationsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -10476,7 +11495,6 @@ export type OrganizationUpdateWithoutSocialPostInsightObservationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput = {
@@ -10488,9 +11506,13 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -10531,7 +11553,6 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
@@ -10542,10 +11563,14 @@ export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -10586,7 +11611,6 @@ export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput = {
@@ -10598,9 +11622,13 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput =
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -10641,7 +11669,6 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput =
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPostInsightSyncStatesInput = {
@@ -10668,10 +11695,14 @@ export type OrganizationUpdateWithoutSocialPostInsightSyncStatesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -10712,7 +11743,6 @@ export type OrganizationUpdateWithoutSocialPostInsightSyncStatesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput = {
@@ -10724,9 +11754,13 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput =
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -10767,7 +11801,6 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput =
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutContentMediaAssetsInput = {
@@ -10778,10 +11811,14 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -10822,7 +11859,6 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
@@ -10834,9 +11870,13 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -10877,7 +11917,6 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutContentMediaAssetsInput = {
@@ -10904,10 +11943,14 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -10948,7 +11991,6 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
@@ -10960,9 +12002,13 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -11003,7 +12049,6 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappContactsInput = {
@@ -11014,10 +12059,14 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -11058,7 +12107,6 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
@@ -11070,9 +12118,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -11113,7 +12165,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappContactsInput = {
@@ -11140,10 +12191,14 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -11184,7 +12239,6 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
@@ -11196,9 +12250,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -11239,7 +12297,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
@@ -11250,10 +12307,14 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -11294,7 +12355,6 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
@@ -11306,9 +12366,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -11349,7 +12413,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappContactListMembershipsInput = {
@@ -11376,10 +12439,14 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -11420,7 +12487,6 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
@@ -11432,9 +12498,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -11475,7 +12545,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappTemplatesInput = {
@@ -11486,10 +12555,14 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -11530,7 +12603,6 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
@@ -11542,9 +12614,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -11585,7 +12661,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappTemplatesInput = {
@@ -11612,10 +12687,14 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -11656,7 +12735,6 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
@@ -11668,9 +12746,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -11711,7 +12793,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappCampaignsInput = {
@@ -11722,10 +12803,14 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -11766,7 +12851,6 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
@@ -11778,9 +12862,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -11821,7 +12909,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappCampaignsInput = {
@@ -11848,10 +12935,14 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -11892,7 +12983,6 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
@@ -11904,9 +12994,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -11947,7 +13041,6 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappSendEventsInput = {
@@ -11958,10 +13051,14 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
   owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
   members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
@@ -12002,7 +13099,6 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
@@ -12014,9 +13110,13 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
   members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
@@ -12057,7 +13157,6 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappSendEventsInput = {
@@ -12084,10 +13183,14 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
   owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -12128,7 +13231,6 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
@@ -12140,9 +13242,13 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -12183,10 +13289,9 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
-export type OrganizationCreateManyOwnerInput = {
+export type OrganizationCreateWithoutGrowthAgentReviewsInput = {
   id?: string
   name: string
   slug: string
@@ -12194,9 +13299,131 @@ export type OrganizationCreateManyOwnerInput = {
   reportingTimezone?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
 }
 
-export type OrganizationUpdateWithoutOwnerInput = {
+export type OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutGrowthAgentReviewsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput>
+}
+
+export type OrganizationUpsertWithoutGrowthAgentReviewsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutGrowthAgentReviewsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutGrowthAgentReviewsInput, Prisma.OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput>
+}
+
+export type OrganizationUpdateWithoutGrowthAgentReviewsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
@@ -12204,9 +13431,13 @@ export type OrganizationUpdateWithoutOwnerInput = {
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
   members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
@@ -12248,20 +13479,23 @@ export type OrganizationUpdateWithoutOwnerInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
-export type OrganizationUncheckedUpdateWithoutOwnerInput = {
+export type OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   slug?: Prisma.StringFieldUpdateOperationsInput | string
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
   reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
@@ -12303,7 +13537,132 @@ export type OrganizationUncheckedUpdateWithoutOwnerInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
-  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateManyOwnerInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type OrganizationUpdateWithoutOwnerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutOwnerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateManyWithoutOwnerInput = {
@@ -12322,9 +13681,13 @@ export type OrganizationUncheckedUpdateManyWithoutOwnerInput = {
  */
 
 export type OrganizationCountOutputType = {
+  growthAgentReviews: number
   members: number
   invitations: number
   socialChannelConnections: number
+  emailConnections: number
+  emailInboxBindings: number
+  emailOAuthStates: number
   socialPosts: number
   socialPublishJobs: number
   socialPublishBatches: number
@@ -12363,13 +13726,16 @@ export type OrganizationCountOutputType = {
   bookingServices: number
   bookings: number
   productTours: number
-  agentWebsiteDeployments: number
 }
 
 export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  growthAgentReviews?: boolean | OrganizationCountOutputTypeCountGrowthAgentReviewsArgs
   members?: boolean | OrganizationCountOutputTypeCountMembersArgs
   invitations?: boolean | OrganizationCountOutputTypeCountInvitationsArgs
   socialChannelConnections?: boolean | OrganizationCountOutputTypeCountSocialChannelConnectionsArgs
+  emailConnections?: boolean | OrganizationCountOutputTypeCountEmailConnectionsArgs
+  emailInboxBindings?: boolean | OrganizationCountOutputTypeCountEmailInboxBindingsArgs
+  emailOAuthStates?: boolean | OrganizationCountOutputTypeCountEmailOAuthStatesArgs
   socialPosts?: boolean | OrganizationCountOutputTypeCountSocialPostsArgs
   socialPublishJobs?: boolean | OrganizationCountOutputTypeCountSocialPublishJobsArgs
   socialPublishBatches?: boolean | OrganizationCountOutputTypeCountSocialPublishBatchesArgs
@@ -12408,7 +13774,6 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   bookingServices?: boolean | OrganizationCountOutputTypeCountBookingServicesArgs
   bookings?: boolean | OrganizationCountOutputTypeCountBookingsArgs
   productTours?: boolean | OrganizationCountOutputTypeCountProductToursArgs
-  agentWebsiteDeployments?: boolean | OrganizationCountOutputTypeCountAgentWebsiteDeploymentsArgs
 }
 
 /**
@@ -12419,6 +13784,13 @@ export type OrganizationCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types
    * Select specific fields to fetch from the OrganizationCountOutputType
    */
   select?: Prisma.OrganizationCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountGrowthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentReviewWhereInput
 }
 
 /**
@@ -12440,6 +13812,27 @@ export type OrganizationCountOutputTypeCountInvitationsArgs<ExtArgs extends runt
  */
 export type OrganizationCountOutputTypeCountSocialChannelConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.SocialChannelConnectionWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountEmailConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EmailConnectionWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountEmailInboxBindingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EmailInboxBindingWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountEmailOAuthStatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EmailOAuthStateWhereInput
 }
 
 /**
@@ -12708,13 +14101,6 @@ export type OrganizationCountOutputTypeCountProductToursArgs<ExtArgs extends run
   where?: Prisma.UserProductTourWhereInput
 }
 
-/**
- * OrganizationCountOutputType without action
- */
-export type OrganizationCountOutputTypeCountAgentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.AgentWebsiteDeploymentWhereInput
-}
-
 
 export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -12725,10 +14111,14 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   reportingTimezone?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  growthAgentReviews?: boolean | Prisma.Organization$growthAgentReviewsArgs<ExtArgs>
   owner?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   socialChannelConnections?: boolean | Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>
+  emailConnections?: boolean | Prisma.Organization$emailConnectionsArgs<ExtArgs>
+  emailInboxBindings?: boolean | Prisma.Organization$emailInboxBindingsArgs<ExtArgs>
+  emailOAuthStates?: boolean | Prisma.Organization$emailOAuthStatesArgs<ExtArgs>
   socialPosts?: boolean | Prisma.Organization$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.Organization$socialPublishJobsArgs<ExtArgs>
   socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
@@ -12770,7 +14160,6 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   bookings?: boolean | Prisma.Organization$bookingsArgs<ExtArgs>
   onboardingProfile?: boolean | Prisma.Organization$onboardingProfileArgs<ExtArgs>
   productTours?: boolean | Prisma.Organization$productToursArgs<ExtArgs>
-  agentWebsiteDeployments?: boolean | Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organization"]>
 
@@ -12811,10 +14200,14 @@ export type OrganizationSelectScalar = {
 
 export type OrganizationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "logo" | "ownerId" | "reportingTimezone" | "createdAt" | "updatedAt", ExtArgs["result"]["organization"]>
 export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  growthAgentReviews?: boolean | Prisma.Organization$growthAgentReviewsArgs<ExtArgs>
   owner?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   socialChannelConnections?: boolean | Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>
+  emailConnections?: boolean | Prisma.Organization$emailConnectionsArgs<ExtArgs>
+  emailInboxBindings?: boolean | Prisma.Organization$emailInboxBindingsArgs<ExtArgs>
+  emailOAuthStates?: boolean | Prisma.Organization$emailOAuthStatesArgs<ExtArgs>
   socialPosts?: boolean | Prisma.Organization$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.Organization$socialPublishJobsArgs<ExtArgs>
   socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
@@ -12856,7 +14249,6 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   bookings?: boolean | Prisma.Organization$bookingsArgs<ExtArgs>
   onboardingProfile?: boolean | Prisma.Organization$onboardingProfileArgs<ExtArgs>
   productTours?: boolean | Prisma.Organization$productToursArgs<ExtArgs>
-  agentWebsiteDeployments?: boolean | Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -12869,10 +14261,14 @@ export type OrganizationIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types
 export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Organization"
   objects: {
+    growthAgentReviews: Prisma.$GrowthAgentReviewPayload<ExtArgs>[]
     owner: Prisma.$UserPayload<ExtArgs>
     members: Prisma.$OrganizationMemberPayload<ExtArgs>[]
     invitations: Prisma.$OrganizationInvitationPayload<ExtArgs>[]
     socialChannelConnections: Prisma.$SocialChannelConnectionPayload<ExtArgs>[]
+    emailConnections: Prisma.$EmailConnectionPayload<ExtArgs>[]
+    emailInboxBindings: Prisma.$EmailInboxBindingPayload<ExtArgs>[]
+    emailOAuthStates: Prisma.$EmailOAuthStatePayload<ExtArgs>[]
     socialPosts: Prisma.$SocialPostPayload<ExtArgs>[]
     socialPublishJobs: Prisma.$SocialPublishJobPayload<ExtArgs>[]
     socialPublishBatches: Prisma.$SocialPublishBatchPayload<ExtArgs>[]
@@ -12914,7 +14310,6 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     bookings: Prisma.$BookingPayload<ExtArgs>[]
     onboardingProfile: Prisma.$OrganizationOnboardingProfilePayload<ExtArgs> | null
     productTours: Prisma.$UserProductTourPayload<ExtArgs>[]
-    agentWebsiteDeployments: Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -13319,10 +14714,14 @@ readonly fields: OrganizationFieldRefs;
  */
 export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  growthAgentReviews<T extends Prisma.Organization$growthAgentReviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$growthAgentReviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   owner<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   members<T extends Prisma.Organization$membersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$membersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationMemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   invitations<T extends Prisma.Organization$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationInvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialChannelConnections<T extends Prisma.Organization$socialChannelConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialChannelConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailConnections<T extends Prisma.Organization$emailConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$emailConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EmailConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailInboxBindings<T extends Prisma.Organization$emailInboxBindingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$emailInboxBindingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EmailInboxBindingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailOAuthStates<T extends Prisma.Organization$emailOAuthStatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$emailOAuthStatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EmailOAuthStatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPosts<T extends Prisma.Organization$socialPostsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPublishJobs<T extends Prisma.Organization$socialPublishJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPublishJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPublishBatches<T extends Prisma.Organization$socialPublishBatchesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPublishBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishBatchPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -13364,7 +14763,6 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   bookings<T extends Prisma.Organization$bookingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$bookingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BookingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   onboardingProfile<T extends Prisma.Organization$onboardingProfileArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$onboardingProfileArgs<ExtArgs>>): Prisma.Prisma__OrganizationOnboardingProfileClient<runtime.Types.Result.GetResult<Prisma.$OrganizationOnboardingProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   productTours<T extends Prisma.Organization$productToursArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$productToursArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserProductTourPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  agentWebsiteDeployments<T extends Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -13798,6 +15196,30 @@ export type OrganizationDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.
 }
 
 /**
+ * Organization.growthAgentReviews
+ */
+export type Organization$growthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentReview
+   */
+  select?: Prisma.GrowthAgentReviewSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentReview
+   */
+  omit?: Prisma.GrowthAgentReviewOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentReviewInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentReviewWhereInput
+  orderBy?: Prisma.GrowthAgentReviewOrderByWithRelationInput | Prisma.GrowthAgentReviewOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentReviewWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentReviewScalarFieldEnum | Prisma.GrowthAgentReviewScalarFieldEnum[]
+}
+
+/**
  * Organization.members
  */
 export type Organization$membersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -13867,6 +15289,78 @@ export type Organization$socialChannelConnectionsArgs<ExtArgs extends runtime.Ty
   take?: number
   skip?: number
   distinct?: Prisma.SocialChannelConnectionScalarFieldEnum | Prisma.SocialChannelConnectionScalarFieldEnum[]
+}
+
+/**
+ * Organization.emailConnections
+ */
+export type Organization$emailConnectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailConnection
+   */
+  select?: Prisma.EmailConnectionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailConnection
+   */
+  omit?: Prisma.EmailConnectionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailConnectionInclude<ExtArgs> | null
+  where?: Prisma.EmailConnectionWhereInput
+  orderBy?: Prisma.EmailConnectionOrderByWithRelationInput | Prisma.EmailConnectionOrderByWithRelationInput[]
+  cursor?: Prisma.EmailConnectionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EmailConnectionScalarFieldEnum | Prisma.EmailConnectionScalarFieldEnum[]
+}
+
+/**
+ * Organization.emailInboxBindings
+ */
+export type Organization$emailInboxBindingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailInboxBinding
+   */
+  select?: Prisma.EmailInboxBindingSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailInboxBinding
+   */
+  omit?: Prisma.EmailInboxBindingOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailInboxBindingInclude<ExtArgs> | null
+  where?: Prisma.EmailInboxBindingWhereInput
+  orderBy?: Prisma.EmailInboxBindingOrderByWithRelationInput | Prisma.EmailInboxBindingOrderByWithRelationInput[]
+  cursor?: Prisma.EmailInboxBindingWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EmailInboxBindingScalarFieldEnum | Prisma.EmailInboxBindingScalarFieldEnum[]
+}
+
+/**
+ * Organization.emailOAuthStates
+ */
+export type Organization$emailOAuthStatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailOAuthState
+   */
+  select?: Prisma.EmailOAuthStateSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailOAuthState
+   */
+  omit?: Prisma.EmailOAuthStateOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailOAuthStateInclude<ExtArgs> | null
+  where?: Prisma.EmailOAuthStateWhereInput
+  orderBy?: Prisma.EmailOAuthStateOrderByWithRelationInput | Prisma.EmailOAuthStateOrderByWithRelationInput[]
+  cursor?: Prisma.EmailOAuthStateWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EmailOAuthStateScalarFieldEnum | Prisma.EmailOAuthStateScalarFieldEnum[]
 }
 
 /**
@@ -14836,30 +16330,6 @@ export type Organization$productToursArgs<ExtArgs extends runtime.Types.Extensio
   take?: number
   skip?: number
   distinct?: Prisma.UserProductTourScalarFieldEnum | Prisma.UserProductTourScalarFieldEnum[]
-}
-
-/**
- * Organization.agentWebsiteDeployments
- */
-export type Organization$agentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the AgentWebsiteDeployment
-   */
-  select?: Prisma.AgentWebsiteDeploymentSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the AgentWebsiteDeployment
-   */
-  omit?: Prisma.AgentWebsiteDeploymentOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.AgentWebsiteDeploymentInclude<ExtArgs> | null
-  where?: Prisma.AgentWebsiteDeploymentWhereInput
-  orderBy?: Prisma.AgentWebsiteDeploymentOrderByWithRelationInput | Prisma.AgentWebsiteDeploymentOrderByWithRelationInput[]
-  cursor?: Prisma.AgentWebsiteDeploymentWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.AgentWebsiteDeploymentScalarFieldEnum | Prisma.AgentWebsiteDeploymentScalarFieldEnum[]
 }
 
 /**

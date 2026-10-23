@@ -60,6 +60,9 @@ export const ModelName = {
   ExternalConnectionPermission: 'ExternalConnectionPermission',
   ExternalConnectionAuthorizationAttempt: 'ExternalConnectionAuthorizationAttempt',
   ExternalConnectionConsumer: 'ExternalConnectionConsumer',
+  EmailConnection: 'EmailConnection',
+  EmailInboxBinding: 'EmailInboxBinding',
+  EmailOAuthState: 'EmailOAuthState',
   Product: 'Product',
   ProductPlan: 'ProductPlan',
   UserProductTour: 'UserProductTour',
@@ -77,9 +80,6 @@ export const ModelName = {
   CreditAdminOperation: 'CreditAdminOperation',
   PublicApiRequest: 'PublicApiRequest',
   DeveloperApiKey: 'DeveloperApiKey',
-  AgentWebsiteDeployment: 'AgentWebsiteDeployment',
-  AgentWebsiteVisitorSession: 'AgentWebsiteVisitorSession',
-  AgentWebsiteDeliveryEvent: 'AgentWebsiteDeliveryEvent',
   PublicApiWebhookSubscription: 'PublicApiWebhookSubscription',
   PublicApiWebhookDelivery: 'PublicApiWebhookDelivery',
   BillingCheckout: 'BillingCheckout',
@@ -90,6 +90,9 @@ export const ModelName = {
   PushSubscription: 'PushSubscription',
   Account: 'Account',
   Session: 'Session',
+  ExternalIdentity: 'ExternalIdentity',
+  OidcTransaction: 'OidcTransaction',
+  OidcLogoutReplay: 'OidcLogoutReplay',
   VerificationToken: 'VerificationToken',
   AdminUser: 'AdminUser',
   AdminSavedReport: 'AdminSavedReport',
@@ -150,7 +153,8 @@ export const ModelName = {
   WhatsappTemplate: 'WhatsappTemplate',
   WhatsappCampaign: 'WhatsappCampaign',
   WhatsappCampaignRecipient: 'WhatsappCampaignRecipient',
-  WhatsappSendEvent: 'WhatsappSendEvent'
+  WhatsappSendEvent: 'WhatsappSendEvent',
+  GrowthAgentReview: 'GrowthAgentReview'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -318,6 +322,65 @@ export const ExternalConnectionConsumerScalarFieldEnum = {
 } as const
 
 export type ExternalConnectionConsumerScalarFieldEnum = (typeof ExternalConnectionConsumerScalarFieldEnum)[keyof typeof ExternalConnectionConsumerScalarFieldEnum]
+
+
+export const EmailConnectionScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  userId: 'userId',
+  provider: 'provider',
+  externalAccountId: 'externalAccountId',
+  emailAddress: 'emailAddress',
+  displayName: 'displayName',
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  tokenExpiresAt: 'tokenExpiresAt',
+  scopes: 'scopes',
+  status: 'status',
+  healthStatus: 'healthStatus',
+  syncStatus: 'syncStatus',
+  lastSyncedAt: 'lastSyncedAt',
+  lastError: 'lastError',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EmailConnectionScalarFieldEnum = (typeof EmailConnectionScalarFieldEnum)[keyof typeof EmailConnectionScalarFieldEnum]
+
+
+export const EmailInboxBindingScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  emailConnectionId: 'emailConnectionId',
+  status: 'status',
+  inboundStatus: 'inboundStatus',
+  outboundStatus: 'outboundStatus',
+  syncCursor: 'syncCursor',
+  lastSyncedAt: 'lastSyncedAt',
+  lastError: 'lastError',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EmailInboxBindingScalarFieldEnum = (typeof EmailInboxBindingScalarFieldEnum)[keyof typeof EmailInboxBindingScalarFieldEnum]
+
+
+export const EmailOAuthStateScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  userId: 'userId',
+  provider: 'provider',
+  stateHash: 'stateHash',
+  redirectUri: 'redirectUri',
+  returnPath: 'returnPath',
+  expiresAt: 'expiresAt',
+  consumedAt: 'consumedAt',
+  createdAt: 'createdAt',
+  emailConnectionId: 'emailConnectionId'
+} as const
+
+export type EmailOAuthStateScalarFieldEnum = (typeof EmailOAuthStateScalarFieldEnum)[keyof typeof EmailOAuthStateScalarFieldEnum]
 
 
 export const ProductScalarFieldEnum = {
@@ -637,62 +700,6 @@ export const DeveloperApiKeyScalarFieldEnum = {
 export type DeveloperApiKeyScalarFieldEnum = (typeof DeveloperApiKeyScalarFieldEnum)[keyof typeof DeveloperApiKeyScalarFieldEnum]
 
 
-export const AgentWebsiteDeploymentScalarFieldEnum = {
-  id: 'id',
-  publicId: 'publicId',
-  orgId: 'orgId',
-  installationId: 'installationId',
-  channelConnectionId: 'channelConnectionId',
-  status: 'status',
-  allowedOrigins: 'allowedOrigins',
-  displayName: 'displayName',
-  welcomeText: 'welcomeText',
-  launcherPosition: 'launcherPosition',
-  colorPreset: 'colorPreset',
-  appearance: 'appearance',
-  avatarUrl: 'avatarUrl',
-  privacyPolicyUrl: 'privacyPolicyUrl',
-  createdById: 'createdById',
-  publishedAt: 'publishedAt',
-  pausedAt: 'pausedAt',
-  revokedAt: 'revokedAt',
-  lastError: 'lastError',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-} as const
-
-export type AgentWebsiteDeploymentScalarFieldEnum = (typeof AgentWebsiteDeploymentScalarFieldEnum)[keyof typeof AgentWebsiteDeploymentScalarFieldEnum]
-
-
-export const AgentWebsiteVisitorSessionScalarFieldEnum = {
-  id: 'id',
-  publicSessionId: 'publicSessionId',
-  deploymentId: 'deploymentId',
-  origin: 'origin',
-  externalIdentity: 'externalIdentity',
-  externalConversationId: 'externalConversationId',
-  status: 'status',
-  expiresAt: 'expiresAt',
-  lastSeenAt: 'lastSeenAt',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-} as const
-
-export type AgentWebsiteVisitorSessionScalarFieldEnum = (typeof AgentWebsiteVisitorSessionScalarFieldEnum)[keyof typeof AgentWebsiteVisitorSessionScalarFieldEnum]
-
-
-export const AgentWebsiteDeliveryEventScalarFieldEnum = {
-  id: 'id',
-  sessionId: 'sessionId',
-  eventKey: 'eventKey',
-  messageText: 'messageText',
-  messageContent: 'messageContent',
-  createdAt: 'createdAt'
-} as const
-
-export type AgentWebsiteDeliveryEventScalarFieldEnum = (typeof AgentWebsiteDeliveryEventScalarFieldEnum)[keyof typeof AgentWebsiteDeliveryEventScalarFieldEnum]
-
-
 export const PublicApiWebhookSubscriptionScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -863,10 +870,45 @@ export const SessionScalarFieldEnum = {
   id: 'id',
   sessionToken: 'sessionToken',
   userId: 'userId',
-  expires: 'expires'
+  expires: 'expires',
+  lastActivityAt: 'lastActivityAt',
+  identityCheckedAt: 'identityCheckedAt',
+  providerRefreshedAt: 'providerRefreshedAt',
+  refreshToken: 'refreshToken',
+  idToken: 'idToken',
+  providerSid: 'providerSid'
 } as const
 
 export type SessionScalarFieldEnum = (typeof SessionScalarFieldEnum)[keyof typeof SessionScalarFieldEnum]
+
+
+export const ExternalIdentityScalarFieldEnum = {
+  issuer: 'issuer',
+  subject: 'subject',
+  userId: 'userId'
+} as const
+
+export type ExternalIdentityScalarFieldEnum = (typeof ExternalIdentityScalarFieldEnum)[keyof typeof ExternalIdentityScalarFieldEnum]
+
+
+export const OidcTransactionScalarFieldEnum = {
+  state: 'state',
+  browserHash: 'browserHash',
+  nonce: 'nonce',
+  verifier: 'verifier',
+  returnTo: 'returnTo',
+  expires: 'expires'
+} as const
+
+export type OidcTransactionScalarFieldEnum = (typeof OidcTransactionScalarFieldEnum)[keyof typeof OidcTransactionScalarFieldEnum]
+
+
+export const OidcLogoutReplayScalarFieldEnum = {
+  jti: 'jti',
+  expires: 'expires'
+} as const
+
+export type OidcLogoutReplayScalarFieldEnum = (typeof OidcLogoutReplayScalarFieldEnum)[keyof typeof OidcLogoutReplayScalarFieldEnum]
 
 
 export const VerificationTokenScalarFieldEnum = {
@@ -1043,6 +1085,7 @@ export const ProductWaitlistEntryScalarFieldEnum = {
   phone: 'phone',
   email: 'email',
   businessType: 'businessType',
+  website: 'website',
   products: 'products',
   notes: 'notes',
   source: 'source',
@@ -2075,6 +2118,33 @@ export const WhatsappSendEventScalarFieldEnum = {
 } as const
 
 export type WhatsappSendEventScalarFieldEnum = (typeof WhatsappSendEventScalarFieldEnum)[keyof typeof WhatsappSendEventScalarFieldEnum]
+
+
+export const GrowthAgentReviewScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  actorId: 'actorId',
+  taskId: 'taskId',
+  conversationId: 'conversationId',
+  featureId: 'featureId',
+  operationId: 'operationId',
+  requestDigest: 'requestDigest',
+  payloadDigest: 'payloadDigest',
+  draft: 'draft',
+  context: 'context',
+  contextRevision: 'contextRevision',
+  destinationRevisions: 'destinationRevisions',
+  rootReviewId: 'rootReviewId',
+  supersededBy: 'supersededBy',
+  state: 'state',
+  result: 'result',
+  decisionRequestId: 'decisionRequestId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  expiresAt: 'expiresAt'
+} as const
+
+export type GrowthAgentReviewScalarFieldEnum = (typeof GrowthAgentReviewScalarFieldEnum)[keyof typeof GrowthAgentReviewScalarFieldEnum]
 
 
 export const SortOrder = {
