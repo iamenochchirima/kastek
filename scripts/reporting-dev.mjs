@@ -19,6 +19,8 @@ export const services = [
   service('agents', 'products/agents/api', 'dist/composition/server.js', 'agents', 14100),
   service('growth-publisher', 'products/growth/api', 'dist/bootstrap.js', 'growth', undefined, { overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
   service('agency-publisher', 'products/agency/api', 'dist/bootstrap.js', 'agency', undefined, { startupMigrations: true, overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
+  service('operations', 'services/operations', 'dist/api-main.js', 'operations', 4400),
+  service('operations-worker', 'services/operations', 'dist/worker-main.js', 'operations-worker'),
   service('admin', 'apps/admin-site', 'node_modules/next/dist/bin/next', 'admin', 3001, { args: ['start', '--port', '3001'], health: '/login' }),
 ];
 export async function processIdentity(pid) {
@@ -56,7 +58,7 @@ async function readManifest() {
   catch (error) { if (error.code === 'ENOENT') return { version: 1, processes: {} }; throw Error('Invalid process manifest; inspect it locally.'); }
 }
 async function saveManifest(data) { const temporary = `${manifestPath}.${process.pid}.tmp`; await writeFile(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 }); await rename(temporary, manifestPath); }
-const dbKeys = { growth: ['DATABASE_URL'], agency: ['KASITEK_TENANTS_DATABASE_URL', 'TENANT_DATABASE_URL'], agents: ['AGENTS_DATABASE_URL'], analytics: ['ANALYTICS_DATABASE_URL'] };
+const dbKeys = { growth: ['DATABASE_URL'], agency: ['KASITEK_TENANTS_DATABASE_URL', 'TENANT_DATABASE_URL'], agents: ['AGENTS_DATABASE_URL'], analytics: ['ANALYTICS_DATABASE_URL'], operations: ['DATABASE_URL'], 'operations-worker': ['DATABASE_URL'] };
 /** Validate every configured connection before launching any process. Never return credentials to output. */
 export function validateDevelopmentTargets(item, env) {
   const databases = [];
@@ -66,28 +68,50 @@ export function validateDevelopmentTargets(item, env) {
   for (const key of keys) {
     let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
     // Query parameters can override pg's host/database parsing; this isolated profile needs no overrides.
-    if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !/^\/[A-Za-z0-9_]+_reporting_dev$/.test(url.pathname) || url.search || url.hash) throw Error(`${item.name}: ${key} requires a dedicated loopback reporting development database.`);
+    if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !(item.env.startsWith('operations') ? url.pathname === '/kasitek_operations_dev' : /^\/[A-Za-z0-9_]+_reporting_dev$/.test(url.pathname)) || url.search || url.hash) throw Error(`${item.name}: ${key} requires a dedicated loopback reporting development database.`);
     databases.push({ key, url });
   }
-  const ports = { CORE_BACKEND_URL: 4000, TENANTS_BACKEND_URL: 8090, AGENTS_BACKEND_URL: 14100, ANALYTICS_REPORTING_URL: 4300, ANALYTICS_INGESTION_URL: 4300, AGENTS_ANALYTICS_INGESTION_URL: 4300 };
+  const ports = { OPERATIONS_BACKEND_URL: 4400, OPS_NOTIFICATION_ORIGIN: 4000, CORE_BACKEND_URL: 4000, TENANTS_BACKEND_URL: 8090, AGENTS_BACKEND_URL: 14100, ANALYTICS_REPORTING_URL: 4300, ANALYTICS_INGESTION_URL: 4300, AGENTS_ANALYTICS_INGESTION_URL: 4300 };
   const required = new Set(item.env === 'admin' ? ['CORE_BACKEND_URL', 'TENANTS_BACKEND_URL', 'AGENTS_BACKEND_URL'] : item.env === 'agents' ? ['AGENTS_ANALYTICS_INGESTION_URL'] : item.name.endsWith('-publisher') ? ['ANALYTICS_INGESTION_URL'] : []);
   for (const [key, port] of Object.entries(ports)) {
     if (!required.has(key) && !env[key]) continue;
     let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
     if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || Number(url.port || 80) !== port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw Error(`${item.name}: ${key} must target the loopback development service origin.`);
   }
+  if(item.env.startsWith('operations')) {
+    let sources;try {sources=JSON.parse(env.OPS_SOURCES_JSON??'[]');}catch {throw Error(`${item.name}: invalid observer source configuration.`);}
+    const expected={growth:4000,agents:14100,agency:8090,analytics:4300},seen=new Set();
+    if(!Array.isArray(sources)||sources.length>4)throw Error(`${item.name}: invalid observer source configuration.`);
+    for(const source of sources){let url;try{url=new URL(source.origin);}catch{throw Error(`${item.name}: invalid observer origin.`);}
+      if(!Object.hasOwn(expected,source.source)||seen.has(source.source)||url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||Number(url.port)!==expected[source.source]||url.pathname!=='/'||url.search||url.hash||url.username||url.password)throw Error(`${item.name}: observer must target its dedicated loopback service.`);seen.add(source.source);
+    }
+  }
   return databases;
 }
+/** Workers receive observation and notification credentials only; human sessions remain in the API profile. */
+export function operationsWorkerProfile(apiEnvironment){
+ const allowed=['DATABASE_URL','ENVIRONMENT','NODE_ENV','KASITEK_RELEASE_ID','OPS_ENVIRONMENT','OPS_SOURCES_JSON','OPS_COLLECTION_ENABLED','OPS_EVALUATION_ENABLED','OPS_NOTIFICATIONS_ENABLED','OPS_NOTIFICATION_ORIGIN','OPS_NOTIFICATION_SECRET','OPS_ALLOWED_ORIGINS'];
+ return Object.fromEntries(allowed.filter(key=>apiEnvironment[key]!==undefined).map(key=>[key,apiEnvironment[key]]));
+}
+export function validateOperationsCredentials(item,env){
+ if(!item.env.startsWith('operations'))return;
+ if(env.OPS_ENVIRONMENT!=='development')throw Error(`${item.name}: explicit development operations environment required.`);
+ if(item.env==='operations-worker'){
+  for(const key of ['OPS_ADMIN_AUTHORITY_SECRET','OPS_OIDC_CLIENT_SECRET','OPS_SESSION_ENCRYPTION_KEY','KASITEK_ADMIN_SERVICE_SECRET'])if(env[key])throw Error(`${item.name}: worker must not receive human administrative credentials.`);
+ }else if(!env.OPS_ADMIN_AUTHORITY_SECRET||Buffer.byteLength(env.OPS_ADMIN_AUTHORITY_SECRET)<32)throw Error(`${item.name}: human administrative assertion key required.`);
+}
+
 export async function configuration(item) {
   const path = resolve(runtime, `${item.env}.env`), metadata = await stat(path).catch(() => null);
   if (!metadata?.isFile() || (metadata.mode & 0o077)) throw Error(`${item.name}: configuration missing or not private (chmod 600).`);
   const env = parseEnv(await readFile(path, 'utf8'));
-  if (env.NODE_ENV === 'production' || env.ANALYTICS_ENVIRONMENT === 'production') throw Error(`${item.name}: development profile required.`);
+  if (env.NODE_ENV === 'production' || env.ANALYTICS_ENVIRONMENT === 'production' || env.OPS_ENVIRONMENT === 'production') throw Error(`${item.name}: development profile required.`);
   if (item.port && env[item.portKey ?? 'PORT'] && Number(env[item.portKey ?? 'PORT']) !== item.port) throw Error(`${item.name}: configured port differs from development profile.`);
   for (const {key,url} of validateDevelopmentTargets(item,env)) {
     if (!await tcp(url.hostname.replaceAll(/[\[\]]/g, ''), Number(url.port || 5432))) throw Error(`${item.name}: ${key} TCP endpoint unavailable.`);
   }
-  if (!env.KASITEK_ADMIN_SERVICE_SECRET || Buffer.byteLength(env.KASITEK_ADMIN_SERVICE_SECRET) < 32) throw Error(`${item.name}: administrative service credential missing or too short.`);
+  validateOperationsCredentials(item,env);
+  if (!item.env.startsWith('operations') && (!env.KASITEK_ADMIN_SERVICE_SECRET || Buffer.byteLength(env.KASITEK_ADMIN_SERVICE_SECRET) < 32)) throw Error(`${item.name}: administrative service credential missing or too short.`);
   if (item.name === 'growth-publisher' || item.name === 'agency-publisher') {
     const key = item.env === 'growth' ? 'ANALYTICS_CORE_INGESTION_TOKEN' : 'ANALYTICS_TENANT_INGESTION_TOKEN';
     if (!(env[key] ?? env.ANALYTICS_INGESTION_TOKEN)?.trim()) throw Error(`${item.name}: ingestion credential missing.`);

@@ -75,3 +75,23 @@ test('configured reporting and ingestion URLs are loopback origins at the expect
   for(const key of Object.keys(env))for(const invalid of ['http://remote.example:4300','http://localhost:9999','http://credential@localhost:4300','http://localhost:4300/api','http://localhost:4300/?target=remote','http://localhost:4300/#fragment','https://localhost:4300'])assert.throws(()=>validateDevelopmentTargets(item,{...env,[key]:invalid}),new RegExp(key));
   assert.throws(()=>validateDevelopmentTargets(item,{...env,CORE_BACKEND_URL:undefined}),/CORE_BACKEND_URL/);
 });
+
+test('operations worker uses a separate profile and cannot inherit human credentials', async()=>{
+ const {operationsWorkerProfile,validateOperationsCredentials}=await import('./reporting-dev.mjs');
+ const api=services.find(s=>s.name==='operations'),worker=services.find(s=>s.name==='operations-worker');
+ assert.equal(api.port,4400);assert.equal(worker.port,undefined);assert.notEqual(worker.env,api.env);
+ const env={DATABASE_URL:'postgres://local@localhost:15432/kasitek_operations_dev',OPS_ENVIRONMENT:'development',OPS_SOURCES_JSON:'[]',OPS_ADMIN_AUTHORITY_SECRET:'human-key',OPS_OIDC_CLIENT_SECRET:'oidc-key',OPS_SESSION_ENCRYPTION_KEY:'session-key',KASITEK_ADMIN_SERVICE_SECRET:'product-human-key',OPS_NOTIFICATION_SECRET:'publisher-key',UNRELATED_SECRET:'unrelated-key'};
+ const profile=operationsWorkerProfile(env);assert.equal(profile.OPS_NOTIFICATION_SECRET,'publisher-key');assert.equal(profile.DATABASE_URL,env.DATABASE_URL);
+ for(const key of ['OPS_ADMIN_AUTHORITY_SECRET','OPS_OIDC_CLIENT_SECRET','OPS_SESSION_ENCRYPTION_KEY','KASITEK_ADMIN_SERVICE_SECRET','UNRELATED_SECRET'])assert.equal(profile[key],undefined);
+ validateOperationsCredentials(worker,profile);
+ for(const key of ['OPS_ADMIN_AUTHORITY_SECRET','OPS_OIDC_CLIENT_SECRET','OPS_SESSION_ENCRYPTION_KEY','KASITEK_ADMIN_SERVICE_SECRET'])assert.throws(()=>validateOperationsCredentials(worker,{...profile,[key]:'secret'}),/must not receive/);
+ assert.throws(()=>validateOperationsCredentials(api,profile),/assertion key/);
+});
+
+test('operations profiles reject shared databases and remote or mismatched source origins',()=>{
+ const item=services.find(s=>s.name==='operations-worker'),env={DATABASE_URL:'postgres://local@localhost:15432/kasitek_operations_dev',OPS_SOURCES_JSON:JSON.stringify([{id:'growth',source:'growth',origin:'http://localhost:4000',secret:'x'.repeat(64)}])};
+ assert.equal(validateDevelopmentTargets(item,env).length,1);
+ for(const origin of ['http://remote.example:4000','http://localhost:4300','http://localhost:4000/path','http://localhost:4000?credential=leak','http://user:secret@localhost:4000'])assert.throws(()=>validateDevelopmentTargets(item,{...env,OPS_SOURCES_JSON:JSON.stringify([{source:'growth',origin}])}),/observer/);
+ assert.throws(()=>validateDevelopmentTargets(item,{...env,DATABASE_URL:'postgres://local@localhost:15432/shared'}),/dedicated/);
+ assert.throws(()=>validateDevelopmentTargets(item,{...env,OPS_SOURCES_JSON:'broken'}),/source configuration/);
+});
