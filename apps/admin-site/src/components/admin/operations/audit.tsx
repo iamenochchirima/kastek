@@ -19,7 +19,7 @@ export function OperationsAudit({role}:{role:string}) {
  return <>
   <AdminPageHeader title="Audit" actions={<Button variant="secondary" disabled={audit.loading} onClick={audit.reload}>Refresh</Button>}/><OperationsNav role={role}/>
   <form onSubmit={event=>{event.preventDefault();setFilters({...draft});setCursor(null);}} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-   <label className="space-y-1 text-xs text-muted-foreground">Product<Select value={draft.source} onChange={event=>setDraft({...draft,source:event.target.value})}><option value="">All products</option>{["operations","growth","agents","agency"].map(value=><option key={value} value={value}>{sourceNames[value]}</option>)}</Select></label>
+   <label className="space-y-1 text-xs text-muted-foreground">Product<Select value={draft.source} onChange={event=>setDraft({...draft,source:event.target.value})}><option value="">All products</option>{["operations","growth","agents","agency","analytics"].map(value=><option key={value} value={value}>{sourceNames[value]}</option>)}</Select></label>
    {([['actorId','Actor ID'],['customerId','Customer ID'],['resourceId','Resource ID'],['action','Action'],['status','Outcome']] as const).map(([key,label])=><label key={key} className="space-y-1 text-xs text-muted-foreground">{label}<Input value={draft[key]} maxLength={200} onChange={event=>setDraft({...draft,[key]:event.target.value})}/></label>)}
    <div className="flex gap-2 sm:col-span-2 lg:col-span-3"><Button type="submit" disabled={audit.loading}>Search</Button><Button variant="secondary" onClick={()=>{setDraft(initial);setFilters(initial);setCursor(null);}}>Clear</Button></div>
   </form>

@@ -38,7 +38,7 @@ export function OperationsNav({role}:{role:string}) {
   return <nav aria-label="Operations sections" className="mb-5 flex flex-wrap gap-1 border-b border-border">{links.map(([href,label])=><Link key={href} href={href} aria-current={pathname===href?"page":undefined} className={`border-b-2 px-3 py-3 text-sm ${pathname===href?"border-primary font-medium text-foreground":"border-transparent text-muted-foreground hover:text-foreground"}`}>{label}</Link>)}</nav>;
 }
 export function StateBadge({value}:{value:string}) {
-  const variant=["critical","breached","unavailable","stale"].includes(value)?"danger":["healthy","resolved","available"].includes(value)?"success":["warning","open","acknowledged"].includes(value)?"attention":"outline";
+  const variant=["critical","breached","unavailable","stale"].includes(value)?"danger":["healthy","resolved","available","ready"].includes(value)?"success":["warning","open","acknowledged"].includes(value)?"attention":"outline";
   return <Badge variant={variant}>{humanize(value)}</Badge>;
 }
 export function ReadState({loading,error,retry,children}:{loading:boolean;error:string|null;retry:()=>void;children:ReactNode}) {
