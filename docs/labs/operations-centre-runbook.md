@@ -123,8 +123,10 @@ an error disappear. The reference describes the [bounded retention rules](../ope
 
 ## Verify a change
 
-1. Point `OPERATIONS_TEST_DATABASE_URL` at an explicitly named disposable test database.
-   Never use the operational database or another product's database.
+1. Point `OPERATIONS_TEST_DATABASE_URL` at an explicitly named disposable engine test database.
+   Set `OPERATIONS_TEST_ENV_FILE` to a separate private identity test profile whose database name
+   ends in `identity_test_dev`. Never use the operational database or another product's database.
+   Database tests skip when these settings are absent; skipped tests are not verification evidence.
 2. Run Operations tests and the affected shared/source tests, then build the changed packages.
 
    ```sh

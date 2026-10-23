@@ -180,10 +180,14 @@ The implementation commits identify source changes. Package `0.1.0` is not a dep
 The controlled development walkthrough verified Labs OIDC login while Growth was stopped, one
 incident after three failed polls, acknowledgement, assignment with revision checks, same-ID
 command replay, rejection of resolution during a breach, pending delivery through the outage,
-and recovery after two successful polls. An authorized Agency customer workflow also previewed and confirmed fixture suspension and
-resumption, restored the initial state, and recorded its audit. Audit remained source-owned.
-Browser checks covered
-1,440-, 768-, and 390-pixel widths without recorded errors. Local incident proof is
+and recovery after two successful polls. An authorized Agency customer workflow previewed and
+confirmed fixture suspension and resumption, restored the initial state, and recorded its audit.
+Audit remained source-owned. Rule revision and maintenance creation/expiry controls were exercised
+through their dialogs. Personal notification read state did not change incident acknowledgement.
+Browser checks covered light and dark themes at 1,440-, 768-, and 390-pixel widths without recorded
+errors or horizontal overflow. Final development services use the normal 60-second polling interval;
+the controlled outage trial temporarily used 10-second intervals. All four source read transactions
+and all five audit sources were available after recovery. Local incident proof is
 `/tmp/kasitek-operations-incident.png`; the final handoff records the related runtime evidence.
 These checks do not establish production availability or durability.
 
