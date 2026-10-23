@@ -12,11 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type ReportDefinition = { key: string; name: string; description: string; source: string };
-type SavedReport = { id: string; name: string; reportKey: string; config: { days?: number; definitionVersion?: string; product?: ReportScope["product"]; domain?: string; start?: string; end?: string; timezone?: string; organizationId?: string; pageSize?: number }; createdByName: string; updatedAt: string };
+type SavedReport = { id: string; name: string; reportKey: string; config: { days?: number; definitionVersion?: string; product?: ReportScope["product"]; domain?: string; start?: string; end?: string; timezone?: string; organizationId?: string; pageSize?: number; detail?: ReportScope["detail"] }; createdByName: string; updatedAt: string };
 type ReportsResponse = { reports: ReportDefinition[]; saved: SavedReport[] };
 
 function savedScope(report: SavedReport): ReportScope {
-  return { product: report.config.product ?? "all", start: report.config.start ?? "", end: report.config.end ?? "", timezone: report.config.timezone ?? "UTC", organizationId: report.config.organizationId, page: 1, pageSize: report.config.pageSize ?? 50 };
+  return { product: report.config.product ?? "all", start: report.config.start ?? "", end: report.config.end ?? "", timezone: report.config.timezone ?? "UTC", organizationId: report.config.organizationId, detail:report.config.detail, page: 1, pageSize: report.config.pageSize ?? 50 };
 }
 function savedHref(report: SavedReport) {
   const domain = ["overview", "usage", "revenue", "customers", "adoption", "reliability"].includes(report.config.domain ?? "") ? report.config.domain! : "overview";

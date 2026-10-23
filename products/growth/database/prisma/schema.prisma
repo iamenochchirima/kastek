@@ -1039,6 +1039,7 @@ model AdminReportExportAuditEvent {
 
   @@index([adminId, createdAt])
   @@index([reportKey, createdAt])
+  scope      Json?
 }
 
 model AdminSupportAccessGrant {

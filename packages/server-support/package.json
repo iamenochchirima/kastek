@@ -28,7 +28,8 @@
     },
     "./analytics-producer": {
       "types": "./dist/analytics-producer.d.ts",
-      "import": "./dist/analytics-producer.js"
+      "import": "./dist/analytics-producer.js",
+      "require": "./dist/analytics-producer.js"
     },
     "./analytics-reporting": {
       "types": "./dist/analytics-reporting.d.ts",
@@ -83,6 +84,9 @@
       ],
       "admin-reporting": [
         "dist/admin-reporting.d.ts"
+      ],
+      "analytics-producer": [
+        "dist/analytics-producer.d.ts"
       ],
       "admin-reporting-trends": [
         "dist/admin-reporting-trends.d.ts"

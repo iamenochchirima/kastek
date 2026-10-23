@@ -1,3 +1,4 @@
+import {registerAdminReportingRoutes} from "./admin-reporting.js";
 import Fastify, {LogController} from 'fastify';
 import type {FastifyBodyParser,FastifyInstance,FastifyRequest,FastifyServerOptions} from 'fastify';
 import {randomUUID} from 'node:crypto';
@@ -24,7 +25,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   bodyLimit:MAX_BATCH_BYTES,
   requestIdHeader:'x-correlation-id',
   genReqId(request){const supplied=request.headers['x-correlation-id'];return typeof supplied==='string'&&isSafeCorrelationId(supplied)?supplied:randomUUID();},
-  logger:{level:logLevel(context.config.log_filter),redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}},serializers:{req(request){return {method:request.method,url:request.url.split(/[?#]/,1)[0]};}}},
+  logger:{level:logLevel(context.config.log_filter),redact:['req.headers.authorization','req.headers["x-kasitek-admin-authority"]','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}},serializers:{req(request){return {method:request.method,url:request.url.split(/[?#]/,1)[0]};}}},
   logController:new LogController({disableRequestLogging:true}),
   ...options,
  });
@@ -98,6 +99,7 @@ export async function buildApp(context:AnalyticsContext,process:ProcessKind='ana
   registerScopeResolutionRoutes(app,context);
   registerRolloutRoutes(app,context);
   await registerReportingRoutes(app,context);
+  registerAdminReportingRoutes(app,context);
  }
  app.addHook('onClose',async()=>{context.metrics.log('info','service.shutdown',{process});});
  return app;

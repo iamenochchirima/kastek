@@ -99,3 +99,16 @@ test('trend sanitation retains domain and exact token values while rejecting dup
   assert.throws(()=>sanitizeAdminTrends([{...trend,scopeCoverage:{includedScopeCount:1,totalScopeCount:2,hasMore:false}}],query));
   assert.throws(()=>sanitizeAdminTrends([{...trend,series:[...trend.series,...trend.series]}],query));
 });
+
+
+test('one admin trend deadline bounds a stalled Analytics service',async()=>{
+ const server=createServer(()=>{});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try {
+  const client=new AnalyticsReportingClient(`http://127.0.0.1:${server.address().port}`,'resolver');
+  const started=Date.now();
+  const result=await loadAdminTrends('growth','reader',{...query,organizationId:undefined},async()=>({client,adminAuthority:{secret:'admin-reporting-test-secret-32-bytes',role:'viewer'}}));
+  assert.equal(result[0].availability,'unavailable');
+  assert.ok(Date.now()-started<5500,'trend failure must return before the 8s source deadline');
+ } finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});

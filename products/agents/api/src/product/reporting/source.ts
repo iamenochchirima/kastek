@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { ADMIN_REPORT_METRICS, type AdminProductReport, type AdminReportQuery, type AdminReportMetric } from "@kasitek-labs/contracts";
 import { adminReportSnapshot, reportMetric } from "@kasitek-labs/server-support/admin-reporting";
 const terminal = "'completed','incomplete','refused','failed','cancelled','uncertain'";
@@ -16,6 +16,62 @@ const safeCustomerConversations = `SELECT c.* FROM agents_platform.customer_conv
  AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
  AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)`;
 const iso = (value: Date | string | null | undefined) => value ? new Date(value).toISOString() : null;
+const agentDetailKeys = new Set(["runs","failed","completed","child_tasks","task_states","backlog","oldest_backlog_ms","dispatch_retries","run_latency_p95_ms","tokens_input","tokens_output","model_cost","unknown_model_operations","organizations","new_organizations","agents","conversations","connections","handoffs","human_replies","deliveries","delivery_failures"]);
+/** Only fixed safe projections are selectable. No prompt, model output or provider payload enters drill-down. */
+async function agentDetailRecords(db:PoolClient,q:AdminReportQuery):Promise<{records:AdminProductReport["records"];hasMore:boolean}> {
+ const selection=q.detail;
+ if(!selection || !agentDetailKeys.has(selection.metric))return {records:[],hasMore:false};
+ const {metric,dimensions:d}=selection;
+ const modelKeys=['consumer','provider','model','exactness','currency'];
+ const allowed=['tokens_input','tokens_output','model_cost','unknown_model_operations'].includes(metric)?modelKeys:metric==='task_states'?['state','consumer']:['connections','deliveries','delivery_failures'].includes(metric)?['state','channel']:['runs','failed','completed','child_tasks','backlog','oldest_backlog_ms','dispatch_retries','run_latency_p95_ms'].includes(metric)?['consumer']:[];
+ if(Object.keys(d).some(key=>!allowed.includes(key)))return {records:[],hasMore:false};
+ if(d.consumer && q.consumer && d.consumer!==q.consumer)return {records:[],hasMore:false};
+ const args:unknown[]=[q.start,q.end,q.organizationId??null,d.consumer??q.consumer??null];
+ const bind=(value:unknown)=>{args.push(value);return `$${args.length}`;};
+ let sql="";
+ const tasks = `WITH scoped AS (${scoped}) SELECT s.id::text,s.consumer_organization AS organization_id,s.consumer,s.root_task_id::text AS root_id,'task' AS kind,s.state,s.created_at AS occurred_at FROM scoped s`;
+ const period="s.created_at>=$1 AND s.created_at<$2";
+ if(["runs","failed","completed","child_tasks","task_states","backlog","oldest_backlog_ms"].includes(metric)){
+  let filter=metric==='child_tasks'?`s.parent_task_id IS NOT NULL AND ${period}`:metric==='backlog'||metric==='oldest_backlog_ms'?`s.parent_task_id IS NULL AND s.state NOT IN (${terminal})`:`s.parent_task_id IS NULL AND ${period}`;
+  if(metric==='failed'||metric==='completed')filter+=` AND s.state=${bind(metric)}`;
+  if(metric==='task_states'&&d.state)filter+=` AND s.state=${bind(d.state)}`;
+  sql=`${tasks} WHERE ${filter}`;
+ } else if(metric==='dispatch_retries'){
+  sql=`${tasks} JOIN agents_platform.task_outbox o ON o.task_id=s.id WHERE o.attempts>1 AND o.created_at>=$1 AND o.created_at<$2`;
+ } else if(metric==='run_latency_p95_ms'){
+  sql=`${tasks} JOIN agents_platform.execution_roots r ON r.root_task_id=s.id WHERE s.parent_task_id IS NULL AND r.settled_at>=$1 AND r.settled_at<$2`;
+ } else if(['tokens_input','tokens_output','model_cost','unknown_model_operations'].includes(metric)){
+  const cost=metric==='model_cost'||metric==='unknown_model_operations';
+  let filter=cost?`c.settled_at>=$1 AND c.settled_at<$2 AND c.state=${bind(metric==='model_cost'?'settled':'unknown')}`:`o.completed_at>=$1 AND o.completed_at<$2`;
+  if(d.provider)filter+=` AND coalesce(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'providerId','unknown')=${bind(d.provider)}`;
+  if(d.model)filter+=` AND coalesce(r.routes->(CASE WHEN o.kind='compaction' THEN 'compaction' ELSE 'primary' END)->'binding'->>'modelId','unknown')=${bind(d.model)}`;
+  if(d.currency && d.currency!=='USD')return {records:[],hasMore:false};
+  sql=`WITH scoped AS (${scoped}) SELECT o.id,s.consumer_organization AS organization_id,s.consumer,s.root_task_id::text AS root_id,'model_operation' AS kind,${cost?'c.state':'o.state'} AS state,${cost?'c.settled_at':'o.completed_at'} AS occurred_at FROM scoped s JOIN agents_platform.operations o ON o.task_id=s.id ${cost?'JOIN agents_platform.model_cost_reservations c ON c.operation_id=o.id AND c.task_id=s.id':''} LEFT JOIN agents_platform.task_model_routes r ON r.task_id=s.id WHERE o.kind IN ('model','compaction') AND ${filter}`;
+ } else {
+  if(q.consumer&&q.consumer!=='agents'||d.consumer&&d.consumer!=='agents')return {records:[],hasMore:false};
+  const org=(alias:string)=>`($3::text IS NULL OR ${alias}.organization_id::text=$3) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=${alias}.organization_id)`;
+  if(metric==='organizations'||metric==='new_organizations'){
+   sql=`SELECT o.id::text,o.id::text AS organization_id,'organization' AS kind,'current' AS state,o.created_at AS occurred_at FROM agents_platform.organizations o WHERE ($3::text IS NULL OR o.id::text=$3) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id)${metric==='new_organizations'?' AND o.created_at>=$1 AND o.created_at<$2':''}`;
+  } else if(metric==='agents'){
+   sql=`SELECT a.id::text,a.organization_id::text,'agent' AS kind,'current' AS state,a.created_at AS occurred_at FROM agents_platform.agents a WHERE a.created_by IS NOT NULL AND ${org('a')}`;
+  } else if(metric==='conversations'){
+   sql=`SELECT c.id::text,c.organization_id::text,'conversation' AS kind,'created' AS state,c.created_at AS occurred_at FROM agents_platform.conversations c JOIN agents_platform.agents a ON a.id=c.agent_id WHERE a.created_by IS NOT NULL AND ${org('a')} AND c.created_at>=$1 AND c.created_at<$2 AND NOT EXISTS(SELECT 1 FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.evaluation_trial_id IS NOT NULL)`;
+  } else if(metric==='connections'){
+   let filter=org('c');if(d.channel)filter+=` AND c.kind=${bind(d.channel)}`;if(d.state)filter+=` AND c.state=${bind(d.state)}`;
+   sql=`SELECT c.id::text,c.organization_id::text,'channel_connection' AS kind,c.state,c.created_at AS occurred_at FROM agents_platform.channel_connections c WHERE ${filter} AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e JOIN agents_platform.channel_deployments z ON z.id=e.deployment_id WHERE z.connection_id=c.id)`;
+  } else if(metric==='handoffs'||metric==='human_replies'){
+   sql=`WITH customer AS (${safeCustomerConversations}) SELECT k.command_id::text AS id,c.organization_id::text,'customer_command' AS kind,k.action AS state,k.created_at AS occurred_at FROM customer c JOIN agents_platform.customer_commands k ON k.conversation_id=c.id WHERE k.created_at>=$1 AND k.created_at<$2 AND k.action=${bind(metric==='handoffs'?'takeover':'reply')}`;
+  } else {
+   let filter='o.created_at>=$1 AND o.created_at<$2';if(metric==='delivery_failures')filter+=" AND o.state='failed'";
+   if(d.channel)filter+=` AND c.channel_kind=${bind(d.channel)}`;if(d.state)filter+=` AND o.state=${bind(d.state)}`;
+   sql=`WITH customer AS (${safeCustomerConversations}) SELECT o.id::text,c.organization_id::text,'channel_delivery' AS kind,o.state,o.created_at AS occurred_at FROM customer c JOIN agents_platform.channel_outbound o ON o.conversation_id=c.id WHERE ${filter}`;
+  }
+ }
+ // Keep bind positions stable even when this fixed projection does not use the range or consumer.
+ sql=`WITH report_args AS (SELECT $1::timestamptz,$2::timestamptz,$3::text,$4::text), detail AS (${sql}) SELECT * FROM detail ORDER BY occurred_at DESC,id LIMIT ${bind(q.pageSize+1)} OFFSET ${bind((q.page-1)*q.pageSize)}`;
+ const rows=(await db.query(sql,args)).rows;
+ return {records:rows.slice(0,q.pageSize).map(row=>({id:row.id,organizationId:row.organization_id??'unallocated',kind:row.kind,state:row.state,occurredAt:iso(row.occurred_at)!,...(row.root_id?{rootId:row.root_id}:{}),...(row.consumer?{consumer:row.consumer}:{})})),hasMore:rows.length>q.pageSize};
+}
 export async function agentsAdminReport(pool: Pool, q: AdminReportQuery): Promise<AdminProductReport> {
  return adminReportSnapshot(pool, async db => {
   const args = [q.start, q.end, q.organizationId ?? null, q.consumer ?? null];
@@ -77,8 +133,9 @@ export async function agentsAdminReport(pool: Pool, q: AdminReportQuery): Promis
    if(!channelConnections.length)metrics.push(reportMetric("connections","0","agents.channel_connections",null));
    const standalone = (await db.query(`SELECT
     (SELECT count(*) FROM agents_platform.organizations o WHERE ($1::text IS NULL OR o.id::text=$1) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id))::text AS organizations,
+    (SELECT count(*) FROM agents_platform.organizations o WHERE ($1::text IS NULL OR o.id::text=$1) AND o.created_at>=$2 AND o.created_at<$3 AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id))::text AS new_organizations,
     (SELECT count(*) FROM agents_platform.memberships m WHERE m.revoked_at IS NULL AND ($1::text IS NULL OR m.organization_id::text=$1) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=m.organization_id))::text AS memberships,
-    (SELECT count(*) FROM agents_platform.agents a WHERE a.created_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=a.organization_id) AND ($1::text IS NULL OR a.organization_id::text=$1))::text AS agents`,[q.organizationId??null])).rows[0];
+    (SELECT count(*) FROM agents_platform.agents a WHERE a.created_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=a.organization_id) AND ($1::text IS NULL OR a.organization_id::text=$1))::text AS agents`,[q.organizationId??null,q.start,q.end])).rows[0];
    for (const [key,value] of Object.entries(standalone)) metrics.push(reportMetric(key,String(value),"agents.standalone_records",null));
    const conversations = (await db.query(`SELECT count(*)::text AS value,max(c.created_at) AS observed FROM agents_platform.conversations c JOIN agents_platform.agents a ON a.id=c.agent_id WHERE a.created_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=a.organization_id) AND ($3::text IS NULL OR c.organization_id::text=$3) AND c.created_at>=$1 AND c.created_at<$2 AND NOT EXISTS(SELECT 1 FROM agents_platform.tasks t WHERE t.conversation_id=c.id AND t.evaluation_trial_id IS NOT NULL)`,args.slice(0,3))).rows[0];
    metrics.push(reportMetric("conversations",conversations.value,"agents.conversations",iso(conversations.observed)));
@@ -95,8 +152,16 @@ export async function agentsAdminReport(pool: Pool, q: AdminReportQuery): Promis
   }
   for (const definition of ADMIN_REPORT_METRICS) if (!metrics.some(metric=>metric.key===definition.key)) metrics.push(reportMetric(definition.key,null,"agents",null,{reason:"No authoritative measurement in this source"}));
   const records = (await db.query(`WITH scoped AS (${scoped}) SELECT id,root_task_id,consumer,consumer_organization,state,created_at FROM scoped WHERE created_at>=$1 AND created_at<$2 ORDER BY created_at DESC,id LIMIT $5 OFFSET $6`,[...args,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
+  if(q.view==="customers"){
+   const customers=(!q.consumer||q.consumer==="agents")?(await db.query(`SELECT o.id,o.name,o.created_at FROM agents_platform.organizations o
+    WHERE ($1::text IS NULL OR o.id::text=$1) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id)
+    ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize])).rows:[];
+   records.splice(0,records.length,...customers.map(row=>({id:row.id,root_task_id:null,consumer:"agents",consumer_organization:row.id,state:"current",created_at:row.created_at,label:row.name})));
+  }
+  for(const metric of metrics)if(agentDetailKeys.has(metric.key)&&metric.value!==null)metric.detailSupported=true;
+  const detail=q.detail?await agentDetailRecords(db,q):null;
   const timestamps=metrics.map(metric=>metric.observedAt).filter((value):value is string=>value!==null).sort();
   return {contractVersion:"1",product:"agents",query:q,generatedAt:new Date().toISOString(),sourceObservedAt:timestamps.at(-1)??null,completeThrough:null,availability:"partial",metrics,
-   records:records.slice(0,q.pageSize).map(item=>({id:item.id,rootId:item.root_task_id,consumer:item.consumer,organizationId:item.consumer_organization??"unallocated",kind:"task",state:item.state,occurredAt:iso(item.created_at)!})),hasMore:records.length>q.pageSize};
+   records:detail?detail.records:records.slice(0,q.pageSize).map(item=>({id:item.id,...(item.root_task_id?{rootId:item.root_task_id}:{}),consumer:item.consumer,organizationId:item.consumer_organization??"unallocated",kind:q.view==="customers"?"organization":"task",...(item.label?{label:item.label}:{}),state:item.state,occurredAt:iso(item.created_at)!})),hasMore:detail?detail.hasMore:records.length>q.pageSize};
  });
 }

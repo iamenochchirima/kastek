@@ -169,7 +169,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const cookieOptions = { httpOnly: true, secure, sameSite: "lax" as const, path: "/" };
   const app = Fastify({ bodyLimit: 128_000, logger: options.logging === false ? false : {
     base: { service: "agents-platform", environment: config.NODE_ENV, release: (process.env.KASITEK_RELEASE_ID || "development").slice(0, 128) },
-    redact: ["req.headers.authorization", "req.headers.cookie", "res.headers.set-cookie"],
+    redact: ["req.headers.authorization", "req.headers[\"x-kasitek-admin-authority\"]", "req.headers.cookie", "res.headers.set-cookie"],
     serializers: { req: (request: { method: string; url: string }) => ({ method: request.method, path: request.url.split("?")[0] }) },
   } });
   const growthActions=growthActionClientFromEnvironment();

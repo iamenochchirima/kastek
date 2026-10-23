@@ -1,10 +1,11 @@
-import type { AdminReportMetric, AdminMetricDefinition, AdminReportQuery, AdminReportTrend } from "@kasitek-labs/contracts";
+import type { AdminReportMetric, AdminMetricDefinition, AdminReportQuery, AdminReportTrend, AdminReportDetail } from "@kasitek-labs/contracts";
 
 export type ReportScope = AdminReportQuery & { product: "all" | "growth" | "agents" | "agency" };
 
 export function reportingParams(scope: ReportScope, domain = "overview") {
   const result = new URLSearchParams({ product: scope.product, domain, start: scope.start, end: scope.end, timezone: scope.timezone, page: String(scope.page), pageSize: String(scope.pageSize) });
   if (scope.organizationId) result.set("organizationId", scope.organizationId);
+  if (scope.detail) result.set("detail", JSON.stringify(scope.detail));
   return result;
 }
 
@@ -50,4 +51,13 @@ export function trendChartValues(trend: AdminReportTrend): Array<number | null> 
     values.push(value);
   }
   return values.some((value) => value !== null) ? values : null;
+}
+
+/** URL state is validated again by the reporting boundary before any source request. */
+export function reportDetailFromSearch(params:URLSearchParams):AdminReportDetail|undefined {
+ const raw=params.get('detail');if(!raw||raw.length>2048)return;
+ try{const detail=JSON.parse(raw);if(!detail||typeof detail.metric!=='string'||!detail.dimensions||Array.isArray(detail.dimensions)||typeof detail.dimensions!=='object'||Object.values(detail.dimensions).some(value=>typeof value!=='string'))return;return {metric:detail.metric,dimensions:detail.dimensions};}catch{return;}
+}
+export function metricDetailScope(scope:ReportScope,metric:AdminReportMetric):ReportScope {
+ return {...scope,page:1,detail:{metric:metric.key,dimensions:{...metric.dimensions,...(metric.currency?{currency:metric.currency}:{})}}};
 }

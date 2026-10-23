@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 export interface IngestionCredential {source_service:string;producer_id:string;token_sha256:string;}
 export interface ReportingResolverCredential {source_service:string;token_sha256:string;}
 export interface AnalyticsConfig {
+ admin_reporting_secret?:string|null;
  environment:string;api_host:string;api_port:number;database_url:string;redis_url:string|null;
  metrics_token:string|null;rollout_admin_producers:string[];
  reporting_public_key:string|null;reporting_public_keys_json:string|null;reporting_issuers:string[];reporting_audience:string;
@@ -45,7 +46,7 @@ export function readConfig(source:Record<string,string|undefined>=process.env):A
   if(seen.has(source_service))throw new ConfigError(resolverKey,`duplicate source_service ${source_service}`);
   seen.add(source_service);return {source_service,token_sha256:hash(token)};
  });
- return {environment:str(source.ANALYTICS_ENVIRONMENT,'development'),api_host:str(source.ANALYTICS_API_HOST,'0.0.0.0'),
+ return {admin_reporting_secret:optional(source.KASITEK_ADMIN_SERVICE_SECRET),environment:str(source.ANALYTICS_ENVIRONMENT,'development'),api_host:str(source.ANALYTICS_API_HOST,'0.0.0.0'),
   api_port:Number(unsigned('ANALYTICS_API_PORT',source.ANALYTICS_API_PORT??source.PORT,4300,65535n)),database_url,
   redis_url:optional(source.ANALYTICS_REDIS_URL),metrics_token:optional(source.ANALYTICS_METRICS_TOKEN),rollout_admin_producers:csv(source.ANALYTICS_ROLLOUT_ADMIN_PRODUCERS,[]),
   reporting_public_key:optional(source.ANALYTICS_REPORTING_PUBLIC_KEY),reporting_public_keys_json:optional(source.ANALYTICS_REPORTING_PUBLIC_KEYS_JSON),

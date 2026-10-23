@@ -67,6 +67,28 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
   const selected=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:'verified-growth-org'});expect(value(selected,'runs')).toBe('1');expect(selected.records[0]?.organizationId).toBe('verified-growth-org');
   const wrong=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:growth.organizationId});expect(value(wrong,'runs')).toBe('0');
  });
+ it('drills into exact safe task, model and standalone record cohorts',async()=>{
+  const all=await agentsAdminReport(pool,query);
+  for(const metric of all.metrics.filter(m=>m.detailSupported)){
+   const detail={metric:metric.key,dimensions:{...metric.dimensions,...(metric.currency?{currency:metric.currency}:{})}};
+   const report=await agentsAdminReport(pool,{...query,view:'customers',detail});
+   expect(JSON.stringify(report.records)).not.toContain('PRIVATE_');
+   expect(report.records.some(row=>row.id===evalTask)).toBe(false);
+   if(metric.key==='runs')expect(report.records.filter(row=>row.kind==='task')).toHaveLength(3);
+   if(metric.key==='model_cost')expect(report.records.map(row=>row.id).sort()).toEqual(['model-child','model-root']);
+   if(metric.key==='unknown_model_operations')expect(report.records.map(row=>row.id)).toEqual(['model-unknown']);
+  }
+  const one=await agentsAdminReport(pool,{...query,pageSize:1,detail:{metric:'runs',dimensions:{}}});
+  expect(one.records).toHaveLength(1);expect(one.hasMore).toBe(true);
+  const completed=await agentsAdminReport(pool,{...query,detail:{metric:'completed',dimensions:{}}});
+  expect(completed.records.map(row=>row.id)).toEqual([root]);
+  const growthRuns=await agentsAdminReport(pool,{...query,detail:{metric:'runs',dimensions:{consumer:'growth'}}});
+  expect(growthRuns.records).toHaveLength(1);expect(growthRuns.records[0].organizationId).toBe('verified-growth-org');
+  const wrong=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:growth.organizationId,detail:{metric:'runs',dimensions:{}}});expect(wrong.records).toHaveLength(0);
+  const unknown=await agentsAdminReport(pool,{...query,detail:{metric:'refunds',dimensions:{}}});expect(unknown.records).toHaveLength(0);
+  const injection=await agentsAdminReport(pool,{...query,detail:{metric:'tokens_input',dimensions:{provider:"openrouter' OR true --"}}});expect(injection.records).toHaveLength(0);
+  const missingModel=await agentsAdminReport(pool,{...query,detail:{metric:'tokens_input',dimensions:{model:'different-model'}}});expect(missingModel.records).toHaveLength(0);
+ });
  it('authenticates the metadata-only HTTP source and rejects query tampering',async()=>{
   const app=Fastify();const secret='synthetic-reporting-service-secret-32bytes';registerAdminReportingRoutes(app,pool,secret);
   const path=`/api/admin/reporting?start=${encodeURIComponent(query.start)}&end=${encodeURIComponent(query.end)}&timezone=UTC`;

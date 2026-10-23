@@ -1,3 +1,4 @@
+import {parseAdminReportQuery} from "@kasitek-labs/server-support/admin-reporting";
 import { createId } from "@paralleldrive/cuid2";
 import type { Pool } from "pg";
 import { stringify } from "csv-stringify/sync";
@@ -68,6 +69,13 @@ export async function saveReport(
     Array.isArray(base)
   )
     throw bad("Report configuration must be an object");
+  if(input.reportKey==="cross-product"){
+    const c=base as Record<string,unknown>;
+    if(c.definitionVersion!=="1"||!["all","growth","agents","agency"].includes(String(c.product))||!["overview","customers","adoption","usage","revenue","reliability"].includes(String(c.domain)))throw bad("Invalid report scope");
+    if(Object.keys(c).some(key=>!["definitionVersion","product","domain","start","end","timezone","organizationId","pageSize","detail"].includes(key)))throw bad("Unknown report configuration");
+    try{parseAdminReportQuery(Object.fromEntries(Object.entries(c).filter(([key])=>["start","end","timezone","organizationId","pageSize","detail"].includes(key))));}catch(error){throw bad((error as Error).message);}
+    if(c.product==="all"&&c.organizationId)throw bad("Select a product before an organization");
+  }
   const config = { ...base, days, version: version(input.reportKey) };
   let serialized: string;
   try {
@@ -104,6 +112,7 @@ export async function exportReport(
   days?: number | bigint | null,
 ): Promise<{ bytes: Buffer; filename: string }> {
   if (!known(key)) throw bad("Report type is invalid");
+  if(key==="cross-product")throw bad("Export this saved report from its scoped reporting page");
   const { start, end } = reportWindow(days),
     id = createId();
   await pool.query(sql.EXPORT_0, [id, adminId, key, days ?? 30]);

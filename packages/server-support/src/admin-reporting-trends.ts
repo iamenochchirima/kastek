@@ -46,7 +46,10 @@ function quantity(raw: unknown): string | null {
 /** Keep Analytics projection coverage separate from product authoritative totals. */
 export async function loadAdminTrends(product: Product, principalId: string, query: AdminReportQuery, dependencies: () => Promise<AdminTrendDependencies>): Promise<AdminReportTrend[]> {
   try {
-    const {client,issuer,adminAuthority}=await dependencies();
+    const configured=await dependencies();
+    const {issuer,adminAuthority}=configured;
+    // One deadline covers resolution and querying, leaving the product snapshot usable.
+    const client=configured.client.withSignal(AbortSignal.timeout(4000));
     if (product==="agents" || !query.organizationId) {
       if (!adminAuthority) return unavailableAdminTrends(product,"Cross-organization Analytics reporting is not configured");
       const parameters=new URLSearchParams({product,start:query.start,end:query.end,timezone:query.timezone,metrics:PRODUCT_TREND_METRICS[product].map(key=>`${key}@1`).join(",")});

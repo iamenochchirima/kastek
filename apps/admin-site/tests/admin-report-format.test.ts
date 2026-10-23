@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AdminReportMetric, AdminMetricDefinition } from "@kasitek-labs/contracts";
-import { exactMetricValue, reportingParams, reportTimestamp, trendChartValues } from "../src/lib/admin-report-format";
+import { exactMetricValue, reportingParams, reportTimestamp, trendChartValues, reportDetailFromSearch, metricDetailScope } from "../src/lib/admin-report-format";
 
 const metric = (value: string | null, currency?: string): AdminReportMetric => ({ key: "test", value, currency, availability: "available", source: "fixture", observedAt: null });
 const definition = (unit: AdminMetricDefinition["unit"]): AdminMetricDefinition => ({ key: "test", unit, domain: "usage", label: "Test", semantics: "period", definition: "Fixture" });
@@ -36,4 +36,14 @@ test("trend charts retain gaps and never round unsafe integers", () => {
   assert.equal(trendChartValues({...trend, series:[{start:"a",end:"b",value:"9007199254740993123456"}]}), null);
   assert.equal(trendChartValues({...trend, availability:"unavailable"}), null);
   assert.equal(trendChartValues({...trend, series:[{start:"a",end:"b",value:null}]}), null);
+});
+
+test("metric drill-down retains product, organization, dates, timezone and exact dimensions",()=>{
+ const scope={product:"all" as const,start:"2026-10-01T00:00:00Z",end:"2026-10-02T00:00:00Z",timezone:"Africa/Johannesburg",page:4,pageSize:50};
+ const detail=metricDetailScope(scope,{...metric("15","USD"),key:"model_cost",dimensions:{consumer:"growth",provider:"openrouter",model:"fixture",exactness:"usage_estimate"}});
+ assert.equal(detail.product,"all");assert.equal(detail.page,1);assert.equal(detail.start,scope.start);assert.equal(detail.end,scope.end);assert.equal(detail.timezone,scope.timezone);
+ assert.deepEqual(detail.detail,{metric:"model_cost",dimensions:{consumer:"growth",provider:"openrouter",model:"fixture",exactness:"usage_estimate",currency:"USD"}});
+ assert.deepEqual(reportDetailFromSearch(reportingParams(detail)),detail.detail);
+ assert.equal(reportDetailFromSearch(new URLSearchParams({detail:'{'})),undefined);
+ assert.equal(reportDetailFromSearch(new URLSearchParams({detail:JSON.stringify({metric:"runs",dimensions:{secret:{}}})})),undefined);
 });

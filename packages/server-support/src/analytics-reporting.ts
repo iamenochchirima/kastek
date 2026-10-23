@@ -172,11 +172,15 @@ export class AnalyticsReportingClient {
     baseUrl: string,
     private readonly resolverToken: string,
     private readonly timeoutMilliseconds = 10000,
+    private readonly signal?: AbortSignal,
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     if (!this.baseUrl)
       throw new Error("analytics reporting URL cannot be empty");
     new URL(this.baseUrl);
+  }
+  withSignal(signal: AbortSignal): AnalyticsReportingClient {
+    return new AnalyticsReportingClient(this.baseUrl, this.resolverToken, this.timeoutMilliseconds, signal);
   }
   private async request(
     operation: "reporting.resolve_scope" | "reporting.catalog" | "reporting.query",
@@ -194,7 +198,7 @@ export class AnalyticsReportingClient {
         const response = await fetch(this.baseUrl + path, {
           ...init,
           headers,
-          signal: AbortSignal.timeout(this.timeoutMilliseconds),
+          signal: this.signal ? AbortSignal.any([this.signal, AbortSignal.timeout(this.timeoutMilliseconds)]) : AbortSignal.timeout(this.timeoutMilliseconds),
         });
         const body = await response.text();
         if (!response.ok)
