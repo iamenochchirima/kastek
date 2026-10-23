@@ -20,13 +20,18 @@ export class AgentsCustomerOperations {
  }
  async section(id:string,collection:string,limit=50,cursor:string|null=null,db:Db=this.pool):Promise<CustomerSection>{
   await this.customer(db,id);
-  if(cursor&&!uuid.test(cursor)&&collection!=='operations')throw new PlatformError("INVALID_CURSOR",400,"Invalid cursor");
-  const args=[id,cursor,limit+1]; let sql:string;
+  if(cursor&&!uuid.test(cursor)&&collection!=='operations'&&collection!=='deployments')throw new PlatformError("INVALID_CURSOR",400,"Invalid cursor");
+  const args:unknown[]=[id,cursor,limit+1]; let sql:string;
+  if(collection==='deployments'){
+   const match=cursor?.match(/^(channel|website):([0-9a-f-]{36})$/i);
+   if(cursor&&(!match||!uuid.test(match[2]!)))throw new PlatformError('INVALID_CURSOR',400,'Invalid cursor');
+   args[1]=match?.[2]??null;args.push(match?.[1]??'');
+  }
   switch(collection){
    case 'agents':sql=`SELECT id,name AS label,'configured' AS state,draft_revision::text AS revision FROM agents_platform.agents WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3`;break;
    case 'tasks':case 'failures':sql=`SELECT id,id::text AS label,state,control_generation::text AS generation,root_task_id::text AS root_id,parent_task_id::text AS parent_id,product,version_id::text AS version_id,disposition FROM agents_platform.tasks WHERE organization_id=$1 AND evaluation_trial_id IS NULL ${collection==='failures'?"AND state IN ('failed','uncertain','refused','incomplete')":''} AND ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3`;break;
    case 'channels':sql=`SELECT id,name AS label,state,kind,revision::text AS revision FROM agents_platform.channel_connections WHERE organization_id=$1 AND ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3`;break;
-   case 'deployments':sql=`SELECT * FROM (SELECT id,agent_id::text AS label,state,revision::text AS revision,connection_id::text AS connection_id,'channel' AS kind FROM agents_platform.channel_deployments WHERE organization_id=$1 UNION ALL SELECT id,agent_id::text AS label,CASE WHEN revoked_at IS NULL THEN 'active' ELSE 'revoked' END AS state,NULL::text AS revision,NULL::text AS connection_id,'website' AS kind FROM agents_platform.website_deployments w WHERE organization_id=$1 AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=w.id)) deployment WHERE ($2::uuid IS NULL OR id>$2::uuid) ORDER BY id LIMIT $3`;break;
+   case 'deployments':sql=`SELECT * FROM (SELECT id,agent_id::text AS label,state,revision::text AS revision,connection_id::text AS connection_id,'channel' AS kind FROM agents_platform.channel_deployments WHERE organization_id=$1 UNION ALL SELECT id,agent_id::text AS label,CASE WHEN revoked_at IS NULL THEN 'active' ELSE 'revoked' END AS state,NULL::text AS revision,NULL::text AS connection_id,'website' AS kind FROM agents_platform.website_deployments w WHERE organization_id=$1 AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=w.id)) deployment WHERE ($2::uuid IS NULL OR (id,kind)>($2::uuid,$4::text)) ORDER BY id,kind LIMIT $3`;break;
    case 'ingress':sql=`SELECT i.id,i.id::text AS label,i.state,i.connection_id::text AS connection_id,i.attempts::text AS attempts,c.revision::text AS revision,c.state AS connection_state FROM agents_platform.channel_ingress i JOIN agents_platform.channel_connections c ON c.id=i.connection_id AND c.organization_id=i.organization_id WHERE i.organization_id=$1 AND i.state='quarantined' AND ($2::uuid IS NULL OR i.id>$2::uuid) ORDER BY i.id LIMIT $3`;break;
    case 'operations':sql=`SELECT id,action AS label,status AS state,actor_id,created_at::text,code FROM agents_platform.admin_customer_operations WHERE organization_id=$1 AND ($2::text IS NULL OR id>$2) ORDER BY id LIMIT $3`;break;
    case 'usage':{
@@ -38,7 +43,7 @@ export class AgentsCustomerOperations {
   const rows=(await db.query(sql,args)).rows,more=rows.length>limit;
   const records:CustomerRecord[]=rows.slice(0,limit).map(r=>{
    const {id:recordId,label,state,...values}=r;
-   const record:CustomerRecord={id:recordId,label,state,facts:Object.entries(values).filter(([key])=>!['parent_id','connection_state'].includes(key)).map(([key,value])=>fact(key,key.replaceAll('_',' '),value))};
+   const record:CustomerRecord={id:collection==='deployments'?`${r.kind}:${recordId}`:recordId,label,state,facts:Object.entries(values).filter(([key])=>!['parent_id','connection_state'].includes(key)).map(([key,value])=>fact(key,key.replaceAll('_',' '),value))};
    if(collection==='tasks'&&!r.parent_id&&!terminalTaskStates.has(state)&&state!=='cancel_requested'&&customerActionEnabled('task.cancel',this.environment))record.actions=[{action:'task.cancel',label:'Request cancellation',targetId:recordId,expected:{state,generation:r.generation}}];
    if(collection==='ingress'&&r.connection_state==='active'&&customerActionEnabled('ingress.retry',this.environment))record.actions=[{action:'ingress.retry',label:'Retry ingress',targetId:r.connection_id,expected:{revision:r.revision},selection:[recordId]}];
    return record;

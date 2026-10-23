@@ -43,6 +43,7 @@ describe.skipIf(!parent)('Agents admin customer operations on an isolated databa
   await pool.query(`INSERT INTO agents_platform.channel_connections(id,organization_id,created_by,kind,name,asset_id,mode,state,metadata) VALUES($1,$2,$3,'telegram','Fixture channel','fixture-bot','bot','active','{"private":"PRIVATE_SECRET"}')`,[connection,f.organizationId,f.accountId]);
   await pool.query(`INSERT INTO agents_platform.channel_deployments(id,organization_id,connection_id,agent_id,version_id,created_by) VALUES($1,$2,$3,$4,$5,$6)`,[deployment,f.organizationId,connection,f.agentId,f.versionId,f.accountId]);
   await pool.query(`INSERT INTO agents_platform.channel_ingress(id,organization_id,connection_id,deployment_id,event_id,digest,event,state) VALUES($1,$2,$3,$4,'fixture-event','fixture-digest','{"body":"PRIVATE_MESSAGE"}','quarantined')`,[ingress,f.organizationId,connection,deployment]);
+  await pool.query(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by) VALUES($1,$2,$3,$4,'["https://fixture.example.test"]',$5)`,[deployment,f.organizationId,f.agentId,f.versionId,f.accountId]);
   app=Fastify();app.setErrorHandler((error,_,reply)=>reply.code(error.statusCode??500).send({error:error instanceof PlatformError?error.code:'ERROR'}));registerAdminCustomerRoutes(app,pool,secret,environment);await app.ready();
  },30000);
  afterAll(async()=>{await app?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}"`);await admin.end();}});
@@ -72,6 +73,8 @@ describe.skipIf(!parent)('Agents admin customer operations on an isolated databa
   const next=await service.section(f.organizationId,'tasks',1,page.nextCursor);expect(next.records[0]!.id).not.toBe(page.records[0]!.id);
   await expect(service.section(f.organizationId,'tasks',1,'not-a-cursor')).rejects.toMatchObject({code:'INVALID_CURSOR'});
   expect((await service.section(other.organizationId,'tasks')).records).toEqual([]);
+  const deployed=await service.section(f.organizationId,'deployments',1);const second=await service.section(f.organizationId,'deployments',1,deployed.nextCursor);
+  expect(deployed.records[0]!.id).toBe('channel:'+deployment);expect(second.records[0]!.id).toBe('website:'+deployment);
  });
  it('previews without changing task state and rejects substituted customer targets',async()=>{
   expect((await service.preview(f.organizationId,cancel())).eligible).toBe(true);

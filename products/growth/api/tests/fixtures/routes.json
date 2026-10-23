@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 330,
+  "routeCount": 331,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -331,6 +331,7 @@
     "POST /api/whatsapp/onboarding/complete",
     "POST /api/whatsapp/templates",
     "POST /internal/agents/actions",
+    "POST /internal/agents/provisioning-check",
     "POST /v1/content/posts",
     "POST /v1/webhooks/subscriptions"
   ]
