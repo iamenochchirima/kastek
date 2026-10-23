@@ -1,3 +1,4 @@
+import {readProductDiagnostics} from "@kasitek-labs/server-support/admin-reporting-diagnostics";
 import {growthAdminTrends} from "../services/admin/reporting-trends.js";
 import {canonicalJson} from "@kasitek-labs/server-support/json";
 import type {FastifyInstance} from "fastify";
@@ -7,6 +8,11 @@ import {ApiError} from "../error.js";
 import {extractAdmin,grantsForRole} from "../identity/admin-session.js";
 import {growthAdminReport} from "../services/admin/reporting-source.js";
 export function registerAdminReportingRoutes(app:FastifyInstance,context:CoreContext) {
+ app.get("/api/admin/reporting/diagnostics",async request=>{
+  const actor=await extractAdmin(request,context);
+  if(!grantsForRole(actor.role).has("admin:report"))throw new ApiError(403,"forbidden","Insufficient permissions");
+  return readProductDiagnostics(context.pool,"growth",context.config.env);
+ });
  app.get("/api/admin/reporting",async request=>{
   const actor=await extractAdmin(request,context);
   if(!grantsForRole(actor.role).has("admin:report"))throw new ApiError(403,"forbidden","Insufficient permissions");

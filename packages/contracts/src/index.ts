@@ -298,3 +298,5 @@ export interface ComparisonRequest {
 export * from "./growth-agents.js";
 
 export * from "./admin-reporting.js";
+
+export * from "./admin-reporting-diagnostics.js";

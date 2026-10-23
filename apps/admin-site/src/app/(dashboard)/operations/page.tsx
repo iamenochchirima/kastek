@@ -1,3 +1,4 @@
+import {ReportingDiagnosticsPanel} from "@/components/admin/reporting-diagnostics-panel";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminWebhookReplayButton } from "@/components/admin/admin-webhook-replay-button";
 import { SupportAccessPanel } from "@/components/admin/support-access-panel";
@@ -20,6 +21,7 @@ export default async function OperationsPage() {
   return <div className="admin-page">
     <AdminPageHeader title="Operations" />
     <div className="mt-5 space-y-5">
+      <ReportingDiagnosticsPanel/>
       <section className="v-card overflow-hidden">
         <h2 className="border-b border-border px-5 py-4 text-sm font-semibold">Webhook recovery</h2>
         {webhooks===null?<p role="status" className="p-5 text-sm text-muted-foreground">Webhook recovery unavailable</p>:
