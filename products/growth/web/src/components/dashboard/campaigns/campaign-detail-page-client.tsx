@@ -1,5 +1,7 @@
 "use client";
 
+import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -713,7 +715,7 @@ export default function CampaignDetailPageClient({
               <p className="mt-3 max-w-3xl text-sm text-muted-foreground">{liveCampaign.description}</p>
             ) : null}
           </div>
-          <Badge className={statusTone(liveCampaign.status)}>{liveCampaign.status}</Badge>
+          <div className="flex flex-wrap items-center gap-2"><AskGrowthAgent featureId="campaigns" context={{ kind: "whatsapp_campaign", resourceId: liveCampaign.id }}>Ask agent</AskGrowthAgent><Badge className={statusTone(liveCampaign.status)}>{liveCampaign.status}</Badge></div>
         </div>
 
         {(error || notice) && (

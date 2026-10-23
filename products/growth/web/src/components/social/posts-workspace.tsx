@@ -1,5 +1,8 @@
 "use client";
 
+import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
+import { useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
+
 import { apiUrl } from "@/lib/server-api";
 import NextImage from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -81,14 +84,6 @@ type ComposerState = {
 
 type ComposerStep = 1 | 2 | 3 | 4;
 
-type GeneratedIdea = {
-  title: string;
-  angle: string;
-  hook: string;
-  draft: string;
-  suggestedChannels?: SocialPlatform[];
-};
-
 type SocialPostActivityEvent = {
   id: string;
   type: string;
@@ -120,10 +115,6 @@ type PublishBatchPreflight = {
     message?: string | null;
   }>;
 };
-
-type AiGenerationTarget =
-  | { kind: "shared" }
-  | { kind: "variant"; platform: SocialPlatform };
 
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "TIKTOK", "BLUESKY", "LINKEDIN", "X"];
 const COMPOSER_DRAFT_STORAGE_KEY = "kasitek:content-composer";
@@ -223,6 +214,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [channels, setChannels] = useState<SocialChannelConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const agents = useGrowthAgents();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
@@ -233,15 +225,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
-  const [generatingCaption, setGeneratingCaption] = useState(false);
-  const [generatingVariantPlatform, setGeneratingVariantPlatform] = useState<SocialPlatform | null>(null);
-  const [aiGenerationTarget, setAiGenerationTarget] = useState<AiGenerationTarget | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [generatingIdeas, setGeneratingIdeas] = useState(false);
-  const [ideaTopic, setIdeaTopic] = useState("");
-  const [ideaObjective, setIdeaObjective] = useState("");
-  const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[]>([]);
-  const [isIdeasOpen, setIsIdeasOpen] = useState(false);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
   const [composerStep, setComposerStep] = useState<ComposerStep>(1);
   const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<ComposerState["tiktokPrivacyLevel"][]>([]);
@@ -427,41 +410,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setComposer(emptyComposer);
     setBatchPreflight(null);
     setActiveVariantPlatform("FACEBOOK");
-    setComposerStep(1);
-    setIsComposerOpen(true);
-  }
-
-  function openIdeaAsDraft(idea: GeneratedIdea) {
-    const requestedChannels =
-      idea.suggestedChannels?.length
-        ? idea.suggestedChannels.filter((platform) => defaultChannels.includes(platform))
-        : defaultChannels;
-    const nextChannels = requestedChannels.length ? requestedChannels : defaultChannels;
-    const nextVariants = buildComposerVariants(nextChannels, undefined, idea.draft);
-
-    setComposer({
-      id: null,
-      title: idea.title,
-      prompt: [idea.angle, idea.hook].filter(Boolean).join(" | "),
-      content: idea.draft,
-      channels: nextChannels,
-      status: "DRAFT",
-      scheduledFor: "",
-      primaryChannelId: "",
-      channelSelections: {},
-      instagramImageUrl: "",
-      tiktokMediaUrl: "",
-      tiktokMediaType: "VIDEO",
-      tiktokPrivacyLevel: "SELF_ONLY",
-      tiktokConsent: false,
-      media: [],
-      variants: nextVariants.map((variant) => ({
-        ...variant,
-        status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
-      })),
-    });
-    setBatchPreflight(null);
-    setActiveVariantPlatform(nextChannels[0] || "FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
   }
@@ -698,176 +646,11 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }));
   }
 
-  function openAiGenerator(target: AiGenerationTarget) {
-    setAiPrompt(target.kind === "shared" ? composer.prompt : "");
-    setAiGenerationTarget(target);
-  }
-
-  async function generateWithAi(promptOverride = composer.prompt): Promise<boolean> {
-    const prompt = promptOverride.trim();
-    if (!prompt && !composer.content.trim()) {
-      setError("Add a prompt or rough draft before generating.");
-      return false;
-    }
-
-    setGeneratingCaption(true);
-    setError("");
-
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/caption"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          title: composer.title,
-          currentContent: composer.content,
-          channels: composer.channels,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        draft?: {
-          title?: string;
-          content?: string;
-          suggestedChannels?: SocialPlatform[];
-          variants?: Array<{
-            platform: SocialPlatform;
-            content: string;
-          }>;
-        };
-        error?: string;
-      };
-
-      if (!response.ok || !payload.draft?.content) {
-        throw new Error(payload.error || "Failed to generate caption");
-      }
-
-      const nextChannels = composer.channels;
-
-      setComposer((current) => ({
-        ...current,
-        title: payload.draft?.title || current.title,
-        prompt,
-        content: payload.draft?.content || current.content,
-        channels: nextChannels,
-        variants: buildComposerVariants(
-          nextChannels,
-          payload.draft?.variants?.map((variant) => ({
-            id: `${variant.platform}`,
-            postId: current.id || "draft",
-            platform: variant.platform,
-            content: variant.content,
-            status: (variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
-            aiGenerated: true,
-            metadata: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })),
-          payload.draft?.content || current.content,
-        ),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate caption");
-      return false;
-    } finally {
-      setGeneratingCaption(false);
-    }
-  }
-
-  async function generateVariantWithAi(platform: SocialPlatform, promptOverride: string): Promise<boolean> {
-    const variant = composer.variants.find((item) => item.platform === platform);
-    const prompt = promptOverride.trim();
-    const currentContent = variant?.content.trim() || composer.content.trim();
-    if (!prompt && !currentContent) {
-      setError("Add a prompt or shared post text before generating this version.");
-      return false;
-    }
-
-    setGeneratingVariantPlatform(platform);
-    setError("");
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/caption"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          currentContent,
-          channels: [platform],
-        }),
-      });
-      const payload = (await response.json()) as {
-        draft?: {
-          content?: string;
-          variants?: Array<{ platform: SocialPlatform; content: string }>;
-        };
-        error?: string;
-      };
-      const generated = payload.draft?.variants?.find((item) => item.platform === platform)?.content
-        || payload.draft?.content;
-      if (!response.ok || !generated?.trim()) {
-        throw new Error(payload.error || `Failed to generate the ${getPlatformLabel(platform)} version`);
-      }
-      updateVariant(platform, { content: generated.trim(), aiGenerated: true });
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to generate the ${getPlatformLabel(platform)} version`);
-      return false;
-    } finally {
-      setGeneratingVariantPlatform(null);
-    }
-  }
-
-  async function runAiGeneration() {
-    if (!aiGenerationTarget) return;
-    const target = aiGenerationTarget;
-    const generated = target.kind === "shared"
-      ? await generateWithAi(aiPrompt)
-      : await generateVariantWithAi(target.platform, aiPrompt);
-    if (generated) {
-      setAiGenerationTarget(null);
-      setAiPrompt("");
-    }
-  }
-
-  async function generateIdeas() {
-    if (!ideaTopic.trim() && !ideaObjective.trim()) {
-      setError("Add a topic or objective before generating ideas.");
-      return;
-    }
-
-    setGeneratingIdeas(true);
-    setError("");
-
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/ideas"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: ideaTopic,
-          objective: ideaObjective,
-          channels: composer.channels,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        ideas?: GeneratedIdea[];
-        error?: string;
-      };
-
-      if (!response.ok || !payload.ideas?.length) {
-        throw new Error(payload.error || "Failed to generate ideas");
-      }
-
-      setGeneratedIdeas(payload.ideas);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate ideas");
-    } finally {
-      setGeneratingIdeas(false);
-    }
+  function openContentAgent(platform?: SocialPlatform) {
+    setIsComposerOpen(false);
+    const content = platform ? composer.variants.find((variant) => variant.platform === platform)?.content || composer.content : composer.content;
+    const brief = [platform ? `Improve this ${getPlatformLabel(platform)} draft.` : "Help me draft content.", composer.title, content, composer.prompt].filter(Boolean).join("\n\n");
+    void agents.start("content", composer.id ? { kind: "content_post", resourceId: composer.id } : { kind: "workspace" }, brief);
   }
 
   async function savePost(publishNow = false, requestedStatus?: "DRAFT" | "SCHEDULED") {
@@ -1181,10 +964,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             </PageHeaderContent>
             <PageHeaderActions>
               {view === "posts" ? (
-                <Button variant="outline" className="gap-2" onClick={() => setIsIdeasOpen(true)}>
-                  <Sparkles className="h-4 w-4" />
-                  Generate ideas
-                </Button>
+                <AskGrowthAgent featureId="content" context={{ kind: "workspace" }}>Draft with agent</AskGrowthAgent>
               ) : null}
               <Button className="gap-2" onClick={openNewComposer}>
                 <Plus className="h-4 w-4" />
@@ -1455,74 +1235,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         </MotionReveal>
       </div>
 
-      <Dialog open={isIdeasOpen} onOpenChange={setIsIdeasOpen}>
-          <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto p-0">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <DialogHeader><DialogTitle>Generate ideas</DialogTitle><DialogDescription>Start with a topic and objective.</DialogDescription></DialogHeader>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input value={ideaTopic} onChange={(event) => setIdeaTopic(event.target.value)} placeholder="Topic or offer" />
-                <Input value={ideaObjective} onChange={(event) => setIdeaObjective(event.target.value)} placeholder="Objective" />
-              </div>
-              <Button className="gap-2" disabled={generatingIdeas} onClick={() => void generateIdeas()}>
-                <Sparkles className="h-4 w-4" />
-                {generatingIdeas ? "Generating..." : "Generate ideas"}
-              </Button>
-              {generatedIdeas.length ? (
-                <div className="space-y-3">
-                  {generatedIdeas.map((idea, index) => (
-                    <div key={`${idea.title}-${index}`} className="rounded-lg border border-border p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{idea.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{idea.angle}</p>
-                        </div>
-                        <Button size="sm" onClick={() => { openIdeaAsDraft(idea); setIsIdeasOpen(false); }}>
-                          Use idea
-                        </Button>
-                      </div>
-                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{idea.draft}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(aiGenerationTarget)} onOpenChange={(open) => { if (!open && !generatingCaption && !generatingVariantPlatform) setAiGenerationTarget(null); }}>
-        {aiGenerationTarget ? (
-          <DialogContent className="max-w-lg p-0">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <DialogHeader>
-                <DialogTitle>
-                  {aiGenerationTarget.kind === "shared" ? "Generate post text" : `Generate ${getPlatformLabel(aiGenerationTarget.platform)} text`}
-                </DialogTitle>
-                <DialogDescription>
-                  {aiGenerationTarget.kind === "shared" ? "Describe what you want, or ask AI to improve the current post." : "Describe the angle or change you want for this destination."}
-                </DialogDescription>
-              </DialogHeader>
-            </div>
-            <div className="space-y-4 p-5">
-              {error ? <p className="rounded-md border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Prompt <span className="font-normal text-muted-foreground">(optional)</span></span>
-                <Textarea autoFocus value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="For example: make it warmer, clearer, and more concise" className="min-h-[130px]" />
-              </label>
-              <p className="text-xs text-muted-foreground">The result will be added to the editor so you can change it before saving or publishing.</p>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setAiGenerationTarget(null)} disabled={Boolean(generatingCaption || generatingVariantPlatform)}>Cancel</Button>
-                <Button className="gap-2" onClick={() => void runAiGeneration()} disabled={Boolean(generatingCaption || generatingVariantPlatform || (!aiPrompt.trim() && !composer.content.trim() && aiGenerationTarget.kind === "shared"))}>
-                  <Sparkles className="h-4 w-4" />
-                  {generatingCaption || generatingVariantPlatform ? "Generating..." : "Generate"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        ) : null}
-      </Dialog>
-
       <Dialog open={Boolean(activityPost)} onOpenChange={(open) => { if (!open) setActivityPost(null); }}>
         {activityPost ? (
           <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto p-0">
@@ -1656,7 +1368,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
               {composerStep === 2 ? (
                 <section className="space-y-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openAiGenerator({ kind: "shared" })}><Sparkles className="h-4 w-4" />Generate with AI</Button></div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openContentAgent()}><Sparkles className="h-4 w-4" />Draft with agent</Button></div>
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post text (optional)</span><Textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] resize-y leading-6" /></label>
                   <div className="space-y-3 rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -1676,7 +1388,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   <div><h2 className="text-xl font-semibold text-foreground">Tailor versions</h2><p className="mt-1 text-sm text-muted-foreground">Adjust the text for each selected destination.</p></div>
                   <Tabs value={activeVariantPlatform} onValueChange={(value) => setActiveVariantPlatform(value as SocialPlatform)}>
                     <TabsList className="flex w-full flex-wrap bg-secondary/50">{activeComposerVariants.map((variant) => <TabsTrigger key={variant.platform} value={variant.platform}>{getPlatformLabel(variant.platform)}</TabsTrigger>)}</TabsList>
-                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} text</span><Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={() => openAiGenerator({ kind: "variant", platform: variant.platform })} disabled={Boolean(generatingCaption || generatingVariantPlatform)}><Sparkles className="h-3.5 w-3.5" />{generatingVariantPlatform === variant.platform ? "Generating..." : "Generate with AI"}</Button></div><Textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] resize-y leading-6" /><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><Select value={variant.status} onValueChange={(value) => updateVariant(variant.platform, { status: value as SocialVariantStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DRAFT">Draft</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="NEEDS_EDITS">Needs edits</SelectItem></SelectContent></Select></label></div></TabsContent>)}
+                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} text</span><Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={() => openContentAgent(variant.platform)}><Sparkles className="h-3.5 w-3.5" />Improve with agent</Button></div><Textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] resize-y leading-6" /><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><Select value={variant.status} onValueChange={(value) => updateVariant(variant.platform, { status: value as SocialVariantStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DRAFT">Draft</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="NEEDS_EDITS">Needs edits</SelectItem></SelectContent></Select></label></div></TabsContent>)}
                   </Tabs>
                   <div className="rounded-xl border border-border bg-secondary/20 p-4"><div className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">Mobile composition preview</p><p className="text-xs text-muted-foreground">A layout preview using the exact copy and media. Provider UI may differ.</p></div></div><div className="mt-4 flex justify-center"><div className="w-[250px] overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 bg-background shadow-xl"><div className="flex items-center justify-between border-b border-border px-4 py-2 text-[10px] text-muted-foreground"><span>9:41</span><span>{getPlatformLabel(activeVariantPlatform)}</span><span>•••</span></div><div className="p-3"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">KT</span><span className="text-[11px] font-medium">KasiTek</span></div><p className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-foreground">{activeComposerVariants.find((variant) => variant.platform === activeVariantPlatform)?.content || composer.content}</p>{composer.media.length ? <div className="mt-3 space-y-2">{composer.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.assetId} className="relative overflow-hidden rounded-lg bg-black"><video className="h-36 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute inset-0 flex items-center justify-center"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"><Play className="h-4 w-4 fill-current" /></span></span></div> : <NextImage unoptimized width={640} height={360} key={item.assetId} className="max-h-40 w-full rounded-lg object-cover" src={mediaUrl(item.assetId)} alt={item.altText || "Attached image"} />)}</div> : <div className="mt-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground"><FileImage className="mr-1.5 h-3.5 w-3.5" />No media</div>}<div className="mt-3 flex gap-4 text-[10px] text-muted-foreground"><span>♡ 24</span><span>◌ 8</span><span>↗ Share</span></div></div></div></div></div>
                 </section>

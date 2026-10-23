@@ -1,5 +1,7 @@
 "use client";
 
+import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
+
 import Link from "next/link";
 import { ArrowUpRight, Bot, MessageCircle, Send, Wifi } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -61,6 +63,7 @@ export function WorkspaceAnalyticsOverview() {
           <h2 id="workspace-analytics-title" className="text-lg font-semibold tracking-tight text-foreground">Analytics</h2>
           <p className="mt-1 text-xs text-muted-foreground">Last 30 days</p>
         </div>
+        {report && populatedMetrics.length > 0 ? <AskGrowthAgent featureId="research" context={{ kind: "analytics_report", resourceId: OVERVIEW_METRIC_SET, range: { from: report.range_start, to: report.range_end, timezone: report.timezone } }}>Analyse results</AskGrowthAgent> : null}
         <Link href="/analytics" className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground no-underline transition-colors duration-[150ms] hover:text-foreground">View report <ArrowUpRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" /></Link>
       </div>
       {loading ? <Card><CardContent className="p-5"><AnalyticsLoadingState /></CardContent></Card> : error ? <AnalyticsErrorState description={error.message} onRetry={() => void load()} /> : report ? (

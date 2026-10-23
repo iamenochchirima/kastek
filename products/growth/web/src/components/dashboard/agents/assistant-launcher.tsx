@@ -6,7 +6,7 @@ import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
-const POSITION_KEY = "kasitek:kasiai-launcher-position";
+const POSITION_KEY = "kasitek:growth-assistant-launcher-position";
 const LAUNCHER_SIZE = 56;
 const DRAG_THRESHOLD = 4;
 
@@ -49,7 +49,7 @@ function savePosition(position: LauncherPosition) {
   }
 }
 
-export function KasiAiLauncher({
+export function GrowthAssistantLauncher({
   open,
   hidden = false,
   reduceMotion = false,
@@ -161,8 +161,8 @@ export function KasiAiLauncher({
       />
       <Button
         type="button"
-        aria-label="Open KasiAi assistant"
-        title="Open KasiAi"
+        aria-label="Open Growth assistant"
+        title="Open Growth assistant"
         onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -177,7 +177,7 @@ export function KasiAiLauncher({
           aria-hidden="true"
           className={cn(
             "pointer-events-none absolute -inset-5 rounded-[45%] blur-[5px]",
-            !reduceMotion && "motion-safe:animate-[kasiai-wave_5s_ease-in-out_infinite]",
+            !reduceMotion && "motion-safe:animate-[assistant-wave_5s_ease-in-out_infinite]",
           )}
           style={{
             background:
@@ -188,7 +188,7 @@ export function KasiAiLauncher({
           aria-hidden="true"
           className={cn(
             "pointer-events-none absolute -inset-6 rounded-[48%] opacity-75 blur-[4px]",
-            !reduceMotion && "motion-safe:animate-[kasiai-wave-secondary_7s_ease-in-out_infinite]",
+            !reduceMotion && "motion-safe:animate-[assistant-wave-secondary_7s_ease-in-out_infinite]",
           )}
           style={{
             background:

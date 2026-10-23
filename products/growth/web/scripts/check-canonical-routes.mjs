@@ -11,6 +11,7 @@ const obsoleteRouteTrees = [
 ];
 const requiredRoutes = [
   "workspace",
+  "agents",
   "inbox",
   "contacts",
   "campaigns",

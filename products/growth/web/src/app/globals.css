@@ -472,7 +472,7 @@
   70%, 100% { transform: scale(1.9); opacity: 0; }
 }
 
-@keyframes kasiai-wave {
+@keyframes assistant-wave {
   0%, 100% {
     transform: translate3d(-13%, -9%, 0) rotate(-12deg) scale(1.08);
     border-radius: 44% 56% 53% 47%;
@@ -483,7 +483,7 @@
   }
 }
 
-@keyframes kasiai-wave-secondary {
+@keyframes assistant-wave-secondary {
   0%, 100% {
     transform: translate3d(14%, 8%, 0) rotate(18deg) scale(1.12);
     border-radius: 54% 46% 42% 58%;

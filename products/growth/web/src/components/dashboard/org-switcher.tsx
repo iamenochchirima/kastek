@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 import {
@@ -30,14 +31,20 @@ export function OrgSwitcher({
   const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
 
   async function switchOrg(orgId: string) {
-    await fetch("/api/orgs/set-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orgId }),
-    });
-    startTransition(() => {
-      router.refresh();
-    });
+    if (orgId === activeOrgId) return;
+    window.dispatchEvent(new Event("kasitek:business-changing"));
+    try {
+      const response = await fetch("/api/orgs/set-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      });
+      if (!response.ok) throw new Error("Business switch failed");
+      startTransition(() => { router.refresh(); });
+    } catch {
+      window.dispatchEvent(new Event("kasitek:business-change-failed"));
+      toast.error("Unable to switch business");
+    }
   }
 
   if (!activeOrg) return null;

@@ -39,7 +39,7 @@ export default function InboxAlertControls({
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (!event.key || event.key.startsWith("kasiai:inbox-")) {
+      if (!event.key || event.key.startsWith("growth:inbox-")) {
         sync();
       }
     };

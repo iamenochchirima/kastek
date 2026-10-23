@@ -55,8 +55,9 @@ import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
-import { KasiAiChat } from "@/components/dashboard/kasiai/kasiai-chat";
-import { KasiAiLauncher } from "@/components/dashboard/kasiai/kasiai-launcher";
+import { GrowthAgentProvider, useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
+import { GrowthAssistantLauncher } from "@/components/dashboard/agents/assistant-launcher";
+import { GrowthAssistantDock } from "@/components/dashboard/agents/assistant-dock";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import {
   applyTheme,
@@ -98,7 +99,7 @@ function tourTarget(href: string) {
 const navigationGroups: NavigationGroup[] = [
   {
     label: "Home",
-    items: [{ name: "Overview", href: "/workspace", icon: LayoutGrid }],
+    items: [{ name: "Overview", href: "/workspace", icon: LayoutGrid }, { name: "Agents", href: "/agents", icon: Sparkles }],
   },
   {
     label: "Customer",
@@ -196,7 +197,7 @@ function DesktopTopbar({
 }: {
   organizationName: string;
   sectionLabel: string;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   orgs: Org[];
   activeOrgId: string | null;
   onOpenCommand: () => void;
@@ -275,7 +276,7 @@ function MobileTopbar({
   onOpenCommand,
 }: {
   sectionLabel: string;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   onOpenCommand: () => void;
 }) {
   const accountName = user?.name ?? "Account";
@@ -529,7 +530,7 @@ function PwaUpdateBanner({
   );
 }
 
-export function LayoutShell({
+function WorkspaceShell({
   children,
   user,
   inboxUnreadCount = 0,
@@ -539,7 +540,7 @@ export function LayoutShell({
   productTourStatus = null,
 }: {
   children: React.ReactNode;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   inboxUnreadCount?: number;
   orgs?: Org[];
   activeOrgId?: string | null;
@@ -549,7 +550,7 @@ export function LayoutShell({
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+  const agents = useGrowthAgents();
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
   const pathname = usePathname();
@@ -627,11 +628,11 @@ export function LayoutShell({
               </div>
             </SheetContent>
           </Sheet>
-          <KasiAiLauncher
-            open={assistantOpen}
+          <GrowthAssistantLauncher
+            open={agents.panelOpen}
             hidden={mobileSheetOpen}
             reduceMotion={appearance.interface.reduceMotion}
-            onOpen={() => setAssistantOpen(true)}
+            onOpen={() => void agents.openGeneral()}
           />
           <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[68px]" : "md:pl-[264px]")}>
             <DesktopTopbar
@@ -649,11 +650,16 @@ export function LayoutShell({
             </div>
           </main>
           <ProductTour status={productTourStatus} />
-          <KasiAiChat open={assistantOpen} onOpenChange={setAssistantOpen} leftOffset={collapsed ? 68 : 264} />
+          <GrowthAssistantDock />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
         </>
       </WhatsappRealtimeProvider>
     </MotionConfig>
   );
+}
+
+export function LayoutShell(props: React.ComponentProps<typeof WorkspaceShell>) {
+  const business = props.orgs?.find((org) => org.id === props.activeOrgId) ?? props.orgs?.[0];
+  return <GrowthAgentProvider key={`${props.user?.id ?? ""}:${business?.id ?? ""}`} userId={props.user?.id ?? ""} businessId={business?.id ?? ""} businessName={business?.name ?? "Workspace"}><WorkspaceShell {...props} /></GrowthAgentProvider>;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
+
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -360,6 +362,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               </div>
             </PageHeaderContent>
             <PageHeaderActions>
+              <AskGrowthAgent featureId="content" context={{ kind: "content_post", resourceId: post.id }}>Improve draft</AskGrowthAgent>
               <Button variant="outline" className="gap-2" onClick={() => router.push(`/content?edit=${encodeURIComponent(post.id)}`)}>
                 <Pencil className="h-4 w-4" />
                 Edit

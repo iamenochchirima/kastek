@@ -3,7 +3,17 @@ import { ACTIVE_ORG_COOKIE, fetchOrgs } from "@/lib/orgs";
 import { getCoreSession } from "@/lib/core-auth";
 
 export async function POST(req: NextRequest) {
-  if (req.headers.get("origin") !== req.nextUrl.origin) {
+  let expectedOrigin = req.nextUrl.origin;
+  const configuredOrigin = process.env.GROWTH_WEB_ORIGIN;
+  if (configuredOrigin) {
+    try {
+      const trusted = new URL(configuredOrigin);
+      if (!["http:", "https:"].includes(trusted.protocol) || trusted.username || trusted.password || trusted.pathname !== "/" || trusted.search || trusted.hash) throw new Error("Invalid app origin");
+      expectedOrigin = trusted.origin;
+      if (req.headers.get("host") !== trusted.host) return NextResponse.json({ error: "Invalid request host" }, { status: 403 });
+    } catch { return NextResponse.json({ error: "App origin is not configured correctly" }, { status: 503 }); }
+  }
+  if (req.headers.get("origin") !== expectedOrigin) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
   const session = await getCoreSession();

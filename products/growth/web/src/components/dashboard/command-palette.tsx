@@ -12,6 +12,7 @@ type CommandPaletteProps = { open: boolean; onOpenChange: (open: boolean) => voi
 
 const routes = [
   { group: "Workspace", label: "Overview", href: "/workspace", icon: LayoutGrid },
+  { group: "Workspace", label: "Agents", href: "/agents", icon: Sparkles },
   { group: "Customer", label: "Inbox", href: "/inbox", icon: Bell },
   { group: "Customer", label: "Calls", href: "/calls", icon: PhoneCall },
   { group: "Customer", label: "Contacts", href: "/contacts", icon: Users },
