@@ -272,7 +272,7 @@ acknowledges that behavior for the reviewed dedicated database. Growth/Agency pu
 existing analytics-publisher process mode; the Analytics worker projects accepted observations;
 Agents publishes from its API's durable receipts. Unrelated Growth API background workers are
 disabled in this profile. Preflight checks configuration, build presence, port conflicts and database
-TCP connectivity; it does not establish successful authentication, current schema or event delivery.
+TCP connectivity for primary and optional reporting databases. It rejects PostgreSQL query overrides and non-loopback database targets. Configured reporting, ingestion and admin-source HTTP origins must match the profile ports above. These checks do not establish successful authentication, current schema or event delivery.
 The process manager checks ownership before reuse/shutdown and leaves explicitly adopted external
 processes running. See the [admin process commands](../../apps/admin-site/README.md#development-reporting-processes).
 
