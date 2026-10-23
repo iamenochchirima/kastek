@@ -97,12 +97,14 @@ export function registerAdminCustomerRoutes(
   });
   app.post(prefix + "/operations", async (r) => {
     const actor = await access(r, true);
-    return customers.executeCustomerOperation(
+    const receipt = await customers.executeCustomerOperation(
       context.pool,
       customer(r),
       actor.id,
       command(r),
     );
+    r.log.info({event:"admin.customer.operation",service:"growth",actorId:actor.id,customerId:receipt.customer.id,operationId:receipt.id,action:receipt.action,status:receipt.status,code:receipt.code},"Customer operation recorded");
+    return receipt;
   });
   app.post(prefix + "/operations/:operationId/approve", async (r) => {
     const actor = await access(r, true),
@@ -114,12 +116,14 @@ export function registerAdminCustomerRoutes(
       body.expected.status !== "awaiting_approval"
     )
       bad("Invalid approval scope");
-    return customers.approveCustomerOperation(
+    const receipt = await customers.approveCustomerOperation(
       context.pool,
       customer(r),
       id,
       actor.id,
       body,
     );
+    r.log.info({event:"admin.customer.operation",service:"growth",actorId:actor.id,customerId:receipt.customer.id,operationId:receipt.id,action:receipt.action,status:receipt.status,code:receipt.code},"Customer operation recorded");
+    return receipt;
   });
 }

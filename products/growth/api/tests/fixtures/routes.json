@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 331,
+  "routeCount": 337,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -37,6 +37,9 @@
     "GET /api/admin/billing/reconciliation-issues",
     "GET /api/admin/conversations",
     "GET /api/admin/conversations/:id",
+    "GET /api/admin/customers/:customerId",
+    "GET /api/admin/customers/:customerId/:collection",
+    "GET /api/admin/customers/:customerId/operations/:operationId",
     "GET /api/admin/early-access",
     "GET /api/admin/early-access/:id",
     "GET /api/admin/invoices",
@@ -224,6 +227,9 @@
     "POST /api/admin/billing/plans",
     "POST /api/admin/billing/products",
     "POST /api/admin/billing/reconcile/paystack",
+    "POST /api/admin/customers/:customerId/operations",
+    "POST /api/admin/customers/:customerId/operations/:operationId/approve",
+    "POST /api/admin/customers/:customerId/operations/preview",
     "POST /api/admin/early-access/:id/approve",
     "POST /api/admin/early-access/:id/reject",
     "POST /api/admin/early-access/:id/resend",
