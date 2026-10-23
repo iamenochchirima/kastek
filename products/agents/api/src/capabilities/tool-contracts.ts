@@ -16,7 +16,7 @@ const growthDraft=z.strictObject({title:z.string().min(1).max(200),content:z.str
   variants:z.array(z.strictObject({platform:z.string().min(1).max(64),content:z.string().max(20000)})).max(10).optional()});
 const contracts={
   "growth.context_read":{input:z.strictObject({}),output:z.strictObject({context:z.unknown(),revision:z.string(),data:z.unknown(),
-    sources:z.array(z.strictObject({id:z.string(),title:z.string(),url:z.string().optional(),route:z.string().optional(),revision:z.string().optional()})),passages:z.array(evidence).max(1).optional()}),
+    sources:z.array(z.strictObject({id:z.string(),title:z.string(),citationLabel:z.string().optional(),url:z.string().optional(),route:z.string().optional(),revision:z.string().optional()})),passages:z.array(evidence).max(1).optional()}),
     authority:["product.read"],resources:["current_product_membership","accepted_product_context"],reconciliation:"not_applicable"},
   "growth.draft_prepare":{input:z.strictObject({draft:growthDraft}),output:z.strictObject({review:z.unknown(),result:z.unknown()}),
     authority:["product.read","product.write"],resources:["exact_growth_review","current_product_membership","single_use_effect_authorization"],reconciliation:"growth_authoritative_draft_receipt"},

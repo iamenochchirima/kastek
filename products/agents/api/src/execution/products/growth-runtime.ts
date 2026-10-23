@@ -62,7 +62,9 @@ export class GrowthProductRuntime {
     const passage=await this.evidence.recordProduct(taskId,operationId,{product:"growth",tenantId:scope.tenant_id,
       contextRevision:response.revision,text:fitUtf8(JSON.stringify(response.data),7600),title:(response.sources[0]?.title??"Growth context").slice(0,512),
       acquiredAt:new Date().toISOString(),sources:response.sources});
-    return {...response,data:null,passages:[{evidenceId:passage.reference.id,label:passage.label,citation:"["+passage.label+"]",text:passage.text,title:passage.title}]};
+    const sources=response.sources.map(source=>({...source,citationLabel:passage.label}));
+    await this.pool.query("UPDATE agents_platform.product_task_contexts SET sources=$2 WHERE task_id=$1",[taskId,JSON.stringify(sources)]);
+    return {...response,sources,data:null,passages:[{evidenceId:passage.reference.id,label:passage.label,citation:"["+passage.label+"]",text:passage.text,title:passage.title}]};
   }
   async project(review:GrowthAgentReview,taskId:string):Promise<void> {
     if(review.taskId!==taskId)throw new PlatformError("PRODUCT_REVIEW_SCOPE_DENIED",403,"The review is outside this task");

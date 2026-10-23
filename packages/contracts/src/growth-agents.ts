@@ -24,7 +24,7 @@ export interface GrowthAgentConversation {
   id: string; featureId: GrowthAgentFeatureId; title: string;
   context: GrowthAgentContext | null; contextDisplay?: { title: string; route?: string }; createdAt: string; updatedAt: string;
 }
-export interface GrowthAgentSource { id: string; title: string; url?: string; route?: string; revision?: string }
+export interface GrowthAgentSource { id: string; title: string; citationLabel?: string; url?: string; route?: string; revision?: string }
 export interface GrowthAgentMessage {
   id: string; role: "user" | "assistant"; text: string; createdAt: string;
   taskId?: string; sources?: GrowthAgentSource[];

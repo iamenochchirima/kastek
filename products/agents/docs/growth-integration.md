@@ -148,7 +148,30 @@ for execution health. Inspect native task, operation and root model accounting f
 success, failure and known or unknown costs. Ordinary traces and product facts exclude private
 briefs, contents and keys. Configure the existing Analytics publisher to deliver queued outcomes.
 
-Controlled HTTP, Restate and PostgreSQL checks use isolated services and state. The existing
-Harbor preparation adapter targets standalone Agents identities. Growth-scoped trial preparation
-is not established by these product journeys. The owner runs purpose evaluations and live-provider acceptance. Those checks, production rollout, hosted
-retention and production alert thresholds are separate from this setup.
+## Verify the integration
+
+The engineering journey uses the actual built Growth UI and BFF, authenticated product HTTP,
+PostgreSQL and Restate. Only dashboard identity and model responses are controlled fixtures.
+It checks Growth-only identity, two turns, quick access/history, API/worker restarts, exact
+reviewed draft readback, signed pagination, concurrent configuration, private downloads and
+withdrawn evidence. It creates and removes its own databases and Restate container.
+
+With local PostgreSQL administrator access supplied privately as `AGENTS_TEST_ADMIN_URL`,
+Docker and Playwright Chromium available, run from the repository root:
+
+```sh
+pnpm --filter @kasitek-labs/contracts build
+pnpm --dir products/growth/web build
+pnpm --filter @kasitek/agents exec vitest run test/growth-product-http.test.ts
+```
+
+Browser evidence is saved under `.audit/growth-agent-real-browser/`. A passed deterministic
+journey establishes engineering behavior, not model quality or live provider compatibility.
+
+The optional [Growth Harbor mode](../evaluation-adapters/harbor/README.md#growth-product-mode-owner-run)
+prepares owner-run cases through normal Growth HTTP with one isolated business and staff session
+per trial. Its pure adapter checks do not run evaluations. It does not supply native model-call
+exports, model-policy digests or server-native trial reservation/revocation. Configure and discard
+the isolated environment through its owner-run setup. The standalone Harbor mode retains its own
+native export and trial contracts. Production rollout, hosted retention and alert qualification
+remain separate from this implementation.

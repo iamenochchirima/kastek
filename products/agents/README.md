@@ -328,7 +328,8 @@ stops new grants and publication; resuming preserves the URL and conversation id
 agent settings create background snapshots and apply to future turns. Existing accepted tasks
 retain their own configuration and executable release.
 
-Schemas052–061 require the current matching schema digest and worker
+Schemas052–063 require the current matching schema digest and worker
+`growth-products-v10` / `AgentsBusinessRunV20`. The preceding channel worker was
 `channel-customers-v9` / `AgentsBusinessRunV19`. Fresh setup uses the normal command below;
 starting the app never silently upgrades an existing database. Stop new admissions before an
 operator-controlled additive local schema application. Retain old executable releases for any

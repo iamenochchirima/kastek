@@ -53,6 +53,8 @@ test("source numbering remains stable when one source lacks a citation label", (
   assert.equal(sourceCitationParts(`[${label}]`, [unlabelled, source])[0].number, 2);
 });
 test("the route guard accepts only supported pages and exact download shapes", () => {
+  assert.equal(safeGrowthRoute("/inbox"), "/inbox");
+  assert.equal(safeGrowthRoute("/inbox-foreign"), null);
   const download = "/api/agents/tasks/11111111-1111-4111-8111-111111111111/artifacts/22222222-2222-4222-8222-222222222222/download";
   assert.equal(safeGrowthRoute(download), download);
   for (const path of ["//evil.example/workspace", "/\\evil.example/workspace", "https://evil.example/workspace", "/api/admin/export", "/api/agents/tasks/no/artifacts/no/download"]) assert.equal(safeGrowthRoute(path), null);

@@ -338,10 +338,10 @@ An installed adapter is not evidence that a live account passed provider accepta
 Schemas052–061 add encrypted connection revisions, selected assets and agent deployments;
 channel-neutral customer identity; ingress/outbound receipts; setup/session claims; website
 appearance/pause; consent; and isolated external-runner fixture mappings. No Growth tables,
-private runtime imports or legacy installation controllers are restored. Schema060 and
-`contracts/execution.ts` identify `channel-customers-v9` / `AgentsBusinessRunV19`. Changed
-customer-principal grammar and publication effects require this new worker identity. Previously
-accepted releases retain their matching worker; startup never silently upgrades an older schema.
+private runtime imports or legacy installation controllers are restored. Schema063 and
+`contracts/execution.ts` identify `growth-products-v10` / `AgentsBusinessRunV20`;
+schema063 advances the schema060 channel release. Changed durable product review branches
+require the matching worker identity. Previously accepted releases retain their matching worker; startup never silently upgrades an older schema.
 
 Non-website admissions use a verified `channel_customer` principal bound to the deployment and
 canonical conversation. The same admission/model routing/root budgets, Restate loop, context,
@@ -590,6 +590,14 @@ actual WhatsApp campaign context. New turns pin current feature/model settings; 
 keeps its original route. External research, automatic publishing, new campaign mutations,
 personal memory and specialist delegation remain disabled for these initial Growth features.
 See [Growth integration](growth-integration.md) for setup, operator controls and verification scope.
+The actual built Growth browser, BFF, signed product HTTP, Restate worker and Growth database
+passed the controlled seven-case integration suite. It includes two chat turns and history,
+API/worker restart recovery, exact draft readback, private artifact exports and access withdrawal.
+`.audit/growth-agent-real-browser/conversation.png` and its acceptance receipt record the browser run.
+The optional [Growth Harbor mode](../evaluation-adapters/harbor/README.md#growth-product-mode-owner-run)
+uses ordinary Growth HTTP and operator-isolated businesses. It has contract checks only and does
+not expose native model snapshots, model-policy pins or server-native evaluation-trial fencing.
+Purpose evaluations and live-provider acceptance remain owner-run.
 
 Execution events persist `agent.observation.v1` metadata and an export intent atomically. Explicit
 OpenTelemetry spans carry native scope, program, operation, attempt and usage identities, without
@@ -1265,7 +1273,7 @@ new provider and does not qualify the provider integration.
 | API/schema changes | Fresh ordered schema through `062_native_provider_connections.sql`; 062 adds the shared native provider account/action lifecycle and authorization-attempt fences. Existing 028–038 add remote connections, skill packages/runtime/state, tool review, native API operations, Google OAuth/calendar policy, booking records, the V15 task default, immutable Google connector-definition pins, and immutable skill-script execution provenance. Setup validates the complete schema digest and does not migrate an existing owner database. |
 | Rollout method | Explicit provider configuration, owner connection and service-sharing consent, exact skill review, draft selection, immutable publication, exact customer confirmation, and separately enabled isolated analysis for package scripts. Missing native-provider configuration is unavailable. The standalone Booking offering remains disabled. |
 | Analytics and success criteria | Growth now emits registered command, review and confirmed-draft outcomes through its transactional outbox. Native connector fixture success criteria are one insertion per approved appointment/contact intake, zero pre-confirmation writes, no customer contact lookup, read-only calendars without reserve authority, correct current-policy denial, no insertion during status recovery, one sandbox command per admitted script operation, exact package provenance, current withdrawal denial, and resource cleanup. Growth outcome instrumentation exists; delivered production analytics and production alerting are not established. |
-| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V19 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
+| Logs, metrics, dashboards, alerts | Existing bounded `agent.observation.v1` and task events include `tool.booking_availability`, `tool.booking_claimed`, `tool.booking_result`, and `tool.booking_reconciled`. Skill execution reuses bounded tool observations, native operation receipts and sandbox allocation/command status; schema038 records immutable package/script provenance. Metadata excludes credentials and full arguments. Collector revision and endpoint changes: not applicable; existing exporter configuration applies. Release identity is the accepted V20 composition. Bounded metadata projection provides the source-level redaction boundary. Production dashboards, alerts, retention, and hosted OTLP signal acceptance remain unverified. Disable the existing exporter to stop telemetry delivery without changing operation receipts. |
 | Documentation | Current README, implementation/feature map, architecture, integration boundary, threat model, and runtime reference updated together. No new planning document. |
 | Validation evidence | Actual isolated PostgreSQL/Restate/API/independent-worker booking acceptance in `api/test/booking-business.test.ts`; controlled signed OIDC/provider integration tests; actual API browser in `web/test/catalogue-live.spec.ts`; generated widget with controlled HTTP endpoints in `web/test/website-bookings.spec.ts`; responsive management/approval regressions. `skill-requirements.spec.ts` verifies connection repair, explicit binding adoption, compatible Analysis opt-in and grounded-program denial. `catalogue-execution-live.spec.ts` verifies published controlled MCP/API execution and real API skill requirement repair. Real gVisor package execution in `api/test/skill-script-runtime.test.ts`, existing independent-cleanup suite in `api/test/platform-sandbox.test.ts`, and published activation/script/final-answer acceptance in `api/test/platform-business.test.ts`. See coverage below. |
 | Rollback or disable | Withdraw the booking policy or disconnect access to block future effects; disable/remove skill installations or rotate/revoke selected connections as applicable. Preserve immutable versions, receipts, original uncertain outcomes, key access, and accepted worker artifacts. Status recovery still requires current permitted authority. Do not downgrade a V15 task to an incompatible worker or reverse the fresh SQL in place. |
