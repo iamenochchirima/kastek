@@ -39,8 +39,7 @@ This is a source/schema inventory only. No live account rows, credentials, or pr
 
 ## References
 
-- [Local identity setup and contract](../../infra/identity/README.md).
-- [Shared login implementation checklist](../../../plans/shared-login/IMPLEMENTATION.md).
+- [Local identity setup and contract](../../../infra/identity/README.md).
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html).
 - [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html).
 - [Keycloak administration](https://www.keycloak.org/docs/latest/server_admin/index.html).
