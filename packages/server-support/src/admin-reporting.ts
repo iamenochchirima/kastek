@@ -1,3 +1,5 @@
+export { loadAdminTrends, unavailableAdminTrends } from "./admin-reporting-trends.js";
+import { sanitizeAdminTrends } from "./admin-reporting-trends.js";
 import { ADMIN_REPORT_METRICS, type AdminReportQuery, type AdminProductReport, type AdminReportMetric } from "@kasitek-labs/contracts";
 
 /** Match the existing Analytics API range and pagination safety bounds. */
@@ -87,7 +89,7 @@ export function validateProductReport(raw:unknown,product:AdminProductReport["pr
    return {id:string(record.id),kind:string(record.kind),organizationId:string(record.organizationId),state:string(record.state),occurredAt:time(record.occurredAt)!,
      ...(record.consumer===undefined?{}:{consumer:record.consumer}),...(record.rootId===undefined?{}:{rootId:string(record.rootId)})};
  });
- return {contractVersion:"1",product,query,availability:value.availability,generatedAt:time(value.generatedAt)!,sourceObservedAt:time(value.sourceObservedAt),completeThrough:time(value.completeThrough),metrics,records,hasMore:value.hasMore};
+ return {contractVersion:"1",product,query,availability:value.availability,generatedAt:time(value.generatedAt)!,sourceObservedAt:time(value.sourceObservedAt),completeThrough:time(value.completeThrough),metrics,records,hasMore:value.hasMore,...(value.trends===undefined?{}:{trends:sanitizeAdminTrends(value.trends,query)})};
 }
 export async function collectAdminProductReports(requests:readonly AdminReportSourceRequest[],signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AdminProductReport[]> {
  if(requests.length>3)throw Error("Too many product sources");

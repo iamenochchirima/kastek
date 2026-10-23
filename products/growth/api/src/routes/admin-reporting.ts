@@ -1,3 +1,4 @@
+import {growthAdminTrends} from "../services/admin/reporting-trends.js";
 import type {FastifyInstance} from "fastify";
 import {parseAdminReportQuery} from "@kasitek-labs/server-support/admin-reporting";
 import type {CoreContext} from "../context.js";
@@ -10,6 +11,7 @@ export function registerAdminReportingRoutes(app:FastifyInstance,context:CoreCon
   if(!grantsForRole(actor.role).has("admin:report"))throw new ApiError(403,"forbidden","Insufficient permissions");
   let query;try {query=parseAdminReportQuery(request.query as Record<string,unknown>);}catch(error){throw new ApiError(400,"bad_request",(error as Error).message);}
   if(query.consumer && query.consumer!=="growth")throw new ApiError(400,"bad_request","Invalid consumer for Growth");
-  return growthAdminReport(context.pool,query);
+  const report=await growthAdminReport(context.pool,query);
+  return {...report,trends:await growthAdminTrends(context,actor,query)};
  });
 }

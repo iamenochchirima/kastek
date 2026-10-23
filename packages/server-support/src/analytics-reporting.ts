@@ -206,6 +206,11 @@ export class AnalyticsReportingClient {
       },
     );
   }
+  adminReport(parameters: URLSearchParams, authority: string): Promise<unknown> {
+    return this.request("reporting.query", `/v1/admin/reporting?${parameters}`, this.resolverToken, {
+      headers: { "x-kasitek-admin-authority": authority },
+    });
+  }
   async resolveScope(
     sourceService: string,
     scopeKind: string,

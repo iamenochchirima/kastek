@@ -40,6 +40,19 @@ export interface AdminReportRecord {
   consumer?: AdminReportProduct;
   rootId?: string;
 }
+/** Event projection series; never added to authoritative balance or usage totals. */
+export interface AdminReportTrend {
+  key: string;
+  domain?: AdminReportDomain;
+  unit: string;
+  availability: AdminReportAvailability;
+  source: string;
+  observedAt: string | null;
+  completeThrough: string | null;
+  series: {start: string; end: string; value: string | null}[];
+  scopeCoverage?: {includedScopeCount:number;totalScopeCount:number;hasMore:boolean};
+  reason?: string;
+}
 export interface AdminProductReport {
   contractVersion: "1";
   product: AdminReportProduct;
@@ -50,6 +63,7 @@ export interface AdminProductReport {
   completeThrough: string | null;
   availability: AdminReportAvailability;
   metrics: AdminReportMetric[];
+  trends?: AdminReportTrend[];
   records: AdminReportRecord[];
   hasMore: boolean;
 }

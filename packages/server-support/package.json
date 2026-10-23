@@ -51,6 +51,11 @@
       "types": "./dist/admin-reporting.d.ts",
       "import": "./dist/admin-reporting.js",
       "require": "./dist/admin-reporting.js"
+    },
+    "./admin-reporting-trends": {
+      "types": "./dist/admin-reporting-trends.d.ts",
+      "import": "./dist/admin-reporting-trends.js",
+      "require": "./dist/admin-reporting-trends.js"
     }
   },
   "scripts": {
@@ -77,6 +82,9 @@
       ],
       "admin-reporting": [
         "dist/admin-reporting.d.ts"
+      ],
+      "admin-reporting-trends": [
+        "dist/admin-reporting-trends.d.ts"
       ]
     }
   }
