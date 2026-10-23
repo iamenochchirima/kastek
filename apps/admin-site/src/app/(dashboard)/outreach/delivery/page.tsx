@@ -60,7 +60,7 @@ export default async function OutreachDeliveryPage({
 
   if (!campaignsRes.ok || !logsRes.ok) throw new Error("Delivery monitoring unavailable");
   const campaigns: Campaign[] = await campaignsRes.json();
-  const data = await logsRes.json() as { items: DeliveryLog[]; total: number; sent: number; failed: number };
+  const data = await logsRes.json() as { items: DeliveryLog[]; total: number; sent: number; failed: number; uncertain: number };
   const allLogs = data.items;
 
   // The API aggregates all matching attempts.
@@ -87,7 +87,11 @@ export default async function OutreachDeliveryPage({
           className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="">All statuses</option>
-          <option value="sent">Accepted by SMTP</option>
+          <option value="accepted">Accepted by SMTP</option>
+          <option value="rejected">Rejected</option>
+          <option value="uncertain">Uncertain</option>
+          <option value="not_submitted">Not submitted</option>
+          <option value="sent">Legacy sent</option>
           <option value="failed">Failed</option>
         </select>
         <select
@@ -140,10 +144,11 @@ export default async function OutreachDeliveryPage({
         </div>
       </form>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <AdminMetric label="Filtered attempts" value={totalItems} />
         <AdminMetric label="Accepted by SMTP" value={sentCount} tone="success" />
-        <AdminMetric label="Failed" value={failedCount} tone="danger" />
+        <AdminMetric label="Rejected / not submitted" value={failedCount} tone="danger" />
+        <AdminMetric label="Uncertain" value={data.uncertain} tone="attention" />
         <AdminMetric label="Failure rate" value={`${failRate}%`} tone={failRate ? "attention" : "default"} />
       </div>
 

@@ -291,7 +291,7 @@ export async function listDeliveryLogs(pool: Pool, query: ObjectValue) {
       );
   const { page, limit, offset } = adminPage(query, query.format === 'csv' ? 1000 : 100, query.format === 'csv' ? 20000 : 200);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const counts = query.paginate === 'true' ? (await pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE l.status='sent') AS sent, COUNT(*) FILTER (WHERE l.status='failed') AS failed FROM "OutreachEmailDeliveryLog" l LEFT JOIN "OutreachCampaign" c ON c.id=l."campaignId" ${where}`, args)).rows[0]! : null;
+  const counts = query.paginate === 'true' ? (await pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE l.status IN ('sent','accepted')) AS sent, COUNT(*) FILTER (WHERE l.status IN ('failed','rejected','not_submitted')) AS failed, COUNT(*) FILTER (WHERE l.status='uncertain') AS uncertain FROM "OutreachEmailDeliveryLog" l LEFT JOIN "OutreachCampaign" c ON c.id=l."campaignId" ${where}`, args)).rows[0]! : null;
   const rows = (await pool.query(sql.LIST_DELIVERY_LOGS_0.replace('{where_clause}', where).replace('ORDER BY l."attemptedAt" DESC', 'ORDER BY l."attemptedAt" DESC, l.id ASC').replace('{limit}', `$${args.length + 1}`) + ` OFFSET $${args.length + 2}`, [...args, limit, offset])).rows;
   if (query.format === 'csv')
     return (
@@ -317,5 +317,5 @@ export async function listDeliveryLogs(pool: Pool, query: ObjectValue) {
         .join('')
     );
   const items = rows.map((r) => rowView('outreach.DeliveryLogRow', r));
-  return counts ? { items, total: Number(counts.total), sent: Number(counts.sent), failed: Number(counts.failed), page, limit } : items;
+  return counts ? { items, total: Number(counts.total), sent: Number(counts.sent), failed: Number(counts.failed), uncertain: Number(counts.uncertain), page, limit } : items;
 }

@@ -9,7 +9,7 @@ function recordingPool() {
   const calls: Array<{ sql: string; args: unknown[] }> = [];
   const pool = { async query(sql: string, args: unknown[] = []) {
     calls.push({ sql, args });
-    return { rows: sql.includes('COUNT(*)') ? [{ total: '501', sent: '490', failed: '11' }] : [] };
+    return { rows: sql.includes('COUNT(*)') ? [{ total: '501', sent: '490', failed: '11', uncertain: '2' }] : [] };
   } } as unknown as Pool;
   return { pool, calls };
 }
@@ -47,8 +47,8 @@ test('campaign and lead queries page in SQL with deterministic order', async () 
 test('delivery totals aggregate all filtered rows while records remain bounded', async () => {
   const { pool, calls } = recordingPool();
   const result = await listDeliveryLogs(pool, { paginate: 'true', recipient: 'someone@example.com', page: '4', limit: '100' });
-  assert.deepEqual(result, { items: [], total: 501, sent: 490, failed: 11, page: 4, limit: 100 });
-  assert.match(calls[0]!.sql, /FILTER \(WHERE l.status='failed'\)/);
+  assert.deepEqual(result, { items: [], total: 501, sent: 490, failed: 11, uncertain: 2, page: 4, limit: 100 });
+  assert.match(calls[0]!.sql, /FILTER \(WHERE l.status IN \('failed','rejected','not_submitted'\)\)/);
   assert.deepEqual(calls[1]!.args, ['%someone@example.com%', 100, 300]);
   assert.match(calls[1]!.sql, /ORDER BY l."attemptedAt" DESC, l.id ASC/);
 });
