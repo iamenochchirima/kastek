@@ -2,7 +2,12 @@
 
 This optional Python package implements Harbor's host-side `BaseAgent`. Harbor owns trial scheduling, environments, verification and aggregation. Kasitek owns admission, model/tool execution, durable recovery and authoritative records. The adapter imports no Agents API internals and no Agents Lab code.
 
-The adapter supports stable request recovery, bounded scripted conversations, cancellation and ATIF conversion from authorized native exports. Actual Harbor trials have passed for grounded FAQ, two-turn FAQ, research/report, delegated research, controlled delivery reconciliation and website Inbox handoff/return. These acceptance runs use deterministic provider responses with actual HTTP, PostgreSQL, Restate, private storage and independent Harbor verifiers. They establish execution and evidence contracts, not general model quality. Arbitrary Harbor resume remains unsupported. Local HTTP unit tests are separate contract fixtures.
+The default `kasitek_harbor.agent:KasitekAgent` supports stable request recovery, bounded scripted conversations, cancellation and ATIF conversion from authorized native exports. Actual Harbor trials have passed for grounded FAQ, two-turn FAQ, research/report, delegated research, controlled delivery reconciliation and website Inbox handoff/return. These acceptance runs use deterministic provider responses with actual HTTP, PostgreSQL, Restate, private storage and independent Harbor verifiers. They establish execution and evidence contracts, not general model quality. Arbitrary Harbor resume remains unsupported. Local HTTP unit tests are separate contract fixtures.
+
+The optional `kasitek_harbor.growth:GrowthHarborAgent` uses Growth's normal product HTTP
+interfaces instead of standalone account-scoped evaluation APIs. Its preparation and evidence
+limits are documented below. It has pure contract coverage; no Growth Harbor evaluation run or
+model-quality result is claimed by this change.
 
 ## Toolchain and checks
 
@@ -259,3 +264,117 @@ Private CRM receipt bytes are read only through the authorized exporter, using t
 Compare the exported event/contact receipt with the independent provider record and request audit. Check exact fields against the case's private baseline, create count, review/digest linkage, current authority, and native uncertainty. Keep purpose quality, authorization safety, delivery correctness, and evidence coverage as separate results. A confirmed write must not turn a missing model transcript into a passing model-quality result.
 
 The existing `booking-policy-connected-skill` suite still reads a notice policy; it does not reserve appointments. `KasitekAgent` has no automatic confirmation script or provider-specific independent verifier. There is no new `AGENTS_HARBOR_SUITE` selector for these mutation cases. Use the owner-controlled decision methods and independent provider inspection above; retain this limitation when recording results.
+
+## Growth product mode (owner-run)
+
+Use `GrowthHarborAgent` for an independently prepared Growth assistant, Research, Content or
+Campaigns case. It keeps Harbor as the runner and verifier. Growth still authenticates the user,
+checks business permissions, owns the review and saves the business record; shared Agents runs
+the accepted task. The adapter creates no standalone Agents accounts or memberships, private
+service assertions, runner, model loop or provider integration.
+
+Prepare one fresh dedicated Growth business and staff session per Harbor trial through the normal
+product setup. Configure the intended feature and managed model with its normal product policy,
+plus the case's authorized records and destinations. Do not use an owner's active business or
+provider publishing account. The selected staff user must have no previous agent conversations or
+tasks in that business. The adapter checks that condition before first submission, verifies the
+bootstrap's business/user, and pins the active-business cookie on every request.
+
+Store this operator-owned file with mode `0600`; replace the example values with actual isolated
+records and a suitable short expiry. `origin` is the Growth web/BFF origin, not standalone Agents.
+
+```json
+{
+  "schema_version": "kasitek-growth-prepared-scope.v1",
+  "scope_id": "11111111-1111-4111-8111-111111111111",
+  "origin": "http://127.0.0.1:3000",
+  "business_id": "actual-isolated-growth-business",
+  "user_id": "actual-growth-staff-user",
+  "feature_id": "content",
+  "context": {"kind": "content_post", "resourceId": "actual-authorized-source-post"},
+  "session_cookie_env": "KASITEK_GROWTH_EVALUATION_SESSION",
+  "expires_at": "2099-01-01T00:00:00Z",
+  "max_turns": 1,
+  "isolation": "operator-provisioned-per-trial-business"
+}
+```
+
+Use `context: null` for business-level guidance. Supported attached contexts are `workspace`,
+`content_post`, `whatsapp_campaign` and `analytics_report`; reports require their actual
+`range: {from, to, timezone}`. Growth validates every context independently. Supply the dedicated
+session only through the named host environment variable. Credentials never enter scope files,
+trial mappings, task instructions or result evidence.
+
+Select one prepared case per invocation. A scope is claimed permanently by its original Harbor
+trial context. It cannot be reused for another case or attempt; repeated invocations of that same
+context retain the original deadline and stable conversation/turn request IDs. Prepare another
+business/session/scope for another independent trial. Changed instructions or context conflict
+with a retained mapping. Recovery needs the same private scope and original Harbor context.
+
+```sh
+PYTHONPATH="$PWD/products/agents/evaluation-adapters/harbor/src" harbor run \
+  --path /absolute/path/to/one-growth-case \
+  --agent kasitek_harbor.growth:GrowthHarborAgent \
+  --agent-kwarg scope_path=/absolute/private/growth-scope.json \
+  --n-concurrent 1 --max-retries 0
+```
+
+The existing trusted `follow_ups` format supports up to eight total turns within `max_turns`.
+Task MCP servers, skills, model overrides and hidden grader fields are rejected. Purpose-specific
+criteria belong in the independent case verifier, never in the agent's scope or instructions.
+No Growth suites were executed while implementing this mode.
+
+Review decisions are manual by default: the adapter observes the normal product task and waits
+for a real decision, subject to the original deadline. For an explicitly approved evaluation case,
+`--agent-kwarg review_decision=approve` or `reject` simulates the staff decision through the normal
+Growth endpoint. Automatic approval requires the exact current review digest and ready selected
+fixture destinations. It never invents a publishing account, rewrites a proposal, publishes or
+schedules content. For another final draft or account, revise through Growth before approving.
+
+Each turn retains `turns/<turn-id>/growth-product-history.json`: actual product task state, bounded
+ordered event pages, Growth reviews, artifact references and authoritative saved-record outcomes.
+A saved draft is verified with `GET /api/social/posts/:id` under the pinned business. The checks bind
+review/task/user/digest, current record revision, normalized content/variants, DRAFT status and
+selected accounts. Assistant prose saying "saved" is never accepted as an outcome. Provider fields
+from the record response are not copied into outcome evidence. `evaluation-result.json` records
+observed completion and cleanup separately; the independent verifier determines pass/fail.
+
+Growth's current product API does not expose native model/tool snapshots, child trajectories,
+model-policy digests or the standalone server evaluation-trial reservation/revoke contract.
+This mode advertises `atif=False` and records those coverage gaps explicitly. It cannot establish
+per-call/model-pin quality evidence or replace the existing standalone native-export adapter for
+those checks. Artifact references are retained; binary downloads are not implemented in this mode.
+A product-aware authorized export is the next required platform addition for that deeper coverage.
+
+The host lock/mapping and freshness check complement operator isolation; they are not a server
+admission fence or tenant-wide trial budget. Provision only isolated services/businesses, keep the
+prepared session private, and arrange fixture expiry and discard with the owner-run environment.
+On completion or failure, the adapter requests cancellation of active roots in its own conversation
+and records actual terminal states. Uncertain or unauthorized cleanup stays unconfirmed. It does
+not call operator tenant/model controls, delete Growth business data or revoke a customer session.
+`cleanup.admissionFenced` therefore remains false. The owner must disable/expire/discard the
+isolated fixture after the trial. Do not call the scope's expiry a server-side revocation.
+
+Prepare the case verifier separately for its purpose. The following coverage is independent:
+
+| Selected feature | Prepared actual context | Owner-run outcome checks |
+| --- | --- | --- |
+| Assistant | Dedicated business profile or explicit workspace | Guidance agrees with configured Growth features; returned record links are authorized; no invented saved result. |
+| Research | An authorized content record or report range | Findings cite the actual source/revision, distinguish uncertainty and avoid claiming external web research without an installed adapter. |
+| Content | A source post and ready controlled destination | Exact reviewed final fields, actor/digest/revision match the normal DRAFT record; reject, stale decision and missing-permission cases cannot produce a saved receipt. |
+| Campaigns | A real dedicated WhatsApp campaign | Recommendations agree with its actual state/receipts and preserve opt-in/template rules; no launch, schedule or recipient mutation is claimed. |
+
+Use the same selected product mode for an owner-approved real managed provider, configured through
+normal model setup. Keep provider keys in protected service configuration and record the setup
+receipt with the private case evidence; never pass a key or a model override to Harbor. Run separate
+fresh prepared businesses/scopes for different providers or purposes. Check that the intended
+feature is ready before starting. This adapter's product evidence does not prove the exact accepted
+per-call model policy; model-sensitive grading requires the missing authorized export or the
+existing standalone adapter with its genuine native pins. Live destination acceptance additionally
+requires an explicitly approved isolated provider account and the normal Growth record checks.
+No provider/model availability, answer quality or live effect is inferred from a listed feature.
+
+The new mode is optional source preparation. It changes no native runtime, production schema,
+analytics registry or deployment. Its eight MockTransport/mapping/driver tests are contract checks only;
+real Growth Harbor trials, model quality, provider acceptance and operational isolation remain
+owner-run.
