@@ -136,7 +136,6 @@ export async function buildApp(
         try {
           const parsed = new URL(value);
           const http = ["http:", "https:"].includes(parsed.protocol);
-          if (http && request.url.startsWith("/api/widget/v1/")) allowed = true;
           const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
           const loopback =
             hostname === "localhost" ||

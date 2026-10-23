@@ -6,7 +6,7 @@
     "description": "Versioned public core contracts. Business handlers reuse the shared action catalog and normalized request context."
   },
   "servers": [{ "url": "https://api.kasitek.co.za/v1" }],
-  "security": [{ "kasitekSession": [] }, { "bearerInstallation": [] }, { "developerApiKey": [] }],
+  "security": [{ "kasitekSession": [] }, { "developerApiKey": [] }],
   "paths": {
     "/health": {
       "get": {
@@ -31,7 +31,7 @@
           "401": { "description": "Missing or invalid KasiTek user session" },
           "400": { "description": "Invalid pagination or version" },
           "403": { "description": "Authenticated user has no available organization" },
-          "500": { "description": "Entitlement or installation policy dependency unavailable" }
+          "500": { "description": "Product entitlement dependency unavailable" }
         }
       }
     },
@@ -148,16 +148,10 @@
   "components": {
     "securitySchemes": {
       "kasitekSession": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "KasiTek session token or Agent Platform installation token",
-        "description": "A KasiTek user session or an Agent Platform ES256 installation token with audience kasitek-public-api. Configure AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY on core before accepting machine tokens."
-      },
-      "bearerInstallation": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Short-lived Agent Platform installation token with audience kasitek-public-api."
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "kasitek_session",
+        "description": "Authenticated Growth browser session. Unsafe cookie-authenticated requests require the approved product origin."
       },
       "developerApiKey": {
         "type": "http",
@@ -172,7 +166,7 @@
         "required": ["version", "principal", "actions", "pagination"],
         "properties": {
           "version": { "const": "v1" },
-          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "workspace_api_key", "agent_installation"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
+          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "workspace_api_key"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
           "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } },
           "pagination": { "$ref": "#/components/schemas/CapabilityPagination" }
         }

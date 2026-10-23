@@ -26,4 +26,4 @@ pnpm --dir "$workspace_root" build:shared
 cd "$core_root"
 pnpm build
 # These checks need no database, customer accounts or live providers.
-pnpm exec tsx --test tests/foundation.test.ts tests/agent-platform-client.test.ts tests/observability.test.ts
+pnpm exec tsx --test tests/foundation.test.ts tests/growth-agent-telemetry.test.ts tests/legacy-runtime-cutover.test.ts tests/observability.test.ts

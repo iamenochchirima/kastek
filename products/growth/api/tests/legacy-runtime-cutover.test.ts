@@ -64,3 +64,13 @@ test('admin cutover keeps support and webhook recovery protected while retired r
     assert.equal(reads,0);
   }finally{await app.close();}
 });
+
+test('retired widget paths no longer allow arbitrary website origins',async()=>{
+  const {buildApp}=await import('../src/app.js');
+  const pool={query(){throw Error('CORS check must not read the database');}} as unknown as pg.Pool;
+  const app=await buildApp({pool,config:readConfig({DATABASE_URL:'postgres://unused',ENVIRONMENT:'production',FRONTEND_URL:'https://growth.example.test',LOG_LEVEL:'silent'})},[]);
+  try{
+    const response=await app.inject({method:'OPTIONS',url:'/api/widget/v1/loader.js',headers:{origin:'https://other.example.test','access-control-request-method':'GET'}});
+    assert.equal(response.headers['access-control-allow-origin'],undefined);
+  }finally{await app.close();}
+});

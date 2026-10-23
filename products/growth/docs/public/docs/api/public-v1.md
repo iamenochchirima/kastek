@@ -2,7 +2,7 @@
 
 The Growth public API uses `/v1`, separately from private `/api/*` product routes.
 The standalone Agents product and its execution service have a separate contract.
-Growth integration with the replacement execution service is not yet connected.
+Growth product agents use their own authenticated product routes and signed shared-execution commands.
 
 ## Authentication
 
