@@ -76,7 +76,7 @@ export function reportCsv(reports: readonly AdminProductReport[]): string {
       record.organizationId,report.query.detail?.metric,null,report.query.detail?.dimensions.currency,JSON.stringify(report.query.detail?.dimensions??{}),report.availability,null,report.product,report.sourceObservedAt,report.completeThrough,
       "record",null,null,null,null,null,record.consumer??report.query.consumer,record.id,record.kind,record.state,record.occurredAt,record.label,record.rootId,report.query.page,report.hasMore]);
   }
-  return rows.map(row=>[...row,...Array(Math.max(0,rows[0].length-row.length)).fill(null)].map(cell).join(",")).join("\r\n") + "\r\n";
+  return rows.map(row=>[...row,...Array(Math.max(0,rows[0]!.length-row.length)).fill(null)].map(cell).join(",")).join("\r\n") + "\r\n";
 }
 
 import type {Pool, PoolClient} from "pg";
