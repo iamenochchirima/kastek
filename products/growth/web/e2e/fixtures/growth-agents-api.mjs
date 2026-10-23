@@ -1,5 +1,6 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { analyticsCatalogFixture, analyticsReportFixture } from "../analytics-fixtures.ts";
 
 const businessOne = "growth-fixture-one";
 const businessTwo = "growth-fixture-two";
@@ -19,7 +20,7 @@ const features = [
   { id: "research", name: "Research", description: "Find answers in approved business sources.", ready: false, reasons: [{ code: "sources_required", message: "Approved sources required", route: "/workspace/settings" }] },
 ].map((feature) => ({ ...feature, model: { label: "Business model", provider: "fixture", modelId: "fixture" } }));
 function create(featureId, businessId, context = null, title = "New conversation") {
-  const conversation = { id: randomUUID(), featureId, title, context, contextDisplay: context ? { title: context.kind === "whatsapp_campaign" ? "Weekend campaign" : "Current business" } : undefined, createdAt: now(), updatedAt: now(), businessId };
+  const conversation = { id: randomUUID(), featureId, title, context, contextDisplay: context ? { title: ({ whatsapp_campaign: "Weekend campaign", content_post: "Summer post", analytics_report: "Overview report", workspace: "Current business" })[context.kind] } : undefined, createdAt: now(), updatedAt: now(), businessId };
   conversations.set(conversation.id, conversation); messages.set(conversation.id, []); return conversation;
 }
 const seed = create("assistant", businessOne, { kind: "workspace" }, "Plan this week's work");
@@ -34,6 +35,7 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://127.0.0.1"); const path = url.pathname; const businessId = scope(request);
     if (path === "/health") return json(response, 200, { ok: true });
     if (path === "/__fixture/attempts") return json(response, 200, { attempts, conversations: [...conversations.values()] });
+    if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }
     if (path === "/__fixture/availability") { active = (await payload(request)).active; return json(response, 200, { ok: true }); }
     if (path === "/api/auth/me") return json(response, 200, { user: { id: userId, name: "Fixture user", email: "fixture@example.test", image: "", emailVerified: now() } });
     if (path === "/api/orgs") return json(response, 200, { orgs: [{ id: businessOne, name: "Luma Studio", slug: "luma", logo: null }, { id: businessTwo, name: "Another business", slug: "another", logo: null }] });
@@ -45,6 +47,11 @@ const server = http.createServer(async (request, response) => {
     if (path === "/api/whatsapp/inbox/unread-count") return json(response, 200, { unreadCount: 0 });
     if (path === "/api/auth/activity") return json(response, 200, { ok: true });
     if (path === "/api/realtime/whatsapp") { response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" }); response.write(": fixture\n\n"); const timer = setInterval(() => response.write(": heartbeat\n\n"), 15000); request.on("close", () => clearInterval(timer)); return; }
+    if (path === "/api/analytics/catalog") return json(response, 200, analyticsCatalogFixture());
+    if (path === "/api/analytics/query") return json(response, 200, analyticsReportFixture());
+    if (path === "/api/whatsapp/campaigns/fixture-campaign") return json(response, 200, { campaign: { campaign: { id: "fixture-campaign", name: "Weekend campaign", description: "Weekend customers", templateName: "weekend_offer", templateLanguage: "en", status: "DRAFT", totalRecipients: 0, sentCount: 0, deliveredCount: 0, readCount: 0, failedCount: 0, blockedCount: 0, unsubscribedCount: 0, createdAt: now(), updatedAt: now(), connectionLabel: "Luma WhatsApp" }, recipients: [] } });
+    if (path === "/api/social/posts/fixture-post/insights") return json(response, 200, { postId: "fixture-post", title: "Summer post", contentPreview: "Summer offers", publishedAt: null, platforms: [], generatedAt: now() });
+    if (path === "/api/social/posts/fixture-post") return json(response, 200, { post: { id: "fixture-post", userId, primaryChannelId: null, title: "Summer post", prompt: null, content: "Summer offers at Luma Studio.", channels: ["INSTAGRAM"], status: "DRAFT", scheduledFor: null, publishedAt: null, metadata: null, createdAt: now(), updatedAt: now(), variants: [], media: [], publishJobs: [] } });
     if (!path.startsWith("/api/agents")) return json(response, 200, { items: [] });
     if (!active) return json(response, 503, { error: "Agents are unavailable", code: "fixture_unavailable" });
     if (path === "/api/agents/bootstrap") return json(response, 200, { features, defaultFeatureId: "assistant", scope: { businessId, userId, businessName: businessId === businessOne ? "Luma Studio" : "Another business" }, model: { label: "Business model", ready: true } });
@@ -69,7 +76,7 @@ const server = http.createServer(async (request, response) => {
       if (task.state === "waiting_review") {
         const review = { id: randomUUID(), taskId: task.id, conversationId: conversation.id, featureId: conversation.featureId, kind: "content_draft", payloadDigest: "initial-digest", state: "proposed", draft: { title: "Weekend offer", content: "Visit Luma Studio this weekend.", channels: ["INSTAGRAM"], channelSelections: { INSTAGRAM: "account-instagram" } }, createdAt: now(), expiresAt: new Date(Date.now() + 3600000).toISOString(), result: null };
         reviews.set(review.id, review); task.reviewIds = [review.id];
-      } else setTimeout(() => { task.state = "completed"; task.output = "I reviewed the business context. Here is the next step for your work."; task.updatedAt = now(); messages.get(conversation.id).push({ id: randomUUID(), role: "assistant", text: task.output, createdAt: now(), taskId: task.id, sources: [{ id: "business", title: "Business overview", route: "/workspace" }] }); }, 250);
+      } else if (!input.text.includes("keep working")) setTimeout(() => { task.state = "completed"; task.output = "I reviewed the business context. Here is the next step for your work."; task.updatedAt = now(); messages.get(conversation.id).push({ id: randomUUID(), role: "assistant", text: task.output, createdAt: now(), taskId: task.id, sources: [{ id: "business", title: "Business overview", route: "/workspace" }] }); }, 250);
       const result = { task, replayed: false }; requests.set(key, result);
       if (input.text.includes("lost response")) { response.destroy(); return; }
       return json(response, 202, result);

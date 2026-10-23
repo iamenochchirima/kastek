@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { growthAgents, GrowthAgentRequestError, isActiveTask, type GrowthAgentBootstrap, type GrowthAgentContext, type GrowthAgentConversation, type GrowthAgentFeatureId, type GrowthAgentMessage, type GrowthAgentReview, type GrowthAgentTask, type GrowthAgentEvent } from "@/lib/growth-agents";
 
@@ -22,7 +23,7 @@ type AssistantState = {
   setDraft: (value: string) => void; closePanel: () => void; setPanelOpen: (open: boolean) => void;
   ensureBootstrap: () => Promise<GrowthAgentBootstrap>;
   openGeneral: () => Promise<void>; start: (featureId: GrowthAgentFeatureId, context?: GrowthAgentContext | null, initialDraft?: string) => Promise<string | null>;
-  openConversation: (conversationId: string, panel?: boolean) => Promise<void>;
+  openConversation: (conversationId: string, panel?: boolean, focusTaskId?: string) => Promise<void>;
   attachContext: (context: GrowthAgentContext | null) => Promise<string | null>;
   send: () => Promise<void>; refresh: () => Promise<void>; older: () => Promise<void>;
   cancel: (taskId: string) => Promise<void>; setError: (message: string | null) => void;
@@ -30,6 +31,7 @@ type AssistantState = {
 const AgentContext = createContext<AssistantState | null>(null);
 
 export function GrowthAgentProvider({ children, userId, businessId, businessName }: { children: ReactNode; userId: string; businessId: string; businessName: string }) {
+  const pathname = usePathname();
   const scopeKey = `${encodeURIComponent(userId)}:${encodeURIComponent(businessId)}`;
   const storagePrefix = `kasitek:growth-agents:${scopeKey}`;
   const [bootstrap, setBootstrap] = useState<GrowthAgentBootstrap | null>(null);
@@ -56,6 +58,8 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   const pendingTurn = useRef<PendingTurn | null>(null);
   const sendingRef = useRef(false);
   const eventCursors = useRef(new Map<string, string>());
+  const focusedTask = useRef<string | undefined>(undefined);
+  const reviewCache = useRef(new Map<string, { revision: string; reviews: GrowthAgentReview[] }>());
   const createRequest = useRef<{ fingerprint: string; id: string } | null>(null);
 
   const run = useCallback(async <T,>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> => {
@@ -99,15 +103,16 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (value.featureId === "assistant") save(`${storagePrefix}:general`, value.id);
   }, [storagePrefix]);
 
-  const openConversation = useCallback(async (conversationId: string, panel = true) => {
+  const openConversation = useCallback(async (conversationId: string, panel = true, focusTaskId?: string) => {
+    focusedTask.current = focusTaskId;
     const current = ++selection.current;
     setPanelOpen(panel); setLoading(true); setError(null); setReconnecting(false);
     setConversation(null); conversationRef.current = null; setMessages([]); setTasks([]); setReviews([]); setEvents([]); updateDraft("");
     try {
       await ensureBootstrap();
-      const [detail, work] = await run((signal) => Promise.all([growthAgents.conversation(conversationId, undefined, signal), growthAgents.tasks({ conversationId, limit: 50 }, signal)]));
+      const [detail, work, focus] = await run((signal) => Promise.all([growthAgents.conversation(conversationId, undefined, signal), growthAgents.tasks({ conversationId, limit: 50 }, signal), focusTaskId ? growthAgents.task(focusTaskId, signal) : Promise.resolve(null)]));
       if (selection.current !== current) return;
-      applyConversation(detail.conversation); setMessages(detail.messages); setCursor(detail.nextCursor); setTasks(work.tasks.filter((task) => task.conversationId === conversationId));
+      applyConversation(detail.conversation); setMessages(detail.messages); setCursor(detail.nextCursor); setTasks(merge(work.tasks, focus?.task.conversationId === conversationId ? [focus.task] : []).filter((task) => task.conversationId === conversationId));
       setRevision((value) => value + 1);
     } catch (cause) { if (!aborted(cause) && selection.current === current) setError(failure(cause)); }
     finally { if (selection.current === current) setLoading(false); }
@@ -115,7 +120,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
 
   const start = useCallback(async (featureId: GrowthAgentFeatureId, context: GrowthAgentContext | null = null, initialDraft = "") => {
     if (sendingRef.current) return null;
-    sendingRef.current = true; setPanelOpen(true); setLoading(true); setError(null);
+    sendingRef.current = true; focusedTask.current = undefined; setPanelOpen(true); setLoading(true); setError(null);
     setConversation(null); conversationRef.current = null; setMessages([]); setTasks([]); setReviews([]); setEvents([]); updateDraft(""); pendingTurn.current = null; setUnconfirmed(false);
     const current = ++selection.current;
     try {
@@ -163,6 +168,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (selection.current !== current) return;
     setMessages((previous) => merge(previous, detail.messages).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
     setTasks(work.tasks.filter((task) => task.conversationId === selected.id));
+    work.tasks.forEach((task) => reviewCache.current.delete(task.id));
     setRevision((value) => value + 1);
   }, [run]);
 
@@ -229,7 +235,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   }, [run]);
 
   const activeId = conversation?.id;
-  const observed = panelOpen || (typeof window !== "undefined" && window.location.pathname.startsWith("/agents/conversations/"));
+  const observed = panelOpen || pathname.startsWith("/agents/conversations/");
   useEffect(() => {
     if (!activeId || !observed || blocked) return;
     const controller = new AbortController();
@@ -244,8 +250,15 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
       try {
         const work = await growthAgents.tasks({ conversationId: activeId, limit: 50 }, controller.signal);
         const scopedTasks = work.tasks.filter((task) => task.conversationId === activeId);
+        if (focusedTask.current && !scopedTasks.some((task) => task.id === focusedTask.current)) { const focus = await growthAgents.task(focusedTask.current, controller.signal); if (focus.task.conversationId === activeId) scopedTasks.push(focus.task); }
         const reviewTasks = scopedTasks.filter((task) => task.state === "waiting_review" || task.reviewIds?.length);
-        const reviewsResponse = await Promise.all(reviewTasks.map((task) => growthAgents.reviews(task.id, controller.signal)));
+        const reviewsResponse = await Promise.all(reviewTasks.map(async (task) => {
+          const cached = reviewCache.current.get(task.id);
+          if (cached?.revision === task.updatedAt) return { reviews: cached.reviews };
+          const response = await growthAgents.reviews(task.id, controller.signal);
+          if (!controller.signal.aborted && current === selection.current) reviewCache.current.set(task.id, { revision: task.updatedAt, reviews: response.reviews });
+          return response;
+        }));
         const pending = scopedTasks.filter(isActiveTask);
         const activity = await Promise.all(pending.map((task) => growthAgents.events(task.id, eventCursors.current.get(task.id), controller.signal)));
         const detail = await growthAgents.conversation(activeId, undefined, controller.signal);

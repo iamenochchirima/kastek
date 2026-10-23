@@ -161,6 +161,7 @@ export function GrowthAssistantLauncher({
       />
       <Button
         type="button"
+        data-growth-assistant-launcher
         aria-label="Open Growth assistant"
         title="Open Growth assistant"
         onClick={handleClick}

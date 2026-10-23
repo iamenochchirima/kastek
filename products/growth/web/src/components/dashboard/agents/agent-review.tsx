@@ -16,8 +16,10 @@ export function AgentDraftReview({ review }: { review: GrowthAgentReview }) {
   const [now, setNow] = useState(() => Date.now());
   const [draft, setDraft] = useState<GrowthDraftProposal>(review.draft);
   const [destinations, setDestinations] = useState<GrowthDraftDestination[]>([]);
+  const [destinationsLoaded, setDestinationsLoaded] = useState(false);
   const [editing, setEditing] = useState(!review.draft.channels.length);
   const [busy, setBusy] = useState(false);
+  const [decisionSubmitted, setDecisionSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef<{ fingerprint: string; id: string } | null>(null);
   const mounted = useRef(true);
@@ -26,17 +28,22 @@ export function AgentDraftReview({ review }: { review: GrowthAgentReview }) {
     mounted.current = true;
     return () => { mounted.current = false; controller.current?.abort(); };
   }, []);
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
-    if (!editing) return;
+    if (current.state !== "proposed") return;
+    const delay = Math.max(0, Date.parse(current.expiresAt) - Date.now());
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(delay + 50, 2147483647));
+    return () => clearTimeout(timer);
+  }, [current.state, current.expiresAt]);
+  useEffect(() => {
+    if (!editing && current.state !== "proposed") return;
     const abort = new AbortController();
-    void getDraftDestinations(abort.signal).then((value) => setDestinations(value.destinations)).catch((cause) => { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load destinations."); });
+    void getDraftDestinations(abort.signal).then((value) => { setDestinations(value.destinations); setDestinationsLoaded(true); }).catch((cause) => { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to load destinations."); });
     return () => abort.abort();
-  }, [editing]);
+  }, [editing, current.state]);
   const expired = Date.parse(current.expiresAt) <= now;
-  const actionable = current.state === "proposed" && !expired;
+  const actionable = current.state === "proposed" && !expired && !decisionSubmitted;
   const dirty = JSON.stringify(draft) !== JSON.stringify(current.draft);
-  const valid = draft.content.trim() && draft.channels.length > 0 && draft.channels.every((platform) => Boolean(draft.channelSelections[platform]));
+  const valid = destinationsLoaded && draft.content.trim() && draft.channels.length > 0 && draft.channels.every((platform) => destinations.some((destination) => destination.platform === platform && destination.id === draft.channelSelections[platform] && destination.ready));
   const requestId = (fingerprint: string) => {
     if (requestRef.current?.fingerprint !== fingerprint) requestRef.current = { fingerprint, id: crypto.randomUUID() };
     return requestRef.current.id;
@@ -48,6 +55,7 @@ export function AgentDraftReview({ review }: { review: GrowthAgentReview }) {
     try {
       if (decision) {
         await growthAgents.decide(current, decision, requestId(`${current.id}:${current.payloadDigest}:${decision}`), abort.signal);
+        if (mounted.current) setDecisionSubmitted(true);
       } else {
         const value = await growthAgents.revise(current, draft, requestId(JSON.stringify({ id: current.id, digest: current.payloadDigest, draft })), abort.signal);
         if (!mounted.current) return;
@@ -66,7 +74,7 @@ export function AgentDraftReview({ review }: { review: GrowthAgentReview }) {
       if (event.target.checked) { channels.push(destination.platform); channelSelections[destination.platform] = destination.id; }
       else delete channelSelections[destination.platform];
       return { ...value, channels, channelSelections };
-    })} /><span>{destination.label}<span className="ml-1 text-xs text-muted-foreground">{destination.platform}{destination.ready ? "" : " · Unavailable"}</span></span></label>) : <p className="text-xs text-muted-foreground">No destinations available. <Link href="/connections" className="underline underline-offset-2">Manage connections</Link></p>}</fieldset></div> : <div className="mt-3 space-y-2"><p className="text-sm font-medium">{current.draft.title || "Untitled draft"}</p><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{current.draft.content}</p>{current.draft.variants?.map((variant) => <div key={variant.platform}><p className="text-xs font-medium">{variant.platform}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{variant.content}</p></div>)}<p className="text-xs text-muted-foreground">{current.draft.channels.join(", ") || "Choose a destination"}</p></div>}
+    })} /><span>{destination.label}<span className="ml-1 text-xs text-muted-foreground">{destination.platform}{destination.ready ? "" : " · Unavailable"}</span></span></label>) : <p className="text-xs text-muted-foreground">No destinations available. <Link href="/connections" className="underline underline-offset-2">Manage connections</Link></p>}</fieldset></div> : <div className="mt-3 space-y-2"><p className="text-sm font-medium">{current.draft.title || "Untitled draft"}</p><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{current.draft.content}</p>{current.draft.variants?.map((variant) => <div key={variant.platform}><p className="text-xs font-medium">{variant.platform}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{variant.content}</p></div>)}<p className="text-xs text-muted-foreground">{current.draft.channels.length ? current.draft.channels.map((platform) => { const destination = destinations.find((item) => item.id === current.draft.channelSelections[platform] && item.platform === platform); return destination ? `${destination.label} · ${platform}` : destinationsLoaded ? "Destination unavailable" : "Checking destinations…"; }).join(", ") : "Choose a destination"}</p></div>}
     {actionable ? <div className="mt-4 flex flex-wrap gap-2">{dirty ? <Button type="button" size="sm" disabled={busy || !valid} onClick={() => void execute()}>{busy ? <LoaderCircle className="mr-1.5 size-3.5 animate-spin" /> : null}Update proposal</Button> : <Button type="button" size="sm" disabled={busy || !valid} onClick={() => void execute("approve")}><Check className="mr-1.5 size-3.5" />Save draft</Button>}<Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void execute("reject")}>Reject</Button></div> : null}
     {route && current.result?.state === "saved" ? <Link href={route} className="mt-3 inline-flex min-h-9 items-center text-sm font-medium text-primary underline underline-offset-4">Open draft</Link> : null}
     {error ? <p className="mt-3 text-sm text-destructive" role="alert">{error}</p> : null}
