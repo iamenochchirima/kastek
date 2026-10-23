@@ -11,7 +11,7 @@ import {
   retention,
   watchdog,
 } from "../src/engine.js";
-import { deliverNotifications, collect } from "../src/worker.js";
+import { deliverNotifications, collect, workerTick } from "../src/worker.js";
 import { buildApi } from "../src/api.js";
 import { loadConfig } from "../src/config.js";
 import { measure, advance, defaults } from "../src/rules.js";
@@ -880,6 +880,253 @@ test(
         ).rows[0].last_error,
         "source_transport_failure",
       );
+    } finally {
+      await pool.end();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  },
+);
+
+test(
+  "independent admission flags preserve observations and pending notification intent",
+  { skip: !database },
+  async () => {
+    const pool = createPool(database!),
+      config = loadConfig(baseEnv);
+    const paused = {
+      ...config,
+      collectionEnabled: false,
+      evaluationEnabled: false,
+      notificationsEnabled: false,
+    };
+    try {
+      await initialize(pool, paused);
+      await pool.query(
+        "INSERT INTO operations.admin_principals(admin_id,issuer,subject,role,name) VALUES('flag-operator','http://127.0.0.1:12345','flag-subject','owner','Flag operator') ON CONFLICT(admin_id) DO UPDATE SET active=true",
+      );
+      await pool.query(
+        "UPDATE ops_monitors SET lease_until=NULL,next_poll_at=now()-interval '1 second'",
+      );
+      const before = (
+        await pool.query(
+          "SELECT fence::text FROM ops_monitors WHERE id='growth'",
+        )
+      ).rows[0].fence;
+      const workerId = "flag-worker";
+      await workerTick(pool, paused, workerId);
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT fence::text FROM ops_monitors WHERE id='growth'",
+          )
+        ).rows[0].fence,
+        before,
+        "disabled collection does not claim source",
+      );
+      assert.ok(
+        (
+          await pool.query("SELECT 1 FROM ops_worker_progress WHERE id=$1", [
+            workerId,
+          ])
+        ).rowCount,
+        "worker still reports progress",
+      );
+      let now = new Date(Date.now() + 1000);
+      const make = () => {
+        const result = sample(now, "9");
+        result.signals = result.signals.filter(
+          (s) => s.key === "publication.quarantined",
+        );
+        result.signals[0]!.group = "admission-fixture";
+        return result;
+      };
+      const claim = (await claimMonitors(pool, now))[0]!;
+      await completeObservation(pool, paused, claim, make(), null, now, 0);
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT count(*) FROM ops_incidents WHERE group_key='admission-fixture'",
+          )
+        ).rows[0].count,
+        "0",
+        "disabled evaluation cannot create incident",
+      );
+      assert.ok(
+        (
+          await pool.query(
+            "SELECT 1 FROM ops_observations WHERE snapshot->'signals'->0->>'group'='admission-fixture'",
+          )
+        ).rowCount,
+        "measurement remains durable",
+      );
+      for (let i = 0; i < 2; i++) {
+        now = new Date(now.getTime() + 11000);
+        await pool.query(
+          "UPDATE ops_monitors SET lease_until=NULL,next_poll_at=$1",
+          [new Date(now.getTime() - 1000)],
+        );
+        const next = (await claimMonitors(pool, now))[0]!;
+        await completeObservation(pool, config, next, make(), null, now, 0);
+      }
+      const outbox = (
+        await pool.query(
+          "SELECT o.* FROM ops_outbox o JOIN ops_incidents i ON i.id=o.incident_id WHERE i.group_key='admission-fixture'",
+        )
+      ).rows[0];
+      assert.ok(outbox);
+      const stub = async () => new Response("{}", { status: 200 });
+      assert.equal(
+        await deliverNotifications(
+          pool,
+          { ...config, notificationsEnabled: false },
+          new Date(),
+          stub as typeof fetch,
+        ),
+        0,
+      );
+      const unchanged = (
+        await pool.query("SELECT * FROM ops_outbox WHERE id=$1", [outbox.id])
+      ).rows[0];
+      assert.equal(unchanged.attempts, 0);
+      assert.equal(
+        unchanged.delivered_at,
+        null,
+        "disabled delivery preserves intent",
+      );
+      const enabled = {
+        ...config,
+        notificationsEnabled: true,
+        notificationOrigin: "http://127.0.0.1:12345",
+        notificationSecret: "n".repeat(32),
+      };
+      for (let i = 0; i < 5; i++) {
+        await pool.query(
+          "UPDATE ops_outbox SET next_attempt_at=now()-interval '1 second' WHERE id=$1",
+          [outbox.id],
+        );
+        await deliverNotifications(
+          pool,
+          enabled,
+          new Date(),
+          stub as typeof fetch,
+        );
+        if (
+          (
+            await pool.query(
+              "SELECT delivered_at FROM ops_outbox WHERE id=$1",
+              [outbox.id],
+            )
+          ).rows[0].delivered_at
+        )
+          break;
+      }
+      assert.ok(
+        (
+          await pool.query("SELECT delivered_at FROM ops_outbox WHERE id=$1", [
+            outbox.id,
+          ])
+        ).rows[0].delivered_at,
+        "reenabled delivery drains original intent",
+      );
+    } finally {
+      await pool.end();
+    }
+  },
+);
+
+test(
+  "HTTP catalogue acceptance covers due dispatch, missed heartbeat and stuck recovery",
+  { skip: !database },
+  async () => {
+    const pool = createPool(database!);
+    let now = new Date(Date.now() + 1000),
+      current: OperationsSnapshot = sample(now);
+    const server = createServer((req, res) => {
+      assert.equal(req.url, "/internal/operations/signals");
+      assert.ok(req.headers["x-kasitek-operations-authority"]);
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(current));
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const config = loadConfig({
+      ...baseEnv,
+      OPS_SOURCES_JSON: JSON.stringify([
+        {
+          id: "growth",
+          source: "growth",
+          origin: `http://127.0.0.1:${address.port}`,
+          secret: "o".repeat(32),
+          intervalSeconds: 10,
+        },
+      ]),
+    });
+    try {
+      await initialize(pool, config);
+      for (const [key, breach, group, cadence] of [
+        [
+          "execution.dispatch_overdue_seconds",
+          "121",
+          "catalogue-dispatch",
+          null,
+        ],
+        [
+          "worker.publisher.fixture.age_seconds",
+          "91",
+          "catalogue-heartbeat",
+          30,
+        ],
+        ["recovery.pending_age_seconds", "901", "catalogue-recovery", null],
+      ] as const) {
+        for (let index = 0; index < 4; index++) {
+          current = {
+            contractVersion: "1",
+            source: "growth",
+            environment: "test",
+            observedAt: now.toISOString(),
+            release: "catalogue-fixture",
+            signals: [
+              {
+                key,
+                group,
+                status: "available",
+                coverage: "complete",
+                unit: "seconds",
+                value: index < 2 ? breach : "0",
+                evidence: [],
+                ...(cadence ? { expectedIntervalSeconds: cadence } : {}),
+              },
+            ],
+          };
+          await pool.query(
+            "UPDATE ops_monitors SET next_poll_at=$1,lease_until=NULL,last_observed_at=NULL",
+            [new Date(now.getTime() - 1000)],
+          );
+          const claim = (await claimMonitors(pool, now))[0]!;
+          assert.ok(claim);
+          assert.equal(await collect(pool, config, claim, now), true);
+          const records = (
+            await pool.query(
+              "SELECT status,signal_key FROM ops_incidents WHERE group_key=$1 ORDER BY opened_at",
+              [group],
+            )
+          ).rows;
+          if (index === 0)
+            assert.equal(records.length, 0, key + " requires hysteresis");
+          else {
+            assert.equal(records.length, 1, key + " has one episode");
+            assert.equal(
+              records[0].status,
+              index === 3 ? "resolved" : "open",
+              key + " recovery needs two fresh successes",
+            );
+          }
+          now = new Date(now.getTime() + 11000);
+        }
+      }
     } finally {
       await pool.end();
       await new Promise<void>((resolve) => server.close(() => resolve()));
