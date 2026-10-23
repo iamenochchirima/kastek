@@ -63,6 +63,11 @@
       "types": "./dist/admin-reporting-diagnostics.d.ts",
       "import": "./dist/admin-reporting-diagnostics.js",
       "require": "./dist/admin-reporting-diagnostics.js"
+    },
+    "./admin-customers": {
+      "types": "./dist/admin-customers.d.ts",
+      "import": "./dist/admin-customers.js",
+      "require": "./dist/admin-customers.js"
     }
   },
   "scripts": {
@@ -101,6 +106,9 @@
       ],
       "admin-reporting-diagnostics": [
         "dist/admin-reporting-diagnostics.d.ts"
+      ],
+      "admin-customers": [
+        "dist/admin-customers.d.ts"
       ]
     }
   }

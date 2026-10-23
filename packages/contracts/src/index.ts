@@ -302,3 +302,5 @@ export * from "./admin-reporting.js";
 export * from "./admin-reporting-diagnostics.js";
 
 export * from "./growth-agent-provisioning.js";
+
+export * from "./admin-customers.js";
