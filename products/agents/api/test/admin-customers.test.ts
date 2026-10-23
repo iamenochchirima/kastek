@@ -121,6 +121,19 @@ describe.skipIf(!parent)('Agents admin customer operations on an isolated databa
   expect((await pool.query('SELECT count(*)::text AS n FROM agents_platform.tasks')).rows[0].n).toBe(before);
   expect((await pool.query('SELECT id FROM agents_platform.admin_customer_operations')).rowCount).toBe(0);
  });
+ it('hides evaluation channel fixtures and ignores malformed execution mappings',async()=>{
+  const trial=randomUUID();
+  await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,expires_at,model_routes,model_routes_digest,root_token_limit) VALUES($1,'metadata-exclusion',$2,$3,$4,$5,$6,10000,$6,now()+interval '1 hour','{}',$6,10000)`,[trial,f.organizationId,f.accountId,f.agentId,f.versionId,'a'.repeat(64)]);
+  await pool.query(`INSERT INTO agents_platform.evaluation_trial_messaging_channels(trial_id,organization_id,connection_id,deployment_id,kind,mode,asset_id,request_digest,fixture) VALUES($1,$2,$3,$4,'telegram','bot','fixture-bot',$5,'{}')`,[trial,f.organizationId,connection,deployment,'a'.repeat(64)]);
+  await pool.query("UPDATE agents_platform.channel_ingress SET state='quarantined' WHERE id=$1",[ingress]);
+  expect((await service.section(f.organizationId,'channels')).records).toEqual([]);
+  expect((await service.section(f.organizationId,'ingress')).records).toEqual([]);
+  expect((await service.section(f.organizationId,'deployments')).records.map(row=>row.id)).toEqual(['website:'+deployment]);
+  expect((await service.execute(f.organizationId,actorId,retry())).code).toBe('STALE_STATE');
+  await pool.query(`INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth','invalid-issuer',$1,'growth','')`,[other.organizationId]);
+  expect((await service.overview(other.organizationId)).relationships).toEqual([]);
+  expect((await service.relationships('growth','invalid-issuer')).relationships).toEqual([]);
+ });
  it('disabled actions preserve receipt access and revoked mapping cannot be operated',async()=>{
   await pool.query(`INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer,revoked_at) VALUES('growth','fixture-growth',$1,'growth','https://fixture.test',now())`,[f.organizationId]);
   const overview=await service.overview(f.organizationId);expect(overview.relationships[0]!.state).toBe('revoked');
