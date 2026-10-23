@@ -42,6 +42,13 @@ export function measure(
   rule: OperationsRule,
   signal: OperationsSignal,
 ): Condition {
+  if (
+    rule.minimumSamples > 0 &&
+    (!signal.denominator ||
+      !/^\d{1,30}$/.test(signal.denominator) ||
+      BigInt(signal.denominator) < BigInt(rule.minimumSamples))
+  )
+    return "unknown";
   if (signal.status === "no_activity" && signal.coverage === "complete")
     return "healthy";
   if (
@@ -49,13 +56,6 @@ export function measure(
     signal.coverage !== "complete" ||
     signal.value === null ||
     !/^\d{1,30}$/.test(signal.value)
-  )
-    return "unknown";
-  if (
-    rule.minimumSamples > 0 &&
-    (!signal.denominator ||
-      !/^\d{1,30}$/.test(signal.denominator) ||
-      BigInt(signal.denominator) < BigInt(rule.minimumSamples))
   )
     return "unknown";
   const value = BigInt(signal.value),

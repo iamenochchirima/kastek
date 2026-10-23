@@ -83,6 +83,11 @@ test("pure classification preserves unknown, exact thresholds, samples and hyste
   assert.equal(measure(r, { ...s, coverage: "partial" }), "unknown");
   assert.equal(measure(r, { ...s, status: "unsupported" }), "unknown");
   assert.equal(measure(r, { ...s, status: "no_activity" }), "healthy");
+  assert.equal(
+    measure(r, { ...s, status: "no_activity", denominator: "0" }),
+    "unknown",
+    "insufficient samples cannot recover an existing rate incident",
+  );
   assert.deepEqual(
     advance({ breaches: 4, recoveries: 0, revision: 1 }, "unknown", 1),
     { breaches: 0, recoveries: 0 },
@@ -206,7 +211,26 @@ test(
         now,
       );
       now = new Date(now.getTime() + 11000);
-      await observe(sample(now, "1"));
+      const heartbeatSnapshot = sample(now, "1");
+      heartbeatSnapshot.signals.push({
+        key: "worker.publisher.fixture.age_seconds",
+        group: "workers",
+        status: "unknown",
+        coverage: "unknown",
+        value: null,
+        unit: "seconds",
+        evidence: [],
+        expectedIntervalSeconds: 30,
+      });
+      await observe(heartbeatSnapshot);
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT threshold FROM ops_rules WHERE id='growth:worker.publisher.fixture.age_seconds'",
+          )
+        ).rows[0].threshold,
+        "90",
+      );
       assert.equal(
         (await pool.query("SELECT count(*) FROM ops_incidents")).rows[0].count,
         "0",

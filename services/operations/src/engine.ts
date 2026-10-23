@@ -343,8 +343,9 @@ export async function completeObservation(
     if (config.evaluationEnabled) {
       for (const s of snapshot.signals.filter(
         (s) =>
-          /^worker\.[a-z0-9_-]+\.age_seconds$/.test(s.key) &&
-          s.expectedIntervalSeconds,
+          /^worker\.[a-z0-9_-]+(?:\.[a-zA-Z0-9_-]+)?\.age_seconds$/.test(
+            s.key,
+          ) && s.expectedIntervalSeconds,
       )) {
         const id = `${claim.source}:${s.key}`;
         const inserted = (
