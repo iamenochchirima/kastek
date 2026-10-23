@@ -230,3 +230,41 @@ test("chooses business context before creating a conversation", async ({ page })
   await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
   await expect(page.getByRole("region", { name: "Agent conversation" }).getByText("Current business", { exact: true })).toBeVisible();
 });
+
+test("organisation defaults show setup progress and become usable without a reload", async ({ page }) => {
+  let reads = 0;
+  await page.route("**/api/agents/bootstrap", async route => {
+    const response = await route.fetch();
+    const bootstrap = await response.json();
+    reads += 1;
+    if (reads === 1) {
+      bootstrap.setup = { state: "pending", code: null, updatedAt: new Date().toISOString() };
+      bootstrap.features = bootstrap.features.map((feature: Record<string, unknown>) => ({ ...feature, ready: false, reasons: [{ code: "agent_setup_pending", message: "Setting up" }] }));
+    } else bootstrap.setup = { state: "ready", code: null, updatedAt: new Date().toISOString() };
+    await route.fulfill({ response, json: bootstrap });
+  });
+  await page.goto("/agents");
+  await expect(page.getByText("Setting up", { exact: true })).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Chat", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Chat", exact: true }).first()).toBeVisible({ timeout: 10000 });
+  await page.getByRole("button", { name: "Chat", exact: true }).first().click();
+  await expect(page.getByRole("textbox", { name: "Message agent" })).toBeVisible();
+});
+
+test("blocked organisation setup stops automatic refresh and keeps all defaults visible", async ({ page }) => {
+  let reads = 0;
+  await page.route("**/api/agents/bootstrap", async route => {
+    const response = await route.fetch();
+    const bootstrap = await response.json();
+    reads += 1;
+    bootstrap.setup = { state: "blocked", code: "MODEL_PROFILE_UNAVAILABLE", updatedAt: new Date().toISOString() };
+    bootstrap.features = bootstrap.features.map((feature: Record<string, unknown>) => ({ ...feature, ready: false, reasons: [{ code: "agent_setup_blocked", message: "Setup needs attention" }] }));
+    await route.fulfill({ response, json: bootstrap });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/agents");
+  await expect(page.getByText("Setup needs attention", { exact: true })).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Chat", exact: true })).toHaveCount(0);
+  await page.waitForTimeout(2600);
+  expect(reads).toBe(1);
+});

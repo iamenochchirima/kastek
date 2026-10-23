@@ -55,7 +55,8 @@ export function AgentsWorkspace() {
     queryVersion.current += 1;
     const timer = setTimeout(() => {
       setLoading(true); setLoadingMore(false); setError(null);
-      void ensureBootstrap().then(async () => {
+      void ensureBootstrap().then(async (home) => {
+        if (home.setup && home.setup.state !== "ready") { setConversations([]); setTasks([]); setCursor(null); return; }
         if (tab === "activity") { const page = await growthAgents.tasks({ search, state: stateFilter, limit: 30 }, abort.signal); if (!abort.signal.aborted) { setTasks(page.tasks); setCursor(page.nextCursor); } }
         else if (tab === "conversations") { const page = await growthAgents.conversations({ search, limit: 30 }, abort.signal); if (!abort.signal.aborted) { setConversations(page.conversations); setCursor(page.nextCursor); } }
         else { const [recent, work] = await Promise.all([growthAgents.conversations({ limit: 6 }, abort.signal), growthAgents.tasks({ state: "active", limit: 20 }, abort.signal)]); if (!abort.signal.aborted) { setConversations(recent.conversations); setTasks(work.tasks); setCursor(null); } }

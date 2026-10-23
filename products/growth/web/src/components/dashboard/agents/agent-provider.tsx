@@ -21,7 +21,7 @@ type AssistantState = {
   conversation: GrowthAgentConversation | null; messages: GrowthAgentMessage[]; tasks: GrowthAgentTask[];
   reviews: GrowthAgentReview[]; events: GrowthAgentEvent[]; hasOlder: boolean; draft: string; unconfirmed: boolean;
   setDraft: (value: string) => void; closePanel: () => void; setPanelOpen: (open: boolean) => void;
-  ensureBootstrap: () => Promise<GrowthAgentBootstrap>;
+  ensureBootstrap: (refresh?: boolean) => Promise<GrowthAgentBootstrap>;
   openGeneral: () => Promise<void>; start: (featureId: GrowthAgentFeatureId, context?: GrowthAgentContext | null, initialDraft?: string) => Promise<string | null>;
   openConversation: (conversationId: string, panel?: boolean, focusTaskId?: string) => Promise<void>;
   attachContext: (context: GrowthAgentContext | null) => Promise<string | null>;
@@ -82,14 +82,36 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     return () => { abort(); window.removeEventListener("kasitek:business-changing", changing); window.removeEventListener("kasitek:business-change-failed", failed); };
   }, []);
 
-  const ensureBootstrap = useCallback(async () => {
-    if (bootstrap) return bootstrap;
+  const ensureBootstrap = useCallback(async (refresh = false) => {
+    if (bootstrap && !refresh) return bootstrap;
     if (!bootstrapRequest.current) bootstrapRequest.current = run((signal) => growthAgents.bootstrap(signal)).then((value) => {
       if (value.scope.businessId !== businessId || value.scope.userId !== userId) throw new GrowthAgentRequestError("Your business changed. Refresh to continue.", 409, "business_scope_changed");
       setBootstrap(value); return value;
     }).finally(() => { bootstrapRequest.current = null; });
     return bootstrapRequest.current;
   }, [bootstrap, run, businessId, userId]);
+
+  const setupState = bootstrap?.setup?.state;
+  useEffect(() => {
+    if (blocked || !["pending", "running"].includes(setupState ?? "")) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const value = await run((signal) => growthAgents.bootstrap(signal));
+        if (stopped || value.scope.businessId !== businessId || value.scope.userId !== userId) return;
+        setBootstrap(value);
+        if (!["pending", "running"].includes(value.setup?.state ?? "")) return;
+      } catch (cause) {
+        if (stopped || aborted(cause) || cause instanceof GrowthAgentRequestError && [401, 403].includes(cause.status)) return;
+      }
+      if (!stopped && attempts < 30) timer = setTimeout(() => { void poll(); }, Math.min(10000, 2000 + attempts * 500));
+    };
+    timer = setTimeout(() => { void poll(); }, 2000);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [setupState, blocked, run, businessId, userId]);
 
   const applyConversation = useCallback((value: GrowthAgentConversation) => {
     conversationRef.current = value; setConversation(value);
@@ -141,7 +163,9 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (conversationRef.current?.featureId === "assistant") { await openConversation(conversationRef.current.id); return; }
     setPanelOpen(true); setLoading(true); setError(null);
     try {
-      await ensureBootstrap();
+      const home = await ensureBootstrap();
+      const assistant = home.features.find((item) => item.id === "assistant");
+      if (!assistant?.ready) throw new Error(assistant?.reasons[0]?.message || "This agent is not available.");
       const saved = read(`${storagePrefix}:general`);
       if (saved) {
         try {
