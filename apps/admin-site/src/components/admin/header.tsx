@@ -9,6 +9,7 @@ import { buttonClassName } from "@/components/ui/button";
 
 const pageLabels: Array<[string, string]> = [
   ["/dashboard", "Overview"],
+  ["/analytics", "Analytics"],
   ["/operations", "Operations"],
   ["/leads", "Leads"],
   ["/conversations", "Conversations"],

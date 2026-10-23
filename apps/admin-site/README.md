@@ -89,3 +89,41 @@ products/growth/api/node_modules/.bin/tsx --test apps/admin-site/scripts/admin-c
 ```
 
 The SQL tests create and remove their own random schema. Do not point them at a customer database.
+
+## Cross-product reporting
+
+The Analytics routes use one shared reporting view:
+
+- `/analytics`: product overview.
+- `/analytics/customers`: customers and access.
+- `/analytics/adoption`: recorded adoption.
+- `/analytics/usage`: usage and model cost.
+- `/analytics/revenue`: invoiced, paid, refunded and outstanding coverage.
+- `/analytics/reliability`: failures, backlog, delivery and intervention coverage.
+
+Product, product-owned organization/workspace ID, UTC start and exclusive end, reporting timezone,
+and record page are retained in the URL. Choose a product before applying an organization ID.
+Growth or Agency scopes also expose Agents execution attributed to that consumer, without
+adding those execution costs to another product total. Product metrics remain separate.
+
+Each source shows its availability, latest observed source record and completeness checkpoint.
+Unknown checkpoints remain Unknown. Unsupported, stale, partial and unavailable values retain
+their source state and reason; unavailable values do not display zero. Current-state metrics are
+labelled Current. Metric definitions and paginated safe source records are available through
+native disclosures; monetary values preserve their source currency and exact integer precision.
+Source records identify their kind and are not a claim that every metric has a matching detail row.
+Event projection trends remain separate from authoritative totals. Each series retains its domain,
+source, availability, scope coverage and completeness checkpoint. Gaps remain unknown. Exact bucket
+values remain available in a table; values beyond the JavaScript safe integer range do not render
+a rounded chart. There is no cross-product unique-user total.
+
+Export CSV posts to the audited reporting export route with the same scope and domain as the
+screen. Only sessions with `admin:export` see the action. Saving requires `admin:write` and stores
+a private versioned cross-product definition through the existing Reports API. Reports can reopen
+that scope or request the same bounded export. The server independently rechecks permissions.
+
+Focused UI regressions are in `tests/admin-report-format.test.ts`. Run them with the workspace
+TypeScript loader, then typecheck and lint the app. Browser acceptance must exercise all six
+routes at desktop, tablet and mobile widths, a source outage, filter/pagination preservation,
+private save/open, CSV export and viewer permissions. Model evals and live provider acceptance
+remain owner-run.
