@@ -112,6 +112,8 @@ their source state and reason; unavailable values do not display zero. Current-s
 labelled Current. Metric definitions and paginated safe source records are available through
 native disclosures; monetary values preserve their source currency and exact integer precision.
 Source records identify their kind and are not a claim that every metric has a matching detail row.
+Customer records show their product-owned organization/workspace name and ID. Selecting one
+keeps the current period and timezone and applies that product and organization scope.
 Event projection trends remain separate from authoritative totals. Each series retains its domain,
 source, availability, scope coverage and completeness checkpoint. Gaps remain unknown. Exact bucket
 values remain available in a table; values beyond the JavaScript safe integer range do not render
