@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
+import * as formatsPlugin from "ajv-formats";
+import type { AnalyticsEnvelope } from "@kasitek-labs/contracts";
+const addFormats = (formatsPlugin as unknown as { default: (instance: Ajv2020) => void }).default;
 import { growthAgentCommandFact, growthAgentDraftSavedFact, growthAgentReviewFact } from "../src/agents/analytics.js";
 const scope = { tenantId: "business", actor: { issuer: "https://growth.example.test/identity", subject: "PRIVATE-USER" } };
 const review = { id: "review-one", orgId: scope.tenantId, taskId: "task-one", conversationId: "conversation-one", featureId: "content" as const, state: "approved", createdAt: new Date("2026-10-23T10:00:00Z"), updatedAt: new Date("2026-10-23T10:01:00Z") };
@@ -14,9 +16,11 @@ test("Growth outcomes use registered owned schemas without retired runtime ident
   for (const record of records) {
     const entry = registry.contracts.find((item: { identity: string }) => item.identity === record.contract_name); assert(entry); assert.equal(entry.owner, "growth");
     const validate = ajv.compile(JSON.parse(await readFile(new URL(entry.schema, root), "utf8")));
-    assert.equal(validate(record.envelope.data), true, JSON.stringify(validate.errors));
-    assert.equal(validate({ ...record.envelope.data, installation_id: "invented" }), false);
-    assert.equal(validate({ ...record.envelope.data, content: "PRIVATE-DRAFT" }), false);
+    const data = (record.envelope as unknown as AnalyticsEnvelope).data;
+    assert(data && typeof data === "object" && !Array.isArray(data));
+    assert.equal(validate(data), true, JSON.stringify(validate.errors));
+    assert.equal(validate({ ...data, installation_id: "invented" }), false);
+    assert.equal(validate({ ...data, content: "PRIVATE-DRAFT" }), false);
     assert.equal(record.scope_external_id, scope.tenantId); assert.equal(record.source_domain, "growth_agents");
     assert(!JSON.stringify(record.envelope).includes("PRIVATE-USER"));
   }
