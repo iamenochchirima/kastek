@@ -1,0 +1,87 @@
+/** Product-owned administrative reporting. Monetary values retain their source currency. */
+export type AdminReportProduct = "growth" | "agents" | "agency";
+export type AdminReportDomain = "customers" | "adoption" | "usage" | "revenue" | "reliability";
+export type AdminReportAvailability = "available" | "partial" | "stale" | "unavailable" | "unsupported";
+export interface AdminReportQuery {
+  start: string;
+  end: string;
+  timezone: string;
+  organizationId?: string;
+  /** Consuming product for shared execution; never inferred from organization IDs. */
+  consumer?: AdminReportProduct;
+  page: number;
+  pageSize: number;
+}
+export interface AdminMetricDefinition {
+  key: string;
+  domain: AdminReportDomain;
+  label: string;
+  unit: "count" | "tokens" | "credits" | "minor" | "micros" | "milliseconds";
+  semantics: "current" | "period";
+  definition: string;
+}
+export interface AdminReportMetric {
+  key: string;
+  /** Decimal strings preserve exact PostgreSQL bigint totals. Null means unknown, never zero. */
+  value: string | null;
+  availability: AdminReportAvailability;
+  reason?: string;
+  currency?: string;
+  dimensions?: Record<string, string>;
+  source: string;
+  observedAt: string | null;
+}
+export interface AdminReportRecord {
+  id: string;
+  kind: string;
+  organizationId: string;
+  state: string;
+  occurredAt: string;
+  consumer?: AdminReportProduct;
+  rootId?: string;
+}
+export interface AdminProductReport {
+  contractVersion: "1";
+  product: AdminReportProduct;
+  query: AdminReportQuery;
+  generatedAt: string;
+  sourceObservedAt: string | null;
+  /** Only an ingestion/projection checkpoint can supply this field. */
+  completeThrough: string | null;
+  availability: AdminReportAvailability;
+  metrics: AdminReportMetric[];
+  records: AdminReportRecord[];
+  hasMore: boolean;
+}
+export interface AdminCrossProductReport {
+  contractVersion: "1";
+  generatedAt: string;
+  query: AdminReportQuery;
+  products: AdminProductReport[];
+}
+export const ADMIN_REPORT_METRICS: readonly AdminMetricDefinition[] = [
+  { key:"organizations", domain:"customers", label:"Organizations", unit:"count", semantics:"current", definition:"Current product-owned organizations, scoped by the requested product organization ID." },
+  { key:"memberships", domain:"customers", label:"Memberships", unit:"count", semantics:"current", definition:"Current non-revoked product memberships. This is not a unique cross-product people count." },
+  { key:"new_organizations", domain:"customers", label:"New organizations", unit:"count", semantics:"period", definition:"Organizations created in the half-open requested time range." },
+  { key:"active_organizations", domain:"adoption", label:"Active organizations", unit:"count", semantics:"period", definition:"Distinct product organizations with a recorded meaningful action in the range; each source documents its action set." },
+  { key:"active_users", domain:"adoption", label:"Active users", unit:"count", semantics:"period", definition:"Distinct verified human actors with meaningful recorded actions. Owners inferred from organization activity do not qualify." },
+  { key:"agents", domain:"adoption", label:"Agents", unit:"count", semantics:"current", definition:"Current standalone Agents definitions, excluding product-managed execution features." },
+  { key:"conversations", domain:"usage", label:"Conversations", unit:"count", semantics:"period", definition:"Conversations created in range; deleted content is never projected." },
+  { key:"operations", domain:"usage", label:"Operations", unit:"count", semantics:"period", definition:"Source-recorded operation quantity, preserving product metric dimensions rather than mixing unlike quantities." },
+  { key:"runs", domain:"usage", label:"Root tasks", unit:"count", semantics:"period", definition:"Root tasks admitted in range. Child tasks appear in detail and do not increase root task count." },
+  { key:"tokens_input", domain:"usage", label:"Input tokens", unit:"tokens", semantics:"period", definition:"Once-accounted model input tokens by operation settlement time, including child work; unknown usage remains partial." },
+  { key:"tokens_output", domain:"usage", label:"Output tokens", unit:"tokens", semantics:"period", definition:"Once-accounted model output tokens by operation settlement time, including child work; unknown usage remains partial." },
+  { key:"model_cost", domain:"usage", label:"Model cost", unit:"micros", semantics:"period", definition:"Settled model operation cost in source currency by settlement time, counted once by execution owner. Consumer is an attribution dimension, not an additional charge." },
+  { key:"unknown_model_operations", domain:"usage", label:"Unknown model costs", unit:"count", semantics:"period", definition:"Model cost settlements whose actual cost remains unknown; never treated as free." },
+  { key:"credits", domain:"usage", label:"Credits consumed", unit:"credits", semantics:"period", definition:"Recorded product credit usage. Credits are not revenue or provider cost." },
+  { key:"invoiced", domain:"revenue", label:"Invoiced", unit:"minor", semantics:"period", definition:"Issued invoice amount in each currency by invoice creation time, excluding draft and void records where supported." },
+  { key:"paid", domain:"revenue", label:"Paid", unit:"minor", semantics:"period", definition:"Recorded paid invoice amounts per currency by paid timestamp. This is not provider net settlement." },
+  { key:"refunds", domain:"revenue", label:"Refunds", unit:"minor", semantics:"period", definition:"Recorded refunds per currency and refund time. A refunded status without amount/time is insufficient." },
+  { key:"outstanding", domain:"revenue", label:"Outstanding", unit:"minor", semantics:"current", definition:"Current unpaid issued invoice amounts per currency; period filter does not convert this into historical balance." },
+  { key:"failed", domain:"reliability", label:"Failed root tasks", unit:"count", semantics:"period", definition:"Admitted root tasks in the requested cohort whose current state is failed. Other terminal outcomes remain separately visible." },
+  { key:"completed", domain:"reliability", label:"Completed root tasks", unit:"count", semantics:"period", definition:"Admitted root tasks in the requested cohort whose current state is completed. Cohorts remain subject to ongoing execution." },
+  { key:"backlog", domain:"reliability", label:"Open root tasks", unit:"count", semantics:"current", definition:"Current nonterminal root tasks irrespective of selected period." },
+  { key:"oldest_backlog_ms", domain:"reliability", label:"Oldest open task", unit:"milliseconds", semantics:"current", definition:"Age of the oldest currently nonterminal root task; zero only when the source confirms no backlog." },
+  { key:"delivery_failures", domain:"reliability", label:"Failed deliveries", unit:"count", semantics:"period", definition:"Authoritatively failed channel deliveries by creation cohort. SMTP acceptance is not confirmed delivery." },
+  { key:"handoffs", domain:"reliability", label:"Human handoffs", unit:"count", semantics:"period", definition:"Recorded transitions to staff ownership in range, not inferred from agent failures." },
+] as const;
