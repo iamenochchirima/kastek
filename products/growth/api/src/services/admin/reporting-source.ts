@@ -83,7 +83,7 @@ export async function growthAdminReport(pool:Pool,q:AdminReportQuery):Promise<Ad
   const records=q.detail?await growthMetricRecords(db,q):(await db.query(`SELECT id,"orgId",status,"issuedAt" FROM "BillingInvoice" WHERE "issuedAt">=$1 AND "issuedAt"<$2
    AND ($3::text IS NULL OR "orgId"=$3) ORDER BY "issuedAt" DESC,id LIMIT $4 OFFSET $5`,[...args,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
   if(!q.detail&&q.view==="customers"){
-   const customers=(await db.query(`SELECT id,name,"createdAt" FROM "Organization" WHERE ($1::text IS NULL OR id=$1) ORDER BY "createdAt" DESC,id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
+   const customers=(await db.query(`SELECT id,name,"createdAt" FROM "Organization" WHERE ($1::text IS NULL OR id=$1) AND ($4::text IS NULL OR id=$4 OR strpos(lower(name),lower($4))>0) ORDER BY "createdAt" DESC,id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize,q.customerSearch||null])).rows;
    records.splice(0,records.length,...customers.map(row=>({id:row.id,orgId:row.id,status:"current",issuedAt:row.createdAt,label:row.name})));
   }
   return {contractVersion:"1",product:"growth",query:q,generatedAt:new Date().toISOString(),sourceObservedAt:metrics.reduce<string|null>((last,m)=>m.observedAt&&(!last||m.observedAt>last)?m.observedAt:last,null),completeThrough:null,

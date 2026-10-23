@@ -67,7 +67,12 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
   const selected=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:'verified-growth-org'});expect(value(selected,'runs')).toBe('1');expect(selected.records[0]?.organizationId).toBe('verified-growth-org');
   const wrong=await agentsAdminReport(pool,{...query,consumer:'growth',organizationId:growth.organizationId});expect(value(wrong,'runs')).toBe('0');
  });
- it('drills into exact safe task, model and standalone record cohorts',async()=>{
+ it('searches standalone customer labels or exact IDs without exposing product execution tenants',async()=>{
+  for(const search of ['rEpOrTiNg',standalone.organizationId]){const report=await agentsAdminReport(pool,{...query,view:'customers',customerSearch:search});expect(report.records.map(row=>row.id)).toEqual([standalone.organizationId]);}
+  for(const search of [growth.organizationId,'%','_',"' OR true --"]){const report=await agentsAdminReport(pool,{...query,view:'customers',customerSearch:search});expect(report.records).toHaveLength(0);}
+  expect((await agentsAdminReport(pool,{...query,view:'customers',customerSearch:'Reporting',consumer:'growth'})).records).toHaveLength(0);
+ });
+ it('drills into exact safe task, model and standalone record cohorts' ,async()=>{
   const all=await agentsAdminReport(pool,query);
   for(const metric of all.metrics.filter(m=>m.detailSupported)){
    const detail={metric:metric.key,dimensions:{...metric.dimensions,...(metric.currency?{currency:metric.currency}:{})}};

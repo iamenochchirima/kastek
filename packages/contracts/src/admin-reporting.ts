@@ -12,6 +12,7 @@ export interface AdminReportQuery {
   /** Consuming product for shared execution; never inferred from organization IDs. */
   consumer?: AdminReportProduct;
   view?: "activity" | "customers";
+  customerSearch?: string;
   page: number;
   pageSize: number;
 }

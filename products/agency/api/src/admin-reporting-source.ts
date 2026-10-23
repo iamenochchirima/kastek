@@ -52,7 +52,7 @@ export async function agencyAdminReport(pool:Pool,q:AdminReportQuery):Promise<Ad
   const records=q.detail?await agencyMetricRecords(db,q):(await db.query(`SELECT id,workspace_id,event_type,created_at FROM workspace_usage_events WHERE created_at>=$1 AND created_at<$2
    AND ($3::text IS NULL OR workspace_id=$3) ORDER BY created_at DESC,id LIMIT $4 OFFSET $5`,[...args,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
   if(!q.detail&&q.view==="customers"){
-   const customers=(await db.query(`SELECT id,display_name,status,created_at FROM workspaces WHERE ($1::text IS NULL OR id=$1) ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
+   const customers=(await db.query(`SELECT id,display_name,status,created_at FROM workspaces WHERE ($1::text IS NULL OR id=$1) AND ($4::text IS NULL OR id=$4 OR strpos(lower(display_name),lower($4))>0) ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize,q.customerSearch||null])).rows;
    records.splice(0,records.length,...customers.map(row=>({id:row.id,workspace_id:row.id,event_type:row.status,created_at:row.created_at,label:row.display_name})));
   }
   return {contractVersion:"1",product:"agency",query:q,generatedAt:new Date().toISOString(),sourceObservedAt:metrics.reduce<string|null>((last,m)=>m.observedAt&&(!last||m.observedAt>last)?m.observedAt:last,null),completeThrough:null,

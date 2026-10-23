@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ADMIN_REPORT_METRICS, type AdminCrossProductReport, type AdminProductReport, type AdminReportDomain, type AdminReportAvailability, type AdminReportTrend, type AdminReportMetric } from "@kasitek-labs/contracts";
+import Link from "next/link";
+import { ReportCustomerSelector } from "./report-customer-selector";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { AdminLoadingState } from "@/components/admin/page-states";
 import { ChartA11ySummary } from "@/components/admin/chart";
@@ -104,12 +106,13 @@ export function AdminCrossProductReporting({ domain = "overview", canExport, can
     <AdminPageHeader title={titles[domain]} actions={<>{canSave ? <Button variant="outline" disabled={loading || !report} onClick={() => { setStatus(null); setSaveOpen(true); }}>Save report</Button> : null}{canExport ? <Button disabled={loading || !report || exporting} onClick={() => void exportReport()}>{exporting ? "Exporting..." : "Export CSV"}</Button> : null}</>} />
     <form onSubmit={apply} className="v-card grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6" aria-label="Report filters">
       <label className="grid gap-1 text-xs text-muted-foreground">Product<select aria-label="Product" value={draft.product} onChange={(event) => setDraft({ ...draft, product: event.target.value as ReportScope["product"], organizationId: undefined, detail:undefined })} className={control}><option value="all">All products</option>{Object.entries(products).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label className="grid gap-1 text-xs text-muted-foreground">Organization / workspace<Input aria-label="Organization / workspace" disabled={draft.product === "all"} value={draft.organizationId ?? ""} onChange={(event) => setDraft({ ...draft, organizationId: event.target.value, detail:undefined })} placeholder="Product-owned ID" /></label>
+      <div className="grid gap-1 text-xs text-muted-foreground"><span>Customer</span><ReportCustomerSelector scope={draft} onSelect={(product, organizationId) => setDraft({ ...draft, product, organizationId, detail: undefined, page: 1 })} /></div>
       <label className="grid gap-1 text-xs text-muted-foreground">Start (UTC)<input aria-label="Start (UTC)" type="datetime-local" value={draft.start.slice(0, 16)} onChange={(event) => setDraft({ ...draft, start: event.target.value ? `${event.target.value}:00.000Z` : "" })} className={control} required /></label>
       <label className="grid gap-1 text-xs text-muted-foreground">End (UTC, exclusive)<input aria-label="End (UTC, exclusive)" type="datetime-local" value={draft.end.slice(0, 16)} onChange={(event) => setDraft({ ...draft, end: event.target.value ? `${event.target.value}:00.000Z` : "" })} className={control} required /></label>
       <label className="grid gap-1 text-xs text-muted-foreground">Timezone<Input aria-label="Timezone" value={draft.timezone} onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} list="report-timezones" required /><datalist id="report-timezones"><option>UTC</option><option>Africa/Johannesburg</option><option>Europe/London</option><option>America/New_York</option></datalist></label>
       <div className="flex items-end gap-2"><Button type="submit" disabled={loading}>Apply</Button><Button variant="ghost" disabled={loading} onClick={() => void load(scope)}>Refresh</Button></div>
     </form>
+    {ready ? <nav aria-label="Reporting views" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{Object.entries(titles).map(([key, title]) => <Link key={key} aria-current={key === domain ? "page" : undefined} className={key === domain ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground"} href={`${key === "overview" ? "/analytics" : `/analytics/${key}`}?${reportingParams({ ...scope, detail: undefined, page: 1 }, key)}`}>{title}</Link>)}</nav> : null}
     {status && !saveOpen ? <p role="status" className="text-sm text-muted-foreground">{status}</p> : null}
     {loading ? <AdminLoadingState rows={6} /> : error ? <section className="v-card space-y-3 p-5" role="alert"><h2 className="font-semibold">Reporting unavailable</h2><p className="text-sm text-muted-foreground">{error}</p><Button variant="outline" onClick={() => void load(scope)}>Retry</Button></section> : report ? <>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{reportTimestamp(report.query.start, report.query.timezone)} to {reportTimestamp(report.query.end, report.query.timezone)} · {report.query.timezone}</span><span>Definition {report.contractVersion}</span></div>

@@ -15,6 +15,7 @@ export async function crossProductReport(request:Request,exporting=false):Promis
  const domain=params.get("domain")??"overview";
  if(!["overview","customers","adoption","usage","revenue","reliability"].includes(domain)||(params.has("consumer")||params.has("view")))throw Object.assign(Error("Invalid report domain"),{status:400});
  params.delete("domain");
+ if(params.has("search")){if(domain!=="customers")throw Object.assign(Error("Search requires customers domain"),{status:400});params.set("customerSearch",params.get("search")!);params.delete("search");}
  if(product==="all"&&params.has("organizationId"))throw Object.assign(Error("Select a product before an organization"),{status:400});
  let query;try{query=parseAdminReportQuery({...Object.fromEntries(params),view:domain==="customers"?"customers":"activity"});}catch(error){throw Object.assign(error as Error,{status:400});}
  const secret=process.env.KASITEK_ADMIN_SERVICE_SECRET;

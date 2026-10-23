@@ -35,6 +35,12 @@ test("Growth reporting reconciles scoped records and currencies through authoriz
    INSERT INTO "OrganizationSubscription"(id,"orgId","planId",status,"updatedAt")VALUES('subscription','org-a','plan','ACTIVE',now())`);
   const q=parseAdminReportQuery({start:"2026-10-01T00:00:00Z",end:"2026-10-02T00:00:00Z",organizationId:"org-a",pageSize:1});
   const report=await growthAdminReport(pool,q);
+  for(const search of ["a","org-a"]){const found=await growthAdminReport(pool,{...q,organizationId:undefined,view:"customers",customerSearch:search,pageSize:1});assert.deepEqual(found.records.map(row=>row.id),["org-a"]);}
+  for(const search of ["%","_","' OR true --"]){assert.equal((await growthAdminReport(pool,{...q,organizationId:undefined,view:"customers",customerSearch:search})).records.length,0);}
+  assert.equal((await growthAdminReport(pool,{...q,organizationId:"org-b",view:"customers",customerSearch:"org-a"})).records.length,0);
+  assert.throws(()=>parseAdminReportQuery({customerSearch:"a"}),/Invalid customer search/);
+  assert.throws(()=>parseAdminReportQuery({view:"customers",customerSearch:"a".repeat(101)}),/Invalid customer search/);
+
   assert.equal(report.metrics.find(m=>m.key==="organizations")?.value,"1");
   assert.equal(report.metrics.find(m=>m.key==="operations")?.value,"7");
   assert.deepEqual(report.metrics.filter(m=>m.key==="paid").map(m=>[m.currency,m.value]),[["USD","200"],["ZAR","1500"]]);

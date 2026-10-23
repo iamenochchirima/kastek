@@ -154,8 +154,8 @@ export async function agentsAdminReport(pool: Pool, q: AdminReportQuery): Promis
   const records = (await db.query(`WITH scoped AS (${scoped}) SELECT id,root_task_id,consumer,consumer_organization,state,created_at FROM scoped WHERE created_at>=$1 AND created_at<$2 ORDER BY created_at DESC,id LIMIT $5 OFFSET $6`,[...args,q.pageSize+1,(q.page-1)*q.pageSize])).rows;
   if(q.view==="customers"){
    const customers=(!q.consumer||q.consumer==="agents")?(await db.query(`SELECT o.id,o.name,o.created_at FROM agents_platform.organizations o
-    WHERE ($1::text IS NULL OR o.id::text=$1) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id)
-    ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize])).rows:[];
+    WHERE ($1::text IS NULL OR o.id::text=$1) AND ($4::text IS NULL OR o.id::text=$4 OR strpos(lower(o.name),lower($4))>0) AND NOT EXISTS(SELECT 1 FROM agents_platform.product_execution_tenants p WHERE p.organization_id=o.id)
+    ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3`,[q.organizationId??null,q.pageSize+1,(q.page-1)*q.pageSize,q.customerSearch||null])).rows:[];
    records.splice(0,records.length,...customers.map(row=>({id:row.id,root_task_id:null,consumer:"agents",consumer_organization:row.id,state:"current",created_at:row.created_at,label:row.name})));
   }
   for(const metric of metrics)if(agentDetailKeys.has(metric.key)&&metric.value!==null)metric.detailSupported=true;

@@ -5,7 +5,7 @@ import { ADMIN_REPORT_METRICS, type AdminReportQuery, type AdminProductReport, t
 
 /** Match the existing Analytics API range and pagination safety bounds. */
 export function parseAdminReportQuery(input: Record<string, unknown>, now = new Date()): AdminReportQuery {
-  const allowed = new Set(["start", "end", "timezone", "organizationId", "consumer", "view", "detail", "page", "pageSize"]);
+  const allowed = new Set(["start", "end", "timezone", "organizationId", "consumer", "view", "customerSearch", "detail", "page", "pageSize"]);
   if (Object.keys(input).some(key => !allowed.has(key))) throw new Error("Unknown report filter");
   const date = (value: unknown, fallback: Date) => {
     if (value === undefined) return fallback.toISOString();
@@ -47,7 +47,8 @@ export function parseAdminReportQuery(input: Record<string, unknown>, now = new 
     if(Buffer.byteLength(JSON.stringify(detail))>2048)throw Error("Report detail is too large");
   }
   if(input.view!==undefined&&!["activity","customers"].includes(String(input.view)))throw new Error("Invalid report view");
-  return {start,end,timezone,...(detail?{detail}:{}),...(input.view===undefined?{}:{view:input.view as AdminReportQuery["view"]}), ...(input.organizationId === undefined ? {} : {organizationId:input.organizationId as string}),
+  if(input.customerSearch!==undefined&&(typeof input.customerSearch!=="string"||input.customerSearch.length>100||/[\x00-\x1f]/.test(input.customerSearch)||input.view!=="customers"||detail!==undefined))throw new Error("Invalid customer search");
+  return {start,end,timezone,...(input.customerSearch===undefined?{}:{customerSearch:(input.customerSearch as string).trim()}),...(detail?{detail}:{}),...(input.view===undefined?{}:{view:input.view as AdminReportQuery["view"]}), ...(input.organizationId === undefined ? {} : {organizationId:input.organizationId as string}),
     ...(input.consumer === undefined ? {} : {consumer:input.consumer as AdminReportQuery["consumer"]}),
     page:integer(input.page,1,10000),pageSize:integer(input.pageSize,50,100)};
 }

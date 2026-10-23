@@ -27,6 +27,10 @@ test("Agency reporting uses its own migrated workspace scope and signed actor",{
   const response=await app.inject({url:path,headers:{[ADMIN_AUTHORITY_HEADER]:token}});
   assert.equal(response.statusCode,200,response.body);const report=response.json();
   assert.equal(report.metrics.find((m:any)=>m.key==="organizations").value,"1");
+  const q=parseAdminReportQuery({start:"2026-10-01T00:00:00Z",end:"2026-10-02T00:00:00Z"});
+  for(const search of ["fIrSt","same-id"]){const found=await agencyAdminReport(pool,{...q,organizationId:undefined,view:"customers",customerSearch:search});assert.deepEqual(found.records.map(row=>row.id),["same-id"]);}
+  for(const search of ["%","_","' OR true --"]){assert.equal((await agencyAdminReport(pool,{...q,organizationId:undefined,view:"customers",customerSearch:search})).records.length,0);}
+
   assert.equal(report.metrics.find((m:any)=>m.key==="operations").value,"4");
   assert.equal(report.metrics.find((m:any)=>m.key==="paid").value,null);
   assert(report.records.every((row:any)=>row.organizationId==="same-id"));
