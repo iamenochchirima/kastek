@@ -11,7 +11,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { ProductRuntime } from "../src/execution/products/product-runtime";
 import { registerAgencyProductCapabilities } from "../src/adapters/products/agency-capability-client";
 import { createProductBindings } from "../src/capabilities/products/product-capabilities";
-import { defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, PlatformError, requestDigest } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { beginOperation } from "../src/execution/lifecycle/execution";
 import { productPorts } from "../src/infrastructure/product-ports";
@@ -25,6 +25,16 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   const originTenantId = randomUUID(), workspaceId = "agency-workspace", mappedActor = { issuer: "https://growth.test/identity", subject: "growth-owner" };
   let admin: Pool, pool: Pool, agency: Pool, app: Awaited<ReturnType<typeof buildApp>>, runtime: ProductRuntime;
   let env: NodeJS.ProcessEnv;
+  let originEnabled = true;
+  const installOriginFixture = (target: ProductRuntime) => target.registerOriginAuthorizer("growth", async (taskId, db) => {
+    // Controlled origin authority fixture. The destination grant cannot supply this decision.
+    const row = (await db.query(`SELECT 1 FROM agents_platform.tasks t
+      JOIN agents_platform.execution_grants g ON g.id=t.grant_id
+      JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id
+      WHERE t.id=$1 AND t.product='growth' AND p.tenant_id=$2 AND g.revoked_at IS NULL AND g.expires_at>NOW()
+        AND t.principal->>'issuer'=$3 AND t.principal->>'subject'=$4`, [taskId, originTenantId, mappedActor.issuer, mappedActor.subject])).rows[0];
+    if (!originEnabled || !row) throw new PlatformError("ORIGIN_FIXTURE_DENIED", 403, "Origin access revoked");
+  });
 
   beforeAll(async () => {
     const url = new URL(adminUrl!);
@@ -43,6 +53,7 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     env = { NODE_ENV: "test", AGENCY_PRODUCT_API_URL: origin, AGENTS_PRODUCT_ACTION_ISSUER: "https://agents.test",
       AGENTS_PRODUCT_ACTION_PRIVATE_KEY: await exportPKCS8(keys.privateKey) };
     runtime = new ProductRuntime(pool);
+    installOriginFixture(runtime);
     expect(registerAgencyProductCapabilities(runtime, {})).toBe(false);
     expect(registerAgencyProductCapabilities(runtime, env)).toBe(true);
     expect(registerAgencyProductCapabilities(runtime, env)).toBe(true);
@@ -86,18 +97,19 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     const { task } = await store.admitTask({ authority, grantId, versionId: version.id, requestKey: randomUUID(), input: "Read Agency agent metadata" });
     await pool.query("INSERT INTO agents_platform.product_conversations(conversation_id,product,tenant_id,feature_id,title) VALUES($1,'growth',$2,'assistant','Metadata')", [task.conversation_id, originTenantId]);
     await pool.query("INSERT INTO agents_platform.product_task_contexts(task_id,product,tenant_id,feature_id,conversation_id,command_digest) VALUES($1,'growth',$2,'assistant',$3,$4)", [task.id, originTenantId, task.conversation_id, "a".repeat(64)]);
-    await expect(runtime.authorizeTask(task.id)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await runtime.availableBindings(task.id)).toEqual([]);
     await agency.query(`INSERT INTO product_capability_grants(mapping_id,operation,manifest_digest,descriptor_digest,handler_ref,policy_revision,binding_id,binding_digest,agent_ids,expires_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'["agent-one","agent-foreign"]',NOW()+INTERVAL '1 hour')`,
     [binding.authority!.mappingRef, binding.definition.providerOperation, binding.authority!.manifestDigest, binding.authority!.descriptorDigest,
       binding.authority!.handlerRef, binding.authority!.policyRevision, binding.id, binding.digest]);
-    await runtime.authorizeTask(task.id);
+    expect(await runtime.availableBindings(task.id)).toHaveLength(1);
     const otherPool = new Pool({ connectionString: pool.options.connectionString });
     try {
       const isolated = new ProductRuntime(otherPool);
+      installOriginFixture(isolated);
       registerAgencyProductCapabilities(isolated, { ...env, AGENTS_PRODUCT_ACTION_ISSUER: "https://untrusted-agents.test" });
-      await expect(isolated.authorizeTask(task.id)).rejects.toMatchObject({ statusCode: 401 });
-      await runtime.authorizeTask(task.id);
+      await expect(isolated.availableBindings(task.id)).rejects.toMatchObject({ statusCode: 401 });
+      expect(await runtime.availableBindings(task.id)).toHaveLength(1);
     } finally { await otherPool.end(); }
     const operationId = `tool:${task.id}:0:0`;
     await beginOperation(pool, task.id, { id: operationId, kind: "tool", name: binding.alias, request: {}, reservedTokens: 0, reservedMs: 1000, retrySafe: true });
@@ -112,8 +124,11 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     await productPorts(pool).assertCurrentEvidence(pool, { consumerTaskId: task.id, dependency });
     await agency.query("UPDATE workspace_agents SET updated_at=NOW()+INTERVAL '1 second' WHERE id='agent-one'");
     await expect(productPorts(pool).assertCurrentEvidence(pool, { consumerTaskId: task.id, dependency })).rejects.toMatchObject({ statusCode: 403 });
+    originEnabled = false;
+    await expect(runtime.availableBindings(task.id)).rejects.toMatchObject({ code: "ORIGIN_FIXTURE_DENIED" });
+    originEnabled = true;
     await agency.query("DELETE FROM tenant_user_roles WHERE tenant_user_id='agency-user'");
-    await expect(runtime.authorizeTask(task.id)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await runtime.availableBindings(task.id)).toEqual([]);
     expect((await pool.query("SELECT count(*) FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2", [mappedActor.issuer, mappedActor.subject])).rows[0].count).toBe("0");
   }, 30000);
 });
