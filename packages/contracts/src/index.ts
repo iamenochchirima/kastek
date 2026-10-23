@@ -293,3 +293,5 @@ export interface ReportQueryRequest {
 export interface ComparisonRequest {
   kind: string;
 }
+
+export * from "./growth-agents.js";

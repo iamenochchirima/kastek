@@ -1,4 +1,6 @@
 import type { Pool, PoolClient } from "pg";
+import { createHash } from "node:crypto";
+import { ApiError } from "../../error.js";
 import { createId } from "@paralleldrive/cuid2";
 import {
   canonicalJson,
@@ -276,6 +278,18 @@ export async function createSocialPostIdempotent(
     throw bad("Add post text or attach at least one image or video");
   const variants = normalizeVariants(request.variants, channels, content);
   const key = trimmed(idempotencyKey);
+  const requestDigest = createHash("sha256").update(canonicalJson({ userId, orgId, content, channels,
+    status, scheduledFor: scheduled?.toISOString() ?? null, primary, selections,
+    media: media.map(item => ({ ...item, metadata: item.metadata ?? null })),
+    variants: variants.map(item => ({ ...item, aiGenerated: item.aiGenerated ?? null, metadata: item.metadata ?? null })),
+    title: trimmed(request.title) ?? generatedSocialPostTitle(content), prompt: trimmed(request.prompt), metadata: request.metadata ?? null,
+  })).digest("hex");
+  const assertReplay = (post: SocialPost) => {
+    if (!post.metadata || typeof post.metadata !== "object" || Array.isArray(post.metadata) ||
+      (post.metadata as Record<string, unknown>)._kasitek_agent_request_digest !== requestDigest) {
+      throw new ApiError(409, "conflict", "Content draft idempotency key was reused for a different request");
+    }
+  };
   if (key && Buffer.byteLength(key) > 240)
     throw bad("Content draft idempotency key is too long");
   if (key) {
@@ -284,6 +298,7 @@ export async function createSocialPostIdempotent(
     if (existing) {
       const post = await getSocialPost(pool, orgId, existing.id);
       if (!post) throw internal("Idempotent content draft disappeared");
+      assertReplay(post);
       return post;
     }
   }
@@ -296,7 +311,7 @@ export async function createSocialPostIdempotent(
       Array.isArray(metadata)
     )
       throw bad("Content metadata must be a JSON object");
-    metadata = { ...(metadata as object), _kasitek_agent_idempotency_key: key };
+    metadata = { ...(metadata as object), _kasitek_agent_idempotency_key: key, _kasitek_agent_request_digest: requestDigest };
   }
   const title = trimmed(request.title) ?? generatedSocialPostTitle(content);
   const id = createId();
@@ -343,6 +358,7 @@ export async function createSocialPostIdempotent(
         ? "Failed to load created social post"
         : "Idempotent content draft disappeared",
     );
+  if (key && createdId !== id) assertReplay(post);
   return post;
 }
 export async function updateSocialPost(

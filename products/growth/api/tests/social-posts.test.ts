@@ -94,6 +94,8 @@ test(
         createSocialPostIdempotent(pool, "user", "org", input, "synthetic-key"),
       ]);
       assert.equal(one.id, two.id);
+      await assert.rejects(createSocialPostIdempotent(pool, "user", "org", { ...input, content: "Changed content" }, "synthetic-key"), /reused for a different request/);
+      await assert.rejects(createSocialPostIdempotent(pool, "other-actor", "org", input, "synthetic-key"), /reused for a different request/);
       assert.equal(one.title, "First line");
       assert.equal(one.publishJobs[0]!.status, "QUEUED");
       assert.equal(one.variants[0]!.content, "custom");
