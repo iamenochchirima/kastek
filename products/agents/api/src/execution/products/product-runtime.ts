@@ -69,7 +69,7 @@ export class ProductRuntime implements ProductRuntimePort {
     return this.observe(taskId,operationId,binding,result);
   }
   async prepare(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown){await validateProductArguments(binding,args);const result=await this.dispatch(this.pool,taskId,operationId,binding,"prepare",args);if(!result.review)throw denied();await this.project(result.review,taskId);return result;}
-  async review(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference){const result=await this.dispatch(this.pool,taskId,operationId,binding,"review",{},review);if(!result.review||(review.state!=="proposed"&&(result.review.id!==review.id||result.review.payloadDigest!==review.payloadDigest)))throw denied();await this.project(result.review,taskId);return result;}
+  async review(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference){const result=await this.dispatch(this.pool,taskId,operationId,binding,"review",{},review);if(!result.review||result.review.id!==review.id||result.review.payloadDigest!==review.payloadDigest)throw denied();await this.project(result.review,taskId);return result;}
   async commit(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference,signal?:AbortSignal,statusOnly=false){
     let result:ProductCapabilityResult;
     try{result=statusOnly?await this.review(taskId,operationId,binding,review):await this.dispatch(this.pool,taskId,operationId,binding,"commit",{},review,signal);}catch(error){if(!(error instanceof PlatformError)||error.statusCode<500)throw error;result=await this.review(taskId,operationId,binding,review);}

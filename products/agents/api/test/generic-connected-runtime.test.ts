@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {collectNativeMetrics} from "../src/observability/metrics";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
@@ -94,6 +95,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     effects = 0; requests = 0;listCalls=0;definitionDescription=description;beforeInitializeReply=undefined; hang = false; beforeListReply = undefined; called = undefined;refresh=undefined;permissionRequired=false;
     const account = await platform.ensureAccount({ issuer: "http://localhost/generic-fixture", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "General tools"), scope: ActionScope = { accountId: account.id, organizationId: organization.id };
+    await connectFixtureModel(pool,account.id,organization.id);
     let connection = await remote.create(scope, { operationId: randomUUID(), name: "Controlled MCP", endpoint, authentication: "none" });
     await remote.discover(scope, connection.id, connection.generation);
     connection = await remote.get(scope, connection.id);

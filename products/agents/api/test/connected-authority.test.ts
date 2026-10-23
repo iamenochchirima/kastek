@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -84,6 +85,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const account = await store.ensureAccount({ issuer: "https://fixture.test", subject: randomUUID(), email: "owner@fixture.test", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Research");
     const scope = { accountId: account.id, organizationId: org.id };
+    await connectFixtureModel(pool,account.id,org.id);
     const connection = await connections.create(scope, { operationId: randomUUID(), profileId: "github-public-read-v1", targetId: "provider:github",
       name: "Approved repository", apiKey: "github_pat_fixture_read_only_key", expiresAt: new Date(Date.now() + 86400_000).toISOString(),
       selections: [{ owner: "approved", repository: "public-repo", ref: "main" }] });

@@ -3,6 +3,7 @@ import {describe,it,expect,vi} from "vitest";
 import type {ProductCapabilityManifest,ProductCapabilityDescriptor} from "@kasitek-labs/contracts";
 import {registerProductAdapter,registerProductManifest,createProductBindings,productModelTools,productDescriptor} from "../src/capabilities/products/product-capabilities";
 import {requestDigest,defaultBusinessConfiguration} from "../src/contracts/contracts";
+import {createDependencyManifest} from "../src/contracts/source-contracts";
 import {ProductRuntime,validateProductArguments} from "../src/execution/products/product-runtime";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
 function fixture(){
@@ -25,5 +26,19 @@ describe("installed product capability composition",()=>{
  runtime.review=vi.fn(async()=>({value:{},review:{...review,state:"saved" as const},receipt}));runtime.project=vi.fn(async()=>{});
  await expect(runtime.commit(taskId,operationId,bindings[0]!,review,undefined,true)).resolves.toMatchObject({receipt});expect(runtime.review).toHaveBeenCalledOnce();
  runtime.review=vi.fn(async()=>({value:{},review}));await expect(runtime.commit(taskId,operationId,bindings[0]!,review,undefined,true)).rejects.toMatchObject({code:"PRODUCT_EFFECT_UNCERTAIN"});});
+ it("refuses conflicting revisions for the same bound product source",()=>{
+ const {bindings}=fixture(),dependency={kind:"product" as const,product:"fixture-product",tenantId:"destination-workspace",taskId:randomUUID(),bindingId:bindings[0]!.id,bindingDigest:bindings[0]!.digest,sourceId:"record-one",contextRevision:"a".repeat(64)};
+ expect(()=>createDependencyManifest([dependency,{...dependency,contextRevision:"b".repeat(64)}])).toThrowError(expect.objectContaining({code:"EVIDENCE_POLICY_CONFLICT"}));
+ });
+ it("pins the prepared review identity and payload before approval too",async()=>{
+ const {bindings}=fixture(),taskId=randomUUID(),operationId="tool:"+taskId+":0:0";
+ const review={id:"original-review",product:"fixture-product",taskId,operationId,payloadDigest:"a".repeat(64),state:"proposed" as const,expiresAt:new Date(Date.now()+60000).toISOString()};
+ const runtime=Object.create(ProductRuntime.prototype) as ProductRuntime;runtime.project=vi.fn(async()=>{});
+ for(const changed of [{...review,id:"substituted-review"},{...review,payloadDigest:"b".repeat(64)}]){
+   Object.assign(runtime,{dispatch:vi.fn(async()=>({value:{},review:changed}))});
+   await expect(runtime.review(taskId,operationId,bindings[0]!,review)).rejects.toMatchObject({code:"PRODUCT_AUTHORITY_INACTIVE"});
+ }
+ expect(runtime.project).not.toHaveBeenCalled();
+ });
  it("does not allow product tools in an incompatible program",()=>{const {bindings}=fixture(),config=defaultBusinessConfiguration();config.productBindings=bindings;expect(()=>compilePublishedComposition(config,[])).toThrowError(expect.objectContaining({code:"PROGRAM_COMPOSITION_DENIED"}));});
 });

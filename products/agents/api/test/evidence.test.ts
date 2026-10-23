@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -45,6 +46,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  async function fixture(memoryEnabled=false,connected=false,effects=false){
   const account=await platform.ensureAccount({issuer:"http://localhost/evidence",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const org=await platform.createOrganization(account.id,"Evidence"),scope={accountId:account.id,organizationId:org.id};
+  await connectFixtureModel(pool,account.id,org.id);
   const text="First passage. Decisive tail passage 🧪";
   const job=await knowledge.admitUpload(scope,{operationId:randomUUID(),title:"Guide",contentType:"text/markdown",content:Buffer.from(text),parserRelease:"document-v1"});
   await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[job.id]);

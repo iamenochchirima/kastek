@@ -73,7 +73,7 @@ export const textDigest = (value: string | Uint8Array): string => createHash("sh
 
 function dependencyKey(dependency: EvidenceDependency): string {
   switch (dependency.kind) {
-    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId??""}:${dependency.sourceId}:${dependency.contextRevision}`;
+    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId??""}:${dependency.sourceId}`;
     case "skill": return `skill:${dependency.agentId}:${dependency.skillId}`;
     case "source": return `source:${dependency.sourceId}:${dependency.revisionId}`;
     case "connection": return `connection:${dependency.connectionId}:${dependency.resource}:${dependency.catalogDigest}`;

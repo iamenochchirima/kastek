@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setupPlatformSchema } from "../src/composition/setup";
-import { PlatformError, requestDigest } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration,PlatformError, requestDigest } from "../src/contracts/contracts";
 import { createDependencyManifest, type EvidenceDependency } from "../src/contracts/source-contracts";
 import { EvidenceStore, assertCurrentEvidence } from "../src/execution/context/evidence";
 import { beginOperation, finishOperation, settleTask } from "../src/execution/lifecycle/execution";
@@ -10,7 +10,7 @@ import { buildContinuation } from "../src/execution/context/continuation";
 import { transaction } from "../src/infrastructure/database";
 import { productPorts, registerProductPorts } from "../src/infrastructure/product-ports";
 import { PlatformStore } from "../src/product/agents/store";
-import { growthFeatureConfiguration } from "../src/product/integrations/growth-features";
+import { registerProductAdapter,createProductBindings } from "../src/capabilities/products/product-capabilities";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 
@@ -48,12 +48,17 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const creator = await platform.ensureAccount({ issuer: "https://fixture.example.test", subject: randomUUID(), email: "owner@example.test", displayName: "Fixture creator" });
     const org = await platform.createOrganization(creator.id, "Product evidence"), scope = { accountId: creator.id, organizationId: org.id };
     const model = await connectFixtureModel(pool, creator.id, org.id);
-    const configuration = growthFeatureConfiguration("research");
+    const tenantId=randomUUID();
+    const adapter=registerProductAdapter({schemaVersion:1,id:"product-evidence-"+randomUUID(),release:"1",executableDigest:"a".repeat(64),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},{handlers:["workspace.read@1"],invoke:async()=>({value:{}})});
+    const descriptor={operation:"workspace.read",revision:"1",description:"Read approved business context",inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,handlerRef:"workspace.read@1",requiredAuthority:["agents.read"],evidence:"versioned_sources" as const,policy:{effect:"read" as const,disclosure:"approved_resource_identifiers" as const,retry:"safe_read" as const,approval:"none" as const,cancel:"stop_admission" as const},limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192}};
+    const manifest={schemaVersion:1 as const,product:"growth",revision:"1",adapter,operations:[descriptor]};
+    const configuration=defaultBusinessConfiguration();configuration.program={id:"tool-directed",version:"3"};
+    configuration.productBindings=createProductBindings({...manifest,digest:requestDigest(manifest)},org.id,{originProduct:"growth",originTenantId:tenantId,tenantId,mappingRef:"explicit-fixture-mapping",policyRevision:"1"},[descriptor.operation]);
     configuration.model.selection = { kind: "connection", connectionId: model.connection.id, modelId: model.modelId };
     const agent = await platform.createAgent({ ...scope, name: "Research", configuration });
     await model.store.grant(scope, { connectionId: model.connection.id, consumer: { kind: "agent", agentId: agent.id }, roles: ["primary", "compaction", "delegated"], modelIds: [model.modelId] });
     const version = await platform.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
-    const tenantId = randomUUID(), grantId = randomUUID();
+    const grantId = randomUUID();
     // This Growth human has no standalone Agents account or membership.
     const authority = { product: "growth" as const, organizationId: org.id, resourceId: "research", callerClientId: "growth-api", principal: { kind: "human" as const, issuer: "https://growth.example.test/identity", subject: randomUUID() } };
     await pool.query("INSERT INTO agents_platform.product_execution_tenants(product,tenant_id,organization_id,client_id,issuer) VALUES('growth',$1,$2,'growth-api',$3)", [tenantId, org.id, authority.principal.issuer]);
@@ -65,9 +70,10 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     }
     await grant(grantId);
     const { task } = await platform.admitTask({ authority, grantId, versionId: version.id, requestKey: randomUUID(), input: "Read this business" });
-    const operationId = `tool:${task.id}:0:0`, input = { product: "growth" as const, tenantId, contextRevision: "a".repeat(64), sources: [{ id: `workspace:${tenantId}` }], text: '{"business":"Approved business","facts":["Only this tenant"]}', title: "Growth business", acquiredAt: new Date().toISOString() };
+    const binding=configuration.productBindings[0]!;
+    const operationId = `tool:${task.id}:0:0`, input = {bindingId:binding.id,bindingDigest:binding.digest,operationName:binding.alias, product: "growth" as const, tenantId, contextRevision: "a".repeat(64), sources: [{ id: `workspace:${tenantId}` }], text: '{"business":"Approved business","facts":["Only this tenant"]}', title: "Growth business", acquiredAt: new Date().toISOString() };
     authorization.set(task.id, { tenantId, revision: input.contextRevision, sourceId: input.sources[0]!.id, allowed: true });
-    await beginOperation(pool, task.id, { id: operationId, kind: "tool", name: "growth.context_read", request: {}, reservedTokens: 0, reservedMs: 1000, retrySafe: true });
+    await beginOperation(pool, task.id, { id: operationId, kind: "tool", name: binding.alias, request: {}, reservedTokens: 0, reservedMs: 1000, retrySafe: true });
     return { task, grantId, grant, authority, version, input, operationId };
   }
   async function supply(f: Awaited<ReturnType<typeof fixture>>, passage: Awaited<ReturnType<EvidenceStore["recordProduct"]>>) {
@@ -83,7 +89,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
   it("records exact private observations, operation evidence, summaries, checkpoints and artifact dependencies", async () => {
     const f = await fixture(), passage = await evidence.recordProduct(f.task.id, f.operationId, f.input);
     expect(lastAuthorizationDb).not.toBe(pool);
-    expect(passage.reference.sourceId).toBeNull(); expect(passage.reference.manifest.dependencies).toEqual([{ kind: "product", product: "growth", tenantId: f.input.tenantId, taskId: f.task.id, contextRevision: f.input.contextRevision, sourceId: f.input.sources[0]!.id }]);
+    expect(passage.reference.sourceId).toBeNull(); expect(passage.reference.manifest.dependencies).toEqual([{ kind: "product", product: "growth", tenantId: f.input.tenantId, taskId: f.task.id, contextRevision: f.input.contextRevision,bindingId:f.input.bindingId,bindingDigest:f.input.bindingDigest, sourceId: f.input.sources[0]!.id }]);
     expect((await evidence.recordProduct(f.task.id, f.operationId, f.input)).reference.id).toBe(passage.reference.id);
     expect((await evidence.recordProduct(f.task.id, f.operationId, { ...f.input, acquiredAt: new Date(Date.now() + 1000).toISOString() })).reference.id).toBe(passage.reference.id);
     await expect(evidence.recordProduct(f.task.id, f.operationId, { ...f.input, text: "Changed observation" })).rejects.toMatchObject({ code: "EVIDENCE_INTEGRITY" });
