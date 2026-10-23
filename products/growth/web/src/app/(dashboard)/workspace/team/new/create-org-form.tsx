@@ -50,7 +50,7 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         </label>
         <Input
           id="org-name"
-          placeholder="Acme Corp"
+          placeholder="Your business name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
