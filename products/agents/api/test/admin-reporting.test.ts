@@ -1,8 +1,9 @@
 import {randomUUID} from 'node:crypto';
+import {createServer} from 'node:http';
 import {Pool} from 'pg';
 import Fastify from 'fastify';
 import {afterAll,beforeAll,describe,it,expect} from 'vitest';
-import {createAdminAuthority,ADMIN_AUTHORITY_HEADER} from '@kasitek-labs/server-support/admin-authority';
+import {createAdminAuthority,verifyAdminAuthority,ADMIN_AUTHORITY_HEADER} from '@kasitek-labs/server-support/admin-authority';
 import {setupPlatformSchema} from '../src/composition/setup';
 import {PlatformStore} from '../src/product/agents/store';
 import {defaultBusinessConfiguration} from '../src/contracts/contracts';
@@ -72,6 +73,34 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
   const token=createAdminAuthority({secret,audience:'agents',actor:{id:'viewer-admin',role:'viewer'},method:'GET',path});
   expect((await app.inject({url:path})).statusCode).toBe(403);const res=await app.inject({url:path,headers:{[ADMIN_AUTHORITY_HEADER]:token}});expect(res.statusCode,res.body).toBe(200);expect(JSON.stringify(res.json())).not.toContain('PRIVATE_');
   expect((await app.inject({url:path+'&consumer=growth',headers:{[ADMIN_AUTHORITY_HEADER]:token}})).statusCode).toBe(403);await app.close();
+ });
+ it('enriches standalone reports with organization-scoped native trends through authenticated Analytics HTTP',async()=>{
+  const secret='synthetic-reporting-service-secret-32bytes';let calls=0;
+  const keys=['agent.native.root_tasks.completed','agent.native.root_tasks.failed','agent.native.model.input_tokens','agent.native.model.output_tokens','agent.native.model.unknown_usage'];
+  const server=createServer((request,response)=>{
+   calls++;const parameters=new URL(request.url!,'http://fixture').searchParams;
+   const actor=verifyAdminAuthority(String(request.headers[ADMIN_AUTHORITY_HEADER]),{secret,audience:'analytics',method:'GET',path:request.url!,capability:'admin:report'});
+   expect(actor.id).toBe('viewer-admin');expect(actor.role).toBe('viewer');
+   expect(parameters.get('product')).toBe('agents');expect(parameters.get('organizationId')).toBe(calls===1?standalone.organizationId:null);
+   expect(parameters.get('metrics')?.split(',')).toEqual(keys.map(key=>`${key}@1`));
+   response.end(JSON.stringify({includedScopeCount:1,totalScopeCount:1,hasMore:false,trends:keys.map(key=>({key,unit:key.endsWith('_tokens')?'tokens':'count',availability:'partial',source:'labs.analytics',observedAt:stamp.toISOString(),completeThrough:null,series:[{start:query.start,end:query.end,value:key.endsWith('_tokens')?'9007199254740993':'1'}]}))}));
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const address=server.address();if(!address || typeof address==='string')throw Error('Missing fixture address');
+  const app=Fastify();registerAdminReportingRoutes(app,pool,secret,{ANALYTICS_REPORTING_URL:`http://127.0.0.1:${address.port}`});
+  const base=`/api/admin/reporting?start=${encodeURIComponent(query.start)}&end=${encodeURIComponent(query.end)}&timezone=UTC`;
+  const path=base+`&organizationId=${standalone.organizationId}`;
+  const headers=(path:string)=>({[ADMIN_AUTHORITY_HEADER]:createAdminAuthority({secret,audience:'agents',actor:{id:'viewer-admin',role:'viewer'},method:'GET',path})});
+  try{
+   const response=await app.inject({url:path,headers:headers(path)});expect(response.statusCode,response.body).toBe(200);
+   const report=response.json();expect(report.trends).toHaveLength(5);expect(report.trends[2].series[0].value).toBe('9007199254740993');expect(report.trends[2].unit).toBe('tokens');expect(report.trends[2].domain).toBe('usage');expect(report.trends[2].availability).toBe('partial');expect(report.trends[2].observedAt).toBe(stamp.toISOString());expect(calls).toBe(1);
+   const globalPath=base+'&consumer=agents';const global=await app.inject({url:globalPath,headers:headers(globalPath)});expect(global.statusCode).toBe(200);expect(global.json().trends).toHaveLength(5);expect(calls).toBe(2);
+   const growthPath=base+'&consumer=growth&organizationId=verified-growth-org';
+   const growthReport=await app.inject({url:growthPath,headers:headers(growthPath)});expect(growthReport.statusCode).toBe(200);expect(growthReport.json().trends).toBeUndefined();expect(calls).toBe(2);
+   const agencyPath=base+'&consumer=agency&organizationId=verified-agency-org';
+   const agencyReport=await app.inject({url:agencyPath,headers:headers(agencyPath)});expect(agencyReport.statusCode).toBe(200);expect(agencyReport.json().trends).toBeUndefined();expect(calls).toBe(2);
+   expect((await app.inject({url:path+'&consumer=agents',headers:headers(path)})).statusCode).toBe(403);expect(calls).toBe(2);
+  }finally{await app.close();await new Promise<void>(resolve=>server.close(()=>resolve()));}
  });
  it('materializes safe native root/model observations once and excludes evaluation tasks',async()=>{
   const f=standalone;

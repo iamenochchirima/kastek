@@ -4,6 +4,7 @@ import { AnalyticsReportingClient, ReportingGrantIssuer, withScope } from "./ana
 import { SerdeFloat } from "./json.js";
 
 export const PRODUCT_TREND_METRICS = {
+  agents: ["agent.native.root_tasks.completed", "agent.native.root_tasks.failed", "agent.native.model.input_tokens", "agent.native.model.output_tokens", "agent.native.model.unknown_usage"],
   growth: ["conversation.lifecycle_events", "campaign.recipients.sent", "campaign.recipients.delivered", "campaign.recipients.failed", "agent.native.root_tasks.completed", "agent.native.root_tasks.failed"],
   agency: ["tenant.leads.lifecycle_events", "tenant.clients.lifecycle_events", "tenant.client.assignment_events", "agent.native.root_tasks.completed", "agent.native.root_tasks.failed"],
 } as const;
@@ -33,7 +34,7 @@ const time = (value: unknown): string | null => {
   return new Date(value).toISOString();
 };
 export function unavailableAdminTrends(product: Product, reason: string, availability: AdminReportAvailability = "unavailable"): AdminReportTrend[] {
-  return PRODUCT_TREND_METRICS[product].map(key => ({key,domain:ADMIN_TREND_DOMAINS[key],unit:"count",availability,source:"labs.analytics",observedAt:null,completeThrough:null,series:[],reason}));
+  return PRODUCT_TREND_METRICS[product].map(key => ({key,domain:ADMIN_TREND_DOMAINS[key],unit:key.endsWith("_tokens")?"tokens":"count",availability,source:"labs.analytics",observedAt:null,completeThrough:null,series:[],reason}));
 }
 function quantity(raw: unknown): string | null {
   const value = raw instanceof SerdeFloat ? raw.value : raw;
@@ -46,9 +47,10 @@ function quantity(raw: unknown): string | null {
 export async function loadAdminTrends(product: Product, principalId: string, query: AdminReportQuery, dependencies: () => Promise<AdminTrendDependencies>): Promise<AdminReportTrend[]> {
   try {
     const {client,issuer,adminAuthority}=await dependencies();
-    if (!query.organizationId) {
+    if (product==="agents" || !query.organizationId) {
       if (!adminAuthority) return unavailableAdminTrends(product,"Cross-organization Analytics reporting is not configured");
       const parameters=new URLSearchParams({product,start:query.start,end:query.end,timezone:query.timezone,metrics:PRODUCT_TREND_METRICS[product].map(key=>`${key}@1`).join(",")});
+      if(query.organizationId)parameters.set("organizationId",query.organizationId);
       const path=`/v1/admin/reporting?${parameters}`;
       const authority=createAdminAuthority({secret:adminAuthority.secret,audience:"analytics",actor:{id:principalId,role:adminAuthority.role},method:"GET",path,capability:"admin:report"});
       const response=object(await client.adminReport(parameters,authority));

@@ -32,7 +32,8 @@
     },
     "./analytics-reporting": {
       "types": "./dist/analytics-reporting.d.ts",
-      "import": "./dist/analytics-reporting.js"
+      "import": "./dist/analytics-reporting.js",
+      "require": "./dist/analytics-reporting.js"
     },
     "./telemetry": {
       "types": "./dist/telemetry.d.ts",
@@ -85,6 +86,9 @@
       ],
       "admin-reporting-trends": [
         "dist/admin-reporting-trends.d.ts"
+      ],
+      "analytics-reporting": [
+        "dist/analytics-reporting.d.ts"
       ]
     }
   }
