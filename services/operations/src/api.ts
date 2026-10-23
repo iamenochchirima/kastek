@@ -1,3 +1,4 @@
+import {monitorCoverageQuery} from "./monitor-coverage.js";
 import Fastify, {
   type FastifyRequest,
   type FastifyReply,
@@ -427,7 +428,7 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
     return {
       items: (
         await pool.query(
-          "SELECT * FROM ops_monitors ORDER BY source,id LIMIT 100",
+          monitorCoverageQuery,
         )
       ).rows.map(monitor),
       nextCursor: null,

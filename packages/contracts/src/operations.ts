@@ -12,4 +12,5 @@ export interface OperationsIncident { id: string; fingerprint: string; environme
 export interface OperationsTransition { id: string; incidentId: string; action: string; actorId: string | null; reason: string | null; createdAt: string; revision: number }
 export interface OperationsIncidentDetail { incident: OperationsIncident; transitions: OperationsTransition[] }
 export interface OperationsNotification { id: string; incidentId: string; transition: "opened" | "escalated" | "assigned" | "resolved"; severity: "warning" | "critical" | "info"; recipients: string[]; title: string; message: string; link: string }
-export interface OperationsMonitor { id: string; source: OperationsSource; origin: string; enabled: boolean; intervalSeconds: number; lastObservedAt: string | null; lastError: string | null; nextPollAt: string; leaseUntil: string | null }
+export interface OperationsMeasurementSummary { total:number; available:number; unknown:number; unsupported:number; notConfigured:number; noActivity:number; readReady:'ready'|'unavailable'|'unknown' }
+export interface OperationsMonitor { id: string; source: OperationsSource; origin: string; enabled: boolean; intervalSeconds: number; lastObservedAt: string | null; lastError: string | null; nextPollAt: string; leaseUntil: string | null; measurementSummary:OperationsMeasurementSummary }

@@ -1,3 +1,4 @@
+import {measurementSummary} from "./monitor-coverage.js";
 import type {
   OperationsIncident,
   OperationsRule,
@@ -56,6 +57,7 @@ export function monitor(r: Row): OperationsMonitor {
     lastError: r.last_error,
     nextPollAt: iso(r.next_poll_at)!,
     leaseUntil: iso(r.lease_until),
+    measurementSummary:measurementSummary(r.signal_statuses),
   };
 }
 export function transition(r: Row): OperationsTransition {
