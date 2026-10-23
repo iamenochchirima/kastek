@@ -79,7 +79,7 @@ test('configured reporting and ingestion URLs are loopback origins at the expect
 test('operations worker uses a separate profile and cannot inherit human credentials', async()=>{
  const {operationsWorkerProfile,validateOperationsCredentials}=await import('./reporting-dev.mjs');
  const api=services.find(s=>s.name==='operations'),worker=services.find(s=>s.name==='operations-worker');
- assert.equal(api.port,4400);assert.equal(worker.port,undefined);assert.notEqual(worker.env,api.env);
+ assert.equal(api.port,14400);assert.equal(api.health,'/health/live');assert.equal(worker.port,undefined);assert.notEqual(worker.env,api.env);
  const env={DATABASE_URL:'postgres://local@localhost:15432/kasitek_operations_dev',OPS_ENVIRONMENT:'development',OPS_SOURCES_JSON:'[]',OPS_ADMIN_AUTHORITY_SECRET:'human-key',OPS_OIDC_CLIENT_SECRET:'oidc-key',OPS_SESSION_ENCRYPTION_KEY:'session-key',KASITEK_ADMIN_SERVICE_SECRET:'product-human-key',OPS_NOTIFICATION_SECRET:'publisher-key',UNRELATED_SECRET:'unrelated-key'};
  const profile=operationsWorkerProfile(env);assert.equal(profile.OPS_NOTIFICATION_SECRET,'publisher-key');assert.equal(profile.DATABASE_URL,env.DATABASE_URL);
  for(const key of ['OPS_ADMIN_AUTHORITY_SECRET','OPS_OIDC_CLIENT_SECRET','OPS_SESSION_ENCRYPTION_KEY','KASITEK_ADMIN_SERVICE_SECRET','UNRELATED_SECRET'])assert.equal(profile[key],undefined);

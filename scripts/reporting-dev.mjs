@@ -19,7 +19,7 @@ export const services = [
   service('agents', 'products/agents/api', 'dist/composition/server.js', 'agents', 14100),
   service('growth-publisher', 'products/growth/api', 'dist/bootstrap.js', 'growth', undefined, { overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
   service('agency-publisher', 'products/agency/api', 'dist/bootstrap.js', 'agency', undefined, { startupMigrations: true, overrides: { KASITEK_PROCESS: 'analytics-publisher' } }),
-  service('operations', 'services/operations', 'dist/api-main.js', 'operations', 4400),
+  service('operations', 'services/operations', 'dist/api-main.js', 'operations', 14400, { health: '/health/live' }),
   service('operations-worker', 'services/operations', 'dist/worker-main.js', 'operations-worker'),
   service('admin', 'apps/admin-site', 'node_modules/next/dist/bin/next', 'admin', 3001, { args: ['start', '--port', '3001'], health: '/login' }),
 ];
@@ -71,7 +71,7 @@ export function validateDevelopmentTargets(item, env) {
     if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !(item.env.startsWith('operations') ? url.pathname === '/kasitek_operations_dev' : /^\/[A-Za-z0-9_]+_reporting_dev$/.test(url.pathname)) || url.search || url.hash) throw Error(`${item.name}: ${key} requires a dedicated loopback reporting development database.`);
     databases.push({ key, url });
   }
-  const ports = { OPERATIONS_BACKEND_URL: 4400, OPS_NOTIFICATION_ORIGIN: 4000, CORE_BACKEND_URL: 4000, TENANTS_BACKEND_URL: 8090, AGENTS_BACKEND_URL: 14100, ANALYTICS_REPORTING_URL: 4300, ANALYTICS_INGESTION_URL: 4300, AGENTS_ANALYTICS_INGESTION_URL: 4300 };
+  const ports = { OPS_BACKEND_URL: 14400, OPS_NOTIFICATION_ORIGIN: 4000, CORE_BACKEND_URL: 4000, TENANTS_BACKEND_URL: 8090, AGENTS_BACKEND_URL: 14100, ANALYTICS_REPORTING_URL: 4300, ANALYTICS_INGESTION_URL: 4300, AGENTS_ANALYTICS_INGESTION_URL: 4300 };
   const required = new Set(item.env === 'admin' ? ['CORE_BACKEND_URL', 'TENANTS_BACKEND_URL', 'AGENTS_BACKEND_URL'] : item.env === 'agents' ? ['AGENTS_ANALYTICS_INGESTION_URL'] : item.name.endsWith('-publisher') ? ['ANALYTICS_INGESTION_URL'] : []);
   for (const [key, port] of Object.entries(ports)) {
     if (!required.has(key) && !env[key]) continue;
