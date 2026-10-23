@@ -24,8 +24,9 @@ export class GrowthProductRuntime extends ProductRuntime {
       if(result.authorized!==true)throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
     });
   }
-  async loadPublications():Promise<void> {
-    const rows=(await this.pool.query("SELECT publication FROM agents_platform.growth_capability_publications ORDER BY created_at")).rows;
+  async prepareExecution(taskId:string):Promise<void>{await this.loadPublications(taskId);}
+  async loadPublications(taskId?:string):Promise<void> {
+    const rows=(await this.pool.query("SELECT publication FROM agents_platform.growth_capability_publications n WHERE $1::uuid IS NULL OR EXISTS (SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id WHERE t.id=$1 AND p.product='growth' AND p.tenant_id=n.tenant_id) ORDER BY created_at",[taskId??null])).rows;
     for(const row of rows)validateGrowthPublication(row.publication);
   }
   async call<K extends GrowthAgentActionOperation>(taskId:string,operationId:string,operation:K,input:GrowthAgentActionInputs[K],db:Pool|PoolClient=this.pool):Promise<GrowthAgentActionOutputs[K]> {

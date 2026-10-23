@@ -5,7 +5,7 @@ import type {Pool,PoolClient} from "pg";
 import {z} from "zod";
 import {GROWTH_AGENT_PROVISION_PATH,GROWTH_AGENT_PROVISION_CHECK_PATH,parseGrowthAgentProvisionRequest,type GrowthAgentProvisionRequest,type GrowthAgentProvisionResult} from "@kasitek-labs/contracts";
 import {PlatformError,requestDigest,agentConfigurationSchema} from "../../contracts/contracts";
-import {modelEndpointSchema} from "../../contracts/model-providers";
+import {modelDescriptorSchema,modelEndpointSchema} from "../../contracts/model-providers";
 import {connectionVaultFromEnvironment} from "../../infrastructure/vault";
 import {ModelCredentialVault,modelApiKeySchema} from "../../infrastructure/model-credential-vault";
 import type {GrowthServiceTrust} from "../../adapters/products/growth-service-auth";
@@ -13,7 +13,7 @@ import {GrowthExecutionService} from "./growth-execution";
 import {discoverGrowthModel,provisionGrowthModel,type PreparedGrowthModel} from "./growth-model-provisioning";
 import type {ModelDiscoveryFetch} from "../../adapters/models/discovery";
 import {resolveAcceptedModelRoutes} from "../../execution/models/resolution";
-import {executionModelLayers} from "../../execution/models/settings";
+import {modelServicePolicy,executionModelLayers} from "../../execution/models/settings";
 
 export const growthManagedModelProfileSchema=z.strictObject({id:z.string().min(1).max(128),revision:z.string().min(1).max(128),
   providerId:z.string().min(1).max(64),modelId:z.string().min(1).max(256),credentialRef:z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),endpoint:modelEndpointSchema.optional()});
@@ -69,7 +69,7 @@ export class GrowthProvisionService {
     for(const feature of features) {
       const config=agentConfigurationSchema.parse(feature.configuration);
       await resolveAcceptedModelRoutes(db,{organizationId,agentId:feature.agent_id,product:"growth",selection:config.model.selection,generation:config.model.generation,
-        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:config.tools.length>0||config.productBindings.length>0});
+        layers:executionModelLayers(config,{id:feature.version_id,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:config.tools.length>0||config.productBindings.length>0});
     }
   }
   async provision(input:GrowthAgentProvisionRequest):Promise<GrowthAgentProvisionResult> {
@@ -89,7 +89,7 @@ export class GrowthProvisionService {
       const raw={tenantId:input.tenantId,providerId:profile.providerId,modelId:profile.modelId,apiKey:secret.data,...(profile.endpoint?{endpoint:profile.endpoint}:{})};
       const digest=requestDigest({...profile,apiKey:secret.data});
       let prepared:PreparedGrowthModel|undefined;
-      const old=(await this.pool.query("SELECT d.connection_id FROM agents_platform.product_execution_tenants t JOIN agents_platform.product_model_defaults d ON d.organization_id=t.organization_id AND d.product='growth' WHERE t.product='growth' AND t.tenant_id=$1",[input.tenantId])).rows[0];
+      const old=(await this.pool.query("SELECT d.connection_id,d.model_id,c.snapshot FROM agents_platform.product_execution_tenants t JOIN agents_platform.product_model_defaults d ON d.organization_id=t.organization_id AND d.product='growth' JOIN agents_platform.model_provider_catalogues c ON c.connection_id=d.connection_id WHERE t.product='growth' AND t.tenant_id=$1 ORDER BY c.fetched_at DESC,c.connection_revision DESC,c.credential_revision DESC LIMIT 1",[input.tenantId])).rows[0];
       if(!old) {
         if(!this.cached||this.cached.digest!==digest||this.cached.expires<=Date.now()) {
           const value=discoverGrowthModel(raw,{discoveryFetch:this.options.discoveryFetch});
@@ -100,7 +100,8 @@ export class GrowthProvisionService {
         prepared={...prepared,input:raw};
       }
       if(!await this.options.active(input))return {...base,state:"blocked",code:"PRODUCT_TENANT_INACTIVE"};
-      await execution.ensureTenant(input);
+      const model=prepared?.model??modelDescriptorSchema.parse(old?.snapshot?.models?.find((value:{id:string})=>value.id===old.model_id));
+      await execution.ensureTenant(input,{model});
       const validate=async(db:PoolClient,organizationId:string)=>{
         await this.validate(db,organizationId);
         await db.query("INSERT INTO agents_platform.product_default_provisions(product,tenant_id,profile_id,profile_revision,profile_digest,defaults_revision) VALUES('growth',$1,$2,$3,$4,$5) ON CONFLICT(product,tenant_id) DO NOTHING",[input.tenantId,profile.id,profile.revision,requestDigest(profile),input.defaultsRevision]);

@@ -1,8 +1,9 @@
+import type {ModelDescriptor} from "../../contracts/model-providers";
 import { exportProductExecutionCapture } from "../evaluation/product-capture";
 import { randomUUID,createHash } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import type { GrowthAgentCommand,GrowthAgentConversation,GrowthAgentFeatureId,GrowthAgentTask,GrowthAgentTaskState,GrowthAgentResult,GrowthAgentContext,GrowthAgentContextEvidence,GrowthAgentPublication } from "@kasitek-labs/contracts";
-import { agentConfigurationSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,type AdmissionAuthority } from "../../contracts/contracts";
+import { agentConfigurationSchema,modelSchema,canonicalJson,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates,type AdmissionAuthority } from "../../contracts/contracts";
 import type { TaskRecord,VersionRecord } from "../../contracts/records";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
 import { transaction } from "../../infrastructure/database";
@@ -35,7 +36,7 @@ export class GrowthExecutionService {
     if(!row)throw new PlatformError("PRODUCT_MANIFEST_REQUIRED",409,"Growth capability publication is required");
     return validateGrowthPublication(row.publication);
   }
-  async ensureTenant(command:{tenantId:string;publication?:GrowthAgentPublication;defaultsRevision?:string;upgradeDefaults?:boolean}) {
+  async ensureTenant(command:{tenantId:string;publication?:GrowthAgentPublication;defaultsRevision?:string;upgradeDefaults?:boolean},options:{model?:ModelDescriptor}={}) {
     return transaction(this.pool,async db=>{
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",["growth-tenant:"+command.tenantId]);
       const old=(await db.query("SELECT * FROM agents_platform.product_execution_tenants WHERE product='growth' AND tenant_id=$1",[command.tenantId])).rows[0];
@@ -53,15 +54,15 @@ export class GrowthExecutionService {
         if(previous){
           if(command.upgradeDefaults&&previous.managed_defaults_revision!==publication.manifest.revision&&
             (previous.managed_configuration_digest?previous.managed_configuration_digest===requestDigest(previous.configuration):previous.revision===1)){
-            const config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId),versionId=randomUUID(),number=previous.revision+1;
-            config.model=agentConfigurationSchema.parse(previous.configuration).model;
+            const config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId,options.model),versionId=randomUUID(),number=previous.revision+1;
+            config.model=modelSchema.parse(previous.configuration.model);
             await db.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3,updated_at=now() WHERE id=$1",[previous.agent_id,config,number]);
             await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,$4,$4,'business',$5,$6,$7,$8)",[versionId,org,previous.agent_id,number,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
             await db.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4,managed_defaults_revision=$5,managed_configuration_digest=$6,updated_at=now() WHERE product='growth' AND tenant_id=$1 AND feature_id=$2",[command.tenantId,feature.id,versionId,number,publication.manifest.revision,requestDigest(config)]);
           }
           continue;
         }
-        const agentId=randomUUID(),versionId=randomUUID(),config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId);
+        const agentId=randomUUID(),versionId=randomUUID(),config=growthFeatureConfiguration(publication,feature.id,org,command.tenantId,options.model);
         await db.query("INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by_service) VALUES($1,$2,$3,$4,$5)",[agentId,org,feature.name,config,provenance]);
         await db.query("INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition) VALUES($1,$2,$3,1,1,'business',$4,$5,$6,$7)",[versionId,org,agentId,config,provenance,JSON.stringify(publishedToolBindings(config)),compilePublishedComposition(config,[])]);
         await db.query("INSERT INTO agents_platform.product_execution_features(product,tenant_id,feature_id,organization_id,agent_id,version_id,managed_defaults_revision,managed_configuration_digest) VALUES('growth',$1,$2,$3,$4,$5,$6,$7)",[command.tenantId,feature.id,org,agentId,versionId,publication.manifest.revision,requestDigest(config)]);

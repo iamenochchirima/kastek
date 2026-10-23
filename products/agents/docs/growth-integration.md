@@ -272,3 +272,9 @@ are 196,608 input tokens and 1,000,000 tokens per root. These are operator budge
 Set `AGENTS_SCHEDULING_POLICY_JSON.dailyTokenAllowance` to cover the intended outstanding root
 reservations plus consumed usage. A quota smaller than a root reservation rejects admission; it does
 not silently reduce an accepted run's budget. Custom configurations retain their saved limits.
+
+Managed default provisioning also derives initial context/output ceilings and the compaction threshold
+from the selected managed-model snapshot. This allows smaller models without changing explicit saved
+limits or weakening the policy compiler. Workers refresh trusted publication metadata for the task's
+tenant on every handler entry, including replay, so a publication installed after worker startup is
+available without treating a process-local registry fill as a journaled business operation.

@@ -12,6 +12,7 @@ import { EvidenceStore } from "../context/evidence";
 const sourceSchema=z.strictObject({id:z.string().min(1).max(1024),revision:z.string().regex(/^[a-f0-9]{64}$/),title:z.string().min(1).max(512),text:z.string().min(1).max(8192),acquiredAt:z.iso.datetime({offset:true}),continuation:z.string().max(2048).nullable(),route:z.string().max(2048).refine(value=>value.startsWith("/")&&!value.startsWith("//")&&!/[\x00-\x20\x7f]/.test(value)).optional()});
 const reviewSchema=z.strictObject({id:z.string().min(1).max(256),product:z.string().min(1).max(128),taskId:z.uuid(),operationId:z.string().min(1).max(256),payloadDigest:z.string().regex(/^[a-f0-9]{64}$/),state:z.enum(["proposed","approved","saved","rejected","expired","uncertain"]),expiresAt:z.iso.datetime({offset:true})});
 export interface ProductRuntimePort {
+  prepareExecution?(taskId:string):Promise<void>;
   authorizeTask(taskId:string):Promise<void>;
   authorizeControl(taskId:string):Promise<void>;
   availableBindings(taskId:string):Promise<CapabilityBinding[]>;

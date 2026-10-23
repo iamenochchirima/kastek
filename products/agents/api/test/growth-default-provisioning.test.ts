@@ -6,7 +6,9 @@ import {generateKeyPair,exportSPKI,exportPKCS8,jwtVerify,SignJWT} from "jose";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import type {GrowthAgentProvisionRequest} from "@kasitek-labs/contracts";
 import {GrowthProvisionAuth,GrowthProvisionService,registerGrowthProvisionRoute,growthManagedModelProfileSchema} from "../src/product/integrations/growth-provisioning";
-import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
+import {GrowthProductRuntime,growthInstalledAdapterManifest} from "../src/execution/products/growth-runtime";
+import {GrowthActionClient} from "../src/adapters/products/growth-action-client";
+import type {GrowthAgentPublication,ProductCapabilityDescriptor} from "@kasitek-labs/contracts";
 import {GrowthExecutionService} from "../src/product/integrations/growth-execution";
 import {provisionGrowthModel} from "../src/product/integrations/growth-model-provisioning";
 import {controlGrowthExecution} from "../src/product/integrations/growth-control";
@@ -15,7 +17,12 @@ import {ConnectionVault} from "../src/infrastructure/vault";
 import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault";
 import {requestDigest} from "../src/contracts/contracts";
 const issuer="https://growth.fixture.test",profile={id:"growth-default",revision:"1",providerId:"openrouter",modelId:"fixture/default",credentialRef:"FIXTURE_MANAGED_MODEL_KEY"};
-const request=(tenantId=randomUUID()):GrowthAgentProvisionRequest=>({version:"1",requestId:randomUUID(),tenantId,defaultsRevision:"1",modelProfileId:profile.id,modelProfileRevision:profile.revision});
+function publication(revision="1"):GrowthAgentPublication {
+ const descriptor:ProductCapabilityDescriptor={operation:"workspace.read",revision:"1",description:"Read approved fixture context",inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,handlerRef:"growth.workspace.read@1",requiredAuthority:["feature.agents.manage"],evidence:"versioned_sources",policy:{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"},limits:{timeoutMs:10000,maxPhysicalAttempts:1,maxResponseBytes:131072,maxModelResultBytes:8192}};
+ const body={schemaVersion:1 as const,product:"growth",revision,adapter:{id:growthInstalledAdapterManifest.id,release:growthInstalledAdapterManifest.release,manifestDigest:requestDigest(growthInstalledAdapterManifest)},operations:[descriptor]};
+ return {manifest:{...body,digest:requestDigest(body)},presets:(["assistant","research","content","campaigns"] as const).map(id=>({id,name:id,description:"Fixture preset",instructions:"Choose permitted tools as needed. Revision "+revision,operations:["workspace.read"]})),policy:{revision,optionalCapabilities:{knowledge:false,skills:false,memory:false,delegation:false,sandbox:false,workflows:false,connections:false}}};
+}
+const request=(tenantId=randomUUID()):GrowthAgentProvisionRequest=>({version:"1",requestId:randomUUID(),tenantId,publication:publication(),defaultsRevision:"1",modelProfileId:profile.id,modelProfileRevision:profile.revision});
 it("provision authority rejects human command identity, changed payload, foreign audience and expired signatures",async()=>{
   const keys=await generateKeyPair("RS256",{extractable:true}),auth=new GrowthProvisionAuth(issuer,{setup:await exportSPKI(keys.publicKey)}),input=request(),now=Math.floor(Date.now()/1000);
   const token=(sub="growth-provisioner",aud="agents-product-provisioning",start=now)=>new SignJWT({product:"growth",requestDigest:requestDigest(input)})
@@ -39,6 +46,8 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   const discoveryFetch=async()=>{calls++;return {status:200,body:JSON.stringify({data:[{id:profile.modelId,name:"Fixture",context_length:131072,top_provider:{max_completion_tokens:16384},supported_parameters:["tools","max_tokens","temperature"],architecture:{input_modalities:["text"],output_modalities:["text"]},pricing:{prompt:"0",completion:"0"}}]})};};
   beforeAll(async()=>{
     admin=new Pool({connectionString:adminUrl});await admin.query('CREATE DATABASE "'+database+'"');const url=new URL(adminUrl!);url.pathname="/"+database;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);
+    const key=await generateKeyPair("RS256",{extractable:true});
+    new GrowthProductRuntime(pool,new GrowthActionClient({origin:"http://127.0.0.1:9",issuer:"https://agents.fixture.test",keyId:"fixture",privateKey:await exportPKCS8(key.privateKey),environment:"test"}));
     service=new GrowthProvisionService(pool,{trust,vault,profile:()=>configured,credential:()=>credential,active:async()=>active,discoveryFetch});
   });
   afterAll(async()=>{await pool?.end();if(admin){await admin.query('DROP DATABASE IF EXISTS "'+database+'" WITH (FORCE)');await admin.end();}});
@@ -79,7 +88,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   });
   it("repair recreates only missing defaults and preserves instructions, disabled flags and default identity",async()=>{
     const input=request();await service.provision(input);
-    const execution=new GrowthExecutionService(pool,trust),configuration=growthFeatureConfiguration("assistant");
+    const execution=new GrowthExecutionService(pool,trust),configuration=(await pool.query("SELECT v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'",[input.tenantId])).rows[0].configuration;
     configuration.instructions="Customized";
     await execution.execute({version:"1",requestId:randomUUID(),tenantId:input.tenantId,actor:{issuer:trust.actorIssuer,subject:"staff"},operation:"features.configure",input:{featureId:"assistant",configuration}});
     const feature=(await pool.query("SELECT * FROM agents_platform.product_execution_features WHERE tenant_id=$1 AND feature_id='assistant'",[input.tenantId])).rows[0];
@@ -89,6 +98,20 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const current=(await pool.query("SELECT f.enabled,f.version_id,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'",[input.tenantId])).rows[0];
     expect(current.enabled).toBe(false);expect(current.version_id).toBe(feature.version_id);expect(current.configuration.instructions).toBe("Customized");
     expect(Number((await pool.query("SELECT count(*) FROM agents_platform.product_execution_features WHERE tenant_id=$1",[input.tenantId])).rows[0].count)).toBe(4);
+  });
+  it("upgrades only managed defaults explicitly and preserves custom settings, disablement and model identity",async()=>{
+    const input=request();expect((await service.provision(input)).state).toBe("ready");
+    const execution=new GrowthExecutionService(pool,trust),row=(await pool.query("SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'",[input.tenantId])).rows[0];
+    await execution.execute({version:"1",requestId:randomUUID(),tenantId:input.tenantId,actor:{issuer:trust.actorIssuer,subject:"staff"},operation:"features.configure",input:{featureId:"assistant",configuration:{...row.configuration,instructions:"My custom assistant"}}});
+    await pool.query("UPDATE agents_platform.product_execution_features SET enabled=false WHERE tenant_id=$1 AND feature_id='content'",[input.tenantId]);
+    const model=(await pool.query("SELECT d.* FROM agents_platform.product_model_defaults d JOIN agents_platform.product_execution_tenants t ON t.organization_id=d.organization_id WHERE t.tenant_id=$1",[input.tenantId])).rows[0];
+    const upgrade={...input,requestId:randomUUID(),defaultsRevision:"2",publication:publication("2"),upgradeDefaults:true};
+    expect((await service.provision(upgrade)).state).toBe("ready");expect((await service.provision(upgrade)).state).toBe("ready");
+    const current=(await pool.query("SELECT f.feature_id,f.enabled,f.revision,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1",[input.tenantId])).rows;
+    expect(current.find(row=>row.feature_id==='assistant').configuration.instructions).toBe("My custom assistant");
+    expect(current.find(row=>row.feature_id==='research').configuration.instructions).toContain("Revision 2");
+    expect(current.find(row=>row.feature_id==='research').revision).toBe(2);expect(current.find(row=>row.feature_id==='content').enabled).toBe(false);
+    expect((await pool.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1",[model.organization_id])).rows[0]).toEqual(model);
   });
   it("never revives tenant or model revocations, rejects implicit profile upgrades",async()=>{
     const input=request();await service.provision(input);await controlGrowthExecution(pool,{tenantId:input.tenantId,action:"tenant.disable"});

@@ -39,6 +39,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   let ingress:string,restAdmin:string,origin:string,runtime:GrowthProductRuntime,workerFactory:()=>ReturnType<typeof http2Server>;
   const workerSessions=new Set<import("node:http2").ServerHttp2Session>();
   function trackWorker(){worker.on("session",session=>{workerSessions.add(session);session.once("close",()=>workerSessions.delete(session));});}
+  let loseCommitAcknowledgement=false,lostCommitAcknowledgements=0;
   let artifactHeld=false,releaseArtifact:()=>void=()=>{};
   const artifactBarrier=new Promise<void>(resolve=>{releaseArtifact=resolve;});
   let modelCalls=0,growthOrigin:string,objects:ReturnType<typeof httpServer>;const artifactBytes=Buffer.alloc(90000,65);const controls:any[]=[];
@@ -84,7 +85,11 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     objects=httpServer((_req,res)=>res.end(artifactBytes));
     const objectOrigin=await listen(objects);
     for(const [name,value] of Object.entries({AGENTS_S3_ENDPOINT:objectOrigin,AGENTS_S3_REGION:"test",AGENTS_S3_BUCKET:"growth-fixture",AGENTS_S3_ACCESS_KEY_ID:"fixture",AGENTS_S3_SECRET_ACCESS_KEY:"fixture"}))vi.stubEnv(name,value);
-    runtime=new GrowthProductRuntime(pool,new GrowthActionClient({origin:growthOrigin,issuer:"https://agents.fixture.test",keyId:"agents-v1",privateKey:await exportPKCS8(workerKeys.privateKey),environment:"test"}));
+    runtime=new GrowthProductRuntime(pool,new GrowthActionClient({origin:growthOrigin,issuer:"https://agents.fixture.test",keyId:"agents-v1",privateKey:await exportPKCS8(workerKeys.privateKey),environment:"test",fetch:async(url,init)=>{
+      const response=await fetch(url,init),body=JSON.parse(String(init?.body??"{}"));
+      if(loseCommitAcknowledgement&&body.control==="commit"&&response.ok){loseCommitAcknowledgement=false;lostCommitAcknowledgements++;await response.arrayBuffer();throw Error("Controlled lost commit acknowledgement");}
+      return response;
+    }}));
     await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId,publication:ready.publication});
     app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:target.href,AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"isolated-growth-product-cursor-secret"})});
     origin=await app.listen({port:0,host:"127.0.0.1"});
@@ -159,6 +164,8 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const turn=command("turns.submit",{conversationId:conversation.id,text:"Hello"}),first=await ok(turn),replay=await ok(turn);
     expect(replay.task.id).toBe(first.task.id);expect(replay.replayed).toBe(true);
     const task=await finished(first.task.id);expect(task.state,task.error_code).toBe("completed");
+    const bootstrap=JSON.parse(execFileSync(process.execPath,["--import",resolve("node_modules/tsx/dist/loader.mjs"),resolve("test/support/product-publication-bootstrap.ts")],{env:{...process.env,AGENTS_PUBLICATION_FIXTURE_DATABASE_URL:(pool.options as {connectionString:string}).connectionString,AGENTS_PUBLICATION_FIXTURE_TASK_ID:task.id},encoding:"utf8",timeout:10000}));
+    expect(bootstrap).toEqual({program:{id:"tool-directed",version:"3"},bindings:7});
     const beforeRestart=modelCalls;
     await app.close();
     await new GrowthExecutionService(pool,{issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}}).ensureTenant({tenantId});
@@ -185,12 +192,13 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     await new Promise<void>(resolve=>worker.close(()=>resolve()));worker=workerFactory();trackWorker();
     await new Promise<void>(resolve=>worker.listen(port,"0.0.0.0",resolve));
     const review=(await browserOk("/api/agents/tasks/"+task.id+"/reviews")).reviews[0];expect(review.state).toBe("proposed");expect(review.result).toBeNull();
+    loseCommitAcknowledgement=true;
     await browserOk("/api/agents/tasks/"+task.id+"/reviews/"+review.id+"/decision",{requestId:randomUUID(),payloadDigest:review.payloadDigest,decision:"approve"});
     const result=await finished(task.id);expect(result.state,result.error_code).toBe("completed");
     const projected=(await browserOk("/api/agents/tasks/"+task.id)).task;expect(projected.results).toHaveLength(1);
     const post=(await browserOk("/__fixture/posts/"+projected.results[0].id)).post;
     expect(post.content).toBe("Reviewed content");expect(post.status).toBe("DRAFT");expect(post.user_id).toBe(actor.subject);
-    expect((await browserOk("/__fixture/posts")).posts).toHaveLength(1);
+    expect((await browserOk("/__fixture/posts")).posts).toHaveLength(1);expect(lostCommitAcknowledgements).toBe(1);
     expect((await browserOk("/api/agents/tasks/"+task.id+"/reviews")).reviews[0].state).toBe("saved");
   },40000);
   it("lets presets share tools, change read order, correct arguments and answer without tools",async()=>{

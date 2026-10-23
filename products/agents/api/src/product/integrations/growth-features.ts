@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type {ModelDescriptor} from "../../contracts/model-providers";
 import { modelServicePolicy } from "../../execution/models/settings";
 import type { GrowthAgentFeatureId, GrowthAgentPublication } from "@kasitek-labs/contracts";
 import { defaultBusinessConfiguration, PlatformError, type AgentConfiguration } from "../../contracts/contracts";
@@ -14,11 +15,14 @@ export function validateGrowthPublication(input:unknown):GrowthAgentPublication 
   for(const preset of result.presets)if(new Set(preset.operations).size!==preset.operations.length||preset.operations.some(op=>!manifest.operations.some(d=>d.operation===op)))throw new PlatformError("PRODUCT_MANIFEST_INVALID",409,"The preset exceeds the product manifest");
   return {...result,manifest};
 }
-export function growthFeatureConfiguration(publication:GrowthAgentPublication,id:GrowthAgentFeatureId,organizationId:string,tenantId:string):AgentConfiguration {
+export function growthFeatureConfiguration(publication:GrowthAgentPublication,id:GrowthAgentFeatureId,organizationId:string,tenantId:string,model?:ModelDescriptor):AgentConfiguration {
   const definition=publication.presets.find(item=>item.id===id);
   if(!definition)throw new PlatformError("PRODUCT_PRESET_UNAVAILABLE",409,"The product preset is unavailable");
   const config=defaultBusinessConfiguration(),allowance=modelServicePolicy();
-  config.context={maxInputTokens:allowance.maxInputTokens,compactAtTokens:allowance.compactAtTokens};
+  if(model?.maxOutputTokens.value!==null&&model?.maxOutputTokens.value!==undefined)config.model.maxOutputTokens=Math.min(config.model.maxOutputTokens,model.maxOutputTokens.value);
+  const maxInputTokens=Math.min(allowance.maxInputTokens,model?.maxInputTokens.value??allowance.maxInputTokens,
+    model?.contextTokens.value===null||model?.contextTokens.value===undefined?allowance.maxInputTokens:model.contextTokens.value-config.model.maxOutputTokens-allowance.safetyTokens);
+  config.context={maxInputTokens,compactAtTokens:Math.min(allowance.compactAtTokens,maxInputTokens-1)};
   config.program={id:"tool-directed",version:"3"};config.instructions=definition.instructions;config.tools=[];
   config.productBindings=createProductBindings(publication.manifest,organizationId,{originProduct:"growth",originTenantId:tenantId,tenantId,mappingRef:`growth:${tenantId}`,policyRevision:publication.policy.revision},definition.operations);
   return config;

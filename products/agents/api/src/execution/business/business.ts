@@ -289,6 +289,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
+      // A process-local registry must be hydrated on replay too; a journaled cache fill would be skipped.
+      await options.product?.prepareExecution?.(taskId);
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
           AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, HARNESS_RELEASE]);
