@@ -123,9 +123,10 @@ export class GrowthAgentReviewStore {
     });
   }
   private async reconcileRow(db: Pool | PoolClient, scope: GrowthAgentScope, row: ReviewRow): Promise<ReviewRow> {
-    if (row.state !== "executing" && row.state !== "uncertain") return row;
+    if (!["approved", "executing", "uncertain"].includes(row.state)) return row;
     const postRow = (await db.query(`SELECT id,"userId","updatedAt",metadata FROM "SocialPost" WHERE "orgId"=$1 AND metadata->>'_kasitek_agent_idempotency_key'=$2 LIMIT 1`, [scope.tenantId, `growth-agent-draft:${row.id}`])).rows[0];
     if (!postRow) {
+      if (row.state === "approved") return row;
       return (await db.query<ReviewRow>(`UPDATE "GrowthAgentReview" SET state='uncertain',"updatedAt"=now() WHERE id=$1 RETURNING *`, [row.id])).rows[0]!;
     }
     if (postRow.userId !== scope.actor.subject || postRow.metadata?.growthAgentPayloadDigest !== row.payloadDigest) throw conflict("The saved draft receipt does not match this review");
@@ -150,8 +151,9 @@ export class GrowthAgentReviewStore {
       const row = await this.row(db, scope, action.input.reviewId, action.taskId, true);
       if (row.conversationId !== action.conversationId || row.supersededBy || row.payloadDigest !== action.input.payloadDigest) throw conflict("The draft save does not match the approved proposal");
       if (row.state === "saved") return { review: dto(row), result: row.result };
-      if (row.state === "executing" || row.state === "uncertain") {
-        const current = await this.reconcileRow(db, scope, row); return { review: dto(current), result: current.result };
+      if (["approved", "executing", "uncertain"].includes(row.state)) {
+        const current = await this.reconcileRow(db, scope, row);
+        if (current.state === "saved" || row.state !== "approved") return { review: dto(current), result: current.result };
       }
       if (row.state !== "approved" || new Date(row.expiresAt).getTime() <= Date.now()) throw conflict("An active approved proposal is required to save this draft");
       await authorizeGrowthAgentScope(this.core, scope, "content", db, true);

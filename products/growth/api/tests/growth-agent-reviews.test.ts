@@ -58,6 +58,24 @@ test("Growth exact draft review saves real records and reconciles lost replies u
     assert.equal((await lost.commit(action("draft.commit", { reviewId: pending.id, payloadDigest: pending.payloadDigest }))).review.state, "uncertain");
     assert.equal((await lost.reconcile(action("draft.reconcile", { reviewId: pending.id }))).review.state, "saved");
     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "SocialPost"')).rows[0].count), 2);
+    const interrupted = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "outer-rollback" }))).review;
+    await store.decide(scope, interrupted.id, { requestId: "approve-interrupted", payloadDigest: interrupted.payloadDigest, decision: "approve" });
+    const notSaved = await store.reconcile(action("draft.reconcile", { reviewId: interrupted.id }));
+    assert.equal(notSaved.review.state, "approved"); assert.equal(notSaved.result, null);
+    const committedPost = await createSocialPostIdempotent(pool, "user", "org", {
+      ...selected, status: "DRAFT", primaryChannelId: "channel",
+      metadata: { growthAgentReviewId: interrupted.id, growthAgentPayloadDigest: interrupted.payloadDigest, growthAgentTaskId: "task" },
+    }, `growth-agent-draft:${interrupted.id}`);
+    // The domain save survived while the outer review transaction rolled back and its approval expired.
+    await pool.query(`UPDATE "GrowthAgentReview" SET "expiresAt"=now()-interval '1 minute' WHERE id=$1`, [interrupted.id]);
+    let creates = 0;
+    const recovery = new GrowthAgentReviewStore(core, { create: async () => { creates++; throw new Error("Recovery must not create"); } });
+    const recovered = await recovery.commit(action("draft.commit", { reviewId: interrupted.id, payloadDigest: interrupted.payloadDigest }));
+    assert.equal(recovered.review.state, "saved"); assert.equal(recovered.result?.recordId, committedPost.id); assert.equal(creates, 0);
+    await pool.query(`UPDATE "GrowthAgentReview" SET state='approved',result=NULL WHERE id=$1`, [interrupted.id]);
+    const reconciled = await recovery.reconcile(action("draft.reconcile", { reviewId: interrupted.id }));
+    assert.equal(reconciled.review.state, "saved"); assert.equal(reconciled.result?.recordId, committedPost.id); assert.equal(creates, 0);
+    assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "SocialPost"')).rows[0].count), 3);
     const stale = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "stale-account" }))).review;
     await pool.query(`UPDATE "SocialChannelConnection" SET "updatedAt"=now()+interval '1 second' WHERE id='channel'`);
     await assert.rejects(store.decide(scope, stale.id, { requestId: "stale-account", payloadDigest: stale.payloadDigest, decision: "approve" }), /account changed/);
@@ -65,6 +83,6 @@ test("Growth exact draft review saves real records and reconciles lost replies u
     await store.decide(scope, revoked.id, { requestId: "approve-revoked", payloadDigest: revoked.payloadDigest, decision: "approve" });
     await pool.query('DELETE FROM "OrganizationMember" WHERE "orgId"=$1 AND "userId"=$2', ["org", "user"]);
     await assert.rejects(store.commit(action("draft.commit", { reviewId: revoked.id, payloadDigest: revoked.payloadDigest })), /access is unavailable/);
-    assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "SocialPost"')).rows[0].count), 2);
+    assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "SocialPost"')).rows[0].count), 3);
   } finally { await pool.end(); await admin.query(`DROP SCHEMA "${schema}" CASCADE`); await admin.end(); }
 });
