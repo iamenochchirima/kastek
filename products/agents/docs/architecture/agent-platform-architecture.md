@@ -226,7 +226,9 @@ gateway is selected by this diagram.
 The initial platform uses self-hosted Keycloak 26.6.0 with OIDC authorization code, PKCE, state and
 nonce, plus separate browser and execution-service registrations. Fresh Agents records own product
 membership and revocable bounded execution grants. Keycloak caller identity alone grants no tenant
-authority. Growth and Agencies resource mapping and delegated product-token policy remain later work.
+authority. Growth has an installed originating-product authorizer and typed capability adapter.
+Agency metadata calls require separate destination-issued actor/workspace mappings and grants;
+full Agency execution remains unavailable.
 
 | Concept | Target responsibility |
 | --- | --- |
@@ -794,7 +796,7 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV15 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV21 Restate workflow owns repeated model/tool execution. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -851,8 +853,18 @@ permits the implemented memory, delegation, sandbox, connected-read and reviewed
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
 copies the effective composition to the task, including narrowed child compositions. Workers reject
-unavailable or changed releases before additional execution. New source uses `modular-programs-v5`
-and Restate workflow `AgentsBusinessRunV15` in fresh isolated schemas.
+unavailable or changed releases before additional execution. New admissions use `product-capabilities-v11`
+and Restate workflow `AgentsBusinessRunV21`. Accepted work remains pinned to its original worker.
+
+`tool-directed@3` compiles installed product bindings alongside these native and connected
+capabilities. Product-owned manifests define operation descriptions, schemas, handler references,
+effect policies and limits. The shared loop resolves the currently available permitted tools and
+lets the model choose their order. Preset names do not become execution branches or authority.
+Origin product access, destination actor/resource mappings and exact accepted bindings are checked
+separately. Each runtime owns its service clients and credentials. Source evidence retains its
+binding and revision through compaction and later access checks. See
+[Product capabilities](../product-capabilities.md) for publication, reviews, supported product
+policies, capture and release routing.
 
 The trusted executor exposes selected knowledge.search/read, memory.search/propose, agents.delegate, sandbox.analyze and channel.request_handoff operations.
 Tool schemas, arguments, current grants, memory fences, time and root usage are checked before
@@ -976,7 +988,12 @@ Growth actors and businesses to shared features, private conversations and tasks
 standalone Agents accounts. Growth owns current membership, resource reads, immutable content
 reviews and authoritative DRAFT saves. The shared harness pins the managed model route, accepted
 context revision and private product evidence through history, compaction and artifacts. Initial
-Growth features leave delegation, personal memory, external research and arbitrary writes disabled.
+Growth features leave delegation, personal memory, skills, native knowledge bindings, sandbox,
+workflows, external connections and arbitrary writes disabled until their product authority exists.
+Growth owns its four presets and operation manifest. Their shared read tools discover permitted
+content and WhatsApp campaigns, read multiple records and query explicitly scoped analytics.
+Assistant and Content can request exact reviewed DRAFT creation. Tool authority comes from the
+selected operation and current Growth permissions, not the preset name.
 Growth organisation creation records durable setup intent in the same local transaction as its owner membership. A dedicated service-only worker provisions the four managed defaults and an explicit model profile through signed HTTP. Agents reconciles missing defaults without overwriting customisation or revocation; repeated delivery converges on the same model custody and grants. Setup status is separate from current execution and operation-specific permissions. See [Growth integration](../growth-integration.md) for setup, repair and current boundaries.
 
 The external Harbor adapter submits isolated pinned trials through normal native interfaces.
@@ -986,7 +1003,10 @@ and approves the exact model snapshot digest before preparation. Later default c
 retarget a trial. Current credential revocation still fences each physical request. Non-secret
 model bindings and policy accompany native exports and ATIF evidence; private continuation does
 not. Harbor verifies every task snapshot, call role and bounded child inheritance.
-Controlled acceptance covers FAQ, ordered follow-ups, customer Inbox ownership, specialist research,
+The Growth product capture exposes accepted composition, product binding/model-route pins and
+actual operation evidence under current user access. Harbor consumes supported native capture;
+server-native Growth trial reservation remains unavailable. Evaluation and grading runs remain
+owner-run. Controlled engineering acceptance covers FAQ, ordered follow-ups, customer Inbox ownership, specialist research,
 real isolated analysis, reviewed reports and uncertain delivery reconciliation. Native outcomes,
 coverage and verifier/quality results remain separate. Unsupported or withheld evidence cannot
 establish a passing quality grade. A control verifier may independently grade ownership or
@@ -995,7 +1015,7 @@ unsupported or inconclusive. Each result names the criterion and evidence it act
 Remaining suite, recovery and model-quality criteria stay in Linear.
 External-agent access to Growth/Agencies MCP remains separate product work.
 
-Remaining work includes Agencies resource mapping, additional concrete third-party adapters,
+Remaining work includes full Agency execution beyond its bounded metadata adapter, additional concrete third-party adapters,
 commercial billing, production storage operations, other channels, Lina hosting and production
 containment certification, monitoring and deployment. Requirements and
 checklists stay in Linear. Repository documents describe maintained contracts and actual behavior.

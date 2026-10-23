@@ -51,6 +51,7 @@ implementation and boundaries:
 - [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
 
 - [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Product capabilities](product-capabilities.md): product-owned tools, presets, current authority and release routing.
 - [Growth integration](growth-integration.md): service keys, managed models, operator controls and product execution.
 - [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
 - [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.

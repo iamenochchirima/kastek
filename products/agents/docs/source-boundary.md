@@ -5,7 +5,8 @@ Owner: Agents engineering. Last reviewed: 2026-10-23.
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
 `api/schema/` into a fresh database and checks their combined digest on subsequent
-startup. It does not migrate an older database or import Growth state.
+startup. Explicit setup accepts only recognized preceding digests for supported additive upgrades.
+It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
@@ -339,7 +340,7 @@ Schemas052–061 add encrypted connection revisions, selected assets and agent d
 channel-neutral customer identity; ingress/outbound receipts; setup/session claims; website
 appearance/pause; consent; and isolated external-runner fixture mappings. No Growth tables,
 private runtime imports or legacy installation controllers are restored. Schema063 and
-`contracts/execution.ts` identify `growth-products-v10` / `AgentsBusinessRunV20`;
+`contracts/execution.ts` identify `product-capabilities-v11` / `AgentsBusinessRunV21`;
 schema063 advances the schema060 channel release. Changed durable product review branches
 require the matching worker identity. Previously accepted releases retain their matching worker; startup never silently upgrades an older schema.
 
@@ -447,7 +448,7 @@ Script receipts and generated artifact dependencies retain the complete package 
 compaction and continuation. Disabling or removing the package fences launch, later artifact access
 and dependent execution. Normal finalization destroys the allocation; the independent reaper retains
 cleanup responsibility after worker loss or failed cleanup.
-This behavior uses `modular-programs-v5` and `AgentsBusinessRunV15` with a fresh
+This behavior uses `product-capabilities-v11` and `AgentsBusinessRunV21` with a fresh
 schema through `038_skill_script_runtime.sql`. An older worker or database is not upgraded in place.
 Skill update and rollback select one reviewed revision per publisher/source family. Requirements
 recheck existing connections, permissions, and runtime access; they never grant capabilities.
@@ -539,7 +540,7 @@ configuration, or live authority state. Operation admission, receipt persistence
 settlement read only immutable organization/root keys before locking, then reload and validate
 the full execution under the original locks. Current authority and dependency checks still run.
 
-The current source release is `modular-programs-v5` / `AgentsBusinessRunV15`. It requires a fresh
+The current source release is `product-capabilities-v11` / `AgentsBusinessRunV21`. Initial setup requires a fresh
 dedicated schema through `038_skill_script_runtime.sql`. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
 
@@ -573,31 +574,43 @@ retain their own identities; admission does not invent an Agents account or memb
 contract consumer supports model replies and approved public knowledge only. Rich product tools,
 private product records, delegated specialists, memory and sandbox scopes remain unavailable through
 this product adapter until their resource contracts exist. These constraints do not limit the separate
-shared harness acceptance fixtures. Agencies integration and production deployment remain future work.
+shared harness acceptance fixtures. Full Agency execution and production deployment remain future work.
 
-Growth uses `product/integrations/growth-execution.ts` and its typed service routes for feature
-configuration, private conversations, task observation, reviews and artifacts. The transport under
-`adapters/products/` verifies independent command and action signing keys. The business loop calls
-`execution/products/growth-runtime.ts`; Growth reads and reviewed draft saves remain destination
-operations. Schema063 stores service-owned tenant features, task contexts, model defaults and
-review projections without invented customer accounts. `infrastructure/product-ports.ts` carries
-current destination authorization into evidence transactions. Private product source/revision
-identities survive snapshots, continuation, compaction, history and artifact derivation.
+Growth uses `product/integrations/growth-execution.ts` for private product conversations,
+configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
+Growth API `src/agents/manifest.ts`. `tool-directed@3` compiles selected immutable product bindings;
+`execution/products/product-runtime.ts` routes calls and opaque reviews through installed product
+ports. The shared loop has no Growth preset dispatch. Runtime clients and credentials are scoped
+to each runtime instance; global descriptor registration cannot redirect another instance.
 
-General assistance and Research read approved attached Growth records. Content prepares an exact
-editable review and saves one real account-bound SocialPost DRAFT after approval. Campaigns reads
-actual WhatsApp campaign context. New turns pin current feature/model settings; accepted work
-keeps its original route. External research, automatic publishing, new campaign mutations,
-personal memory and specialist delegation remain disabled for these initial Growth features.
-See [Growth integration](growth-integration.md) for setup, operator controls and verification scope.
-The actual built Growth browser, BFF, signed product HTTP, Restate worker and Growth database
-passed the controlled seven-case integration suite. It includes two chat turns and history,
-API/worker restart recovery, exact draft readback, private artifact exports and access withdrawal.
-`.audit/growth-agent-real-browser/conversation.png` and its acceptance receipt record the browser run.
-The optional [Growth Harbor mode](../evaluation-adapters/harbor/README.md#growth-product-mode-owner-run)
-uses ordinary Growth HTTP and operator-isolated businesses. It has contract checks only and does
-not expose native model snapshots, model-policy pins or server-native evaluation-trial fencing.
-Purpose evaluations and live-provider acceptance remain owner-run.
+Origin authorization and destination authorization are independent. The Growth adapter checks
+current originating business access before destination operations. Each binding pins origin and
+destination product/tenant, mapping, policy, descriptor, manifest, installed handler and resource
+ceiling. A tool selection, shared issuer or matching tenant string creates no cross-product grant.
+
+Growth exposes bounded workspace context/help, content discovery/read, WhatsApp campaign
+discovery/read, explicit-range analytics and reviewed DRAFT creation through existing domain
+services. Presets share tools. Exact operation authority and account scope govern draft writes,
+not the preset name. Each read preserves its source/binding/revision through context, compaction,
+history and later checks. Native knowledge bindings, skills, memory, delegation, sandbox,
+workflows and external connections remain unavailable under the initial Growth product policy.
+See [Product capabilities](product-capabilities.md) and [Growth integration](growth-integration.md).
+
+Agency implements one signed `agency.workspace_agents.read` operation under product namespace
+`agencies`. It reads real workspace-agent metadata using explicit destination-issued actor and
+workspace mappings, exact grants and current Agency roles. It excludes configuration and message
+bodies. Real PostgreSQL/API acceptance covers scoped reads and revocation. The shared-runtime
+acceptance also covers published inline bindings, HTTP invocation, evidence revalidation and
+independent runtime credentials. Full Agency execution, provisioning, UI and voice remain outside
+this implemented boundary; absent credentials/mapping/grants remain unavailable.
+
+Growth's initiating user can export actual accepted composition, product bindings, model-route
+pins, operations and source evidence through `GET /api/agents/tasks/:taskId/export`. Current access
+can withhold evidence. The external Harbor adapter consumes supported native capture and optional
+composition/manifest/model pins independently for each prepared configuration. It does not invent
+ATIF records. Server-native Growth trial reservation/revocation is still unavailable. All evaluation
+and grading runs remain owner-run. Existing deterministic browser/HTTP/Restate checks establish
+engineering behavior only; they do not establish model quality or live provider compatibility.
 
 Execution events persist `agent.observation.v1` metadata and an export intent atomically. Explicit
 OpenTelemetry spans carry native scope, program, operation, attempt and usage identities, without
@@ -788,8 +801,8 @@ Moving adapter source changes executable digests. Existing immutable bindings ar
 never rewritten: new acceptance uses newly discovered bindings and published versions
 with matching source/compiled artifacts. A previously recorded receipt still resolves
 before the live registry; unavailable old releases fail closed for new physical IO.
-The current business workflow is `AgentsBusinessRunV15`, with harness release
-`modular-programs-v5`. Isolated verification preserves existing running owner services
+The current business workflow is `AgentsBusinessRunV21`, with harness release
+`product-capabilities-v11`. Isolated verification preserves existing running owner services
 and their original compiled artifacts.
 
 The relocation smoke compiles into an ignored output tree rather than deleting a
@@ -1160,7 +1173,7 @@ reported as cancellation.
 
 ## Connected reports and automation
 
-`AgentsBusinessRunV15` (`modular-programs-v5`) runs the trusted `report-delivery-v1`
+`AgentsBusinessRunV21` (`product-capabilities-v11`) runs the trusted `report-delivery-v1`
 workflow after the ordinary agent loop. Required stages select or create a private
 report, validate its sources, prepare an exact action packet, wait for human
 review, and deliver or reconcile it. A sandbox-enabled report must select one
@@ -1686,3 +1699,19 @@ Verification combines controlled HTTP, isolated published-grant PostgreSQL execu
 mock-transport browser checks at desktop/tablet/mobile widths. Live provider compatibility
 remains a separate gate. Disable or replace the selected binding to stop new admissions;
 retain receipts and the accepted executable release for in-flight recovery.
+
+
+## Configurable product capability release record
+
+| Field | Decision and evidence |
+| --- | --- |
+| Change and owner | Agents owns the shared composition/loop; Growth owns presets, domain tools and review effects; Agency owns metadata access. Configured capabilities drive model-directed execution. |
+| Risk and surfaces | Standard, with permission and effect paths requiring negative/recovery checks. Agents API/worker, Growth API/UI, narrow Agency API and Harbor capture contracts are affected. |
+| Runtime and schemas | `AgentsBusinessRunV21` / `product-capabilities-v11`. Agents schemas070–072 add generic review projections, trusted Growth publications/managed markers and the new-admission release default. Agency migration `20261023200000_product_capability_authority.sql` adds destination mappings/grants. No production tag/deployment is claimed. |
+| Rollout | Apply recognized schema upgrades and install matching handlers/keys first. Publish Growth defaults revision2 explicitly for eligible managed defaults. Start/route new work on V21; retain V20 for its accepted tasks. Missing Agency transport/publication/mapping/grants is unavailable. |
+| Analytics | Existing registered Growth command/review/draft outcomes apply. New customer Analytics event names are not applicable. No production outcome delivery or model-quality claim is made. |
+| Logs and metrics | Existing operation/event/OTLP identities correlate product, binding, task, attempt and review/receipt. Agency logs bounded mapping/operation identities. Credentials, prompts and record bodies are excluded. New hosted dashboards, retention changes and production alert qualification are not applicable. |
+| Documentation | Architecture, product capability reference, integration setup, feature map and release routing describe current contracts. Requirements and checklist status remain in Linear. |
+| Validation | Focused deterministic composition/model-loop checks, signed destination/API and real PostgreSQL tests, shared Agency HTTP/runtime/evidence checks, affected builds and import boundaries. The controlled Agency test uses explicit origin fixture authority and actual destination migrations/roles/grants. No evaluations, graders or live model acceptance runs are included. |
+| Rollback | Stop new admissions and select an installed compatible configuration for future turns. Disable service trust or revoke destination grants to stop more access. Keep accepted releases, immutable snapshots, exact receipts and uncertain outcomes. Do not rewrite old task releases, replay V20 journals through V21, or reverse tables used by accepted work. |
+| Production follow-up | Production release date, deployment, customer communications and post-release review date are not applicable to this local implementation. |

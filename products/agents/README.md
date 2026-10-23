@@ -17,7 +17,7 @@ bounded specialist tasks, optional isolated analysis and reviewed report workflo
 and product contract fixtures. Skills expose scoped connection repair with explicit tool adoption;
 compatible tool-directed versions can open a contextual Analysis control. Grounded customer versions
 cannot enable analysis or silently switch programs. These capabilities do not define new standalone offerings.
-Restate workflow `AgentsBusinessRunV20` and harness `growth-products-v10` coordinate durable execution.
+Restate workflow `AgentsBusinessRunV21` and harness `product-capabilities-v11` coordinate durable execution.
 The technical kinds remain `business` and `workspace`; workspace
 execution is unavailable until its separate Lina adapter is implemented.
 
@@ -328,11 +328,12 @@ stops new grants and publication; resuming preserves the URL and conversation id
 agent settings create background snapshots and apply to future turns. Existing accepted tasks
 retain their own configuration and executable release.
 
-Schemas052–063 require the current matching schema digest and worker
-`growth-products-v10` / `AgentsBusinessRunV20`. The preceding channel worker was
-`channel-customers-v9` / `AgentsBusinessRunV19`. Fresh setup uses the normal command below;
-starting the app never silently upgrades an existing database. Stop new admissions before an
-operator-controlled additive local schema application. Retain old executable releases for any
+Schemas through072 require the current matching schema digest and worker
+`product-capabilities-v11` / `AgentsBusinessRunV21`. The preceding product worker was
+`growth-products-v10` / `AgentsBusinessRunV20`. Fresh setup uses the normal command below;
+starting the app never silently upgrades an existing database. The explicit setup command accepts
+only recognized preceding schema digests for its additive upgrade. Stop new admissions before an
+operator-controlled local schema application. Retain old executable releases for any
 accepted work; do not replay an old journal through the new worker. To disable a channel,
 disconnect its binding and remove only owned provider subscriptions. Already accepted or unknown
 provider effects are retained and cannot be undone by local rollback.

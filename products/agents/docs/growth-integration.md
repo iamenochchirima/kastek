@@ -3,7 +3,7 @@
 Owner: Agents engineering. Last reviewed: 2026-10-23.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker (`AgentsBusinessRunV20`, harness `growth-products-v10`). Growth users keep their
+business worker (`AgentsBusinessRunV21`, harness `product-capabilities-v11`). Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
 ## Prepare the services
@@ -69,8 +69,11 @@ AGENTS_PRODUCT_ACTION_ISSUER=https://agents.kasitek.co.za
 
 Both directions bind the signature to the complete request digest and a short expiry. The command
 endpoint is `POST /internal/v1/products/growth/commands`, with audience `agents-product-api` and
-subject `growth-api`. Destination actions use `POST /internal/agents/actions`, audience
-`growth-agent-actions` and subject `agents-worker`. Production service URLs require HTTPS.
+subject `growth-api`. Capability calls use `POST /internal/agents/capabilities`, audience
+`product-capability-actions` and subject `agents-worker`. Origin eligibility and existing product
+lifecycle/review calls retain `POST /internal/agents/actions` with audience `growth-agent-actions`.
+The shared runtime checks originating Growth access separately from each destination operation.
+Production service URLs require HTTPS.
 
 To rotate verifier keys, use `GROWTH_AGENTS_PUBLIC_KEYS_JSON` or
 `AGENTS_PRODUCT_ACTION_PUBLIC_KEYS_JSON` with `kid` to public PEM entries. Keep an optional feature
@@ -131,12 +134,21 @@ node --import tsx scripts/agent-setup.ts status
 node --import tsx scripts/agent-setup.ts backfill 100
 node --import tsx scripts/agent-setup.ts retry <organisation-id>
 node --import tsx scripts/agent-setup.ts cancel <organisation-id>
+node --import tsx scripts/agent-setup.ts upgrade-defaults <organisation-id>
 ```
 
 Backfill only inserts missing setup jobs. Retry preserves the job's original target and operation
 identity. Cancel fences the source job; it does not revoke already accepted conversations or
 replace the independent Agents tenant-control operation. Missing or invalid configuration becomes
 blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
+
+The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
+Defaults revision `2` includes its four presets, operation manifest and explicit optional-capability
+policy. Agents persists this publication and validates it against the installed adapter. An operator
+can run `upgrade-defaults` to queue the new managed revision. Repair preserves customised
+configurations, disabled features, model selections and revoked tenants; accepted turns retain
+their old configuration. An unsupported optional capability remains denied even if requested in
+configuration. See [Product capabilities](product-capabilities.md) for the shared contract.
 
 The operator status reports state counts, attempts, pending age and completed setup duration.
 Structured `agent.setup.*` logs include organisation/operation/generation and safe failure codes.
@@ -155,20 +167,21 @@ workers. No production deployment is implied by this local setup.
 
 ## Check the available work
 
-Use the general assistant for product guidance and business context. Research reads explicitly
-attached Growth records. Content proposes an editable draft, requires a connected publishing
-account and exact approval, then returns a receipt for a real `SocialPost` in `DRAFT` state.
-Campaigns reads actual WhatsApp campaign context. Scoped analytics context requires its existing
-reporting gateway configuration and an explicit range.
+All four presets can discover and read permitted content, WhatsApp campaigns and business context,
+and query analytics with an explicit range/timezone where the reporting gateway is configured.
+They share one model-directed loop; the model chooses its tools and order. Attached records give
+focus without replacing current resource authorization. Reads return bounded continuation and
+versioned citations so several records can influence one result.
 
-Growth remains the review authority. A shared worker decision cannot replace Growth's current
-membership, account checks or exact proposal digest. A lost acknowledgement is reconciled from
-the stable domain operation before another save. Product evidence remains private and carries
-current resource/source/revision checks through history, compaction and artifact access.
+Growth assistant and Content can prepare an editable draft for exact staff review and save one
+account-bound `SocialPost` in `DRAFT` state. Current operation permissions authorize the save;
+the agent's name is not proof of write access. Growth owns account checks, exact approval and the
+stable domain receipt. A lost acknowledgement reconciles that same operation before another save.
 
-These initial Growth features disable external web research, automatic publishing, campaign
-launch, personal memory, specialist delegation and sandbox access. Customer channel agents keep
-the separate standalone Agents deployment and Inbox path.
+Growth's installed policy disables native knowledge bindings, skills, memory, delegation, sandbox,
+workflows and external connections until their product custody/principal authority is installed.
+External web research, automatic publishing, campaign launch and arbitrary writes are unavailable.
+Standalone customer-channel agents retain their own deployments and Inbox path.
 
 ## Disable or restore execution
 
@@ -223,8 +236,30 @@ journey establishes engineering behavior, not model quality or live provider com
 
 The optional [Growth Harbor mode](../evaluation-adapters/harbor/README.md#growth-product-mode-owner-run)
 prepares owner-run cases through normal Growth HTTP with one isolated business and staff session
-per trial. Its pure adapter checks do not run evaluations. It does not supply native model-call
-exports, model-policy digests or server-native trial reservation/revocation. Configure and discard
-the isolated environment through its owner-run setup. The standalone Harbor mode retains its own
-native export and trial contracts. Production rollout, hosted retention and alert qualification
-remain separate from this implementation.
+per trial. `GET /api/agents/tasks/:taskId/export` returns the initiating user's currently authorized
+native capture through the signed `tasks.export` command. Captures contain actual accepted
+composition/product bindings, model-route pins, operations and evidence coverage. Harbor checks
+optional expected composition, manifest and model-route digests and converts supported native
+records to ATIF without inventing missing calls or results. Oversized, withheld or unsupported
+capture remains explicit.
+
+Growth still has no server-native evaluation-trial reservation/revocation contract. Configure and
+discard the isolated environment through owner-run setup. Each preset or custom composition can
+have an independent purpose suite. Adapter checks do not run evaluations; all evaluations and
+graders remain owner-run. Production rollout, hosted retention and alert qualification remain
+separate from this implementation.
+
+
+## Apply or roll back the execution release
+
+Apply recognized Agents additive schemas070–072 with the explicit setup command before enabling
+new admissions. They store generic review projections, trusted Growth publications and managed
+configuration markers, and set new tasks to `product-capabilities-v11`. Register the matching
+`AgentsBusinessRunV21` worker and install current product handlers before publishing defaults
+revision `2`. Unknown schema digests remain rejected.
+
+Keep the V20 worker and its original `growth-products-v10` artifacts for already accepted V20 work.
+Route or drain that work on its pinned release. Do not point an existing journal at V21. Rollback
+stops new admissions and restores a compatible installed selection for future turns. Preserve
+accepted snapshots, review/effect receipts and uncertain results; additive tables are not a reason
+to reinterpret older tasks. These are operator release requirements, not an automatic deployment.
