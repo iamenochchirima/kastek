@@ -57,33 +57,42 @@ async function readManifest() {
 }
 async function saveManifest(data) { const temporary = `${manifestPath}.${process.pid}.tmp`; await writeFile(temporary, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 }); await rename(temporary, manifestPath); }
 const dbKeys = { growth: ['DATABASE_URL'], agency: ['KASITEK_TENANTS_DATABASE_URL', 'TENANT_DATABASE_URL'], agents: ['AGENTS_DATABASE_URL'], analytics: ['ANALYTICS_DATABASE_URL'] };
+/** Validate every configured connection before launching any process. Never return credentials to output. */
+export function validateDevelopmentTargets(item, env) {
+  const databases = [];
+  const primary = dbKeys[item.env]?.find(key => env[key]);
+  if (dbKeys[item.env] && !primary) throw Error(`${item.name}: database configuration missing or invalid.`);
+  const keys = [...(primary ? [primary] : []), ...(env.ANALYTICS_REPORTING_DATABASE_URL ? ['ANALYTICS_REPORTING_DATABASE_URL'] : [])];
+  for (const key of keys) {
+    let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
+    // Query parameters can override pg's host/database parsing; this isolated profile needs no overrides.
+    if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !/^\/[A-Za-z0-9_]+_reporting_dev$/.test(url.pathname) || url.search || url.hash) throw Error(`${item.name}: ${key} requires a dedicated loopback reporting development database.`);
+    databases.push({ key, url });
+  }
+  const ports = { CORE_BACKEND_URL: 4000, TENANTS_BACKEND_URL: 8090, AGENTS_BACKEND_URL: 14100, ANALYTICS_REPORTING_URL: 4300, ANALYTICS_INGESTION_URL: 4300, AGENTS_ANALYTICS_INGESTION_URL: 4300 };
+  const required = new Set(item.env === 'admin' ? ['CORE_BACKEND_URL', 'TENANTS_BACKEND_URL', 'AGENTS_BACKEND_URL'] : item.env === 'agents' ? ['AGENTS_ANALYTICS_INGESTION_URL'] : item.name.endsWith('-publisher') ? ['ANALYTICS_INGESTION_URL'] : []);
+  for (const [key, port] of Object.entries(ports)) {
+    if (!required.has(key) && !env[key]) continue;
+    let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
+    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || Number(url.port || 80) !== port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw Error(`${item.name}: ${key} must target the loopback development service origin.`);
+  }
+  return databases;
+}
 export async function configuration(item) {
   const path = resolve(runtime, `${item.env}.env`), metadata = await stat(path).catch(() => null);
   if (!metadata?.isFile() || (metadata.mode & 0o077)) throw Error(`${item.name}: configuration missing or not private (chmod 600).`);
   const env = parseEnv(await readFile(path, 'utf8'));
   if (env.NODE_ENV === 'production' || env.ANALYTICS_ENVIRONMENT === 'production') throw Error(`${item.name}: development profile required.`);
   if (item.port && env[item.portKey ?? 'PORT'] && Number(env[item.portKey ?? 'PORT']) !== item.port) throw Error(`${item.name}: configured port differs from development profile.`);
-  const db = dbKeys[item.env]?.map(key => env[key]).find(Boolean);
-  if (dbKeys[item.env]) {
-    let url; try { url = new URL(db); } catch { throw Error(`${item.name}: database configuration missing or invalid.`); }
-    if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !url.pathname.endsWith('_reporting_dev')) throw Error(`${item.name}: dedicated loopback reporting development database required.`);
-    if (!await tcp(url.hostname.replaceAll(/[\[\]]/g, ''), Number(url.port || 5432))) throw Error(`${item.name}: database TCP endpoint unavailable.`);
+  for (const {key,url} of validateDevelopmentTargets(item,env)) {
+    if (!await tcp(url.hostname.replaceAll(/[\[\]]/g, ''), Number(url.port || 5432))) throw Error(`${item.name}: ${key} TCP endpoint unavailable.`);
   }
   if (!env.KASITEK_ADMIN_SERVICE_SECRET || Buffer.byteLength(env.KASITEK_ADMIN_SERVICE_SECRET) < 32) throw Error(`${item.name}: administrative service credential missing or too short.`);
-  const endpoint = (key, port) => {
-    let url; try { url = new URL(env[key]); } catch { throw Error(`${item.name}: ${key} missing or invalid.`); }
-    if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || Number(url.port || 80) !== port || url.username || url.password) throw Error(`${item.name}: ${key} must target the loopback development service.`);
-  };
   if (item.name === 'growth-publisher' || item.name === 'agency-publisher') {
     const key = item.env === 'growth' ? 'ANALYTICS_CORE_INGESTION_TOKEN' : 'ANALYTICS_TENANT_INGESTION_TOKEN';
     if (!(env[key] ?? env.ANALYTICS_INGESTION_TOKEN)?.trim()) throw Error(`${item.name}: ingestion credential missing.`);
-    endpoint('ANALYTICS_INGESTION_URL', 4300);
   }
-  if (item.env === 'agents') {
-    if (!env.AGENTS_ANALYTICS_INGESTION_TOKEN?.trim()) throw Error(`${item.name}: native ingestion credential missing.`);
-    endpoint('AGENTS_ANALYTICS_INGESTION_URL', 4300);
-  }
-  if (item.env === 'admin') for (const [key, port] of [['CORE_BACKEND_URL', 4000], ['TENANTS_BACKEND_URL', 8090], ['AGENTS_BACKEND_URL', 14100]]) endpoint(key, port);
+  if (item.env === 'agents' && !env.AGENTS_ANALYTICS_INGESTION_TOKEN?.trim()) throw Error(`${item.name}: native ingestion credential missing.`);
   if (!existsSync(resolve(item.cwd, item.entry))) throw Error(`${item.name}: build entry point missing.`);
   if (item.name === 'admin' && !existsSync(resolve(item.cwd, '.next/BUILD_ID'))) throw Error('admin: production build missing.');
   return env;
