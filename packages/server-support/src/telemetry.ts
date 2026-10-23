@@ -36,6 +36,7 @@ function sensitiveTelemetryField(name: string): boolean {
     key.endsWith("password") ||
     key.endsWith("apikey") ||
     key.endsWith("authorization") ||
+    key.endsWith("authority") ||
     key.endsWith("cookie")
   );
 }

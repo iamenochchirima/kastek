@@ -16,6 +16,8 @@ export function adminCapabilities(role: string): Set<AdminCapability> {
 }
 export function requiredAdminCapability(method: string, target: string): AdminCapability {
   const path = target.split("?")[0]!;
+  if (path === "/api/admin/operations/audit") return "admin:security";
+  if ((method.toUpperCase()==="POST"&&/^\/api\/(?:admin\/)?notifications$/.test(path))||(method.toUpperCase()==="PATCH"&&/^\/api\/(?:admin\/)?notifications\/[^/]+$/.test(path))) return "admin:read";
   if (/^\/api\/admin\/customers(?:\/|$)/.test(path)) return ["GET", "HEAD"].includes(method.toUpperCase()) ? "admin:read" : "admin:operate";
   if (/\/(?:export|exports)(?:\/|$)|\.csv$/.test(path)) return "admin:export";
   if (path === "/api/admin/password" || path.endsWith("/admin/password")) return "admin:read";

@@ -68,6 +68,21 @@
       "types": "./dist/admin-customers.d.ts",
       "import": "./dist/admin-customers.js",
       "require": "./dist/admin-customers.js"
+    },
+    "./operations-authority": {
+      "types": "./dist/operations-authority.d.ts",
+      "import": "./dist/operations-authority.js",
+      "require": "./dist/operations-authority.js"
+    },
+    "./operations-signals": {
+      "types": "./dist/operations-signals.d.ts",
+      "import": "./dist/operations-signals.js",
+      "require": "./dist/operations-signals.js"
+    },
+    "./operations-source": {
+      "types": "./dist/operations-source.d.ts",
+      "import": "./dist/operations-source.js",
+      "require": "./dist/operations-source.js"
     }
   },
   "scripts": {
@@ -109,6 +124,15 @@
       ],
       "admin-customers": [
         "dist/admin-customers.d.ts"
+      ],
+      "operations-authority": [
+        "dist/operations-authority.d.ts"
+      ],
+      "operations-signals": [
+        "dist/operations-signals.d.ts"
+      ],
+      "operations-source": [
+        "dist/operations-source.d.ts"
       ]
     }
   }

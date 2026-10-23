@@ -308,3 +308,5 @@ export * from "./admin-customers.js";
 export * from "./product-capabilities.js";
 
 export * from "./product-capability-transport.js";
+
+export * from "./operations.js";
