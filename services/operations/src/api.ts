@@ -20,6 +20,7 @@ import {
   type Row,
 } from "./serializers.js";
 import { registerAudit } from "./audit.js";
+import { startMetrics } from "./telemetry.js";
 const uuid = (s: unknown): s is string =>
   typeof s === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -227,7 +228,9 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
     try {
       await pool.query("SELECT 1 FROM ops_monitors LIMIT 1");
       await pool.query("SELECT reason FROM ops_rule_versions LIMIT 1");
-      await pool.query("SELECT disposition FROM ops_outbox LIMIT 1");
+      await pool.query(
+        "SELECT disposition,recipient_outcomes FROM ops_outbox LIMIT 1",
+      );
       await pool.query("SELECT 1 FROM operations.admin_sessions LIMIT 1");
       return { status: "ready" };
     } catch {
@@ -621,6 +624,8 @@ export async function buildApi(pool: pg.Pool, config: OperationsConfig) {
     });
   });
   registerAudit(app, pool, config, actor);
+  const stopMetrics = startMetrics(pool, config);
+  app.addHook("onClose", async () => stopMetrics());
   let watching = false;
   const watchdogTimer = setInterval(() => {
     if (watching) return;

@@ -1,8 +1,13 @@
 import "dotenv/config";
-import { loadConfig } from "./config.js";
-import { createPool } from "./db.js";
-import { initialize } from "./engine.js";
-import { runWorker } from "./worker.js";
+import { initTelemetry } from "@kasitek-labs/server-support/telemetry";
+const telemetry = initTelemetry("kasitek-operations-worker");
+const [{ loadConfig }, { createPool }, { initialize }, { runWorker }] =
+  await Promise.all([
+    import("./config.js"),
+    import("./db.js"),
+    import("./engine.js"),
+    import("./worker.js"),
+  ]);
 const config = loadConfig();
 if (
   config.adminSecret ||
@@ -19,4 +24,5 @@ try {
   await runWorker(pool, config, controller.signal);
 } finally {
   await pool.end();
+  await telemetry.shutdown();
 }

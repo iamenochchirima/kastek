@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import type { OperationsSnapshot } from "@kasitek-labs/contracts";
 import {
   createOperationsServiceAuthority,
@@ -14,7 +14,7 @@ import {
   retention,
   type Claim,
 } from "./engine.js";
-import { transaction } from "./db.js";
+import { recordCollection, recordDelivery, operationLog } from "./telemetry.js";
 export async function collect(
   pool: pg.Pool,
   config: OperationsConfig,
@@ -97,7 +97,7 @@ export async function collect(
       ],
     };
   }
-  return completeObservation(
+  const accepted = await completeObservation(
     pool,
     config,
     claim,
@@ -106,6 +106,15 @@ export async function collect(
     new Date(),
     Math.random() * 0.2 - 0.1,
   );
+  recordCollection(
+    claim.source,
+    !accepted ? "fenced" : error ? "failed" : "success",
+  );
+  operationLog(config, "collection_completed", {
+    source: claim.source,
+    code: !accepted ? "stale_lease_or_observation" : (error ?? "collected"),
+  });
+  return accepted;
 }
 export async function deliverNotifications(
   pool: pg.Pool,
@@ -126,24 +135,7 @@ export async function deliverNotifications(
   let delivered = 0;
   await Promise.all(
     claimed.rows.map(async (row) => {
-      let success = false;
-      let suppressed = false;
       try {
-        const superseded = await pool.query(
-          `SELECT 1 FROM ops_outbox later JOIN ops_transitions lt ON lt.id=later.transition_id JOIN ops_transitions current ON current.id=$2 WHERE later.incident_id=$1 AND lt.revision>current.revision LIMIT 1`,
-          [row.incident_id, row.transition_id],
-        );
-        const recipientRows = await pool.query(
-          "SELECT admin_id FROM operations.admin_principals WHERE active=true AND admin_id=ANY($1::text[])",
-          [row.payload.recipients],
-        );
-        const active = new Set(recipientRows.rows.map((r) => r.admin_id));
-        const payload = {
-          ...row.payload,
-          recipients: row.payload.recipients.filter((id: string) =>
-            active.has(id),
-          ),
-        };
         const suppression = await pool.query(
           "SELECT 1 FROM ops_maintenance m JOIN ops_incidents i ON i.id=$1 WHERE m.expired_at IS NULL AND m.starts_at<=$2 AND m.ends_at>$2 AND (m.source IS NULL OR m.source=i.source) AND (m.rule_id IS NULL OR m.rule_id=i.source ||':'||i.signal_key) LIMIT 1",
           [row.incident_id, now],
@@ -155,11 +147,31 @@ export async function deliverNotifications(
           );
           return;
         }
-        if (superseded.rowCount || !payload.recipients.length) {
-          success = true;
-          suppressed = true;
-        } else {
-          const path = "/internal/operations/notifications",
+        const superseded = await pool.query(
+          `SELECT 1 FROM ops_outbox later JOIN ops_transitions lt ON lt.id=later.transition_id JOIN ops_transitions current ON current.id=$2 WHERE later.incident_id=$1 AND lt.revision>current.revision LIMIT 1`,
+          [row.incident_id, row.transition_id],
+        );
+        const original = row.payload.recipients as string[],
+          outcomes: Record<string, string> = { ...row.recipient_outcomes };
+        const active = new Set(
+          (
+            await pool.query(
+              "SELECT admin_id FROM operations.admin_principals WHERE active=true AND admin_id=ANY($1::text[])",
+              [original],
+            )
+          ).rows.map((r) => r.admin_id),
+        );
+        for (const id of original)
+          if (!outcomes[id] && (superseded.rowCount || !active.has(id)))
+            outcomes[id] = "suppressed";
+        const recipient = original.find((id) => !outcomes[id]);
+        if (recipient) {
+          // The request identity and body never depend on another recipient's grant.
+          const id = createHash("sha256")
+            .update(JSON.stringify([row.payload.id, recipient]))
+            .digest("hex");
+          const payload = { ...row.payload, id, recipients: [recipient] },
+            path = "/internal/operations/notifications",
             body = JSON.stringify(payload);
           const authority = createOperationsServiceAuthority({
             secret: config.notificationSecret!,
@@ -180,24 +192,22 @@ export async function deliverNotifications(
             redirect: "error",
             signal: AbortSignal.timeout(8000),
           });
-          success = response.ok;
+          const success = response.ok;
           await response.body?.cancel();
+          if (!success) throw new Error("notification_unavailable");
+          outcomes[recipient] = "delivered";
+          recordDelivery("delivered");
+          delivered++;
         }
-      } catch {
-        /* Keep durable intent pending; never log provider payload or credential. */
-      }
-      if (success) {
-        const result = await pool.query(
-          "UPDATE ops_outbox SET delivered_at=$3,disposition=$4,lease_until=NULL,attempts=attempts+1 WHERE id=$1 AND fence=$2 AND lease_until>$3",
-          [
-            row.id,
-            row.fence,
-            new Date(),
-            suppressed ? "suppressed" : "delivered",
-          ],
+        const complete = original.every((id) => !!outcomes[id]),
+          allSuppressed = original.every((id) => outcomes[id] === "suppressed");
+        await pool.query(
+          `UPDATE ops_outbox SET recipient_outcomes=$4,lease_until=NULL,attempts=attempts+1,next_attempt_at=$3::timestamptz+interval '1 second',delivered_at=CASE WHEN $5 THEN $3 ELSE NULL END,disposition=CASE WHEN NOT $5 THEN 'pending' WHEN $6 THEN 'suppressed' ELSE 'delivered' END WHERE id=$1 AND fence=$2 AND lease_until>$3`,
+          [row.id, row.fence, new Date(), outcomes, complete, allSuppressed],
         );
-        if (result.rowCount) delivered++;
-      } else
+        if (complete && allSuppressed) recordDelivery("suppressed");
+      } catch {
+        recordDelivery("failed");
         await pool.query(
           "UPDATE ops_outbox SET lease_until=NULL,attempts=attempts+1,next_attempt_at=$3 WHERE id=$1 AND fence=$2",
           [
@@ -209,6 +219,7 @@ export async function deliverNotifications(
             ),
           ],
         );
+      }
     }),
   );
   return delivered;

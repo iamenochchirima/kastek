@@ -77,7 +77,7 @@ export function registerAudit(
       q = req.query as Record<string, string>,
       limit = Number(q.limit ?? 50);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) bad();
-    const allowed = ["operations", "growth", "agents", "agency"];
+    const allowed = ["operations", "growth", "agents", "agency", "analytics"];
     if (q.source && !allowed.includes(q.source)) bad();
     const filters = ["actorId", "customerId", "resourceId", "status", "action"];
     for (const key of filters) if (q[key] && !safe(q[key], 200)) bad();

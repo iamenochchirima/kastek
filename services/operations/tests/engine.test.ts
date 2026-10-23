@@ -344,6 +344,139 @@ test(
         sent,
         "delivery does not duplicate completed intent",
       );
+      const recipients = Array.from(
+        { length: 101 },
+        (_, i) => "recipient_" + String(i).padStart(3, "0"),
+      );
+      await pool.query(
+        "INSERT INTO operations.admin_principals(admin_id,issuer,subject,role,name) SELECT id,'http://127.0.0.1:12345',id,'viewer',id FROM unnest($1::text[]) id",
+        [recipients],
+      );
+      const deliveryIncident = randomUUID(),
+        deliveryTransition = randomUUID(),
+        deliveryOutbox = randomUUID();
+      await pool.query(
+        "INSERT INTO ops_incidents(id,fingerprint,environment,source,signal_key,group_key,severity,status,condition,opened_at,updated_at,evidence,rule_revision) VALUES($1,$2,'test','growth','source.available','delivery-fixture','critical','open','breached',now(),now(),'[]',1)",
+        [deliveryIncident, "delivery-" + deliveryIncident],
+      );
+      await pool.query(
+        "INSERT INTO ops_transitions(id,incident_id,action,revision) VALUES($1,$2,'opened',1)",
+        [deliveryTransition, deliveryIncident],
+      );
+      await pool.query(
+        "INSERT INTO ops_outbox(id,incident_id,transition_id,payload) VALUES($1,$2,$3,$4)",
+        [
+          deliveryOutbox,
+          deliveryIncident,
+          deliveryTransition,
+          {
+            id: deliveryTransition,
+            incidentId: deliveryIncident,
+            transition: "opened",
+            severity: "critical",
+            recipients,
+            title: "Fixture incident",
+            message: "growth: source.available",
+            link: "/operations/incidents/" + deliveryIncident,
+          },
+        ],
+      );
+      const remoteBodies = new Map<string, string>();
+      let lost = true,
+        duplicate = false;
+      const idempotentBridge = async (
+        _url: unknown,
+        request: RequestInit | undefined,
+      ) => {
+        const body = String(request?.body),
+          payload = JSON.parse(body);
+        assert.equal(
+          payload.recipients.length,
+          1,
+          "one recipient stays below bridge cap even with 101 eligible admins",
+        );
+        const previous = remoteBodies.get(payload.id);
+        if (previous) {
+          assert.equal(
+            previous,
+            body,
+            "retry identity keeps exact immutable recipient body",
+          );
+          duplicate = true;
+        } else remoteBodies.set(payload.id, body);
+        if (lost) {
+          lost = false;
+          throw new Error("response lost after destination commit");
+        }
+        return new Response("{}", { status: 200 });
+      };
+      await deliverNotifications(
+        pool,
+        notificationConfig,
+        new Date(),
+        idempotentBridge as typeof fetch,
+      );
+      await pool.query(
+        "UPDATE operations.admin_principals SET active=false WHERE admin_id=$1",
+        [recipients[1]],
+      );
+      await pool.query(
+        "UPDATE ops_outbox SET next_attempt_at=now()-interval '1 second' WHERE id=$1",
+        [deliveryOutbox],
+      );
+      assert.equal(
+        await deliverNotifications(
+          pool,
+          notificationConfig,
+          new Date(),
+          idempotentBridge as typeof fetch,
+        ),
+        1,
+      );
+      assert.equal(
+        duplicate,
+        true,
+        "lost response retries same immutable event after another recipient revokes",
+      );
+      const deliveredRow = (
+        await pool.query("SELECT * FROM ops_outbox WHERE id=$1", [
+          deliveryOutbox,
+        ])
+      ).rows[0];
+      assert.equal(
+        deliveredRow.recipient_outcomes[recipients[0]!],
+        "delivered",
+      );
+      assert.equal(
+        deliveredRow.recipient_outcomes[recipients[1]!],
+        "suppressed",
+      );
+      assert.equal(
+        deliveredRow.delivered_at,
+        null,
+        "remaining recipients keep durable pending intent",
+      );
+      await pool.query(
+        "UPDATE operations.admin_principals SET active=false WHERE admin_id=ANY($1::text[])",
+        [recipients],
+      );
+      await pool.query(
+        "UPDATE ops_outbox SET next_attempt_at=now()-interval '1 second' WHERE id=$1",
+        [deliveryOutbox],
+      );
+      await deliverNotifications(
+        pool,
+        notificationConfig,
+        new Date(),
+        idempotentBridge as typeof fetch,
+      );
+      assert.ok(
+        (
+          await pool.query("SELECT delivered_at FROM ops_outbox WHERE id=$1", [
+            deliveryOutbox,
+          ])
+        ).rows[0].delivered_at,
+      );
       const oldObservation = await pool.query(
         "INSERT INTO ops_observations(monitor_id,observed_at,received_at,snapshot) VALUES('growth',now()-interval '40 days',now()-interval '40 days',$1) RETURNING id",
         [sample(now)],

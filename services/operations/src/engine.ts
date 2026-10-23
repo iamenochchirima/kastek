@@ -8,6 +8,7 @@ import type {
 } from "@kasitek-labs/contracts";
 import type { OperationsConfig } from "./config.js";
 import { transaction } from "./db.js";
+import { recordLeaseContention } from "./telemetry.js";
 import { defaults, measure, advance, fingerprint } from "./rules.js";
 import { rule, type Row } from "./serializers.js";
 export async function initialize(
@@ -94,7 +95,10 @@ export async function claimMonitors(
       ).rows[0].count,
     );
     const capacity = Math.max(0, Math.min(4 - active, limit));
-    if (!capacity) return [];
+    if (!capacity) {
+      recordLeaseContention();
+      return [];
+    }
     const r = await c.query(
       `WITH due AS(SELECT id FROM ops_monitors WHERE enabled AND next_poll_at<=$1 AND (lease_until IS NULL OR lease_until<$1) ORDER BY next_poll_at,id FOR UPDATE SKIP LOCKED LIMIT $2) UPDATE ops_monitors m SET fence=m.fence+1,lease_until=$1::timestamptz+interval '30 seconds' FROM due WHERE m.id=due.id RETURNING m.id,m.source,m.origin,m.fence::text,m.interval_seconds`,
       [now, capacity],

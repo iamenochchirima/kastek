@@ -1,8 +1,13 @@
 import "dotenv/config";
-import { loadConfig } from "./config.js";
-import { createPool } from "./db.js";
-import { initialize } from "./engine.js";
-import { buildApi } from "./api.js";
+import { initTelemetry } from "@kasitek-labs/server-support/telemetry";
+const telemetry = initTelemetry("kasitek-operations-api");
+const [{ loadConfig }, { createPool }, { initialize }, { buildApi }] =
+  await Promise.all([
+    import("./config.js"),
+    import("./db.js"),
+    import("./engine.js"),
+    import("./api.js"),
+  ]);
 const config = loadConfig(),
   pool = createPool(config.databaseUrl);
 await initialize(pool, config);
@@ -13,6 +18,7 @@ const stop = async () => {
   closing = true;
   await app.close();
   await pool.end();
+  await telemetry.shutdown();
 };
 process.once("SIGTERM", () => void stop());
 process.once("SIGINT", () => void stop());

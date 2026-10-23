@@ -3,8 +3,11 @@ import type { OperationsRule, OperationsSignal } from "@kasitek-labs/contracts";
 import type { Source } from "./config.js";
 export const defaultCatalogue = [
   ["source.available", "1", 0, 3, "critical"],
+  ["source.read_ready", "1", 0, 3, "critical"],
   ["publication.overdue_seconds", "300", 0, 2, "warning"],
   ["publication.quarantined", "0", 0, 2, "warning"],
+  ["webhook.overdue_seconds", "300", 0, 2, "warning"],
+  ["webhook.failed", "0", 0, 2, "warning"],
   ["projection.overdue_seconds", "300", 0, 2, "warning"],
   ["ingress.quarantined", "0", 0, 2, "warning"],
   ["execution.dispatch_overdue_seconds", "120", 0, 2, "warning"],
@@ -60,7 +63,7 @@ export function measure(
     return "unknown";
   const value = BigInt(signal.value),
     threshold = BigInt(rule.threshold);
-  return rule.signalKey === "source.available"
+  return ["source.available", "source.read_ready"].includes(rule.signalKey)
     ? value < threshold
       ? "breached"
       : "healthy"
