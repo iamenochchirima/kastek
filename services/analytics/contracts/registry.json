@@ -418,6 +418,30 @@
       "owner": "core",
       "category": "scope_definition",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "growth.agent.command@1",
+      "schema": "events/growth/agent_command/v1.schema.json",
+      "examples": ["examples/growth/agent_command.json"],
+      "owner": "growth",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "growth.agent.review@1",
+      "schema": "events/growth/agent_review/v1.schema.json",
+      "examples": ["examples/growth/agent_review.json"],
+      "owner": "growth",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "growth.agent.draft_saved@1",
+      "schema": "events/growth/agent_draft_saved/v1.schema.json",
+      "examples": ["examples/growth/agent_draft_saved.json"],
+      "owner": "growth",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }

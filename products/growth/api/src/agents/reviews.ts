@@ -8,11 +8,12 @@ import { createSocialPostIdempotent } from "../services/social/posts.js";
 import type { SocialPost } from "../services/social/types.js";
 import { authorizeGrowthAgentScope, assertGrowthAgentContext, type GrowthAgentScope } from "./scope.js";
 import { growthAgentDigest } from "./security.js";
+import { enqueueGrowthAgentDraftSaved, enqueueGrowthAgentReview } from "./analytics.js";
 type ReviewRow = {
   id: string; orgId: string; actorId: string; taskId: string; conversationId: string; featureId: GrowthAgentFeatureId;
   operationId: string; requestDigest: string; payloadDigest: string; draft: GrowthDraftProposal; context: GrowthAgentContext | null;
   contextRevision: string | null; destinationRevisions: Record<string, string>; rootReviewId: string; supersededBy: string | null;
-  state: GrowthAgentReview["state"]; result: GrowthDraftReceipt | null; decisionRequestId: string | null; createdAt: Date; expiresAt: Date;
+  state: GrowthAgentReview["state"]; result: GrowthDraftReceipt | null; decisionRequestId: string | null; createdAt: Date; updatedAt: Date; expiresAt: Date;
 };
 const missing = () => new ApiError(404, "agent_review_missing", "Review is unavailable");
 const conflict = (message: string) => new ApiError(409, "agent_review_conflict", message);
@@ -76,6 +77,7 @@ export class GrowthAgentReviewStore {
       const row = (await db.query<ReviewRow>(`INSERT INTO "GrowthAgentReview" (id,"orgId","actorId","taskId","conversationId","featureId","operationId","requestDigest","payloadDigest",draft,context,"contextRevision","destinationRevisions","rootReviewId",state,"expiresAt")
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$1,'proposed',now()+interval '30 minutes') RETURNING *`,
       [id, scope.tenantId, scope.actor.subject, action.taskId, action.conversationId, action.featureId, action.operationId, requestDigest, payloadDigest, JSON.stringify(draft), JSON.stringify(action.context), action.contextRevision ?? null, JSON.stringify(revisions)])).rows[0]!;
+      await enqueueGrowthAgentReview(db, row, "proposed");
       return { review: dto(row) };
     });
   }
@@ -99,6 +101,7 @@ export class GrowthAgentReviewStore {
       [id, scope.tenantId, scope.actor.subject, taskId, old.conversationId, old.featureId, `edit:${input.requestId}`, growthAgentDigest({ draft, previous: old.id }), payloadDigest,
         JSON.stringify(draft), JSON.stringify(old.context), old.contextRevision, JSON.stringify(revisions), old.rootReviewId, old.expiresAt])).rows[0]!;
       await db.query(`UPDATE "GrowthAgentReview" SET "supersededBy"=$2,state='rejected',"updatedAt"=now() WHERE id=$1`, [old.id, id]);
+      await enqueueGrowthAgentReview(db, row, "revised");
       return { review: dto(row) };
     });
   }
@@ -119,10 +122,11 @@ export class GrowthAgentReviewStore {
         if (growthAgentDigest(revisions) !== growthAgentDigest(row.destinationRevisions)) throw conflict("The selected publishing account changed. Edit and review the proposal again");
       }
       const updated = (await db.query<ReviewRow>(`UPDATE "GrowthAgentReview" SET state=$2,"decisionRequestId"=$3,"updatedAt"=now() WHERE id=$1 RETURNING *`, [row.id, desired, input.requestId])).rows[0]!;
+      await enqueueGrowthAgentReview(db, updated, desired);
       return { review: dto(updated) };
     });
   }
-  private async reconcileRow(db: Pool | PoolClient, scope: GrowthAgentScope, row: ReviewRow): Promise<ReviewRow> {
+  private async reconcileRow(db: PoolClient, scope: GrowthAgentScope, row: ReviewRow): Promise<ReviewRow> {
     if (!["approved", "executing", "uncertain"].includes(row.state)) return row;
     const postRow = (await db.query(`SELECT id,"userId","updatedAt",metadata FROM "SocialPost" WHERE "orgId"=$1 AND metadata->>'_kasitek_agent_idempotency_key'=$2 LIMIT 1`, [scope.tenantId, `growth-agent-draft:${row.id}`])).rows[0];
     if (!postRow) {
@@ -132,7 +136,9 @@ export class GrowthAgentReviewStore {
     if (postRow.userId !== scope.actor.subject || postRow.metadata?.growthAgentPayloadDigest !== row.payloadDigest) throw conflict("The saved draft receipt does not match this review");
     const result: GrowthDraftReceipt = { operationId: row.operationId, reviewId: row.id, payloadDigest: row.payloadDigest,
       recordId: postRow.id, revision: new Date(postRow.updatedAt).toISOString(), route: `/content/posts/${encodeURIComponent(postRow.id)}`, state: "saved", actorId: scope.actor.subject };
-    return (await db.query<ReviewRow>(`UPDATE "GrowthAgentReview" SET state='saved',result=$2,"updatedAt"=now() WHERE id=$1 RETURNING *`, [row.id, JSON.stringify(result)])).rows[0]!;
+    const updated = (await db.query<ReviewRow>(`UPDATE "GrowthAgentReview" SET state='saved',result=$2,"updatedAt"=now() WHERE id=$1 RETURNING *`, [row.id, JSON.stringify(result)])).rows[0]!;
+    await enqueueGrowthAgentDraftSaved(db, updated, result.recordId, result.revision);
+    return updated;
   }
   async reconcile(action: GrowthAgentAction<"draft.reconcile">): Promise<{ review: GrowthAgentReview; result: GrowthDraftReceipt | null }> {
     const scope = { tenantId: action.tenantId, actor: action.actor };
@@ -177,6 +183,7 @@ export class GrowthAgentReviewStore {
       const result: GrowthDraftReceipt = { operationId: row.operationId, reviewId: row.id, payloadDigest: row.payloadDigest,
         recordId: post.id, revision: new Date(post.updated_at).toISOString(), route: `/content/posts/${encodeURIComponent(post.id)}`, state: "saved", actorId: scope.actor.subject };
       const updated = (await db.query<ReviewRow>(`UPDATE "GrowthAgentReview" SET state='saved',result=$2,"updatedAt"=now() WHERE id=$1 RETURNING *`, [row.id, JSON.stringify(result)])).rows[0]!;
+      await enqueueGrowthAgentDraftSaved(db, updated, result.recordId, result.revision);
       return { review: dto(updated), result };
     });
   }

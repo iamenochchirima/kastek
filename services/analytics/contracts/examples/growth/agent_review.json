@@ -1,0 +1,9 @@
+{
+  "feature_id": "content",
+  "conversation_id": "conversation-one",
+  "task_id": "task-one",
+  "review_id": "review-one",
+  "action": "approved",
+  "state": "approved",
+  "occurred_at": "2026-10-23T10:00:00Z"
+}

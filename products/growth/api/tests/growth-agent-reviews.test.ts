@@ -33,6 +33,7 @@ test("Growth exact draft review saves real records and reconciles lost replies u
       INSERT INTO "OrganizationMember" VALUES('org','user','OWNER'),('foreign-org','other','OWNER');`);
     await pool.query(growthAgentSocialFixture);
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
     const core = { config: readConfig({ DATABASE_URL: "postgres://unused" }), pool }, scope = { tenantId: "org", actor }, store = new GrowthAgentReviewStore(core);
     const draft: GrowthDraftProposal = { title: "Draft", content: "An approved post", channels: [], channelSelections: {} };
     const prepare = action("draft.prepare", { draft }), first = (await store.prepare(prepare)).review;
@@ -76,6 +77,17 @@ test("Growth exact draft review saves real records and reconciles lost replies u
     const reconciled = await recovery.reconcile(action("draft.reconcile", { reviewId: interrupted.id }));
     assert.equal(reconciled.review.state, "saved"); assert.equal(reconciled.result?.recordId, committedPost.id); assert.equal(creates, 0);
     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "SocialPost"')).rows[0].count), 3);
+    const facts = (await pool.query("SELECT contract_name,envelope FROM analytics_outbox WHERE source_domain='growth_agents'")).rows;
+    assert.equal(facts.filter(fact => fact.contract_name === "growth.agent.draft_saved@1").length, 3);
+    assert.equal(facts.filter(fact => fact.contract_name === "growth.agent.review@1" && fact.envelope.data.action === "approved").length, 3);
+    assert.equal(facts.some(fact => JSON.stringify(fact.envelope.data).includes("An approved post")), false);
+    assert.equal(facts.some(fact => Object.hasOwn(fact.envelope.data, "installation_id") || Object.hasOwn(fact.envelope.data, "actor_id")), false);
+    const beforeRollback = Number((await pool.query('SELECT COUNT(*) FROM "GrowthAgentReview"')).rows[0].count);
+    await pool.query(`CREATE FUNCTION reject_fixture_review_fact() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture analytics unavailable'; END $$;
+      CREATE TRIGGER reject_fixture_review_fact BEFORE INSERT ON analytics_outbox FOR EACH ROW EXECUTE FUNCTION reject_fixture_review_fact()`);
+    await assert.rejects(store.prepare(action("draft.prepare", { draft: selected }, { operationId: "outbox-rollback" })), /fixture analytics unavailable/);
+    assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "GrowthAgentReview"')).rows[0].count), beforeRollback);
+    await pool.query('DROP TRIGGER reject_fixture_review_fact ON analytics_outbox');
     const stale = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "stale-account" }))).review;
     await pool.query(`UPDATE "SocialChannelConnection" SET "updatedAt"=now()+interval '1 second' WHERE id='channel'`);
     await assert.rejects(store.decide(scope, stale.id, { requestId: "stale-account", payloadDigest: stale.payloadDigest, decision: "approve" }), /account changed/);

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/growth/agent_command/v1.schema.json",
+  "title": "Growth agent command acknowledgement",
+  "properties": {
+    "feature_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "assistant",
+        "research",
+        "content",
+        "campaigns",
+        null
+      ]
+    },
+    "conversation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "operation": {
+      "type": "string",
+      "enum": [
+        "conversations.create",
+        "conversations.context",
+        "turns.submit",
+        "tasks.cancel"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "rejected",
+        "unavailable"
+      ]
+    },
+    "failure_code": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-zA-Z0-9_]{1,80}$"
+    }
+  },
+  "required": [
+    "feature_id",
+    "conversation_id",
+    "task_id",
+    "operation",
+    "outcome",
+    "failure_code"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "x-kasitek": {
+    "identity": "growth.agent.command@1",
+    "owner": "growth",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "installation_id",
+      "actor_id",
+      "email",
+      "phone",
+      "prompt",
+      "content",
+      "response",
+      "credential",
+      "token",
+      "draft",
+      "arguments",
+      "result",
+      "payload"
+    ]
+  }
+}
