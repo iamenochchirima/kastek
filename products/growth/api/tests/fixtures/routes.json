@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 329,
+  "routeCount": 330,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -59,6 +59,7 @@
     "GET /api/admin/quotations/:id",
     "GET /api/admin/referrals",
     "GET /api/admin/reporting",
+    "GET /api/admin/reporting/diagnostics",
     "GET /api/admin/reports",
     "GET /api/admin/reports/export",
     "GET /api/admin/stats",

@@ -133,7 +133,7 @@ export async function run(argv = process.argv.slice(2)) {
     for (const item of selected) {
       const saved = manifest.processes[item.name];
       if (saved && sameProcess(saved, await processIdentity(saved.pid))) { if (!await healthy(item) || (item.port && !await ownsPort(saved.pid, item.port))) throw Error(`${item.name}: existing process unhealthy.`); console.log(`${item.name}: reused ${saved.ownership} process`); continue; }
-      const env = { PATH: process.env.PATH, HOME: process.env.HOME, TZ: 'UTC', ...configs.get(item.name), ...item.overrides };
+      const env = { PATH: process.env.PATH, HOME: process.env.HOME, TZ: 'UTC', ...configs.get(item.name), ...item.overrides, KASITEK_ENV_FILE: resolve(runtime, `${item.env}.env`) };
       if (item.port) env[item.portKey ?? 'PORT'] = String(item.port);
       const child = spawn(process.execPath, [`--env-file=${resolve(runtime, `${item.env}.env`)}`, item.entry, ...(item.args ?? [])], { cwd: item.cwd, env, detached: true, stdio: 'ignore' });
       await new Promise((done, reject) => { child.once('spawn', done); child.once('error', reject); }); child.unref();
