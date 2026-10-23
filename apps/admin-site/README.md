@@ -195,3 +195,11 @@ Quarantined publication takes precedence over pending outbox/Agents receipts; an
 no accepted publication is no activity. Source, ingestion, checkpoint and promotion timestamps
 remain separate, and global complete-through stays Unknown. Diagnostics require `admin:report`;
 viewers can inspect them but cannot obtain export or save privileges through this surface.
+
+## Customer operations
+
+`/customers` provides product-qualified customer lookup and current account investigation.
+The customer workspace adds product-owned recovery previews and durable receipts. Configure
+metadata and action flags independently; production access remains disabled. See the
+[customer operations runbook](../../docs/operations/admin-customer-operations.md) for permissions,
+migrations, supported actions, focused verification and rollback. Evals remain owner-run.

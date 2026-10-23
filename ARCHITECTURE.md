@@ -115,3 +115,11 @@ unverified provider connections; source import alone is not a production cutover
 Product architecture documentation remains under each product. Historical plans and ADRs may
 refer to earlier repository splits; the [directory restructure record](docs/operations/directory-restructure.md)
 maps the previous package paths. Existing ADR numbers retain their original product or platform scope.
+
+## Administrative customer operations
+
+The existing Labs admin customer workspace calls product-owned metadata and scoped operation APIs.
+Recovery uses explicit operate authority and durable actor/customer/request-bound receipts.
+Verified Agents execution mappings provide cross-product navigation; the BFF never joins product
+databases or impersonates customer sessions. The feature is development-only and independently
+gated for metadata and each action. See [Customer operations](docs/operations/admin-customer-operations.md).

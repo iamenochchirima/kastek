@@ -367,3 +367,9 @@ Fixtures cover equal IDs across products, mixed currencies, unknown cost, root/c
 late data, and daylight-saving boundaries. Engineering checks verify transport, authority,
 persistence, projections, and UI behavior. Model evaluations, live provider acceptance, production
 rollout, and real-account changes remain owner-run.
+
+## Customer investigation
+
+Customer IDs in supporting records link to `/customers/:product/:customerId` in the existing admin.
+This uses separate owning-service metadata/operation APIs. Reporting authority itself grants no
+recovery or content access. See [Customer operations](admin-customer-operations.md).

@@ -44,17 +44,17 @@ try{
   await page.getByRole('button',{name:'Refresh',exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelectorAll('section[aria-label]').length>1);
   assert.equal(await page.getByText('Product unavailable',{exact:true}).count(),0);
-  await page.screenshot({path:resolve(proof,`${product}-1440.png`),fullPage:true});
+  await page.screenshot({path:resolve(proof,`${product}-1440.png`),fullPage:true,animations:'disabled'});
   results.browser.push({product,width:1440,rendered:true});
  }
  for(const width of[768,390]){
   await page.setViewportSize({width,height:1000});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Overflow at ${width}`);
-  await page.screenshot({path:resolve(proof,`agents-${width}.png`),fullPage:true});
+  await page.screenshot({path:resolve(proof,`agents-${width}.png`),fullPage:true,animations:'disabled'});
   results.browser.push({product:'agents',width,noOverflow:true});
  }
  await page.emulateMedia({colorScheme:'dark'});
- await page.screenshot({path:resolve(proof,'agents-dark-390.png'),fullPage:true});
+ await page.screenshot({path:resolve(proof,'agents-dark-390.png'),fullPage:true,animations:'disabled'});
  if(process.env.KASITEK_CUSTOMER_OPS_EXERCISE_FIXTURE==='1'){
   await page.setViewportSize({width:1440,height:1050});
   const before=await json(endpoint);

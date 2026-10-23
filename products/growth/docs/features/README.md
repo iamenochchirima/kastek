@@ -55,3 +55,13 @@ owner-run.
 - Describe current behavior only. Specs and planned work live in the selected issue tracker.
 - For a feature without a runnable local path, name the missing service, credential, or test data
   instead of claiming it was verified.
+
+### Administrative customer operations
+
+The separate Labs admin exposes `/customers` and `/customers/:product/:customerId` for current
+account facts and scoped recovery. Growth owns pure credit/entitlement projections, failed webhook
+replay with two distinct approvals, durable receipts and scoped support-access audits. Agents and
+Agency own their respective APIs over HTTP. Metadata and actions are development-only and
+independently gated. Verification uses `products/growth/api/tests/admin-customers.test.ts` and
+`scripts/customer-operations-smoke.mjs`; model/product eval execution remains with the owner.
+See [the operations runbook](../../../../docs/operations/admin-customer-operations.md).
