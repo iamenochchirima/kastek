@@ -69,6 +69,7 @@ async function start() {
   await pool.query(`UPDATE "SocialChannelConnection" SET id='fixture-account',"orgId"=$1,"userId"=$2,"displayName"='Fixture Facebook account' WHERE id='channel'`, [tenantId, userId]);
   await pool.query(`UPDATE "ContentMediaAsset" SET "orgId"=$1 WHERE "orgId"='org'`, [tenantId]);
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
   process.env.KASITEK_BILLING_ENFORCEMENT = "true";
   const config = readConfig({ ...process.env, DATABASE_URL: scoped.href, ENVIRONMENT: "test", LOG_LEVEL: "silent", FRONTEND_URL: "http://localhost:3000" });
   if (config.env.AGENTS_PRODUCT_API_URL) config.env.AGENTS_PRODUCT_API_URL = localOrigin(config.env.AGENTS_PRODUCT_API_URL);
@@ -77,6 +78,14 @@ async function start() {
     registerGrowthAgentActionRoutes,
     (server, context) => registerGrowthAgentRoutes(server, context, { resolveScope: async () => scope }),
   ]);
+  // Only this isolated fixture supplies the dashboard identity. Agent routes remain real.
+  app.get("/api/auth/me", async () => ({ user: { id: userId, name: "Fixture operator", email: "operator@growth.fixture.test", image: "", emailVerified: new Date().toISOString() } }));
+  app.get("/api/orgs", async () => ({ orgs: [{ id: tenantId, name: "Fixture business", slug: "fixture", logo: null, ownerId: userId }] }));
+  app.get("/api/onboarding", async () => ({ needsOnboarding: false, canManage: true, profile: {} }));
+  app.get("/api/product-tour", async () => ({ shouldShow: false, currentStep: 0 }));
+  app.get("/api/whatsapp/inbox/unread-count", async () => ({ unreadCount: 0 }));
+  app.get("/api/early-access/status", async () => ({ earlyAccess: null }));
+  app.post("/api/auth/activity", async () => ({ ok: true }));
   app.get("/__fixture/posts", async () => {
     await authorizeGrowthAgentScope(core, scope, "content");
     return { posts: await listSocialPosts(pool!, tenantId) };
@@ -101,9 +110,17 @@ try {
   for await (const line of lines) {
     if (Buffer.byteLength(line) > 16384) throw new Error("Fixture control message is too large");
     const message = JSON.parse(line) as Record<string, unknown>;
-    if (message.type === "configure" && typeof message.agentsOrigin === "string" && Object.keys(message).every(key => ["type", "agentsOrigin"].includes(key))) {
-      core.config.env.AGENTS_PRODUCT_API_URL = localOrigin(message.agentsOrigin);
-      core.config.rawEnv.AGENTS_PRODUCT_API_URL = core.config.env.AGENTS_PRODUCT_API_URL;
+    if (message.type === "configure" && (typeof message.agentsOrigin === "string" || typeof message.frontendOrigin === "string") &&
+      Object.keys(message).every(key => ["type", "agentsOrigin", "frontendOrigin"].includes(key))) {
+      if (message.agentsOrigin !== undefined) {
+        if (typeof message.agentsOrigin !== "string") throw new Error("Invalid fixture Agents origin");
+        core.config.env.AGENTS_PRODUCT_API_URL = localOrigin(message.agentsOrigin);
+        core.config.rawEnv.AGENTS_PRODUCT_API_URL = core.config.env.AGENTS_PRODUCT_API_URL;
+      }
+      if (message.frontendOrigin !== undefined) {
+        if (typeof message.frontendOrigin !== "string") throw new Error("Invalid fixture frontend origin");
+        core.config.frontendUrl = localOrigin(message.frontendOrigin);
+      }
       emit({ type: "configured" });
     } else if (message.type === "membership" && typeof message.enabled === "boolean" && Object.keys(message).every(key => ["type", "enabled"].includes(key))) {
       if (message.enabled) await core.pool.query('INSERT INTO "OrganizationMember" VALUES($1,$2,\'OWNER\') ON CONFLICT DO NOTHING', [scope.tenantId, scope.actor.subject]);
