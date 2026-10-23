@@ -1,3 +1,4 @@
+import {loadServiceEnvironment} from "@kasitek-labs/server-support/config";
 import {config as loadDotenv} from 'dotenv';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
@@ -11,8 +12,7 @@ import {initTelemetry} from '@kasitek-labs/server-support/telemetry';
 
 export function loadLocalEnvironment():void{
  const local=fileURLToPath(new URL('../.env',import.meta.url));
- const loaded=loadDotenv({path:local});
- if(loaded.error)loadDotenv();
+ loadServiceEnvironment(local,path=>loadDotenv(path===undefined?{}:{path}));
 }
 
 export async function runApi():Promise<void>{

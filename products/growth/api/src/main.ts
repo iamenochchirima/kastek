@@ -1,3 +1,4 @@
+import {loadServiceEnvironment} from "@kasitek-labs/server-support/config";
 import {registerAdminReportingRoutes} from "./routes/admin-reporting.js";
 import { config as loadEnvironment } from "dotenv";
 import { fileURLToPath } from "node:url";
@@ -87,12 +88,7 @@ export async function start(runtime?: {
   shutdownTelemetry(): Promise<void>;
 }): Promise<void> {
   // Load service-local environment settings even when launched from another directory.
-  if (
-    loadEnvironment({
-      path: fileURLToPath(new URL("../.env", import.meta.url)),
-    }).error
-  )
-    loadEnvironment();
+  loadServiceEnvironment(fileURLToPath(new URL("../.env", import.meta.url)), path => loadEnvironment(path === undefined ? {} : {path}));
   process.env.TZ = "UTC";
   const config = readConfig();
   const dedicatedWorkers = processWorkers(config.rawEnv.KASITEK_PROCESS);

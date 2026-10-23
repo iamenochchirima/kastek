@@ -1,9 +1,10 @@
+import {loadServiceEnvironment} from "@kasitek-labs/server-support/config";
 import {config as loadEnvironment} from 'dotenv';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 /** Instrument pg/Fastify before loading them, and retain the local .env convention. */
 export async function boot():Promise<void> {
- if(loadEnvironment({path:fileURLToPath(new URL('../.env',import.meta.url))}).error)loadEnvironment();
+ loadServiceEnvironment(fileURLToPath(new URL('../.env',import.meta.url)),path=>loadEnvironment(path===undefined?{}:{path}));
  process.env.TZ='UTC';
  const {initTelemetry}=await import('@kasitek-labs/server-support/telemetry');
  const telemetry=initTelemetry('kasitek-tenants');
