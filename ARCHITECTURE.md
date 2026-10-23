@@ -1,6 +1,6 @@
 # KasiTek source and runtime architecture
 
-Owner: Platform engineering. Last reviewed: 2026-10-18.
+Owner: Platform engineering. Last reviewed: 2026-10-23.
 
 KasiTek uses a Git monorepo with independently deployable products. Source ownership is expressed
 by product directories and shared package exports. Co-location does not grant cross-product
@@ -18,7 +18,7 @@ membership, database access or permission to call internal operations.
 | `products/agency/api/` | Tenant API, migrations and workers |
 | `products/agency/web/` | Partner and tenant portal |
 | `products/agency/api-client/` | Private React tenant API client |
-| `apps/admin-site/` | Privileged UI using Growth and Agency over HTTP |
+| `apps/admin-site/` | Privileged UI using Growth, Agents, and Agency reporting APIs over HTTP |
 | `apps/labs-site/` | Public Labs website |
 | `packages/contracts/` | Shared transport and event contracts |
 | `packages/server-support/` | Shared server implementation behind explicit exports |
@@ -37,6 +37,27 @@ Service-to-service integration remains over the existing authenticated HTTP inte
 migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
 Shared login does not synchronize product permissions. Agency customer identity remains scoped
 according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
+
+## Administrative reporting
+
+The existing admin provides cross-product reporting through product-owned metadata APIs.
+Growth, Agents, and Agency retain independent databases and resource identities. Authoritative
+current-state and financial values come from those APIs. Registered event trends come from Labs
+Analytics. The admin does not join product databases or duplicate shared execution accounting.
+
+Growth validates its opaque admin session. Other services verify request-bound, short-lived
+administrative actor assertions. Reporting, exports, commercial writes, and support-content access
+have separate capabilities. Organization/workspace display labels and IDs may appear in scoped customer records;
+messages, prompts, credentials, and raw provider payloads are excluded.
+
+Sources expose their own availability, freshness, completeness, and instrumented-scope coverage.
+Unknown or unsupported values remain explicit. Model usage and estimated cost have one execution
+owner in Agents, with verified Growth and Agency attribution. Reports do not invent a unique
+cross-product person count or a combined amount across currencies.
+
+See the [reporting contract and operations reference](docs/operations/admin-reporting.md) for
+source coverage, additive migrations, configuration, verification, and rollback. The
+[admin README](apps/admin-site/README.md#cross-product-reporting) maps the implemented pages.
 
 ## Target Agents integration
 

@@ -1,6 +1,6 @@
 # Admin
 
-Central admin UI. It calls Growth Core for Growth operations and the Agency service over HTTP for tenant administration; it has no direct database dependency.
+Central admin UI. It calls Growth, Agents, and Agency over HTTP for scoped reporting, and retains Growth commercial operations and Agency administration. It has no direct product database dependency.
 
 Copy `.env.example` to `.env.local`, then run:
 
@@ -129,3 +129,9 @@ TypeScript loader, then typecheck and lint the app. Browser acceptance must exer
 routes at desktop, tablet and mobile widths, a source outage, filter/pagination preservation,
 private save/open, CSV export and viewer permissions. Model evals and live provider acceptance
 remain owner-run.
+
+The [reporting operations reference](../../docs/operations/admin-reporting.md) records source
+coverage, authorization, server-only configuration, per-owner migrations, runtime grants, and
+rollback. Activation, previous-period comparisons, refund facts, and cross-product unique people
+are unavailable where no authoritative measurement exists. Global trend coverage describes
+instrumented scopes rather than every current organization.

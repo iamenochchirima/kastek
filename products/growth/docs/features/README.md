@@ -6,7 +6,7 @@ last_reviewed: 2026-10-23
 # Feature map
 
 This is the index of user-facing routes currently present in Growth. The Agency tenant portal
-and central Admin UI live in their owning repositories and are outside this route map.
+and central Admin UI live in their owning monorepo directories and are outside this Growth route map.
 
 For local startup, environment, and test commands, use [Local Development](../internal/development/local-development.md).
 The main client runs on port `3000`; the other app ports and service prerequisites are listed in
@@ -29,6 +29,21 @@ Routes below are under `web/src/app/`.
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
+
+## Central admin integration
+
+The separate `apps/admin-site` client exposes `/analytics`, `/analytics/customers`,
+`/analytics/adoption`, `/analytics/usage`, `/analytics/revenue`, `/analytics/reliability`, and
+`/reports`. Growth supplies scoped organization, usage, billing, and safe customer metadata through
+`GET /api/admin/reporting`. Agents and Agency remain independent HTTP sources. Growth's main
+`/analytics` route above remains customer-facing and is not this privileged admin.
+
+The [admin reporting reference](../internal/architecture/admin-analytics.md) maps the boundaries.
+Verification starts with `products/growth/api/tests/admin-reporting-source.test.ts`, shared
+reporting tests, and `apps/admin-site/tests/admin-report-format.test.ts`. Browser verification
+covers product and organization filters, permitted metric detail, source outages, private saved
+scopes, and audited CSV using an authorized isolated admin session. Model evaluations remain
+owner-run.
 
 ## Map rules
 
