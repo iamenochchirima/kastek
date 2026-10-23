@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import Fastify from "fastify";
 import { Pool } from "pg";
@@ -42,6 +43,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const owner = await actor(), member = await actor(), outsider = await actor(), org = await platform.createOrganization(owner.id, "Inbox fixtures");
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [org.id, member.id]);
+    await connectFixtureModel(pool, owner.id, org.id);
     const config = defaultBusinessConfiguration(); config.program = { id: "grounded-conversation", version: "1" };
     const agent = await platform.createAgent({ accountId: owner.id, organizationId: org.id, name: "Support", configuration: config });
     const version = await platform.createVersion({ accountId: owner.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });

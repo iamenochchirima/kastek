@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll,beforeAll,describe,expect,it } from "vitest";
@@ -19,7 +20,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  async function request(path:string,payload?:unknown,cookie?:string,token?:string,method=payload===undefined?"GET":"POST"){
   const response=await fetch(endpoint+path,{method,headers:{origin,...(payload!==undefined?{"content-type":"application/json"}:{}),...(cookie?{cookie}:{}),...(token?{authorization:`Bearer ${token}`}:{})},...(payload!==undefined?{body:JSON.stringify(payload)}:{})});return{status:response.status,body:await response.json()};
  }
- async function fixture(){const account=await store.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"current@example.test",displayName:"Owner"});const organization=await store.createOrganization(account.id,"Current settings");const session=await store.createSession({accountId:account.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+600000)});const cookie=`agents_session=${session.token}`,base=`/api/organizations/${organization.id}`;const created=await request(base+"/agents",{name:"Customer support"},cookie);expect(created.status).toBe(201);return{account,org:organization.id,cookie,base,agent:created.body.agent,snapshot:created.body.snapshot};}
+ async function fixture(){const account=await store.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"current@example.test",displayName:"Owner"});const organization=await store.createOrganization(account.id,"Current settings");await connectFixtureModel(pool,account.id,organization.id);const session=await store.createSession({accountId:account.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+600000)});const cookie=`agents_session=${session.token}`,base=`/api/organizations/${organization.id}`;const created=await request(base+"/agents",{name:"Customer support"},cookie);expect(created.status).toBe(201);return{account,org:organization.id,cookie,base,agent:created.body.agent,snapshot:created.body.snapshot};}
  it("creates ready agents, saves current settings, continues one conversation and replays the original snapshot",async()=>{
   const f=await fixture();expect(f.snapshot.id).toBeTruthy();const payload={agentId:f.agent.id,input:"Hi",requestKey:` ${randomUUID()} `};
   const first=await request(f.base+"/tasks",payload,f.cookie);expect(first.status).toBe(202);expect(first.body.task.versionId).toBe(f.snapshot.id);

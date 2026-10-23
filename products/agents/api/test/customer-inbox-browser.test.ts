@@ -1,3 +1,6 @@
+import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
+import { dispatchBoundModel } from "../src/execution/models/dispatch";
+import { createModelFetch, type ModelFetch } from "../src/infrastructure/model-network";
 import { randomUUID } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
@@ -39,12 +42,23 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
     const reserve = httpServer(); await new Promise<void>(resolve => reserve.listen(0, "127.0.0.1", resolve)); const frontendPort = (reserve.address() as { port: number }).port; await new Promise<void>(resolve => reserve.close(() => resolve())); origin = `http://127.0.0.1:${frontendPort}`;
     model = httpServer(async (request, response) => { try { const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk)); modelInputs.push(JSON.parse(Buffer.concat(chunks).toString())); modelCalls++;
       if (modelCalls === 1) await new Promise<void>(resolve => { releaseFirst = resolve; });
-      response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ id: `inbox-fixture-${modelCalls}`, choices: [{ finish_reason: "stop", message: { role: "assistant", content: modelCalls === 1 ? "LATE AUTOMATED REPLY" : "We received your update after support helped." } }], usage: { prompt_tokens: 52, completion_tokens: 12 } }));
+      response.writeHead(200, { "content-type": "text/event-stream" }); response.end(`data: ${JSON.stringify({ id: `inbox-fixture-${modelCalls}`, model: modelInputs.at(-1).model, choices: [{ index: 0, finish_reason: "stop", delta: { role: "assistant", content: modelCalls === 1 ? "LATE AUTOMATED REPLY" : "We received your update after support helped." } }], usage: { prompt_tokens: 52, completion_tokens: 12 } })}\n\ndata: [DONE]\n\n`);
     } catch (error) { providerFailure = error; response.writeHead(500).end(); } });
     await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve)); const modelUrl = `http://127.0.0.1:${(model.address() as { port: number }).port}`;
     const config = loadPlatformConfig({ NODE_ENV: "test", AGENTS_DATABASE_URL: url.href, AGENTS_PUBLIC_URL: origin, AGENTS_OIDC_ISSUER_URL: "https://inbox-identity.test", AGENTS_OIDC_CLIENT_SECRET: "isolated-inbox-browser-offline-secret", OPENROUTER_API_KEY: "local-http-fixture-never-provider" });
     app = await buildApp({ config, pool, logging: false }); endpoint = await app.listen({ host: "127.0.0.1", port: 0 });
-    const workflow = createWorkflow(pool, { openRouterApiKey: "local-http-fixture-never-provider", fetch: (_url, request) => fetch(modelUrl, request) });
+    const workflow = createWorkflow(pool, { modelProvider: fixtureModelProviders(pool), modelRuntime: {
+      dispatch: input => dispatchBoundModel(input, policy => {
+        const destination = new URL(modelUrl);
+        const physical = createModelFetch({ ...policy, authorizeUrl: url => url.href === destination.href, testLoopback: true });
+        const network = (async (url, init) => {
+          if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Model fixture destination denied");
+          return physical(destination, init);
+        }) as ModelFetch;
+        network.markProgress = physical.markProgress;
+        return network;
+      }),
+    } });
     worker = createServer(endpointHandler({ services: [workflow] })); worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
     await new Promise<void>(resolve => worker.listen(0, "0.0.0.0", resolve));
     docker("run", "-d", "--name", container, "--cpus", "2", "--memory", "768m", "--add-host", "host.docker.internal:host-gateway", "-p", "127.0.0.1::8080", "-p", "127.0.0.1::9070", "docker.restate.dev/restatedev/restate:1.7.13"); started = true;
@@ -66,6 +80,7 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
   it("takes over active work, delivers a human reply, returns on new input and recovers browser views", async () => {
     const platform = new PlatformStore(pool), account = await platform.ensureAccount({ issuer: "https://inbox-identity.test", subject: randomUUID(), email: "operator@inbox.test", displayName: "Support operator" });
     const org = await platform.createOrganization(account.id, "Customer Inbox verification"), scope = { accountId: account.id, organizationId: org.id };
+    await connectFixtureModel(pool, account.id, org.id);
     const configuration = defaultBusinessConfiguration(); configuration.program = { id: "grounded-conversation", version: "1" }; configuration.tools = [];
     const agent = await platform.createAgent({ ...scope, name: "Website support", configuration }), version = await platform.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const deployment = await platform.publishWebsite({ ...scope, agentId: agent.id, versionId: version.id, allowedOrigins: [origin] });
@@ -92,7 +107,7 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
     await browserExpect(visitor.getByText("We received your update after support helped.", { exact: true })).toBeVisible({ timeout: 30_000 });
     expect(modelCalls).toBe(2); expect(JSON.stringify(modelInputs[1])).toContain("I handled your account request. Support is here.");
     await visitor.reload(); await browserExpect(visitor.getByText("I handled your account request. Support is here.", { exact: true })).toBeVisible(); await browserExpect(visitor.getByText("We received your update after support helped.", { exact: true })).toBeVisible();
-    for (const width of [1440, 768, 390]) { await staff.setViewportSize({ width, height: 1000 }); await browserExpect(staff.getByRole("heading", { name: "Customer conversation", exact: true })).toBeVisible(); expect(await staff.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true); await staff.screenshot({ path: resolve(artifact, `inbox-${width}.png`), fullPage: true }); }
+    for (const width of [1440, 768, 390]) { await staff.setViewportSize({ width, height: 1000 }); await browserExpect(staff.getByRole("heading", { name: "Website conversation", exact: true })).toBeVisible(); expect(await staff.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true); await staff.screenshot({ path: resolve(artifact, `inbox-${width}.png`), fullPage: true }); }
     expect(providerFailure).toBeUndefined();
     const messages = (await pool.query("SELECT author_kind,body FROM agents_platform.customer_messages ORDER BY conversation_id,sequence")).rows; expect(messages.filter(row => row.author_kind === "human")).toHaveLength(1); expect(messages.some(row => row.body === "LATE AUTOMATED REPLY")).toBe(false);
     const widgetContext = await browser.newContext({ viewport: { width: 390, height: 844 } }); widget = await widgetContext.newPage();
