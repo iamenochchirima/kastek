@@ -4,7 +4,7 @@ import { ApiError } from "../../error.js";
 import { publishAdminNotification } from "../admin-notification-publisher.js";
 import { recordSubmission } from "../early-access.js";
 import { sendOrganizationEmail } from "../org-support.js";
-import { bad, optionalUrl } from "./deployments.js";
+import { bad, optionalUrl } from "./lead-validation.js";
 import { WEBSITE_SQL as sql } from "./sql.js";
 const BUSINESS_TYPES = [
   "individual",
