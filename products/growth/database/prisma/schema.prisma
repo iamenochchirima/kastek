@@ -999,6 +999,8 @@ model AdminUser {
   password String
   role     String @default("admin") // superadmin | admin | viewer
 
+  sessions AdminSession[]
+
   assignedLeads QuoteRequest[] @relation("AssignedLeads")
   supportAccessGrants AdminSupportAccessGrant[] @relation("SupportAccessAdmin")
   supportAccessGrantsIssued AdminSupportAccessGrant[] @relation("SupportAccessIssuer")
@@ -2741,3 +2743,16 @@ model GrowthAgentReview {
   @@index([orgId, actorId, taskId, createdAt])
   @@index([rootReviewId])
 }
+
+model AdminSession {
+  tokenHash String @id
+  adminId String
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+

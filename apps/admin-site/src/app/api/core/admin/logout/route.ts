@@ -9,12 +9,14 @@ export async function POST(req: Request) {
   const sessionCookie = cookieStore.get(ADMIN_SESSION_COOKIE);
 
   if (sessionCookie?.value) {
-    await fetch(`${CORE_BACKEND_URL}/api/admin/logout`, {
+    const revoked = await fetch(`${CORE_BACKEND_URL}/api/admin/logout`, {
       method: "POST",
       headers: {
+        Origin: process.env.ADMIN_FRONTEND_URL ?? "http://localhost:3001",
         Cookie: `${ADMIN_SESSION_COOKIE}=${sessionCookie.value}`,
       },
-    }).catch(() => {});
+    }).catch(() => null);
+    if (!revoked?.ok) return NextResponse.json({error: "Unable to revoke session"}, {status: 503});
   }
 
   const response = NextResponse.json({ ok: true });

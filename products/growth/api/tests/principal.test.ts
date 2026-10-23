@@ -38,6 +38,6 @@ test('admin bcrypt authentication and role separation preserve narrow platform p
   const password=await hash('correct password',4);const admin={id:'a',name:'A',email:'a@test',password,role:'support',createdAt:new Date(),updatedAt:new Date()};
   const context=core();context.pool={query:async()=>({rows:[admin]})} as unknown as CoreContext['pool'];
   assert.equal((await authenticateAdmin(context,' A@Test ',' correct password ')).id,'a');await assert.rejects(authenticateAdmin(context,'a@test','wrong'));
-  const req=request();req.cookies.kasitek_admin_session='a';const resolved=await resolveAdminContext(req,context);assert.equal(resolved.organizationId,'platform');assert.deepEqual([...resolved.effectiveGrants],['admin:read','admin:support']);
+  const req=request();req.cookies.kasitek_admin_session='a'.repeat(43);const resolved=await resolveAdminContext(req,context);assert.equal(resolved.organizationId,'platform');assert.deepEqual([...resolved.effectiveGrants],['admin:read','admin:report','admin:support']);
   assert.equal(canViewCustomerContent('support'),true);assert.equal(canExecuteOperatorCommand('support'),false);assert.equal(canManageSupportAccess('support'),false);assert.equal(canUseEmergencyAccess('operator'),false);assert.equal(canUseEmergencyAccess('OWNER'),true);assert.equal(grantsForRole('unknown').size,0);
 });

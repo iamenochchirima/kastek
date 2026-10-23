@@ -23,7 +23,9 @@
     "next-auth": "5.0.0-beta.30",
     "nodemailer": "^7.0.7",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "@kasitek-labs/server-support": "workspace:*",
+    "@kasitek-labs/contracts": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

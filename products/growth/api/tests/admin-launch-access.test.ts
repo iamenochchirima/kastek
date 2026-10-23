@@ -1,3 +1,4 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -59,11 +60,12 @@ test(
           `INSERT INTO "AdminUser"(id,name,email,password,role,"updatedAt")VALUES($1,$1,$1||'@example.test','unused',$2,NOW())`,
           [id, role],
         );
+      await seedAdminFixtureSessions(pool);
       await app.register(cookie);
       app.setReplySerializer(apiJson);
       installErrorHandler(app);
       registerAdminLaunchAccessRoutes(app, core);
-      const headers = { cookie: "kasitek_admin_session=admin" },
+      const headers = adminFixtureHeaders("admin"),
         request = {
           name: " Fresh User ",
           email: " FRESH@EXAMPLE.TEST ",
@@ -79,7 +81,7 @@ test(
           await app.inject({
             method: "POST",
             url: "/api/admin/access",
-            headers: { cookie: "kasitek_admin_session=viewer" },
+            headers: adminFixtureHeaders("viewer"),
             payload: request,
           })
         ).statusCode,
@@ -144,7 +146,7 @@ test(
       const listed = await app.inject({
         method: "GET",
         url: "/api/admin/access",
-        headers: { cookie: "kasitek_admin_session=viewer" },
+        headers: adminFixtureHeaders("viewer"),
       });
       assert.equal(listed.statusCode, 200);
       assert.equal(listed.json().access[0].status, "pending");
@@ -219,7 +221,7 @@ test(
           await app.inject({
             method: "GET",
             url: "/api/admin/access",
-            headers: { cookie: "kasitek_admin_session=support" },
+            headers: adminFixtureHeaders("support"),
           })
         ).statusCode,
         403,

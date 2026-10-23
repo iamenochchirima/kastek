@@ -18,7 +18,7 @@ export function registerAdminBillingRoutes(
   const pool = context.pool;
   async function access(request: FastifyRequest) {
     const admin = await extractAdmin(request, context);
-    requireAdminRole(admin, ['superadmin', 'admin']);
+    requireAdminRole(admin, ['superadmin', 'owner', 'admin', 'operator']);
     return admin;
   }
   const body = (name: string, r: FastifyRequest) =>

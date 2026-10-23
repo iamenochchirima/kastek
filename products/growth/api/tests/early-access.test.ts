@@ -1,3 +1,4 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -139,7 +140,8 @@ test('isolated early-access approval, activation, retries, revocation and expiry
           VALUES('operator','Operator','operator@example.test','synthetic','admin',NOW(),NOW());
         INSERT INTO "ProductWaitlistEntry"(id,"contactPerson",email,products,"createdAt","updatedAt")
           VALUES('application','Owner','owner@example.test','{}',NOW(),NOW())`);
-      const headers = { cookie: 'kasitek_admin_session=operator' };
+      await seedAdminFixtureSessions(pool);
+      const headers = adminFixtureHeaders("operator");
       const unauthorized = await app.inject({ url: '/api/admin/early-access/application' });
       assert.equal(unauthorized.statusCode, 401);
       await pool.query(`UPDATE "AdminUser" SET role='support' WHERE id='operator'`);

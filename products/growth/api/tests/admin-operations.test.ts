@@ -1,3 +1,4 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -89,7 +90,7 @@ test(
         method,
         url: '/api/admin' + path,
         payload: payload as any,
-        headers: { cookie: `kasitek_admin_session=${actor}` },
+        headers: adminFixtureHeaders(actor),
       });
     try {
       const initial = readFileSync(
@@ -142,6 +143,7 @@ test(
           `INSERT INTO "AdminUser"(id,name,email,password,role,"updatedAt")VALUES($1,$1,$1||'@example.test','fixture',$2,NOW())`,
           [id, role],
         );
+      await seedAdminFixtureSessions(pool);
       await pool.query(`INSERT INTO "Organization" VALUES('org-a'),('org-b')`);
       assert.equal(
         (await request('GET', '/leads', undefined, 'missing')).statusCode,
@@ -409,7 +411,7 @@ test(
         method: 'POST',
         url: '/api/admin/operations/webhooks/replays',
         headers: {
-          cookie: 'kasitek_admin_session=admin',
+          ...adminFixtureHeaders("admin"),
           'idempotency-key': 'fixture-replay-key',
         },
         payload: {

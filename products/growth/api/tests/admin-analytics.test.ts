@@ -1,3 +1,4 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -227,8 +228,9 @@ test(
           .statusCode,
         401,
       );
-      const viewer = { cookie: "kasitek_admin_session=viewer" },
-        owner = { cookie: "kasitek_admin_session=admin" };
+      await seedAdminFixtureSessions(pool);
+      const viewer = adminFixtureHeaders("viewer"),
+        owner = adminFixtureHeaders("admin");
       assert.equal(
         (
           await app.inject({
@@ -242,7 +244,7 @@ test(
         (
           await app.inject({
             url: "/api/admin/analytics/overview?days=1",
-            headers: { cookie: "kasitek_admin_session=invalid" },
+            headers: adminFixtureHeaders("invalid"),
           })
         ).statusCode,
         403,

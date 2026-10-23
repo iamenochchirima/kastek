@@ -48,7 +48,8 @@
     "yaml": "2.9.1",
     "yauzl": "3.4.0",
     "zod": "^4.0.0",
-    "@kasitek-labs/contracts": "workspace:*"
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/server-support": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

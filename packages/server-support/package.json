@@ -41,6 +41,16 @@
     "./json": {
       "types": "./dist/json.d.ts",
       "import": "./dist/json.js"
+    },
+    "./admin-authority": {
+      "types": "./dist/admin-authority.d.ts",
+      "import": "./dist/admin-authority.js",
+      "require": "./dist/admin-authority.js"
+    },
+    "./admin-reporting": {
+      "types": "./dist/admin-reporting.d.ts",
+      "import": "./dist/admin-reporting.js",
+      "require": "./dist/admin-reporting.js"
     }
   },
   "scripts": {
@@ -59,5 +69,15 @@
   },
   "devDependencies": {
     "@types/pg": "8.15.6"
+  },
+  "typesVersions": {
+    "*": {
+      "admin-authority": [
+        "dist/admin-authority.d.ts"
+      ],
+      "admin-reporting": [
+        "dist/admin-reporting.d.ts"
+      ]
+    }
   }
 }

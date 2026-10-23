@@ -1,3 +1,4 @@
+import { adminAuditActors } from "./identity/admin-session.js";
 import { installHttpObservability } from "./observability/http.js";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
@@ -45,6 +46,7 @@ export async function buildApp(
       redact: [
         "req.headers.authorization",
         "req.headers.cookie",
+        'req.headers["x-kasitek-admin-authority"]',
         'res.headers["set-cookie"]',
       ],
       hooks: {
@@ -175,6 +177,10 @@ export async function buildApp(
         ],
       });
     },
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const actor = adminAuditActors.get(request);
+    if (actor && (!['GET','HEAD','OPTIONS'].includes(request.method) || /export/.test(request.routeOptions.url ?? ''))) request.log.info({event:'admin.action', service:'growth', actor_id:actor.id, actor_role:actor.role, request_id:request.id, route:request.routeOptions.url, method:request.method, status_code:reply.statusCode}, 'Admin action');
   });
   const health = () => ({
     service: "kasitek-core",

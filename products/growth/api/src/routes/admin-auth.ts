@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
-import { ADMIN_SESSION_COOKIE, adminCookieOptions, adminProfile, authenticateAdmin, extractAdmin, resolveAdminContext } from '../identity/admin-session.js';
+import { ADMIN_SESSION_COOKIE, adminCookieOptions, adminProfile, authenticateAdmin, extractAdmin, resolveAdminContext, createAdminSession, revokeAdminSession, ADMIN_SESSION_SECONDS } from '../identity/admin-session.js';
 import { changeAdminPassword, requestAdminPasswordReset, resetAdminPassword } from '../services/admin-auth.js';
 
 function body(request: FastifyRequest): Record<string, unknown> {
@@ -18,12 +18,17 @@ function string(value: unknown, required = false): string | undefined {
 }
 
 export function registerAdminAuthRoutes(app: FastifyInstance, context: CoreContext): void {
+  const requireOrigin = (request: FastifyRequest) => {
+    const origin = request.headers.origin;
+    if ((origin && ![context.config.adminFrontendUrl, context.config.frontendUrl].map(value => new URL(value).origin).includes(origin)) || request.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403,'forbidden','Invalid request origin');
+  };
   app.post('/api/admin/login', async (request, reply) => {
+    requireOrigin(request);
     const values = body(request);
     const admin = await authenticateAdmin(context, string(values.email, true)!, string(values.password, true)!);
-    return reply.setCookie(ADMIN_SESSION_COOKIE, admin.id, adminCookieOptions(context)).send(adminProfile(admin));
+    return reply.setCookie(ADMIN_SESSION_COOKIE, await createAdminSession(context, admin.id), { ...adminCookieOptions(context), maxAge: ADMIN_SESSION_SECONDS }).send(adminProfile(admin));
   });
-  app.post('/api/admin/logout', async (_request, reply) => reply.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions(context)).send({ message: 'Logged out' }));
+  app.post('/api/admin/logout', async (request, reply) => { requireOrigin(request); if (request.cookies[ADMIN_SESSION_COOKIE] && !request.headers.origin) throw new ApiError(403,'forbidden','Invalid request origin'); await revokeAdminSession(context, request.cookies[ADMIN_SESSION_COOKIE]); return reply.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions(context)).send({ message: 'Logged out' }); });
   app.get('/api/admin/me', async request => {
     await resolveAdminContext(request, context);
     return adminProfile(await extractAdmin(request, context));
