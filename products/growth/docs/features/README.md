@@ -34,7 +34,9 @@ Routes below are under `web/src/app/`.
 
 The separate `apps/admin-site` client exposes `/analytics`, `/analytics/customers`,
 `/analytics/adoption`, `/analytics/usage`, `/analytics/revenue`, `/analytics/reliability`, and
-`/reports`. Growth supplies scoped organization, usage, billing, and safe customer metadata through
+`/reports`. `/operations` adds read-only reporting status for Growth, Agents, Agency and Analytics
+alongside Growth recovery operations. Customer name/ID search filters bounded records; selecting a
+result opens its owning product scope. Growth supplies scoped organization, usage, billing, and safe customer metadata through
 `GET /api/admin/reporting`. Agents and Agency remain independent HTTP sources. Growth's main
 `/analytics` route above remains customer-facing and is not this privileged admin.
 
@@ -42,7 +44,9 @@ The [admin reporting reference](../internal/architecture/admin-analytics.md) map
 Verification starts with `products/growth/api/tests/admin-reporting-source.test.ts`, shared
 reporting tests, and `apps/admin-site/tests/admin-report-format.test.ts`. Browser verification
 covers product and organization filters, permitted metric detail, source outages, private saved
-scopes, and audited CSV using an authorized isolated admin session. Model evaluations remain
+scopes, audited CSV and the worker-pause/source-outage recovery paths against the dedicated
+development services. The [operational profile](../../../../docs/operations/admin-reporting.md#dedicated-development-profile)
+keeps product databases and the existing Agents app separate. Model evaluations remain
 owner-run.
 
 ## Map rules

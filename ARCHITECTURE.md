@@ -51,7 +51,13 @@ have separate capabilities. Organization/workspace display labels and IDs may ap
 messages, prompts, credentials, and raw provider payloads are excluded.
 
 Sources expose their own availability, freshness, completeness, and instrumented-scope coverage.
-Unknown or unsupported values remain explicit. Model usage and estimated cost have one execution
+Unknown or unsupported values remain explicit. `/operations` exposes read-only source publication
+and Analytics projection diagnostics; queue progress and historical completeness remain separate.
+Customer search filters safe name/ID records within product ownership, with a 100-character bound;
+it does not change aggregate metrics. Analytics can use a separate non-owner reporting pool while
+ingestion and workers retain their writer pool. The dedicated development process profile uses
+private configuration and identity-checked start/status/stop commands, without replacing the
+existing Agents API/UI or databases. Model usage and estimated cost have one execution
 owner in Agents, with verified Growth and Agency attribution. Reports do not invent a unique
 cross-product person count or a combined amount across currencies.
 

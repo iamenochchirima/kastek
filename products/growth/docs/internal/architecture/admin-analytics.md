@@ -37,7 +37,7 @@ defines source coverage, metric semantics, configuration, migrations, and rollba
 | Reliability | `/analytics/reliability` | Root outcomes, backlog, latency, retries, deliveries, and human intervention |
 | Activity | `/activity` | Growth's cursor-paginated safe activity feed and bounded SSE updates |
 | Reports | `/reports` | Private saved scopes, existing definitions, and audited CSV exports |
-| Operations | `/operations` | Growth webhook recovery and separately authorized support grants |
+| Operations | `/operations` | Read-only reporting diagnostics across products and Analytics; Growth webhook recovery and separately authorized support grants |
 
 `/dashboard` redirects to `/analytics`. The old health, data-quality, and audit pages redirect to
 `/operations`; they are not independent monitoring panels. Activity remains Growth-scoped.
@@ -47,7 +47,9 @@ defines source coverage, metric semantics, configuration, migrations, and rollba
 The admin uses `GET /api/analytics/cross-product` and
 `POST /api/analytics/cross-product/export`. Product filters select Growth, Agents, Agency, or all.
 An organization filter requires a selected product. The UI retains period, timezone, pagination,
-and supported metric detail dimensions in the URL.
+and supported metric detail dimensions in the URL. Customer search accepts up to 100 characters
+and filters paginated name/ID records only; aggregate metrics keep the original scope. Selecting
+a customer applies its owning product and organization without equating IDs across products.
 
 All three products expose `GET /api/admin/reporting`. Growth authenticates the admin session.
 Agents and Agency verify short-lived assertions bound to actor, capability, audience, method,
@@ -59,6 +61,18 @@ request-bound admin assertion. Scoped Growth and Agency trends reuse the scope r
 reporting grants. Only registered additive integer metrics are supported. Existing Growth-only
 `/api/admin/analytics/*`, activity, and report-definition APIs remain for their current callers;
 they do not establish cross-product source coverage.
+
+Operations reads `GET /api/operations/reporting` with the selected service or all four sources.
+Product diagnostics expose configuration presence, bounded source reads, pending/retrying/quarantined
+outbox counts and accepted publication time. Agents adds pending event receipts. Analytics exposes
+aggregate queue, checkpoint and promotion metadata. These observations do not prove worker liveness,
+remote credential acceptance or global completeness, and the panel performs no recovery mutations.
+
+Analytics optionally uses `ANALYTICS_REPORTING_DATABASE_URL` for a separate non-owner reporting pool.
+Ingestion and the projection worker retain the main writer connection. The reader has explicit
+projection SELECTs, bounded metadata-function execution, audit INSERT and a narrowly authorized
+reporting-grant INSERT; it cannot write source facts or projections. The operations reference lists
+all role grants and migration requirements.
 
 ## State, precision, and permissions
 
@@ -86,7 +100,8 @@ audits admin projection queries. Browser responses never expose service credenti
 ## Verification
 
 The [reporting operations reference](../../../../../docs/operations/admin-reporting.md#verification)
-lists repeatable checks and rollout responsibilities. Engineering tests exercise isolated source
+lists repeatable checks and rollout responsibilities. The dedicated development profile connects the actual four APIs, publishers, projection worker and
+admin, with independent databases and explicit process ownership. Engineering tests exercise isolated source
 reconciliation, HTTP authority, projection replay, source outages, exact quantities, saved filters,
 exports, and responsive reporting pages. Model evaluations and live provider acceptance remain
 owner-run. Local verification does not establish production deployment.

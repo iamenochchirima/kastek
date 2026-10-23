@@ -30,7 +30,8 @@ the existing renderer's draft fields. Invoice records use Core's camelCase
 response and go directly to the existing invoice renderer.
 
 
-Operations now exposes Growth webhook recovery and support grants only. Old Agents runtime
+Operations exposes read-only reporting diagnostics across Growth, Agents, Agency and Analytics,
+plus Growth webhook recovery and support grants. Old Agents runtime
 operator panels, projections and installation commands are removed. The old health, data-quality
 and audit page links redirect to Operations. Shared execution monitoring belongs to Agents.
 
@@ -38,7 +39,7 @@ and audit page links redirect to Operations. Shared execution monitoring belongs
 
 Analytics is the primary reporting entry. `/dashboard` remains a redirect without a second
 navigation item. Outreach campaigns, drafts and delivery history stay grouped separately from
-Operations and Commercial. Operations contains Growth webhook recovery and support grants;
+Operations and Commercial. Operations contains reporting diagnostics, Growth webhook recovery and support grants;
 retired Agents operator panels remain removed.
 
 Growth organization links open `/organizations?q=<id>`. This searches the existing Growth
@@ -112,7 +113,9 @@ their source state and reason; unavailable values do not display zero. Current-s
 labelled Current. Metric definitions and paginated safe source records are available through
 native disclosures; monetary values preserve their source currency and exact integer precision.
 Source records identify their kind and are not a claim that every metric has a matching detail row.
-Customer records show their product-owned organization/workspace name and ID. Selecting one
+Customer records show their product-owned organization/workspace name and ID. Search accepts
+at most 100 characters and filters those records by case-insensitive name or exact ID; it does not
+filter aggregate metrics and cannot combine with metric detail. Selecting one
 keeps the current period and timezone and applies that product and organization scope.
 Event projection trends remain separate from authoritative totals. Each series retains its domain,
 source, availability, scope coverage and completeness checkpoint. Gaps remain unknown. Exact bucket
@@ -143,6 +146,8 @@ reporting profile. Prepare private `.runtime/admin-reporting/{growth,agency,agen
 files (directory mode 700, file mode 600), build the affected services and admin, and apply
 reviewed migrations before starting. The profile accepts only loopback PostgreSQL databases
 whose names end in `_reporting_dev`; it never provisions databases or generates credentials.
+Managed Growth, Agency and Analytics processes receive `KASITEK_ENV_FILE` for the selected profile
+and do not fill missing settings from older service-local environment files.
 
 ```sh
 pnpm reporting:dev preflight
@@ -181,3 +186,12 @@ service output into tickets. Startup failure preserves already started managed s
 inspect `status` and stop selected services explicitly.
 
 Run `pnpm test:reporting-dev` for process ownership, listener collision and secret-output checks.
+
+
+The [development reporting reference](../../docs/operations/admin-reporting.md#dedicated-development-profile)
+lists the current dedicated databases, owner migration steps, reader-role grants and recovery path.
+`/operations` shows only aggregate source/projection status; it cannot replay or rebuild data.
+Quarantined publication takes precedence over pending outbox/Agents receipts; an empty queue with
+no accepted publication is no activity. Source, ingestion, checkpoint and promotion timestamps
+remain separate, and global complete-through stays Unknown. Diagnostics require `admin:report`;
+viewers can inspect them but cannot obtain export or save privileges through this surface.
