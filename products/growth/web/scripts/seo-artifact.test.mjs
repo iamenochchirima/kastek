@@ -6,7 +6,7 @@ const html = await readFile(new URL('index.html', root), 'utf8');
 
 test('landing has meaningful prerendered HTML, canonical metadata and public indexing', () => {
   assert.match(html, /<title>Growth \| KasiTek<\/title>/);
-  assert.match(html, /<h1[^>]*>Stay close to your customers<\/h1>/);
+  assert.match(html, /<h1[^>]*>Stay close to<br\s*\/?>your customers\.<\/h1>/);
   assert.match(html, /rel="canonical" href="https:\/\/growth.kasitek.co.za\/"/);
   assert.match(html, /name="robots" content="index, follow"/);
   assert.doesNotMatch(html, /name="robots" content="noindex/);
