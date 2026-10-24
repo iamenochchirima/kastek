@@ -47,7 +47,14 @@ A new user registers at Keycloak and verifies email before receiving a Growth se
 React Router client loaders resolve the product session and current organization before protected
 workspace requests. Client guards provide navigation behavior; Core independently enforces every
 permission. A new account with no organization is redirected to `/onboarding`. Session expiry,
-logout, and business switching clear private query state and cancel prior scoped requests. Onboarding creates their organization
+logout, and business switching clear private query state and cancel prior scoped requests.
+Matched loaders share one session and organization result through their router `Request`. The
+result lasts only for that request, without an authentication-cache timeout. New navigations read
+Core again. Request abort and business-scope checks reject late results; a navigation that detects
+its own session expiry can still redirect to login. Generic feature data remains in the shared
+query cache.
+
+Onboarding creates their organization
 with its initial owner. Organisation creation asks only for a name; Core generates a unique URL slug and records durable setup for the four Growth agents. Agent setup can finish after onboarding without delaying organisation creation. A workspace invitation returns
 through login to its original invitation URL; accepting requires an authenticated matching
 identity and grants the invitation's organization role. Signup does not grant access to existing
@@ -73,6 +80,10 @@ Core enforces expiry and the thirty-day maximum; the frontend redirects an expir
 6. Check the account menu and profile controls at mobile, tablet and desktop widths.
 7. Run client route generation, TypeScript and focused ESLint. Security/token validation is
    verified in Core tests and end-to-end provider checks.
+8. Run the request-lifetime bootstrap checks from the repository root with
+   `pnpm --filter @kasitek/growth-core exec tsx --tsconfig ../web/tsconfig.json --test ../web/scripts/workspace-bootstrap.test.ts`.
+   Browser coverage also checks that matched settings loaders perform one session read and one
+   organization read per navigation.
 
 Release scope: local development only; no production deployment or legacy account migration.
 Analytics events are unchanged; new browser telemetry is not applicable. Server authentication

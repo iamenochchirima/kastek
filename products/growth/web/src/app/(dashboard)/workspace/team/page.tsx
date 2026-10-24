@@ -7,14 +7,14 @@ import type { Org, OrgMember, OrgInvitation } from "@/lib/orgs";
 
 export function meta() { return [{ title: "Team | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
-  const orgs = await fetchOrgs();
+  const orgs = await fetchOrgs(request);
   if (orgs.length === 0) throw redirect("/workspace");
 
-  const activeId = await getActiveOrgId();
+  const activeId = await getActiveOrgId(request);
   const activeOrg: Org = (activeId ? orgs.find((o) => o.id === activeId) : null) ?? orgs[0]!;
 
   const [members, invitations] = await Promise.all([

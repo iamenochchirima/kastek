@@ -12,7 +12,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;
   const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as { starter?: string; status?: string; create?: string });
 
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(route.request);
   if (!session?.user?.id) throw redirect("/login");
 
   const params = searchParams;

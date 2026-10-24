@@ -4,9 +4,9 @@ import { getWorkspaceSession } from "@/lib/core-auth";
 
 export function meta() { return [{ title: "Analytics Playground | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export async function clientLoader() {
+export async function clientLoader({ request }: { request: Request }) {
   if (!import.meta.env.DEV) throw new Response("Not found", { status: 404 });
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
   return {  };
 }

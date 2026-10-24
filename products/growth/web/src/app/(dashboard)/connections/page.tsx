@@ -31,7 +31,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
     capabilities?: string;
   });
 
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(route.request);
   if (!session?.user?.id) throw redirect("/login");
 
   const params = searchParams;

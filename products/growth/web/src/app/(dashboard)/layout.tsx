@@ -11,18 +11,18 @@ import ThemeScope from "@/components/theme-scope";
 import { redirect } from "react-router";
 import { fetchOrgs, getActiveOrgId } from "@/lib/orgs";
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
-  const orgs = await fetchOrgs();
+  const orgs = await fetchOrgs(request);
   if (!orgs.length) throw redirect("/onboarding");
 
   const [unreadCountResponse, activeOrgId, billingSummary, onboardingStatus, productTourStatus] = await Promise.all([
     fetchCoreJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count").catch(
       () => ({ unreadCount: 0 }),
     ),
-    getActiveOrgId(),
+    getActiveOrgId(request),
     fetchBillingSummary().catch(() => null),
     fetchOnboardingStatus(),
     fetchProductTourStatus().catch(() => null),

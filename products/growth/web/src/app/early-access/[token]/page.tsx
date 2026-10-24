@@ -7,7 +7,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { token: string });
 
   const { token } = params;
-  const session = await getCoreSession();
+  const session = await getCoreSession(route.request);
   const invitation = await fetchCoreJson<{ invitation: { email: string; status: string; expiresAt: string; businessName: string } }>(`/api/early-access/invitations/${token}`).catch(() => null);
   return { token, session, invitation };
 }

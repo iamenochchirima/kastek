@@ -100,7 +100,7 @@ type CampaignDetailResponse = {
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { id: string });
 
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(route.request);
   if (!session?.user?.id) throw redirect("/login");
 
   const { id } = params;

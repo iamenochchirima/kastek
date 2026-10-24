@@ -9,7 +9,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;
   const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as { task?: string });
 
-  if (!await getWorkspaceSession()) throw redirect("/login");
+  if (!await getWorkspaceSession(route.request)) throw redirect("/login");
   const { id } = params;
   const { task } = searchParams;
   return { id, task };

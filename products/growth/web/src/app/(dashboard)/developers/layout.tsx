@@ -6,8 +6,8 @@ import { getWorkspaceSession } from "@/lib/core-auth";
 import { fallbackDevelopersConfig, type DevelopersBootstrap } from "@/lib/developers";
 import { redirect } from "react-router";
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
   const bootstrap = await fetchCoreJson<DevelopersBootstrap>("/api/developers").catch(() => ({

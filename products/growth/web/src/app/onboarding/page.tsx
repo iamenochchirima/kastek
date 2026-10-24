@@ -8,11 +8,11 @@ import { OnboardingWizard } from "./onboarding-wizard";
 
 export function meta() { return [{ title: "Set up your workspace | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export async function clientLoader() {
-  const session = await getCoreSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getCoreSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
-  const orgs = await fetchOrgs();
+  const orgs = await fetchOrgs(request);
   if (!orgs.length) return { needsOrganisation: true as const, profile: null };
   const status = await fetchOnboardingStatus();
   if (!status?.needsOnboarding) throw redirect("/workspace");

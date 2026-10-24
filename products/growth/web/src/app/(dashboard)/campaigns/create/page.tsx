@@ -7,8 +7,8 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export function meta() { return [{ title: "Create Campaign | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
   const [connectionResponse, templateResponse, contactResponse] = await Promise.all([

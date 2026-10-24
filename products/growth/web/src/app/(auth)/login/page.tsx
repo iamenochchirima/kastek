@@ -12,7 +12,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as { returnTo?: string; callbackUrl?: string });
 
   const params = searchParams;
-  const session = await getCoreSession();
+  const session = await getCoreSession(route.request);
   if (session?.user?.id) {
     throw redirect(safeReturnTo(params.returnTo ?? params.callbackUrl));
   }

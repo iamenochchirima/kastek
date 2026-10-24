@@ -51,8 +51,8 @@ type WorkspaceSummary = {
   }>;
 };
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
   const response = await fetchCoreJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");

@@ -10,7 +10,7 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { token: string });
 
   const { token } = params;
-  const session = await getCoreSession();
+  const session = await getCoreSession(route.request);
 
   let invitation: InvitationPreview | null = null;
   try {

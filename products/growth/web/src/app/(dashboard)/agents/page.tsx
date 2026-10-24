@@ -3,8 +3,8 @@ import { getWorkspaceSession } from "@/lib/core-auth";
 import { AgentsWorkspace } from "@/components/dashboard/agents/agent-workspace";
 
 export function meta() { return [{ title: "Agents | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
-export async function clientLoader() {
-  if (!await getWorkspaceSession()) throw redirect("/login");
+export async function clientLoader({ request }: { request: Request }) {
+  if (!await getWorkspaceSession(request)) throw redirect("/login");
   return {  };
 }
 

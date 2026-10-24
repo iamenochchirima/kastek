@@ -6,8 +6,8 @@ import { redirect } from "react-router";
 
 export function meta() { return [{ title: "Campaigns | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
   const campaignResponse = await fetchCoreJson<{

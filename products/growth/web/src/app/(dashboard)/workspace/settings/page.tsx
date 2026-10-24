@@ -20,12 +20,12 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as SettingsSearchParams);
 
   const { section, payment, reference, trxref } = searchParams;
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(route.request);
   if (!session?.user?.id) throw redirect("/login");
   const sectionValue = Array.isArray(section) ? section[0] : section;
   if (sectionValue === "api-keys") throw redirect("/developers/api-keys");
-  const orgs = await fetchOrgs();
-  const activeId = await getActiveOrgId();
+  const orgs = await fetchOrgs(route.request);
+  const activeId = await getActiveOrgId(route.request);
   const org: Org | undefined = (activeId ? orgs.find((item) => item.id === activeId) : undefined) ?? orgs[0];
   if (!org) throw redirect("/workspace");
   const [members, billingSummary, billingPlans, billingCredits, billingUsage, profile] = await Promise.all([

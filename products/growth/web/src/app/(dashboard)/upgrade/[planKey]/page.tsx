@@ -9,7 +9,7 @@ export function meta() { return [{ title: "Plan details | KasiTek" }, { name: "r
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { planKey: string });
 
-  const session = await getWorkspaceSession();
+  const session = await getWorkspaceSession(route.request);
   if (!session?.user?.id) throw redirect("/login");
   const { planKey } = params;
   const details = await fetchBillingPlanDetails(planKey).catch(() => null);

@@ -52,8 +52,8 @@ type CoreSocialChannel = {
   handle: string | null;
 };
 
-export async function clientLoader() {
-  const session = await getWorkspaceSession();
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
   if (!session) throw redirect("/login");
   const [
     connectionsPayload,
