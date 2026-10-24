@@ -30,9 +30,43 @@ function json(response, status, body) { response.writeHead(status, { "content-ty
 function payload(request) { return new Promise((resolve, reject) => { let value = ""; request.on("data", (chunk) => { value += chunk; if (value.length > 1_000_000) reject(new Error("oversized fixture request")); }); request.on("end", () => { try { resolve(value ? JSON.parse(value) : {}); } catch { reject(new Error("invalid body")); } }); }); }
 function rows(map, businessId) { return [...map.values()].filter((value) => value.businessId === businessId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)); }
 function scope(request) { const cookie = request.headers.cookie || ""; return cookie.includes(`kasitek_active_org=${businessTwo}`) ? businessTwo : businessOne; }
+const migration = process.env.GROWTH_MIGRATION_FIXTURE === "1";
+const profile = { name: "Fixture user", email: "fixture@example.test", phone: null, image: null, emailVerified: now() };
+const developerKeys = [];
+const bookingServices = [];
+const migrationRequests = [];
+const fixturePlan = { key: "fixture-plan", productKey: "growth", name: "Fixture plan", interval: "MONTHLY", currency: "ZAR", amountMinor: 10000, creditsPerPeriod: 100, checkoutReady: false, entitlements: [] };
+const developerConfig = { restBaseUrl: "https://growth.example/v1", mcpAvailable: false, mcpEndpoint: null, mcpPackage: null, clients: [] };
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://127.0.0.1"); const path = url.pathname; const businessId = scope(request);
+    if (migration) migrationRequests.push({ path, method: request.method });
+    if (path === "/__fixture/migration") return json(response, 200, { requests: migrationRequests, profile, developerKeys, bookingServices });
+    if (migration && path === "/api/auth/account") { response.writeHead(200, { "content-type": "text/html" }); response.end("<html><head><meta name='robots' content='noindex'></head><body><h1>Account settings fixture</h1></body></html>"); return; }
+    if (migration && path === "/api/profile") { if (request.method === "PATCH") Object.assign(profile, await payload(request)); return json(response, 200, { user: profile }); }
+    if (migration && /^\/api\/orgs\/[^/]+\/(members|invitations)$/.test(path)) return json(response, 200, path.endsWith("/members") ? { members: [{ id: "member", userId, orgId: businessId, name: profile.name, email: profile.email, role: "OWNER", joinedAt: now(), image: null }] } : { invitations: [] });
+    if (migration && path === "/api/developers") return json(response, 200, { apiKeys: developerKeys, config: developerConfig });
+    if (migration && path === "/api/developers/api-keys" && request.method === "POST") { const input = await payload(request); const key = { id: randomUUID(), name: input.name, prefix: "fixture", scopes: ["api:read", "api:write"], status: "ACTIVE", createdById: userId, createdAt: now(), updatedAt: now(), expiresAt: null, lastUsedAt: null, revokedAt: null }; developerKeys.push(key); return json(response, 201, { key, secret: "fixture-not-a-real-credential" }); }
+    if (migration && path === "/api/bookings/services") { if (request.method === "POST") { const input = await payload(request); const service = { ...input, id: randomUUID(), active: true }; bookingServices.push(service); return json(response, 201, { service }); } return json(response, 200, { services: bookingServices }); }
+    if (migration && path === "/api/bookings") return json(response, 200, { bookings: [] });
+    if (migration && path === "/api/billing/plans") return json(response, 200, { plans: [fixturePlan] });
+    if (migration && path === "/api/billing/plans/fixture-plan") return json(response, 200, fixturePlan);
+    if (migration && ["/api/billing/credits", "/api/billing/usage"].includes(path)) return json(response, 503, { error: "Billing ledger is not provided by this UI fixture" });
+    if (migration && path === "/api/whatsapp/contacts") return json(response, 200, { contacts: [], lists: [], tagOptions: [], stats: { totalContacts: 0, optedInContacts: 0, excludedContacts: 0 } });
+    if (migration && path === "/api/customers/fixture-customer") return json(response, 200, { customer: { id: "fixture-customer", displayName: "Fixture customer", createdAt: now() }, identities: [], contacts: [], conversations: [], campaigns: [], bookings: [], agentEvents: [] });
+    if (migration && path === "/api/whatsapp/campaigns") return json(response, 200, { campaigns: [] });
+    if (migration && path === "/api/whatsapp/templates") return json(response, 200, { templates: [] });
+    if (migration && ["/api/connections", "/api/whatsapp/connections", "/api/email/connections"].includes(path)) return json(response, 200, { connections: [] });
+    if (migration && path === "/api/social/channels") return json(response, 200, { channels: [] });
+    if (migration && path === "/api/inbox/conversations") return json(response, 200, { conversations: [] });
+    if (migration && path === "/api/social/posts") return json(response, 200, { posts: [] });
+    if (migration && path === "/api/social/media") return json(response, 200, { media: [] });
+    if (migration && path === "/api/calls") return json(response, 200, { calls: [] });
+    if (migration && path === "/api/calls/summary") return json(response, 200, { days: 30, summary: { totalCalls: 0, inboundCalls: 0, outboundCalls: 0, ringingCalls: 0, activeCalls: 0, completedCalls: 0, missedCalls: 0, failedCalls: 0, rejectedCalls: 0, recentCalls: 0 }, trend: [] });
+    if (migration && path === "/api/calls/providers") return json(response, 200, { providers: [{ provider: "TWILIO", configured: false, browserConfigured: false, requiredEnvironment: [] }] });
+    if (migration && path === "/api/social/posts/fixture-post/activity") return json(response, 200, { activity: [] });
+    if (migration && path === "/api/social/posts/fixture-post/publish-batch") return json(response, 200, { batch: null });
+    if (migration && (path.startsWith("/api/invitations/") || path.startsWith("/api/early-access/invitations/"))) return json(response, 404, { error: "Invitation not found" });
     if (path === "/health") return json(response, 200, { ok: true });
     if (path === "/__fixture/attempts") return json(response, 200, { attempts, conversations: [...conversations.values()] });
     if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }
@@ -60,7 +94,7 @@ const server = http.createServer(async (request, response) => {
     if (path === "/api/whatsapp/campaigns/fixture-campaign") return json(response, 200, { campaign: { campaign: { id: "fixture-campaign", name: "Weekend campaign", description: "Weekend customers", templateName: "weekend_offer", templateLanguage: "en", status: "DRAFT", totalRecipients: 0, sentCount: 0, deliveredCount: 0, readCount: 0, failedCount: 0, blockedCount: 0, unsubscribedCount: 0, createdAt: now(), updatedAt: now(), connectionLabel: "Luma WhatsApp" }, recipients: [] } });
     if (path === "/api/social/posts/fixture-post/insights") return json(response, 200, { postId: "fixture-post", title: "Summer post", contentPreview: "Summer offers", publishedAt: null, platforms: [], generatedAt: now() });
     if (path === "/api/social/posts/fixture-post") return json(response, 200, { post: { id: "fixture-post", userId, primaryChannelId: null, title: "Summer post", prompt: null, content: "Summer offers at Luma Studio.", channels: ["INSTAGRAM"], status: "DRAFT", scheduledFor: null, publishedAt: null, metadata: null, createdAt: now(), updatedAt: now(), variants: [], media: [], publishJobs: [] } });
-    if (!path.startsWith("/api/agents")) return json(response, 200, { items: [] });
+    if (!path.startsWith("/api/agents")) return json(response, migration ? 501 : 200, migration ? { error: `UI fixture does not implement ${path}` } : { items: [] });
     if (!active) return json(response, 503, { error: "Agents are unavailable", code: "fixture_unavailable" });
     if (path === "/api/agents/bootstrap") return json(response, 200, { features, defaultFeatureId: "assistant", scope: { businessId, userId, businessName: businessId === businessOne ? "Luma Studio" : "Another business" }, model: { label: "Business model", ready: true } });
     if (path === "/api/agents/draft-destinations") return json(response, 200, { destinations: [{ id: "account-instagram", platform: "INSTAGRAM", label: "Luma Studio", ready: true }] });
