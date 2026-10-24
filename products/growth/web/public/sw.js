@@ -1,112 +1,74 @@
-const CACHE_VERSION = "kasitek-pwa-v1";
+const CACHE_VERSION = "kasitek-pwa-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const PAGE_CACHE = `${CACHE_VERSION}-pages`;
-const OFFLINE_URL = "/offline";
+const OFFLINE_URL = "/offline.html";
 
-const PRECACHE_URLS = [
-  "/",
-  "/pricing",
-  "/get-quote",
-  "/waitlist",
+// Only session-independent files belong in Cache Storage. App HTML and APIs always use the network.
+const PUBLIC_ASSETS = new Set([
   OFFLINE_URL,
   "/logo.png",
   "/icon-192.png",
   "/icon-512.png",
   "/maskable-icon-512.png",
   "/apple-touch-icon.png",
-];
+]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()),
+    caches.open(STATIC_CACHE).then((cache) =>
+      cache.addAll([...PUBLIC_ASSETS].map((url) => new Request(url, { cache: "reload", credentials: "omit" }))),
+    ),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => ![STATIC_CACHE, PAGE_CACHE].includes(key))
-            .map((key) => caches.delete(key)),
-        ),
-      )
-      .then(() => self.clients.claim()),
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => /^kasitek-pwa-v\d+-(?:static|pages)$/.test(key) && key !== STATIC_CACHE)
+          .map((key) => caches.delete(key)),
+      ),
+    ).then(() => self.clients.claim()),
   );
 });
-
-function isBypassedRequest(requestUrl, request) {
-  if (request.method !== "GET") return true;
-  if (requestUrl.origin !== self.location.origin) return true;
-
-  const pathname = requestUrl.pathname;
-
-  const workspaceRoutes = [
-    "/workspace",
-    "/inbox",
-    "/contacts",
-    "/campaigns",
-    "/templates",
-    "/content",
-    "/calendar",
-    "/analytics",
-    "/connections",
-    "/billing",
-  ];
-
-  if (
-    pathname.startsWith("/api/") ||
-    workspaceRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/auth")
-  ) {
-    return true;
-  }
-
-  return false;
-}
 
 self.addEventListener("fetch", (event) => {
-  const requestUrl = new URL(event.request.url);
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.origin !== self.location.origin) return;
+  if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return;
 
-  if (isBypassedRequest(requestUrl, event.request)) {
+  if (request.mode === "navigate") {
+    // Never replay an authenticated page, invitation, OAuth return or token URL offline.
+    event.respondWith(fetch(request).catch(async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      return await cache.match(OFFLINE_URL) || Response.error();
+    }));
     return;
   }
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(PAGE_CACHE).then((cache) => cache.put(event.request, responseClone));
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-          if (cached) return cached;
-          return caches.match(OFFLINE_URL);
-        }),
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-
-      return fetch(event.request).then((response) => {
-        const responseClone = response.clone();
-        caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, responseClone));
-        return response;
-      });
-    }),
-  );
+  if (url.search || !PUBLIC_ASSETS.has(url.pathname)) return;
+  event.respondWith(caches.open(STATIC_CACHE).then(async (cache) => {
+    const cached = await cache.match(url.pathname);
+    if (cached) return cached;
+    const response = await fetch(new Request(request, { credentials: "omit" }));
+    const policy = response.headers.get("Cache-Control") || "";
+    if (response.ok && !response.redirected && response.type !== "opaque" && !/no-store|private/i.test(policy)) {
+      await cache.put(url.pathname, response.clone());
+    }
+    return response;
+  }));
 });
+
+function notificationTarget(value) {
+  try {
+    const target = new URL(value, self.location.origin);
+    if (target.origin === self.location.origin && !target.username && !target.password) return target.href;
+  } catch {
+    // Malformed or external notification links return to the notification inbox.
+  }
+  return new URL("/workspace/notifications", self.location.origin).href;
+}
 
 self.addEventListener("push", (event) => {
   const fallback = {
@@ -151,7 +113,7 @@ self.addEventListener("notificationclick", (event) => {
     event.notification?.data?.url && typeof event.notification.data.url === "string"
       ? event.notification.data.url
       : "/workspace/notifications";
-  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+  const absoluteUrl = notificationTarget(targetUrl);
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
