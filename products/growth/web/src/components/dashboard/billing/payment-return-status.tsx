@@ -1,11 +1,12 @@
 import { apiUrl } from "@/lib/server-api";
 import { useRevalidator } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 type VerificationState = "verifying" | "completed" | "pending" | "failed" | "error";
 
 export function PaymentReturnStatus({ reference }: { reference: string }) {
   const revalidator = useRevalidator();
+  const refreshBilling = useEffectEvent(() => { void revalidator.revalidate(); });
   const [state, setState] = useState<VerificationState>("verifying");
   const [message, setMessage] = useState("Verifying the payment with Paystack...");
 
@@ -24,7 +25,7 @@ export function PaymentReturnStatus({ reference }: { reference: string }) {
         if (body.status === "completed") {
           setState("completed");
           setMessage("Payment verified. Product access has been updated.");
-          revalidator.revalidate();
+          refreshBilling();
           return;
         }
         if (body.status === "failed") {
@@ -43,7 +44,7 @@ export function PaymentReturnStatus({ reference }: { reference: string }) {
 
     void verify();
     return () => controller.abort();
-  }, [reference, revalidator]);
+  }, [reference]);
 
   const tone = state === "completed"
     ? "border-primary/30 bg-primary/10"

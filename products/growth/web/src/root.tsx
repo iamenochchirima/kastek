@@ -1,4 +1,4 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteError, isRouteErrorResponse, Link } from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteError, isRouteErrorResponse, Link, useNavigation } from "react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 import PwaRegister from "@/components/pwa-register";
@@ -16,8 +16,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <link rel="icon" href="/facebook-app-icon-dark-1024.png" /><Meta /><Links /><ThemeScript />
   </head><body className="font-sans antialiased">{children}<ScrollRestoration /><Scripts /></body></html>;
 }
+function NavigationProgress() {
+  const navigation = useNavigation();
+  return navigation.state === "idle" ? null : <div role="progressbar" aria-label="Loading page" className="fixed inset-x-0 top-0 z-[100] h-1 animate-pulse bg-primary" />;
+}
 export default function App() {
-  return <QueryClientProvider client={queryClient}><ConfirmationProvider><Outlet /></ConfirmationProvider><PwaRegister /><Toaster /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><ConfirmationProvider><NavigationProgress /><Outlet /></ConfirmationProvider><PwaRegister /><Toaster /></QueryClientProvider>;
 }
 export function HydrateFallback() {
   return <main className="mx-auto max-w-7xl space-y-6 p-8" aria-label="Loading workspace" aria-busy="true"><div className="h-8 w-48 animate-pulse rounded bg-secondary" /><div className="h-48 animate-pulse rounded bg-secondary" /></main>;

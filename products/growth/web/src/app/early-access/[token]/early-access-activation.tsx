@@ -86,7 +86,7 @@ export function EarlyAccessActivation({ token, invitation, isLoggedIn }: Props) 
         return;
       }
 
-      navigateTo("/workspace");
+      navigateTo("/workspace", { replace: true });
       revalidator.revalidate();
     } catch {
       setError("We could not reach KasiTek. Check your connection and try again.");
