@@ -6,10 +6,9 @@ import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parse } from 'dotenv';
 import pg from 'pg';
@@ -25,7 +24,7 @@ const port = async () => {
   return p;
 };
 test(
-  'actual Next/Core consumers preserve identity and workspace product persistence without an agent runtime',
+  'actual Vite/Growth API consumers preserve identity and workspace product persistence without an agent runtime',
   { skip: !url, timeout: 120000 },
   async () => {
     const admin = new pg.Pool({ connectionString: url });
@@ -162,7 +161,7 @@ test(
       CORE_API_BASE_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_CORE_PUBLIC_URL: `http://127.0.0.1:${corePort}`,
       KASITEK_MEDIA_STORAGE_PATH: mediaPath,
-      NEXT_TELEMETRY_DISABLED: '1',
+      GROWTH_WEB_ORIGIN: front,
     });
     const children: Array<ReturnType<typeof spawn>> = [];
     let logs = '';
@@ -201,15 +200,9 @@ test(
     };
     try {
       launch([resolve('dist/bootstrap.js')]);
-      const nextModule = pathToFileURL(
-        resolve(clientDir, 'node_modules/next/dist/server/next.js'),
-      ).href;
+      await access(resolve(clientDir, 'build/client/__spa-fallback.html'));
       launch(
-        [
-          '--input-type=module',
-          '-e',
-          `import http from 'node:http';const next=(await import(${JSON.stringify(nextModule)})).default;const app=next({dev:false,dir:${JSON.stringify(clientDir)}});await app.prepare();const server=http.createServer(app.getRequestHandler());server.listen(${frontPort},'127.0.0.1');process.on('SIGTERM',async()=>{server.close();await app.close();process.exit(0);});`,
-        ],
+        [resolve(clientDir, 'scripts/serve.mjs'), '--hostname', '127.0.0.1', '--port', String(frontPort)],
         clientDir,
       );
       const deadline = Date.now() + 60000;
@@ -291,7 +284,7 @@ test(
         method:'POST', headers:{origin:front,'content-type':'application/json'},body:'{"message":"old"}',
       });
       assert.equal(retired.status,404);
-      // Actual product DTOs pass through the production Next proxy. Every row,
+      // Actual product DTOs pass through the production Vite static server/API proxy. Every row,
       // uploaded asset and credential below belongs to this isolated fixture.
       const json = async (
         path: string,

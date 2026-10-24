@@ -28,14 +28,14 @@ async function stop(child: ChildProcess | undefined) {
     child.kill("SIGTERM");
   });
 }
-/** Controlled identity and model boundaries; actual Next UI, Growth BFF and durable execution. */
+/** Controlled identity and model boundaries; actual Vite UI, Growth API proxy and durable execution. */
 export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
   const root = resolve(__dirname, "../../../../.."), web = resolve(root, "products/growth/web");
   const artifacts = resolve(root, ".audit/growth-agent-real-browser");
   const { chromium, expect } = createRequire(__filename)(resolve(root, "products/growth/web/node_modules/@playwright/test"));
   const upstream = new URL(options.growthOrigin);
   assert.ok(upstream.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(upstream.hostname));
-  await access(resolve(web, ".next/BUILD_ID"));
+  await access(resolve(web, "build/client/__spa-fallback.html"));
   const reserve = createServer();
   await new Promise<void>(resolve => reserve.listen(0, "127.0.0.1", resolve));
   const port = (reserve.address() as { port: number }).port;
@@ -47,8 +47,8 @@ export async function verifyGrowthBrowser(options: GrowthBrowserOptions) {
   try {
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (/^(AGENTS_|GROWTH_|CORE_|DATABASE_URL|OPENROUTER_|OPENAI_|ANTHROPIC_)/.test(key)) delete env[key];
-    Object.assign(env, { NODE_ENV: "production", CORE_API_BASE_URL: upstream.origin, GROWTH_WEB_ORIGIN: origin, NEXT_TELEMETRY_DISABLED: "1" });
-    frontend = spawn(process.execPath, [resolve(web, "node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: web, env, stdio: "ignore" });
+    Object.assign(env, { NODE_ENV: "production", CORE_API_BASE_URL: upstream.origin, GROWTH_WEB_ORIGIN: origin });
+    frontend = spawn(process.execPath, [resolve(web, "scripts/serve.mjs"), "--hostname", "127.0.0.1", "--port", String(port)], { cwd: web, env, stdio: "ignore" });
     await until(async () => {
       if (frontend!.exitCode !== null) throw Error("Growth frontend exited before readiness");
       try { return (await fetch(origin + "/agents", { redirect: "manual" })).status === 200; } catch { return false; }
