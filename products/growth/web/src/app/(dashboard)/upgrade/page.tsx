@@ -4,7 +4,7 @@ import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Choose a Plan | KasiTek" }]; }
+export function meta() { return [{ title: "Choose a Plan | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getWorkspaceSession();

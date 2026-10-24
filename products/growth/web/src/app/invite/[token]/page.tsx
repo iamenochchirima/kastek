@@ -4,7 +4,7 @@ import { getCoreSession } from "@/lib/core-auth";
 import type { InvitationPreview } from "@/lib/orgs";
 import { AcceptInviteClient } from "./accept-invite-client";
 
-export function meta() { return [{ title: "Accept Invitation | KasiTek" }]; }
+export function meta() { return [{ title: "Accept Invitation | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { token: string });

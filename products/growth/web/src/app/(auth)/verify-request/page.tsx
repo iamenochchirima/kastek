@@ -5,3 +5,5 @@ export function clientLoader() {
 }
 
 export default function AccountPage() { return null; }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

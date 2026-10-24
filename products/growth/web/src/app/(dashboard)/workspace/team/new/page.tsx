@@ -3,7 +3,7 @@ import { redirect } from "react-router";
 import { CreateOrgForm } from "./create-org-form";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export function meta() { return [{ title: "Create Organisation | KasiTek" }]; }
+export function meta() { return [{ title: "Create Organisation | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getWorkspaceSession();

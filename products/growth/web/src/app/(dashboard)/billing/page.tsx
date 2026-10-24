@@ -1,7 +1,7 @@
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Billing and Usage | KasiTek" }]; }
+export function meta() { return [{ title: "Billing and Usage | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;

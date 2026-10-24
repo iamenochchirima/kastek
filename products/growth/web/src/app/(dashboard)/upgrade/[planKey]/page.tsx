@@ -4,7 +4,7 @@ import { fetchBillingPlanDetails } from "@/lib/billing";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Plan details | KasiTek" }]; }
+export function meta() { return [{ title: "Plan details | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { planKey: string });

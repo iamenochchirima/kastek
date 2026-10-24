@@ -3,7 +3,7 @@ import { redirect } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { GrowthConversationPage } from "@/components/dashboard/agents/conversation-page";
 
-export function meta() { return [{ title: "Agent conversation | KasiTek" }]; }
+export function meta() { return [{ title: "Agent conversation | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { id: string });
   const search = new URL(route.request.url).searchParams;

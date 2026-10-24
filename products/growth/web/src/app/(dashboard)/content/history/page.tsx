@@ -5,3 +5,5 @@ export function clientLoader() {
 }
 
 export default function ContentHistoryPage() { return null; }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

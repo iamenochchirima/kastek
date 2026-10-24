@@ -5,7 +5,7 @@ import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export function meta() { return [{ title: "Create Campaign | KasiTek" }]; }
+export function meta() { return [{ title: "Create Campaign | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getWorkspaceSession();

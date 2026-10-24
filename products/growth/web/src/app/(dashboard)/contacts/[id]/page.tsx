@@ -1,6 +1,6 @@
 import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { fetchCoreJson } from "@/lib/core-server-api";
+import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
 import { Link } from "react-router";
 import { redirect } from "react-router";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
@@ -80,7 +80,7 @@ function dateTime(value: string | null) {
   return value ? new Date(value).toLocaleString("en-ZA") : "Never";
 }
 
-export function meta() { return [{ title: "Customer | KasiTek" }]; }
+export function meta() { return [{ title: "Customer | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { id: string });
@@ -92,8 +92,9 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   let detail: CustomerDetailResponse;
   try {
     detail = await fetchCoreJson<CustomerDetailResponse>(`/api/customers/${encodeURIComponent(id)}`);
-  } catch {
-    throw new Response("Not found", { status: 404 });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw new Response("Not found", { status: 404 });
+    throw error;
   }
 
   const customerName = detail.customer.displayName || detail.contacts[0]?.fullName || "Unnamed customer";

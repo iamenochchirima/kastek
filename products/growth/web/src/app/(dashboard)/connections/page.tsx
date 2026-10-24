@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/page-header";
 import { CONNECTION_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
 
-export function meta() { return [{ title: "Connections | KasiTek" }]; }
+export function meta() { return [{ title: "Connections | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;

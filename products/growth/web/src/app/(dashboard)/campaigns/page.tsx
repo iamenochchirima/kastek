@@ -4,7 +4,7 @@ import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Campaigns | KasiTek" }]; }
+export function meta() { return [{ title: "Campaigns | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getWorkspaceSession();

@@ -1,7 +1,7 @@
 import type { ClientLoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Profile | KasiTek" }]; }
+export function meta() { return [{ title: "Profile | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type ProfileSearchParams = Record<string, string | string[] | undefined>;
 

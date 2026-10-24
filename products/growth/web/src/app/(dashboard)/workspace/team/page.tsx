@@ -5,7 +5,7 @@ import { redirect } from "react-router";
 import { TeamPageClient } from "./team-page-client";
 import type { Org, OrgMember, OrgInvitation } from "@/lib/orgs";
 
-export function meta() { return [{ title: "Team | KasiTek" }]; }
+export function meta() { return [{ title: "Team | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getWorkspaceSession();

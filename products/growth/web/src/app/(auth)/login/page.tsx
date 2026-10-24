@@ -5,7 +5,7 @@ import { redirect } from "react-router";
 import { Suspense } from "react";
 import { safeReturnTo } from "@/lib/shared-login";
 
-export function meta() { return [{ title: "Sign In | KasiTek" }]; }
+export function meta() { return [{ title: "Sign In | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;

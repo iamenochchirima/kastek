@@ -4,7 +4,7 @@ import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Contacts | KasiTek" }]; }
+export function meta() { return [{ title: "Contacts | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;

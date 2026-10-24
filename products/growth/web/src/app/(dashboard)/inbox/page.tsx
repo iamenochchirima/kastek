@@ -167,3 +167,5 @@ export default function InboxPage() {
       />
   );
 }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

@@ -1,11 +1,11 @@
 import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { fetchCoreJson } from "@/lib/core-server-api";
+import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
 import { PostDetailPageClient } from "@/components/social/post-detail-page-client";
 import type { SocialPost } from "@/components/social/social-shared";
 
-export function meta() { return [{ title: "Post details | KasiTek" }]; }
+export function meta() { return [{ title: "Post details | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const params = (route.params as { id: string });
@@ -16,7 +16,10 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const { id } = params;
   const response = await fetchCoreJson<{ post?: SocialPost }>(
     `/api/social/posts/${encodeURIComponent(id)}`,
-  ).catch(() => null);
+  ).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) throw new Response("Not found", { status: 404 });
+    throw error;
+  });
 
   if (!response?.post) throw new Response("Not found", { status: 404 });
 

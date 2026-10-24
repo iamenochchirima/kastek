@@ -1,10 +1,10 @@
 import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import CampaignDetailPageClient from "@/components/dashboard/campaigns/campaign-detail-page-client";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { fetchCoreJson } from "@/lib/core-server-api";
+import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 
-export function meta() { return [{ title: "Campaign Details | KasiTek" }]; }
+export function meta() { return [{ title: "Campaign Details | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type CampaignDetailResponse = {
   campaign?: {
@@ -107,7 +107,10 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
 
   const response: CampaignDetailResponse | null = await fetchCoreJson<CampaignDetailResponse>(
     `/api/whatsapp/campaigns/${id}`,
-  ).catch(() => null);
+  ).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) throw new Response("Not found", { status: 404 });
+    throw error;
+  });
 
   if (!response?.campaign) {
     throw new Response("Not found", { status: 404 });

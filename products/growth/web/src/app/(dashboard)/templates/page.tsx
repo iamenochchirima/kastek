@@ -6,7 +6,7 @@ import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export function meta() { return [{ title: "Templates | KasiTek" }]; }
+export function meta() { return [{ title: "Templates | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader(route: ClientLoaderFunctionArgs) {
   const search = new URL(route.request.url).searchParams;

@@ -16,3 +16,5 @@ export default function EarlyAccessInvitationPage() {
   const { token, session, invitation } = useLoaderData<typeof clientLoader>();
   return <EarlyAccessActivation token={token} invitation={invitation?.invitation ?? null} isLoggedIn={Boolean(session?.user?.id)} />;
 }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

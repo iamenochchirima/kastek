@@ -2,7 +2,7 @@ import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 
-export function meta() { return [{ title: "Sign-in error | KasiTek" }]; }
+export function meta() { return [{ title: "Sign-in error | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 const MESSAGES: Record<string, string> = {
   access_denied: "Sign-in was cancelled. Please try again.",

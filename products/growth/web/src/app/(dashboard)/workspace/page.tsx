@@ -9,7 +9,7 @@ import { Link } from "react-router";
 import { redirect } from "react-router";
 import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-analytics-overview";
 
-export function meta() { return [{ title: "Overview | KasiTek" }]; }
+export function meta() { return [{ title: "Overview | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type WorkspaceSummary = {
   socialPostCount: number;

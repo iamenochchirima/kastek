@@ -17,3 +17,5 @@ export default function OfflinePage() {
     </main>
   );
 }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

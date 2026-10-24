@@ -6,7 +6,7 @@ import { CreateOrgForm } from "../(dashboard)/workspace/team/new/create-org-form
 import { SessionActivity } from "@/components/auth/session-activity";
 import { OnboardingWizard } from "./onboarding-wizard";
 
-export function meta() { return [{ title: "Set up your workspace | KasiTek" }]; }
+export function meta() { return [{ title: "Set up your workspace | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export async function clientLoader() {
   const session = await getCoreSession();
@@ -14,7 +14,7 @@ export async function clientLoader() {
 
   const orgs = await fetchOrgs();
   if (!orgs.length) return { needsOrganisation: true as const, profile: null };
-  const status = await fetchOnboardingStatus().catch(() => null);
+  const status = await fetchOnboardingStatus();
   if (!status?.needsOnboarding) throw redirect("/workspace");
 
   return { needsOrganisation: false as const, profile: status.profile };

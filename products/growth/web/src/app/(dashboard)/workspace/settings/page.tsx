@@ -6,7 +6,7 @@ import { fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 import { WorkspaceSettingsClient, type WorkspaceProfile } from "./workspace-settings-client";
 
-export function meta() { return [{ title: "Settings | KasiTek" }]; }
+export function meta() { return [{ title: "Settings | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type SettingsSearchParams = {
   section?: string | string[];
