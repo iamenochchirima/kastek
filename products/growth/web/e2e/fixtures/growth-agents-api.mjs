@@ -35,13 +35,21 @@ const profile = { name: "Fixture user", email: "fixture@example.test", phone: nu
 const developerKeys = [];
 const bookingServices = [];
 const migrationRequests = [];
-const fixturePlan = { key: "fixture-plan", productKey: "growth", name: "Fixture plan", interval: "MONTHLY", currency: "ZAR", amountMinor: 10000, creditsPerPeriod: 100, checkoutReady: false, entitlements: [] };
+const migrationContacts = [{ id: "fixture-contact", contactId: "fixture-contact", customerId: "fixture-customer", phone: "+27720001111", fullName: "Fixture contact", tags: [], location: "Cape Town", listLabel: "Migration list", metadata: {}, optIn: true, optInSource: "fixture-consent", optInDate: now(), excluded: false, notes: null, lastMarketingSent: null, createdAt: now(), updatedAt: now() }];
+const migrationCampaigns = [];
+const migrationPosts = [];
+const migrationTemplates = [{ id: "fixture-template", templateName: "fixture_offer", language: "en", category: "MARKETING", status: "APPROVED", variablesCount: 0, header: null, body: "Fixture offer", footer: null, buttons: [], lastSynced: now(), connectionId: "fixture-whatsapp", connectionLabel: "Fixture WhatsApp" }];
+const migrationMessages = [{ id: "fixture-inbound", sender: "customer", content: "Hello from the fixture", text: "Hello from the fixture", time: now(), status: "READ", contentType: "TEXT", attachments: [], reactions: [] }];
+const fixtureWhatsapp = { id: "fixture-whatsapp", phoneNumberId: "fixture-number", phoneDisplayNumber: "+27 72 000 1111", wabaId: "fixture-waba", currentQualityRating: "GREEN", dailyLimitEstimate: 1000, verified: true, createdAt: now() };
+const migrationInbox = { id: "fixture-inbox", channel: "whatsapp", customerName: "Fixture customer", phone: "+27720001111", lastMessageAt: now(), unreadCount: 0, starred: false, connectionId: fixtureWhatsapp.id, connectionLabel: "Fixture WhatsApp", lastMessage: "Hello from the fixture", status: "OPEN" };
+
+const fixturePlan = { key: "fixture-plan", productKey: "growth", name: "Fixture plan", interval: "MONTHLY", currency: "ZAR", amountMinor: 10000, creditsPerPeriod: 100, checkoutReady: true, entitlements: [] };
 const developerConfig = { restBaseUrl: "https://growth.example/v1", mcpAvailable: false, mcpEndpoint: null, mcpPackage: null, clients: [] };
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://127.0.0.1"); const path = url.pathname; const businessId = scope(request);
     if (migration) migrationRequests.push({ path, method: request.method });
-    if (path === "/__fixture/migration") return json(response, 200, { requests: migrationRequests, profile, developerKeys, bookingServices });
+    if (path === "/__fixture/migration") return json(response, 200, { requests: migrationRequests, profile, developerKeys, bookingServices, contacts: migrationContacts, campaigns: migrationCampaigns, templates: migrationTemplates, posts: migrationPosts, inboxMessages: migrationMessages });
     if (migration && path === "/api/auth/account") { response.writeHead(200, { "content-type": "text/html" }); response.end("<html><head><meta name='robots' content='noindex'></head><body><h1>Account settings fixture</h1></body></html>"); return; }
     if (migration && path === "/api/profile") { if (request.method === "PATCH") Object.assign(profile, await payload(request)); return json(response, 200, { user: profile }); }
     if (migration && /^\/api\/orgs\/[^/]+\/(members|invitations)$/.test(path)) return json(response, 200, path.endsWith("/members") ? { members: [{ id: "member", userId, orgId: businessId, name: profile.name, email: profile.email, role: "OWNER", joinedAt: now(), image: null }] } : { invitations: [] });
@@ -52,14 +60,25 @@ const server = http.createServer(async (request, response) => {
     if (migration && path === "/api/billing/plans") return json(response, 200, { plans: [fixturePlan] });
     if (migration && path === "/api/billing/plans/fixture-plan") return json(response, 200, fixturePlan);
     if (migration && ["/api/billing/credits", "/api/billing/usage"].includes(path)) return json(response, 503, { error: "Billing ledger is not provided by this UI fixture" });
-    if (migration && path === "/api/whatsapp/contacts") return json(response, 200, { contacts: [], lists: [], tagOptions: [], stats: { totalContacts: 0, optedInContacts: 0, excludedContacts: 0 } });
+    if (migration && path === "/api/whatsapp/contacts") return json(response, 200, { contacts: migrationContacts, lists: [{ label: "Migration list", totalContacts: migrationContacts.length, primaryLocation: "Cape Town", metadataKeys: [] }], tagOptions: [], stats: { totalContacts: migrationContacts.length, optedInContacts: migrationContacts.length, excludedContacts: 0 } });
+    if (migration && path === "/api/whatsapp/contacts/fixture-contact" && request.method === "PATCH") { Object.assign(migrationContacts[0], await payload(request), { updatedAt: now() }); return json(response, 200, { contact: migrationContacts[0] }); }
+
     if (migration && path === "/api/customers/fixture-customer") return json(response, 200, { customer: { id: "fixture-customer", displayName: "Fixture customer", createdAt: now() }, identities: [], contacts: [], conversations: [], campaigns: [], bookings: [], agentEvents: [] });
-    if (migration && path === "/api/whatsapp/campaigns") return json(response, 200, { campaigns: [] });
-    if (migration && path === "/api/whatsapp/templates") return json(response, 200, { templates: [] });
-    if (migration && ["/api/connections", "/api/whatsapp/connections", "/api/email/connections"].includes(path)) return json(response, 200, { connections: [] });
-    if (migration && path === "/api/social/channels") return json(response, 200, { channels: [] });
-    if (migration && path === "/api/inbox/conversations") return json(response, 200, { conversations: [] });
-    if (migration && path === "/api/social/posts") return json(response, 200, { posts: [] });
+    if (migration && path === "/api/whatsapp/campaigns") { if (request.method === "POST") { const input = await payload(request); const campaign = { ...input, id: randomUUID(), status: "DRAFT", templateName: "fixture_offer", templateLanguage: "en", createdAt: now(), updatedAt: now(), totalRecipients: input.batchSize, sentCount: 0, deliveredCount: 0, readCount: 0, failedCount: 0, blockedCount: 0, unsubscribedCount: 0, connectionLabel: "Fixture WhatsApp", listLabel: "Migration list", templateStatus: "APPROVED" }; migrationCampaigns.push(campaign); return json(response, 201, { campaign, createdRecipients: input.batchSize }); } return json(response, 200, { campaigns: migrationCampaigns }); }
+    if (migration && path === "/api/whatsapp/templates") { if (request.method === "POST") { const input = await payload(request); const template = { ...input, id: randomUUID(), status: "PENDING", variablesCount: 0, buttons: [], lastSynced: now(), connectionLabel: "Fixture WhatsApp" }; migrationTemplates.push(template); return json(response, 201, template); } return json(response, 200, { templates: migrationTemplates }); }
+    if (migration && path === "/api/whatsapp/connections") return json(response, 200, { connections: [fixtureWhatsapp] });
+    if (migration && path === "/api/connections") return json(response, 200, { connections: [{ id: fixtureWhatsapp.id, provider: "WHATSAPP", externalAccountId: "fixture-number", displayName: "Fixture WhatsApp", handle: null, status: "CONNECTED", credentialStatus: "VALID", healthStatus: "HEALTHY", webhookStatus: "VERIFIED", metadata: {}, capabilities: [], permissions: [], consumers: ["inbox", "campaigns"], createdAt: now(), updatedAt: now() }] });
+    if (migration && path === "/api/email/connections") return json(response, 200, { connections: [] });
+    if (migration && path === "/api/social/channels") return json(response, 200, { channels: [{ id: "fixture-social", platform: "FACEBOOK", status: "CONNECTED", display_name: "Fixture Facebook Page", displayName: "Fixture Facebook Page", handle: "fixture", external_id: "fixture-page", scopes: [], metadata: {} }] });
+    if (migration && path === "/api/inbox/conversations") return json(response, 200, { conversations: [migrationInbox] });
+    if (migration && path === "/api/inbox/fixture-inbox/read") return json(response, 200, { ok: true });
+    if (migration && path === "/api/inbox/fixture-inbox/messages") { if (request.method === "POST") { const input = await payload(request); const message = { id: randomUUID(), sender: "bot", text: input.text, content: input.text, time: now(), status: "SENT", contentType: "TEXT", attachments: [], reactions: [] }; migrationMessages.push(message); migrationInbox.lastMessage = input.text; return json(response, 201, { messageId: message.id, status: "SENT", queued: false }); } return json(response, 200, { messages: migrationMessages, capabilities: { version: 1, text: true, reply: true, reaction: false, attachments: { image: false, video: false, audio: false, document: false, sticker: false }, providerDelete: false, deliveryReceipts: true, readReceipts: true } }); }
+    if (migration && path === "/api/social/posts") { if (request.method === "POST") { const input = await payload(request); const post = { ...input, id: randomUUID(), userId, title: input.content.slice(0, 40), createdAt: now(), updatedAt: now(), scheduledFor: null, publishedAt: null, media: [], publishJobs: [] }; migrationPosts.push(post); return json(response, 201, { post }); } return json(response, 200, { posts: migrationPosts }); }
+    if (migration && path === "/api/social/channels/fixture-social/identity") return json(response, 200, { channel: { display_name: "Fixture Facebook Page", username: "fixture" } });
+    if (migration && path === "/api/whatsapp/calls") return json(response, 200, { calls: [] });
+    if (migration && path === "/api/billing/checkout" && request.method === "POST") { const input = await payload(request); return json(response, 201, { reference: "fixture-receipt", authorizationUrl: `${process.env.GROWTH_WEB_ORIGIN}/billing?payment=complete&reference=fixture-receipt`, idempotencyKey: input.idempotencyKey }); }
+    if (migration && path === "/api/billing/checkout/fixture-receipt/verify") return json(response, 200, { status: "completed" });
+    if (migration && path === "/api/social/oauth/meta/start") { response.writeHead(302, { location: "/connections?error=fixture_provider_unavailable" }); response.end(); return; }
     if (migration && path === "/api/social/media") return json(response, 200, { media: [] });
     if (migration && path === "/api/calls") return json(response, 200, { calls: [] });
     if (migration && path === "/api/calls/summary") return json(response, 200, { days: 30, summary: { totalCalls: 0, inboundCalls: 0, outboundCalls: 0, ringingCalls: 0, activeCalls: 0, completedCalls: 0, missedCalls: 0, failedCalls: 0, rejectedCalls: 0, recentCalls: 0 }, trend: [] });
