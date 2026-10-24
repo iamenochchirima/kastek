@@ -39,15 +39,29 @@ The table below groups those routes by feature; it is not the complete route lis
 ## Frontend and offline verification
 
 The built Vite application uses the same-origin API proxy in `web/scripts/serve.mjs`.
-`api/tests/frontend-identity.test.ts` exercises the production proxy, synthetic OIDC provider,
-isolated database, uploads, and persisted product API results. Agents and Analytics Playwright
-configurations also launch this server. Test discovery alone does not establish browser parity.
+Recorded local engineering verification on 2026-10-24 passed the production build, TypeScript,
+ESLint, and all 48 route contracts. The browser runs passed 56 migration cases and 19 Agents
+cases. `test:frontend` passed 37 checks at the recorded checkpoint, including actual Chromium
+worker installation, explicit update acceptance, exactly one update reload, and offline fallback.
+
+`api/tests/frontend-identity.test.ts` passed against the built proxy, a synthetic OIDC provider,
+and an isolated database. It verifies product persistence, uploads larger than 5 MB, private
+inbox/notification ownership, developer key rotation, and logout. The signed Growth/Agents HTTP
+suite passed eight cases through both APIs and Restate, including real-browser general-assistant
+quick access. These checks use controlled boundaries and do not qualify live provider accounts.
 
 The static `/manifest.webmanifest` keeps the installed app identity and scope. `/sw.js` caches
 only selected public static assets and `/offline.html`. It never stores authenticated documents,
-API responses, invitations, or OAuth returns. Existing install/update, push, and notification-click
-behavior requires browser verification with service workers enabled; the Agents suite blocks
-service workers. See the [frontend release runbook](../internal/operations/growth-frontend-release.md).
+API responses, invitations, or OAuth returns. Push payload and same-origin click restrictions
+have unit coverage; actual push delivery remains owner acceptance. The Agents browser suite
+blocks service workers, so the dedicated PWA browser tests enable them separately.
+
+Run `pnpm --filter client test:frontend`, `test:e2e:migration`, and `test:e2e:agents` after building.
+The Growth CI job runs these engineering checks; other product frameworks remain unchanged.
+The [frontend release runbook](../internal/operations/growth-frontend-release.md) records evidence
+locations, Railway image configuration, performance measurement prerequisites, retained-asset
+handling, and rollback. Final artifact/performance evidence and hosted TLS, DNS, live callbacks,
+provider acceptance, and model evaluations remain separate owner-controlled work.
 
 ## Central admin integration
 

@@ -22,8 +22,9 @@ and local verification do not authorize a production deployment or DNS change.
 5. Record any bundled font files and their licenses. Do not restore build-time Google font
    downloads as a prerequisite for an otherwise reproducible build.
 
-The Node static/proxy server is portable to Railway or another Node hosting environment.
-Configure its root start command as:
+The implementation uses a self-contained Node static/proxy server instead of a separate Caddy
+process. This preserves the same-origin API boundary in both Railway images and the existing
+production-path test launchers. Configure its root start command as:
 
 ```bash
 node products/growth/web/scripts/serve.mjs --hostname 0.0.0.0
@@ -34,7 +35,11 @@ source, independent of the process working directory. `vite preview` is not a pr
 The server streams Brotli or gzip for negotiated text responses of at least 1 KB, including
 retained assets. Responses vary by `Accept-Encoding` and use representation-specific validators.
 Fonts and other binary assets remain uncompressed; API and SSE bodies pass through unchanged.
-This runbook does not establish which current provider, DNS, CDN, or TLS configuration is live.
+`web/railway.json` selects the Growth Dockerfile and `/__health` readiness endpoint. The adjacent
+`Dockerfile.dockerignore` includes Growth web and shared contract inputs while excluding secrets,
+local artifacts, dependencies, and generated output. It overrides the root ignore rules for this
+image without changing the Agents images' context. This source configuration does not establish
+which current provider, DNS, CDN, or TLS configuration is live.
 
 ## Configure the boundary
 
@@ -101,12 +106,65 @@ The Node server reads runtime variables from the process environment; it does no
 9. Record actual command output, artifact identifiers, pending checks, and owner acceptance in
    the release record. Keep model evaluations and live-model grading with the owner.
 
-The worker test is `node --test products/growth/web/scripts/service-worker.test.mjs` from the
-repository root. It verifies cache ownership, private navigation bypass, offline fallback,
-update acceptance, push link restrictions, and static manifest icon dimensions. It does not
-replace browser install, push delivery, or update verification. The migration's API and browser
-launchers target the built server; full feature parity, performance comparison, provider setup,
-and production topology require their own recorded evidence.
+## Run the engineering checks
+
+After building, run these commands from the repository root:
+
+```bash
+pnpm --filter client typecheck
+pnpm --filter client check:routes
+pnpm --filter client lint
+pnpm --filter client exec playwright install chromium
+pnpm --filter client test:frontend
+pnpm --filter client test:e2e:migration
+pnpm --filter client test:e2e:agents
+pnpm --filter client measure:frontend -- --targets vite
+```
+
+The CI Growth job runs the type, route, lint, frontend, migration-browser, and Agents-browser
+checks after the selected product build. It installs Chromium and its system dependencies.
+Other products retain their existing selected checks. The isolated database identity and signed
+product HTTP journeys require their dedicated API/database/Restate configuration; the browser
+fixture checks do not replace them.
+
+`measure:frontend` defaults to both Next and Vite. Run that mode only in an isolated comparison
+environment with the retained `.next` artifact, its recorded baseline identity, and a resolvable
+Next runtime. Next is not a dependency of the migrated Growth client. The Vite-only command
+records local samples without requiring the retired runtime. Neither mode establishes field
+percentiles or production capacity.
+
+## Recorded engineering evidence
+
+The local migration verification on 2026-10-24 recorded these results. Counts describe the named
+runs, not live-provider qualification or an unlimited functionality guarantee. Local evidence
+files are under ignored `.audit/growth-vite/`; release owners must preserve the accepted outputs
+with the promoted artifact.
+
+| Check | Recorded result | Local evidence |
+| --- | --- | --- |
+| Vite build, frontend TypeScript, ESLint, and route contract | Passed; all 48 recorded page routes remain present | `final-build.log`, `final-lint.log`, route contract command output |
+| Migration browser journeys | 56 passed across route families, responsive layouts, aliases, and unavailable states | `migration-final.log` |
+| Agents browser journeys | 19 passed, including quick access, scoped conversations, reviews, retries, and business switching | `agents-final.log` |
+| Frontend contract, production proxy, SEO, and service worker checks | 37 passed at the recorded checkpoint, including two real Chromium install/update/offline journeys | `frontend-checks-final.log` |
+| Isolated OIDC and persisted product API journey | Passed through the built frontend, synthetic identity provider, and isolated database; includes uploads larger than 5 MB and logout | `frontend-identity.log` |
+| Signed Growth/Agents HTTP and Restate integration | 8 passed, including real-browser assistant quick access through both APIs and persisted record checks | `signed-growth-http.log` |
+| Initial portable Docker build | Passed for the frontend packaging checkpoint `5a35f62a` | `docker-build.log` |
+
+The persistence journey exposed a preexisting public API audit insert that omitted required
+raw-SQL timestamps. Commit `c33a646d` supplies them explicitly and pins the fixture actor to the
+persisted authenticated user. The four focused public API regression cases passed without a
+schema change; evidence is `public-api.log`.
+
+An independent read-only review covered browser environment/secrets, cookie and Host handling,
+Core authority, scoped query clearing, offline caching, SEO ownership, Docker context, and CI.
+Its Docker-ignore concern was withdrawn after checking the Dockerfile-specific override.
+The PWA update test's premature asynchronous readiness poll was corrected; actual browser
+verification confirms no first-install reload and one reload after explicit update acceptance.
+
+Final image verification after compression and asset-retention changes, exact artifact
+fingerprints, and the final comparable performance report remain separate handoff evidence.
+Live Keycloak/provider callbacks, hosted TLS/DNS, real push delivery, calls, and provider account
+acceptance are not established by these fixture runs. Model evaluations remain owner-run.
 
 ## Roll back the frontend
 
