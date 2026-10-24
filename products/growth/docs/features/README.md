@@ -1,6 +1,6 @@
 ---
 owner: engineering
-last_reviewed: 2026-10-23
+last_reviewed: 2026-10-24
 ---
 
 # Feature map
@@ -14,21 +14,40 @@ that guide.
 
 ## Main client
 
-Routes below are under `web/src/app/`.
+React Router declarations are in `web/src/routes.ts`; route modules remain under `web/src/app/`.
+`web/scripts/route-contract.json` records the complete 48-page URL inventory and alias behavior.
+The table below groups those routes by feature; it is not the complete route list.
 
 | Feature area | User entry point | Source route | Verification starting point |
 | --- | --- | --- | --- |
+| Public landing | `/` | `page.tsx`, `root.tsx` | Production build prerenders public HTML. Inspect raw HTML metadata, canonical URL, sitemap, robots, and real HTTP status using `web/scripts/serve.mjs`. Signed-in navigation resolves in the browser; private session data is excluded from the prerender. |
 | Shared login | `/login`, `/signup`, `/auth-error`, `/onboarding`, `/invite/<token>`, workspace Account security | `(auth)/`, `onboarding/`, `invite/`, `components/auth/` | Provider login, registration and account management use Labs Keycloak through Core. [Frontend contracts and verification](../internal/development/shared-login-frontend.md). Browser verification requires the configured Labs identity runtime, Core database and email delivery; Google additionally needs its configured OAuth client. |
-| Agents and general assistant | `/agents`, `/agents/conversations/<id>`, dashboard quick access; contextual content/campaign/report actions | `(dashboard)/agents/`, `components/dashboard/agents/` | Four defaults and their managed model provision through durable setup. Growth-owned presets share configurable permitted tools for business context, content/campaign discovery and reads, explicit-range analytics, and exact reviewed content DRAFT saves. Multi-record evidence retains current access checks. Operator-controlled managed-default upgrades preserve customisations; saved settings apply to future turns. Authorized task capture supports owner-run evaluations. [Integration setup](../../../agents/docs/growth-integration.md) and the controlled `growth-product-http.test.ts` journey exercise the actual UI, Growth BFF, signed shared HTTP, Restate and Growth record readback. Model evaluations and live-provider acceptance remain owner-run. |
+| Agents and general assistant | `/agents`, `/agents/conversations/<id>`, dashboard quick access; contextual content/campaign/report actions | `(dashboard)/agents/`, `components/dashboard/agents/` | Four defaults and their managed model provision through durable setup. Growth-owned presets share configurable permitted tools for business context, content/campaign discovery and reads, explicit-range analytics, and exact reviewed content DRAFT saves. Multi-record evidence retains current access checks. Operator-controlled managed-default upgrades preserve customisations; saved settings apply to future turns. Authorized task capture supports owner-run evaluations. [Integration setup](../../../agents/docs/growth-integration.md) and the controlled `growth-product-http.test.ts` journey exercise the actual UI, Growth API proxy, signed shared HTTP, Restate and Growth record readback. Model evaluations and live-provider acceptance remain owner-run. |
 | Campaigns | `/campaigns` | `(dashboard)/campaigns/page.tsx` | Run the client locally, open the route, then follow the task's real campaign path and inspect its visible/API result. |
 | Contacts | `/contacts` | `(dashboard)/contacts/page.tsx` | Run the client locally, open the list and a contact detail, and verify the requested change in the UI and its backing API. |
 | Inbox | `/inbox` | `(dashboard)/inbox/page.tsx` | Run the required local services, open the inbox, and verify the conversation action and resulting state. |
+| Calls | `/calls` | `(dashboard)/calls/page.tsx` | Verify call history and the configured Twilio browser lifecycle, including microphone denial and cleanup. Live provider acceptance requires its configured account. |
+| Connections | `/connections`, `/connections/whatsapp-onboarding` | `(dashboard)/connections/` | Verify connected-account state, OAuth returns, and WhatsApp onboarding with the required provider configuration. |
+| Templates | `/templates` | `(dashboard)/templates/page.tsx` | Verify template listing and provider-authorized actions through Core. |
 | Calendar and bookings | `/calendar`, `/bookings` | `(dashboard)/calendar/page.tsx`, `(dashboard)/bookings/page.tsx` | Open the route with the required service and test data available; verify the visible event or booking and its persisted result. |
 | Content | `/content`, `/content/posts`, `/content/calendar`, `/content/history` | `(dashboard)/content/` | Open the relevant route and verify the content state plus the API side effect for the task. |
 | Analytics | `/analytics` | `(dashboard)/analytics/page.tsx` | The Growth client requests Analytics catalog and report data through its `/api/analytics` routes. Analytics service source and local setup live in Labs. This source move preserves the Growth client routes and configured endpoint; it does not verify a live report response. |
 | Workspace | `/workspace`, `/workspace/team`, `/workspace/settings`, `/workspace/profile` | `(dashboard)/workspace/` | Open the relevant route with an authorized local account and verify the saved state after navigation or reload. |
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
+
+## Frontend and offline verification
+
+The built Vite application uses the same-origin API proxy in `web/scripts/serve.mjs`.
+`api/tests/frontend-identity.test.ts` exercises the production proxy, synthetic OIDC provider,
+isolated database, uploads, and persisted product API results. Agents and Analytics Playwright
+configurations also launch this server. Test discovery alone does not establish browser parity.
+
+The static `/manifest.webmanifest` keeps the installed app identity and scope. `/sw.js` caches
+only selected public static assets and `/offline.html`. It never stores authenticated documents,
+API responses, invitations, or OAuth returns. Existing install/update, push, and notification-click
+behavior requires browser verification with service workers enabled; the Agents suite blocks
+service workers. See the [frontend release runbook](../internal/operations/growth-frontend-release.md).
 
 ## Central admin integration
 

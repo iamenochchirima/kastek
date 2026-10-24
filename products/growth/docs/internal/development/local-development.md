@@ -3,7 +3,7 @@ id: local-development
 title: Local Development
 sidebar_position: 2
 owner: engineering
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-24
 ---
 
 # Local Development
@@ -79,7 +79,7 @@ port 55432; Growth's existing database is unchanged. Stop identity with `./ident
 it is not needed.
 
 Set the Core OIDC variables from [the shared login contract](../architecture/shared-login.md).
-Use `http://localhost:3000/api/auth/callback` through the Next proxy. The account console owns
+Use `http://localhost:3000/api/auth/callback` through the same-origin frontend proxy. The account console owns
 email/password, Google, passkeys, optional two-factor authentication and recovery. The development
 email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organization invitations.
 
@@ -112,6 +112,36 @@ For focused work, manual commands are also supported:
 ./scripts/dev_core_watch.sh
 pnpm --dir web run dev
 ```
+
+## Growth frontend build
+
+Growth uses React 19 with Vite and React Router framework mode. Development runs on port 3000.
+The production build prerenders `/` and emits the private application shell separately.
+React Router client loaders replace Next server components; Core still owns authorization,
+cookies, data, and mutations. Route declarations are in `web/src/routes.ts`.
+
+From the repository root, build the shared packages and Growth services with:
+
+```bash
+pnpm build:growth
+```
+
+To run the built frontend against an existing Core process:
+
+```bash
+CORE_API_BASE_URL=http://localhost:4000 FRONTEND_URL=http://localhost:3000 pnpm --dir products/growth/web start -- --hostname 127.0.0.1 --port 3000
+```
+
+The frontend serves `web/build/client` through `web/scripts/serve.mjs`. Its `/api/*` reverse
+proxy preserves browser cookies, multiple Set-Cookie headers, uploads, and streaming responses.
+Use this server for production-path checks; `vite preview` is not the production server.
+Do not put API secrets or signing keys in `VITE_*` variables. Those values enter the browser bundle.
+`VITE_META_APP_ID` and `VITE_META_EMBEDDED_SIGNUP_CONFIG_ID` are public build-time identifiers
+for WhatsApp embedded signup. Set them before building when that flow is required.
+
+See the [frontend release runbook](../operations/growth-frontend-release.md) for proxy configuration,
+SEO, PWA updates, validation, and rollback. The root `dev:growth` command continues to use the
+`client` workspace package; other products retain their own frontend frameworks.
 
 The central Admin UI is under root `apps/admin-site/`. Run `pnpm dev:admin` from the repository root.
 

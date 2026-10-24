@@ -8,7 +8,7 @@ tokens in browser storage or collect passwords.
 
 - `/login` and `/signup` link to `GET /api/auth/login?returnTo=...`; signup adds `screen=signup`.
 - `returnTo` is a local path, such as `/workspace` or `/invite/<token>`. Core independently validates it.
-- `/api/auth/callback` passes through the Next API proxy to Core. Use the app origin for this
+- `/api/auth/callback` passes through the frontend `/api` reverse proxy to Core. Use the app origin for this
   callback so transaction and session cookies reach the same browser origin.
 - `POST /api/orgs/set-active` is owned by Core and requires the public Host and Origin to match
   `FRONTEND_URL`, a browser product-session cookie and current membership. Its host-only
@@ -30,6 +30,12 @@ tokens in browser storage or collect passwords.
 - Old `/verify-request` and `/set-password` UI routes lead to provider account management.
   Email verification and recovery occur at the provider rather than inside Growth.
 
+Vite's development proxy and the built frontend server keep `/api` requests on the browser origin.
+The production server is `web/scripts/serve.mjs`; it serves the build and forwards API requests to
+`CORE_API_BASE_URL`. Set `FRONTEND_URL` to the public app origin in both frontend and Core
+configuration. The frontend derives trusted forwarding metadata from its configuration and the
+request connection, rather than accepting arbitrary client forwarding headers.
+
 The API proxy keeps redirects and individual Set-Cookie headers intact. Browser navigation
 must use the app proxy by default, and OIDC callback configuration must point to the same app
 origin. In local development this is `http://localhost:3000/api/auth/callback`, with Core at
@@ -38,9 +44,10 @@ origin. In local development this is `http://localhost:3000/api/auth/callback`, 
 ## User journeys
 
 A new user registers at Keycloak and verifies email before receiving a Growth session.
-Dashboard server loaders use a cached workspace-session guard before organization-bound
-requests, because Next renders pages and layouts concurrently. A new account with no organization
-is redirected to `/onboarding` before these requests run. Onboarding creates their organization
+React Router client loaders resolve the product session and current organization before protected
+workspace requests. Client guards provide navigation behavior; Core independently enforces every
+permission. A new account with no organization is redirected to `/onboarding`. Session expiry,
+logout, and business switching clear private query state and cancel prior scoped requests. Onboarding creates their organization
 with its initial owner. Organisation creation asks only for a name; Core generates a unique URL slug and records durable setup for the four Growth agents. Agent setup can finish after onboarding without delaying organisation creation. A workspace invitation returns
 through login to its original invitation URL; accepting requires an authenticated matching
 identity and grants the invitation's organization role. Signup does not grant access to existing

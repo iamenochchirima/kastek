@@ -1,6 +1,6 @@
 # KasiTek source and runtime architecture
 
-Owner: Platform engineering. Last reviewed: 2026-10-23.
+Owner: Platform engineering. Last reviewed: 2026-10-24.
 
 KasiTek uses a Git monorepo with independently deployable products. Source ownership is expressed
 by product directories and shared package exports. Co-location does not grant cross-product
@@ -10,7 +10,7 @@ membership, database access or permission to call internal operations.
 
 | Path | Responsibility |
 | --- | --- |
-| `products/growth/web/` | Growth UI and product-side Agents integrations |
+| `products/growth/web/` | Vite/React Router Growth UI, prerendered public landing, same-origin API proxy, and product-side Agents integrations |
 | `products/growth/database/` | Growth Prisma database package |
 | `products/growth/api/` | Growth API, provider callbacks and workers |
 | `products/agents/api/` | Agents API, fresh platform schema, Restate business worker and tests |
@@ -38,6 +38,22 @@ Service-to-service integration remains over the existing authenticated HTTP inte
 migrations, organizations, memberships, sessions, databases and secrets remain separately owned.
 Shared login does not synchronize product permissions. Agency customer identity remains scoped
 according to its existing contracts. Source relocation does not change cookie scopes or callbacks.
+
+## Growth browser boundary
+
+Growth's React Router application uses Vite with server rendering disabled at runtime and an
+explicit public prerender for `/`. Private route modules load data in the browser through
+same-origin `/api` requests. Core remains the authority for sessions, organization membership,
+permissions, data, and agent delegation. Browser state cannot authorize a product operation.
+
+The production frontend process, `products/growth/web/scripts/serve.mjs`, serves `build/client`
+and streams `/api` requests to the independently deployed Growth API. It preserves the browser
+Host for exact-origin checks and rebuilds forwarding headers from trusted configuration.
+`FRONTEND_URL` identifies the public origin. API secrets and product signing keys remain server-side.
+The standalone Agents UI, Agency, Labs website, and Admin retain their own build and deployment boundaries.
+
+The [frontend release runbook](products/growth/docs/internal/operations/growth-frontend-release.md)
+records SEO, caching, session integration, validation requirements, and rollback.
 
 ## Administrative reporting
 
