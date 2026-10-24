@@ -38,11 +38,11 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import Image from "next/image";
+
 import { AccountMenuItems } from "@/components/auth/account-menu-items";
-import Link from "next/link";
+import { Link } from "react-router";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
@@ -249,10 +249,10 @@ function DesktopTopbar({
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 size-4" />Upgrade</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/upgrade"><Sparkles className="mr-2 size-4" />Upgrade</Link></DropdownMenuItem>
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
@@ -295,8 +295,8 @@ function MobileTopbar({
         </Button>
       </SheetTrigger>
 
-      <Link href="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
-        <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
+      <Link to="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
+        <img src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></p>
           <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sectionLabel}</p>
@@ -330,10 +330,10 @@ function MobileTopbar({
             </div>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 h-4 w-4" />Upgrade</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/upgrade"><Sparkles className="mr-2 h-4 w-4" />Upgrade</Link></DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
@@ -393,7 +393,7 @@ function NavigationSection({
         return (
           <motion.div key={item.href} variants={VANTAGE_LIST_ITEM_VARIANTS} initial="hidden" animate="visible" custom={index}>
           <Link
-            href={href}
+            to={href}
             data-tour={tourTarget(item.href)}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
@@ -445,7 +445,7 @@ function SidebarContent({
   onNavigate?: () => void;
   billingSummary?: BillingSummary | null;
 }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
 
   return (
@@ -457,11 +457,11 @@ function SidebarContent({
         )}
       >
         <Link
-          href="/workspace"
+          to="/workspace"
           onClick={onNavigate}
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
-          <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
+          <img src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
           {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></span> : null}
         </Link>
 
@@ -553,7 +553,7 @@ function WorkspaceShell({
   const agents = useGrowthAgents();
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const sectionLabel = getSectionLabel(pathname);
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
   const setSidebarCollapsed = useCallback((value: boolean) => {

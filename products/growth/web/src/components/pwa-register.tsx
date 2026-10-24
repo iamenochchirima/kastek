@@ -14,10 +14,11 @@ function dispatchPwaUpdate(waiting: boolean) {
 
 export default function PwaRegister() {
   const reloadingRef = useRef(false);
+  const applyRequested = useRef(false);
 
   useEffect(() => {
     if (
-      process.env.NODE_ENV !== "production" ||
+      import.meta.env.DEV ||
       typeof window === "undefined" ||
       !("serviceWorker" in navigator)
     ) {
@@ -25,7 +26,7 @@ export default function PwaRegister() {
     }
 
     const onControllerChange = () => {
-      if (reloadingRef.current) return;
+      if (!applyRequested.current || reloadingRef.current) return;
       reloadingRef.current = true;
       window.location.reload();
     };
@@ -33,6 +34,7 @@ export default function PwaRegister() {
     const onApplyUpdate = () => {
       void navigator.serviceWorker.getRegistration().then((registration) => {
         if (registration?.waiting) {
+          applyRequested.current = true;
           registration.waiting.postMessage({ type: "SKIP_WAITING" });
         }
       });
@@ -66,7 +68,7 @@ export default function PwaRegister() {
           syncWaitingState();
         });
       } catch (error) {
-        if (process.env.NODE_ENV !== "production") {
+        if (import.meta.env.DEV) {
           console.error("Failed to register service worker", error);
         }
       }

@@ -2,7 +2,7 @@
 
 import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
-import Link from "next/link";
+import { Link } from "react-router";
 import { ArrowUpRight, Bot, MessageCircle, Send, Wifi } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AnalyticsEmptyState, AnalyticsErrorState, AnalyticsLoadingState } from "@/components/analytics/analytics-feedback";
@@ -64,7 +64,7 @@ export function WorkspaceAnalyticsOverview() {
           <p className="mt-1 text-xs text-muted-foreground">Last 30 days</p>
         </div>
         {report && populatedMetrics.length > 0 ? <AskGrowthAgent featureId="research" context={{ kind: "analytics_report", resourceId: OVERVIEW_METRIC_SET, range: { from: report.range_start, to: report.range_end, timezone: report.timezone } }}>Analyse results</AskGrowthAgent> : null}
-        <Link href="/analytics" className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground no-underline transition-colors duration-[150ms] hover:text-foreground">View report <ArrowUpRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" /></Link>
+        <Link to="/analytics" className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground no-underline transition-colors duration-[150ms] hover:text-foreground">View report <ArrowUpRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" /></Link>
       </div>
       {loading ? <Card><CardContent className="p-5"><AnalyticsLoadingState /></CardContent></Card> : error ? <AnalyticsErrorState description={error.message} onRetry={() => void load()} /> : report ? (
         populatedMetrics.length ? <div className="space-y-4">
@@ -85,7 +85,7 @@ function HighlightCard({ config, metric }: { config: (typeof highlightConfig)[nu
   const value = latestObservedAnalyticsValue(metric);
   const unit = metric.unit;
   return (
-    <Link href={config.href} className="no-underline">
+    <Link to={config.href} className="no-underline">
       <Card className="h-full transition-colors hover:border-primary/40">
         <CardHeader className="gap-2 pb-3">
           <div className="flex items-start justify-between gap-3"><CardTitle className="text-xs font-medium text-muted-foreground">{config.label}</CardTitle><Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" /></div>
@@ -100,7 +100,7 @@ function HighlightCard({ config, metric }: { config: (typeof highlightConfig)[nu
 function TrendCard({ config, metric }: { config: (typeof trendConfig)[number]; metric: AnalyticsMetricResult }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="flex-row items-start justify-between gap-3 border-b border-border pb-3"><div><CardTitle className="text-sm font-medium">{config.label}</CardTitle><CardDescription className="mt-1 text-xs">Last 30 days</CardDescription></div><Link href={config.href} aria-label={`Open ${config.label}`} className="text-muted-foreground hover:text-foreground"><ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link></CardHeader>
+      <CardHeader className="flex-row items-start justify-between gap-3 border-b border-border pb-3"><div><CardTitle className="text-sm font-medium">{config.label}</CardTitle><CardDescription className="mt-1 text-xs">Last 30 days</CardDescription></div><Link to={config.href} aria-label={`Open ${config.label}`} className="text-muted-foreground hover:text-foreground"><ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link></CardHeader>
       <CardContent className="p-4"><AnalyticsTrendChart points={metric.series} label={`${config.label} trend`} /></CardContent>
     </Card>
   );

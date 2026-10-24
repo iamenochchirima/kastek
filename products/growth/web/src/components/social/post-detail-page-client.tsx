@@ -2,9 +2,9 @@
 
 import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
-import Link from "next/link";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router";
+
+import { useNavigate } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
@@ -93,7 +93,7 @@ function platformInsightStatus(platform: { dataStatus: string; syncStatus: strin
 }
 
 export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [post, setPost] = useState(initialPost);
   const [events, setEvents] = useState<SocialPostActivityEvent[]>([]);
   const [insights, setInsights] = useState<SocialPostInsights | null>(null);
@@ -323,7 +323,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
         setDeleteProviderResults(payload.providerResults || []);
         throw new Error(payload.error || "Failed to delete post");
       }
-      router.push("/content/posts");
+      navigate("/content/posts");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to delete post");
       setBusyKey(null);
@@ -333,7 +333,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
-        <Link href="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <Link to="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           Back to Posts
         </Link>
@@ -363,7 +363,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
             </PageHeaderContent>
             <PageHeaderActions>
               <AskGrowthAgent featureId="content" context={{ kind: "content_post", resourceId: post.id }}>Improve draft</AskGrowthAgent>
-              <Button variant="outline" className="gap-2" onClick={() => router.push(`/content?edit=${encodeURIComponent(post.id)}`)}>
+              <Button variant="outline" className="gap-2" onClick={() => navigate(`/content?edit=${encodeURIComponent(post.id)}`)}>
                 <Pencil className="h-4 w-4" />
                 Edit
               </Button>
@@ -413,7 +413,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                           </span>
                         </div>
                       ) : (
-                        <Image unoptimized width={960} height={560} className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
+                        <img width={960} height={560} className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
                       )}
                       <div className="flex items-center justify-between gap-3 p-3 text-xs text-muted-foreground">
                         <span className="min-w-0 truncate">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")}</span>

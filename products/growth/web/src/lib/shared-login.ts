@@ -28,5 +28,6 @@ export async function signOut(allDevices = false) {
   if (!["http:", "https:"].includes(target.protocol)) {
     throw new Error("Could not sign out. Please try again.");
   }
+  window.dispatchEvent(new Event("kasitek:session-ended"));
   window.location.assign(target.href);
 }

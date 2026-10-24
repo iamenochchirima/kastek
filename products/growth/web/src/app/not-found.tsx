@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router";
 import { ArrowLeft, SearchX } from "lucide-react";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ export default function NotFound() {
           <h1 id="not-found-title" className="mt-2 text-2xl font-semibold tracking-tight">Page not found</h1>
           <p className="mt-2 text-sm text-muted-foreground">The page may have moved or no longer exists.</p>
           <Button asChild className="mt-6">
-            <Link href="/workspace"><ArrowLeft className="size-4" />Back to workspace</Link>
+            <Link to="/workspace"><ArrowLeft className="size-4" />Back to workspace</Link>
           </Button>
         </section>
       </MotionReveal>

@@ -26,7 +26,7 @@ import {
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -291,7 +291,7 @@ export function ConnectionsManager({
   loadFailed?: boolean;
   initialAccessRequest?: InitialAccessRequest;
 }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const { confirm } = useConfirmationDialog();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -367,7 +367,7 @@ export function ConnectionsManager({
         setShownConnections((current) => current.filter((item) => item.id !== connection.id));
       }
       toast.success(status === "DISCONNECTED" ? "Account removed" : "Connection marked revoked");
-      router.refresh();
+      revalidator.revalidate();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection update failed");
     } finally {
@@ -568,7 +568,7 @@ export function ConnectionsManager({
           <Card>
             <CardContent className="flex items-center justify-between gap-3 py-6 text-sm text-destructive">
               <span>Unable to load connected accounts.</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Retry</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => revalidator.revalidate()}>Retry</Button>
             </CardContent>
           </Card>
         ) : shownConnections.length === 0 ? (

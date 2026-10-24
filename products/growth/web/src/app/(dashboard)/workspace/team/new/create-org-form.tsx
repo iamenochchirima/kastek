@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
 
 export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }: { nextPath?: string; initial?: boolean }) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +34,8 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         body: JSON.stringify({ orgId: data.org.id }),
       });
       if (!active.ok) throw new Error("Organisation created. Could not select it. Reload to continue.");
-      router.push(nextPath);
-      router.refresh();
+      navigateTo(nextPath);
+      revalidator.revalidate();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create organisation");
     } finally {
@@ -67,7 +68,7 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         {!initial && <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={() => navigateTo(-1)}
         >
           Cancel
         </Button>}

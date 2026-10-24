@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useLocation, useNavigate } from "react-router";
 import { Link2, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,8 +18,8 @@ export function pageAgentContext(pathname: string): GrowthAgentContext {
 
 export function ContextControl() {
   const agents = useGrowthAgents();
-  const pathname = usePathname();
-  const router = useRouter();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const candidate = useMemo(() => pageAgentContext(pathname), [pathname]);
@@ -33,7 +33,7 @@ export function ContextControl() {
       if (!conversationId) return;
       setOpen(false);
       // Context changes create a separate conversation. Preserve the old history.
-      if (pathname.startsWith("/agents/conversations/")) router.push(`/agents/conversations/${encodeURIComponent(conversationId)}`);
+      if (pathname.startsWith("/agents/conversations/")) navigate(`/agents/conversations/${encodeURIComponent(conversationId)}`);
     } finally { setBusy(false); }
   };
   return <>

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type OrgRole = "OWNER" | "ADMIN" | "MEMBER";
@@ -52,17 +51,13 @@ export type InvitationPreview = {
 export const ACTIVE_ORG_COOKIE = "kasitek_active_org";
 
 export async function getActiveOrgId(): Promise<string | null> {
-  const store = await cookies();
-  return store.get(ACTIVE_ORG_COOKIE)?.value ?? null;
+  const data = await fetchCoreJson<{ activeOrgId: string | null }>("/api/orgs");
+  return data.activeOrgId;
 }
 
 export async function fetchOrgs(): Promise<Org[]> {
-  try {
-    const data = await fetchCoreJson<{ orgs: Org[] }>("/api/orgs");
-    return data.orgs;
-  } catch {
-    return [];
-  }
+  const data = await fetchCoreJson<{ orgs: Org[] }>("/api/orgs");
+  return data.orgs;
 }
 
 

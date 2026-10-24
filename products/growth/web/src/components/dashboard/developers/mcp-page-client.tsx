@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageHeaderContent, PageHeaderTitle } from "@/components/ui/page-header";
@@ -14,7 +14,7 @@ export function McpPageClient() {
           <CardContent className="space-y-4 p-5">
             <h2 className="text-base font-semibold">MCP unavailable</h2>
             <p className="text-sm text-muted-foreground">Use the REST API with a Developer API key.</p>
-            <Button asChild variant="outline"><Link href="/developers/api">View API</Link></Button>
+            <Button asChild variant="outline"><Link to="/developers/api">View API</Link></Button>
           </CardContent>
         </Card>
       </div>

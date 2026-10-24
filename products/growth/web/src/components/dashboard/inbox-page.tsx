@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "react-router";
+import { Link } from "react-router";
 import Picker from "@emoji-mart/react";
 import emojiData from "@emoji-mart/data";
 import type { EmojiMartData } from "@emoji-mart/data";
@@ -384,7 +384,6 @@ function FluentEmojiGlyph({ emoji }: { emoji: string }) {
   return (
     // Fluent Emoji is Microsoft's MIT-licensed emoji artwork. Pinning the
     // version makes each exact Unicode sequence stable and long-cacheable.
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={getFluentEmojiAssetUrl(emoji)}
       alt={emoji}
@@ -705,7 +704,7 @@ export default function InboxPageClient({
   metaConnections: MetaConnections;
   emailConnections: EmailConnectionView[];
 }) {
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { confirm } = useConfirmationDialog();
   const appearance = useAppearance();
   const emojiTheme = resolveTheme(appearance.theme);
@@ -1532,7 +1531,7 @@ export default function InboxPageClient({
                 </div>
               ) : (
                 <div className="border-t border-border p-3">
-                  <Button asChild size="sm"><Link href="/connections#whatsapp-setup">Connect WhatsApp</Link></Button>
+                  <Button asChild size="sm"><Link to="/connections#whatsapp-setup">Connect WhatsApp</Link></Button>
                 </div>
               )}
             </div>
@@ -1572,7 +1571,7 @@ export default function InboxPageClient({
                 );
               })}
               <div className="p-3">
-                <Button asChild size="sm" variant="outline"><Link href="/connections">Manage Meta connections</Link></Button>
+                <Button asChild size="sm" variant="outline"><Link to="/connections">Manage Meta connections</Link></Button>
               </div>
             </div>
           </section>
@@ -2953,7 +2952,7 @@ export default function InboxPageClient({
                   ) : null}
                   {selectedChannel === "whatsapp" ? (
                     <Button asChild variant="outline" size="sm" className="mt-4">
-                      <Link href="/connections#whatsapp-setup">Connect WhatsApp</Link>
+                      <Link to="/connections#whatsapp-setup">Connect WhatsApp</Link>
                     </Button>
                   ) : null}
                 </div>
@@ -2974,7 +2973,7 @@ export default function InboxPageClient({
                   {selectedChannelConversationCount === 0 &&
                   (selectedChannel === "instagram" || selectedChannel === "facebook") ? (
                     <Button asChild variant="outline" size="sm" className="mt-4">
-                      <Link href="/connections">Manage connections</Link>
+                      <Link to="/connections">Manage connections</Link>
                     </Button>
                   ) : null}
                 </div>
@@ -4022,7 +4021,6 @@ function MessageAttachmentContent({
       // Meta may return a transparent sticker asset or a flattened preview.
       // Render the provider response unchanged; altering its pixels damages
       // anti-aliased artwork and cannot restore animation data.
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         key={`sticker-${reloadToken}`}
         src={mediaUrl}
@@ -4036,7 +4034,6 @@ function MessageAttachmentContent({
 
   if (attachment.kind === "image") {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
       <img key={`image-${reloadToken}`} src={mediaUrl} alt={caption || attachment.fileName || "attachment"} className="max-h-72 w-full max-w-sm cursor-zoom-in rounded-md border border-border/60 object-contain" onError={() => setMediaFailed(true)} onClick={() => onOpenMedia(mediaUrl, attachment.kind, caption)} />
     );
   }
@@ -4334,7 +4331,7 @@ function MediaLightbox({
               cursor: zoom > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in",
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+
             <img
               src={url}
               alt={caption || "media"}

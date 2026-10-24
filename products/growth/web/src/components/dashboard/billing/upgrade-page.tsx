@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { CheckoutButton } from "@/components/dashboard/billing/checkout-button";
@@ -48,7 +48,7 @@ export function UpgradePage({
             <PageHeaderDescription>Upgrade your workspace with more access and credits.</PageHeaderDescription>
           </PageHeaderContent>
           <Button asChild variant="outline" size="sm">
-            <Link href="/billing">
+            <Link to="/billing">
               <ArrowLeft className="h-3.5 w-3.5" />
               Billing
             </Link>
@@ -120,7 +120,7 @@ export function UpgradePage({
                       </ul>
 
                       <div className="mt-auto space-y-2 pt-5">
-                        <Button asChild variant="ghost" className="w-full"><Link href={`/upgrade/${encodeURIComponent(plan.key)}`}>View plan details</Link></Button>
+                        <Button asChild variant="ghost" className="w-full"><Link to={`/upgrade/${encodeURIComponent(plan.key)}`}>View plan details</Link></Button>
                         <CheckoutButton
                           planKey={plan.key}
                           disabled={isCurrent || !plan.checkoutReady}

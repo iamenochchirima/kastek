@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { growthAgents, GrowthAgentRequestError, isActiveTask, type GrowthAgentBootstrap, type GrowthAgentContext, type GrowthAgentConversation, type GrowthAgentFeatureId, type GrowthAgentMessage, type GrowthAgentReview, type GrowthAgentTask, type GrowthAgentEvent } from "@/lib/growth-agents";
 
@@ -31,7 +31,7 @@ type AssistantState = {
 const AgentContext = createContext<AssistantState | null>(null);
 
 export function GrowthAgentProvider({ children, userId, businessId, businessName }: { children: ReactNode; userId: string; businessId: string; businessName: string }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const scopeKey = `${encodeURIComponent(userId)}:${encodeURIComponent(businessId)}`;
   const storagePrefix = `kasitek:growth-agents:${scopeKey}`;
   const [bootstrap, setBootstrap] = useState<GrowthAgentBootstrap | null>(null);

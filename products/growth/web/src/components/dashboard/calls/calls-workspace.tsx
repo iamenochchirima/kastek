@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Call, Device } from "@twilio/voice-sdk";
 import {
@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiUrl } from "@/lib/server-api";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import type { IconType } from "react-icons";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
@@ -158,7 +158,7 @@ export function CallsWorkspace({
   const [callState, setCallState] = useState<"idle" | "connecting" | "active">("idle");
   const deviceRef = useRef<Device | null>(null);
   const activeCallRef = useRef<Call | null>(null);
-  const router = useRouter();
+  const revalidator = useRevalidator();
 
   const filteredCalls = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -210,7 +210,7 @@ export function CallsWorkspace({
       setShowVoiceSetup(false);
       setVoiceNumber("");
       setVoiceLabel("");
-      router.refresh();
+      revalidator.revalidate();
     } catch (error) {
       setSetupError(error instanceof Error ? error.message : "Could not register the business number");
     } finally {
@@ -257,21 +257,21 @@ export function CallsWorkspace({
       activeCallRef.current = call;
       call.on("accept", () => {
         setCallState("active");
-        router.refresh();
+        revalidator.revalidate();
       });
       call.on("disconnect", () => {
         activeCallRef.current = null;
         device.destroy();
         deviceRef.current = null;
         setCallState("idle");
-        router.refresh();
+        revalidator.revalidate();
       });
       call.on("cancel", () => {
         activeCallRef.current = null;
         device.destroy();
         deviceRef.current = null;
         setCallState("idle");
-        router.refresh();
+        revalidator.revalidate();
       });
     } catch (error) {
       setDialError(error instanceof Error ? error.message : "Could not start browser calling");
@@ -380,14 +380,14 @@ export function CallsWorkspace({
                       </Button>
                     ) : null}
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/inbox">
+                      <Link to="/inbox">
                         <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />
                         Open WhatsApp calls in Inbox
                       </Link>
                     </Button>
                     {!browserCallingAvailable && voiceConnections.length > 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" href="/connections">Manage calling</Link>.
+                        The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" to="/connections">Manage calling</Link>.
                       </p>
                     ) : null}
                   </div>
@@ -646,7 +646,7 @@ function CallDetails({ call }: { call: CallRecord }) {
 
       {call.conversationId ? (
         <Link
-          href={`/inbox?conversation=${encodeURIComponent(call.conversationId)}`}
+          to={`/inbox?conversation=${encodeURIComponent(call.conversationId)}`}
           className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />

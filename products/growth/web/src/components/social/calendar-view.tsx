@@ -1,7 +1,7 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ function calendarDateInputValue(date: Date) {
 }
 
 export function CalendarView() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { interface: interfacePreferences } = useAppearance();
   const weekStartsMonday = interfacePreferences.weekStartsMonday;
   const week = weekStartsMonday ? MONDAY_WEEK : SUNDAY_WEEK;
@@ -131,11 +131,11 @@ export function CalendarView() {
   }
 
   function openNewPostForDate(date: Date) {
-    router.push(`/content?scheduleDate=${calendarDateInputValue(date)}`);
+    navigate(`/content?scheduleDate=${calendarDateInputValue(date)}`);
   }
 
   function openPost(post: SocialPost) {
-    router.push(`/content?edit=${encodeURIComponent(post.id)}`);
+    navigate(`/content?edit=${encodeURIComponent(post.id)}`);
   }
 
   return (

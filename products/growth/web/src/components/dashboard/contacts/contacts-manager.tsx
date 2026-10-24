@@ -35,8 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/server-api";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { MoreHorizontal } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router";
+import { useNavigate, useRevalidator } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 
 type ContactView = {
@@ -172,7 +172,7 @@ function CustomerDetailsLink({ customerId }: { customerId: string | null }) {
 
   return (
     <Button asChild size="sm" variant="outline">
-      <Link href={`/contacts/${customerId}`}>View customer</Link>
+      <Link to={`/contacts/${customerId}`}>View customer</Link>
     </Button>
   );
 }
@@ -184,7 +184,8 @@ export default function ContactsManager({
   filters,
   stats,
 }: ContactsManagerProps) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [defaultOptIn, setDefaultOptIn] = useState(false);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
@@ -254,7 +255,7 @@ export default function ContactsManager({
   function navigate(next: Partial<ContactsManagerProps["filters"]>) {
     const params = buildSearchParams({ ...filters, ...next });
     const query = params.toString();
-    router.push(`/contacts${query ? `?${query}` : ""}`);
+    navigateTo(`/contacts${query ? `?${query}` : ""}`);
   }
 
   async function estimateCsvRows(file: File) {
@@ -370,7 +371,7 @@ export default function ContactsManager({
         excluded: "all",
         listLabel: importListLabel.trim() || "default",
       });
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
       setImportProgress({
@@ -428,7 +429,7 @@ export default function ContactsManager({
       setNotice("Contact updated.");
       setEditingId(null);
       setForm(null);
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update contact");
     } finally {
@@ -462,7 +463,7 @@ export default function ContactsManager({
     setRenamingListLabel(null);
     setRenameValue("");
     navigate({ listLabel: filters.listLabel === label ? normalizedLabel : filters.listLabel });
-    router.refresh();
+    revalidator.revalidate();
   }
 
   async function deleteList(label: string) {
@@ -481,7 +482,7 @@ export default function ContactsManager({
     setNotice(`Removed list ${label}.`);
     setDeleteTargetLabel(null);
     navigate({ listLabel: filters.listLabel === label ? "" : filters.listLabel });
-    router.refresh();
+    revalidator.revalidate();
   }
 
   function prepareAddContacts(label: string) {

@@ -2,7 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { Fragment, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,8 @@ export default function WhatsappManualConnectionCard({
   connections: WhatsappConnectionView[];
   mode?: "setup" | "maintenance";
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [showSetupForm, setShowSetupForm] = useState(mode === "setup");
   const [wabaId, setWabaId] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
@@ -90,8 +91,8 @@ export default function WhatsappManualConnectionCard({
       });
 
       setShowSetupForm(false);
-      router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
-      router.refresh();
+      navigate(`/connections/whatsapp-onboarding?${params.toString()}`);
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect WhatsApp");
     } finally {
@@ -157,7 +158,7 @@ export default function WhatsappManualConnectionCard({
           ? "Connection details refreshed."
           : `Template sync completed. Synced ${body.synced || 0} WhatsApp templates.`
       );
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {
@@ -194,7 +195,7 @@ export default function WhatsappManualConnectionCard({
       );
       setEditingTokenConnectionId(null);
       setUpdatedAccessToken("");
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update access token");
     } finally {

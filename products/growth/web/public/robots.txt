@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /invite/
+Disallow: /early-access/
+Disallow: /onboarding
+Sitemap: https://growth.kasitek.co.za/sitemap.xml

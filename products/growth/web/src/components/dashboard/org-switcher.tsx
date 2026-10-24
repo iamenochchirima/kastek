@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ export function OrgSwitcher({
   collapsed?: boolean;
   variant?: "panel" | "header";
 }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const [, startTransition] = useTransition();
   const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
 
@@ -40,7 +40,7 @@ export function OrgSwitcher({
         body: JSON.stringify({ orgId }),
       });
       if (!response.ok) throw new Error("Business switch failed");
-      startTransition(() => { router.refresh(); });
+      startTransition(() => { revalidator.revalidate(); });
     } catch {
       window.dispatchEvent(new Event("kasitek:business-change-failed"));
       toast.error("Unable to switch business");

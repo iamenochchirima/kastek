@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnalyticsErrorState, AnalyticsLoadingState, AnalyticsStatusBadge } from "@/components/analytics/analytics-feedback";
@@ -46,7 +46,7 @@ export function AnalyticsCatalogStatus({ surface = "core" }: { surface?: Analyti
                 <CardTitle>Reporting data</CardTitle>
                 <CardDescription>Canonical metrics catalog.</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2"><AnalyticsStatusBadge state="available" label="Available" />{process.env.NODE_ENV === "development" ? <Link href="/analytics/playground" className="text-xs font-medium text-primary hover:underline">Open playground</Link> : null}</div>
+              <div className="flex flex-wrap items-center gap-2"><AnalyticsStatusBadge state="available" label="Available" />{import.meta.env.DEV ? <Link to="/analytics/playground" className="text-xs font-medium text-primary hover:underline">Open playground</Link> : null}</div>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <span><strong className="font-medium text-foreground">{catalog.metrics.length}</strong> metrics</span>

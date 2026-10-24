@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router";
+import { useNavigate } from "react-router";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useRef, useState } from "react";
@@ -50,12 +50,12 @@ function TaskResults({ task }: { task: GrowthAgentTask }) {
     finally { if (!abort.signal.aborted) setBusy(false); }
   };
   const download = safeGrowthRoute(artifact?.downloadPath);
-  return <><div className="flex flex-wrap gap-2">{task.results?.map((result) => { const route = safeGrowthRoute(result.route); return route ? <Link key={result.id} href={route} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary"><span className="truncate">{result.title}</span><ArrowUpRight className="size-3.5 shrink-0" /></Link> : result.artifactId ? <Button key={result.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openArtifact(result.artifactId!)}>{result.title}</Button> : <span key={result.id} className="text-xs text-muted-foreground">{result.title}</span>; })}</div>{error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}<Dialog open={Boolean(artifact)} onOpenChange={(open) => { if (!open) setArtifact(null); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{artifact?.title}</DialogTitle><DialogDescription className="sr-only">Agent result</DialogDescription></DialogHeader><div className="min-w-0 whitespace-pre-wrap break-words text-sm">{artifact?.text || "No preview available."}</div>{download ? <div className="flex justify-end"><Button asChild size="sm"><a href={download} download>Download</a></Button></div> : null}</DialogContent></Dialog></>;
+  return <><div className="flex flex-wrap gap-2">{task.results?.map((result) => { const route = safeGrowthRoute(result.route); return route ? <Link key={result.id} to={route} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary"><span className="truncate">{result.title}</span><ArrowUpRight className="size-3.5 shrink-0" /></Link> : result.artifactId ? <Button key={result.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openArtifact(result.artifactId!)}>{result.title}</Button> : <span key={result.id} className="text-xs text-muted-foreground">{result.title}</span>; })}</div>{error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}<Dialog open={Boolean(artifact)} onOpenChange={(open) => { if (!open) setArtifact(null); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{artifact?.title}</DialogTitle><DialogDescription className="sr-only">Agent result</DialogDescription></DialogHeader><div className="min-w-0 whitespace-pre-wrap break-words text-sm">{artifact?.text || "No preview available."}</div>{download ? <div className="flex justify-end"><Button asChild size="sm"><a href={download} download>Download</a></Button></div> : null}</DialogContent></Dialog></>;
 }
 
 export function AgentConversation({ expanded = false, onClose }: { expanded?: boolean; onClose?: () => void }) {
   const agents = useGrowthAgents();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { confirm } = useConfirmationDialog();
   const scroll = useRef<HTMLDivElement | null>(null);
   const stayAtBottom = useRef(true);
@@ -78,8 +78,8 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
     <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Bot className="size-4" /></span>
       <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold">{agents.conversation?.title || feature?.name || "Growth assistant"}</h2><p className="truncate text-xs text-muted-foreground">{feature?.name || "Assistant"}</p></div>
-      <Button type="button" variant="ghost" size="icon" aria-label="New conversation" disabled={agents.loading || agents.sending} onClick={() => void agents.start(agents.conversation?.featureId || "assistant").then((id) => { if (expanded && id) { agents.closePanel(); router.push(`/agents/conversations/${encodeURIComponent(id)}`); } })}><Plus className="size-4" /></Button>
-      {!expanded && agents.conversation ? <Button asChild variant="ghost" size="icon"><Link href={`/agents/conversations/${encodeURIComponent(agents.conversation.id)}`} onClick={agents.closePanel} aria-label="Expand conversation"><ArrowUpRight className="size-4" /></Link></Button> : null}
+      <Button type="button" variant="ghost" size="icon" aria-label="New conversation" disabled={agents.loading || agents.sending} onClick={() => void agents.start(agents.conversation?.featureId || "assistant").then((id) => { if (expanded && id) { agents.closePanel(); navigate(`/agents/conversations/${encodeURIComponent(id)}`); } })}><Plus className="size-4" /></Button>
+      {!expanded && agents.conversation ? <Button asChild variant="ghost" size="icon"><Link to={`/agents/conversations/${encodeURIComponent(agents.conversation.id)}`} onClick={agents.closePanel} aria-label="Expand conversation"><ArrowUpRight className="size-4" /></Link></Button> : null}
       {onClose ? <Button type="button" variant="ghost" size="icon" aria-label="Close assistant" onClick={onClose}><X className="size-4" /></Button> : null}
     </header>
     <ContextControl />

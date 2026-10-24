@@ -38,7 +38,15 @@ const server = http.createServer(async (request, response) => {
     if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }
     if (path === "/__fixture/availability") { active = (await payload(request)).active; return json(response, 200, { ok: true }); }
     if (path === "/api/auth/me") return json(response, 200, { user: { id: userId, name: "Fixture user", email: "fixture@example.test", image: "", emailVerified: now() } });
-    if (path === "/api/orgs") return json(response, 200, { orgs: [{ id: businessOne, name: "Luma Studio", slug: "luma", logo: null }, { id: businessTwo, name: "Another business", slug: "another", logo: null }] });
+    if (path === "/api/orgs/set-active") {
+      const input = await payload(request);
+      const expected = new URL(process.env.GROWTH_WEB_ORIGIN || "http://127.0.0.1:3310");
+      if (request.method !== "POST" || request.headers.origin !== expected.origin || request.headers.host !== expected.host) return json(response, 403, { error: "Forbidden" });
+      if (![businessOne, businessTwo].includes(input.orgId)) return json(response, 403, { error: "Forbidden" });
+      response.setHeader("set-cookie", `kasitek_active_org=${input.orgId}; HttpOnly; Path=/; SameSite=Lax; Max-Age=31536000`);
+      return json(response, 200, { ok: true });
+    }
+    if (path === "/api/orgs") return json(response, 200, { activeOrgId: businessId, orgs: [{ id: businessOne, name: "Luma Studio", slug: "luma", logo: null }, { id: businessTwo, name: "Another business", slug: "another", logo: null }] });
     if (path === "/api/onboarding") return json(response, 200, { needsOnboarding: false, canManage: true, profile: {} });
     if (path === "/api/workspace/summary") return json(response, 200, { summary: { socialPostCount: 0, connections: [], templateStatusMap: {}, campaignsAggregate: { totalCampaigns: 0, totalRecipients: 0, deliveredCount: 0, readCount: 0, failedCount: 0, blockedCount: 0 }, activeCampaigns: 0, recentCampaigns: [], contactsAggregate: { total: 0, optedIn: 0, excluded: 0 }, sendStatusMap: {}, reviewQueue: [] } });
     if (path === "/api/early-access/status") return json(response, 200, { earlyAccess: null });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     // Keep the error boundary quiet in production while preserving a useful dev trace.
-    if (process.env.NODE_ENV !== "production") console.error("Unhandled application error", error);
+    if (import.meta.env.DEV) console.error("Unhandled application error", error);
   }, [error]);
 
   return (
@@ -24,7 +24,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <p className="mt-2 text-sm text-muted-foreground">Try again, or return to your workspace.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Button type="button" onClick={reset}><RefreshCw className="size-4" />Try again</Button>
-            <Button asChild variant="outline"><Link href="/workspace">Back to workspace</Link></Button>
+            <Button asChild variant="outline"><Link to="/workspace">Back to workspace</Link></Button>
           </div>
         </section>
       </MotionReveal>

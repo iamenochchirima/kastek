@@ -1,25 +1,28 @@
-import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { Link, useNavigate } from "react-router";
+import { useEffect } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getCoreSession } from "@/lib/core-auth";
 import { publicSiteUrl } from "@/lib/public-site";
 
-export const metadata: Metadata = {
-  title: "KasiTek app",
-  description: "Sign in to your KasiTek workspace.",
-  robots: { index: false, follow: false },
-};
-
-export default async function AppGatewayPage() {
-  const session = await getCoreSession();
-
-  if (session?.user) {
-    redirect("/workspace");
-  }
-
+export const meta = () => [
+  { name: "robots", content: "index, follow" },
+  { title: "Growth | KasiTek" },
+  { name: "description", content: "Manage customer conversations, campaigns, content and bookings in your Growth workspace." },
+  { tagName: "link", rel: "canonical", href: "https://growth.kasitek.co.za/" },
+  { property: "og:title", content: "Growth | KasiTek" },
+  { property: "og:description", content: "Your customer conversations, campaigns, content and bookings in one workspace." },
+  { property: "og:url", content: "https://growth.kasitek.co.za/" },
+  { property: "og:type", content: "website" },
+  { name: "twitter:card", content: "summary" },
+];
+export default function GrowthLandingPage() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    let active = true;
+    void getCoreSession().then((session) => { if (active && session?.user) navigate("/workspace", { replace: true }); }).catch(() => {});
+    return () => { active = false; };
+  }, [navigate]);
   return (
     <main className="relative isolate flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
@@ -30,17 +33,16 @@ export default async function AppGatewayPage() {
 
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 sm:px-8 lg:px-10">
         <a href={publicSiteUrl} className="group inline-flex items-center gap-2.5 no-underline">
-          <Image
+          <img
             src="/logo.svg"
             alt="KasiTek"
             width={36}
             height={36}
             className="h-9 w-9 rounded-lg border border-black/5 shadow-sm"
-            priority
           />
           <span>
             <span className="block text-sm font-semibold tracking-tight text-foreground">KasiTek</span>
-            <span className="block text-[11px] font-medium text-muted-foreground">Workspace</span>
+            <span className="block text-[11px] font-medium text-muted-foreground">Growth</span>
           </span>
         </a>
         <a
@@ -58,17 +60,17 @@ export default async function AppGatewayPage() {
             className="w-full max-w-[440px] rounded-xl border border-border bg-card p-7 shadow-lg sm:p-9"
             aria-labelledby="access-heading"
             >
-            <p className="text-sm font-medium text-muted-foreground">Workspace access</p>
+            <p className="text-sm font-medium text-muted-foreground">KasiTek Growth</p>
             <h1 id="access-heading" className="mt-3 text-[2rem] font-semibold tracking-[-0.035em] text-foreground">
-              Welcome back
+              Stay close to your customers
             </h1>
             <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-              Sign in to continue to your KasiTek workspace.
+              Manage conversations, campaigns, content and bookings in one workspace.
             </p>
 
             <div className="mt-8 grid gap-3">
-            <Button asChild size="lg"><Link href="/login">Sign in<ArrowRight className="h-4 w-4" /></Link></Button>
-            <Button asChild variant="outline" size="lg"><Link href="/signup">Create an account</Link></Button>
+            <Button asChild size="lg"><Link to="/login">Sign in<ArrowRight className="h-4 w-4" /></Link></Button>
+            <Button asChild variant="outline" size="lg"><Link to="/signup">Create an account</Link></Button>
             </div>
 
           </section>

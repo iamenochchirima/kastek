@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/server-api";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 
 type Connection = {
   id: string;
@@ -110,7 +110,8 @@ export default function CampaignCreateForm({
   contacts: Contact[];
   lists: ContactListSummary[];
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [step, setStep] = useState<Step>("setup");
   const [baseName, setBaseName] = useState("");
   const [description, setDescription] = useState("");
@@ -260,12 +261,12 @@ export default function CampaignCreateForm({
         throw new Error(body.error || "Failed to create campaign");
       }
 
-      router.push(
+      navigate(
         `/campaigns?notice=${encodeURIComponent(
           `Campaign queued for ${body.createdRecipients || selectedBatchSize} contacts from ${listLabel}.`,
         )}`,
       );
-      router.refresh();
+      revalidator.revalidate();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to create campaign");
     } finally {
@@ -578,7 +579,7 @@ export default function CampaignCreateForm({
 
       {step === "setup" ? (
         <div className="grid gap-3 sm:flex sm:justify-end">
-          <Button type="button" variant="outline" onClick={() => router.push("/campaigns")}>
+          <Button type="button" variant="outline" onClick={() => navigate("/campaigns")}>
             Cancel
           </Button>
           <Button

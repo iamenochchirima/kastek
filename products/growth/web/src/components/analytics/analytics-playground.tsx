@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "react-router";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Database, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { AnalyticsCoverageBadge, AnalyticsEmptyState, AnalyticsErrorState, AnalyticsFreshnessBadge, AnalyticsLoadingState, AnalyticsStatusBadge } from "@/components/analytics/analytics-feedback";
@@ -129,7 +129,7 @@ export function AnalyticsPlayground() {
             <PageHeaderDescription>Local pipeline checks.</PageHeaderDescription>
           </PageHeaderContent>
           <div className="flex flex-wrap gap-2">
-            <Button asChild type="button" variant="outline" size="sm"><Link href="/analytics"><ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Analytics</Link></Button>
+            <Button asChild type="button" variant="outline" size="sm"><Link to="/analytics"><ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Analytics</Link></Button>
             <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled={loading || refreshing} onClick={() => void load(true)}><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />Refresh</Button>
           </div>
         </PageHeader>

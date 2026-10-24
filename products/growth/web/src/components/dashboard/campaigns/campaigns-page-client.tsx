@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Pause, Plus, RefreshCw, Search, Square, Zap } from "lucide-react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { useMemo, useState } from "react";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { CAMPAIGN_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
@@ -118,7 +118,7 @@ export default function CampaignsPageClient({
               Browse your WhatsApp campaigns and open one to control sends, batches, and delivery state.
             </p>
           </div>
-          <Link href="/campaigns/create" className="no-underline">
+          <Link to="/campaigns/create" className="no-underline">
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Create Campaign

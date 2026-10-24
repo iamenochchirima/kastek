@@ -11,9 +11,9 @@ import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/server-api";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
-import Link from "next/link";
+import { Link } from "react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigate, useSearchParams } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
 type Campaign = {
@@ -330,8 +330,8 @@ export default function CampaignDetailPageClient({
   campaign: Campaign;
   recipients: CampaignRecipient[];
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [liveCampaign, setLiveCampaign] = useState(campaign);
   const [liveRecipients, setLiveRecipients] = useState(recipients);
   const [notice, setNotice] = useState(searchParams.get("notice") || "");
@@ -662,7 +662,7 @@ export default function CampaignDetailPageClient({
       if (!response.ok) {
         throw new Error(body.error || "Failed to delete campaign");
       }
-      router.push("/campaigns");
+      navigate("/campaigns");
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Failed to delete campaign");
     } finally {
@@ -704,7 +704,7 @@ export default function CampaignDetailPageClient({
       <div className="mx-auto max-w-[1440px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+            <Link to="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
               Back to campaigns
             </Link>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{liveCampaign.name}</h1>

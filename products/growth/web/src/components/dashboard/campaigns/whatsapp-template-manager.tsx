@@ -2,7 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,7 +91,7 @@ export default function WhatsappTemplateManager({
   initialLibraryItemId?: string;
   forceCreateForm?: boolean;
 }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const shouldChooseConnection = connections.length > 2;
   const [connectionId, setConnectionId] = useState(connections[0]?.id || "");
   const [templateName, setTemplateName] = useState("");
@@ -192,7 +192,7 @@ export default function WhatsappTemplateManager({
       setFooter("");
       setCategory("MARKETING");
       setShowCreateForm(false);
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create template");
     } finally {
@@ -215,7 +215,7 @@ export default function WhatsappTemplateManager({
       }
 
       toast.success("Templates synced", { description: `${payload.synced || 0} templates updated` });
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sync templates");
     } finally {
