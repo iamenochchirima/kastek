@@ -177,3 +177,64 @@ test('large uploads and attachment download headers pass through without fronten
     assert.equal(result.headers['content-disposition'], 'attachment; filename="contacts.csv"');
   } finally { await app.cleanup(); }
 });
+
+test('retained builds provide only missing hashed assets and cannot replace current documents or files', async () => {
+  const retained = await mkdtemp(join(tmpdir(), 'growth-retained-'));
+  await mkdir(join(retained, 'assets'));
+  await writeFile(join(retained, 'assets/app-12345678.js'), 'old-overlap');
+  await writeFile(join(retained, 'assets/older-abcdefgh.js'), 'old-chunk');
+  await writeFile(join(retained, 'assets/unhashed.js'), 'old-unhashed');
+  await writeFile(join(retained, 'index.html'), 'old-document');
+  await writeFile(join(retained, 'old.html'), 'old-document');
+  const secret = join(retained, 'outside.js');
+  await writeFile(secret, 'secret');
+  const app = await fixture(undefined, { previousAssetRoots: [retained, join(retained, 'missing-directory')] });
+  await symlink(secret, join(app.root, 'assets/leak-abcdefgh.js'));
+  // An archive symlink can point outside its root as well.
+  await symlink(join(app.root, 'index.html'), join(retained, 'assets/leak-ijklmnop.js'));
+  try {
+    assert.equal((await raw(app.origin, '/assets/app-12345678.js')).body.toString(), 'export{}');
+    const old = await raw(app.origin, '/assets/older-abcdefgh.js');
+    assert.equal(old.body.toString(), 'old-chunk');
+    assert.equal(old.headers['cache-control'], 'public, max-age=31536000, immutable');
+    for (const path of ['/assets/unhashed-old.js', '/assets/leak-abcdefgh.js', '/assets/leak-ijklmnop.js', '/old.html']) assert.equal((await raw(app.origin, path)).status, 404, path);
+    await writeFile(join(retained, 'assets/unhashed-old.js'), 'not-a-hash');
+    assert.equal((await raw(app.origin, '/assets/unhashed-old.js')).status, 404);
+    assert.equal((await raw(app.origin, '/')).body.toString(), '<h1>Growth landing</h1>');
+    assert.equal((await raw(app.origin, '/agents')).body.toString(), '<div>App</div>');
+    assert.equal((await raw(app.origin, '/api/old')).body.toString(), 'api');
+    assert.equal((await raw(app.origin, '/assets/%2e%2e/index.html')).status, 400);
+  } finally { await app.cleanup(); await rm(retained, { recursive: true, force: true }); }
+});
+
+test('legacy Next static archive serves browser files only and blocks server artifacts and escaping links', async () => {
+  const retained = await mkdtemp(join(tmpdir(), 'growth-next-static-'));
+  await mkdir(join(retained, 'chunks'));
+  await mkdir(join(retained, 'css'));
+  await mkdir(join(retained, 'server'));
+  await writeFile(join(retained, 'chunks/runtime-12345678.js'), 'retained-next');
+  await writeFile(join(retained, 'chunks/runtime-12345678.js.map'), 'source');
+  await writeFile(join(retained, 'chunks/source.ts'), 'source');
+  await writeFile(join(retained, 'css/12345678abcdefab.css'), 'body{}');
+  await writeFile(join(retained, 'server/private.js'), 'private');
+  const app = await fixture(undefined, { legacyNextStaticRoot: retained });
+  await symlink(join(app.root, 'index.html'), join(retained, 'chunks/escape-12345678.js'));
+  try {
+    const old = await raw(app.origin, '/_next/static/chunks/runtime-12345678.js');
+    assert.equal(old.status, 200);
+    assert.equal(old.body.toString(), 'retained-next');
+    assert.equal(old.headers['cache-control'], 'public, max-age=31536000, immutable');
+    assert.equal((await raw(app.origin, '/_next/static/css/12345678abcdefab.css')).headers['cache-control'], 'public, max-age=31536000, immutable');
+    for (const path of ['/_next/static/server/private.js', '/_next/static/chunks/runtime-12345678.js.map', '/_next/static/chunks/source.ts', '/_next/static/chunks/escape-12345678.js', '/_next/server/private.js', '/_next/static/missing.js']) assert.equal((await raw(app.origin, path)).status, 404, path);
+  } finally { await app.cleanup(); await rm(retained, { recursive: true, force: true }); }
+});
+
+test('session-bearing HTML is never shared-cacheable and archive configuration fails closed', async () => {
+  const app = await fixture();
+  try {
+    for (const path of ['/', '/index.html']) assert.equal((await raw(app.origin, path, { cookie: 'kasitek_session=fixture' })).headers['cache-control'], 'no-store');
+    assert.throws(() => createGrowthServer({ previousAssetRoots: 'not-json' }), /JSON array/);
+    assert.throws(() => createGrowthServer({ previousAssetRoots: ['relative/build'] }), /absolute directories/);
+    assert.throws(() => createGrowthServer({ legacyNextStaticRoot: 'relative/static' }), /absolute static directory/);
+  } finally { await app.cleanup(); }
+});

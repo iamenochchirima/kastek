@@ -2,7 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { createReadStream } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
-import { dirname, extname, join, resolve, sep } from 'node:path';
+import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,12 +24,37 @@ function cleanHeaders(headers) {
   return Object.fromEntries(Object.entries(headers).filter(([name]) => !excluded.has(name.toLowerCase())));
 }
 
-export function createGrowthServer({ root = join(webRoot, 'build/client'), upstream = process.env.CORE_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000', canonicalOrigin = process.env.GROWTH_CANONICAL_ORIGIN ?? 'https://growth.kasitek.co.za', frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:3000', environment = process.env.NODE_ENV ?? 'production', headersTimeout = 120_000 } = {}) {
+const assetExtensions = new Set(['.js', '.mjs', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.wasm']);
+function previousRoots(value) {
+  let roots;
+  try { roots = typeof value === 'string' ? JSON.parse(value) : value; } catch { throw Error('GROWTH_PREVIOUS_ASSET_ROOTS must be a JSON array of absolute directories'); }
+  if (!Array.isArray(roots) || roots.some(root => typeof root !== 'string' || !isAbsolute(root))) throw Error('GROWTH_PREVIOUS_ASSET_ROOTS must be a JSON array of absolute directories');
+  return roots;
+}
+function hashedAsset(path) {
+  return assetExtensions.has(extname(path)) && (/-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(path) || /(?:^|\/)[a-f0-9]{8,}[.-]/.test(path));
+}
+async function locateFile(root, relative) {
+  try {
+    const rootPath = await realpath(root);
+    const filename = await realpath(resolve(rootPath, relative));
+    if (!filename.startsWith(rootPath + sep)) return null;
+    const file = await stat(filename);
+    return file.isFile() ? { filename, file } : null;
+  } catch (error) {
+    if (['ENOENT', 'ENOTDIR'].includes(error.code)) return null;
+    throw error;
+  }
+}
+
+export function createGrowthServer({ root = join(webRoot, 'build/client'), upstream = process.env.CORE_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000', canonicalOrigin = process.env.GROWTH_CANONICAL_ORIGIN ?? 'https://growth.kasitek.co.za', frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:3000', environment = process.env.NODE_ENV ?? 'production', headersTimeout = 120_000, previousAssetRoots = process.env.GROWTH_PREVIOUS_ASSET_ROOTS ?? '[]', legacyNextStaticRoot = process.env.GROWTH_LEGACY_NEXT_STATIC_ROOT } = {}) {
   const target = new URL(upstream);
   if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password || target.pathname !== '/' || target.search || target.hash) throw Error('CORE_API_BASE_URL must be an HTTP(S) origin');
   const frontend = new URL(frontendOrigin);
   const canonical = new URL(canonicalOrigin);
   const resolvedRoot = resolve(root);
+  const retainedRoots = previousRoots(previousAssetRoots);
+  if (legacyNextStaticRoot && !isAbsolute(legacyNextStaticRoot)) throw Error('GROWTH_LEGACY_NEXT_STATIC_ROOT must be an absolute static directory');
   const server = http.createServer(async (request, response) => {
     response.setHeader('x-content-type-options', 'nosniff');
     response.setHeader('referrer-policy', 'strict-origin-when-cross-origin');
@@ -83,26 +108,29 @@ export function createGrowthServer({ root = join(webRoot, 'build/client'), upstr
     if (!['GET', 'HEAD'].includes(request.method ?? '')) return end(response, 405, 'Method not allowed');
     if (path.replace(/\/+$/, '') === '/analytics/playground' && environment !== 'development') return end(response, 404, 'Not found');
     try {
-      const rootPath = await realpath(resolvedRoot);
-      let filename = resolve(rootPath, `.${path === '/' ? '/index.html' : path}`);
-      let file;
-      try { file = await stat(filename); } catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
-      if (!file?.isFile()) {
-        if (path !== '/' && routes.some(route => route.test(path))) {
-          filename = join(rootPath, '__spa-fallback.html');
-          response.setHeader('x-robots-tag', 'noindex, nofollow');
-          file = await stat(filename);
-        } else return end(response, 404, 'Not found');
-      }
-      filename = await realpath(filename);
-      if (!filename.startsWith(rootPath + sep)) return end(response, 404, 'Not found');
-      // Build internals and source maps are never public entry points.
+      // Archives provide static assets only, never old documents or API responses.
       if (path.split('/').some(part => part.startsWith('.')) || path.endsWith('.map') || path === '/__spa-fallback.html') return end(response, 404, 'Not found');
+      const legacyPath = path.startsWith('/_next/static/');
+      if (legacyPath && (!assetExtensions.has(extname(path)) || !/^\/_next\/static\/(?:chunks\/|css\/|media\/|[^/]+\/_(?:build|ssg)Manifest\.js$)/.test(path))) return end(response, 404, 'Not found');
+      let located = await locateFile(resolvedRoot, path === '/' ? 'index.html' : path.slice(1));
+      if (!located && path.startsWith('/assets/') && hashedAsset(path)) {
+        for (const retainedRoot of retainedRoots) {
+          located = await locateFile(retainedRoot, path.slice(1));
+          if (located) break;
+        }
+      }
+      if (!located && legacyPath && legacyNextStaticRoot) located = await locateFile(legacyNextStaticRoot, path.slice('/_next/static/'.length));
+      if (!located && !legacyPath && path !== '/' && routes.some(route => route.test(path))) {
+        located = await locateFile(resolvedRoot, '__spa-fallback.html');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+      }
+      if (!located) return end(response, 404, 'Not found');
+      const { filename, file } = located;
       const extension = extname(filename);
-      const immutable = path.startsWith('/assets/') && /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(path);
+      const immutable = (path.startsWith('/assets/') || legacyPath) && hashedAsset(path);
       response.setHeader('content-type', types[extension] ?? 'application/octet-stream');
       response.setHeader('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate');
-      if (filename.endsWith('__spa-fallback.html')) response.setHeader('cache-control', 'no-store');
+      if (filename.endsWith('__spa-fallback.html') || (extension === '.html' && /(?:^|;\s*)kasitek_session=[^;]+/.test(request.headers.cookie ?? ''))) response.setHeader('cache-control', 'no-store');
       if (path === '/sw.js') response.setHeader('service-worker-allowed', '/');
       const etag = `W/"${file.size.toString(16)}-${Math.trunc(file.mtimeMs).toString(16)}"`;
       response.setHeader('etag', etag);

@@ -49,6 +49,20 @@ This runbook does not establish which current provider, DNS, CDN, or TLS configu
    `VITE_META_EMBEDDED_SIGNUP_CONFIG_ID`. Rebuild after changing them.
 8. If the environment supplies a CSP, set `GROWTH_CONTENT_SECURITY_POLICY` to the tested policy.
    Verify provider SDKs, microphone/call flows, fonts, and inline framework scripts against it.
+9. Keep prior Vite assets in read-only release directories and set `GROWTH_PREVIOUS_ASSET_ROOTS`
+   to a JSON array of their absolute `build/client` paths. Only missing hashed `/assets/*` files
+   can come from these directories. Current files take precedence; documents and APIs never
+   fall back to an archived build.
+10. During the Next-to-Vite cutover, set `GROWTH_LEGACY_NEXT_STATIC_ROOT` to the absolute retained
+    `.next/static` directory for open Next tabs. Only browser chunks, styles, media, and build
+    manifests under `/_next/static/*` are served. Source maps, source files, server artifacts, and
+    symlinks that escape the configured directory remain unavailable. Retain the previous full
+    Next release separately for rollback; this static archive does not run the Next server.
+
+For example, `GROWTH_PREVIOUS_ASSET_ROOTS='["/releases/previous/build/client"]'` keeps the prior
+Vite chunks available. Hashed assets use immutable caching; other files revalidate. HTML requests
+with a product-session cookie and all private SPA documents use `Cache-Control: no-store`.
+Remove archive configuration only after the release owner accepts open-tab and rollback checks.
 
 Keep provider secrets, OIDC client secrets, database URLs, and Agents signing keys out of
 `VITE_*` variables and public artifacts. Vite substitutes public variables at build time.
