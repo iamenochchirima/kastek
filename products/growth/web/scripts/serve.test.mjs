@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
+import { gunzipSync, brotliDecompressSync } from 'node:zlib';
 import { createGrowthServer } from './serve.mjs';
 
 async function listen(server) { server.listen(0, '127.0.0.1'); await once(server, 'listening'); return `http://127.0.0.1:${server.address().port}`; }
@@ -236,5 +237,46 @@ test('session-bearing HTML is never shared-cacheable and archive configuration f
     assert.throws(() => createGrowthServer({ previousAssetRoots: 'not-json' }), /JSON array/);
     assert.throws(() => createGrowthServer({ previousAssetRoots: ['relative/build'] }), /absolute directories/);
     assert.throws(() => createGrowthServer({ legacyNextStaticRoot: 'relative/static' }), /absolute static directory/);
+  } finally { await app.cleanup(); }
+});
+
+
+test('text compression negotiates gzip and Brotli with representation-specific ETags and HEAD metadata', async () => {
+  const app = await fixture();
+  const text = 'const value = "compress this text";\n'.repeat(200);
+  await writeFile(join(app.root, 'assets/large-12345678.js'), text);
+  await writeFile(join(app.root, 'assets/font-12345678.woff2'), Buffer.alloc(4096, 1));
+  try {
+    const path = '/assets/large-12345678.js';
+    const plain = await raw(app.origin, path);
+    const gzip = await raw(app.origin, path, { 'accept-encoding': 'gzip' });
+    const br = await raw(app.origin, path, { 'accept-encoding': 'gzip;q=0.5, br;q=1' });
+    assert.equal(gzip.headers['content-encoding'], 'gzip');
+    assert.equal(br.headers['content-encoding'], 'br');
+    assert.equal(gunzipSync(gzip.body).toString(), text);
+    assert.equal(brotliDecompressSync(br.body).toString(), text);
+    assert.ok(gzip.body.length < plain.body.length);
+    assert.equal(gzip.headers['content-length'], undefined);
+    assert.equal(plain.headers['content-length'], String(Buffer.byteLength(text)));
+    assert.equal(gzip.headers.vary, 'Accept-Encoding');
+    assert.equal(plain.headers.vary, 'Accept-Encoding');
+    assert.notEqual(gzip.headers.etag, br.headers.etag);
+    assert.notEqual(plain.headers.etag, gzip.headers.etag);
+    assert.equal((await raw(app.origin, path, { 'accept-encoding': 'gzip;q=0, br;q=0' })).headers['content-encoding'], undefined);
+    assert.equal((await raw(app.origin, path, { 'accept-encoding': 'br;q=0, gzip;q=1' })).headers['content-encoding'], 'gzip');
+    assert.equal((await raw(app.origin, path, { 'accept-encoding': 'identity;q=1, gzip;q=0.1' })).headers['content-encoding'], undefined);
+    assert.equal((await raw(app.origin, path, { 'accept-encoding': 'identity;q=0, *;q=0' })).status, 406);
+    const head = await raw(app.origin, path, { 'accept-encoding': 'br' }, 'HEAD');
+    assert.equal(head.body.length, 0);
+    assert.equal(head.headers['content-encoding'], 'br');
+    assert.equal(head.headers['content-length'], undefined);
+    assert.equal(head.headers.etag, br.headers.etag);
+    const notModified = await raw(app.origin, path, { 'accept-encoding': 'gzip', 'if-none-match': gzip.headers.etag });
+    assert.equal(notModified.status, 304);
+    assert.equal(notModified.headers.vary, 'Accept-Encoding');
+    assert.equal(notModified.body.length, 0);
+    assert.equal((await raw(app.origin, path, { 'accept-encoding': 'br', 'if-none-match': gzip.headers.etag })).status, 200);
+    assert.equal((await raw(app.origin, '/assets/font-12345678.woff2', { 'accept-encoding': 'br,gzip' })).headers['content-encoding'], undefined);
+    assert.equal((await raw(app.origin, '/sw.js', { 'accept-encoding': 'br,gzip' })).headers['content-encoding'], undefined);
   } finally { await app.cleanup(); }
 });

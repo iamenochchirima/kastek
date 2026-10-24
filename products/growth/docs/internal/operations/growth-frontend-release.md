@@ -31,6 +31,9 @@ node products/growth/web/scripts/serve.mjs --hostname 0.0.0.0
 
 The server reads `PORT`, defaulting to 3000. It resolves its build directory relative to its own
 source, independent of the process working directory. `vite preview` is not a production service.
+The server streams Brotli or gzip for negotiated text responses of at least 1 KB, including
+retained assets. Responses vary by `Accept-Encoding` and use representation-specific validators.
+Fonts and other binary assets remain uncompressed; API and SSE bodies pass through unchanged.
 This runbook does not establish which current provider, DNS, CDN, or TLS configuration is live.
 
 ## Configure the boundary

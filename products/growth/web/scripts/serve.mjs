@@ -1,6 +1,8 @@
 import http from 'node:http';
 import https from 'node:https';
 import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream';
+import { createBrotliCompress, createGzip, constants as zlibConstants } from 'node:zlib';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +36,27 @@ function previousRoots(value) {
 function hashedAsset(path) {
   return assetExtensions.has(extname(path)) && (/-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(path) || /(?:^|\/)[a-f0-9]{8,}[.-]/.test(path));
 }
+const compressibleExtensions = new Set(['.html', '.js', '.mjs', '.css', '.json', '.webmanifest', '.svg', '.txt', '.xml']);
+function acceptedEncoding(header, compressible) {
+  const qualities = new Map();
+  for (const item of String(header ?? '').toLowerCase().split(',')) {
+    const [name, ...parameters] = item.trim().split(';');
+    if (!name) continue;
+    let quality = 1;
+    for (const parameter of parameters) {
+      const [key, value] = parameter.trim().split('=');
+      if (key === 'q') quality = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/.test(value ?? '') ? Number(value) : 0;
+    }
+    qualities.set(name, quality);
+  }
+  const identity = qualities.get('identity') ?? (qualities.get('*') === 0 ? 0 : 1);
+  const br = compressible ? qualities.get('br') ?? qualities.get('*') ?? 0 : 0;
+  const gzip = compressible ? qualities.get('gzip') ?? qualities.get('*') ?? 0 : 0;
+  if (br > 0 && br >= gzip && br >= identity) return 'br';
+  if (gzip > 0 && gzip >= identity) return 'gzip';
+  return identity > 0 ? 'identity' : null;
+}
+
 async function locateFile(root, relative) {
   try {
     const rootPath = await realpath(root);
@@ -132,14 +155,22 @@ export function createGrowthServer({ root = join(webRoot, 'build/client'), upstr
       response.setHeader('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate');
       if (filename.endsWith('__spa-fallback.html') || (extension === '.html' && /(?:^|;\s*)kasitek_session=[^;]+/.test(request.headers.cookie ?? ''))) response.setHeader('cache-control', 'no-store');
       if (path === '/sw.js') response.setHeader('service-worker-allowed', '/');
-      const etag = `W/"${file.size.toString(16)}-${Math.trunc(file.mtimeMs).toString(16)}"`;
+      const compressible = file.size >= 1024 && compressibleExtensions.has(extension);
+      const encoding = acceptedEncoding(request.headers['accept-encoding'], compressible);
+      if (compressible) response.setHeader('vary', 'Accept-Encoding');
+      if (!encoding) return end(response, 406, 'No acceptable representation');
+      if (encoding !== 'identity') response.setHeader('content-encoding', encoding);
+      const etag = `W/"${file.size.toString(16)}-${Math.trunc(file.mtimeMs).toString(16)}-${encoding}"`;
       response.setHeader('etag', etag);
       response.setHeader('last-modified', file.mtime.toUTCString());
-      if (request.headers['if-none-match'] === etag) { response.writeHead(304); return response.end(); }
-      response.setHeader('content-length', file.size);
+      if (String(request.headers['if-none-match'] ?? '').split(',').map(tag => tag.trim()).some(tag => tag.replace(/^W\//, '') === etag.replace(/^W\//, '') || tag === '*')) { response.writeHead(304); return response.end(); }
+      if (encoding === 'identity') response.setHeader('content-length', file.size);
       response.writeHead(200);
       if (request.method === 'HEAD') return response.end();
-      createReadStream(filename).on('error', () => response.destroy()).pipe(response);
+      const streams = [createReadStream(filename)];
+      if (encoding === 'br') streams.push(createBrotliCompress({ params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 } }));
+      else if (encoding === 'gzip') streams.push(createGzip());
+      pipeline(...streams, response, () => {});
     } catch (error) { end(response, ['ENOENT', 'ENOTDIR'].includes(error.code) ? 404 : 503, ['ENOENT', 'ENOTDIR'].includes(error.code) ? 'Not found' : 'Service unavailable'); }
   });
   server.requestTimeout = 0;
