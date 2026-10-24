@@ -102,8 +102,12 @@ test("starts campaign work with explicit context and preserves it when the user 
   await page.getByRole("button", { name: "Ask agent", exact: true }).click();
   const chat = page.getByRole("region", { name: "Agent conversation" });
   await expect(chat.getByText("Weekend campaign", { exact: true })).toBeVisible();
-  await chat.getByRole("link", { name: "Expand conversation" }).click();
-  const original = page.url();
+  const expand = chat.getByRole("link", { name: "Expand conversation" });
+  const destination = await expand.getAttribute("href");
+  expect(destination).toMatch(/^\/agents\/conversations\//);
+  const original = new URL(destination!, page.url()).href;
+  await expand.click();
+  await expect(page).toHaveURL(original);
   await page.getByRole("button", { name: "Change context" }).click();
   await page.getByRole("button", { name: "Use Luma Studio", exact: true }).click();
   await expect(page).not.toHaveURL(original);
