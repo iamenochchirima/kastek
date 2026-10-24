@@ -71,6 +71,7 @@ const server = http.createServer(async (request, response) => {
     if (path === "/__fixture/attempts") return json(response, 200, { attempts, conversations: [...conversations.values()] });
     if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }
     if (path === "/__fixture/availability") { active = (await payload(request)).active; return json(response, 200, { ok: true }); }
+    if (path === "/api/auth/me" && process.env.GROWTH_AGENTS_FIXTURE_REQUIRE_SESSION === "1" && !/(?:^|;\s*)kasitek_session=[^;]+/.test(request.headers.cookie || "")) return json(response, 401, { error: "Unauthorized" });
     if (path === "/api/auth/me") return json(response, 200, { user: { id: userId, name: "Fixture user", email: "fixture@example.test", image: "", emailVerified: now() } });
     if (path === "/api/orgs/set-active") {
       const input = await payload(request);
