@@ -204,3 +204,16 @@ test("shows pending navigation while a route loader waits", async ({ page }) => 
   await expect(page).toHaveURL(/\/contacts$/);
   await expect(page.getByRole("progressbar", { name: "Loading page", exact: true })).toHaveCount(0);
 });
+
+
+test("shares bootstrap reads between matched layout and page loaders", async ({ page, request }) => {
+  const state = () => request.get("http://127.0.0.1:4311/__fixture/migration").then(response => response.json());
+  const before = await state();
+  await page.goto("/workspace/settings?section=profile");
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  const after = await state();
+  for (const path of ["/api/auth/me", "/api/orgs"]) {
+    const count = (value: { requests: Array<{ path: string }> }) => value.requests.filter(item => item.path === path).length;
+    expect(count(after) - count(before), path).toBe(1);
+  }
+});
