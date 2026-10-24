@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CoreContext } from '../context.js';
 import { ApiError } from '../error.js';
-import { extractUser } from '../identity/session.js';
+import { ACTIVE_ORG_COOKIE, USER_SESSION_COOKIE, activeOrgCookie, extractUser, requireOrigin } from '../identity/session.js';
 import * as orgs from '../services/orgs.js';
 import { loadLogo, storeLogo, trialSettings, MAX_LOGO_BYTES } from '../services/org-support.js';
 type Params={id: string;userId: string;invId: string;token: string};
@@ -9,7 +9,28 @@ function params(request: FastifyRequest): Params{return request.params as Params
 function body(request: FastifyRequest): Record<string,unknown>{if(!request.body||typeof request.body!=='object'||Array.isArray(request.body))throw orgs.bad('Invalid request');return request.body as Record<string,unknown>;}
 function string(value: unknown,required=false): string|undefined {if(value===undefined||value===null){if(required)throw orgs.bad('Invalid request');return undefined;}if(typeof value!=='string')throw orgs.bad('Invalid request');return value;}
 export function registerOrganizationRoutes(app: FastifyInstance,context: CoreContext): void {
- app.get('/api/orgs',async request=>{const user=await extractUser(request,context);return {orgs:await orgs.listOrgsForUser(context.pool,user.id)};});
+ app.get('/api/orgs',async(request,reply)=>{
+  const user=await extractUser(request,context);
+  const memberships=await orgs.listOrgsForUser(context.pool,user.id);
+  const preferred=activeOrgCookie(request);
+  const selected=memberships.find(org=>org.id===preferred)??memberships[0];
+  if(preferred&&!memberships.some(org=>org.id===preferred))reply.clearCookie(ACTIVE_ORG_COOKIE,{path:'/',httpOnly:true,secure:new URL(context.config.frontendUrl).protocol==='https:',sameSite:'lax'});
+  return reply.header('cache-control','no-store').send({orgs:memberships,activeOrgId:selected?.id??null});
+ });
+ app.post('/api/orgs/set-active',async(request,reply)=>{
+  const frontend=new URL(context.config.frontendUrl);
+  if(request.headers.host!==frontend.host)throw new ApiError(403,'forbidden','Invalid request host');
+  requireOrigin(request,context);
+  if(!request.cookies[USER_SESSION_COOKIE])throw new ApiError(401,'unauthorized','Sign in required');
+  const user=await extractUser(request,context);
+  const orgId=body(request).orgId;
+  if(typeof orgId!=='string'||!orgId)throw orgs.bad('orgId required');
+  const memberships=await orgs.listOrgsForUser(context.pool,user.id);
+  if(!memberships.some(org=>org.id===orgId))throw new ApiError(403,'forbidden','Organization access denied');
+  return reply.header('cache-control','no-store').setCookie(ACTIVE_ORG_COOKIE,orgId,{
+   path:'/',httpOnly:true,secure:frontend.protocol==='https:',sameSite:'lax',maxAge:60*60*24*365,
+  }).send({ok:true});
+ });
  app.post<{Body:{name:string;slug?:string|null;logo?:string|null}}>('/api/orgs',{
   schema:{body:{type:'object',required:['name'],properties:{name:{type:'string'},slug:{type:['string','null']},logo:{type:['string','null']}}}},
  },async(request,reply)=>{

@@ -10,9 +10,15 @@ tokens in browser storage or collect passwords.
 - `returnTo` is a local path, such as `/workspace` or `/invite/<token>`. Core independently validates it.
 - `/api/auth/callback` passes through the Next API proxy to Core. Use the app origin for this
   callback so transaction and session cookies reach the same browser origin.
-- `POST /api/orgs/set-active` requires same-origin submission, a product session and current
-  membership before changing the active-organization cookie. Core still checks permissions on
+- `POST /api/orgs/set-active` is owned by Core and requires the public Host and Origin to match
+  `FRONTEND_URL`, a browser product-session cookie and current membership. Its host-only
+  `kasitek_active_org` cookie is HttpOnly, SameSite=Lax and lasts one year; HTTPS adds Secure.
+  The frontend reverse proxy must preserve the public Host. Core still checks permissions on
   every organization request.
+- `GET /api/orgs` returns `{orgs, activeOrgId}` with `Cache-Control: no-store`. The selected ID
+  must be a current membership, otherwise Core returns the oldest current organization or null
+  and clears a stale preference cookie. The browser can initialize organization selection without
+  reading an HttpOnly cookie.
 - `GET /api/auth/me` provides the current product session. Existing organization membership,
   onboarding and role guards remain responsible for product access.
 - `GET /api/auth/account` opens Keycloak account management: login methods, email, password,
