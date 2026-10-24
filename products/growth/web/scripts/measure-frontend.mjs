@@ -48,7 +48,7 @@ async function wait(url, serverProcess) {
   }
   throw Error('Server readiness timed out');
 }
-function median(values) { const sorted = values.filter(Number.isFinite).sort((a, b) => a - b); return sorted.length ? sorted[Math.floor(sorted.length / 2)] : null; }
+function median(values) { const sorted = values.filter(Number.isFinite).sort((a, b) => a - b); if (!sorted.length) return null; const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; }
 function summarize(samples) {
   const summary = {};
   for (const route of allRoutes) {
