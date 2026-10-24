@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Database, RefreshCw, ShieldCheck, Zap } from "lucide-react";

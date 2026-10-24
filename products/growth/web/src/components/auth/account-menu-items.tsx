@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { LockKeyhole, LogOut } from "lucide-react";
 import { toast } from "sonner";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { Link2, Sparkles, X } from "lucide-react";

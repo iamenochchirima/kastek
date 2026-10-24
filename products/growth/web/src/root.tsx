@@ -5,6 +5,8 @@ import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
 import { ConfirmationProvider } from "@/components/ui/confirmation-provider";
 import { Toaster } from "@/components/ui/sonner";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./app/globals.css";
 export const meta = () => [{ name: "robots", content: "noindex, nofollow" }];
 export function Layout({ children }: { children: React.ReactNode }) {

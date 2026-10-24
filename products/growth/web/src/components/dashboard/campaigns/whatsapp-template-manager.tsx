@@ -1,5 +1,3 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { useEffect, useState } from "react";
 import { useRevalidator } from "react-router";

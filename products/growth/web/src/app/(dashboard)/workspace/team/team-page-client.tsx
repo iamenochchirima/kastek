@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useTransition } from "react";
 import { useRevalidator } from "react-router";
 import {

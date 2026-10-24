@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useNavigate } from "react-router";
 import ReactMarkdown from "react-markdown";

@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Call, Device } from "@twilio/voice-sdk";

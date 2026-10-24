@@ -1,5 +1,3 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";

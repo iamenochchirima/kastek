@@ -18,6 +18,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --font-geist: "Geist Variable";
+  --font-geist-mono: "Geist Mono Variable";
   /* Vantage design tokens — light */
   --canvas: #F6F7F9;
   --surface: #FFFFFF;

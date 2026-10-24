@@ -1,5 +1,3 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import type { OnboardingProfile } from "@/lib/onboarding";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
@@ -78,7 +76,7 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "We could not save your workspace setup.");
-      navigateTo(skip ? "/workspace" : destination(primaryGoals[0]));
+      navigateTo(skip ? "/workspace" : destination(primaryGoals[0]), { replace: true });
       revalidator.revalidate();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not save your workspace setup.");

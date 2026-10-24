@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, Clock3, Plus, RefreshCw } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";

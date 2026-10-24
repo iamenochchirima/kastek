@@ -1,5 +1,3 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useRevalidator } from "react-router";

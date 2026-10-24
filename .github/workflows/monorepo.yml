@@ -84,6 +84,16 @@ jobs:
       - run: pnpm build:shared
       - name: Build selected product
         run: ${{ matrix.command }}
+      - name: Verify Growth browser contracts
+        if: matrix.name == 'growth'
+        run: |
+          pnpm --filter client typecheck
+          pnpm --filter client check:routes
+          pnpm --filter client lint
+          pnpm --filter client exec playwright install --with-deps chromium
+          pnpm --filter client test:frontend
+          pnpm --filter client test:e2e:migration
+          pnpm --filter client test:e2e:agents
   required:
     name: Monorepo required checks
     needs: [select, shared, products]

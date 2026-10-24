@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";

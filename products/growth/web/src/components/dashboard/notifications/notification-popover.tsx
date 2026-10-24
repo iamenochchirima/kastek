@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Bell, CheckCircle2, CircleAlert, Info, XCircle } from "lucide-react";

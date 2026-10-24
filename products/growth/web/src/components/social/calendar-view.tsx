@@ -1,5 +1,3 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { useNavigate } from "react-router";
 import { useEffect, useMemo, useState } from "react";

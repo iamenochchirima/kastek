@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef } from "react";
 
 const PWA_UPDATE_EVENT = "kasitek:pwa-update";

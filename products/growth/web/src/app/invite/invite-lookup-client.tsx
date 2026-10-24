@@ -1,5 +1,3 @@
-"use client";
-
 import { FormEvent, useState } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Mail } from "lucide-react";

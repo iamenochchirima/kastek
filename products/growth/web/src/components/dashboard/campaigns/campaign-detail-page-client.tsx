@@ -1,5 +1,3 @@
-"use client";
-
 import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
 import { Badge } from "@/components/ui/badge";

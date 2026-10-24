@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Bot, CheckCircle2, ChevronRight, Clock3, MessageSquare, Plus, Search } from "lucide-react";

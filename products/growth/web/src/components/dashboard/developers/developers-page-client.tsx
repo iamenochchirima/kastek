@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { ArrowRight, Code2, KeyRound, Terminal } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

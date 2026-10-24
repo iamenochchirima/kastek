@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { BarChart3, CalendarDays, FileText, Pencil } from "lucide-react";
 

@@ -1,5 +1,3 @@
-"use client";
-
 import type { Org } from "@/lib/orgs";
 import type { BillingCredits, BillingSummary, AvailablePlan, BillingUsage } from "@/lib/billing";
 import { apiUrl } from "@/lib/server-api";

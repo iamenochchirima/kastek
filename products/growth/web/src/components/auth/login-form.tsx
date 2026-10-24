@@ -1,5 +1,3 @@
-"use client";
-
 import { useSearchParams } from "react-router";
 import { Link } from "react-router";
 import { loginUrl } from "@/lib/shared-login";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { AgentConversation } from "./agent-conversation";

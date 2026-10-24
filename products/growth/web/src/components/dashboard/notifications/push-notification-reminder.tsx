@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BellRing } from "lucide-react";

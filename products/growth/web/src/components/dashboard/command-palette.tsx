@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect } from "react"
 import { useNavigate } from "react-router"
 import { Bell, Cable, CalendarDays, ChartColumn, Code2, FileText, LayoutGrid, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"

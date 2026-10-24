@@ -1,5 +1,3 @@
-"use client";
-
 import { useLocation } from "react-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { growthAgents, GrowthAgentRequestError, isActiveTask, type GrowthAgentBootstrap, type GrowthAgentContext, type GrowthAgentConversation, type GrowthAgentFeatureId, type GrowthAgentMessage, type GrowthAgentReview, type GrowthAgentTask, type GrowthAgentEvent } from "@/lib/growth-agents";

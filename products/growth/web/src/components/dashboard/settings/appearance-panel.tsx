@@ -1,5 +1,3 @@
-"use client";
-
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { ACCENTS, setAccent, setDensity, setInterfacePreference, setTheme, useAppearance, type AccentTokens, type ThemeMode } from "@/lib/appearance";

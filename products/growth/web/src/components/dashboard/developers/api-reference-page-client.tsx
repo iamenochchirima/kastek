@@ -1,5 +1,3 @@
-"use client";
-
 import { Link } from "react-router";
 import { useState } from "react";
 import { Braces, Copy, ExternalLink } from "lucide-react";
