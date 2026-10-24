@@ -89,6 +89,7 @@ jobs:
         run: |
           pnpm --filter client typecheck
           pnpm --filter client check:routes
+          pnpm --filter @kasitek/growth-core exec tsx --tsconfig ../web/tsconfig.json --test ../web/scripts/workspace-bootstrap.test.ts
           pnpm --filter client lint
           pnpm --filter client exec playwright install --with-deps chromium
           pnpm --filter client test:frontend

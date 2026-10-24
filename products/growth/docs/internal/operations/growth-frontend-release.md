@@ -113,6 +113,7 @@ After building, run these commands from the repository root:
 ```bash
 pnpm --filter client typecheck
 pnpm --filter client check:routes
+pnpm --filter @kasitek/growth-core exec tsx --tsconfig ../web/tsconfig.json --test ../web/scripts/workspace-bootstrap.test.ts
 pnpm --filter client lint
 pnpm --filter client exec playwright install chromium
 pnpm --filter client test:frontend
@@ -143,12 +144,19 @@ with the promoted artifact.
 | Check | Recorded result | Local evidence |
 | --- | --- | --- |
 | Vite build, frontend TypeScript, ESLint, and route contract | Passed; all 48 recorded page routes remain present | `final-build.log`, `final-lint.log`, route contract command output |
-| Migration browser journeys | 56 passed across route families, responsive layouts, aliases, and unavailable states | `migration-final.log` |
+| Migration browser journeys | 65 passed across all recorded routes, responsive layouts, saved contacts/campaigns/templates/content/Inbox operations, checkout/OAuth handling and one authorization bootstrap per navigation | `migration-expanded-final.log` |
 | Agents browser journeys | 19 passed, including quick access, scoped conversations, reviews, retries, and business switching | `agents-final.log` |
-| Frontend contract, production proxy, SEO, and service worker checks | 37 passed at the recorded checkpoint, including two real Chromium install/update/offline journeys | `frontend-checks-final.log` |
+| Frontend contract, production proxy, SEO, and service worker checks | 41 passed, including compression, previous-build assets and two real Chromium install/update/offline journeys | `frontend-final-memoized.log` |
+| Request-lifetime bootstrap boundaries | 5 passed; expiry, cancellation, business and identity changes remain isolated | `bootstrap-final.log` |
+| Final affected Agents scope regressions | 3 passed after bootstrap consolidation | `agents-final-scope.log` |
+| Retained-artifact visual comparison | 78 settled captures across 13 families, three widths and both frameworks; no page errors, remaining skeletons or document overflow | `visual-parity/capture-ledger.json` |
 | Isolated OIDC and persisted product API journey | Passed through the built frontend, synthetic identity provider, and isolated database; includes uploads larger than 5 MB and logout | `frontend-identity.log` |
 | Signed Growth/Agents HTTP and Restate integration | 8 passed, including real-browser assistant quick access through both APIs and persisted record checks | `signed-growth-http.log` |
-| Initial portable Docker build | Passed for the frontend packaging checkpoint `5a35f62a` | `docker-build.log` |
+| Final portable Docker build and disposable container | Passed; non-root user, health, compressed prerendered landing and private no-store fallback | `docker-memoized-final.log`, `container-smoke-final.json` |
+
+The visual comparison used the retained pre-migration artifact after source changes. It is
+retrospective baseline evidence, not a pristine rebuild or a pixel-identity claim. Six inspected
+pairs retain their shell, controls and content, with minor font metric differences.
 
 The persistence journey exposed a preexisting public API audit insert that omitted required
 raw-SQL timestamps. Commit `c33a646d` supplies them explicitly and pins the fixture actor to the
@@ -161,10 +169,43 @@ Its Docker-ignore concern was withdrawn after checking the Dockerfile-specific o
 The PWA update test's premature asynchronous readiness poll was corrected; actual browser
 verification confirms no first-install reload and one reload after explicit update acceptance.
 
-Final image verification after compression and asset-retention changes, exact artifact
-fingerprints, and the final comparable performance report remain separate handoff evidence.
-Live Keycloak/provider callbacks, hosted TLS/DNS, real push delivery, calls, and provider account
-acceptance are not established by these fixture runs. Model evaluations remain owner-run.
+The final local image is `sha256:c3c745254eb8c222832a36b08a82c7e00db941c786fc298643f6aa8f416cb900`,
+built from the runtime source checkpoint `0a4ffc3d`. The source, configuration and image must be
+recorded again for any later release candidate. The local saved-profile Growth API and frontend
+were started on ports 4400 and 3000. An anonymous real Keycloak authorization request returned the
+expected redirect to localhost:8080 and callback to localhost:3000/api/auth/callback. This checks
+the configured entry point, not a completed human account login.
+
+Hosted TLS/DNS, full live-provider callbacks, real push delivery, calls and provider account
+acceptance remain owner release checks. Model evaluations remain owner-run.
+
+### Local performance comparison
+
+The bounded comparison used Chromium 151, a 1440 × 900 viewport, four-times CPU slowdown,
+50 ms network latency and 1.6 Mbps download bandwidth. Each route has five cold and five warm
+full-document navigations per framework. The Vite artifact was unchanged during its final run;
+`performance.json` records hashes and settings. The retained Next artifact's build ID is
+`PGFJPwxePQDkWNK9K8unS`; its source baseline was 39b27ba8, with concurrent API/PWA preparation
+recorded in the audit. Fixture additions between captures qualify the comparison; this is local
+engineering evidence, not a field percentile or a production speed guarantee.
+
+| Route | Cold readiness, Next to Vite | Warm readiness, Next to Vite |
+| --- | --- | --- |
+| Login | 2642 ms to 1957 ms | 478 ms to 449 ms |
+| Agents | 2734 ms to 2998 ms | 568 ms to 1077 ms |
+| Posts | 2978 ms to 3471 ms | 674 ms to 1070 ms |
+
+Root comparisons are excluded because its content changed. Inbox measurements are excluded
+because the sparse measurement fixture produces an error in both frameworks; the separate typed
+migration fixture verifies its route and saved reply flow. These profiles measure full reloads,
+not in-app client navigation. Browser API counts cannot be compared as total system calls because
+Next performs additional reads on its server.
+
+The proposed 10% review threshold exposed missing static compression and repeated authorization
+reads. Those defects were fixed and verified. Protected-page warm reloads remain slower because
+the Vite application resolves session, organization and layout data in the browser. This is an
+explicit architecture tradeoff, not a passing speedup claim. Review these measurements before
+promotion and measure real-user Web Vitals only through separately approved monitoring.
 
 ## Roll back the frontend
 

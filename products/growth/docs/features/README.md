@@ -40,7 +40,7 @@ The table below groups those routes by feature; it is not the complete route lis
 
 The built Vite application uses the same-origin API proxy in `web/scripts/serve.mjs`.
 Recorded local engineering verification on 2026-10-24 passed the production build, TypeScript,
-ESLint, and all 48 route contracts. The browser runs passed 56 migration cases and 19 Agents
+ESLint, and all 48 route contracts. The browser runs passed 65 migration cases and 19 Agents
 cases. `test:frontend` passed 37 checks at the recorded checkpoint, including actual Chromium
 worker installation, explicit update acceptance, exactly one update reload, and offline fallback.
 

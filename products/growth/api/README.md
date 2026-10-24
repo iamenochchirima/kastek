@@ -37,7 +37,7 @@ KasiTek starts in invitation-only mode. Set `KASITEK_ACCESS_MODE=private` (or le
 
 Early-access self-service invitations are enabled by default. Set `EARLY_ACCESS_SELF_SERVICE_ENABLED=false` to stop new early-access approval, signup, and activation while preserving existing records.
 
-When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend and `NEXT_PUBLIC_KASITEK_ACCESS_MODE=public` on the client app, then redeploy both services. Existing invitations and normal login continue to work in either mode.
+When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend. Growth browser access uses the backend-owned login and access rules. Existing invitations and normal login continue to work in either mode.
 
 During the controlled Agent Platform testing phase, commercial feature and usage-limit enforcement
 is disabled by default so authenticated workspace users can test the product. Usage is still
@@ -136,8 +136,9 @@ vault-backed environment; do not commit provider secrets.
 All social OAuth callback URLs must be reachable at the public API origin. Set
 `KASITEK_CORE_PUBLIC_URL` to the public HTTPS origin whose `/api` routes reach
 `kasitek-core` (either directly or through the client API proxy). For local testing,
-use an active HTTPS tunnel. Set `NEXT_PUBLIC_API_BASE_URL` to the API origin the browser
-uses. `FRONTEND_URL` remains the browser app origin used after an OAuth callback completes.
+use an active HTTPS tunnel. Growth browser requests stay on the web origin under `/api`;
+configure server-only `CORE_API_BASE_URL` on the web proxy to reach the backend.
+`FRONTEND_URL` remains the browser app origin used after an OAuth callback completes.
 
 ### Meta, Facebook, Instagram, and WhatsApp
 
@@ -156,8 +157,8 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 The client build must use the same Live Meta app and its approved Embedded Signup configuration:
 
 ```text
-NEXT_PUBLIC_META_APP_ID=<the same AUTH_META_APP_ID>
-NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID=<the Live Embedded Signup configuration ID>
+VITE_META_APP_ID=<the same AUTH_META_APP_ID>
+VITE_META_EMBEDDED_SIGNUP_CONFIG_ID=<the Live Embedded Signup configuration ID>
 ```
 
 Register these production URLs in the Live Meta app:
