@@ -96,7 +96,7 @@ async function measure(context, origin, route, cache) {
     if (status >= 400 || errors.length) throw Error('Route failed before readiness');
     await Promise.race([
       locator.waitFor({ state: 'visible', timeout: settings.readinessTimeoutMilliseconds }),
-      page.getByRole('heading', { name: /We couldn.t load this page|Unexpected Application Error/ }).waitFor({ state: 'visible', timeout: settings.readinessTimeoutMilliseconds }).then(() => { throw Error('Fixture route rendered an error view'); }),
+      page.getByRole('heading', { name: /We couldn.t load this page|Unexpected Application Error|Unable to load workspace/ }).waitFor({ state: 'visible', timeout: settings.readinessTimeoutMilliseconds }).then(() => { throw Error('Fixture route rendered an error view'); }),
     ]);
     ready = true;
   } catch (error) { failure = error.name === 'TimeoutError' ? error.name : error.message.slice(0, 200); }
