@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import LoginForm from "@/components/auth/login-form";
 
-export const metadata = { title: "Create account | KasiTek" };
+export function meta() { return [{ title: "Create account | KasiTek" }]; }
 
 export default function SignupPage() {
   return (

@@ -1,16 +1,15 @@
+import { useLoaderData } from "react-router";
 import CampaignCreateForm from "@/components/dashboard/campaigns/campaign-create-form";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export const metadata = {
-  title: "Create Campaign | KasiTek",
-};
+export function meta() { return [{ title: "Create Campaign | KasiTek" }]; }
 
-export default async function ReachCampaignsCreatePage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const [connectionResponse, templateResponse, contactResponse] = await Promise.all([
     fetchCoreJson<{
@@ -54,6 +53,11 @@ export default async function ReachCampaignsCreatePage() {
     }>("/api/whatsapp/contacts"),
   ]);
 
+  return { connectionResponse, templateResponse, contactResponse };
+}
+
+export default function ReachCampaignsCreatePage() {
+  const { connectionResponse, templateResponse, contactResponse } = useLoaderData<typeof clientLoader>();
   return (
     <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1200px] space-y-6">

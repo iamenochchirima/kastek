@@ -1,15 +1,14 @@
+import { useLoaderData } from "react-router";
 import CampaignsPageClient from "@/components/dashboard/campaigns/campaigns-page-client";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export const metadata = {
-  title: "Campaigns | KasiTek",
-};
+export function meta() { return [{ title: "Campaigns | KasiTek" }]; }
 
-export default async function ReachCampaignsPage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const campaignResponse = await fetchCoreJson<{
     campaigns: Array<{
@@ -37,5 +36,10 @@ export default async function ReachCampaignsPage() {
     }>;
   }>("/api/whatsapp/campaigns").catch(() => ({ campaigns: [] }));
 
+  return { campaignResponse };
+}
+
+export default function ReachCampaignsPage() {
+  const { campaignResponse } = useLoaderData<typeof clientLoader>();
   return <CampaignsPageClient campaigns={campaignResponse.campaigns} />;
 }

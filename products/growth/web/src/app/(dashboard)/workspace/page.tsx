@@ -1,14 +1,15 @@
+import { useLoaderData } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
 import { FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { Link } from "react-router";
+import { redirect } from "react-router";
 import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-analytics-overview";
 
-export const metadata = { title: "Overview | KasiTek" };
+export function meta() { return [{ title: "Overview | KasiTek" }]; }
 
 type WorkspaceSummary = {
   socialPostCount: number;
@@ -50,9 +51,9 @@ type WorkspaceSummary = {
   }>;
 };
 
-export default async function WorkspacePage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const response = await fetchCoreJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
   const summary = response.summary;
@@ -60,6 +61,11 @@ export default async function WorkspacePage() {
     earlyAccess: { status: string; endsAt: string | null } | null;
   }>("/api/early-access/status").catch(() => null);
 
+  return { summary, earlyAccessResponse };
+}
+
+export default function WorkspacePage() {
+  const { summary, earlyAccessResponse } = useLoaderData<typeof clientLoader>();
   return (
     <div className="px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-[1440px]">
@@ -69,7 +75,7 @@ export default async function WorkspacePage() {
             <PageHeaderTitle>Overview</PageHeaderTitle>
           </PageHeaderContent>
           <PageHeaderActions>
-            <Button asChild><Link href="/campaigns/create">New campaign</Link></Button>
+            <Button asChild><Link to="/campaigns/create">New campaign</Link></Button>
           </PageHeaderActions>
         </PageHeader>
 
@@ -96,5 +102,5 @@ export default async function WorkspacePage() {
 }
 
 function OperationalLink({ href, icon: Icon, label, detail, delay }: { href: string; icon: LucideIcon; label: string; detail: string; delay: number }) {
-  return <MotionReveal delay={delay} hoverLift className="h-full"><Link href={href} className="v-card group flex h-full min-h-32 flex-col p-4 no-underline transition-[border-color,background-color] duration-[150ms] hover:border-line-strong hover:bg-secondary"><Icon className="size-4 text-muted-foreground transition-colors duration-[150ms] group-hover:text-primary" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link></MotionReveal>;
+  return <MotionReveal delay={delay} hoverLift className="h-full"><Link to={href} className="v-card group flex h-full min-h-32 flex-col p-4 no-underline transition-[border-color,background-color] duration-[150ms] hover:border-line-strong hover:bg-secondary"><Icon className="size-4 text-muted-foreground transition-colors duration-[150ms] group-hover:text-primary" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link></MotionReveal>;
 }

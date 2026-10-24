@@ -1,13 +1,17 @@
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { CreateOrgForm } from "./create-org-form";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export const metadata = { title: "Create Organisation | KasiTek" };
+export function meta() { return [{ title: "Create Organisation | KasiTek" }]; }
 
-export default async function NewOrgPage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
+  return {  };
+}
+
+export default function NewOrgPage() {
   return (
     <div className="min-h-[100dvh] space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-lg space-y-6">

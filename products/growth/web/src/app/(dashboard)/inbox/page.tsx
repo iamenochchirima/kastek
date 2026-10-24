@@ -1,5 +1,6 @@
+import { useLoaderData } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { fetchCoreJson } from "@/lib/core-server-api";
@@ -51,9 +52,9 @@ type CoreSocialChannel = {
   handle: string | null;
 };
 
-export default async function InboxPage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session) redirect("/login");
+  if (!session) throw redirect("/login");
   const [
     connectionsPayload,
     sharedConnectionsPayload,
@@ -78,7 +79,12 @@ export default async function InboxPage() {
     ),
   ]);
 
-  const connections = connectionsPayload.connections || [];
+  return { connectionsPayload, sharedConnectionsPayload, conversationsPayload, socialChannelsPayload, emailConnectionsPayload };
+}
+
+export default function InboxPage() {
+  const { connectionsPayload, sharedConnectionsPayload, conversationsPayload, socialChannelsPayload, emailConnectionsPayload } = useLoaderData<typeof clientLoader>();
+    const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
   const socialChannels = socialChannelsPayload.channels || [];
   const emailConnections = emailConnectionsPayload.connections || [];

@@ -1,23 +1,21 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
-export const metadata = {
-  title: "Templates | KasiTek",
-};
+export function meta() { return [{ title: "Templates | KasiTek" }]; }
 
-export default async function ReachTemplatesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ starter?: string; status?: string; create?: string }>;
-}) {
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as { starter?: string; status?: string; create?: string });
+
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
-  const params = await searchParams;
+  const params = searchParams;
   const requestedStatus = typeof params.status === "string" ? params.status.toUpperCase() : "";
   const allowedStatuses = new Set(["APPROVED", "PENDING", "REJECTED", "DISABLED"]);
 
@@ -50,6 +48,11 @@ export default async function ReachTemplatesPage({
   const templates = templateResponse.templates;
   const connections = connectionResponse.connections;
 
+  return { params, templates, connections };
+}
+
+export default function ReachTemplatesPage() {
+  const { params, templates, connections } = useLoaderData<typeof clientLoader>();
   return (
     <div className="min-h-[100dvh] px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-[1440px] space-y-6">

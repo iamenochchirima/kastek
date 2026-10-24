@@ -2,7 +2,7 @@ import { AnalyticsCatalogStatus } from "@/components/analytics/analytics-catalog
 import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-analytics-overview";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
-export const metadata = { title: "Analytics | KasiTek" };
+export function meta() { return [{ title: "Analytics | KasiTek" }]; }
 
 export default function AnalyticsPage() {
   return (

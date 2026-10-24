@@ -1,21 +1,19 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import ContactsManager from "@/components/dashboard/contacts/contacts-manager";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export const metadata = {
-  title: "Contacts | KasiTek",
-};
+export function meta() { return [{ title: "Contacts | KasiTek" }]; }
 
-export default async function ReachContactsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as Record<string, string | string[] | undefined>);
+
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
-  const params = await searchParams;
+  const params = searchParams;
   const query = typeof params.q === "string" ? params.q.trim() : "";
   const optIn = typeof params.optIn === "string" ? params.optIn : "all";
   const excluded = typeof params.excluded === "string" ? params.excluded : "all";
@@ -74,6 +72,11 @@ export default async function ReachContactsPage({
       : Promise.resolve(null),
   ]);
 
+  return { query, optIn, excluded, tag, location, listLabel, contactsResponse, searchResponse };
+}
+
+export default function ReachContactsPage() {
+  const { query, optIn, excluded, tag, location, listLabel, contactsResponse, searchResponse } = useLoaderData<typeof clientLoader>();
   return (
     <ContactsManager
       contacts={contactsResponse.contacts ?? []}

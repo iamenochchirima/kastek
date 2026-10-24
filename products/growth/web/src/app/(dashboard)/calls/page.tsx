@@ -1,3 +1,4 @@
+import { useLoaderData } from "react-router";
 import {
   CallsWorkspace,
   type CallProviderStatus,
@@ -7,15 +8,13 @@ import {
 } from "@/components/dashboard/calls/calls-workspace";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export const metadata = {
-  title: "Calls | KasiTek",
-};
+export function meta() { return [{ title: "Calls | KasiTek" }]; }
 
-export default async function CallsPage() {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const [callsResponse, summaryResponse, providerResponse, connectionsResponse] = await Promise.all([
     fetchCoreJson<{ calls: CallRecord[] }>("/api/calls").catch(() => ({ calls: [] })),
@@ -24,6 +23,11 @@ export default async function CallsPage() {
     fetchCoreJson<{ connections: VoiceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
   ]);
 
+  return { callsResponse, summaryResponse, providerResponse, connectionsResponse };
+}
+
+export default function CallsPage() {
+  const { callsResponse, summaryResponse, providerResponse, connectionsResponse } = useLoaderData<typeof clientLoader>();
   return (
     <CallsWorkspace
       initialCalls={callsResponse.calls || []}

@@ -1,6 +1,6 @@
 import { AnalyticsDashboard } from "@/components/social/analytics-dashboard";
 
-export const metadata = { title: "Content analytics | KasiTek" };
+export function meta() { return [{ title: "Content analytics | KasiTek" }]; }
 
 export default function ContentAnalyticsPage() {
   return <AnalyticsDashboard />;

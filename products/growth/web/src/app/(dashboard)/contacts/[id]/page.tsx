@@ -1,7 +1,8 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { Link } from "react-router";
+import { redirect } from "react-router";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 
@@ -79,28 +80,33 @@ function dateTime(value: string | null) {
   return value ? new Date(value).toLocaleString("en-ZA") : "Never";
 }
 
-export const metadata = {
-  title: "Customer | KasiTek",
-};
+export function meta() { return [{ title: "Customer | KasiTek" }]; }
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const params = (route.params as { id: string });
+
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
-  const { id } = await params;
+  const { id } = params;
   let detail: CustomerDetailResponse;
   try {
     detail = await fetchCoreJson<CustomerDetailResponse>(`/api/customers/${encodeURIComponent(id)}`);
   } catch {
-    notFound();
+    throw new Response("Not found", { status: 404 });
   }
 
   const customerName = detail.customer.displayName || detail.contacts[0]?.fullName || "Unnamed customer";
 
+  return { detail, customerName };
+}
+
+export default function CustomerDetailPage() {
+  const { detail, customerName } = useLoaderData<typeof clientLoader>();
   return (
     <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <Link href="/contacts" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link to="/contacts" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to Contacts
         </Link>
 
@@ -188,7 +194,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
               <p className="mt-1 text-sm text-muted-foreground">Recent messages across connected customer channels.</p>
             </div>
-            <Link href="/inbox" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link to="/inbox" className="text-sm text-muted-foreground hover:text-foreground">
               Open Inbox →
             </Link>
           </div>
@@ -221,7 +227,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               detail.campaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
-                  href={`/campaigns/${campaign.id}`}
+                  to={`/campaigns/${campaign.id}`}
                   className="flex flex-col gap-2 rounded-xl border border-border bg-secondary/20 p-4 transition-colors hover:bg-secondary/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
@@ -248,7 +254,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <h2 className="text-lg font-semibold text-foreground">Bookings</h2>
               <p className="mt-1 text-sm text-muted-foreground">Appointments and outcomes recorded for this customer.</p>
             </div>
-            <Link href="/bookings" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link to="/bookings" className="text-sm text-muted-foreground hover:text-foreground">
               Open Bookings →
             </Link>
           </div>

@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export default function ContentHistoryPage() {
-  redirect("/content/posts");
+export function clientLoader() {
+  throw redirect("/content/posts");
 }
+
+export default function ContentHistoryPage() { return null; }

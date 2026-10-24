@@ -1,10 +1,11 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp-embedded-signup-card";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
 import { ConnectionsManager } from "@/components/dashboard/connections/connections-manager";
 import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connections";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import {
   PageHeader,
   PageHeaderContent,
@@ -13,14 +14,11 @@ import {
 } from "@/components/ui/page-header";
 import { CONNECTION_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
 
-export const metadata = {
-  title: "Connections | KasiTek",
-};
+export function meta() { return [{ title: "Connections | KasiTek" }]; }
 
-export default async function ConnectionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as {
     connected?: string;
     facebook_count?: string;
     instagram_count?: string;
@@ -31,12 +29,12 @@ export default async function ConnectionsPage({
     provider?: string;
     connectionId?: string;
     capabilities?: string;
-  }>;
-}) {
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  });
 
-  const params = await searchParams;
+  const session = await getWorkspaceSession();
+  if (!session?.user?.id) throw redirect("/login");
+
+  const params = searchParams;
   const requestedCapabilities = params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
 
   const [sharedResponse, whatsappResponse] = await Promise.all([
@@ -46,6 +44,11 @@ export default async function ConnectionsPage({
     fetchCoreJson<{ connections: WhatsappConnectionView[] }>("/api/whatsapp/connections").catch(() => ({ connections: [] })),
   ]);
 
+  return { params, requestedCapabilities, sharedResponse, whatsappResponse };
+}
+
+export default function ConnectionsPage() {
+  const { params, requestedCapabilities, sharedResponse, whatsappResponse } = useLoaderData<typeof clientLoader>();
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">

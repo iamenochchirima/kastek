@@ -1,3 +1,5 @@
+import { useLoaderData } from "react-router";
+import { Outlet } from "react-router";
 import { LayoutShell } from "@/components/dashboard/layout-shell";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
@@ -6,19 +8,15 @@ import { fetchOnboardingStatus } from "@/lib/onboarding";
 import { fetchProductTourStatus } from "@/lib/product-tour";
 import { SessionActivity } from "@/components/auth/session-activity";
 import ThemeScope from "@/components/theme-scope";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { fetchOrgs, getActiveOrgId } from "@/lib/orgs";
 
-export default async function AuthenticatedWorkspaceLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const orgs = await fetchOrgs();
-  if (!orgs.length) redirect("/onboarding");
+  if (!orgs.length) throw redirect("/onboarding");
 
   const [unreadCountResponse, activeOrgId, billingSummary, onboardingStatus, productTourStatus] = await Promise.all([
     fetchCoreJson<{ unreadCount: number }>("/api/whatsapp/inbox/unread-count").catch(
@@ -30,8 +28,13 @@ export default async function AuthenticatedWorkspaceLayout({
     fetchProductTourStatus().catch(() => null),
   ]);
 
-  if (onboardingStatus?.needsOnboarding) redirect("/onboarding");
+  if (onboardingStatus?.needsOnboarding) throw redirect("/onboarding");
 
+  return { session, orgs, unreadCountResponse, activeOrgId, billingSummary, productTourStatus };
+}
+
+export default function AuthenticatedWorkspaceLayout() {
+  const { session, orgs, unreadCountResponse, activeOrgId, billingSummary, productTourStatus } = useLoaderData<typeof clientLoader>();
   return (
     <>
       <SessionActivity />
@@ -44,7 +47,7 @@ export default async function AuthenticatedWorkspaceLayout({
         billingSummary={billingSummary}
         productTourStatus={productTourStatus}
       >
-        {children}
+        <Outlet />
       </LayoutShell>
     </>
   );

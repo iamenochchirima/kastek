@@ -1,17 +1,24 @@
+import { useLoaderData } from "react-router";
+import { Outlet } from "react-router";
 import { DevelopersPortalShell } from "@/components/dashboard/developers/developers-portal-shell";
 import { fetchCoreJson } from "@/lib/core-server-api";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fallbackDevelopersConfig, type DevelopersBootstrap } from "@/lib/developers";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export default async function DevelopersLayout({ children }: { children: React.ReactNode }) {
+export async function clientLoader() {
   const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw redirect("/login");
 
   const bootstrap = await fetchCoreJson<DevelopersBootstrap>("/api/developers").catch(() => ({
     apiKeys: [],
     config: fallbackDevelopersConfig,
   }));
 
-  return <DevelopersPortalShell initial={bootstrap}>{children}</DevelopersPortalShell>;
+  return { bootstrap };
+}
+
+export default function DevelopersLayout() {
+  const { bootstrap } = useLoaderData<typeof clientLoader>();
+  return <DevelopersPortalShell initial={bootstrap}><Outlet /></DevelopersPortalShell>;
 }

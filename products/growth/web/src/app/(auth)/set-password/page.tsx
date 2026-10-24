@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import { redirectDocument } from "react-router";
 
-export default function AccountPage() {
-  redirect("/api/auth/account");
+export function clientLoader() {
+  throw redirectDocument("/api/auth/account");
 }
+
+export default function AccountPage() { return null; }
