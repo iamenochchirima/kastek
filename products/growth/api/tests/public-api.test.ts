@@ -163,6 +163,8 @@ test(
         await pool.query(
           `CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`,
         );
+      // Prisma's @updatedAt does not guarantee a database default for raw SQL inserts.
+      await pool.query('ALTER TABLE "PublicApiRequest" ALTER COLUMN "updatedAt" DROP DEFAULT');
       const key = await createApiKey(
         pool,
         "org",

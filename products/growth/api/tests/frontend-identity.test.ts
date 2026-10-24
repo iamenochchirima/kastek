@@ -240,6 +240,13 @@ test(
       assert.equal(me.status, 200);
       const meBody = await me.json();
       assert.equal(meBody.user.email, 'fixture@example.test');
+      const expectedActor = meBody.user.id as string;
+      assert.equal(typeof expectedActor, 'string');
+      assert.ok(expectedActor.length > 0);
+      assert.equal(
+        (await fixture.pool.query('SELECT id FROM "User" WHERE email=$1', ['fixture@example.test'])).rows[0].id,
+        expectedActor,
+      );
       const orgs = await request('/api/orgs');
       assert.equal(orgs.status, 200);
       assert.equal((await orgs.json()).orgs.length, 0);

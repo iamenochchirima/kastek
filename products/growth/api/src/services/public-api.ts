@@ -17,7 +17,7 @@ const SQL = {
   audit_begin_request: [
     "SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",
     '\n        SELECT COUNT(*)::BIGINT\n        FROM "PublicApiRequest"\n        WHERE "orgId" = $1\n          AND "principalId" = $2\n          AND "createdAt" >= NOW() - INTERVAL \'1 minute\'\n        ',
-    '\n        INSERT INTO "PublicApiRequest"\n            ("id", "orgId", "principalType", "principalId", "route", "method", "statusCode", "correlationId")\n        VALUES ($1, $2, $3, $4, $5, $6, 0, $7)\n        ',
+    '\n        INSERT INTO "PublicApiRequest"\n            ("id", "orgId", "principalType", "principalId", "route", "method", "statusCode", "correlationId", "createdAt", "updatedAt")\n        VALUES ($1, $2, $3, $4, $5, $6, 0, $7, NOW(), NOW())\n        ',
     '\n        INSERT INTO "UsageEvent"\n            ("id", "orgId", "productKey", "metricKey", "quantity", "sourceType", "sourceId", "idempotencyKey", "metadata")\n        VALUES ($1, $2, \'workspace\', $3, 1, \'public_api\', $4, $5, $6)\n        ',
   ],
   audit_finish_request: [
