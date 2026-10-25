@@ -11,7 +11,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 127.0.0.1",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:ci": "playwright test --config playwright.ci.config.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

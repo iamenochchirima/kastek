@@ -357,11 +357,27 @@ live-provider result is implied by installed fixtures or deterministic engineeri
 From the repository root:
 
 ```sh
+pnpm build:shared
 pnpm --dir products/agents/api typecheck
 pnpm --dir products/agents/api test
 pnpm --dir products/agents/api test:runtime
 pnpm verify:boundaries
 ```
+
+The UI CI suite builds the interface and runs the existing public entry, chat and
+model-provider browser tests with controlled API responses:
+
+```sh
+pnpm --filter @kasitek/agent-platform build
+pnpm --filter @kasitek/agent-platform exec playwright install --with-deps chromium
+pnpm --filter @kasitek/agent-platform test:ci
+```
+
+It starts its own preview server on port 3199. It does not call model providers,
+run agent evaluations or verify live backend execution. Browser failure traces
+and screenshots are uploaded by CI. The Agents source job uses the pinned
+PostgreSQL/pgvector image documented above so fresh schema creation can install
+the required `vector` extension.
 
 PostgreSQL integration suites require `AGENTS_TEST_DATABASE_URL` pointing to a
 separate disposable test server with permission to create databases. They create
