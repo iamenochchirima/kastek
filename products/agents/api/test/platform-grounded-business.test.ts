@@ -1,3 +1,7 @@
+import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
+import { dropClosedTestDatabase } from "./support/database-cleanup";
+import type { ModelFetch } from "../src/infrastructure/model-network";
+import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import {mkdir,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 import { execFileSync } from "node:child_process";
@@ -50,15 +54,16 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   if(isRoot){
    if(orphanMode)return reply(null,"stop",activeBindings.find(binding=>binding.definition.providerOperation==="resolve_ref")!.alias,{repository:"approved/public"});
    if(checkpointMode&&body.messages.some((message:any)=>message.role==="system"&&message.content.includes('"delegations":[{'))){
-    const message=body.messages.find((message:any)=>message.role==="system"&&message.content.startsWith("Server-confirmed execution"));
-    const checkpoint=JSON.parse(message.content.slice(message.content.indexOf("\n")+1));
+    const message=body.messages.find((message:any)=>message.role==="system"&&message.content.includes("Server-confirmed execution"));
+    const checkpoint=JSON.parse(message.content.slice(message.content.indexOf("\n",message.content.indexOf("Server-confirmed execution"))+1));
     expect(checkpoint.delegations).toHaveLength(1);expect(checkpoint.delegations[0].children).toHaveLength(2);expect(checkpoint.delegations[0].children.every((child:any)=>child.state==="completed")).toBe(true);
     expect(body.messages.some((message:any)=>message.role==="user"&&message.content.includes("No specialists have executed"))).toBe(true);
     expect(body.messages.filter((message:any)=>message.role==="system").map((message:any)=>message.content).join(" ")).not.toContain("untrusted provider instructions");
     expect(body.messages.some((message:any)=>message.role==="user"&&message.content.includes("untrusted provider instructions"))).toBe(true);
     return reply(`Checkpoint synthesis ${checkpoint.evidence.map((item:any)=>item.citation).join(" ")}`);
    }
-   if(!results.length)return reply(null,"stop","agents_delegate",{requests:[{bindingId:"native",brief:checkpointMode?"decisive "+" ".repeat(1100):"decisive"},{bindingId:"mcp",brief:checkpointMode?"decisive "+" ".repeat(1100):"decisive"}]});
+   // Padding stays in the parent tool group; delegation trims it from child briefs.
+   if(!results.length)return reply(null,"stop","agents_delegate",{requests:[{bindingId:"native",brief:checkpointMode?"decisive "+" ".repeat(4000):"decisive"},{bindingId:"mcp",brief:checkpointMode?"decisive "+" ".repeat(4000):"decisive"}]});
    expect(results[0].children).toHaveLength(2);
    if(results[0].partial!==partial){
     const ids=results[0].children.map((child:any)=>child.taskId);
@@ -98,15 +103,22 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await initializeReportReceiver(pool);receiver=createReportReceiver({pool,keys:[{apiKey:receiverKey,resource:"reports:grounded"}],afterAccept:async id=>{posts++;await afterAccept?.(id);}});const receiverOrigin=await receiver.listen({host:"127.0.0.1",port:0});
   const vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),targets=[{id:"reports",label:"Reports",url:`${receiverOrigin}/deliveries`,resource:"reports:grounded"}];
   connections=new ConnectionStore(pool,vault,targets);artifacts=new TaskArtifactStore(pool,storage);evidence=new EvidenceStore(pool,storage);actions=new ActionService(pool,{vault,targets,artifacts});connected=new ConnectedExecutor(pool,connections,storage,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`});
-  workflow=createBusinessWorkflow(pool,{evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence),connected,actions:{prepare:(...args)=>actions.prepare(...args),getReview:(...args)=>actions.getReview(...args),reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlight++;try{return await actions.execute(...args);}finally{inFlight--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args),openRouterApiKey:"explicit-local-model-fixture",fetch:async(_url,init)=>model(JSON.parse(String(init?.body))).catch(error=>{console.error("Explicit fixture model assertion failed",error);throw error;})});await listen();
+  workflow=createBusinessWorkflow(pool,{evidence,knowledgeRuntime:new KnowledgeRuntime(pool,evidence),connected,actions:{prepare:(...args)=>actions.prepare(...args),getReview:(...args)=>actions.getReview(...args),reconcile:(...args)=>actions.reconcile(...args),execute:async(...args)=>{inFlight++;try{return await actions.execute(...args);}finally{inFlight--;}}},selectReportArtifact:(...args)=>artifacts.prepareReport(...args),modelProvider:fixtureModelProviders(pool),modelRuntime:{dispatch:input=>dispatchBoundModel(input,policy=>{const network=(async(url,init)=>{
+   if(!policy.authorizeUrl(new URL(String(url))))throw Error("Fixture destination denied");
+   await policy.beforeDispatch?.();
+   const body=JSON.parse(String(init?.body)),response=await model(body),result=await response.json(),choice=result.choices[0];
+   const delta={...choice.message,...(choice.message.tool_calls?{tool_calls:choice.message.tool_calls.map((call:any,index:number)=>({...call,index}))}:{})};
+   return new Response(`data: ${JSON.stringify({id:result.id,model:body.model,choices:[{index:0,delta,finish_reason:choice.finish_reason}],usage:result.usage})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
+  }) as ModelFetch;network.markProgress=()=>{};return network;})}});await listen();
   docker("run","-d","--name",container,"--cpus","2","--memory","768m","--add-host","host.docker.internal:host-gateway","-p","127.0.0.1::8080","-p","127.0.0.1::9070","docker.restate.dev/restatedev/restate:1.7.13");containerStarted=true;
   ingressUrl=`http://${docker("port",container,"8080/tcp")}`;adminUrl=`http://${docker("port",container,"9070/tcp")}`;await eventually(async()=>{try{return(await fetch(`${adminUrl}/health`)).ok;}catch{return false;}});
   const registered=await fetch(`${adminUrl}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://host.docker.internal:${(worker.address() as{port:number}).port}`,force:false})});expect(registered.ok,await registered.text()).toBe(true);
  },60000);
- afterAll(async()=>{for(const session of sessions)session.destroy();if(worker)await new Promise<void>(resolve=>worker.close(()=>resolve()));providerServer?.closeAllConnections();if(providerServer)await new Promise<void>(resolve=>providerServer.close(()=>resolve()));await receiver?.close();if(containerStarted)docker("rm","-f",container);await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{for(const session of sessions)session.destroy();if(worker)await new Promise<void>(resolve=>worker.close(()=>resolve()));providerServer?.closeAllConnections();if(providerServer)await new Promise<void>(resolve=>providerServer.close(()=>resolve()));await receiver?.close();if(containerStarted)docker("rm","-f",container);await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(withReport:boolean){
   modelCalls=0;modelSnapshots.length=0;httpRequests.length=0;remoteCalls.length=0;posts=0;
   const owner=await store.ensureAccount({issuer:"http://localhost/grounded-composition",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await store.createOrganization(owner.id,"Grounded"),scope={accountId:owner.id,organizationId:org.id};
+  await connectFixtureModel(pool,owner.id,org.id);
   const sources=await Promise.all(["NATIVE_ONLY","MCP_ONLY"].map(marker=>publishFixtureSource(pool,{...scope,title:marker,content:`Decisive ${marker} indexed fact.`,visibility:"private"},storage)));
   const github=await connections.create(scope,{operationId:randomUUID(),name:"GitHub fixture",profileId:"github-public-read-v1",targetId:"provider:github",apiKey:"github_pat_grounded_fixture_only",expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
   const native=await connected.discover(scope,{operationId:randomUUID(),connectionId:github.id,expectedRevision:1,transport:"native_http"});
@@ -116,11 +128,12 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const childVersions=[];
   for(const[index,marker]of ["NATIVE","MCP"].entries()){
    const childBindings=index===0?nativeBindings:[...nativeBindings.filter(binding=>binding.definition.providerOperation!=="read_file"),...mcpBindings];
-   const configuration={...defaultBusinessConfiguration(),instructions:`SPECIALIST_${marker}: Read your decisive indexed source and selected public file. Cite supplied labels.`,model:{...defaultBusinessConfiguration().model,maxOutputTokens:256},sourceRevisionIds:[sources[index]!.id],connectedToolBindingIds:childBindings.map(binding=>binding.id)};
+   // These fixture specialists need all three tool receipts without a child compaction.
+   const configuration={...defaultBusinessConfiguration(),instructions:`SPECIALIST_${marker}: Read your decisive indexed source and selected public file. Cite supplied labels.`,model:{...defaultBusinessConfiguration().model,maxOutputTokens:256},context:{maxInputTokens:10000,compactAtTokens:9000},sourceRevisionIds:[sources[index]!.id],connectedToolBindingIds:childBindings.map(binding=>binding.id)};
    const agent=await store.createAgent({...scope,name:marker,configuration});childVersions.push(await store.createVersion({...scope,agentId:agent.id,expectedRevision:1}));
   }
   const delivery=withReport?await connections.create(scope,{operationId:randomUUID(),name:"Report receiver",targetId:"reports",apiKey:receiverKey}):undefined;
-  const configuration:AgentConfiguration={...defaultBusinessConfiguration(),instructions:"ROOT_COORDINATOR: Delegate both specialists, synthesize their exact citations, and report partial outcomes truthfully.",model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},sourceRevisionIds:sources.map(source=>source.id),connectedToolBindingIds:checkpointMode?[]:activeBindings.map(binding=>binding.id),...(checkpointMode?{context:{maxInputTokens:6144,compactAtTokens:6144}}:{}),tools:["agents.delegate"],capabilities:{...defaultBusinessConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:childVersions.map((version,index)=>({id:index===0?"native":"mcp",versionId:version.id,sourceRevisionIds:[sources[index]!.id],connectedToolBindingIds:version.configuration.connectedToolBindingIds,tools:[],maxTokens:12000,maxActiveMs:240000}))},workflows:delivery?{enabled:true,profileId:"report-delivery-v1",connectionId:delivery.id,reportArtifactName:"report.md",title:"Grounded composition report"}:{enabled:false}}};
+  const configuration:AgentConfiguration={...defaultBusinessConfiguration(),instructions:"ROOT_COORDINATOR: Delegate both specialists, synthesize their exact citations, and report partial outcomes truthfully.",model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},sourceRevisionIds:sources.map(source=>source.id),connectedToolBindingIds:checkpointMode?[]:activeBindings.map(binding=>binding.id),context:{maxInputTokens:12000,compactAtTokens:10000},tools:["agents.delegate"],capabilities:{...defaultBusinessConfiguration().capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,bindings:childVersions.map((version,index)=>({id:index===0?"native":"mcp",versionId:version.id,sourceRevisionIds:[sources[index]!.id],connectedToolBindingIds:version.configuration.connectedToolBindingIds,tools:[],maxTokens:12000,maxActiveMs:240000}))},workflows:delivery?{enabled:true,profileId:"report-delivery-v1",connectionId:delivery.id,reportArtifactName:"report.md",title:"Grounded composition report"}:{enabled:false}}};
   const agent=await store.createAgent({...scope,name:"Coordinator",configuration}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1}),authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:owner.issuer,subject:owner.subject}};
   const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","delegation.execute",...(delivery?["effect.deliver" as const,"artifact.read" as const,"artifact.write" as const]:[])],sourceRevisionIds:configuration.sourceRevisionIds,connectedToolBindingIds:connectedToolAuthorityIds(configuration),maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await store.createGrant({...scope,grant});const{task}=await store.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"decisive"});return{scope,task,sources};
  }
@@ -159,7 +172,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    const snapshot=await eventually(async()=>{const row=(await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=2 AND payload ? 'continuation' ORDER BY step LIMIT 1",[f.task.id])).rows[0];if(row)return row;const task=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0];if(terminalTaskStates.has(task.state))throw Error(JSON.stringify({task,requests:modelSnapshots.filter(body=>JSON.stringify(body.messages).includes("ROOT_COORDINATOR")).map(body=>({bytes:Buffer.byteLength(JSON.stringify(body)),messages:body.messages.length}))}));return false;});
    expect(snapshot.payload.continuation.checkpoint.delegations).toHaveLength(1);expect(snapshot.payload.continuation.results).toHaveLength(2);
    expect(snapshot.payload.messages.some((message:any)=>message.role==="user"&&message.content.includes("No specialists have executed"))).toBe(true);
-   expect(snapshot.payload.estimatedTokens).toBeLessThanOrEqual(6144);
+   expect(snapshot.payload.estimatedTokens).toBeLessThanOrEqual(12000);
    const reconstructed=await loadContinuation(pool,f.task.id,true,snapshot.payload.continuation.checkpoint.evidence);expect(reconstructed.checkpoint.delegations).toEqual(snapshot.payload.continuation.checkpoint.delegations);
    const ledgerBefore=(await pool.query("SELECT id,accounted_tokens FROM agents_platform.operations WHERE task_id IN(SELECT id FROM agents_platform.tasks WHERE root_task_id=$1) ORDER BY id",[f.task.id])).rows;
    const bytesBefore=JSON.stringify(snapshot.payload),readsBefore=httpRequests.length,callsBefore=modelCalls;
