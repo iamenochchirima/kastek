@@ -9,6 +9,7 @@ type DependencyManifest,type EvidenceDependency,type EvidenceReference
 } from "../../contracts/source-contracts";
 import { assertBaseAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
+import { assertEvaluationTrial } from "../admission/trial-authority";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
 import { productPorts } from "../../infrastructure/product-ports";
@@ -39,6 +40,12 @@ export async function owner(db: Db, execution: Execution): Promise<string | null
 }
 export async function inspectionAuthority(db: Db, execution: Execution): Promise<void> {
   const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
+  if (root.task.evaluation_trial_id) {
+    await assertEvaluationTrial(db, { trialId: root.task.evaluation_trial_id, agentId: root.agentId,
+      versionId: root.task.version_id, authority: { product: root.task.product,
+        organizationId: root.task.organization_id, resourceId: root.task.resource_id,
+        callerClientId: root.task.caller_client_id, principal: root.task.principal } });
+  }
   const accountId = await owner(db, root);
   const grant = (await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
   if (!grant || grant.revoked_at) throw unavailable();

@@ -558,6 +558,8 @@ must provision controlled external provider resources separately. Revocation fen
 and requests cancellation; it does not claim an external call stopped. Lookups recover trial and
 root identities after lost responses. Authorized native history export retains exact request,
 response, evidence and branch records, with explicit coverage gaps.
+Revoked or expired trials withhold private history content while retaining the export's
+root identity and explicit coverage gaps.
 
 `POST /evaluation-trials/:id/channel-session` binds the operator-owned trial to its published website
 and allowed origin. It returns a normal opaque visitor token, derived using the independent

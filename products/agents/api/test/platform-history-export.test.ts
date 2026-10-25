@@ -137,7 +137,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE account_id=$1 AND organization_id=$2", [f.account.id, f.org.id]);
     await expect(exportExecutionHistory(pool, f.task.id, f.authorize)).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
-  it("requires explicit exact trial-operator ownership for server-bound visitor roots", async () => {
+  it.each(["revoked", "expired"] as const)("requires explicit exact trial-operator ownership for server-bound visitor roots after trial %s", async (state) => {
     const account = await store.ensureAccount({ issuer: "http://localhost/export-visitor", subject: randomUUID(), email: "operator@example.test", displayName: "Operator" });
     const org = await store.createOrganization(account.id, "Visitor export fixture"), configuration = defaultBusinessConfiguration();
     await connectFixtureModel(pool, account.id, org.id);
@@ -159,7 +159,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const authorize = async () => ({ evaluationTrialId: prepared.id, accountId: account.id });
     const result = await exportExecutionHistory(pool, task.id, authorize);
     expect(result.tasks[0]!.input).toBe("Public evaluation question");
-    await trials.revoke(account.id, org.id, prepared.id);
+    if (state === "revoked") await trials.revoke(account.id, org.id, prepared.id);
+    else await pool.query("UPDATE agents_platform.evaluation_trials SET expires_at=now()-interval '1 second' WHERE id=$1", [prepared.id]);
     const revoked = await exportExecutionHistory(pool, task.id, authorize);
     expect(revoked.rootTaskId).toBe(task.id); expect(revoked.tasks[0]!.input).toBeNull(); expect(revoked.coverage.modelInputs.status).toBe("partial");
   });
