@@ -35,6 +35,8 @@ source, independent of the process working directory. `vite preview` is not a pr
 The server streams Brotli or gzip for negotiated text responses of at least 1 KB, including
 retained assets. Responses vary by `Accept-Encoding` and use representation-specific validators.
 Fonts and other binary assets remain uncompressed; API and SSE bodies pass through unchanged.
+Static request cancellation or a failure after response headers are sent closes that response;
+the server does not attempt a second error response or terminate other requests.
 `web/railway.json` selects the Growth Dockerfile and `/__health` readiness endpoint. The adjacent
 `Dockerfile.dockerignore` includes Growth web and shared contract inputs while excluding secrets,
 local artifacts, dependencies, and generated output. It overrides the root ignore rules for this

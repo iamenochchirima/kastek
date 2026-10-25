@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -278,5 +279,63 @@ test('text compression negotiates gzip and Brotli with representation-specific E
     assert.equal((await raw(app.origin, path, { 'accept-encoding': 'br', 'if-none-match': gzip.headers.etag })).status, 200);
     assert.equal((await raw(app.origin, '/assets/font-12345678.woff2', { 'accept-encoding': 'br,gzip' })).headers['content-encoding'], undefined);
     assert.equal((await raw(app.origin, '/sw.js', { 'accept-encoding': 'br,gzip' })).headers['content-encoding'], undefined);
+  } finally { await app.cleanup(); }
+});
+
+
+test('aborting compressed static transfers closes the stream and leaves the server available', { timeout: 10000 }, async () => {
+  const app = await fixture();
+  // Incompressible source keeps both compressed transfers open until the client disconnects.
+  await writeFile(join(app.root, 'assets/abort-12345678.js'), randomBytes(2 * 1024 * 1024).toString('hex'));
+  try {
+    for (const encoding of ['gzip', 'br']) {
+      const serverClosed = new Promise(resolve => {
+        app.server.once('request', (_request, response) => {
+          response.once('close', () => resolve({ sent: response.headersSent, finished: response.writableFinished }));
+        });
+      });
+      await new Promise((resolve, reject) => {
+        const request = http.get(`${app.origin}/assets/abort-12345678.js`, { headers: { 'accept-encoding': encoding } }, response => {
+          response.on('error', reject);
+          response.once('data', chunk => {
+            try {
+              assert.equal(response.statusCode, 200);
+              assert.equal(response.headers['content-encoding'], encoding);
+              assert.ok(chunk.length > 0);
+              response.destroy();
+              resolve();
+            } catch (error) { reject(error); }
+          });
+        });
+        request.on('error', reject);
+      });
+      assert.deepEqual(await serverClosed, { sent: true, finished: false });
+      assert.equal((await raw(app.origin, '/__health')).body.toString(), 'ok');
+      assert.match((await raw(app.origin, '/')).body.toString(), /Growth landing/);
+    }
+  } finally { await app.cleanup(); }
+});
+
+test('a response completed during asynchronous static lookup is not written a second time', { timeout: 5000 }, async () => {
+  const app = await fixture();
+  try {
+    // HTTP request listeners run before the pending filesystem lookup resumes.
+    app.server.once('request', (_request, response) => response.end('Already handled'));
+    assert.equal((await raw(app.origin, '/assets/app-12345678.js')).body.toString(), 'Already handled');
+    assert.equal((await raw(app.origin, '/__health')).body.toString(), 'ok');
+    assert.equal((await raw(app.origin, '/assets/app-12345678.js')).body.toString(), 'export{}');
+  } finally { await app.cleanup(); }
+});
+
+test('a static error after headers are flushed closes that response without crashing the server', { timeout: 5000 }, async () => {
+  const app = await fixture();
+  try {
+    app.server.once('request', (_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.flushHeaders();
+    });
+    await assert.rejects(raw(app.origin, '/assets/app-12345678.js'), /aborted|socket hang up/);
+    assert.equal((await raw(app.origin, '/__health')).body.toString(), 'ok');
+    assert.equal((await raw(app.origin, '/assets/app-12345678.js')).body.toString(), 'export{}');
   } finally { await app.cleanup(); }
 });
