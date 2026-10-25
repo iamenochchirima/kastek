@@ -136,7 +136,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const seeks=nodes.filter(node=>node['Index Name']==='capacity_resource_queue'&&['organization_id','resource_class','resource_key'].every(field=>String(node['Index Cond']).includes(field)));
   expect(seeks.length).toBeGreaterThan(0);expect(seeks.some(node=>node['Actual Loops']>0)).toBe(true);
  });
- it('rotates four sustained queues through one scarce product slot with two replicas',async()=>{
+ it('rotates four sustained queues through one scarce product slot across alternating replicas',async()=>{
   const f=await fixture(),product=`product:${randomUUID()}`,holder=request(f.task.id,product);await hold(holder);
   const requests:CapacityRequest[]=[];
   for(const kind of ['local','model','connected','generic'] as const)for(let n=0;n<(kind==='connected'?12:6);n++){
@@ -144,7 +144,9 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   }
   await transaction(pool,db=>releaseCapacity(db,holder.id,'completed'));const other=new Pool({connectionString:pool.options.connectionString,max:2}),seen:{resource_class:number;resource_key:string}[]=[];
   try{for(let n=0;n<20;n++){
-   const progress=await Promise.all([advanceCapacity(pool,{},1),advanceCapacity(other,{},1)]);
+   const replicas=n%2?[other,pool]:[pool,other];
+   // Both replicas sweep the same durable queues; the follower observes the occupied slot.
+   const progress=[await advanceCapacity(replicas[0]!,{},1),await advanceCapacity(replicas[1]!,{},1)];
    const granted=(await pool.query("SELECT id,resource_class,resource_key FROM agents_platform.capacity_requests WHERE state='granted'")).rows;expect(granted).toHaveLength(1);expect(progress[0]!+progress[1]!).toBe(1);seen.push({resource_class:granted[0].resource_class,resource_key:granted[0].resource_key});
    await transaction(pool,db=>releaseCapacity(db,granted[0].id,'completed'));
    if(n===0){const newcomer={...request(f.task.id,product),buckets:[{key:product,limit:1},{key:providerKey('model','model'),limit:20}]};expect((await transaction(pool,db=>requestCapacity(db,newcomer))).state).toBe('waiting');}
@@ -152,6 +154,21 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const auditDirectory=resolve(__dirname,'../../../../.audit');await mkdir(auditDirectory,{recursive:true,mode:0o700});await writeFile(resolve(auditDirectory,'capacity-hierarchy-service-sequence.json'),JSON.stringify(seen,null,2),{mode:0o600});
   for(const kind of [0,1,2,3])expect(seen.filter(value=>value.resource_class===kind).length).toBeGreaterThanOrEqual(3);
   for(const account of ['connected_0','connected_1'])expect(seen.filter(value=>value.resource_key===providerKey('connected',account)).length).toBeGreaterThanOrEqual(2);
+ });
+ it('allows only one grant when simultaneous replicas compete for one scarce slot',async()=>{
+  const f=await fixture(),product=`product:${randomUUID()}`,holder=request(f.task.id,product);await hold(holder);
+  for(const kind of ['model','connected'] as const){
+   const item={...request(f.task.id,product),buckets:[{key:product,limit:1},{key:providerKey(kind),limit:1}]};
+   expect((await transaction(pool,db=>requestCapacity(db,item))).state).toBe('waiting');
+  }
+  await transaction(pool,db=>releaseCapacity(db,holder.id,'completed'));const other=new Pool({connectionString:pool.options.connectionString,max:2});
+  try{
+   // Selection assigns attempted opportunities; competing replicas need not win equal grants.
+   const progress=await Promise.all([advanceCapacity(pool,{},1),advanceCapacity(other,{},1)]);
+   expect(progress[0]!+progress[1]!).toBe(1);
+   expect((await pool.query("SELECT id FROM agents_platform.capacity_requests WHERE state='granted'")).rows).toHaveLength(1);
+   expect((await pool.query("SELECT id FROM agents_platform.capacity_requests WHERE state='waiting'")).rows).toHaveLength(1);
+  }finally{await other.end();}
  });
  it('derives strict generated queue identity and rejects caller tenant or identity mutation',async()=>{
   const f=await fixture(),other=await fixture(),model=providerKey('model');
