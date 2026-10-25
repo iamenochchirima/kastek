@@ -223,16 +223,23 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  it("uses the original operation deadline through private receipt publication and charges actual overrun",async()=>{
   const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:slow-storage`,args={repository:"approved/public"};
-  const slow={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await new Promise(done=>setTimeout(done,160));await executor.objects.put(key,value,type);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
+  const reservedMs=3000,overrunMs=100;
+  const slow={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{
+   const operation=(await pool.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1",[operationId])).rows[0];
+   const deadline=new Date(operation.started_at).getTime()+Number(operation.reserved_ms);
+   // Cross the admitted operation's deadline only after the provider response reaches storage.
+   await new Promise(done=>setTimeout(done,Math.max(0,deadline+overrunMs-Date.now())));
+   await executor.objects.put(key,value,type);
+  },get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
   const bounded=new ConnectedExecutor(pool,connections,slow,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
-  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:100,retrySafe:true});
+  await beginOperation(pool,f.task.id,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs,retrySafe:true});
   await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});
   expect(requests).toEqual(["/repos/approved/public"]);
   expect((await pool.query("SELECT state,result FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0]).toMatchObject({state:"uncertain",result:null});
   await finishOperation(pool,f.task.id,operationId,"uncertain",null,"CONNECTED_READ_UNCERTAIN",0);
-  expect(Number((await pool.query("SELECT active_ms FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].active_ms)).toBeGreaterThanOrEqual(160);
+  expect(Number((await pool.query("SELECT active_ms FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].active_ms)).toBeGreaterThanOrEqual(reservedMs+overrunMs);
   const before=requests.length;await expect(bounded.execute(f.task.id,operationId,binding,args)).rejects.toMatchObject({code:"CONNECTED_READ_UNCERTAIN"});expect(requests).toHaveLength(before);
- });
+ },10000);
  it("does not publish a late private response link after its grant is revoked during PUT",async()=>{
   const f=await fixture(),binding=f.bindings.find(binding=>binding.definition.providerOperation==="get_repository")!,operationId=`tool:${f.task.id}:revoked-body`,args={repository:"approved/public"};
   const blocked={...executor.objects,put:async(key:string,value:Uint8Array,type:string)=>{await executor.objects.put(key,value,type);await platform.revokeGrant(f.scope.accountId,f.scope.organizationId,f.grant.id);},get:executor.objects.get.bind(executor.objects),delete:executor.objects.delete.bind(executor.objects)};
