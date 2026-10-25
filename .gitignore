@@ -77,3 +77,8 @@ outreach-emails/
 
 # React Router generated route types
 **/.react-router/
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+*.pyo
