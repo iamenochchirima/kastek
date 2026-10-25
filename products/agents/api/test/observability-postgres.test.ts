@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -19,7 +20,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(databaseUrl!); url.pathname = `/${name}`; pool = new Pool({ connectionString: url.href });
     await setupPlatformSchema(pool); store = new PlatformStore(pool);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,name); await admin.end(); } });
   async function fixture() {
     const account = await store.ensureAccount({ issuer: "https://identity.example.test", subject: randomUUID(), email: "test@example.test", displayName: "Test" });
     const org = await store.createOrganization(account.id, "Observation fixture"), config = defaultBusinessConfiguration();

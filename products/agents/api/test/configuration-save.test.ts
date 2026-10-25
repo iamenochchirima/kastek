@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { beforeAll,afterAll,describe,it,expect } from "vitest";
@@ -8,7 +9,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("configuration saves with real PostgreSQL",()=>{
  const database=`agents_configuration_${randomUUID().replaceAll("-","")}`;let admin:Pool,pool:Pool,store:PlatformStore;
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){const account=await store.ensureAccount({issuer:"http://configuration.fixture.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});const org=await store.createOrganization(account.id,"Configuration tests");const scope={accountId:account.id,organizationId:org.id};const configuration=defaultBusinessConfiguration();const created=await store.createConfiguredAgent({...scope,name:"Assistant",configuration});return {...scope,...created,configuration,account,agentId:created.agent.id,expectedRevision:1};}
  it("creates a ready snapshot and deduplicates unchanged saves and renames",async()=>{const f=await fixture();expect(f.snapshot.agent_id).toBe(f.agent.id);expect((await store.saveConfiguration(f)).snapshot.id).toBe(f.snapshot.id);const renamed=await store.saveConfiguration({...f,name:"Renamed"});expect(renamed.agent.name).toBe("Renamed");expect(renamed.snapshot.id).toBe(f.snapshot.id);expect(await store.listVersions(f.accountId,f.organizationId,f.agent.id)).toHaveLength(1);});
  it("requires confirmation before authority expansion without mutating draft",async()=>{const f=await fixture(),configuration={...f.configuration,tools:["knowledge.search" as const]};await expect(store.saveConfiguration({...f,configuration})).rejects.toMatchObject({code:"CONFIGURATION_CONFIRMATION_REQUIRED"});expect((await store.getAgent(f.accountId,f.organizationId,f.agentId)).draft_revision).toBe(1);expect((await store.saveConfiguration({...f,configuration,confirmImpact:true})).snapshot.number).toBe(2);});

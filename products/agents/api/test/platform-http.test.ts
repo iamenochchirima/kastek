@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {publishFixtureSource} from "./knowledge-fixture";
 import * as artifactModule from "../src/infrastructure/object-store";
@@ -41,7 +42,7 @@ suite("Agents HTTP and PostgreSQL integration", () => {
   });
   afterAll(async () => {
     await app?.close(); await pool?.end(); vi.restoreAllMocks();
-    if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); await admin.end(); }
+    if (admin) { await dropClosedTestDatabase(admin,name); await admin.end(); }
   });
   async function request(path: string, options: { method?: string; payload?: unknown; cookie?: string; origin?: string; token?: string } = {}) {
     const headers: Record<string, string> = {};

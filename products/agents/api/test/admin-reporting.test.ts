@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import {Pool} from 'pg';
@@ -55,7 +56,7 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
   }
   for(const id of [root,child])await pool.query('INSERT INTO agents_platform.task_model_routes(task_id,organization_id,routes,snapshot_digest) VALUES($1,$2,$3,$4)',[id,standalone.organizationId,{primary:{binding:{providerId:'openrouter',modelId:'fixture-model'}}},'a'.repeat(64)]);
  },30000);
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  it('reconciles roots, children, usage, unknown costs, retry evidence and product identity',async()=>{
   const all=await agentsAdminReport(pool,query);
   expect(value(all,'runs')).toBe('3');expect(value(all,'child_tasks')).toBe('1');expect(value(all,'failed')).toBe('1');expect(value(all,'backlog')).toBe('1');
@@ -184,7 +185,7 @@ describe.skipIf(!parent)('current Agents reporting and durable Analytics adapter
    for(let count=0;count<100 && await processOnce(sink,registry,'native-fixture',30000);count++){}
    expect(await totals()).toEqual(first);
   } finally {
-   await app?.close();await sink.end();await admin.query(`DROP DATABASE "${analyticsDatabase}" WITH (FORCE)`);
+   await app?.close();await sink.end();await dropClosedTestDatabase(admin,analyticsDatabase);
   }
  },30000);
 });

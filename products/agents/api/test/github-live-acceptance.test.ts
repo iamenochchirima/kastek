@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -46,7 +47,7 @@ import type { CapabilityBinding, CapabilityCatalog } from "../src/contracts/capa
  afterAll(async()=>{
   if(taskId&&pool)await settleTask(pool,taskId,{state:result==="passed"?"completed":"incomplete"}).catch(()=>undefined);
   if(createdBucket){const xml=await(await privateFixtureBucketRequest(s3,"GET","list-type=2")).text();for(const match of xml.matchAll(/<Key>([^<]+)<\/Key>/g))await objects.delete(match[1]!);expect((await privateFixtureBucketRequest(s3,"DELETE")).ok).toBe(true);}
-  await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}
+  await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}
   const directory=resolve(process.cwd(),"../../../.audit");await mkdir(directory,{recursive:true});const proof=JSON.stringify({result,errorCode:errorCode??(result==="not_run"?"GITHUB_LIVE_PREREQUISITES_UNSATISFIED":undefined),repository:selection?`${selection.owner}/${selection.repository}`:undefined,ref:selection?.ref,file:selectedFile,catalogs,observations,modelCalls:0,providerEndpoints:["https://api.github.com","https://api.githubcopilot.com/mcp/"],privateStorageEndpoint:s3.endpoint,executionMode:"source TypeScript, exact source adapter registry",scope:"connected SDK/executor acceptance; full real-model scheduling not claimed"},null,2);if(token&&proof.includes(token))throw Error("Credential reflection withheld from acceptance proof");await writeFile(resolve(directory,"agents-github-live.json"),proof);
  },60000);
  it("publishes discovered immutable bindings and reads one pinned public file through native HTTP and the official MCP SDK",async()=>{

@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {subscribeConnectionTelemetry,type ConnectionControlEvent} from "../src/observability/connection-telemetry";
 import {collectNativeMetrics} from "../src/observability/metrics";
@@ -37,7 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
       response.end(JSON.stringify({accepted:status===200,method:request.method,path:request.url,input:body?JSON.parse(body):null}));});
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));serverUrl=`http://127.0.0.1:${(server.address()as{port:number}).port}/api`;
   });
-  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
   async function fixture(read=false,responsePolicy?:NativeResponsePolicy){
     sends=0;status=200;hang=false;paged=false;atProvider=undefined;lastAuthorization=undefined;
     const account=await platform.ensureAccount({issuer:"http://localhost/native-api",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Native API");

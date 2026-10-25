@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import Fastify from "fastify";
@@ -50,7 +51,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     new GrowthProductRuntime(pool,new GrowthActionClient({origin:"http://127.0.0.1:9",issuer:"https://agents.fixture.test",keyId:"fixture",privateKey:await exportPKCS8(key.privateKey),environment:"test"}));
     service=new GrowthProvisionService(pool,{trust,vault,profile:()=>configured,credential:()=>credential,active:async()=>active,discoveryFetch});
   });
-  afterAll(async()=>{await pool?.end();if(admin){await admin.query('DROP DATABASE IF EXISTS "'+database+'" WITH (FORCE)');await admin.end();}});
+  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
   it("concurrent retries and lost acknowledgements converge without duplicate credentials or versions",async()=>{
     const input=request();expect((await Promise.all(Array.from({length:5},()=>service.provision(input)))).every(r=>r.state==="ready")).toBe(true);
     expect((await service.provision(input)).state).toBe("ready");expect(calls).toBe(1);

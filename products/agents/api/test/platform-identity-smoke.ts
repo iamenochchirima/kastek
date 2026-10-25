@@ -1,4 +1,5 @@
 /** Disposable real-provider fixture with local verification email; never uses the owner workspace. */
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
@@ -352,7 +353,7 @@ async function run() {
     if (mailpit && mailpit.exitCode === null) { mailpit.kill("SIGTERM"); await new Promise<void>(resolve => { mailpit!.once("exit", () => resolve()); setTimeout(resolve, 5_000); }); }
     if (proxy) { proxy.closeAllConnections(); await new Promise<void>((resolve) => proxy!.close(() => resolve())); }
     await app?.close().catch(() => {}); await pool?.end().catch(() => {});
-    if (databaseCreated && admin) await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`).catch(() => {});
+    if (databaseCreated && admin) await dropClosedTestDatabase(admin,databaseName).catch(() => {});
     await admin?.end().catch(() => {});
     if (providerStarted) await docker(["rm", "-f", providerName]).catch(() => {});
     if (databaseStarted) await docker(["rm", "-f", databaseContainer]).catch(() => {});

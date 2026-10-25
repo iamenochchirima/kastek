@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { modelServiceDefaults } from "../src/execution/models/settings";
 import type { AcceptedModelRoutes } from "../src/contracts/model-bindings";
@@ -66,7 +67,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(databaseUrl!); url.pathname = `/${databaseName}`;
     pool = new Pool({ connectionString: url.href }); await setupPlatformSchema(pool); store = new PlatformStore(pool);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); } });
   async function fixture() {
     const account = await store.ensureAccount({ issuer: "http://localhost/fixture", subject: randomUUID(), email: "fixture@example.com", displayName: "Owner" });
     const org = await store.createOrganization(account.id, "Export fixture");

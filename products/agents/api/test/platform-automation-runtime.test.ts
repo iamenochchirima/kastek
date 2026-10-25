@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {execFileSync} from "node:child_process";
 import {randomUUID} from "node:crypto";
 import {createServer,type ServerHttp2Session} from "node:http2";
@@ -37,7 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await eventually(async()=>{try{return(await fetch(`${adminUrl}/health`)).ok;}catch{return false;}});
   const registration=await fetch(`${adminUrl}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://host.docker.internal:${port}`,force:false})});expect(registration.ok,await registration.text()).toBe(true);
  },60000);
- afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(schedule:AutomationConfig["schedule"],historical=false){
   const account=await store.ensureAccount({issuer:"http://localhost/timers",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await store.createOrganization(account.id,"Timer tests"),scope={accountId:account.id,organizationId:organization.id};
   await connectFixtureModel(pool,account.id,organization.id);

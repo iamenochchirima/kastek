@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -27,7 +28,7 @@ suite("private S3-compatible content with real PostgreSQL metadata", () => {
     if (!response.ok) throw new Error(`S3 bucket setup failed (${response.status})`);
     objects = new S3PrivateStore({ endpoint: endpoint!, region: "us-east-1", bucket, accessKeyId, secretAccessKey }); artifacts = new ArtifactStore(pool, objects);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/artifacts", subject: randomUUID(), email: "artifact@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Artifact tests");

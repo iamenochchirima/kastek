@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
@@ -21,7 +22,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
     for (const file of (await readdir(resolve(__dirname, "../schema"))).filter(file => file.endsWith(".sql")).sort()) await pool.query(await readFile(resolve(__dirname, "../schema", file), "utf8"));
     platform = new PlatformStore(pool); memory = new MemoryStore(pool);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/memory", subject: randomUUID(), email: "memory@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Memory test");

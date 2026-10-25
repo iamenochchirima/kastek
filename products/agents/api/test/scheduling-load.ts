@@ -1,4 +1,5 @@
 /** Authenticated HTTP + real PostgreSQL/outbox/Restate acceptance, controlled model only. */
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID,createHash} from 'node:crypto';
 import {cpus,totalmem,freemem} from 'node:os';
 import {execFileSync,spawn,type ChildProcess} from 'node:child_process';
@@ -335,5 +336,5 @@ void main().catch(error=>{process.stderr.write(`Controlled load failed: ${error 
  await delay(500);for(const child of children){if(child.exitCode===null)child.kill('SIGKILL');}
  if(ownedContainer)docker('rm','-f',container);
  await new Promise<void>(resolve=>simulator.close(()=>resolve()));await services?.close();await pool?.end();
- if(created)await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();
+ if(created)await dropClosedTestDatabase(admin,database);await admin.end();
 });

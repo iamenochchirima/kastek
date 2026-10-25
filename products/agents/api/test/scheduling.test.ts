@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -14,7 +15,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  let admin:Pool,pool:Pool,store:PlatformStore;
  const dbname=`agents_schedule_${randomUUID().replaceAll('-','')}`;
  beforeAll(async()=>{admin=new Pool({connectionString:dbUrl});await admin.query(`CREATE DATABASE "${dbname}"`);const url=new URL(dbUrl!);url.pathname=`/${dbname}`;pool=new Pool({connectionString:url.href,max:8});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${dbname}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,dbname);await admin.end();}});
  afterEach(async()=>{
   expect((await pool.query(`SELECT a.organization_id FROM agents_platform.tenant_admission a WHERE a.active_roots<>(SELECT count(*) FROM agents_platform.tasks t
    WHERE t.organization_id=a.organization_id AND t.parent_task_id IS NULL AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))`)).rows).toEqual([]);

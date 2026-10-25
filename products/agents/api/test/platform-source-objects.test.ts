@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
@@ -14,7 +15,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  const database=`agents_source_objects_${randomUUID().replaceAll("-","")}`,bodies=new Map<string,Uint8Array>();let puts=0,deletes=0;
  const storage:PrivateObjectStore={async put(key,bytes){puts++;bodies.set(key,Buffer.from(bytes));},async get(key){const bytes=bodies.get(key);if(!bytes)throw Error("Missing fixture object");return bytes;},async delete(key){deletes++;bodies.delete(key);}};
  beforeAll(async()=>{admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href,max:10});await setupPlatformSchema(pool);platform=new PlatformStore(pool);knowledge=new KnowledgeStore(pool,storage);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){const owner=await platform.ensureAccount({issuer:"http://source/objects",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(owner.id,"Private source objects");const scope={organizationId:org.id,accountId:owner.id};const job=await knowledge.admitUpload(scope,{operationId:randomUUID(),title:"Guide",contentType:"text/plain",content:Buffer.from("Source fixture"),parserRelease:"fixture-v1"});return{scope,job};}
  function stage(f:Awaited<ReturnType<typeof fixture>>,text="stage receipt"):SourceObjectWrite {const bytes=Buffer.from(text);return{jobId:f.job.id,key:`knowledge/${f.scope.organizationId}/${f.job.id}/stages/${randomUUID()}/${textDigest(bytes)}`,bytes,contentType:"application/json",kind:"stage"};}
  it("records ownership before PUT and reuses the acknowledged immutable object",async()=>{

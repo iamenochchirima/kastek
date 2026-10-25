@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
@@ -18,7 +19,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;
   pool=new Pool({connectionString:url.href,max:4});await setupPlatformSchema(pool);store=new PlatformStore(pool);
  });
- afterAll(async()=>{if(originalPolicy===undefined)delete process.env.AGENTS_SCHEDULING_POLICY_JSON;else process.env.AGENTS_SCHEDULING_POLICY_JSON=originalPolicy;await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{if(originalPolicy===undefined)delete process.env.AGENTS_SCHEDULING_POLICY_JSON;else process.env.AGENTS_SCHEDULING_POLICY_JSON=originalPolicy;await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  it('queues local work before its operation clock, permits models, and fences promotion and policy disagreement',async()=>{
   const account=await store.ensureAccount({issuer:'http://localhost/local-capacity',subject:randomUUID(),email:'fixture@example.test',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Local capacity');
   await connectFixtureModel(pool,account.id,org.id);

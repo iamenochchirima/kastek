@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {collectNativeMetrics} from "../src/observability/metrics";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
@@ -49,7 +50,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const storage={async put(key:string,value:Uint8Array){objects.set(key,Buffer.from(value));},async get(key:string){const value=objects.get(key);if(!value)throw Error("Missing private fixture object");return value;},async delete(key:string){objects.delete(key);}};
   connections=new ConnectionStore(pool,new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")}),[]);evidence=new EvidenceStore(pool,storage);executor=new ConnectedExecutor(pool,connections,storage,evidence,{testGithubOrigin:origin,testMcpEndpoint:`${origin}/mcp`,testPublicMcpEndpoint:`${origin}/mcp`});
  });
- afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(withMcp=false,anonymous=false){
   isPrivate=false;hang=false;treeFileCount=1;requests=[];authorizationHeaders=[];remoteArguments.length=0;remoteResult=undefined;publicProfile=anonymous;
   const account=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Connected"),scope={accountId:account.id,organizationId:org.id};

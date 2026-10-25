@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from 'node:crypto';
 import {execFileSync,spawn,type ChildProcess} from 'node:child_process';
 import {createServer} from 'node:http';
@@ -25,7 +26,7 @@ const enabled=process.env.AGENTS_TEST_DATABASE_URL&&process.env.AGENTS_OPERATION
   docker('run','-d','--name',container,'--cpus','2','--memory','768m','--add-host','host.docker.internal:host-gateway','-p','127.0.0.1::8080','-p','127.0.0.1::9070','-v',`${resolve(__dirname,'scheduling-restate.toml')}:/etc/restate-load.toml:ro`,'docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742','-c','/etc/restate-load.toml');started=true;
   ingress='http://'+docker('port',container,'8080/tcp');runtimeAdmin='http://'+docker('port',container,'9070/tcp');await eventually(async()=>{try{return(await fetch(runtimeAdmin+'/health')).ok;}catch{return false;}});const registered=await fetch(runtimeAdmin+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uri:`http://host.docker.internal:${port}`,force:false})});expect(registered.ok,await registered.text()).toBe(true);
  },90000);
- afterAll(async()=>{releaseModel?.();await stop();if(started)docker('rm','-f',container);if(model)await new Promise<void>(resolve=>model.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}},30000);
+ afterAll(async()=>{releaseModel?.();await stop();if(started)docker('rm','-f',container);if(model)await new Promise<void>(resolve=>model.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}},30000);
  async function fixture(){const store=new PlatformStore(pool),account=await store.ensureAccount({issuer:'https://receipt.fixture.test',subject:randomUUID(),email:'fixture@example.com',displayName:'Receipt fixture'}),org=await store.createOrganization(account.id,'Disposable receipt fixture'),configuration=defaultBusinessConfiguration();configuration.tools=[];
   const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Receipt fixture',configuration}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority={product:'agents' as const,organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human' as const,issuer:account.issuer,subject:account.subject}};

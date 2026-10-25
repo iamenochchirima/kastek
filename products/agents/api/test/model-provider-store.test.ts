@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import Fastify from "fastify";
@@ -45,7 +46,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     platform = new PlatformStore(pool); models = new ModelProviderStore(pool, vault);
   });
   afterAll(async () => {
-    await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); }
+    await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
   });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "https://identity.example.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });

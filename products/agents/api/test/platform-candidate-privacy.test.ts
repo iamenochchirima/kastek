@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
@@ -14,7 +15,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);
   knowledge=new KnowledgeStore(pool,{async put(key,bytes){bodies.set(key,bytes);},async get(key){await beforeRead?.();const bytes=bodies.get(key);if(!bytes)throw Error("Missing private fixture content");return bytes;},async delete(key){bodies.delete(key);}});
  });
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const owner=await platform.ensureAccount({issuer:"http://candidate/privacy",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const original=await platform.ensureAccount({issuer:"http://candidate/privacy",subject:randomUUID(),email:"member@example.test",displayName:"Original importer"});

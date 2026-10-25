@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import Fastify from "fastify";
@@ -50,7 +51,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("model policy preview with real PostgreSQL",()=>{
  const database=`agents_model_controls_${randomUUID().replaceAll("-","")}`;let admin:Pool,pool:Pool,platform:PlatformStore;
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"https://identity.example",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Controls");
   const provider=await connectFixtureModel(pool,account.id,org.id,"fixture/reasoning",["tools","reasoning"]),configuration=defaultBusinessConfiguration();

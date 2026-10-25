@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -13,7 +14,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  let admin:Pool,pool:Pool,store:PlatformStore;
  const dbname=`agents_operation_capacity_${randomUUID().replaceAll('-','')}`;
  beforeAll(async()=>{admin=new Pool({connectionString:dbUrl});await admin.query(`CREATE DATABASE "${dbname}"`);const url=new URL(dbUrl!);url.pathname=`/${dbname}`;pool=new Pool({connectionString:url.href,max:8});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${dbname}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,dbname);await admin.end();}});
  async function tasks(){
   const account=await store.ensureAccount({issuer:'http://localhost/test',subject:randomUUID(),email:'schedule@example.com',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Scheduler fixture');
   await connectFixtureModel(pool,account.id,org.id);

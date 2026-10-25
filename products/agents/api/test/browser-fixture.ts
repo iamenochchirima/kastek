@@ -1,4 +1,5 @@
 /** Disposable integration environment: owned UI, API, worker, runtime and storage. Identity is seeded; model mode is explicit. */
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash, createHmac } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -117,7 +118,7 @@ async function cleanupResources() {
   }
   if (reaperProcess?.pid && reaperProcess.exitCode === null && reaperProcess.signalCode === null) { reaperProcess.kill("SIGTERM"); await once(reaperProcess, "exit"); }
   await pool?.end();
-  if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
+  if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); }
   if (ownedRuntime) execFileSync("docker", ["rm", "-f", container], { stdio: "ignore" });
   if (storageProcess?.pid && storageProcess.exitCode === null && storageProcess.signalCode === null) { storageProcess.kill("SIGTERM"); await once(storageProcess, "exit"); }
   if (privateDirectory) await rm(privateDirectory, { recursive: true, force: true });

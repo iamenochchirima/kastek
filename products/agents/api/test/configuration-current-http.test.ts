@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -16,7 +17,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  const database=`agents_current_${randomUUID().replaceAll("-","")}`;let admin:Pool,pool:Pool,store:PlatformStore,app:Awaited<ReturnType<typeof buildPlatformApp>>,endpoint:string;
  const origin="http://localhost:3100";
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href,max:12});await setupPlatformSchema(pool);store=new PlatformStore(pool);app=await buildPlatformApp({pool,logging:false,config:loadPlatformConfig({NODE_ENV:"test",AGENTS_DATABASE_URL:url.href,AGENTS_PUBLIC_URL:origin,AGENTS_OIDC_CLIENT_SECRET:"current-config-fixture-secret",OPENROUTER_API_KEY:"not-sent-to-model"})});endpoint=await app.listen({port:0,host:"127.0.0.1"});});
- afterAll(async()=>{await app?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await app?.close();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function request(path:string,payload?:unknown,cookie?:string,token?:string,method=payload===undefined?"GET":"POST"){
   const response=await fetch(endpoint+path,{method,headers:{origin,...(payload!==undefined?{"content-type":"application/json"}:{}),...(cookie?{cookie}:{}),...(token?{authorization:`Bearer ${token}`}:{})},...(payload!==undefined?{body:JSON.stringify(payload)}:{})});return{status:response.status,body:await response.json()};
  }

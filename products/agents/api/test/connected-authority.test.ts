@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -78,7 +79,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   afterAll(async () => {
     await pool?.end();
-    if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); }
+    if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
   });
 
   async function fixture() {

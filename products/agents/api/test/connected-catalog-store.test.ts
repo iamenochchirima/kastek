@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -28,7 +29,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     platform = new PlatformStore(pool); connections = new ConnectionStore(pool, vault, [{ id: "reports", label: "Reports", resource: "reports:test", url: "http://127.0.0.1:9082/deliveries" }]);
     catalogs = new ConnectedCatalogStore(pool, connections, registry);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost/catalog", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Connected research");

@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from 'node:crypto';
 import {createServer,type Server} from 'node:http';
@@ -24,7 +25,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    else res.end('{}');
   });await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
  });
- afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await store.ensureAccount({issuer:'http://localhost/dispatcher-fixture',subject:randomUUID(),email:'operator@example.test',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Dispatcher fixture'),config=defaultBusinessConfiguration();
   await connectFixtureModel(pool,account.id,org.id);

@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -39,7 +40,7 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   }, 20000);
   afterAll(async () => {
     await pool?.end();
-    if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); }
+    if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
   });
   async function configureModel(tenantId:string,modelId="lab/fixture") {
     return provisionGrowthModel(pool, vault, { tenantId, providerId: "openrouter", modelId, apiKey: "synthetic-model-key" }, {

@@ -1,3 +1,4 @@
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -36,7 +37,7 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const url = new URL(dbUrl!); url.pathname = `/${database}`; pool = new Pool({ connectionString: url.href, max: 10 });
     await setupPlatformSchema(pool); platform = new PlatformStore(pool); store = new KnowledgeStore(pool, objectStore); service = new IngestionService(pool, objectStore, runtime, store);
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture(): Promise<KnowledgeScope> {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/import", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     return { accountId: account.id, organizationId: (await platform.createOrganization(account.id, "Import")).id };

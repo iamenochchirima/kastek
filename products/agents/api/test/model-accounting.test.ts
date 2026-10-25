@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -48,7 +49,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     pool = new Pool({ connectionString: url.href }); await setupPlatformSchema(pool);
   });
   afterAll(async () => {
-    await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`); await admin.end(); }
+    await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
   });
   async function fixture(maxCostMicros: bigint | null = 100n): Promise<ModelOperationScope> {
     const organizationId = randomUUID(), account = randomUUID(), agent = randomUUID(), version = randomUUID(), grant = randomUUID(), conversation = randomUUID(), rootTaskId = randomUUID();

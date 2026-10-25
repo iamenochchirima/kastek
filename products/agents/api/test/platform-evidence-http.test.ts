@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID, randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -31,7 +32,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  afterAll(async()=>{
   await app?.close();if(createdBucket){const xml=await(await privateFixtureBucketRequest(s3,"GET","list-type=2")).text();for(const match of xml.matchAll(/<Key>([^<]+)<\/Key>/g))await objects.delete(match[1]!);expect((await privateFixtureBucketRequest(s3,"DELETE")).ok).toBe(true);}
-  await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}vi.unstubAllEnvs();
+  await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}vi.unstubAllEnvs();
  });
  it("returns only supplied exact spans and dates, then removes withdrawn passages and denies another same-org account",async()=>{
   const account=await platform.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});

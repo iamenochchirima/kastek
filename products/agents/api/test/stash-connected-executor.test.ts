@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
@@ -35,7 +36,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   });await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));endpoint=`http://127.0.0.1:${(server.address() as {port:number}).port}/mcp`;executor=new ConnectedExecutor(pool,connections,objectStore,evidence,{testStashMcpEndpoint:endpoint});
  },30000);
  beforeEach(()=>{calls=[];requests=0;revision=1;wrongId=false;toolError=false;reflect=false;});
- afterAll(async()=>{if(server){server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{if(server){server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://localhost/stash-fixture",subject:randomUUID(),email:"stash-fixture@example.test",displayName:"Fixture owner"}),org=await platform.createOrganization(account.id,"Stash fixture"),scope={accountId:account.id,organizationId:org.id};
   await connectFixtureModel(pool,account.id,org.id);

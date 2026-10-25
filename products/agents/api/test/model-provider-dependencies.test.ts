@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import Fastify from "fastify";
@@ -12,7 +13,7 @@ import { defaultBusinessConfiguration, requestDigest, PlatformError } from "../s
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("provider dependencies and explicit reuse with PostgreSQL", () => {
-  const database = `model_dependencies_${randomUUID().replaceAll("-", "")}`;
+  const database = `agents_model_dependencies_${randomUUID().replaceAll("-", "")}`;
   let admin: Pool, pool: Pool, platform: PlatformStore, models: ModelProviderStore;
   beforeAll(async () => {
     admin = new Pool({ connectionString: databaseUrl }); await admin.query(`CREATE DATABASE "${database}"`);
@@ -20,7 +21,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await setupPlatformSchema(pool); platform = new PlatformStore(pool);
     models = new ModelProviderStore(pool, new ModelCredentialVault(new ConnectionVault("test", { test: randomBytes(32).toString("base64") })));
   });
-  afterAll(async () => { await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+  afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "https://identity.example.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Models"); const scope = { accountId: account.id, organizationId: organization.id };

@@ -1,4 +1,5 @@
 /** Owned integration fixture. Harbor owns the trial, environment, verifier and reward. */
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash, createHmac } from "node:crypto";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -447,7 +448,7 @@ async function cleanup() {
   if (worker) await new Promise<void>(resolve => worker!.close(() => resolve()));
   await receiver?.close(); if (verifierBridge) await new Promise<void>(resolve => verifierBridge!.close(() => resolve()));
   await processWorker?.cleanup(); await analysis?.cleanup(); await stop(storage); await pool?.end();
-  if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
+  if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); }
   for(const project of orphanProjects){
     const containers=docker("ps","-aq","--filter",`label=com.docker.compose.project=${project}`).split("\n").filter(Boolean);if(containers.length)docker("rm","-f",...containers);
     const networks=docker("network","ls","-q","--filter",`label=com.docker.compose.project=${project}`).split("\n").filter(Boolean);if(networks.length)docker("network","rm",...networks);

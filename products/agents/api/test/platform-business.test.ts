@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import {countPreparedInput} from "../src/adapters/models/input-count";
@@ -125,7 +126,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     if (containerStarted) docker("rm", "-f", containerName);
     await receiver?.close();
     await pool?.end();
-    if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
+    if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); }
   });
   async function fixture(changes: Partial<AgentConfiguration> = {}, rootTokenLimit = 32000, sourceContent = "Opening hours. Open at nine.") {
     provider = async () => reply(); calls.length = 0;

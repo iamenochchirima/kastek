@@ -1,3 +1,4 @@
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
 import {beforeAll,afterAll,describe,it,expect} from 'vitest';
@@ -16,7 +17,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  let admin:Pool,pool:Pool,store:PlatformStore,service:AutomationService;
  const dbname=`agents_automation_${randomUUID().replaceAll('-','')}`;
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${dbname}"`);const url=new URL(databaseUrl!);url.pathname=`/${dbname}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);service=new AutomationService(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${dbname}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,dbname);await admin.end();}});
  async function fixture(){const account=await store.ensureAccount({issuer:'https://fixture.example',subject:randomUUID(),email:'owner@example.test',displayName:'Owner'}),org=await store.createOrganization(account.id,'Automation');const models=await connectFixtureModel(pool,account.id,org.id,'fixture/model-a');const cfg=defaultBusinessConfiguration();const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'FAQ',configuration:cfg}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});const scope={accountId:account.id,organizationId:org.id},input={name:'Daily report',versionId:version.id,input:'Prepare the report.',expiresAt:new Date(Date.now()+86_400_000).toISOString(),maxOccurrencesPerDay:20,schedule:{kind:'interval' as const,anchor:new Date(Date.now()-3600_000).toISOString(),everySeconds:60}};const automation=await service.create(scope,randomUUID(),input);return {account,org,agent,version,scope,input,automation,models};}
  it('pins schedule routes across default changes, pause/resume, retries and explicit edits',async()=>{
   const f=await fixture(),at=new Date();

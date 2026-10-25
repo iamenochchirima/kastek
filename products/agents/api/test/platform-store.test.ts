@@ -1,3 +1,4 @@
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {publishFixtureSource} from "./knowledge-fixture";
 import { randomUUID } from "node:crypto";
@@ -24,7 +25,7 @@ suite("fresh platform PostgreSQL store", () => {
   });
   afterAll(async () => {
     await pool?.end();
-    if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`); await admin.end(); }
+    if (admin) { await dropClosedTestDatabase(admin,databaseName); await admin.end(); }
   });
 
   async function fixture(kind: "business" | "workspace" = "business") {

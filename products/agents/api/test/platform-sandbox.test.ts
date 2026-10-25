@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir, access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -23,7 +24,7 @@ suite("real gVisor Python analysis and independent resource lifecycle",()=>{
   });
   afterAll(async()=>{
     if(pool){const rows=(await pool.query("SELECT * FROM agents_platform.sandbox_allocations WHERE state<>'destroyed'")).rows;for(const row of rows)await manager.destroy({organizationId:row.organization_id,rootTaskId:row.root_task_id,taskId:row.task_id,deadlineAt:new Date(row.lease_expires_at)},row.id);await pool.end();}
-    if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}
+    if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}
     const {rm}=await import("node:fs/promises");await rm(directory,{recursive:true,force:true});
   });
   async function fixture(){

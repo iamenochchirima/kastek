@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
@@ -82,7 +83,7 @@ const enabled = process.env.AGENTS_INGESTION_LIVE === "1" && process.env.AGENTS_
       for (const match of xml.matchAll(/<Key>([^<]+)<\/Key>/g)) await objects.delete(match[1]!);
       expect((await privateFixtureBucketRequest(s3, "DELETE")).ok).toBe(true);
     }
-    await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); }
+    await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
     const directory = resolve(process.cwd(), "../../../.audit"); await mkdir(directory, { recursive: true });
     await writeFile(join(directory, "agents-ingestion-live.json"), JSON.stringify(evidence, null, 2));
     await writeFile(join(directory, "agents-ingestion-live-worker.log"), logs);

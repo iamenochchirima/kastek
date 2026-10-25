@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -20,7 +21,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
       AGENTS_PUBLIC_URL:"http://localhost:3100",AGENTS_OIDC_CLIENT_SECRET:"offline-runtime-wiring-test-only",OPENROUTER_API_KEY:"offline-fixture-never-sent"})});
     store=new PlatformStore(pool);
   });
-  afterAll(async()=>{await app?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}vi.unstubAllEnvs();});
+  afterAll(async()=>{await app?.close();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}vi.unstubAllEnvs();});
   async function actor(){
     const user=await store.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"runtime@example.com",displayName:"Runtime"});
     const session=await store.createSession({accountId:user.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+60_000)});

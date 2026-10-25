@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID, randomBytes } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
@@ -33,7 +34,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     connections = new ConnectionStore(pool, vault, [target]); actions = new ActionService(pool, { vault, targets: [target], artifacts });
   });
   afterAll(async () => { if (oldTargets === undefined) delete process.env.AGENTS_REPORT_DELIVERY_TARGETS; else process.env.AGENTS_REPORT_DELIVERY_TARGETS = oldTargets;
-    await receiver?.close(); await pool?.end(); if (admin) { await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`); await admin.end(); } });
+    await receiver?.close(); await pool?.end(); if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); } });
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost/export-actions", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const org = await platform.createOrganization(account.id, "Isolated reports"), scope = { accountId: account.id, organizationId: org.id };

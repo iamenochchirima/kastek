@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomUUID} from "node:crypto";
 import {mkdir,writeFile} from "node:fs/promises";
 import {resolve,join} from "node:path";
@@ -82,7 +83,7 @@ suite("local hybrid retrieval quality, eligibility and resource recovery",()=>{
   for(const id of allocations)await runtime.destroy(id);if(queries)await queries.reap();
   if(timings.length){const ordered=timings.toSorted((a,b)=>a-b),report={profile:RETRIEVAL_PROFILE,embeddingRelease:release,eligibleChunks:process.env.AGENTS_RETRIEVAL_BENCHMARK==="1"?20000:corpus.length,fixture:"13 actual distinct passage vectors; exact duplicate boilerplate reuses its identical vector; real PostgreSQL and gVisor; fixture private object map",calibration,quality,samples:timings.length,p50Ms:ordered[Math.floor(ordered.length*.5)],p95Ms:ordered[Math.min(ordered.length-1,Math.ceil(ordered.length*.95)-1)]};
    await mkdir(resolve(__dirname,"../../../../.audit"),{recursive:true});await writeFile(resolve(__dirname,`../../../../.audit/knowledge-retrieval-benchmark-${report.eligibleChunks}.json`),JSON.stringify(report,null,2));console.log("RETRIEVAL_BENCHMARK",JSON.stringify(report));}
-  await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}
+  await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}
  });
  async function embed(mode:"query"|"document",texts:string[]){
   const id=randomUUID();allocations.push(id);await runtime.start({allocationId:id,jobId:randomUUID(),profileRelease:release,input:{kind:"embed",mode,texts}});

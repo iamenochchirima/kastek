@@ -1,3 +1,4 @@
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -15,7 +16,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  const database=`agents_execution_objects_${randomUUID().replaceAll("-","")}`,bodies=new Map<string,Uint8Array>();
  const storage:PrivateObjectStore={async put(key,bytes){bodies.set(key,Buffer.from(bytes));},async get(key){return bodies.get(key)!;},async delete(key){bodies.delete(key);}};
  beforeAll(async()=>{admin=new Pool({connectionString:url});await admin.query(`CREATE DATABASE "${database}"`);const target=new URL(url!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href,max:10});await setupPlatformSchema(pool);platform=new PlatformStore(pool);});
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://execution-objects.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Object ownership"),scope={accountId:account.id,organizationId:org.id};
   await connectFixtureModel(pool,account.id,org.id);

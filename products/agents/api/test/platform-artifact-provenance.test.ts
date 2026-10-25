@@ -1,3 +1,4 @@
+import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -22,7 +23,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   store=new PlatformStore(pool);memory=new MemoryStore(pool);
   artifacts=new TaskArtifactStore(pool,{async put(k,b){bodies.set(k,Buffer.from(b));},async get(k){const bytes=bodies.get(k);if(!bytes)throw Error("Missing object");return bytes;},async delete(k){bodies.delete(k);}});
  });
- afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function owner(){
   const account=await store.ensureAccount({issuer:"http://localhost/artifact-sources",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
   const organization=await store.createOrganization(account.id,"Artifact sources");await connectFixtureModel(pool,account.id,organization.id);return{account,organization,scope:{accountId:account.id,organizationId:organization.id}};

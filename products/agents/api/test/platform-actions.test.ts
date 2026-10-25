@@ -1,3 +1,4 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -25,7 +26,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   platform=new PlatformStore(pool);artifacts=new TaskArtifactStore(pool,{async put(k,b){bodies.set(k,Buffer.from(b));},async get(k){const b=bodies.get(k);if(!b)throw Error();return b;},async delete(k){bodies.delete(k);}});
   connections=new ConnectionStore(pool,vault,[target]);actions=new ActionService(pool,{vault,targets:[target],artifacts});
  });
- afterAll(async()=>{await receiver?.close();await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
+ afterAll(async()=>{await receiver?.close();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://localhost/actions",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await platform.createOrganization(account.id,"Reports");
   await connectFixtureModel(pool,account.id,organization.id);
