@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { discoverRemoteMcp, executeRemoteMcpTool, type RemoteMcpEndpoint, invalidateRemoteMcpCatalogCache,remoteMcpCatalogCacheStats,REMOTE_MCP_CACHE_LIMITS } from "../src/adapters/providers/remote-mcp";
 
 const servers: Server[] = [];
+const isolatedRequestBudgetMs=20000,cachePopulationConcurrency=4;
 const inputSchema = { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false };
 type FixtureOptions = { modern?: boolean;ttlMs?:number;omitTtl?:boolean;capabilitiesChanged?:boolean; tools?: unknown[]; pages?: number; resources?: boolean; mixedContent?: boolean;
   changed?: boolean; escapedReflect?:"value"|"key"; loop?: boolean; reflect?: boolean; hang?: boolean; sse?: boolean; redirect?: boolean; isError?: boolean; inputRequired?: boolean;
@@ -113,13 +114,14 @@ describe("isolated general remote MCP", () => {
     expect(service.methods.filter(method=>method===(modern?"server/discover":"initialize")).length).toBeGreaterThanOrEqual(3);
     await expect(executeRemoteMcpTool(endpoint,{...tool,inputSchema:{type:"object",properties:{name:{type:"integer"}}}},{name:"invalid"})).rejects.toMatchObject({code:"MCP_DEFINITION_DRIFT"});expect(service.calls()).toBe(2);
   },20000);
+  // Discovery plus eleven isolated calls each retain their own request deadline.
   it("does not reuse cached schemas across authority, credential, policy, generation or endpoint partitions",async()=>{
     const service=await fixture({ttlMs:30000}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
-    await executeRemoteMcpTool(endpoint,tool,{name:"first"});let expected=service.listCalls();
-    for(const field of ["organizationId","accountId","connectionId","credentialRevision","policyRevision","generation"] as const){const scope={...endpoint.cacheScope!,[field]:typeof endpoint.cacheScope![field]==="number"?2:randomUUID()};await executeRemoteMcpTool({...endpoint,cacheScope:scope},tool,{name:field});expect(service.listCalls()).toBe(++expected);}
-    for(const changed of [{effectiveAuthorityDigest:"b".repeat(64)},{authorization:"Bearer different-private-token"},{adapterManifestDigest:"c".repeat(64)}]){await executeRemoteMcpTool({...endpoint,...changed},tool,{name:"changed"});expect(service.listCalls()).toBe(++expected);}
-    const other=await fixture({ttlMs:30000});await executeRemoteMcpTool({...endpoint,endpoint:other.endpoint.endpoint},tool,{name:"other-endpoint"});expect(other.listCalls()).toBe(1);
-  },30000);
+    await executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+isolatedRequestBudgetMs},tool,{name:"first"});let expected=service.listCalls();
+    for(const field of ["organizationId","accountId","connectionId","credentialRevision","policyRevision","generation"] as const){const scope={...endpoint.cacheScope!,[field]:typeof endpoint.cacheScope![field]==="number"?2:randomUUID()};await executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+isolatedRequestBudgetMs,cacheScope:scope},tool,{name:field});expect(service.listCalls()).toBe(++expected);}
+    for(const changed of [{effectiveAuthorityDigest:"b".repeat(64)},{authorization:"Bearer different-private-token"},{adapterManifestDigest:"c".repeat(64)}]){await executeRemoteMcpTool({...endpoint,...changed,deadlineAt:Date.now()+isolatedRequestBudgetMs},tool,{name:"changed"});expect(service.listCalls()).toBe(++expected);}
+    const other=await fixture({ttlMs:30000});await executeRemoteMcpTool({...endpoint,endpoint:other.endpoint.endpoint,deadlineAt:Date.now()+isolatedRequestBudgetMs},tool,{name:"other-endpoint"});expect(other.listCalls()).toBe(1);
+  },12*isolatedRequestBudgetMs);
   it("honors modern zero TTL as immediately stale",async()=>{
     const service=await fixture({modern:true,ttlMs:0}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint);
     await executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"one"});const before=service.listCalls();await executeRemoteMcpTool(endpoint,inventory.tools[0]!,{name:"two"});expect(service.listCalls()).toBe(before+1);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
@@ -142,17 +144,24 @@ describe("isolated general remote MCP", () => {
     await new Promise(resolve=>setTimeout(resolve,1600));await executeRemoteMcpTool(endpoint,tool,{name:"expired"});expect(service.listCalls()).toBe(before+1);
   },20000);
   it("expires metadata before a delayed physical send and evicts on cancellation",async()=>{
-    const service=await fixture({ttlMs:1500}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
+    const ttlMs=15000;
+    const service=await fixture({ttlMs}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped({...service.endpoint,deadlineAt:Date.now()+30000}),tool=inventory.tools[0]!;
     await executeRemoteMcpTool(endpoint,tool,{name:"one"});
-    await expect(executeRemoteMcpTool(endpoint,tool,{name:"expired-before-send"},undefined,{beforeAttempt:async attempt=>{if(attempt.rpcMethod==="tools/call")await new Promise(resolve=>setTimeout(resolve,1600));}})).rejects.toMatchObject({code:"MCP_CATALOG_EXPIRED"});expect(service.calls()).toBe(1);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
-    await executeRemoteMcpTool(endpoint,tool,{name:"revalidate"});const controller=new AbortController();controller.abort();await expect(executeRemoteMcpTool(endpoint,tool,{name:"cancelled"},controller.signal)).rejects.toMatchObject({code:"CANCELLED"});expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
-  },20000);
+    const primedListCalls=service.listCalls();expect(remoteMcpCatalogCacheStats().partitions).toBe(1);
+    // Keep metadata fresh through worker startup, then cross its entire TTL at the physical-send barrier.
+    await expect(executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+30000},tool,{name:"expired-before-send"},undefined,{beforeAttempt:async attempt=>{if(attempt.rpcMethod==="tools/call"){expect(service.listCalls()).toBe(primedListCalls);await new Promise(resolve=>setTimeout(resolve,ttlMs+100));}}})).rejects.toMatchObject({code:"MCP_CATALOG_EXPIRED"});expect(service.calls()).toBe(1);expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+    await executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+30000},tool,{name:"revalidate"});const controller=new AbortController();controller.abort();await expect(executeRemoteMcpTool(endpoint,tool,{name:"cancelled"},controller.signal)).rejects.toMatchObject({code:"CANCELLED"});expect(remoteMcpCatalogCacheStats().partitions).toBe(0);
+  },40000);
   it("bounds the process cache and declares persistent push notifications unavailable",async()=>{
     const service=await fixture({ttlMs:300000}),inventory=await discoverRemoteMcp(service.endpoint),endpoint=scoped(service.endpoint),tool=inventory.tools[0]!;
     expect(inventory.diagnostics.map(value=>value.code)).toContain("MCP_CATALOG_PUSH_UNSUPPORTED");
-    for(let generation=1;generation<=REMOTE_MCP_CACHE_LIMITS.partitions+1;generation++)await executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+20000,cacheScope:{...endpoint.cacheScope!,generation}},tool,{name:"bounded"});
+    // Bound child-process concurrency while filling the cache inside its real TTL.
+    for(let first=1;first<=REMOTE_MCP_CACHE_LIMITS.partitions+1;first+=cachePopulationConcurrency){
+      const generations=Array.from({length:Math.min(cachePopulationConcurrency,REMOTE_MCP_CACHE_LIMITS.partitions+2-first)},(_,index)=>first+index);
+      await Promise.all(generations.map(generation=>executeRemoteMcpTool({...endpoint,deadlineAt:Date.now()+isolatedRequestBudgetMs,cacheScope:{...endpoint.cacheScope!,generation}},tool,{name:"bounded"})));
+    }
     expect(remoteMcpCatalogCacheStats().partitions).toBe(REMOTE_MCP_CACHE_LIMITS.partitions);expect(remoteMcpCatalogCacheStats().bytes).toBeLessThanOrEqual(REMOTE_MCP_CACHE_LIMITS.bytes);
-  },30000);
+  },(1+Math.ceil((REMOTE_MCP_CACHE_LIMITS.partitions+1)/cachePopulationConcurrency))*isolatedRequestBudgetMs);
   it("keeps one unsupported schema in diagnostics and discovers compatible tools", async () => {
     const service = await fixture({ tools: [{ name: "safe", inputSchema }, { name: "unsupported", inputSchema: { type: "object", properties: { value: { type: "string", pattern: "(a+)+$" } } } }, { name: 1, inputSchema: {} }] });
     let ticks = 0; const timer = setInterval(() => ticks++, 5);
