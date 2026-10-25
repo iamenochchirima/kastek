@@ -1,5 +1,6 @@
 import { connectFixtureModel, fixtureModelProviders } from "./model-fixture";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
+import {countPreparedInput} from "../src/adapters/models/input-count";
 import type { ModelFetch } from "../src/infrastructure/model-network";
 import {homedir} from "node:os";
 import {join} from "node:path";
@@ -20,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBusinessWorkflow, type BusinessOptions } from "../src/execution/business/business";
 import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration, type AdmissionAuthority, type ExecutionGrant } from "../src/contracts/contracts";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
-import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots, WORKFLOW_NAME } from "../src/execution/lifecycle/execution";
+import { beginOperation, finishOperation, settleTask, requestTreeCancellation, reconcilePendingRoots, WORKFLOW_NAME, loadExecution } from "../src/execution/lifecycle/execution";
 import { admitChildren, readChildResults } from "../src/execution/delegation/delegation";
 import {ActionService} from "../src/workflows/report-delivery/actions";
 import {ConnectionStore} from "../src/product/connections/connections";
@@ -919,16 +920,17 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await execute(next.task.id)).state).toBe("completed");
     expect(JSON.stringify(calls[1]!.messages)).not.toContain("Derived remembered preference is Shona");
   }, 30_000);
-  function nearLimitToolConfiguration():Partial<AgentConfiguration>{
+  function nearLimitToolConfiguration(inputBudget=7600):Partial<AgentConfiguration>{
     const config=defaultBusinessConfiguration();config.tools=["knowledge.search"];config.instructions="Use approved knowledge and preserve issued evidence identifiers. ";
-    const request:ModelRequest={model:config.model.model,maxInputTokens:8192,maxOutputTokens:config.model.maxOutputTokens,maxDurationSeconds:config.model.maxDurationSeconds,
+    const request:ModelRequest={model:"nvidia/nemotron-3-super-120b-a12b",maxInputTokens:8192,maxOutputTokens:config.model.maxOutputTokens,maxDurationSeconds:config.model.maxDurationSeconds,
       messages:[{role:"system",content:config.instructions},{role:"user",content:"What are the opening hours?"}],tools:toolsFor(config)};
-    config.instructions+="p".repeat(7600-estimateRequestTokens(request));
+    // Leave room for the native protocol envelope and the initial source record.
+    config.instructions+="p".repeat(inputBudget-estimateRequestTokens(request));
     return{instructions:config.instructions,tools:config.tools,context:{maxInputTokens:8192,compactAtTokens:6144}};
   }
   it("compacts a single complete overflowing tool group and replays its evidence without spending again",async()=>{
     const sourceContent=JSON.stringify({hours:"Open at nine",note:'Opening "quoted" hours\nnext line'});
-    const f=await fixture(nearLimitToolConfiguration(),32000,sourceContent);
+    const f=await fixture(nearLimitToolConfiguration(7200),32000,sourceContent);
     const evidence=businessOptions.evidence!,supply=evidence.supplyContext.bind(evidence);
     let release!:()=>void,held=false,evidenceId="",citation="";
     const barrier=new Promise<void>(resolve=>{release=resolve;});
@@ -940,7 +942,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
         const passage=JSON.parse(packed.records[1].content).passages[0];expect(passage.text).toBe(sourceContent);evidenceId=passage.evidenceId;citation=passage.citation;
         return reply(`Confirmed nine. Issued evidence ${evidenceId} ${citation}.`);
       }
-      if(calls.length===1){expect(estimateRequestTokens(body)).toBeLessThanOrEqual(8192);return reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);}
+      if(calls.length===1){
+        const route=(await loadExecution(pool,f.task.id)).models.primary;
+        const counted=await countPreparedInput(route,body,async()=>{throw Error("Fixture counting must not use network");});
+        expect(counted.precision).toBe("serialized_bytes_estimate");expect(counted.tokens).toBeLessThanOrEqual(route.policy.maxInputTokens);
+        return reply("","tool_calls",[tool("knowledge_search",{query:"opening"})]);
+      }
       expect(JSON.stringify(body.messages)).toContain(evidenceId);expect(JSON.stringify(body.messages)).toContain(citation);validateMessageGroups(body.messages);
       return reply(`Open at nine ${citation}`);
     };

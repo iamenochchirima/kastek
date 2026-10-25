@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { Pool } from "pg";
@@ -37,6 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{if(server){server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://localhost/stash-fixture",subject:randomUUID(),email:"stash-fixture@example.test",displayName:"Fixture owner"}),org=await platform.createOrganization(account.id,"Stash fixture"),scope={accountId:account.id,organizationId:org.id};
+  await connectFixtureModel(pool,account.id,org.id);
   const connection=await connections.create(scope,{operationId:randomUUID(),name:"Stash",profileId:"stash-read-v1",targetId:"provider:stash",apiKey:key,expiresAt:new Date(Date.now()+86400000).toISOString(),stashItemIds:[itemId]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"mcp_http"});
   const bindings=await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:["get_item","read_project_document"].map(providerOperation=>({providerOperation,resources:connection.resources}))});

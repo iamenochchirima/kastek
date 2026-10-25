@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import {subscribeConnectionTelemetry,type ConnectionControlEvent} from "../src/observability/connection-telemetry";
 import {collectNativeMetrics} from "../src/observability/metrics";
 import type { NativeResponsePolicy } from "../src/adapters/providers/native-response-policy";
@@ -41,6 +42,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     sends=0;status=200;hang=false;paged=false;atProvider=undefined;lastAuthorization=undefined;
     const account=await platform.ensureAccount({issuer:"http://localhost/native-api",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Native API");
     const scope={accountId:account.id,organizationId:org.id};
+    await connectFixtureModel(pool,account.id,org.id);
     const source={openapi:"3.1.0",info:{title:"Controlled provider",version:"1"},servers:[{url:serverUrl}],components:{securitySchemes:{provider:{type:"http",scheme:"bearer"}}},security:[{provider:[]}],
       paths:{"/records/{id}":{parameters:[{name:"id",in:"path",required:true,schema:{type:"string",minLength:1,maxLength:80}}],
         get:{operationId:"readRecord",...(responsePolicy?{"x-kasitek-response":responsePolicy,parameters:[{name:"cursor",in:"query",schema:{type:"string",maxLength:2048}}]}:{}),responses:{"200":{description:"Record"}}},post:{operationId:"updateRecord",requestBody:{required:true,content:{"application/json":{schema:{type:"object",required:["title"],properties:{title:{type:"string",maxLength:80}},additionalProperties:false}}}},responses:{"200":{description:"Updated"}}}}}};

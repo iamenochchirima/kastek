@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import {collectNativeMetrics} from "../src/observability/metrics";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {createServer,type Server} from "node:http";
@@ -52,6 +53,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  async function fixture(withMcp=false,anonymous=false){
   isPrivate=false;hang=false;treeFileCount=1;requests=[];authorizationHeaders=[];remoteArguments.length=0;remoteResult=undefined;publicProfile=anonymous;
   const account=await platform.ensureAccount({issuer:"http://localhost/connected-executor",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Connected"),scope={accountId:account.id,organizationId:org.id};
+  await connectFixtureModel(pool,account.id,org.id);
   const connection=await connections.create(scope,{operationId:randomUUID(),name:"GitHub",profileId:anonymous?"public-repository-read-v1":"github-public-read-v1",targetId:anonymous?"provider:public-repository":"provider:github",...(anonymous?{}:{apiKey:"github_pat_connected_fixture_only"}),expiresAt:new Date(Date.now()+86400000).toISOString(),selections:[{owner:"approved",repository:"public",ref:"main"}]});
   const catalog=await executor.discover(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,transport:"native_http"});
   const bindings=await executor.catalogs.selectBindings(scope,{operationId:randomUUID(),connectionId:connection.id,expectedRevision:1,catalogId:catalog.id,selections:["get_repository","resolve_ref","list_tree","read_file"].map(providerOperation=>({providerOperation,resources:connection.resources}))});
@@ -348,7 +350,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const currentManifest=await evidence.taskManifest(next.id);await expect(assertCurrentEvidence(pool,next.id,currentManifest,{historyOriginTaskIds:[next.id]})).rejects.toMatchObject({code:"EVIDENCE_INTEGRITY"});
   const count=requests.length;await expect(executor.execute(next.id,randomUUID(),selected,{repository:"approved/public"})).rejects.toThrow();expect(requests).toHaveLength(count);
   await expect(evidence.checkHistory(next.id,[f.task.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
-  const foreign=await platform.ensureAccount({issuer:"http://localhost/foreign-history",subject:randomUUID(),email:"foreign@example.test",displayName:"Foreign"}),foreignOrg=await platform.createOrganization(foreign.id,"Foreign history"),foreignAgent=await platform.createAgent({accountId:foreign.id,organizationId:foreignOrg.id,name:"Foreign",configuration:defaultBusinessConfiguration()}),foreignVersion=await platform.createVersion({accountId:foreign.id,organizationId:foreignOrg.id,agentId:foreignAgent.id,expectedRevision:1});
+  const foreign=await platform.ensureAccount({issuer:"http://localhost/foreign-history",subject:randomUUID(),email:"foreign@example.test",displayName:"Foreign"}),foreignOrg=await platform.createOrganization(foreign.id,"Foreign history");await connectFixtureModel(pool,foreign.id,foreignOrg.id);const foreignAgent=await platform.createAgent({accountId:foreign.id,organizationId:foreignOrg.id,name:"Foreign",configuration:defaultBusinessConfiguration()}),foreignVersion=await platform.createVersion({accountId:foreign.id,organizationId:foreignOrg.id,agentId:foreignAgent.id,expectedRevision:1});
   const foreignAuthority={...authority,organizationId:foreignOrg.id,resourceId:foreignAgent.id,principal:{kind:"human" as const,issuer:foreign.issuer,subject:foreign.subject}},foreignGrant={...grant,...foreignAuthority,id:randomUUID(),versionId:foreignVersion.id,connectedToolBindingIds:[],operations:["model.reply" as const,"knowledge.read" as const]};await platform.createGrant({accountId:foreign.id,grant:foreignGrant});const{task:foreignTask}=await platform.admitTask({authority:foreignAuthority,versionId:foreignVersion.id,grantId:foreignGrant.id,requestKey:randomUUID(),input:"Unrelated actor"});
   await expect(evidence.checkHistory(next.id,[foreignTask.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
   await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1 AND state='accepted'",[next.id]);await settleTask(pool,next.id,{state:"completed",output:`Previously confirmed ${citation}`});

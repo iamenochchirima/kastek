@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -25,7 +26,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const session=await store.createSession({accountId:user.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+60_000)});
     const cookie=`agents_session=${session.token}`;
     const created=await app.inject({method:"POST",url:"/api/organizations",headers:{cookie,origin:"http://localhost:3100"},payload:{name:"Runtime"}});
-    expect(created.statusCode).toBe(201);return{user,cookie,organizationId:created.json().organization.id};
+    expect(created.statusCode).toBe(201);await connectFixtureModel(pool,user.id,created.json().organization.id);return{user,cookie,organizationId:created.json().organization.id};
   }
   it("authorizes cited-source inspection separately from unavailable backend metadata",async()=>{
     const owner=await actor(),other=await actor(),base=`/api/organizations/${owner.organizationId}`;

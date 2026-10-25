@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -24,6 +25,7 @@ suite("scoped PostgreSQL memory and immutable skills", () => {
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/memory", subject: randomUUID(), email: "memory@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Memory test");
+    await connectFixtureModel(pool, account.id, organization.id);
     const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Assistant", configuration: defaultBusinessConfiguration() });
     return { account, organization, agent, management: { accountId: account.id, organizationId: organization.id, agentId: agent.id },
       scope: { organizationId: organization.id, agentId: agent.id, principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } } };

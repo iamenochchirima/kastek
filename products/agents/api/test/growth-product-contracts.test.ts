@@ -6,7 +6,15 @@ import {GrowthActionClient} from "../src/adapters/products/growth-action-client"
 import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
 import {defaultBusinessConfiguration,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
-import type {GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
+import {registerProductAdapter} from "../src/capabilities/products/product-capabilities";
+import {growthInstalledAdapterManifest} from "../src/execution/products/growth-runtime";
+import type {GrowthAgentPublication,ProductCapabilityDescriptor,GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
+const organizationId=randomUUID(),tenantId=randomUUID();
+const descriptors:ProductCapabilityDescriptor[]=["workspace.read","draft.prepare"].map(operation=>({operation,revision:"1",description:operation,inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,handlerRef:`growth.${operation}@1`,requiredAuthority:["feature.agents.manage"],evidence:"versioned_sources",policy:operation==="workspace.read"?{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"}:{effect:"reviewed_write",disclosure:"exact_reviewed_payload",retry:"status_only",approval:"exact_single_use",cancel:"reconcile_claimed"},limits:{timeoutMs:10000,maxPhysicalAttempts:1,maxResponseBytes:131072,maxModelResultBytes:8192}}));
+const adapter=registerProductAdapter(growthInstalledAdapterManifest,{handlers:descriptors.map(item=>item.handlerRef),async invoke(){throw new Error("Contract fixture does not execute tools");}});
+const manifest={schemaVersion:1 as const,product:"growth",revision:"1",adapter,operations:descriptors};
+const publication:GrowthAgentPublication={manifest:{...manifest,digest:requestDigest(manifest)},presets:(["assistant","research","content","campaigns"] as const).map(id=>({id,name:id,description:"Contract fixture",instructions:"Use authorized product tools.",operations:descriptors.map(item=>item.operation)})),policy:{revision:"1",optionalCapabilities:{knowledge:false,skills:false,memory:false,delegation:false,sandbox:false,workflows:false,connections:false}}};
+const contentConfiguration=()=>growthFeatureConfiguration(publication,"content",organizationId,tenantId);
 describe("Growth product contracts",()=>{
   let key:Awaited<ReturnType<typeof generateKeyPair>>,control:Awaited<ReturnType<typeof generateKeyPair>>,auth:GrowthServiceAuth;
   const issuer="https://growth.example.test",actor={issuer:issuer+"/identity",subject:randomUUID()};
@@ -32,21 +40,23 @@ describe("Growth product contracts",()=>{
     await expect(auth.verify(await token(changed),changed)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
   });
   it("separates control-plane keys from the Growth browser service client",async()=>{
-    const configure:GrowthAgentCommand={...command,operation:"features.configure",input:{featureId:"content",configuration:growthFeatureConfiguration("content")}};
+    const configure:GrowthAgentCommand={...command,operation:"features.configure",input:{featureId:"content",configuration:contentConfiguration()}};
     await expect(auth.verify(await token(configure,{sub:"growth-control"}),configure)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
     const signed=await token(configure,{key:control,kid:"control",sub:"growth-control"});
     expect((await auth.verify(signed,configure)).clientId).toBe("growth-control");
     await expect(auth.verify(await token(configure,{key:control,kid:"control",sub:"growth-api"}),configure)).rejects.toMatchObject({code:"PRODUCT_SERVICE_DENIED"});
   });
-  it("keeps published program v1 unchanged and requires v2 for product capabilities",()=>{
-    const original=defaultBusinessConfiguration(),growth=growthFeatureConfiguration("content");
+  it("keeps published program v1 unchanged and requires v3 for published product capabilities",()=>{
+    const original=defaultBusinessConfiguration(),growth=contentConfiguration();
     expect(compilePublishedComposition(original,[]).program.version).toBe("1");
-    expect(compilePublishedComposition(growth,[]).capabilities.map(c=>c.id)).toEqual(["growth.context_read","growth.draft_prepare"]);
-    expect(()=>compilePublishedComposition({...growth,program:{id:"tool-directed",version:"1"}},[])).toThrow();
+    expect(compilePublishedComposition(growth,[]).program.version).toBe("3");
+    expect(growth.productBindings.map(binding=>binding.definition.providerOperation)).toEqual(["workspace.read","draft.prepare"]);
+    expect(compilePublishedComposition(growth,[]).productBindings).toHaveLength(2);
+    for(const version of ["1","2"])expect(()=>compilePublishedComposition({...growth,program:{id:"tool-directed",version}},[])).toThrow();
     expect(compilePublishedComposition(original,[]).program.digest).not.toBe(compilePublishedComposition(growth,[]).program.digest);
   });
   it("cannot give standalone or read-only agents Growth mutation authority",()=>{
-    const config=growthFeatureConfiguration("content"),id=randomUUID(),authority={product:"agents" as const,organizationId:randomUUID(),resourceId:"content",callerClientId:"growth-api",principal:{kind:"human" as const,...actor}};
+    const config=contentConfiguration(),id=randomUUID(),authority={product:"agents" as const,organizationId:randomUUID(),resourceId:"content",callerClientId:"growth-api",principal:{kind:"human" as const,...actor}};
     const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:id,operations:["model.reply","product.read","product.write"],sourceRevisionIds:[],
       maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
     expect(()=>assertGrantAuthority(grant,authority,id,config)).toThrow();

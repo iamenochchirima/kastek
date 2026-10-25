@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
@@ -24,13 +25,13 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);await admin.end();}});
  async function owner(){
   const account=await store.ensureAccount({issuer:"http://localhost/artifact-sources",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});
-  const organization=await store.createOrganization(account.id,"Artifact sources");return{account,organization,scope:{accountId:account.id,organizationId:organization.id}};
+  const organization=await store.createOrganization(account.id,"Artifact sources");await connectFixtureModel(pool,account.id,organization.id);return{account,organization,scope:{accountId:account.id,organizationId:organization.id}};
  }
  async function manual(){
   const base=await owner(),configuration=defaultBusinessConfiguration();configuration.memory.enabled=true;configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.tools=["sandbox.analyze"];
   const agent=await store.createAgent({...base.scope,name:"Researcher",configuration}),version=await store.createVersion({...base.scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:base.organization.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:base.account.issuer,subject:base.account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","memory.read","memory.propose","sandbox.execute","artifact.read","artifact.write"],maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});await store.createGrant({accountId:base.account.id,grant});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","memory.read","memory.propose","sandbox.execute","artifact.read","artifact.write"],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});await store.createGrant({accountId:base.account.id,grant});
   const {task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Analyze my approved source"});
   const operationId=`analysis:${task.id}`;await beginOperation(pool,task.id,{id:operationId,kind:"resource",name:"sandbox.analyze",request:{code:"analysis"},reservedTokens:0,reservedMs:240000});
   return{...base,task,agent,operationId,memoryScope:{...base.scope,agentId:agent.id}};

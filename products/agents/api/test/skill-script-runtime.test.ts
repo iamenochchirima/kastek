@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {homedir} from "node:os";
 import {join} from "node:path";
@@ -27,6 +28,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  const script=`import os,json,socket,sys\nfrom helper import total\nfrom shared import LABEL\nassert LABEL=='reviewed'\nassert '' not in sys.path\nassert os.getuid()==65532\nassert os.getcwd()=='/input/skill'\nassert 'AGENTS_DATABASE_URL' not in os.environ\nassert not os.path.exists('/home/enock')\nassert os.environ['SKILL_DIR']=='/input/skill'\ndata=json.load(open('references/data.json'))\ntry:open('references/data.json','w');raise AssertionError('package writable')\nexcept OSError:pass\ns=socket.socket();s.settimeout(.1)\ntry:s.connect(('1.1.1.1',80));raise AssertionError('network allowed')\nexcept OSError:pass\nfinally:s.close()\nopen(os.environ['OUTPUT_DIR']+'/report.json','w').write(json.dumps({'total':total(data)}))\nprint('reviewed package complete')\n`+'# reviewed padding\n'.repeat(250);
  async function fixture(code=script,sandbox=true){
   const account=await platform.ensureAccount({issuer:"http://localhost/skill-script",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Script tests"),configuration=defaultBusinessConfiguration();
+  await connectFixtureModel(pool,account.id,org.id);configuration.model.maxOutputTokens=1024;
   const agent=await platform.createAgent({accountId:account.id,organizationId:org.id,name:"Analyst",configuration}),scope={accountId:account.id,organizationId:org.id,agentId:agent.id};
   const imported=await packages.import(scope,randomUUID(),parseSkillPackage({files:[{path:"SKILL.md",content:"---\nname: package-report\ndescription: Compute the report from packaged data.\n---\nRun scripts/report.py to compute the exact total. Do not copy its source into context."},{path:"scripts/report.py",content:code},{path:"references/data.json",content:"[20,30,10]"},{path:"scripts/helper.py",content:"def total(values):\n return sum(values)\n"},{path:"shared.py",content:"LABEL='reviewed'\n"},{path:"scripts/other.sh",content:"exit 1"}]}));
   await packages.review(scope,imported.id,imported.contentDigest);configuration.skillIds=[imported.id];if(sandbox){configuration.capabilities.sandbox={enabled:true,profileId:"python-analysis-v1"};configuration.tools=["sandbox.analyze"];}

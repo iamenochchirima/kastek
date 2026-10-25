@@ -1,3 +1,7 @@
+import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault";
+import {ModelProviderStore} from "../src/product/model-providers/store";
+import {dispatchBoundModel} from "../src/execution/models/dispatch";
+import type {ModelFetch} from "../src/infrastructure/model-network";
 import {nativeProviderConnectors} from "../src/adapters/providers/connector-registry";
 import {createServer,type ServerHttp2Session} from "node:http2";
 import {Pool} from "pg";
@@ -16,7 +20,9 @@ async function main(){
  const vault=new ConnectionVault("booking-test",JSON.parse(process.env.BOOKING_VAULT_KEYS!));
  const google=new ProviderConnectionStore(pool,vault,{definition:nativeProviderConnectors.find(item=>item.id==="google-calendar")!,oauth:createBookingOAuthFixture(),appUrl:origin,testApiBaseUrl:base});
  const bookings=new BookingService(pool,{resolveCalendar:(...args)=>google.resolveBookingCalendar(...args),ensureFresh:(...args)=>google.ensureCredentialFresh(...args),testBaseUrl:base});
- const workflow=createBusinessWorkflow(pool,{bookings,openRouterApiKey:"booking-model-fixture",fetch:(_url,request)=>fetch(model,request)});
+ const workflow=createBusinessWorkflow(pool,{bookings,modelProvider:new ModelProviderStore(pool,new ModelCredentialVault(vault)),modelRuntime:{dispatch:input=>dispatchBoundModel(input,policy=>{
+   const network=(async(url,request)=>{if(!policy.authorizeUrl(new URL(String(url))))throw Error("Fixture destination denied");await policy.beforeDispatch?.();return fetch(model,request);}) as ModelFetch;network.markProgress=()=>{};return network;
+ })}});
  const sessions=new Set<ServerHttp2Session>(),server=createServer(createEndpointHandler({services:[workflow]}));
  server.on("session",session=>{sessions.add(session);session.once("close",()=>sessions.delete(session));});
  await new Promise<void>(resolve=>server.listen(port,"0.0.0.0",resolve));process.stdout.write("BOOKING_WORKER_READY\n");

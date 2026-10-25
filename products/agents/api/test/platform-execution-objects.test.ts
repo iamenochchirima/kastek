@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
@@ -17,6 +18,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
  async function fixture(){
   const account=await platform.ensureAccount({issuer:"http://execution-objects.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await platform.createOrganization(account.id,"Object ownership"),scope={accountId:account.id,organizationId:org.id};
+  await connectFixtureModel(pool,account.id,org.id);
   const config=defaultBusinessConfiguration(),agent=await platform.createAgent({...scope,name:"Agent",configuration:config}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
   const grant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply" as const,"knowledge.read" as const],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};

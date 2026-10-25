@@ -10,14 +10,17 @@ import {transaction} from '../src/infrastructure/database';
 import {selectCapacityCandidates} from '../src/execution/scheduling/capacity-turns';
 import {claimDispatchBatch} from '../src/execution/scheduling/dispatch-claims';
 import {requestCapacity,activateCapacity,releaseCapacity,advanceCapacity,type CapacityRequest} from '../src/execution/scheduling/capacity';
+import {connectFixtureModel} from './model-fixture';
+import {dropClosedTestDatabase} from './support/database-cleanup';
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)('durable hierarchical native capacity sweeps',()=>{
  let admin:Pool,pool:Pool,store:PlatformStore,database:string;
  beforeEach(async()=>{database=`agents_capacity_progress_${randomUUID().replaceAll('-','')}`;admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href,max:8});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
- afterEach(async()=>{await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
+ afterEach(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
   const account=await store.ensureAccount({issuer:'http://localhost/capacity-progress',subject:randomUUID(),email:'fixture@example.test',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Capacity fixture');
+  await connectFixtureModel(pool,account.id,org.id);
   const config=defaultBusinessConfiguration(),agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};
   const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});

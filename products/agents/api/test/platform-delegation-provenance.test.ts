@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
@@ -25,12 +26,13 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
  async function fixture(kind:"source"|"memory",metadataOnly=false){
   const contextEvidence=metadataOnly?new EvidenceStore(pool):evidence;
   const account=await store.ensureAccount({issuer:"http://localhost:8080/realms/kasitek",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),org=await store.createOrganization(account.id,"Brief origin"),scope={accountId:account.id,organizationId:org.id};
+  await connectFixtureModel(pool,account.id,org.id);
   const source=kind==="source"?await publishFixtureSource(pool,{...scope,title:"Private guide",content:"Parent-only secret fact.",visibility:"private"},objects):undefined;
   const child=await store.createAgent({...scope,name:"Narrow specialist",configuration:defaultBusinessConfiguration()}),childVersion=await store.createVersion({...scope,agentId:child.id,expectedRevision:1});
   const configuration=defaultBusinessConfiguration();configuration.sourceRevisionIds=source?[source.id]:[];configuration.memory={enabled:kind==="memory"};configuration.tools=["agents.delegate"];configuration.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"narrow",versionId:childVersion.id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:8000,maxActiveMs:120000}]};
   const agent=await store.createAgent({...scope,name:"Parent",configuration}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","delegation.execute",...(kind==="memory"?["memory.read","memory.propose"]:[])],sourceRevisionIds:configuration.sourceRevisionIds,maxInputBytes:16384,maxOutputTokens:1024,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await store.createGrant({...scope,grant});const{task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Delegate the known fact"});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","delegation.execute",...(kind==="memory"?["memory.read","memory.propose"]:[])],sourceRevisionIds:configuration.sourceRevisionIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await store.createGrant({...scope,grant});const{task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Delegate the known fact"});
   await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[task.id]);
   const id=`context:${task.id}:0`;let ids:string[]=[],references:unknown[]=[],memoryScope:any,item:Awaited<ReturnType<MemoryStore["mutate"]>>|undefined;
   if(source){const op=`read:${task.id}`;await beginOperation(pool,task.id,{id:op,kind:"tool",name:"knowledge.search",request:{query:"secret"},reservedTokens:0,reservedMs:1000,retrySafe:true});const chunk=(await pool.query("SELECT id FROM agents_platform.source_chunks WHERE revision_id=$1",[source.id])).rows[0];const passage=await evidence.recordChunk(task.id,op,chunk.id);ids=[passage.reference.id];await finishOperation(pool,task.id,op,"completed",{},null,0);}

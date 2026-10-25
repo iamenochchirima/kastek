@@ -113,13 +113,24 @@ describe.skipIf(!parent)('Agents admin customer operations on an isolated databa
  });
  it('upgrades only a verified preceding schema and preserves existing customer state',async()=>{
   const directory=join(__dirname,'../schema'),files=(await readdir(directory)).filter(name=>/^\d+_[a-z_]+\.sql$/.test(name)).sort();
-  const previous=(await Promise.all(files.filter(name=>name!=='069_admin_customers.sql').map(name=>readFile(join(directory,name),'utf8')))).join('\n');
-  const before=(await pool.query('SELECT count(*)::text AS n FROM agents_platform.tasks')).rows[0].n;
-  await pool.query('DROP TABLE agents_platform.admin_customer_operations,agents_platform.admin_customer_nonces');
-  await pool.query('UPDATE agents_platform.schema_version SET checksum=$1',[createHash('sha256').update(previous).digest('hex')]);
-  await setupPlatformSchema(pool);await setupPlatformSchema(pool);
-  expect((await pool.query('SELECT count(*)::text AS n FROM agents_platform.tasks')).rows[0].n).toBe(before);
-  expect((await pool.query('SELECT id FROM agents_platform.admin_customer_operations')).rowCount).toBe(0);
+  const previous=(await Promise.all(files.slice(0,files.indexOf('069_admin_customers.sql')).map(name=>readFile(join(directory,name),'utf8')))).join('\n');
+  const upgradeDatabase=`agents_upgrade_${randomUUID().replaceAll('-','')}`;
+  await admin.query(`CREATE DATABASE "${upgradeDatabase}"`);
+  const url=new URL(parent!);url.pathname=`/${upgradeDatabase}`;
+  const upgradePool=new Pool({connectionString:url.href});
+  try {
+   await upgradePool.query(previous);
+   await upgradePool.query("CREATE TABLE agents_platform.schema_version(version text PRIMARY KEY,checksum text NOT NULL)");
+   await upgradePool.query("INSERT INTO agents_platform.schema_version VALUES('001_platform',$1)",[createHash('sha256').update(previous).digest('hex')]);
+   const priorStore=new PlatformStore(upgradePool);
+   const owner=await priorStore.ensureAccount({issuer:'https://upgrade.fixture.test',subject:randomUUID(),email:'upgrade@example.test',displayName:'Existing customer'});
+   const organization=await priorStore.createOrganization(owner.id,'Existing organisation');
+   await setupPlatformSchema(upgradePool);await setupPlatformSchema(upgradePool);
+   expect((await upgradePool.query('SELECT name FROM agents_platform.organizations WHERE id=$1',[organization.id])).rows[0].name).toBe('Existing organisation');
+   expect((await upgradePool.query('SELECT id FROM agents_platform.admin_customer_operations')).rowCount).toBe(0);
+  } finally {
+   await upgradePool.end();await admin.query(`DROP DATABASE "${upgradeDatabase}"`);
+  }
  });
  it('hides evaluation channel fixtures and ignores malformed execution mappings',async()=>{
   const trial=randomUUID();

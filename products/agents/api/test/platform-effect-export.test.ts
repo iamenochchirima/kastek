@@ -1,3 +1,4 @@
+import { connectFixtureModel } from "./model-fixture";
 import { randomUUID, randomBytes } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
@@ -36,6 +37,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost/export-actions", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const org = await platform.createOrganization(account.id, "Isolated reports"), scope = { accountId: account.id, organizationId: org.id };
+    await connectFixtureModel(pool, account.id, org.id);
     const connection = await connections.create(scope, { operationId: randomUUID(), name: "Reports", targetId: target.id, apiKey: key });
     const source = await publishFixtureSource(pool, { ...scope, title: "Fixture total", content: "The audited total is 42.", visibility: "private" }, artifacts.objects);
     const configuration = defaultBusinessConfiguration(); configuration.sourceRevisionIds = [source.id];
@@ -43,7 +45,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const agent = await platform.createAgent({ ...scope, name: "Reporter", configuration });
     const version = await platform.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, sourceRevisionIds: [source.id], operations: ["model.reply", "knowledge.read", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: 16384, maxOutputTokens: 1024, expiresAt: new Date(Date.now() + 60000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, sourceRevisionIds: [source.id], operations: ["model.reply", "knowledge.read", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, expiresAt: new Date(Date.now() + 60000).toISOString(), revokedAt: null });
     await platform.createGrant({ accountId: account.id, grant });
     const { task } = await platform.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "Prepare fixture report" });
     const evidence = new EvidenceStore(pool, artifacts.objects), knowledgeId = `knowledge:${task.id}:initial`;

@@ -301,7 +301,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await models.setDefault(f.scope, { connectionId: f.connection.id, modelId: "lab/new", expectedRevision: 1 });
     expect(await transaction(pool, db => models.resolveCredential(db, accepted.primary.binding, accepted.primary.consumer))).toBe("fixture-key-one");
     await expect(transaction(pool, db => resolveAcceptedModelRoutes(db, input))).rejects.toMatchObject({ code: "MODEL_UNAVAILABLE" });
-    await expect(transaction(pool, db => resolveAcceptedModelRoutes(db, { ...input, product: "growth" }))).rejects.toMatchObject({ code: "MODEL_USE_DENIED" });
+    await expect(transaction(pool, db => resolveAcceptedModelRoutes(db, { ...input, product: "growth" }))).rejects.toMatchObject({ code: "MODEL_DEFAULT_REQUIRED" });
     await models.revoke(f.scope, f.connection.id, 1);
     await expect(transaction(pool, db => models.resolveCredential(db, accepted.primary.binding, accepted.primary.consumer))).rejects.toMatchObject({ code: "MODEL_CONNECTION_CHANGED" });
   });

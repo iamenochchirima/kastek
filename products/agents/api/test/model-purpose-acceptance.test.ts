@@ -128,7 +128,8 @@ const profiles = builtinProviderRegistry.filter(profile => ["openrouter", "opena
       metadata: { reference: "Controlled protocol fixture", contextTokens: 65536, maxInputTokens: 32768, maxOutputTokens: 8192, tools: true, inputModalities: ["text"], outputModalities: ["text"] } });
     // This setup probe performs a real native tool round against the isolated HTTP fixture.
     await providers.probe(scope, connection.id, { expectedRevision: connection.revision, modelId, allowBillableRequest: true, verifyTools: true }).catch(error => { throw Error(`Setup ${profile.id}: ${error.code}`, { cause: error }); });
-    await providers.setDefault(scope, { connectionId: connection.id, modelId, expectedRevision: 0 });
+    const prior = await providers.getDefault(scope);
+    await providers.setDefault(scope, { connectionId: connection.id, modelId, expectedRevision: prior.revision });
     return { modelId, connection };
   }
   async function fixture(profile: typeof profiles[number], offering: "faq" | "customer-service") {

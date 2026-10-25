@@ -161,7 +161,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const configuration={...f.configuration,model:{...f.configuration.model,selection:{kind:"organization_default" as const}}};
     await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by,tool_bindings,effective_composition)
       VALUES($1,$2,$3,2,2,'business',$4,$5,$6,$7)`,[version,f.org,f.agent,configuration,f.operatorId,JSON.stringify(publishedToolBindings(configuration)),compilePublishedComposition(configuration,[])]);
-    await expect(f.adapter.admit(await f.assertion("default not shared",{versionId:version}),{input:"default not shared",requestKey:randomUUID()})).rejects.toMatchObject({code:"MODEL_USE_DENIED"});
+    await expect(f.adapter.admit(await f.assertion("default not shared",{versionId:version}),{input:"default not shared",requestKey:randomUUID()})).rejects.toMatchObject({code:"MODEL_DEFAULT_REQUIRED"});
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE organization_id=$1",[f.org])).rows[0].n).toBe(0);
     const task=(await f.adapter.admit(await f.assertion("explicit authorized route"),{input:"explicit authorized route",requestKey:randomUUID()})).task;
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')",[f.org,f.operatorId]);

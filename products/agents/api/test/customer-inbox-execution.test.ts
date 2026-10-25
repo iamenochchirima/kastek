@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -38,6 +39,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const account = await store.ensureAccount({ issuer: "https://channel-operator.test", subject: randomUUID(), email: "operator@channel.test", displayName: "Fixture operator" });
     const organization = await store.createOrganization(account.id, "Trusted runtime channel fixture"), scope = { accountId: account.id, organizationId: organization.id };
+    await connectFixtureModel(pool,account.id,organization.id);
     const connection = await connections.create(scope, { operationId: randomUUID(), name: "Controlled reports", targetId: target.id, apiKey: receiverKey });
     const specialist = await store.createAgent({ ...scope, name: "Specialist", configuration: defaultBusinessConfiguration() }), specialistVersion = await store.createVersion({ ...scope, agentId: specialist.id, expectedRevision: 1 });
     const configuration = defaultBusinessConfiguration(); configuration.tools = ["agents.delegate", "sandbox.analyze"];
@@ -56,7 +58,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,next_sequence) VALUES($1,$2,$3,$4,$5,$6,2)", [conversationId, scope.organizationId, deployment.id, agent.id, version.id, sessionId]);
     await pool.query("INSERT INTO agents_platform.customer_messages(id,conversation_id,sequence,author_kind,body,request_key,request_digest,ownership_generation) VALUES($1,$2,1,'visitor',$3,$4,$5,1)", [inputMessageId, conversationId, input, randomUUID(), requestDigest({ input })]);
     const binding = { customerConversationId: conversationId, ownershipGeneration: "1", inputMessageId }, authority = { product: "agents" as const, organizationId: scope.organizationId, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: 16384, maxOutputTokens: 1024, maxContextTokens: 8192, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600_000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver"], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: account.id, grant });
     const admitted = await store.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input, channelBinding: binding });
     await pool.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [inputMessageId, admitted.task.id]);
@@ -71,6 +73,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("pauses website grants and current Inbox binding while retaining staff history and stable deployment identity", async () => {
     const account=await store.ensureAccount({issuer:"https://pause.test",subject:randomUUID(),email:"owner@pause.test",displayName:"Owner"});
     const organization=await store.createOrganization(account.id,"Website pause"),scope={accountId:account.id,organizationId:organization.id};
+    await connectFixtureModel(pool,account.id,organization.id);
     const configuration=defaultBusinessConfiguration();configuration.program={id:"grounded-conversation",version:"1"};configuration.tools=[];
     const agent=await store.createAgent({...scope,name:"Website support",configuration}),version=await store.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const deployment=await store.publishWebsite({...scope,agentId:agent.id,versionId:version.id,allowedOrigins:[origin]}),sessionId=randomUUID();

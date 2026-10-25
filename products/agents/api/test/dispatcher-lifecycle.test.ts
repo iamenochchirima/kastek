@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from 'node:crypto';
 import {createServer,type Server} from 'node:http';
 import {Pool} from 'pg';
@@ -26,6 +27,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH(FORCE)`);await admin.end();}});
  async function fixture(){
   const account=await store.ensureAccount({issuer:'http://localhost/dispatcher-fixture',subject:randomUUID(),email:'operator@example.test',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Dispatcher fixture'),config=defaultBusinessConfiguration();
+  await connectFixtureModel(pool,account.id,org.id);
   const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};
   const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:['model.reply','knowledge.read'],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,expiresAt:new Date(Date.now()+120000).toISOString(),revokedAt:null});await store.createGrant({accountId:account.id,grant});

@@ -1,3 +1,4 @@
+import {connectFixtureModel} from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
 import {beforeAll,afterAll,afterEach,describe,it,expect} from "vitest";
@@ -23,6 +24,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
  });
  async function tasks(){
   const account=await store.ensureAccount({issuer:'http://localhost/test',subject:randomUUID(),email:'schedule@example.com',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Scheduler fixture');
+  await connectFixtureModel(pool,account.id,org.id);
   const config=defaultBusinessConfiguration();const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Fixture',configuration:config});
   const version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
   const authority:AdmissionAuthority={product:'agents',organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human',issuer:account.issuer,subject:account.subject}};

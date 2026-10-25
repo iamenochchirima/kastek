@@ -18,6 +18,7 @@ import { assertPublicSkillPolicy } from "../src/capabilities/skills/public-polic
 import { executeSkillTool } from "../src/capabilities/skills/runtime";
 import { skillContext } from "../src/execution/context/skills";
 import { assertCurrentAuthority,beginOperation,finishOperation,loadExecution } from "../src/execution/lifecycle/execution";
+import { connectFixtureModel } from "./model-fixture";
 import { curatedSkillPackage } from "../src/capabilities/skills/curated";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
@@ -33,6 +34,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   async function fixture() {
     const account = await platform.ensureAccount({ issuer: "http://localhost:8080/realms/skills", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const organization = await platform.createOrganization(account.id, "Package tests");
+    await connectFixtureModel(pool, account.id, organization.id);
     const agent = await platform.createAgent({ accountId: account.id, organizationId: organization.id, name: "Helper", configuration: defaultBusinessConfiguration() });
     return { accountId: account.id, organizationId: organization.id, agentId: agent.id };
   }
