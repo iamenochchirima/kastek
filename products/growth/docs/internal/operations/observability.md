@@ -201,7 +201,7 @@ by this implementation. Hosted setup, endpoint changes, and production cutover r
 until the owner records runtime evidence. Debug output proves transport only; it does not prove
 retention, search, alerts, or incident history.
 
-Use the maintained [Collector runbook](../../../../../docs/labs/otel-collector-runbook.md) and
-[Collector configuration reference](../../../../../infra/observability/otel-collector/README.md).
+Use the maintained [Collector runbook](https://github.com/Kasitek-Labs/kastek/blob/main/docs/labs/otel-collector-runbook.md) and
+[Collector configuration reference](https://github.com/Kasitek-Labs/kastek/blob/main/infra/observability/otel-collector/README.md).
 Labs Operations adds its own durable incident state and exports bounded metrics through the
 existing SDK. It does not turn the debug Collector into a production telemetry backend.

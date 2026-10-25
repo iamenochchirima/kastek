@@ -26,7 +26,7 @@ The optional service values are listed in api/.env.example. Configure the shared
 Growth's signing key and issuer, and the public keys/issuer permitted for destination actions.
 Private keys never enter browser configuration. Model credentials and permitted defaults belong
 to protected execution configuration, with explicit Growth use grants and tenant usage attribution.
-The [integration setup](../../../../agents/docs/growth-integration.md) lists both signature directions,
+The [integration setup](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/growth-integration.md) lists both signature directions,
 exact browser origins, managed-model provisioning, and tenant/model disable controls.
 
 Ordinary Growth startup and business APIs do not require Agents. An unavailable execution service
@@ -94,6 +94,6 @@ Growth records. Direct adapter tests and mocked routes do not prove that full pa
 evaluations and live provider acceptance remain owner-run. Source changes do not enable a hosted
 deployment, reset an owner database or apply the obsolete widget-table removal migration.
 
-The [shared architecture](../../../../agents/docs/architecture/agent-platform-architecture.md)
+The [shared architecture](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
 defines execution categories and authorization responsibilities. Current shared runtime support
-is recorded in its [source boundary](../../../../agents/docs/source-boundary.md).
+is recorded in its [source boundary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).

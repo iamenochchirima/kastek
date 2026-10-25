@@ -14,4 +14,4 @@ The old AgentResponse@1, installation media handlers and Growth customer-widget 
 removed. Growth's text assistant does not silently expose personal uploads or customer attachments.
 
 Standalone Agents owns its own artifact and customer-channel adapters. Current support is
-recorded in its [source boundary](../../../../agents/docs/source-boundary.md).
+recorded in its [source boundary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).

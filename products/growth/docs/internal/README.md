@@ -24,9 +24,9 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
-- [Agents technical docs](../../../../products/agents/docs/README.md)
-- [Agents target architecture](../../../../products/agents/docs/architecture/agent-platform-architecture.md)
-- [Agents implementation status](../../../../products/agents/docs/source-boundary.md)
+- [Agents technical docs](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/README.md)
+- [Agents target architecture](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
+- [Agents implementation status](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 

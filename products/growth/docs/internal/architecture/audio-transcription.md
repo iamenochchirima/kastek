@@ -12,4 +12,4 @@ ElevenLabs credentials or advertise that old audio workflow as part of Growth ag
 
 Normal human Inbox media attachments and provider downloads remain Growth-owned. Their storage
 and provider permissions do not authorize a model to read them. Standalone Agents channel media
-support is documented in its [source boundary](../../../../agents/docs/source-boundary.md).
+support is documented in its [source boundary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).

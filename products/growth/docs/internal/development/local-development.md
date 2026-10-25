@@ -38,9 +38,9 @@ pnpm --dir api build
 
 The compiler writes `api/dist`. Growth no longer carries a Rust
 Core build directory. The prior Rust source remains recoverable from Git history.
-For standalone Core setup, use [`api/.env.example`](../../../api/.env.example)
+For standalone Core setup, use [`api/.env.example`](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/api/.env.example)
 as the non-secret baseline. OIDC client values are listed separately in
-[`api/.env.identity.example`](../../../api/.env.identity.example);
+[`api/.env.identity.example`](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/api/.env.identity.example);
 the root dotenv vault remains the source for local credentials.
 
 ## Environment files
@@ -189,7 +189,7 @@ For release work, follow the internal [Feature and Platform Release Process](../
 ## Growth agent setup worker
 
 New organisations queue four managed agents and their model automatically. Configure the explicit
-model profile and independent provisioning keypair in [Growth integration](../../../../agents/docs/growth-integration.md#automatically-provision-organisation-defaults).
+model profile and independent provisioning keypair in [Growth integration](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/growth-integration.md#automatically-provision-organisation-defaults).
 When API background workers are disabled, start a dedicated API process with
 `KASITEK_PROCESS=growth-agent-setup-worker`. Run `pnpm --filter @kasitek/growth-core agents:setup status`
 to inspect setup counts, attempts, pending age and duration; use its bounded `backfill 100` command

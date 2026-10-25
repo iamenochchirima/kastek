@@ -7,8 +7,8 @@ last_reviewed: 2026-10-23
 # Customer conversation ownership
 
 Standalone Agents owns customer agent deployments and automation/human ownership in its shared
-Inbox. Its [current architecture](../../../../agents/docs/architecture/agent-platform-architecture.md)
-and [source boundary](../../../../agents/docs/source-boundary.md) describe the supported
+Inbox. Its [current architecture](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
+and [source boundary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md) describe the supported
 handoff transitions and delivery checks.
 
 Growth's human Inbox remains a Growth business function. Its provider ingress, messages,

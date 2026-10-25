@@ -22,7 +22,7 @@ Admin browser -> same-origin Next.js reporting routes -> product reporting APIs
 
 Product reads supply authoritative current state and financial facts. Registered Analytics
 projections supply event-derived trends. The two remain separately labelled and are never added
-together. The [administrative reporting reference](../../../../../docs/operations/admin-reporting.md)
+together. The [administrative reporting reference](https://github.com/Kasitek-Labs/kastek/blob/main/docs/operations/admin-reporting.md)
 defines source coverage, metric semantics, configuration, migrations, and rollback.
 
 ## Surfaces
@@ -99,7 +99,7 @@ audits admin projection queries. Browser responses never expose service credenti
 
 ## Verification
 
-The [reporting operations reference](../../../../../docs/operations/admin-reporting.md#verification)
+The [reporting operations reference](https://github.com/Kasitek-Labs/kastek/blob/main/docs/operations/admin-reporting.md#verification)
 lists repeatable checks and rollout responsibilities. The dedicated development profile connects the actual four APIs, publishers, projection worker and
 admin, with independent databases and explicit process ownership. Engineering tests exercise isolated source
 reconciliation, HTTP authority, projection replay, source outages, exact quantities, saved filters,
