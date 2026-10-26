@@ -11,7 +11,7 @@ import {searchStaffCustomerRecords,updateStaffCustomerRecord} from "./record-pro
 const operations:Record<string,string>={enquiry_read:"enquiry.read",enquiry_amend:"enquiry.amend",records_search:"records.read",records_update:"records.write"};
 async function staffScope(db:Pool|PoolClient,execution:Awaited<ReturnType<typeof loadExecution>>){
  const {task}=execution,principal=task.principal;
- if(principal.kind!=="human"||task.parent_task_id||task.channel_binding||task.evaluation_trial_id)throw new PlatformError("RECORD_SCOPE_DENIED",403,"Staff record access is unavailable");
+ if(task.product!=="agents"||principal.kind!=="human"||task.parent_task_id||task.channel_binding||task.evaluation_trial_id)throw new PlatformError("RECORD_SCOPE_DENIED",403,"Staff record access is unavailable");
  const account=(await db.query("SELECT id FROM agents_platform.accounts WHERE issuer=$1 AND subject=$2",[principal.issuer,principal.subject])).rows[0];
  if(!account)throw new PlatformError("RECORD_SCOPE_DENIED",403,"Staff record access is unavailable");
  const scope={organizationId:task.organization_id,accountId:account.id as string};await requireActionMember(db,scope);return scope;
