@@ -12,6 +12,7 @@ import { AgentDirectory, AgentWelcome } from "@/platform/agent-directory";
 import { TasksPage } from "@/platform/tasks";
 import { SettingsPage } from "@/platform/settings";
 import { ConnectionsPage } from "@/platform/connections";
+import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
 
 function NotFound() {
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
     ] },
     { path: "tasks", Component: TasksPage },
     { path: "inbox", Component: InboxPage },
+    { path: "customers", Component: CustomersPage },
     { path: "settings", Component: SettingsPage },
     { path: "knowledge", Component: KnowledgePage },
     { path: "connections", Component: ConnectionsPage },

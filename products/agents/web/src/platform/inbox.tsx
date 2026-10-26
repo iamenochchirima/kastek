@@ -1,3 +1,4 @@
+import {useSearchParams} from "react-router-dom";
 import {ConversationEnquiries} from "./enquiry-confirmations";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -28,12 +29,15 @@ export function HistoryNavigation({ timeline, earlier, latest, onEarlier, onLate
 export function InboxPage() {
   const { organizationId, session } = useWorkspace(), base = `${organizationPath(organizationId)}/inbox`;
   const [items, setItems] = useState<InboxConversation[] | null>(null), [cursor, setCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState(""), [timeline, setTimeline] = useState<CustomerTimeline | null>(null), [members, setMembers] = useState<{ id: string; displayName: string }[]>([]);
+  const [searchParams] = useSearchParams();
+  const requestedConversation = searchParams.get("conversation");
+  const [selected, setSelected] = useState(searchParams.get("conversation") ?? ""), [timeline, setTimeline] = useState<CustomerTimeline | null>(null), [members, setMembers] = useState<{ id: string; displayName: string }[]>([]);
   const [connectionId,setConnectionId]=useState(""),[connections,setConnections]=useState<{id:string;name:string;kind:string}[]>([]);
   const [channel, setChannel] = useState(""), [state, setState] = useState(""), [agentId, setAgentId] = useState(""), [assigned, setAssigned] = useState(""), [assignee, setAssignee] = useState("");
   const [error, setError] = useState(""), [busy, setBusy] = useState(false), [body, setBody] = useState("");
   const [pending, setPending] = useState<Command | null>(null);
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([]), [agentCursor, setAgentCursor] = useState<string | null>(null);
+  useEffect(() => { if (requestedConversation) setSelected(requestedConversation); }, [requestedConversation]);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const [before, setBefore] = useState<string | null>(null), pageRef = useRef(before), historyRequest = useRef(0);
   pageRef.current = before;
