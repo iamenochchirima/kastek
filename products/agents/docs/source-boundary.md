@@ -10,17 +10,58 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
-The optional server-side Firecrawl v2 adapter supports scrape, crawl start/status and cancellation.
-`AGENTS_FIRECRAWL_URL` selects a local service or Cloud; `AGENTS_FIRECRAWL_API_KEY` supplies
-server-side authorization when required. Requests have bounded time and response size, reject
-redirects from the provider API and do not retry ambiguous submissions. Provider-supplied pagination
-links are returned as metadata and never followed with credentials. The operator smoke command
-exercises the same adapter. The private local stack is documented in `infra/firecrawl/README.md`.
-This is not yet connected to knowledge import admission or the creation wizard. Current exact-URL
-imports retain their existing egress and ingestion behavior. Before exposing crawl admission,
-validate crawler-wide egress for redirects, DNS changes and browser subresources; initial target
-validation alone does not enforce those boundaries. No cloud deployment or AI extraction is enabled.
+Agent creation now uses one customer-service offering and a guided, responsive flow. It collects
+business name/website/description; question-answering, support, booking and enquiry responsibilities;
+conditional knowledge; intended customer channels; agent language/tone/handoff preferences; and
+relevant appointment or enquiry-field settings. The final review saves configuration and opens chat.
+Knowledge appears for question-answering or support responsibilities. The owner may skip knowledge
+or connections and finish setup. External channels and calendars remain unconnected until separately
+authorized. Booking preferences do not create a booking policy or grant provider operations.
+Native CRM record persistence and Growth linkage are separate from collecting setup preferences.
 
+Schema075 stores a validated structured setup object on the agent. Creation and configuration saves
+accept it, derive grounded instructions, and preserve separately authorized knowledge/tool bindings.
+New creation exposes only Customer service; question answering, booking and intake are purposes.
+Setup edits use the normal draft revision and background snapshot path. For a code rollback, retain the additive
+074/075 schema files and setup checksum registrations; disable crawl admission by removing its
+provider URL. Do not drop setup or crawl data as part of a UI rollback. The website crawl API rejects
+internal product agents and customer setups without knowledge responsibilities, matching the UI.
+
+
+Website knowledge import is available as an optional step after agent creation and under
+Configure → General → Import website. Owners can enter a bare domain, follow crawl progress,
+select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
+The next review shows the normalized candidate. **Approve and use** approves the revision and
+attaches it through the normal revision-checked agent configuration API. Public website replies
+require the explicit visibility checkbox; imports otherwise stay private. Closing or reloading
+retains the draft and server-side crawl history. Skipping website import leaves the agent usable.
+
+The server-side Firecrawl v2 adapter supports local or Cloud origins through
+`AGENTS_FIRECRAWL_URL` and a private `AGENTS_FIRECRAWL_API_KEY`. Schema074 stores organization,
+agent and initiating account scope, provider origin/job identity, selected-page import identity,
+leases and bounded progress. Routes are owner-only under
+`/api/organizations/:organizationId/agents/:agentId/website-crawls`: POST starts a crawl, GET lists
+or inspects it, POST `/:crawlId/cancel` stops it and POST `/:crawlId/import` submits selected pages.
+The API dispatcher polls durable jobs. A lost start acknowledgement is recorded as uncertain
+rather than submitting another external job. Read-only status failures have bounded retries.
+Cancellation and revoked authority fence late results. Switching provider origins fails pending
+jobs explicitly rather than sending their IDs to another provider; drain jobs before switching.
+
+Crawls default to 20 pages at discovery depth 2, with two active crawls per organization and a
+20-minute deadline. The current review contract accepts at most 100 pages/depth 10 and 10 MiB
+of extracted Markdown; selected combined content must fit the existing 1 MiB text-source budget.
+These are local product limits, not Firecrawl subscription credits. Pagination/oversized results
+fail explicitly rather than silently approving a partial crawl. Sources retain page URLs in
+Markdown. Candidate parsing, chunking, embedding, approval, visibility and agent configuration
+continue through the existing knowledge system. A Firecrawl response is never approved knowledge.
+
+Root URLs are public HTTPS with DNS/private-address checks. Results remain on the same hostname.
+The pinned local Firecrawl fetch dispatcher blocks private socket destinations and private literal
+redirects; its browser checks subrequests with local access disabled. No proxy is configured.
+These upstream application checks are not a claim of network-level isolation for every future
+engine/provider. Keep Firecrawl itself private and recheck egress protections before hosted rollout.
+No authenticated crawling, AI extraction or external provider fallback is enabled. The local stack
+and operator verification command are documented in `infra/firecrawl/README.md`.
 
 The website widget restores Growth's original dark header, avatar, message bubbles, round launcher,
 pill composer and expand/collapse controls while using current Agents sessions, canonical Inbox

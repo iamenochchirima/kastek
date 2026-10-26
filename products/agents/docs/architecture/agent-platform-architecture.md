@@ -15,7 +15,7 @@ current implementation; it does not constrain the target design.
 | --- | --- | --- |
 | Growth | Users initialize and use content, campaign, and guidance features inside Growth. | Growth membership, resource permissions, commercial entitlement, and business rules. |
 | Agencies | Users initialize and use agency agent features inside Agencies. | Agencies membership, client and workspace boundaries, entitlement, and business rules. |
-| Standalone Agents | Businesses configure customer-service, FAQ, booking, and intake agents, connect customer channels, and manage conversations in a shared inbox. | Agents-product membership, resources, entitlement, and publication rules. |
+| Standalone Agents | Businesses configure customer-service agents with question answering, support, booking and intake capabilities, connect customer channels, and manage conversations in a shared inbox. | Agents-product membership, resources, entitlement, and publication rules. |
 | Shared execution service | Backends submit authorized work and retrieve progress, results, and reviews. | Authenticated caller plus a validated, bounded execution grant. |
 
 A Growth or Agencies customer does not need an Agents-product account, membership, subscription,
@@ -31,8 +31,13 @@ and must report its unavailability in their own interface.
 
 ## Standalone Agents product
 
-The Agents client offers mostly plug-and-play customer-facing agents. Its catalogue covers
-customer service, FAQs, bookings, and intake. Research, campaign, content, and agency operations
+The Agents client creates customer-service agents through guided setup. Answering questions,
+handling support, booking appointments and collecting enquiries are selectable responsibilities
+of the same agent, not separate creation types. The wizard collects business details, relevant
+knowledge, intended channels, operating preferences and human handoff instructions. Steps depend
+on the selected responsibilities. Setup metadata and grounded instructions are saved together;
+selecting an action or channel does not grant tools, authorize a service or create a connection.
+Research, campaign, content, and agency operations
 belong in Growth or Agencies. Shared runtime support for those capabilities does not add those
 offerings to the Agents client. A standalone personal-assistant offering is outside this agreed
 client scope. The two technical execution categories remain platform contracts.
@@ -772,8 +777,12 @@ organization lock. A cancelled or withdrawn import cannot seal a late result. Re
 private, content-addressed object keys; chunk offsets count UTF-16 text units and bind a text hash.
 The authenticated Knowledge API admits uploads and exact public HTTPS URLs. AgentsKnowledgeImportV1
 runs acquisition, isolated parsing, token-aware chunking, local embedding and atomic index publication.
-Text, Markdown, static HTML and text PDFs are supported. OCR, encrypted PDFs, DOCX, archives,
-authenticated crawling and script-rendered pages are unavailable. Import readiness, owner approval
+Text, Markdown, static HTML and text PDFs are supported. Website crawl admission now wraps the
+configured Firecrawl v2 provider, including its JavaScript-rendered pages, in durable owner-scoped
+jobs. Reviewed page selections enter the same private Markdown ingestion pipeline. Crawl transport
+and source approval remain separate; neither provider completion nor page selection authorizes
+public replies. Schema074 records provider identity, leases, cancellation and import receipts.
+OCR, encrypted PDFs, DOCX, archives and authenticated crawling remain unavailable. Import readiness, owner approval
 and AgentVersion publication are separate actions.
 
 The pinned document runtime uses rootless gVisor with no network, one CPU, 512 MiB of memory,

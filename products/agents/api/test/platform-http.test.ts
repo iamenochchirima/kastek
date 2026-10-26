@@ -75,6 +75,23 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request("/api/session", {cookie})).body.organizations).toEqual(first.body.organizations);
   });
 
+  it("creates one customer-service offering and saves guided preferences through the HTTP contract", async () => {
+    const f=await actor(),base=`/api/organizations/${f.org}`;
+    const catalogue=await request(`${base}/offerings`,{cookie:f.cookie});
+    expect(catalogue.body.offerings.map((item:{id:string})=>item.id)).toEqual(["customer-service"]);
+    const setup={business:{name:"Studio",website:"",description:"Customer support"},responsibilities:["bookings","enquiries"],channels:["website","whatsapp"],booking:{durationMinutes:30,notes:"Weekdays"},intake:{fields:["name","email"]},behaviour:{agentName:"Studio assistant",language:"English",tone:"friendly",handoffInstructions:"Ask our team"}};
+    const created=await request(`${base}/agents`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{name:"Studio assistant",offering:"customer-service",setup}});
+    expect(created.status).toBe(201);expect(created.body.agent.setup).toEqual(setup);
+    expect(created.body.agent.draft.instructions).toContain("Never claim availability");
+    const preferences={...setup,behaviour:{...setup.behaviour,language:"Zulu",tone:"professional"}};
+    const saved=await request(`${base}/agents/${created.body.agent.id}/configuration`,{method:"POST",cookie:f.cookie,origin:browserOrigin,payload:{name:"Studio assistant",configuration:created.body.agent.draft,expectedRevision:created.body.agent.draftRevision,setup:preferences,confirmImpact:true}});
+    expect(saved.status).toBe(200);expect(saved.body.agent.setup).toEqual(preferences);
+    expect(saved.body.agent.draft.instructions).toContain('"Zulu"');
+    expect(saved.body.agent.draft.tools).toEqual(created.body.agent.draft.tools);
+    const loaded=await request(`${base}/agents/${created.body.agent.id}`,{cookie:f.cookie});
+    expect(loaded.body.agent.setup).toEqual(preferences);
+  });
+
   it("stores bare website domains as deduplicated HTTPS origins", async () => {
     const f = await readyAgent();
     const result = await request(`${f.base}/agents/${f.agent.id}/deployments`, {method: "POST", cookie: f.cookie, origin: browserOrigin,

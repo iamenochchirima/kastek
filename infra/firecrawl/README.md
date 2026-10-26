@@ -84,10 +84,10 @@ untrusted direct access disabled. Do not claim DNS-rebinding/redirect protection
 for every scraping engine without verifying the deployed artifacts and adding
 network enforcement as needed.
 
-This change installs the crawler service and a configurable backend adapter.
-It does not restore the old creation wizard or make a new public crawl endpoint.
-The existing exact-URL knowledge importer remains its own admission flow;
-website crawl review and approval must use the current Agents knowledge boundary.
+The Agents API exposes owner-authenticated crawl admission and review through agent creation
+and Configure → General → Import website. Firecrawl itself remains loopback-only. Selected pages
+enter the current private knowledge candidate pipeline; owner approval, public visibility and
+agent attachment remain explicit. The separate exact-URL knowledge import flow is unchanged.
 Cloud and local job IDs/results remain on their originating instance; switching
 the configured endpoint affects new jobs, not queued work on another backend.
 

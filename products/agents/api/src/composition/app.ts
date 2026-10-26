@@ -35,6 +35,10 @@ import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { pageQuery, cursorKeysFromEnvironment } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
+import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
+import { registerWebsiteCrawlRoutes } from "../product/agents/website-crawl-routes";
+import { loadFirecrawlConfig } from "../adapters/providers/firecrawl/client";
+import { customerSetupSchema } from "../product/offerings/customer-setup";
 import { registerMemoryRoutes } from "../product/agents/memory-routes";
 import { registerSkillPackageRoutes } from "../product/agents/skill-package-routes";
 import { SkillPackageStore } from "../product/agents/skill-package-store";
@@ -363,9 +367,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
-    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.enum(["faq","customer-service","booking"]).default("faq") }).parse(request.body);
-    if(input.offering==="booking")throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
-    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering });
+    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").default("customer-service"), setup: customerSetupSchema.optional() }).parse(request.body);
+    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering, setup: input.setup });
     return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {
@@ -382,7 +385,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/agents/:agentId/configuration`, async request => {
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
-      expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional() }).parse(request.body);
+      expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional(), setup: customerSetupSchema.optional() }).parse(request.body);
     await assertBindings(input.configuration);
     const result = await store.saveConfiguration({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) });
@@ -391,6 +394,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return { agent: dto(result.agent), snapshot: dto(result.snapshot), deployments: result.deployments.map(dto) };
   });
   registerKnowledgeRoutes(app, { knowledge, runtime: documentRuntime, resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
+  const websiteCrawls = new WebsiteCrawlStore(pool, knowledge, loadFirecrawlConfig());
+  registerWebsiteCrawlRoutes(app, { crawls: websiteCrawls, runtime: documentRuntime,
+    resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }) });
+  let stopWebsiteCrawls: (() => void | Promise<void>) | undefined;
+  app.addHook("onReady", async () => {
+    if (websiteCrawls.available) stopWebsiteCrawls = startWebsiteCrawlDispatcher(websiteCrawls,
+      () => app.log.error({ event: "website_crawl_dispatch_failed", code: "WEBSITE_CRAWL_DISPATCH_FAILED" }));
+  });
+  app.addHook("onClose", async () => { await stopWebsiteCrawls?.(); });
   app.post(`${base}/agents/:agentId/versions`, async (request, reply) => {
     const input = z.strictObject({ expectedRevision: z.number().int().positive() }).parse(request.body);
     const user = await account(request), org = organizationId(request), agentId = uuid.parse(parameters(request).agentId);

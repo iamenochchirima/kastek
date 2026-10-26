@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FirecrawlClient, FirecrawlError } from "../src/adapters/providers/firecrawl/client";
@@ -32,6 +33,14 @@ describe("website crawl URL admission",()=>{
   const org=await platform.createOrganization(account.id,"Crawl"),scope={accountId:account.id,organizationId:org.id};
   const agent=await platform.createConfiguredAgent({...scope,name:"FAQ",offering:"faq"});return{scope,agentId:agent.agent.id};
  }
+ it("limits website knowledge to customer agents with knowledge responsibilities",async()=>{
+  const{scope}=await fixture();
+  const internal=await platform.createConfiguredAgent({...scope,name:"Internal",configuration:defaultBusinessConfiguration()});
+  await expect(store.start(scope,internal.agent.id,{operationId:randomUUID(),url:"example.com"})).rejects.toMatchObject({code:"WEBSITE_KNOWLEDGE_UNSUPPORTED"});
+  const setup={business:{name:"Bookings",website:"",description:""},responsibilities:["bookings"],channels:[],behaviour:{agentName:"Assistant",language:"English",tone:"friendly",handoffInstructions:""}};
+  const bookingAgent=await platform.createConfiguredAgent({...scope,name:"Booking requests",setup});
+  await expect(store.start(scope,bookingAgent.agent.id,{operationId:randomUUID(),url:"example.com"})).rejects.toMatchObject({code:"WEBSITE_KNOWLEDGE_UNSUPPORTED"});
+ });
  async function tick(){await pool.query("UPDATE agents_platform.website_crawls SET updated_at=now()-interval '3 seconds',lease_until=NULL WHERE state IN ('queued','scraping')");await store.tick();}
  function provider(){
   const start=vi.spyOn(FirecrawlClient.prototype,"startCrawl").mockResolvedValue({id:"provider-job"});

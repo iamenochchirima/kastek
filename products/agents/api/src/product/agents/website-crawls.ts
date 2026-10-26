@@ -35,7 +35,10 @@ export class WebsiteCrawlStore {
   get available() { return Boolean(this.client); }
   private async authorize(db: PoolClient,scope: KnowledgeScope,agentId:string) {
     z.uuid().parse(agentId); await requireKnowledgeMember(db,scope,true);
-    if (!(await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR SHARE",[scope.organizationId,agentId])).rowCount) throw unavailable();
+    const agent=(await db.query("SELECT id,offering,setup FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR SHARE",[scope.organizationId,agentId])).rows[0];
+    if(!agent)throw unavailable();
+    if(!["faq","customer-service"].includes(agent.offering) || agent.setup && !agent.setup.responsibilities.some((value:string)=>["answer-questions","customer-support"].includes(value)))
+      throw new PlatformError("WEBSITE_KNOWLEDGE_UNSUPPORTED",409,"Website knowledge is not enabled for this agent");
   }
   private async row(db: PoolClient,scope: KnowledgeScope,agentId:string,id:string,lock=false) {
     await this.authorize(db,scope,agentId); z.uuid().parse(id);

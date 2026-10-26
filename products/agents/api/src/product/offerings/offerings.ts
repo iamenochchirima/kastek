@@ -1,9 +1,7 @@
 import { defaultBusinessConfiguration, type AgentConfiguration } from "../../contracts/contracts";
 
 export const customerOfferings = Object.freeze([
-  { id: "faq", name: "FAQ", available: true },
   { id: "customer-service", name: "Customer service", available: true },
-  { id: "booking", name: "Booking", available: false, unavailableCode: "BOOKING_PROVIDER_UNAVAILABLE" },
 ] as const);
 
 export function customerConfiguration(offering: "faq" | "customer-service" = "faq"): AgentConfiguration {

@@ -563,7 +563,15 @@ job identifiers and stored results belong to the original instance. The transpor
 10 MiB of JSON per response, matching the existing raw-source byte budget. Crawl page count and
 depth are explicit caller options, not subscription limits imposed by this adapter.
 
-This installs the provider transport and local service. It does not replace the current exact-URL
-importer or expose a browser-facing crawl API. Multi-page source admission, page review,
-refresh and creation-wizard integration remain unimplemented. A crawl response is not approved
-knowledge. The existing import, approval and publication boundaries remain in effect.
+Agent creation now uses guided customer-service setup: business, responsibilities, conditional
+knowledge, channels, operating preferences and review/test. Website import appears when answering
+questions or handling support is selected. Existing eligible agents expose the same import flow
+under Configure → General → Import website. Enter a domain, wait for the crawl, select pages and
+review their content, then import the selection. The existing isolated document pipeline prepares
+a private candidate. Review it and choose **Approve and use** to attach it to the agent. Enable
+**Allow use in public website replies** when the source may be used by website visitors.
+
+Closing the dialog retains the draft and crawl. Reopen Import website to resume. Crawl progress
+and cancellation survive API restarts. Uncertain external submissions fail explicitly; they are
+not automatically repeated. The existing exact-URL importer remains separately available.
+Automatic scheduled refresh is not implemented.
