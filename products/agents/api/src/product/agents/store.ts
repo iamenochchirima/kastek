@@ -20,6 +20,7 @@ export class PlatformStore {
   ensureAccount=(...args:Parameters<IdentityStore["ensureAccount"]>)=>this.identityStore.ensureAccount(...args);
   createOrganization=(...args:Parameters<IdentityStore["createOrganization"]>)=>this.identityStore.createOrganization(...args);
   listOrganizations=(...args:Parameters<IdentityStore["listOrganizations"]>)=>this.identityStore.listOrganizations(...args);
+  ensureInitialWorkspace=(...args:Parameters<IdentityStore["ensureInitialWorkspace"]>)=>this.identityStore.ensureInitialWorkspace(...args);
   createSession=(...args:Parameters<IdentityStore["createSession"]>)=>this.identityStore.createSession(...args);
   getSession=(...args:Parameters<IdentityStore["getSession"]>)=>this.identityStore.getSession(...args);
   revokeSession=(...args:Parameters<IdentityStore["revokeSession"]>)=>this.identityStore.revokeSession(...args);

@@ -64,6 +64,17 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     await connectFixtureModel(pool, account.id, organization.body.organization.id);
     return { account, cookie, org: organization.body.organization.id as string };
   }
+  it("opens an existing first-login session with one automatic workspace across reloads", async () => {
+    const user = await store.ensureAccount({ issuer: "http://localhost:8080/realms/kasitek", subject: randomUUID(), email: "first@example.test", displayName: "First owner" });
+    const session = await store.createSession({ accountId: user.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 60000) });
+    const cookie = `agents_session=${session.token}`;
+    const first = await request("/api/session", {cookie});
+    expect(first.status).toBe(200);
+    expect(first.body.organizations).toHaveLength(1);
+    expect(first.body.organizations[0]).toMatchObject({name: "My workspace", role: "owner"});
+    expect((await request("/api/session", {cookie})).body.organizations).toEqual(first.body.organizations);
+  });
+
   async function readyAgent(visibility: "public" | "private" = "public") {
     const user = await actor(), base = `/api/organizations/${user.org}`;
     const create = await request(`${base}/agents`, { method: "POST", cookie: user.cookie, origin: browserOrigin, payload: { name: "Opening hours" } });

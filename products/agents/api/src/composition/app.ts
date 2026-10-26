@@ -334,6 +334,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get("/api/session", async (request) => {
     const user = await account(request);
+    await store.ensureInitialWorkspace(user.id);
     return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations: await store.listOrganizations(user.id) };
   });
   app.post("/api/organizations", async (request, reply) => {

@@ -10,6 +10,10 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
+Standalone session bootstrap creates **My workspace** and its owner membership for an account
+with no membership history. Concurrent requests reuse that workspace. Existing or revoked
+memberships are not replaced. Additional workspaces remain an explicit Settings action.
+
 Model-provider contracts and a reviewed JSON registry now exist under `api/src/contracts/`
 and `api/src/adapters/models/`. Registry records cover twelve providers. OpenRouter, OpenAI,
 Anthropic, and Google have installed fixture-tested adapters. Eight profiles remain `planned`.

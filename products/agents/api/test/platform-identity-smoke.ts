@@ -302,15 +302,12 @@ async function run() {
     const signupCookie = await cookieValue(signupContext);
     check(await sessionStatus(signupCookie) === 200, "Verified registration did not create a product session");
     const freshSession = await signupPage.evaluate(async () => (await fetch("/api/session")).json());
-    check(freshSession.organizations.length === 0 && freshSession.account.email === signupEmail, "New account inherited a workspace or wrong identity");
-    stage = "first workspace through application controls";
-    await signupPage.getByRole("button", { name: "Create workspace", exact: true }).click();
-    await signupPage.getByRole("textbox", { name: "Workspace name", exact: true }).fill("Signup acceptance");
-    await signupPage.getByRole("dialog").getByRole("button", { name: "Create workspace", exact: true }).click();
+    check(freshSession.organizations.length === 1 && freshSession.account.email === signupEmail, "New account did not receive exactly one initial workspace");
+    stage = "automatic first workspace entry";
     await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).waitFor({ state: "visible" });
-    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "Signup acceptance", "First workspace UI did not select the created workspace");
+    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "My workspace", "Initial workspace was not selected automatically");
     const createdSession = await signupPage.evaluate(async () => (await fetch("/api/session")).json());
-    check(createdSession.organizations.length === 1 && createdSession.organizations[0].name === "Signup acceptance", "First workspace UI did not persist the expected membership");
+    check(createdSession.organizations.length === 1 && createdSession.organizations[0].id === freshSession.organizations[0].id, "Session reload duplicated the initial workspace");
     for (const width of [1440, 768, 390]) {
       await signupPage.setViewportSize({ width, height: 1000 });
       check(await signupPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Signup workspace overflow at ${width}px`);
@@ -336,9 +333,9 @@ async function run() {
     await Promise.all([signupPage.waitForURL(`${applicationOrigin}${returnDestination}`), signupPage.locator("#kc-login").click()]);
     check(await sessionStatus(await cookieValue(signupContext)) === 200, "Registered account return login failed");
     await signupPage.getByRole("heading", { name: "Settings", exact: true }).waitFor({ state: "visible" });
-    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "Signup acceptance", "Return login lost the existing workspace");
+    check(await signupPage.getByRole("combobox", { name: "Workspace", exact: true }).locator("option:checked").textContent() === "My workspace", "Return login lost the existing workspace");
     await signupPage.screenshot({ path: join(evidenceDirectory, "return-login-settings.png"), fullPage: true });
-    await writeFile(join(evidenceDirectory, "identity-ui-proof.json"), JSON.stringify({ status: "passed", realLanding: true, actualSignupControls: true, providerRegistration: true, localEmailVerification: true, actualWorkspaceDialog: true, actualSignOut: true, guardedSettingsReturn: true, workspaceRetained: true, widths: [1440, 768, 390], modelCalls: 0 }, null, 2), { mode: 0o600 });
+    await writeFile(join(evidenceDirectory, "identity-ui-proof.json"), JSON.stringify({ status: "passed", realLanding: true, actualSignupControls: true, providerRegistration: true, localEmailVerification: true, automaticInitialWorkspace: true, actualSignOut: true, guardedSettingsReturn: true, workspaceRetained: true, widths: [1440, 768, 390], modelCalls: 0 }, null, 2), { mode: 0o600 });
     await signupContext.close();
     console.log(JSON.stringify({ provider: keycloakImage, checks: { browserAuthorizationCodePkce: true, realLandingSignupWorkspaceControls: true, applicationGuardReturnLogin: true, freshSignup: true, localVerificationEmail: true, firstWorkspaceAfterSignup: true, safeReturnDestination: true, registeredReturnLogin: true, stateRejection: true,
       serviceClientCredentialsAudienceAndRole: true, noRealmManagementAuthority: true, nonceRejection: true, pkceVerifierRejection: true, opaqueSession: true, organizationCreation: true, localLogout: true,

@@ -51,6 +51,16 @@ export class IdentityStore extends AuthorityStore {
     return (await this.pool.query<Organization>(`SELECT o.id,o.name,m.role FROM agents_platform.organizations o
       JOIN agents_platform.memberships m ON m.organization_id=o.id WHERE m.account_id=$1 AND m.revoked_at IS NULL ORDER BY o.created_at,o.id`, [accountId])).rows;
   }
+  async ensureInitialWorkspace(accountId: string): Promise<void> {
+    await this.transaction(async db => {
+      if (!(await db.query("SELECT id FROM agents_platform.accounts WHERE id=$1 FOR UPDATE", [accountId])).rowCount) denied();
+      // Historical membership prevents provisioning from bypassing revoked access.
+      if ((await db.query("SELECT 1 FROM agents_platform.memberships WHERE account_id=$1 LIMIT 1", [accountId])).rowCount) return;
+      const organizationId = randomUUID();
+      await db.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2)", [organizationId, "My workspace"]);
+      await db.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')", [organizationId, accountId]);
+    });
+  }
   async createSession(input: { accountId: string; providerSessionId: string; expiresAt: Date }): Promise<{ token: string; expiresAt: Date }> {
     const expiresAt = new Date(Math.min(input.expiresAt.getTime(), Date.now() + 30 * 86_400_000));
     if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) throw new PlatformError("SESSION_EXPIRED", 401, "Fresh authentication required");

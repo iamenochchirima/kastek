@@ -45,6 +45,23 @@ suite("fresh platform PostgreSQL store", () => {
       request: { authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "When are you open?" } };
   }
 
+  it("provisions one initial workspace under concurrent requests without replacing existing or revoked memberships", async () => {
+    const user = await store.ensureAccount({ issuer: "http://workspace.test", subject: randomUUID(), email: "new@example.test", displayName: "New owner" });
+    await Promise.all(Array.from({length: 6}, () => store.ensureInitialWorkspace(user.id)));
+    const organizations = await store.listOrganizations(user.id);
+    expect(organizations).toHaveLength(1);
+    expect(organizations[0]).toMatchObject({name: "My workspace", role: "owner"});
+    await store.ensureInitialWorkspace(user.id);
+    expect(await store.listOrganizations(user.id)).toEqual(organizations);
+    await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE account_id=$1", [user.id]);
+    await store.ensureInitialWorkspace(user.id);
+    expect(await store.listOrganizations(user.id)).toEqual([]);
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships WHERE account_id=$1", [user.id])).rows[0].n).toBe(1);
+    const existing = await fixture();
+    await store.ensureInitialWorkspace(existing.account.id);
+    expect(await store.listOrganizations(existing.account.id)).toEqual([existing.org]);
+  });
+
   it("uses issuer and subject identity, and opaque revocable sessions with idle expiry", async () => {
     const first = await fixture(); const second = await fixture();
     expect(first.account.id).not.toBe(second.account.id);

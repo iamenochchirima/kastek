@@ -35,7 +35,12 @@ API generates an independent signing key at startup; a restart invalidates only
 the desired return destination, which then falls back to `/app`.
 
 The API owns opaque product sessions, token hashes, expiry, revocation, and Agents
-organization membership. Shared login does not grant workspace access. Product
+organization membership. On the first authenticated `/api/session` request, an account with no
+workspace membership history receives **My workspace** with an owner membership. Account-row
+locking prevents duplicate workspaces across concurrent requests. Existing memberships are
+preserved, and revoked memberships do not trigger automatic replacement or restoration.
+Additional workspaces remain an explicit action in Settings or the workspace selector.
+Shared login does not grant access to other users' workspaces. Product
 sessions have seven-day inactivity and thirty-day absolute limits. Backchannel
 logout verifies provider notifications and deduplicates their IDs.
 
