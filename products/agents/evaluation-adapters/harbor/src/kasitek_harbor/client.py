@@ -13,6 +13,7 @@ import httpx
 from .config import PreparedScope
 from .native import ExecutionExport
 from .enquiries import validate_enquiries
+from .records import validate_record, validate_record_command
 from .persistence import persist
 
 TERMINAL_STATES = frozenset(
@@ -292,6 +293,84 @@ class PlatformClient:
         if len(rows) > limit:
             raise ValueError("Native enquiry response exceeded the requested page")
         return rows
+
+    async def customer_records(self, *, limit=30, cursor=None):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Expected a bounded record page")
+        if cursor is not None and (not isinstance(cursor, str) or len(cursor) > 2048):
+            raise ValueError("Unexpected record cursor")
+        params = {"agentId": str(self.scope.agent_id), "limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        result = await self.request("GET", f"{self.organization_path}/customer-records/enquiries", params=params)
+        rows = result.get("enquiries") if isinstance(result, dict) else None
+        if not isinstance(rows, list) or len(rows) > limit:
+            raise ValueError("Missing bounded customer records")
+        for row in rows:
+            validate_record(row, agent_id=self.scope.agent_id)
+        next_cursor = result.get("nextCursor")
+        if next_cursor is not None and (not isinstance(next_cursor, str) or len(next_cursor) > 2048):
+            raise ValueError("Unexpected next record cursor")
+        return result
+
+    async def customer_record(self, record_id, *, allow_manual=False):
+        UUID(record_id)
+        result = await self.request("GET", f"{self.organization_path}/customer-records/enquiries/{record_id}")
+        return validate_record(result.get("enquiry"), record_id=record_id, agent_id=None if allow_manual else self.scope.agent_id)
+
+    async def customer_record_activity(self, record_id, *, cursor=None, limit=30, allow_manual=False):
+        await self.customer_record(record_id, allow_manual=allow_manual)
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Expected a bounded activity page")
+        if cursor is not None and (not isinstance(cursor, str) or len(cursor) > 2048):
+            raise ValueError("Unexpected activity cursor")
+        params = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        result = await self.request("GET", f"{self.organization_path}/customer-records/enquiries/{record_id}/activity", params=params)
+        rows = result.get("activity") if isinstance(result, dict) else None
+        if not isinstance(rows, list) or len(rows) > limit:
+            raise ValueError("Missing bounded record activity")
+        for row in rows:
+            UUID(row["id"])
+            if row.get("actorAccountId") is not None:
+                UUID(row["actorAccountId"])
+            if not isinstance(row.get("kind"), str) or len(row["kind"]) > 80:
+                raise ValueError("Unexpected record activity")
+            if row.get("body") is not None and (not isinstance(row["body"], str) or len(row["body"]) > 4000):
+                raise ValueError("Unexpected private activity body")
+        next_cursor = result.get("nextCursor")
+        if next_cursor is not None and (not isinstance(next_cursor, str) or len(next_cursor) > 2048):
+            raise ValueError("Unexpected next activity cursor")
+        return result
+
+    async def customer_contact_for_record(self, record_id, *, allow_manual=False):
+        row = await self.customer_record(record_id, allow_manual=allow_manual)
+        contact_id = row.get("contactId")
+        if contact_id is None:
+            return None
+        result = await self.request("GET", f"{self.organization_path}/customer-records/contacts/{contact_id}")
+        contact = result.get("contact") if isinstance(result, dict) else None
+        if not isinstance(contact, dict) or contact.get("id") != contact_id:
+            raise ValueError("Linked contact identity changed")
+        for key, bound in (("name", 200), ("email", 320), ("phone", 80)):
+            if contact.get(key) is not None and (not isinstance(contact[key], str) or len(contact[key]) > bound):
+                raise ValueError("Unexpected linked contact details")
+        # Do not return other contacts or unrelated enquiries from the contact response.
+        return contact
+
+    async def customer_record_command(self, record_id, command, *, allow_manual=False):
+        # The caller supplies the exact native record, revision and explicit command.
+        await self.customer_record(record_id, allow_manual=allow_manual)
+        body = validate_record_command(command)
+        for attempt in range(2):
+            try:
+                result = await self.request("POST", f"{self.organization_path}/customer-records/enquiries/{record_id}/commands", body)
+                return validate_record(result.get("enquiry"), record_id=record_id, agent_id=None if allow_manual else self.scope.agent_id)
+            except httpx.TransportError:
+                if attempt:
+                    raise
+        raise AssertionError("Unreachable retry state")
 
     async def setup_readiness(self) -> dict:
         result = await self.request(

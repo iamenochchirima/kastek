@@ -447,3 +447,32 @@ new runtime, grant bypass, analytics event or production rollout. Existing bound
 HTTP failures remain the diagnostic signal. Rollback removes these helper methods
 and the manifest without changing native data or existing suites. Focused mocked-HTTP
 unit checks and Python compilation establish adapter contracts, not agent outcomes.
+
+### Native customer records and follow-up
+
+`PlatformClient.customer_records` reads bounded agent-filtered pages.
+`customer_record` verifies record/agent identity, and `customer_record_command` submits only an
+explicit caller-supplied command ID, expected revision and action. A transport retry preserves
+that command exactly. `customer_record_activity` reads a bounded activity page after checking
+the record scope; `customer_contact_for_record` reads only its linked contact and excludes unrelated
+enquiries from the contact response. Manual fixture records require the explicit `allow_manual=True` argument;
+use them only in an owner-controlled disposable organization. These staff-cookie ports never
+belong in a visitor client. Returned customer fields, notes and activity are private evidence.
+
+[`cases/native-records.json`](cases/native-records.json) defines owner checks for scoped intake,
+amendments, follow-up, identity, notes and grant revocation. It is a case catalogue, not a new
+runnable Harbor suite or evidence that an evaluation passed. An amendment retains the original
+submitted enquiry and points to it through `amendsEnquiryId`; inspect both evidence and the
+current staff record rather than treating an assistant statement as a saved result.
+
+Evaluation-trial requests and operator tests never create ordinary customer profiles. Staff
+record tools are intentionally unavailable in evaluation-trial tasks so a trial cannot browse
+ordinary workspace records. Staff model-purpose acceptance therefore needs a disposable
+organization and a normal signed-in staff task with explicit saved tools/grants. This adapter
+does not automatically create such an organization, mint authority or launch that evaluation.
+Participant trial enquiries remain scoped to the same principal/conversation/trial.
+
+Follow-up status, assignment, due dates and notes are separate from Inbox takeover, channel sends
+and booking effects. Check those outcomes independently. No Growth linkage or external CRM
+synchronization is part of these ports. Existing prepared native versions and exact decisions
+remain authoritative. Disable new tools/UI commands for rollback while retaining submitted data.

@@ -1,12 +1,64 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-23.
+Owner: Agents engineering. Last reviewed: 2026-10-27.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
 `api/schema/` into a fresh database and checks their combined digest on subsequent
 startup. Explicit setup accepts only recognized preceding digests for supported additive upgrades.
 It rejects unknown schemas and does not import Growth state.
+
+## Native customer records
+
+`/app/customers` exposes Enquiries and Contacts. Real confirmed channel submissions project
+transactionally into schema078 records. Unconfirmed/rejected submissions, private operator tests
+and evaluation trials never create ordinary contacts or follow-up records. No historical backfill
+runs. Original submitted evidence remains in the existing enquiry store and Inbox reads.
+Website contact association uses deployment/session identity; messaging uses deployment/verified
+sender identity. No email/phone matching or cross-channel merging occurs.
+
+Membership-authorized APIs are under `/api/organizations/:organizationId/customer-records`:
+
+| Route | Contract |
+| --- | --- |
+| GET `/members` | Current staff eligible for assignment. Revoked assignees remain visibly former members until reassigned. |
+| GET `/enquiries` | Search and filter by status, assignee, due date, agent, conversation or contact; signed stable cursors, limit1–100. |
+| GET `/enquiries/:id` and `/enquiries/:id/activity` | Current and original fields, permitted source/booking references and paginated internal activity. An original submitted enquiry ID resolves its projected record. |
+| POST `/enquiries` | Explicit manual staff record with `commandId` and bounded `fields`. |
+| POST `/enquiries/:id/commands` | `commandId`, `expectedRevision` and a discriminated action. Claim, assign/unassign, status/reopen, due date, note, correction and contact link/unlink. |
+| GET/POST `/contacts`; GET `/contacts/:id`; POST `/contacts/:id/commands` | Bounded search, explicit creation, linked enquiries and revision-checked correction. No merge or external synchronization. |
+
+Commands retain stable receipts, reject stale revisions and recheck current membership/assignment.
+Owners assign others and correct/link contacts. Staff claim unassigned work or update work they
+own. Closed records require explicit reopen. Follow-up states are `new`, `in_progress`,
+`waiting_on_customer` and `closed`. Due dates provide scheduled/overdue filters only. Internal
+notes and activity remain staff-only; record edits do not send messages, alter Inbox ownership or
+invoke booking effects. Source links recheck their existing destination permissions.
+
+Schema079 adds immutable amendment links and pending-amendment uniqueness. Guided enquiry
+setup enables `enquiry.submit`, `enquiry.read` and `enquiry.amend`. Customer reads and amendments
+use exact trusted conversation/principal/trial scope. An amendment retains previous evidence,
+requires exact confirmation through Chat/widget/channel review and projects onto the same real
+customer record. Tool arguments cannot set tenant or participant authority.
+
+Configure → Tools offers optional staff record search/update. Saved configuration, `records.read`
+or `records.write` grants and current signed-in membership are all required. Materialization hides
+these tools from channels, automations, subagents and evaluation trials; execution checks again.
+Search returns bounded record fields/status/revision/due date, excluding notes and contact-directory
+contents. Updates allow status, explicit reopening and due date only. Staff evaluation adapters
+must use a disposable isolated organization and normal staff tasks; ordinary trial tasks cannot
+browse native records. Owner cases are in `evaluation-adapters/harbor/cases/native-records.json`;
+no model evaluations or live-provider acceptance were run for this implementation.
+
+Explicit `setup:db` applies additive078/079 only from recognized prior digests. Restart API and
+worker together. `AgentsBusinessRunV21` retains its identity because the additional review branches
+are selected only by new optional tools absent from older immutable configurations. For rollback,
+disable the tools/routes and revert executable code while retaining additive tables, original
+receipts and schema checksum registrations. New Customers mutations emit bounded
+`customer.record.command` structured logs with kind and record ID. Existing request context and
+tool/task events carry correlation and outcome. Field values, contact details, notes and message
+bodies are excluded. No external analytics producer, Collector configuration or notification worker
+is added. Operational investigation uses record revisions/activity plus existing request/task IDs.
 
 ## Product scope and implementation gaps
 

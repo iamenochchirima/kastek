@@ -589,9 +589,30 @@ into the existing widget editor and install-code flow. Messaging authorization p
 agent and return path. The panel reports current readiness, private knowledge restrictions,
 connections needing attention and paused deployments.
 
-Local schema setup applies supported additive schemas076/077 through the existing explicit
+Local schema setup applies supported additive schemas076–079 through the existing explicit
 `pnpm --filter @kasitek/agents setup:db` command. Restart API and business worker afterwards.
 Keep the configured database/environment for each service; do not run setup against another
 product database. Revert application code or disable affected capabilities for rollback, retaining
 schema files and submitted records. Purpose-specific owner acceptance cases and native enquiry
 read/decision ports are in [the existing Harbor adapter](evaluation-adapters/harbor/README.md).
+
+## Customers and follow-up
+
+Open `/app/customers` for Enquiries and Contacts. Confirmed real website or messaging enquiries
+appear once with their submitted details, source, permitted booking links and history. Staff can
+claim or assign follow-up, set a due date, add internal notes and update status. Inbox's
+**Manage enquiry** link opens the same record. Owners can correct contact details and explicitly
+link records. Email/phone text never verifies identity or merges contacts.
+
+Enquiry setup enables native enquiry submission, own-enquiry reading and exact-confirmed
+amendment. Original submissions remain immutable. Configure → Tools separately enables staff
+record search and follow-up updates for signed-in staff with explicit grants. Customer deployments
+never receive those staff tools or internal notes. Due dates do not trigger outbound reminders.
+Private operator tests and evaluation trials do not create ordinary customer records. Staff-tool
+model acceptance uses an owner-controlled disposable organization, not access to ordinary records
+from an evaluation trial. See [owner adapter cases](evaluation-adapters/harbor/README.md).
+
+Apply explicit local schema setup and restart API/worker before testing. The
+[API and recovery reference](docs/source-boundary.md#native-customer-records) documents routes,
+command identity, revisions, schema078/079 and rollback. Growth linkage and external CRM
+synchronization are excluded.

@@ -18,6 +18,8 @@ def validate_enquiries(result, *, agent_id=None, task_id=None, submitted_only=Fa
             raise ValueError("Invalid native enquiry")
         for key in ("id", "agentId", "taskId", "conversationId"):
             UUID(row[key])
+        if row.get("amendsEnquiryId") is not None:
+            UUID(row["amendsEnquiryId"])
         if row.get("customerConversationId") is not None:
             UUID(row["customerConversationId"])
         if row["id"] in identities:

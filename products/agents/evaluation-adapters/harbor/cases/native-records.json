@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "kasitek-native-records-owner-cases.v1",
+  "execution": "owner-run; not executed by implementation",
+  "runnableHarborSuite": false,
+  "scope": "Standalone Agents native records only. No Growth or CRM synchronization.",
+  "prerequisites": [
+    "Use an owner-controlled disposable organization and controlled contact data.",
+    "Staff record tools require a non-trial signed-in staff task in that disposable organization; evaluation-trial tasks cannot browse ordinary records. Model-purpose evaluation of staff work must use that isolated organization boundary.",
+    "Prepare real saved agent/version/model/budget grants through existing adapters.",
+    "Trial submissions must never create ordinary customer contacts or records; use isolated non-trial channel fixtures for projection checks.",
+    "Decisions and record commands require explicit owner-supplied operations; no adapter auto-approval.",
+    "Keep fields, notes and native evidence private."
+  ],
+  "driverMethods": [
+    "PlatformClient.customer_records",
+    "PlatformClient.customer_record",
+    "PlatformClient.customer_record_activity",
+    "PlatformClient.customer_contact_for_record",
+    "PlatformClient.customer_record_command",
+    "PlatformClient.task_enquiries",
+    "PlatformClient.decide_enquiry",
+    "VisitorClient.enquiries",
+    "VisitorClient.decide_enquiry"
+  ],
+  "cases": [
+    {
+      "id": "channel-intake-record",
+      "check": "A confirmed real channel submission produces exactly one scoped native record/contact; retries converge."
+    },
+    {
+      "id": "participant-amendment",
+      "check": "A customer can read and exactly confirm an amendment to their own enquiry; original fields and receipts remain immutable."
+    },
+    {
+      "id": "participant-isolation",
+      "check": "Changing enquiry ID/email/phone cannot access another participant or any private staff notes."
+    },
+    {
+      "id": "staff-follow-up",
+      "check": "Explicit staff search/update tools affect only permitted native records and honor revision/assignment policy."
+    },
+    {
+      "id": "public-staff-tool-denial",
+      "check": "Customer model tool catalogue hides staff search/update, and forged direct calls are denied."
+    },
+    {
+      "id": "follow-up-not-ownership",
+      "check": "Status/assignee/due changes do not send a message, change Inbox ownership or alter a booking."
+    },
+    {
+      "id": "trial-profile-isolation",
+      "check": "Pending/rejected requests, operator tests and evaluation trials never create ordinary profiles."
+    },
+    {
+      "id": "revoked-confirmation",
+      "check": "Revocation/takeover during exact amendment review prevents effects and false success."
+    },
+    {
+      "id": "staff-conflict-retry",
+      "check": "Concurrent commands conflict visibly; exact transport retries return the same committed result without duplicate notes."
+    },
+    {
+      "id": "contact-association",
+      "check": "Matching email alone never merges contacts; explicit authorized links are auditable and do not unlock private conversations."
+    }
+  ]
+}

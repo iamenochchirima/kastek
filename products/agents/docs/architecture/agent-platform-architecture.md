@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Owner: Agents engineering. Last reviewed: 2026-10-21.
+Owner: Agents engineering. Last reviewed: 2026-10-27.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -62,10 +62,40 @@ the saved configuration to a supported channel. A named offering is available on
 adapters and business operations work. Generic runtime tools do not establish booking or channel
 support. Publication and current grants bound the agent's authority.
 
+### Native customer records and follow-up
+
+Agents owns its native contacts and enquiry follow-up records. Submitted enquiry evidence and
+exact confirmation receipts remain immutable. A separate record stores current fields, contact
+association, assigned staff, status, due date and internal notes with revision-checked commands
+and append-only activity. Editing follow-up state never sends a customer message, takes over an
+Inbox thread or changes a booking. Due dates feed an in-app queue; autonomous outreach and
+reminders are outside this implementation.
+
+A real channel submission projects one customer record transactionally. Automatic contact
+association uses the verified deployment and participant binding. Website identity includes the
+visitor session; messaging identity includes the verified sender. Matching names, email addresses
+or phone numbers never merge identities. Staff can explicitly correct and link contacts. Private
+operator tests, pending submissions and evaluation trials do not create ordinary customer profiles.
+
+Native `enquiry.read` and `enquiry.amend` tools operate within the current trusted participant,
+conversation and trial scope. Amendments require exact confirmation and preserve the original
+submission. Optional `records.search` and `records.update` tools require saved configuration,
+explicit grants and current signed-in staff membership. They are unavailable to customer channels,
+automations, subagents and evaluation-trial tasks. Staff updates are limited to status, reopening
+and due dates. Private notes and the contact directory never become customer tool context.
+Model-purpose evaluation of staff tools requires an owner-controlled disposable organization
+with normal staff tasks; trial tasks cannot browse ordinary records.
+
+Customers provides Enquiries and Contacts, with filters, assignment, due dates and history. Inbox
+links to that same editor. Current target authorization still governs every conversation and
+booking link. Follow-up assignment and Inbox ownership remain independent. Growth linkage,
+external CRM synchronization, automatic contact merging and cross-channel identity verification
+are excluded from this block.
+
 ### Workspace and agent chat
 
 The public landing leads to registration and sign-in. The target workspace includes Inbox,
-Agents, Knowledge, Connections, Tasks, Automations, and Settings. Inbox is the customer-service
+Agents, Customers, Knowledge, Connections, Tasks, Automations, and Settings. Inbox is the customer-service
 workspace. Every agent also supports direct Chat for setup, testing, and permitted interaction,
 with Activity and Configure available. Direct operator chat and task history do not replace Inbox.
 
