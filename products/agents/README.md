@@ -2,13 +2,13 @@
 
 Owner: Agents engineering. Last reviewed: 2026-10-23.
 
-The standalone product targets mostly plug-and-play customer-service, FAQ, booking, and intake
-agents for websites, WhatsApp, Facebook pages, and Instagram, with a shared staff inbox. Research
+The standalone product creates customer-service agents with configurable question answering, support,
+appointments and native enquiries for websites and messaging channels, with a shared staff inbox. Research
 and campaign experiences belong in Growth or Agencies using the shared execution backend.
 The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
 explicit return to automation. Google and Microsoft Calendar appointments use explicit organization service access, a pinned booking policy, and
-exact customer confirmation. Configured messaging adapters share the same Inbox. The separate Booking creation offering
-remains unavailable. Live Google OAuth acceptance remains pending. See the
+exact customer confirmation. Configured messaging adapters share the same Inbox. Live provider
+acceptance remains owner-run. See the
 [product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
 
 The standalone application creates customer agents with approved knowledge, simple chat, website
@@ -197,7 +197,7 @@ for policy, expiry and uncertainty behavior.
 
 ## Platform interface
 
-This section describes the current management interface. Website Inbox and guided FAQ/customer-service
+This section describes the current management interface. Shared Inbox and guided customer-service
 creation are implemented. Runtime research/report fixtures do not define the Agents
 client catalogue.
 
@@ -206,9 +206,9 @@ identity provider; registration requires email verification. A signed, transacti
 return destination preserves internal application links through login.
 
 The workspace sidebar contains Inbox, Agents, Tasks, Knowledge, Connections, Automations
-and Settings. Creation uses the server offering catalogue: FAQ or customer service; booking is
-unavailable as a separate creation choice. Customer-service agents can explicitly enable Google
-Calendar appointments when the provider is configured. Every runnable business agent opens Chat,
+and Settings. Creation exposes one customer-service offering with selectable responsibilities.
+The conditional appointment step binds an authorized Google or Microsoft calendar policy.
+Every runnable business agent opens Chat,
 with Activity and Configure tabs.
 Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
 catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
@@ -275,7 +275,6 @@ In **Connections**, choose an account and actions. Calendar connections require 
 calendar and explicit customer-service sharing before a calendar policy can be selected in
 agent settings. Choose availability only or also allow bookings. Google and Microsoft use the
 same booking workflow and exact confirmation for writes.
-The standalone Booking creation offering remains unavailable.
 
 HubSpot supports exact-email lookup for staff and confirmed contact intake. An owner must
 explicitly allow customer intake and add only the intake action to a customer-deployed agent.
@@ -575,3 +574,24 @@ Closing the dialog retains the draft and crawl. Reopen Import website to resume.
 and cancellation survive API restarts. Uncertain external submissions fail explicitly; they are
 not automatically repeated. The existing exact-URL importer remains separately available.
 Automatic scheduled refresh is not implemented.
+
+
+Guided setup saves progress after each forward step and resumes from **Continue setup** in Configure.
+Selecting enquiries exposes a native submission tool with the chosen fields. The customer confirms
+exact details before a durable record is saved. Submitted enquiries appear in Inbox conversation
+details. A CRM connection is not required; external export and Growth synchronization are deferred.
+
+The Appointments step reuses service-calendar authorization and structured booking policies.
+Selecting a policy configures actual booking tools. A responsibility checkbox alone never shares
+an account, confirms an appointment or activates a channel. After testing, the Agent setup panel
+opens each selected channel with the agent preselected. Website setup carries the business domain
+into the existing widget editor and install-code flow. Messaging authorization preserves the
+agent and return path. The panel reports current readiness, private knowledge restrictions,
+connections needing attention and paused deployments.
+
+Local schema setup applies supported additive schemas076/077 through the existing explicit
+`pnpm --filter @kasitek/agents setup:db` command. Restart API and business worker afterwards.
+Keep the configured database/environment for each service; do not run setup against another
+product database. Revert application code or disable affected capabilities for rollback, retaining
+schema files and submitted records. Purpose-specific owner acceptance cases and native enquiry
+read/decision ports are in [the existing Harbor adapter](evaluation-adapters/harbor/README.md).
