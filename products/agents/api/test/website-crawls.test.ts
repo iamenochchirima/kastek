@@ -51,6 +51,19 @@ describe("website crawl URL admission",()=>{
   expect([...objects.values()].map(value=>Buffer.from(value).toString()).join()).toContain("Source: https://example.com/services");
   expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1",[imported.job.id])).rows[0].count).toBe("1");
  });
+ it("polls an active Firecrawl cursor without following its URL or failing the crawl",async()=>{
+  const{scope,agentId}=await fixture(),remote=provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();
+  remote.status.mockResolvedValueOnce({status:"scraping",total:0,completed:0,data:[],next:"http://127.0.0.1:3002/v2/crawl/provider-job?skip=0"});
+  await tick();expect((await store.get(scope,agentId,crawl.id)).state).toBe("scraping");
+  await tick();expect((await store.get(scope,agentId,crawl.id)).state).toBe("completed");
+  expect(remote.status.mock.calls).toEqual([["provider-job"],["provider-job"]]);
+ });
+ it("reports completed paginated results rather than silently importing a partial site",async()=>{
+  const{scope,agentId}=await fixture(),remote=provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();
+  remote.status.mockResolvedValueOnce({status:"completed",total:2,completed:2,data:[{markdown:"first",metadata:{sourceURL:"https://example.com/"}}],next:"https://untrusted.example/steal-credential"});
+  await tick();expect((await store.get(scope,agentId,crawl.id)).errorCode).toBe("WEBSITE_CRAWL_RESULT_LIMIT");
+  expect(remote.status.mock.calls).toEqual([["provider-job"]]);
+ });
  it("fences cancellation while the provider submission is in flight",async()=>{
   const{scope,agentId}=await fixture();const remote=provider();
   const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});

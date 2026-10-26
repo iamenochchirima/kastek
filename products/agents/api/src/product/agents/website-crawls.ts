@@ -105,7 +105,9 @@ export class WebsiteCrawlStore {
       }
       const result=await this.client.status(remoteId!);
       await transaction(this.pool,db=>this.authorize(db,{organizationId:row.organization_id,accountId:row.account_id},row.agent_id));
-      if(result.next)throw new FirecrawlError("WEBSITE_CRAWL_RESULT_LIMIT");
+      // Firecrawl returns a polling cursor even before any pages are available.
+      // Poll our pinned job path; never follow a credential-bearing provider URL.
+      if(result.next && result.status==="completed")throw new FirecrawlError("WEBSITE_CRAWL_RESULT_LIMIT");
       const pages:CrawlPage[]=[];let bytes=0;
       for(const value of result.data){
         if(!value.markdown?.trim())continue;
