@@ -59,6 +59,13 @@ describe("executable built-in capability contracts",()=>{
     expect(validateBuiltinArguments("skills.run",{skillId:config.skillIds[0],path:"scripts/report.py"})).toBeDefined();
     for(const extra of [{code:"print(1)"},{environment:{KEY:"secret"}},{install:["requests"]},{command:"sh"}])expect(()=>validateBuiltinArguments("skills.run",{skillId:config.skillIds[0],path:"scripts/report.py",...extra})).toThrowError(expect.objectContaining({code:"TOOL_ARGUMENTS_INVALID"}));
   });
+  it("accepts native staff record fields without applying customer submission input rules",()=>{
+    const record={enquiryId:randomUUID(),fields:{name:"Staff entry",email:"",phone:"",service:"s".repeat(500)},status:"new",revision:"1",dueAt:null};
+    expect(validateBuiltinResult("records.search",{records:[record]})).toEqual({records:[record]});
+    expect(()=>validateBuiltinResult("records.search",{records:[{...record,fields:{...record.fields,service:"s".repeat(501)}}]})).toThrowError(expect.objectContaining({code:"CAPABILITY_RESULT_INVALID"}));
+    expect(()=>validateBuiltinResult("records.search",{records:[{...record,privateNotes:"Keep private"}]})).toThrowError(expect.objectContaining({code:"CAPABILITY_RESULT_INVALID"}));
+    expect(()=>validateBuiltinArguments("enquiry.submit",{fields:{email:"",service:"s".repeat(500)}})).toThrowError(expect.objectContaining({code:"TOOL_ARGUMENTS_INVALID"}));
+  });
   it("rejects invalid or credential-bearing results before they reach a model",()=>{
     expect(validateBuiltinResult("memory.propose",{candidateId:randomUUID(),status:"pending_review"})).toBeDefined();
     expect(()=>validateBuiltinResult("memory.propose",{candidateId:randomUUID(),status:"accepted"})).toThrowError(expect.objectContaining({code:"CAPABILITY_RESULT_INVALID"}));

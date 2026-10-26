@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PlatformError, taskStateSchema } from "../contracts/contracts";
+import { recordFieldsSchema } from "../contracts/customer-records";
 
 const nonnegative=z.number().int().nonnegative(),uuid=z.uuid();
 const evidence=z.strictObject({evidenceId:uuid,label:z.string().min(1).max(64),citation:z.string().min(1).max(68),text:z.string().max(8192),title:z.string().max(512)});
@@ -12,7 +13,7 @@ const skillResult=z.strictObject({skillId:uuid,revision:z.number().int().positiv
 
 const bookingSlot=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})});
 export const enquiryFieldsSchema=z.strictObject({name:z.string().trim().min(1).max(200).optional(),email:z.email().max(320).optional(),phone:z.string().trim().min(1).max(80).optional(),service:z.string().trim().min(1).max(200).optional(),message:z.string().trim().min(1).max(4000).optional()});
-const recordResult=z.strictObject({enquiryId:uuid,fields:enquiryFieldsSchema,status:z.string().max(32),revision:z.string().regex(/^[1-9][0-9]*$/),dueAt:z.iso.datetime({offset:true}).nullable()});
+const recordResult=z.strictObject({enquiryId:uuid,fields:recordFieldsSchema,status:z.string().max(32),revision:z.string().regex(/^[1-9][0-9]*$/),dueAt:z.iso.datetime({offset:true}).nullable()});
 const contracts={
   "enquiry.read":{input:z.strictObject({}),output:z.strictObject({enquiries:z.array(z.strictObject({enquiryId:uuid,fields:enquiryFieldsSchema,amendsEnquiryId:uuid.nullable()})).max(10)}),authority:["enquiry.read"],resources:["trusted_conversation_participant"],reconciliation:"not_applicable"},
   "enquiry.amend":{input:z.strictObject({enquiryId:uuid,fields:enquiryFieldsSchema}),output:z.strictObject({state:z.literal("submitted"),enquiryId:uuid,receiptDigest:digest}),authority:["enquiry.amend"],resources:["trusted_conversation_participant","exact_principal_confirmation"],reconciliation:"idempotent_receipt"},
