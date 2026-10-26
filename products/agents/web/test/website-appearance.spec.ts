@@ -4,14 +4,14 @@ import { websiteWidgetScript } from "../../api/src/adapters/channels/website/wid
 const servers: Server[] = [];
 test.use({ launchOptions: { channel: "chromium-headless-shell" } });
 test.afterEach(async()=>{await Promise.all(servers.splice(0).map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))));});
-async function fixture(page: Page, paused=false) {
+async function fixture(page: Page, paused=false, appearance: Record<string,unknown> = {}) {
   const sent: Record<string,unknown>[] = [], errors:string[]=[];let sessions=0,lost=true;
   page.on("pageerror",error=>errors.push(error.message));
   const server=createServer(async(req,res)=>{
     res.setHeader("content-type","application/json");const path=new URL(req.url!,"http://fixture.test").pathname;
     if(path==="/"){res.setHeader("content-type","text/html");res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><script src="/api/website/exact/widget.js"></script>');return;}
     if(path.endsWith("widget.js")){res.setHeader("content-type","application/javascript");res.end(websiteWidgetScript("exact"));return;}
-    if(path==="/api/website/exact"){res.end(JSON.stringify({name:"Support",state:paused?"paused":"active",bookingEnabled:false,appearance:{title:'Help <img src=x onerror=alert(1)>',accent:"#065f46",launcherLabel:"Ask support",greeting:"Welcome <script>unsafe</script>",position:"bottom-left",quickReplies:["Opening hours","Book an appointment"]}}));return;}
+    if(path==="/api/website/exact"){res.end(JSON.stringify({name:"Support",state:paused?"paused":"active",bookingEnabled:false,appearance:{title:'Help <img src=x onerror=alert(1)>',accent:"#065f46",launcherLabel:"Ask support",greeting:"Welcome <script>unsafe</script>",position:"bottom-left",quickReplies:["Opening hours","Book an appointment"],...appearance}}));return;}
     if(path.endsWith("/session")){sessions++;res.end(JSON.stringify({token:"private-session"}));return;}
     if(path.endsWith("/customer-conversations")){res.end(JSON.stringify({conversation:{id:"one"}}));return;}
     if(path.endsWith("/messages")){
@@ -44,4 +44,29 @@ test("mobile sizing and ignored foreign postMessage",async({page})=>{
 });
 test("paused cannot create a visitor session or send",async({page})=>{
   const f=await fixture(page,true);await page.getByRole("button",{name:"Ask support",exact:true}).click();await expect(page.getByRole("status")).toHaveText("Chat is currently unavailable");await expect(page.getByRole("button",{name:"Send",exact:true})).toBeDisabled();expect(f.sessions).toBe(0);expect(f.sent).toHaveLength(0);
+});
+
+test("restored appearance applies geometry, avatar, branding and expansion",async({page})=>{
+  await page.route("https://avatar.example.test/avatar.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#065f46"/></svg>'}));
+  const f=await fixture(page,false,{title:"KasiTek support",launcherSize:72,windowWidth:460,windowHeight:680,borderRadius:24,launcherOffset:24,avatarUrl:"https://avatar.example.test/avatar.svg",showBranding:false});
+  const launcher=page.getByRole("button",{name:"Ask support",exact:true});
+  expect((await launcher.boundingBox())!.width).toBe(72);
+  await launcher.click();const panel=page.getByRole("region",{name:"Website assistant"});
+  await expect(panel.locator(".avatar img")).toBeVisible();await expect(panel.locator(".branding")).toBeHidden();
+  const bounds=(await panel.boundingBox())!;expect(bounds.width).toBe(460);expect(bounds.height).toBe(680);expect(bounds.x).toBe(24);
+  await expect(panel).toHaveCSS("border-radius","24px");await expect(panel.locator("header")).toHaveCSS("background-color","rgb(31, 31, 31)");
+  await page.screenshot({path:test.info().outputPath("custom-desktop.png")});
+  await page.getByRole("button",{name:"Expand chat",exact:true}).click();const expanded=(await panel.boundingBox())!;expect(expanded.width).toBe(600);expect(expanded.height).toBe(952);
+  await expect(page.getByRole("button",{name:"Collapse chat",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("button",{name:"Collapse chat",exact:true}).click();expect((await panel.boundingBox())!.width).toBe(460);
+  await page.keyboard.press("Escape");await expect(launcher).toBeFocused();expect(f.errors).toEqual([]);
+});
+test("unsafe appearance falls back safely and stays within a small viewport",async({page})=>{
+  await page.setViewportSize({width:320,height:568});
+  const f=await fixture(page,false,{avatarUrl:"javascript:alert(1)",launcherSize:-100,windowWidth:10000,windowHeight:10000,borderRadius:1000,launcherOffset:1000,accent:"red;position:fixed"});
+  await page.getByRole("button",{name:"Ask support",exact:true}).click();const panel=page.getByRole("region",{name:"Website assistant"});
+  await expect(panel.locator(".avatar img")).toHaveCount(0);await expect(panel.locator(".branding")).toContainText("Powered by KasiTek");
+  await page.getByRole("button",{name:"Expand chat",exact:true}).click();const box=(await panel.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(320);expect(box.y+box.height).toBeLessThanOrEqual(568);
+  await page.screenshot({path:test.info().outputPath("expanded-mobile.png")});expect(f.errors).toEqual([]);
 });

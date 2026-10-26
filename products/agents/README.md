@@ -323,7 +323,11 @@ or subscription loss. Setup uncertainty requires explicit native-state reconcili
 time alone never proves success. Quarantined ingress is visible in connection details and can be
 retried deliberately after correcting the displayed failure. Repeated ingress retains its identity.
 
-Website settings provide install/share links, appearance, suggested messages and pause. Pause
+Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
+appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
+and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.
+The same editor is available in Configure → Website. The embedded widget retains current Agents
+sessions, canonical Inbox messages and confirmed booking/intake flows. Pause
 stops new grants and publication; resuming preserves the URL and conversation identity. Saved
 agent settings create background snapshots and apply to future turns. Existing accepted tasks
 retain their own configuration and executable release.

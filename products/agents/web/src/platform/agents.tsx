@@ -17,6 +17,7 @@ import { AgentCatalogue } from "./catalogue";
 import { AnalysisConfiguration } from "./analysis-configuration";
 import { BookingPolicies } from "./booking-policies";
 import { AgentModel, ChatModelPicker } from "./agent-model";
+import { WebsiteChannelSettings } from "./website-channel-settings";
 
 export function AgentEditor() {
   const { organizationId, session } = useWorkspace();
@@ -89,8 +90,6 @@ export function AgentEditor() {
       return true;
     } finally { setBusy(false); }
   }
-  const embedCode = (deployment: Deployment) => `<script async src="${window.location.origin}/api/website/${deployment.id}/widget.js"></script>`;
-  async function copyEmbed(deployment: Deployment) { try { await navigator.clipboard.writeText(embedCode(deployment)); toast.success("Embed code copied"); } catch { toast.error("Copy the embed code manually"); } }
   async function publish(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const { deployment } = await api<{ deployment: Deployment }>(`${path}/deployments`, { allowedOrigins: origins.split(/[\n,]/).map(origin => origin.trim()).filter(Boolean) }); setDeployments(current => [...current, deployment]); setPublishOpen(false); toast.success("Website published"); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
   return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><span className="agent-avatar"><Bot size={20} /></span><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button></div></header>
@@ -110,7 +109,8 @@ export function AgentEditor() {
       <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button></div>
       <details className="rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
     </form> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind={section} configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} /><form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button></form></> : <div className="max-w-2xl space-y-5">      {dirty ? <p role="status" className="text-sm text-muted-foreground">Save changes before connecting your website.</p> : null}
-      <><Button disabled={needsApply || busy || !versions.length} onClick={() => setPublishOpen(true)}>Publish website</Button>{deployments.length ? <div className="divide-y divide-border rounded-lg border border-border">{deployments.map(deployment => <div key={deployment.id} className="space-y-2 p-4"><p className="break-all text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ")}</p><a href={`/chat/${deployment.id}`} target="_blank" rel="noreferrer" className="inline-block text-sm underline underline-offset-4">Open website chat</a><details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Embed code</summary><code className="mt-3 block whitespace-pre-wrap break-all rounded-md bg-muted p-3">{embedCode(deployment)}</code><Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => void copyEmbed(deployment)}>Copy embed code</Button></details></div>)}</div> : null}</>
+      <Button disabled={needsApply || busy || !versions.length} onClick={() => setPublishOpen(true)}>Publish website</Button>
+      {deployments.length ? <WebsiteChannelSettings key={`${agent.id}.${deployments.length}`} organizationId={organizationId} agentId={agent.id} owner={session.organizations.find(org => org.id === organizationId)?.role === "owner"} showConnect={false} /> : null}
     </div>}
     </>}
     </div>

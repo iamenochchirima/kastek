@@ -10,6 +10,16 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
+The website widget restores Growth's original dark header, avatar, message bubbles, round launcher,
+pill composer and expand/collapse controls while using current Agents sessions, canonical Inbox
+messages and booking/intake confirmations. **Customize widget** is available under both
+Connections → Website and the agent's Configure → Website tab. Its live preview supports custom
+colour, title, greeting, avatar URL, position, window size, corner radius, launcher size/offset,
+suggested messages and branding visibility. Settings use current owner authorization and
+optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
+migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
+Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
+
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
 HTTPS origin. Explicit HTTPS URLs and local HTTP development origins remain supported. Paths,
 queries, fragments, embedded credentials and wildcard domains are rejected. Incoming visitor
