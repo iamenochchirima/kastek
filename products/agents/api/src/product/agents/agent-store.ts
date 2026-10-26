@@ -12,6 +12,7 @@ type AgentConfiguration,type ExecutionGrant
 } from "../../contracts/contracts";
 import { assertSkillRequirements } from "../../capabilities/skills/requirement-authority";
 import { loadBookingPolicy } from "../../workflows/booking/policy";
+import { customerSetupSchema, customerConfigurationForSetup, type CustomerSetup } from "../offerings/customer-setup";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
 
@@ -83,19 +84,21 @@ export class AgentStore extends AuthorityStore {
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       return row; });
   }
-  async createConfiguredAgent(input: {accountId:string;organizationId:string;name:string;offering?:"faq"|"customer-service";configuration?:AgentConfiguration}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
-    const config=agentConfigurationSchema.parse(input.configuration??customerConfiguration(input.offering));
+  async createConfiguredAgent(input: {accountId:string;organizationId:string;name:string;offering?:"faq"|"customer-service";configuration?:AgentConfiguration;setup?:CustomerSetup}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+    const setup=input.setup===undefined?null:customerSetupSchema.parse(input.setup);
+    const config=agentConfigurationSchema.parse(setup?customerConfigurationForSetup(setup):input.configuration??customerConfiguration(input.offering));
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
-      const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering)
-        VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),config,input.accountId,input.offering??(input.configuration?null:"faq")])).rows[0]!;
+      const agent=(await db.query<AgentRecord>(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by,offering,setup)
+        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[randomUUID(),input.organizationId,text(input.name,120),config,input.accountId,setup?"customer-service":input.offering??(input.configuration?null:"faq"),setup])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,{...input,agentId:agent.id},agent);
       return {agent,snapshot,deployments:[]};
     });
   }
-  async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
-    const config=agentConfigurationSchema.parse(input.configuration);
+  async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
+    const setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
+    const config=agentConfigurationSchema.parse(setup?{...input.configuration,instructions:customerConfigurationForSetup(setup).instructions}:input.configuration);
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
@@ -111,15 +114,16 @@ export class AgentStore extends AuthorityStore {
       let deployments=(await db.query<WebsiteDeployment>("SELECT * FROM agents_platform.website_deployments WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.deployment_id=website_deployments.id) ORDER BY id FOR UPDATE",[input.organizationId,input.agentId])).rows;
       const channelDeployments = (await db.query("SELECT id,agent_id FROM agents_platform.channel_deployments WHERE organization_id=$1 AND agent_id=$2 AND state='active' ORDER BY id FOR UPDATE", [input.organizationId,input.agentId])).rows;
       const name=input.name===undefined?agent.name:text(input.name,120);
-      const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config);
+      const setupChanged=setup!==undefined&&!isDeepStrictEqual(agent.setup,setup);
+      const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config)||setupChanged;
       if(!changed&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
       if(!changed&&latest&&latest.draft_revision===agent.draft_revision){
         agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }
       if(input.confirmImpact!==true&&(((previous?canonical(previous)!==canonical(config):changed)&&(deployments.length>0||channelDeployments.length>0))||authority.expanded))throw new PlatformError("CONFIGURATION_CONFIRMATION_REQUIRED",409,"Confirm changes to agent permissions or connected customer channels.");
-      agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,draft_revision=draft_revision+1,updated_at=now()
-        WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name])).rows[0]!;
+      agent=(await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$3,name=$4,setup=coalesce($5,setup),draft_revision=draft_revision+1,updated_at=now()
+        WHERE organization_id=$1 AND id=$2 RETURNING *`,[input.organizationId,input.agentId,config,name,setup??null])).rows[0]!;
       const snapshot=await this.createVersionInTransaction(db,input,agent);
       const deploymentStore=new DeploymentStore(this.pool);
       for(const deployment of deployments)await deploymentStore.assertWebsiteConfigurationInTransaction(db,{organizationId:input.organizationId,agentId:deployment.agent_id,version:snapshot});
