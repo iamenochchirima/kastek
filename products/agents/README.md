@@ -537,3 +537,33 @@ idea ID in `AGENTS_STASH_ACCEPTANCE_ITEM_ID`, and an exact first-passage quote i
 `AGENTS_STASH_ACCEPTANCE_EXPECT`. The two specialists use `get_item` and
 `read_project_document` respectively. Stash credentials stay in protected local
 configuration, never command arguments, model context or browser state.
+
+## Local website crawler
+
+The optional Firecrawl provider has a pinned local stack in
+[`infra/firecrawl/`](../../infra/firecrawl/README.md). Its server-side adapter supports local
+Firecrawl and Firecrawl Cloud through the same v2 scrape, crawl, status and cancellation calls.
+
+Configure the Agents API's private `.env` with:
+
+```dotenv
+AGENTS_FIRECRAWL_URL=http://127.0.0.1:3002
+AGENTS_FIRECRAWL_API_KEY=
+AGENTS_FIRECRAWL_TIMEOUT_MS=60000
+```
+
+Run `pnpm --filter @kasitek/agents verify:firecrawl` from the repository root to verify a
+Markdown scrape of `https://example.com`. The command prints a character count, not the page
+body or credential. It does not invoke a model. An optional URL argument changes the target.
+
+To use Cloud, change `AGENTS_FIRECRAWL_URL` to `https://api.firecrawl.dev` and set
+`AGENTS_FIRECRAWL_API_KEY` to a private Cloud key. The same command and adapter apply; Cloud
+requests use the account's credits. There is no automatic fallback between providers. Drain outstanding crawl jobs before switching;
+job identifiers and stored results belong to the original instance. The transport accepts at most
+10 MiB of JSON per response, matching the existing raw-source byte budget. Crawl page count and
+depth are explicit caller options, not subscription limits imposed by this adapter.
+
+This installs the provider transport and local service. It does not replace the current exact-URL
+importer or expose a browser-facing crawl API. Multi-page source admission, page review,
+refresh and creation-wizard integration remain unimplemented. A crawl response is not approved
+knowledge. The existing import, approval and publication boundaries remain in effect.

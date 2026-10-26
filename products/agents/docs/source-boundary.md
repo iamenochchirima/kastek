@@ -10,6 +10,18 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
+The optional server-side Firecrawl v2 adapter supports scrape, crawl start/status and cancellation.
+`AGENTS_FIRECRAWL_URL` selects a local service or Cloud; `AGENTS_FIRECRAWL_API_KEY` supplies
+server-side authorization when required. Requests have bounded time and response size, reject
+redirects from the provider API and do not retry ambiguous submissions. Provider-supplied pagination
+links are returned as metadata and never followed with credentials. The operator smoke command
+exercises the same adapter. The private local stack is documented in `infra/firecrawl/README.md`.
+This is not yet connected to knowledge import admission or the creation wizard. Current exact-URL
+imports retain their existing egress and ingestion behavior. Before exposing crawl admission,
+validate crawler-wide egress for redirects, DNS changes and browser subresources; initial target
+validation alone does not enforce those boundaries. No cloud deployment or AI extraction is enabled.
+
+
 The website widget restores Growth's original dark header, avatar, message bubbles, round launcher,
 pill composer and expand/collapse controls while using current Agents sessions, canonical Inbox
 messages and booking/intake confirmations. **Customize widget** is available under both

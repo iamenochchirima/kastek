@@ -1,0 +1,130 @@
+name: kasitek-firecrawl
+
+x-service: &service
+  restart: unless-stopped
+  networks: [backend]
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '2'
+
+services:
+  api:
+    <<: *service
+    image: ghcr.io/firecrawl/firecrawl@sha256:b1480d2254fb8852a70f94d46ba2e619ab9651fa085d1c58e76cca2a99d5f21e
+    command: node dist/src/harness.js --start-docker
+    ports: ['127.0.0.1:${FIRECRAWL_PORT:-3002}:3002']
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3002'
+      ENV: local
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_URL: redis://redis:6379
+      PLAYWRIGHT_MICROSERVICE_URL: http://playwright:3000/scrape
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: firecrawl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set a password}
+      POSTGRES_DB: postgres
+      NUQ_RABBITMQ_URL: amqp://firecrawl:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
+      NUQ_BACKEND: pg
+      USE_DB_AUTHENTICATION: 'false'
+      NUM_WORKERS_PER_QUEUE: '1'
+      NUQ_WORKER_COUNT: '1'
+      CRAWL_CONCURRENT_REQUESTS: '1'
+      MAX_CONCURRENT_JOBS: '1'
+      BROWSER_POOL_SIZE: '1'
+      HARNESS_STARTUP_TIMEOUT_MS: '120000'
+      LOGGING_LEVEL: info
+      MAX_RAM: '${FIRECRAWL_MAX_RAM:-0.9}'
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      playwright: {condition: service_healthy}
+    cpus: 1.5
+    mem_limit: 2g
+    memswap_limit: 2560m
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3002/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  playwright:
+    <<: *service
+    image: ghcr.io/firecrawl/playwright-service@sha256:6b54a9733fe6863c2dc225bf8e284db996ef59f6efd5d1e760f0664c09c1f856
+    environment:
+      PORT: '3000'
+      MAX_CONCURRENT_PAGES: '1'
+      BLOCK_MEDIA: 'true'
+      ALLOW_LOCAL_WEBHOOKS: 'false'
+    cpus: 1
+    mem_limit: 768m
+    memswap_limit: 1g
+    shm_size: 128m
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    tmpfs: ['/tmp/.cache:noexec,nosuid,size=128m']
+
+  postgres:
+    <<: *service
+    image: ghcr.io/firecrawl/nuq-postgres@sha256:d719b36160eac2fcbe16dc7e7360ddb9c82c40ea5da183d07bf4a755c6a0b2ae
+    environment:
+      POSTGRES_USER: firecrawl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    cpus: 0.5
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U firecrawl -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    <<: *service
+    image: redis:7.4-alpine@sha256:6ba19c50b56777f5c11c58eff8ddb69d0d5f27ba131cffb63f180ccfd43c66af
+    command: redis-server --appendonly yes --maxmemory 96mb --maxmemory-policy noeviction
+    volumes: [redis-data:/data]
+    cpus: 0.25
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    <<: *service
+    image: rabbitmq:3.13-alpine@sha256:d7af1c87c5f1eda13fcfca06db452bf3aeab6619fc3358b68535c0c02c4e52bc
+    hostname: firecrawl-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: firecrawl
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '+S 1:1 +A 4'
+    volumes: [rabbitmq-data:/var/lib/rabbitmq]
+    cpus: 0.5
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, check_running]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:

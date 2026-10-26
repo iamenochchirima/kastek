@@ -26,6 +26,7 @@ membership, database access or permission to call internal operations.
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |
 | `infra/agents-runtime/` | Pinned local Restate runtime and recovery verification |
+| `infra/firecrawl/` | Optional pinned local website crawl provider; independent from agent execution |
 | `infra/observability/` | Collector configuration and deployment source |
 
 ## Dependency and data rules
