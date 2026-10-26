@@ -10,9 +10,9 @@ export type Configuration = {
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "enquiry.submit")[];
   skillIds?: string[];
-  capabilities: { delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
+  capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
 export type CatalogueItem = {
   connectorId?:string; selection?:{kind:"bindings"}|{kind:"capability";capability:"businessActions";profileId:string;setup:"booking"};
@@ -30,7 +30,15 @@ export type CatalogueItem = {
 export type Catalogue = { schemaVersion: 1; revision: string; agentId: string | null; entries: CatalogueItem[] };
 export type SkillPackage = { familyId?: string; state?: "enabled" | "disabled" | "removed"; generation?: number; publisher?: { id: string; name: string; verified: boolean }; source?: { kind: "curated" | "private" | "repository"; slug?: string | null; repository?: string; commit?: string; path?: string; tree?: string }; requires?: { connectionProfiles: string[]; permissions: string[]; runtimes: string[] }; id: string; name: string; description: string; revision: number; contentDigest: string; compatibility: string | null; reviewState: "pending" | "reviewed"; createdAt: string; files: { path: string; size: number; contentDigest: string }[] };
 export type CustomerOffering = { id: "faq" | "customer-service" | "booking"; name: string; available: boolean; unavailableCode?: string };
-export type Agent = { setup?: { responsibilities: string[] } | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
+export type CustomerSetup = {
+ business: { name: string; website: string; description: string };
+ responsibilities: Array<"answer-questions" | "customer-support" | "bookings" | "enquiries">;
+ channels: Array<"website" | "whatsapp" | "facebook" | "instagram" | "telegram">;
+ booking?: { durationMinutes: number; notes: string };
+ intake?: { fields: Array<"name" | "email" | "phone" | "service" | "message"> };
+ behaviour: { agentName: string; language: string; tone: "friendly" | "professional" | "concise"; handoffInstructions: string };
+};
+export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };
 export type Version = { id: string; number: number; configuration: Configuration; createdAt?: string };
 export type Deployment = { id: string; versionId: string; allowedOrigins: string[] };
 export type Organization = { id: string; name: string; role: string };
@@ -74,7 +82,7 @@ export type TaskEvidence = { state: "available" | "unavailable"; code?: string; 
 export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; citedPassages?: CitedPassage[]; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
 export type ToolReview = { id: string; taskId: string; rootTaskId: string; operationId: string; operationName?: string; connectionName?: string; destination?: string | null; effect?: string; bindingId: string; bindingDigest: string; requestDigest: string; arguments: unknown; connectionId: string; reviewerAccountId: string; state: "pending" | "approved" | "rejected" | "claimed" | "completed" | "uncertain" | "expired" | "invalidated"; expiresAt: string };
 export type TaskDetail = { task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; eventsNextCursor?: string | null; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
-export type Task = { id: string; hasToolReviews?: boolean; hasBookings?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type Task = { id: string; hasToolReviews?: boolean; hasBookings?: boolean; hasEnquiries?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }

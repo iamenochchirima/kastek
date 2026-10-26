@@ -60,6 +60,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
     requestHandoff: (db, binding, taskId) => inbox.requestHandoff(db, binding, taskId),
     publishAutomated: (db, input) => inbox.publishAutomated(db, input),
+    publishEnquiryReview:(db,input)=>inbox.publishEnquiryReview(db,input),
     publishToolReview:(db,input)=>inbox.publishToolReview(db,input),
     context: (db, binding, beforeMessageId) => inbox.context(db, binding, beforeMessageId),
   });

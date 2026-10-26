@@ -1,3 +1,4 @@
+import {enquiryReviewText,enquiryReviewButtons,assertEnquiryReviewPrompt} from "../channels/channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
@@ -258,6 +259,21 @@ export class InboxStore {
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
+  async publishEnquiryReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>{
+    const row=await this.conversation(db,input.binding.customerConversationId,true);
+    if(row.channel_kind==="website")return;
+    if(!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4",[input.taskId,row.id,input.binding.inputMessageId,input.binding.ownershipGeneration])).rowCount)denied();
+    if(row.state!=="automation_active"||row.ownership_generation!==input.binding.ownershipGeneration||!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Conversation ownership changed");
+    const key=`enquiry-review:${input.reviewId}`;
+    if((await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2",[row.id,key])).rowCount)return;
+    const body=enquiryReviewText(input.fields);
+    const maximum=row.channel_kind==="whatsapp"?1024:row.channel_kind==="telegram"?4096:1000;
+    if(Array.from(body).length>maximum)throw new PlatformError("ENQUIRY_CHANNEL_REVIEW_LIMIT",413,"Enquiry details exceed this channel’s confirmation message limit");
+    const buttons=enquiryReviewButtons(input.reviewId),enquiryReview={id:input.reviewId,taskId:input.taskId,requestDigest:input.requestDigest};
+    await assertEnquiryReviewPrompt(db,{assetId:"pending",recipientId:"pending",text:body,buttons,enquiryReview},row.id);
+    const message=await this.append(db,row,{key,digest:requestDigest({body,enquiryReview}),kind:"assistant",body,taskId:input.taskId});
+    await enqueueChannelMessage(db,row,message,{requestText:body,buttons,enquiryReview});
+  }
   async publishToolReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;arguments:unknown}):Promise<void>{
     const row=await this.conversation(db,input.binding.customerConversationId,true);
     if(row.channel_kind==="website")return;
@@ -272,6 +288,8 @@ export class InboxStore {
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
     if(!message.task_id)return null;
+    const enquiry=(await db.query(`SELECT e.fields,e.request_digest,o.request FROM agents_platform.channel_outbound o JOIN agents_platform.enquiries e ON e.id::text=o.request#>>'{enquiryReview,id}' WHERE o.message_id=$1 AND e.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
+    if(enquiry){const text=enquiryReviewText(enquiry.fields);return message.body===text&&enquiry.request.enquiryReview?.requestDigest===enquiry.request_digest?text:null;}
     const prompt=(await db.query(`SELECT r.arguments,r.request_digest,r.binding_digest,o.request FROM agents_platform.channel_outbound o
       JOIN agents_platform.tool_invocation_reviews r ON r.id::text=o.request#>>'{toolReview,id}'
       WHERE o.message_id=$1 AND r.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];

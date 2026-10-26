@@ -31,7 +31,7 @@ export const modelSchema = z.strictObject({
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "enquiry.submit"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
@@ -47,6 +47,7 @@ export const businessCapabilitiesSchema = z.strictObject({
   businessActions: z.discriminatedUnion("enabled",[unavailableCapability,z.strictObject({enabled:z.literal(true),profileId:z.literal("calendar-booking-v1"),permittedOperations:calendarOperationsSchema,policyId:z.uuid(),policyDigest:z.string().regex(/^[a-f0-9]{64}$/)})]),
   workflows: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({enabled:z.literal(true),profileId:z.literal("report-delivery-v1"),
     connectionId:z.uuid(),reportArtifactName:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/).default("report.md"),title:z.string().trim().min(1).max(120).default("Report")})]),
+  enquiries: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({enabled:z.literal(true),fields:z.array(z.enum(["name","email","phone","service","message"])).min(1).max(5).refine(values=>new Set(values).size===values.length,"Choose each enquiry field once")})]).optional(),
   schedules: unavailableCapability,
 });
 
@@ -150,7 +151,7 @@ export const executionGrantSchema = z.strictObject({
   callerClientId: z.string().min(1).max(128),
   principal: principalSchema,
   versionId: z.uuid(),
-  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute", "product.read", "product.write"])).min(1).max(17),
+  operations: z.array(z.enum(["knowledge.read", "model.reply", "memory.read", "memory.propose", "delegation.execute", "sandbox.execute", "artifact.read", "artifact.write", "effect.deliver", "connected.read", "connected.execute", "channel.handoff", "skill.read", "booking.read", "booking.execute", "product.read", "product.write", "enquiry.submit"])).min(1).max(18),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   maxInputBytes: storagePositiveInteger,
   maxOutputTokens: storagePositiveInteger,
@@ -197,6 +198,7 @@ export function assertGrantAuthority(
       (configuration.capabilities.delegation.enabled && !grant.operations.includes("delegation.execute")) ||
       (configuration.capabilities.sandbox.enabled && (!grant.operations.includes("sandbox.execute") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
       (configuration.capabilities.workflows.enabled && (!grant.operations.includes("effect.deliver") || !grant.operations.includes("artifact.read") || !grant.operations.includes("artifact.write"))) ||
+      (configuration.capabilities.enquiries?.enabled && !grant.operations.includes("enquiry.submit")) ||
       (configuration.tools.includes("channel.request_handoff") && !grant.operations.includes("channel.handoff")) ||
       (configuration.memory.enabled && (!grant.operations.includes("memory.read") || !grant.operations.includes("memory.propose")))) {
     throw new PlatformError("GRANT_CAPABILITY_DENIED", 403, "Execution exceeds the authorized capabilities or limits");
@@ -208,7 +210,8 @@ export function assertRuntimeAvailable(configuration: AgentConfiguration): void 
     throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "Workspace execution is unavailable");
   }
   if ((configuration.tools.includes("agents.delegate") && !configuration.capabilities.delegation.enabled) ||
-      (configuration.tools.includes("sandbox.analyze") && !configuration.capabilities.sandbox.enabled)) {
+      (configuration.tools.includes("sandbox.analyze") && !configuration.capabilities.sandbox.enabled) ||
+      (configuration.tools.includes("enquiry.submit") && !configuration.capabilities.enquiries?.enabled)) {
     throw new PlatformError("CAPABILITY_DENIED",403,"Tool requires its published capability");
   }
 }

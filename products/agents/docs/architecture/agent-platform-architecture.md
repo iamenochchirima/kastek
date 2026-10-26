@@ -35,8 +35,14 @@ The Agents client creates customer-service agents through guided setup. Answerin
 handling support, booking appointments and collecting enquiries are selectable responsibilities
 of the same agent, not separate creation types. The wizard collects business details, relevant
 knowledge, intended channels, operating preferences and human handoff instructions. Steps depend
-on the selected responsibilities. Setup metadata and grounded instructions are saved together;
-selecting an action or channel does not grant tools, authorize a service or create a connection.
+on the selected responsibilities. Setup metadata, grounded instructions and setup-owned native
+capabilities are saved through revision-checked configuration snapshots. Enquiries expose a native
+submission tool with configured fields and exact customer confirmation. Calendar actions require
+an explicitly authorized service connection and a pinned booking policy. Channel selection records
+intent; explicit activation creates a deployment after testing. Selection never authorizes a
+personal provider account or publishes private knowledge. Saved readiness derives from current
+model metadata, source approval, policy authority and deployments. Provider acceptance and answer
+quality remain separate verification responsibilities.
 Research, campaign, content, and agency operations
 belong in Growth or Agencies. Shared runtime support for those capabilities does not add those
 offerings to the Agents client. A standalone personal-assistant offering is outside this agreed

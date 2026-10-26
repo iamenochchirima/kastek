@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentConfigurationSchema } from "../src/contracts/contracts";
-import { customerSetupSchema, customerConfigurationForSetup } from "../src/product/offerings/customer-setup";
+import { customerSetupSchema, customerConfigurationForSetup, applyCustomerSetup } from "../src/product/offerings/customer-setup";
 
 export const sampleSetup = () => customerSetupSchema.parse({
  business:{name:"Example business",website:"example.com",description:"Consultations"},
@@ -10,7 +10,7 @@ export const sampleSetup = () => customerSetupSchema.parse({
  behaviour:{agentName:"Assistant",language:"English",tone:"friendly",handoffInstructions:"Offer support for complaints"},
 });
 describe("customer setup",()=>{
- it("compiles context into shared grounded configuration without granting actions",()=>{
+ it("compiles context into shared grounded configuration without granting external service actions",()=>{
   const config=agentConfigurationSchema.parse(customerConfigurationForSetup(sampleSetup()));
   expect(config.instructions).toContain("Example business");
   expect(config.instructions).toContain("Never claim availability");
@@ -19,7 +19,18 @@ describe("customer setup",()=>{
   expect(config.connectedToolBindingIds).toEqual([]);
   expect(config.capabilities.businessActions.enabled).toBe(false);
   expect(config.capabilities.workflows.enabled).toBe(false);
-  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff"]);
+  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff","enquiry.submit"]);
+ });
+ it("removes setup-owned booking/intake/support authority without replacing other configuration",()=>{
+  const before=sampleSetup(),config=customerConfigurationForSetup(before);
+  config.capabilities.businessActions={enabled:true,profileId:"calendar-booking-v1",policyId:"00000000-0000-4000-8000-000000000001",policyDigest:"a".repeat(64)};
+  config.sourceRevisionIds=["00000000-0000-4000-8000-000000000002"];
+  const after={...before,responsibilities:["answer-questions" as const],behaviour:{...before.behaviour,handoffInstructions:""}};
+  const derived=applyCustomerSetup(config,after,before);
+  expect(derived.capabilities.businessActions.enabled).toBe(false);
+  expect(derived.capabilities.enquiries?.enabled).toBe(false);
+  expect(derived.tools).not.toContain("enquiry.submit");expect(derived.tools).not.toContain("channel.request_handoff");
+  expect(derived.sourceRevisionIds).toEqual(config.sourceRevisionIds);
  });
  it("rejects duplicate, unsupported or out-of-bounds settings",()=>{
   for(const extra of [{responsibilities:[]},{responsibilities:["bookings","bookings"]},{channels:["website","website"]},{channels:["unknown"]},{booking:{durationMinutes:0,notes:""}},{business:{name:"",website:"",description:""}}])

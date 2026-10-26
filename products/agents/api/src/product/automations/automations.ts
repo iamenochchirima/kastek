@@ -24,7 +24,7 @@ const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const deny=()=>new PlatformError('AUTOMATION_ACCESS_DENIED',403,'Automation access is unavailable');
 const missing=()=>new PlatformError('AUTOMATION_NOT_FOUND',404,'Automation not found');
 export function operationsForConfiguration(c:AgentConfiguration):ExecutionGrant['operations'] {
- return ['model.reply','knowledge.read',...(c.memory.enabled?['memory.read','memory.propose'] as const:[]),
+ return ['model.reply','knowledge.read',...(c.capabilities.enquiries?.enabled?['enquiry.submit'] as const:[]),...(c.memory.enabled?['memory.read','memory.propose'] as const:[]),
  ...(c.skillIds.length?['skill.read'] as const:[]),
  ...(c.capabilities.businessActions.enabled?['booking.read' as const,...(c.capabilities.businessActions.permittedOperations.includes('calendar.book')?['booking.execute' as const]:[])]:[]),
  ...(c.capabilities.delegation.enabled?['delegation.execute'] as const:[]),...(c.capabilities.sandbox.enabled?['sandbox.execute'] as const:[]),

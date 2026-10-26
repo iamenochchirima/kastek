@@ -7,6 +7,7 @@ import { fitUtf8 } from "./tool-definitions";
 import { channelPorts } from "../infrastructure/channel-ports";
 import { transaction } from "../infrastructure/database";
 import { builtinToolEnabled } from "./tool-definitions";
+import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool } from "./skills/runtime";
 export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
@@ -16,6 +17,7 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
   let input: unknown;
   try { input = JSON.parse(rawArguments); } catch { throw new PlatformError("TOOL_ARGUMENTS_INVALID", 400, "Tool arguments must be JSON"); }
   try {
+    if(name==="enquiry.submit")return new EnquiryStore(pool).submit(taskId,operationId,input);
     if (name === "skills.activate" || name === "skills.read") return executeSkillTool(pool, taskId, name, input, maxResultBytes);
     if (name === "channel.request_handoff") {
       z.strictObject({}).parse(input);

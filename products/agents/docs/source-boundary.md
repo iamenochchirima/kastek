@@ -10,22 +10,55 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
-Agent creation now uses one customer-service offering and a guided, responsive flow. It collects
-business name/website/description; question-answering, support, booking and enquiry responsibilities;
-conditional knowledge; intended customer channels; agent language/tone/handoff preferences; and
-relevant appointment or enquiry-field settings. The final review saves configuration and opens chat.
-Knowledge appears for question-answering or support responsibilities. The owner may skip knowledge
-or connections and finish setup. External channels and calendars remain unconnected until separately
-authorized. Booking preferences do not create a booking policy or grant provider operations.
-Native CRM record persistence and Growth linkage are separate from collecting setup preferences.
+Agent creation uses one customer-service offering with selectable question answering, support,
+appointments and native enquiries. The guided flow saves progress on the server after each forward
+step. A scoped session pointer resumes the same agent after reload; creation retries use a stable
+operation ID. Configure → General → Agent setup resumes or edits it. Saves use draft revisions and
+internal snapshots. A stale save offers an explicit reload instead of overwriting concurrent work.
 
-Schema075 stores a validated structured setup object on the agent. Creation and configuration saves
-accept it, derive grounded instructions, and preserve separately authorized knowledge/tool bindings.
-New creation exposes only Customer service; question answering, booking and intake are purposes.
-Setup edits use the normal draft revision and background snapshot path. For a code rollback, retain the additive
-074/075 schema files and setup checksum registrations; disable crawl admission by removing its
-provider URL. Do not drop setup or crawl data as part of a UI rollback. The website crawl API rejects
-internal product agents and customer setups without knowledge responsibilities, matching the UI.
+The optional Appointments step reuses Google/Microsoft service connections and the booking-policy
+editor. Owners explicitly share a service calendar, choose allowed operations and select or create
+a policy. Policy ID/digest and structured duration/hours/timezone reach the real booking tools;
+free-text preferences cannot override them. Missing OAuth/server prerequisites and disconnected or
+changed policies remain unavailable. Selecting bookings alone never grants calendar access.
+
+Enquiry selection enables the native `enquiry.submit` capability with the configured fields.
+The agent requests exact customer confirmation before saving. Tool arguments cannot choose the
+tenant, agent, principal or conversation. The trusted executor stores that provenance, retains one
+record per operation and returns a submitted receipt only after commit. Declined, expired, disabled
+or revoked requests cannot create submitted records. Native confirmations work in direct Chat,
+website chat and messaging channels through the existing durable review/ownership boundaries.
+Submitted records appear in Inbox conversation details and membership-authorized GET
+`/api/organizations/:organizationId/enquiries` and `/enquiries/:enquiryId`. Task-scoped review routes
+are under `/tasks/:taskId/enquiries`; visitor reviews use the existing canonical customer-conversation
+scope. These records are private. Contact fields do not verify identity. External CRM export and
+Growth synchronization remain outside this implementation.
+
+GET `/api/organizations/:organizationId/agents/:agentId/setup-readiness` reports saved model
+metadata/credential availability, knowledge approval/public visibility, booking policy authority,
+native intake and handoff capability, and actual selected-channel deployment state. It does not
+call a model or certify live provider credentials. The review and Configure screens use this
+projection. Channel actions preselect the agent, preserve authorization return context and reuse
+website domains/customization/install snippets or messaging asset selection. Connected, paused,
+unconnected and needs-attention states come from records rather than selected checkboxes.
+Support hands off to the existing unassigned Inbox queue; free text does not create staffing rules.
+
+Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
+the single final assistant message; schema077 adds resumable progress and creation idempotency.
+Removing booking or enquiry responsibilities removes setup-owned authority using existing grant
+revocation. Manually authorized source/tool bindings remain separate. For rollback, disable the
+affected capability or deployment, revert application code and retain additive schemas/checksum
+registrations and stored enquiry records. Do not replay uncertain external effects or delete data.
+`AgentsBusinessRunV21` retains its identity: enquiry review steps run only for the new optional tool,
+which older immutable snapshots cannot expose. No existing admitted journal gains those steps.
+
+Focused engineering checks cover PostgreSQL persistence/confirmation/retries/authority, responsive
+browser setup and connection context. Knowledge stages have a separate controlled actual
+self-hosted crawl/parser/index proof. Existing Harbor ports and `cases/guided-setup.json` support
+owner-run purpose/combined acceptance. This implementation does not claim live OAuth/channel
+account acceptance or model evaluation results. Setup saves reuse `agent.configuration.saved`
+structured logging; native task events record enquiry prepared/submitted IDs and counts, not fields
+or message bodies. No new external analytics producer or Collector configuration is introduced.
 
 
 Website knowledge import is available as an optional creation step and under

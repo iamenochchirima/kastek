@@ -1,3 +1,4 @@
+import {assertEnquiryReviewPrompt,enquiryReviewDecision} from "./channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { ChannelAdapterError, channelWebhookEventSchema, type ChannelWebhookEvent, type ChannelProviderContext, type MessagingChannelKind, type ChannelSendRequest } from "../../contracts/channel-adapters";
@@ -63,7 +64,7 @@ export class ChannelDelivery {
   private async processIngress(row: Row): Promise<void> {
     const event = channelWebhookEventSchema.parse(row.event);
     let messageId: string | null = null;
-    const recognized=channelToolReviewDecision(event);
+    const recognized=channelToolReviewDecision(event)??enquiryReviewDecision(event);
     const interaction=recognized?(await this.ports.handleInteraction?.(row.connection_id,row.deployment_id,event)??"rejected"):null;
     if(interaction){if(event.callbackQueryId)await this.ports.acknowledgeInteraction?.(row.connection_id,event,interaction);}
     else if (event.kind === "receipt") await this.receipt(row.connection_id,event);
@@ -141,6 +142,7 @@ export class ChannelDelivery {
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
+      if(row.request.enquiryReview)await assertEnquiryReviewPrompt(db,row.request,row.conversation_id);
       if(row.request.toolReview)await assertChannelToolReviewPrompt(db,row.request,row.conversation_id);
       return result;
     });

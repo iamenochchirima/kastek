@@ -45,6 +45,7 @@ import { runRequiredReport, type ActionRuntime } from "../../workflows/report-de
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
 import type { BookingService } from "../../workflows/booking/bookings";
+import { awaitEnquiryConfirmation } from "./enquiry-review";
 import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
@@ -438,6 +439,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                 if("errorCode" in reviewed)productArgumentError=reviewed.errorCode;else productReview=reviewed.review;}
             }
             const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192);
+            if(name==="enquiry.submit") {
+              let proposal:unknown;
+              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments));}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              const confirmed=await awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal);
+              if(confirmed){outcome=confirmed;stop=true;break;}
+            }
             if(name==="booking.reserve") {
               if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
               let proposal:{start:string};

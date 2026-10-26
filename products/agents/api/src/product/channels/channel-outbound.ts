@@ -5,6 +5,7 @@ import type { ChannelSendRequest,ChannelAttachment } from "../../contracts/chann
 import { channelRecipient } from "./channel-recipient";
 export type PreparedChannelDelivery = {template:NonNullable<ChannelSendRequest["template"]>;templateAuthorization:unknown}
   | {buttons:NonNullable<ChannelSendRequest["buttons"]>;toolReview:NonNullable<ChannelSendRequest["toolReview"]>;requestText:string}
+  | {buttons:NonNullable<ChannelSendRequest["buttons"]>;enquiryReview:NonNullable<ChannelSendRequest["enquiryReview"]>;requestText:string}
   | {attachment:ChannelAttachment;requestText:string;mediaAuthorization:unknown};
 type Row=Record<string,any>;
 export function channelSegments(text: string, maximum: number): string[] {
@@ -25,7 +26,7 @@ export async function enqueueChannelMessage(db: PoolClient, conversation: Row, m
   const parts = prepared?["requestText" in prepared?prepared.requestText:""]:channelSegments(message.body, maximum);
   for (const [segment, text] of parts.entries()) {
     const recipientId = channelRecipient(connection.kind,connection.asset_id,conversation.external_conversation_id);
-    const request = { assetId: connection.asset_id, recipientId, text,...(prepared?("template" in prepared?prepared:"buttons"in prepared?{buttons:prepared.buttons,toolReview:prepared.toolReview}:
+    const request = { assetId: connection.asset_id, recipientId, text,...(prepared?("template" in prepared?prepared:"buttons"in prepared?{buttons:prepared.buttons,...("enquiryReview" in prepared?{enquiryReview:prepared.enquiryReview}:{toolReview:prepared.toolReview})}:
       {attachments:[prepared.attachment],mediaAuthorization:prepared.mediaAuthorization}):{}) };
     await db.query(`INSERT INTO agents_platform.channel_outbound(id,organization_id,connection_id,deployment_id,conversation_id,
       message_id,segment,ownership_generation,connection_revision,credential_revision,request,digest)

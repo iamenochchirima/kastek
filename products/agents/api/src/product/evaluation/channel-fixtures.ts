@@ -1,3 +1,4 @@
+import {enquiryReviewDecision} from "../channels/channel-enquiry-reviews";
 import { createHmac, randomBytes,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
@@ -87,12 +88,12 @@ export class EvaluationChannelFixtures {
     if(!allowed.rowCount)throw denied();return true;
   }
   async acknowledgeContactReview(connectionId:string,event:ChannelWebhookEvent):Promise<void>{
-    const action=channelToolReviewDecision(event);if(!action)throw denied();
+    const enquiryAction=enquiryReviewDecision(event),action=enquiryAction??channelToolReviewDecision(event);if(!action)throw denied();
     const row=await this.row(this.pool,connectionId);
     if(event.assetId!==row.asset_id)throw denied();
     const allowed=await this.pool.query(`SELECT 1 FROM agents_platform.customer_conversations c
       JOIN agents_platform.customer_task_links l ON l.conversation_id=c.id JOIN agents_platform.tasks t ON t.id=l.task_id
-      JOIN agents_platform.tool_invocation_reviews r ON r.task_id=t.id
+      JOIN agents_platform.${enquiryAction?"enquiries":"tool_invocation_reviews"} r ON r.task_id=t.id
       WHERE c.organization_id=$1 AND c.channel_deployment_id=$2 AND c.external_conversation_id=$3 AND c.external_sender_id=$4
       AND t.evaluation_trial_id=$5 AND t.principal->>'kind'='channel_customer' AND t.principal->>'deploymentId'=$2::text
       AND t.principal->>'participantId'=c.id::text AND r.id=$6`,

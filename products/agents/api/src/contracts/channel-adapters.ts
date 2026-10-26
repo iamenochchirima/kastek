@@ -35,6 +35,7 @@ export interface ChannelSendRequest {
   template?: { name: string; language: string; components?: unknown[] };
   buttons?: {title:string;payload:string}[];
   toolReview?: {id:string;taskId:string;requestDigest:string};
+  enquiryReview?: {id:string;taskId:string;requestDigest:string};
 }
 export const channelButtonsSchema=z.array(z.strictObject({title:z.string().min(1).max(20).refine(value=>!/[\x00-\x1f\x7f]/.test(value)),payload:z.string().min(1).max(64).refine(value=>Buffer.byteLength(value)<=64&&!/[\x00-\x1f\x7f]/.test(value))})).min(1).max(2);
 /** Private invocation data. Product code supplies an authorized bounded fetch and current credentials. */

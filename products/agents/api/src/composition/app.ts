@@ -1,3 +1,6 @@
+import { customerSetupReadiness } from "../product/agents/setup-readiness";
+import {EnquiryStore} from "../capabilities/enquiries/enquiries";
+import {registerEnquiryRoutes} from "../product/enquiries/routes";
 import {registerAdminCustomerRoutes} from "../product/customers/routes";
 import {registerAdminReportingRoutes} from "../product/reporting/routes";
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
@@ -122,6 +125,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
   const toolReviews=new ToolReviewStore(pool);
+  const enquiries=new EnquiryStore(pool);
   const providers=new ProviderServices(pool,actionServices?.connections.vault,{appUrl:config.AGENTS_PUBLIC_URL,tests:{"google-calendar":{oauth:options.testGoogleOAuth,testApiBaseUrl:options.testGoogleApiBaseUrl}}});
   const bookings=new BookingService(pool,{resolveCalendar:(...args)=>providers.resolveCalendar(...args),ensureFresh:(scope,id)=>providers.ensureFresh(scope,id),testBaseUrl:options.testGoogleApiBaseUrl});
 
@@ -271,6 +275,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
+  registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});
   if(remoteConnections) registerRemoteConnectionRoutes(app,{store:remoteConnections,resolveScope,accountId:async request=>(await account(request)).id});
@@ -367,8 +372,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
-    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").default("customer-service"), setup: customerSetupSchema.optional() }).parse(request.body);
-    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering, setup: input.setup });
+    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").default("customer-service"), setup: customerSetupSchema.optional(), operationId:z.uuid().optional() }).parse(request.body);
+    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering, setup: input.setup, operationId:input.operationId });
     return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {
@@ -377,6 +382,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const [versions, deployments] = await Promise.all([store.listVersions(user.id, org, agentId), store.listDeployments(user.id, org, agentId)]);
     return { agent: dto(agent), versions: versions.map(dto), deployments: deployments.map(dto) };
   });
+  app.get(`${base}/agents/:agentId/setup-readiness`, async request => ({ readiness: await customerSetupReadiness(pool, (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId)) }));
   app.put(`${base}/agents/:agentId`, async (request) => {
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
       expectedRevision: z.number().int().positive() }).parse(request.body);
@@ -385,7 +391,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.post(`${base}/agents/:agentId/configuration`, async request => {
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,
-      expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional(), setup: customerSetupSchema.optional() }).parse(request.body);
+      expectedRevision: z.number().int().positive(), confirmImpact: z.boolean().optional(), setup: customerSetupSchema.optional(), setupStep:z.enum(["Business","Responsibilities","Knowledge","Channels","Preferences","Bookings","Review","complete"]).optional() }).parse(request.body);
     await assertBindings(input.configuration);
     const result = await store.saveConfiguration({ ...input, accountId: (await account(request)).id,
       organizationId: organizationId(request), agentId: uuid.parse(parameters(request).agentId) });
@@ -568,7 +574,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
     const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
-    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);
@@ -701,7 +707,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
     const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
     return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,
-      intakeEnabled:Boolean(version?.configuration.connectedToolBindingIds.length),bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
+      nativeEnquiryEnabled:Boolean(version?.configuration.capabilities?.enquiries?.enabled),intakeEnabled:Boolean(version?.configuration.connectedToolBindingIds.length || version?.configuration.capabilities?.enquiries?.enabled),bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
     const deploymentId = uuid.parse(parameters(request).deploymentId);
@@ -717,7 +723,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
     return reply.code(201).send({ token });
   });
-  registerInboxRoutes(app, { inbox, bookings,toolReviews,publicRate,
+  registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,
     resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
     resolveVisitor: async (request, reply) => {
       const { deployment, websiteOrigin } = await websiteContext(request, reply);

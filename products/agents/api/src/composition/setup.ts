@@ -22,7 +22,7 @@ export async function setupPlatformSchema(pool: Pool): Promise<void> {
       if (version.rows[0].checksum !== checksum) {
         // Only the exact preceding schema can receive this additive migration.
         let addition = -1;
-        for (const name of ["068_product_default_provisions.sql", "069_admin_customers.sql", "070_product_capability_reviews.sql", "071_growth_capability_publications.sql", "072_product_capability_release.sql", "073_operations_heartbeats.sql", "074_website_crawls.sql", "075_customer_setup.sql"]) {
+        for (const name of ["068_product_default_provisions.sql", "069_admin_customers.sql", "070_product_capability_reviews.sql", "071_growth_capability_publications.sql", "072_product_capability_release.sql", "073_operations_heartbeats.sql", "074_website_crawls.sql", "075_customer_setup.sql", "076_native_enquiries.sql", "077_guided_setup_progress.sql"]) {
           const candidate=files.indexOf(name);
           if(candidate<0)continue;
           const previous=(await Promise.all(files.slice(0,candidate).map(file=>readFile(join(directory,file),"utf8")))).join("\n");

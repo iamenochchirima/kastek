@@ -4,8 +4,9 @@ import type { ToolDefinition } from "../execution/business/model";
 import { REPORT_WORKFLOW_BINDING,toolDescriptor } from "./tool-descriptors";
 
 export const BUILTIN_MODEL_ALIASES = Object.freeze({ knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
-  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",channel_request_handoff: "channel.request_handoff" } as const);
+  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",enquiry_submit:"enquiry.submit",channel_request_handoff: "channel.request_handoff" } as const);
 export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
+  if(name==="enquiry.submit")return config.capabilities.enquiries?.enabled===true&&config.tools.includes("enquiry.submit");
   if(name==="skills.run")return config.skillIds.length>0&&config.capabilities.sandbox.enabled&&config.tools.includes("sandbox.analyze");
   if(name==="booking.availability"||name==="booking.reserve")return config.capabilities.businessActions.enabled&&config.capabilities.businessActions.permittedOperations.includes(name==="booking.availability"?"calendar.availability":"calendar.book");
   return name === "skills.activate" || name === "skills.read" ? config.skillIds.length > 0 : config.tools.includes(name as AgentConfiguration["tools"][number]);
@@ -68,6 +69,11 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
       type: "function", function: { name: builtinModelAlias(name), description,
         parameters: { type: "object", properties, required: name === "knowledge.read" ? ["evidenceId"] : Object.keys(properties), additionalProperties: false } },
     }));
+  if(builtinToolEnabled(config,"enquiry.submit")){
+    const fields=config.capabilities.enquiries!.enabled?config.capabilities.enquiries!.fields:[];
+    const properties=Object.fromEntries(fields.map(field=>[field,{type:"string",minLength:1,maxLength:field==="message"?4000:field==="email"?320:field==="phone"?80:200}]));
+    result.push({type:"function",function:{name:"enquiry_submit",description:"Submit the selected enquiry details to the business. The user must confirm the exact details in the interface before saving. Only a submitted receipt means the enquiry was saved.",parameters:{type:"object",properties:{fields:{type:"object",properties,required:fields,additionalProperties:false}},required:["fields"],additionalProperties:false}}});
+  }
   if(config.skillIds.length) {
     const skillId={type:"string",enum:config.skillIds};
     result.push({type:"function",function:{name:"skills_activate",description:"Load a selected reviewed skill's complete instructions. Use the skill catalog to choose its ID. This grants no additional tools or permissions.",

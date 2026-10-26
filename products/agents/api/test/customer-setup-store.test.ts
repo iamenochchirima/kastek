@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { customerSetupSchema, customerConfigurationForSetup } from "../src/product/offerings/customer-setup";
 import { PlatformStore } from "../src/product/agents/store";
+import { customerSetupReadiness } from "../src/product/agents/setup-readiness";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
@@ -13,6 +14,19 @@ const setup=()=>customerSetupSchema.parse({business:{name:"Business"},responsibi
  beforeAll(async()=>{admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);store=new PlatformStore(pool);});
  afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){const account=await store.ensureAccount({issuer:"https://setup.test",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"});const organization=await store.createOrganization(account.id,"Setup");return{accountId:account.id,organizationId:organization.id};}
+ it("resumes the same draft after duplicate creation and persists setup progress",async()=>{
+  const scope=await fixture(),operationId=randomUUID(),input=setup();
+  const first=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input,operationId});
+  const duplicate=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input,operationId});
+  expect(duplicate.agent.id).toBe(first.agent.id);expect(await store.listVersions(scope.accountId,scope.organizationId,first.agent.id)).toHaveLength(1);
+  await expect(store.createConfiguredAgent({...scope,name:"Changed",setup:input,operationId})).rejects.toMatchObject({code:"SETUP_OPERATION_CONFLICT"});
+  const saved=await store.saveConfiguration({...scope,agentId:first.agent.id,expectedRevision:1,configuration:first.agent.draft,setup:input,setupStep:"Bookings"});
+  expect(saved.agent.setup_step).toBe("Bookings");
+  const readiness=await customerSetupReadiness(pool,scope.accountId,scope.organizationId,first.agent.id);
+  expect(readiness.readyToTest).toBe(false);expect(readiness.requirements.bookings).toEqual({state:"needs_setup",code:"BOOKING_POLICY_REQUIRED"});
+  expect(readiness.requirements.enquiries.state).toBe("ready");expect(readiness.channels).toEqual([{kind:"website",state:"needs_connection"}]);
+  const other=await fixture();await expect(customerSetupReadiness(pool,other.accountId,scope.organizationId,first.agent.id)).rejects.toMatchObject({code:"ACCESS_DENIED"});
+ });
  it("saves setup alongside configuration and snapshots, retaining it through knowledge updates",async()=>{
   const scope=await fixture(),input=setup(),created=await store.createConfiguredAgent({...scope,name:"Assistant",setup:input});
   expect(created.agent.setup).toEqual(input);expect(created.agent.offering).toBe("customer-service");

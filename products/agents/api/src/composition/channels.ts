@@ -1,3 +1,4 @@
+import {ChannelEnquiryReviews} from "../product/channels/channel-enquiry-reviews";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { ChannelStore } from "../product/channels/channel-store";
@@ -47,9 +48,10 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
   const attachments=new ChannelAttachments(channels,{fetch:attachmentFetch,maximumBytes:2097152,mediaHostSuffixes});
   const media=new ChannelMediaReplies(channels,{mediaHostSuffixes});
   let fixtures:EvaluationChannelFixtures|undefined;
+  const enquiryReviews=new ChannelEnquiryReviews(pool);
   const contactReviews=new ChannelToolReviews(pool,new ToolReviewStore(pool));
   const delivery=new ChannelDelivery(pool,channels,inbox,{
-    handleInteraction:(connectionId,deploymentId,event)=>contactReviews.handle(connectionId,deploymentId,event),
+    handleInteraction:async(connectionId,deploymentId,event)=>await enquiryReviews.handle(connectionId,deploymentId,event)??await contactReviews.handle(connectionId,deploymentId,event),
     async acknowledgeInteraction(connectionId,event,outcome) {
       if(!event.callbackQueryId)return;
       const binding=await channels.resolveDeployment("telegram",event.assetId);

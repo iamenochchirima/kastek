@@ -1,3 +1,4 @@
+import type {EnquiryStore} from "../../capabilities/enquiries/enquiries";
 import { channelKindSchema } from "../../contracts/channel-adapters";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -26,6 +27,7 @@ function visitorConversation(row: CustomerConversation) {
 export function registerInboxRoutes(app: FastifyInstance, options: {
   inbox: InboxStore;
   bookings?:BookingService;
+  enquiries?:EnquiryStore;
   toolReviews?:ToolReviewStore;
   resolveScope(request: FastifyRequest): Promise<InboxScope>;
   resolveVisitor(request: FastifyRequest, reply: FastifyReply): Promise<VisitorScope>;
@@ -51,6 +53,10 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
     const input = z.strictObject({ commandId: uuid, expectedRevision: revision, action: z.enum(["claim", "assign", "unassign", "takeover", "reply", "resolve", "reopen", "return"]), assigneeAccountId: uuid.nullable().optional(), body: z.string().trim().min(1).max(8000).optional() }).parse(request.body);
     return { conversation: inboxConversation(await options.inbox.command(await options.resolveScope(request), params(request).conversationId, input)) };
   });
+  if(options.enquiries){
+    const enquiries=options.enquiries;
+    app.get(`${base}/:conversationId/enquiries`,async request=>{const scope=await options.resolveScope(request),conversationId=params(request).conversationId;await options.inbox.readStaff(scope,conversationId,"0",1);return {enquiries:await enquiries.listStaff(scope,{conversationId})};});
+  }
   if(options.bookings){
     const bookings=options.bookings;
     const staffBookingTasks=async(request:FastifyRequest,bookingId?:string)=>{
@@ -106,6 +112,23 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
       const id=uuid.parse((request.params as Record<string,string>).bookingId),input=z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.body);
       for(const row of current.rows){const scoped=await bookings.listForPrincipal(row.id,current.principal);if(scoped.some(booking=>booking.id===id))return {booking:publicBooking(await bookings.decide(row.id,current.principal,id,input))};}
       throw new PlatformError("BOOKING_NOT_FOUND",404,"Booking not found");
+    });
+  }
+  if(options.enquiries){
+    const enquiries=options.enquiries;
+    const enquiryTasks=async(request:FastifyRequest,reply:FastifyReply)=>{
+      const scope=await options.resolveVisitor(request,reply);await options.publicRate?.(scope.deploymentId);
+      const result=await options.inbox.readVisitor(scope,params(request).conversationId,"0",1);
+      const principal={kind:"visitor" as const,deploymentId:scope.deploymentId,sessionId:scope.sessionId};
+      const rows=(await options.inbox.pool.query(`SELECT DISTINCT t.id FROM agents_platform.tasks t JOIN agents_platform.enquiries e ON e.task_id=t.id WHERE t.conversation_id=$1 AND t.principal=$2::jsonb AND t.organization_id=$3 ORDER BY t.id LIMIT 30`,[result.conversation.execution_conversation_id,JSON.stringify(principal),result.conversation.organization_id])).rows;
+      return {principal,rows,conversation:result.conversation};
+    };
+    app.get(`${website}/:conversationId/enquiries`,async(request,reply)=>{const current=await enquiryTasks(request,reply);return {enquiries:(await Promise.all(current.rows.map(row=>enquiries.listForPrincipal(row.id,current.principal)))).flat()};});
+    app.post(`${website}/:conversationId/enquiries/:enquiryId/decision`,async(request,reply)=>{
+      const current=await enquiryTasks(request,reply);if(current.conversation.state!=="automation_active")throw new PlatformError("ENQUIRY_REVIEW_DENIED",403,"Enquiry confirmation is unavailable");
+      const id=uuid.parse((request.params as Record<string,string>).enquiryId),input=z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.body);
+      for(const row of current.rows){const items=await enquiries.listForPrincipal(row.id,current.principal);if(items.some(item=>item.id===id))return {enquiry:await enquiries.decide(row.id,current.principal,id,input)};}
+      throw new PlatformError("ENQUIRY_NOT_FOUND",404,"Enquiry not found");
     });
   }
   if(options.toolReviews) {

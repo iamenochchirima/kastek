@@ -25,6 +25,7 @@ export function AgentDirectory() {
   const [query, setQuery] = useState("");
   useEffect(() => { const timer = setTimeout(() => setQuery(search.trim()), 250); return () => clearTimeout(timer); }, [search]);
   const [generation, setGeneration] = useState(0), [chatGeneration, setChatGeneration] = useState(0), [historyLoading, setHistoryLoading] = useState(false);
+  const resumeSetup = new URLSearchParams(location.search).get("setup") === "guided";
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [directoryOpen, setDirectoryOpen] = useState(false);
   const scope = useRef({ path, agentId, generation, query });
   scope.current = { path, agentId, generation, query };
@@ -59,7 +60,7 @@ export function AgentDirectory() {
   </>;
   return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}><div className="agent-workspace"><aside className="agent-directory">{directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId ?? "overview"}><Outlet key={location.pathname.startsWith("/app/agents/") ? agentId : "overview"} /></div></div></div>
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Agents & history</DialogTitle><DialogDescription className="sr-only">Choose an agent or conversation.</DialogDescription></DialogHeader>{directory}</DialogContent></Dialog>
-    <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open} onOpenChange={setOpen} organizationId={organizationId} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
+    <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open || resumeSetup} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
   </DirectoryContext.Provider>;
 }
 export function AgentWelcome() { return <section className="agent-welcome"><span className="agent-welcome-icon"><Bot size={30} /></span><h1>What shall we work on?</h1><p>Select an agent to start a chat.</p></section>; }

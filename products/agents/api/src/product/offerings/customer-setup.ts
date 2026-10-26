@@ -4,7 +4,7 @@ import { customerConfiguration } from "./offerings";
 export { customerSetupSchema, type CustomerSetup } from "../../contracts/customer-setup";
 
 /** Setup describes intent; only separately authorized bindings grant operational access. */
-export function customerConfigurationForSetup(value: CustomerSetup): AgentConfiguration {
+function setupInstructions(value: CustomerSetup): string {
   const setup = customerSetupSchema.parse(value);
   const configuration = customerConfiguration("customer-service");
   const instructions = [configuration.instructions,
@@ -17,10 +17,30 @@ export function customerConfigurationForSetup(value: CustomerSetup): AgentConfig
       ...(setup.booking ? [`Appointment preferences: ${JSON.stringify(setup.booking)}.`] : []),
     ] : []),
     ...(setup.responsibilities.includes("enquiries") ? [
-      `Collect enquiry details: ${setup.intake?.fields.join(", ") ?? "name, email, message"}. Ask only for information needed for the enquiry. Never claim it was saved to an external system without tool confirmation.`,
+      `Collect enquiry details: ${setup.intake?.fields.join(", ") ?? "name, email, message"}. Ask only for information needed for the enquiry. Use enquiry.submit to save the completed enquiry after the customer confirms its exact details. Only report it saved after the tool returns a submitted receipt.`,
     ] : []),
     ...(setup.behaviour.handoffInstructions ? [`Human handoff preferences: ${JSON.stringify(setup.behaviour.handoffInstructions)}.`] : []),
     "Selected channels are setup preferences only; they do not establish connections or grant tools.",
   ].join("\n");
-  return { ...configuration, instructions };
+  return instructions;
+}
+
+export function customerConfigurationForSetup(value: CustomerSetup): AgentConfiguration {
+  return applyCustomerSetup(customerConfiguration("customer-service"), customerSetupSchema.parse(value));
+}
+
+/** Derive setup-owned capabilities without replacing manually authorized sources or bindings. */
+export function applyCustomerSetup(configuration: AgentConfiguration, setup: CustomerSetup, previous?: CustomerSetup): AgentConfiguration {
+  const selected = new Set(setup.responsibilities);
+  const tools = new Set(configuration.tools);
+  if (selected.has("answer-questions") || selected.has("customer-support")) {
+    tools.add("knowledge.search"); tools.add("knowledge.read");
+  }
+  if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) tools.add("channel.request_handoff");
+  else tools.delete("channel.request_handoff");
+  const enquiries = selected.has("enquiries") ? { enabled: true as const, fields: setup.intake?.fields ?? ["name", "email", "message"] as Array<"name" | "email" | "message"> } : { enabled: false as const };
+  if (enquiries.enabled) tools.add("enquiry.submit"); else tools.delete("enquiry.submit");
+  // Calendar access still requires a separately authorized policy, never just setup intent.
+  const businessActions = !selected.has("bookings") && previous?.responsibilities.includes("bookings") ? { enabled: false as const } : configuration.capabilities.businessActions;
+  return { ...configuration, instructions: setupInstructions(setup), tools: [...tools], capabilities: { ...configuration.capabilities, businessActions, enquiries } };
 }
