@@ -135,6 +135,7 @@ export function CustomersPage() {
     [loadingActivity, setLoadingActivity] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState(false),
     [saveUncertain, setSaveUncertain] = useState(false);
+  const editorTrigger = useRef<HTMLElement | null>(null);
   const saveRequest = useRef<{
     body: Record<string, unknown>;
     kind:
@@ -448,6 +449,10 @@ export function CustomersPage() {
     }
   }
   function openEditor(value: Editor) {
+    editorTrigger.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     setEditorError("");
     saveRequest.current = null;
     setSaveUncertain(false);
@@ -1191,7 +1196,13 @@ export function CustomersPage() {
           if (!open && !busy && !saveUncertain) setEditor(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent
+          className="max-h-[90dvh] overflow-y-auto"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            editorTrigger.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {editor?.kind === "contact"

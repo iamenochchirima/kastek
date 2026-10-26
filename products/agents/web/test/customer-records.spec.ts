@@ -310,10 +310,65 @@ test("revoked assignee remains distinct from unassigned", async ({ page }) => {
   const assignee = page.getByLabel("Enquiry assignee");
   await expect(assignee).toHaveValue("former-staff");
   await expect(assignee.locator("option:checked")).toHaveText("Former member");
-  await expect(assignee.locator("option:checked")).toHaveAttribute("disabled", "");
+  await expect(assignee.locator("option:checked")).toHaveAttribute(
+    "disabled",
+    "",
+  );
   await expect(page.getByRole("button", { name: "Assign to me" })).toHaveCount(
     0,
   );
   await assignee.selectOption("staff");
   await expect(assignee).toHaveValue("staff");
+});
+
+test("customer editor keeps keyboard focus and supports both themes", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 390, height: 900 });
+  const surfaces: string[] = [];
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.goto("/app/customers");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      colorScheme,
+    );
+    const trigger = page.getByRole("button", {
+      name: "Add enquiry",
+      exact: true,
+    });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", {
+      name: "Add enquiry",
+      exact: true,
+    });
+    await expect(dialog.getByLabel("Name", { exact: true })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    expect(
+      await dialog.evaluate((element) =>
+        element.contains(document.activeElement),
+      ),
+    ).toBe(true);
+    await expect(dialog).toHaveCSS("opacity", "1");
+    const surface = await dialog.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, text: style.color };
+    });
+    expect(surface.background).not.toBe(surface.text);
+    surfaces.push(surface.background);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`customer-editor-${colorScheme}.png`),
+    });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  }
+  expect(surfaces[0]).not.toBe(surfaces[1]);
 });
