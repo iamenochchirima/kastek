@@ -28,13 +28,19 @@ provider URL. Do not drop setup or crawl data as part of a UI rollback. The webs
 internal product agents and customer setups without knowledge responsibilities, matching the UI.
 
 
-Website knowledge import is available as an optional step after agent creation and under
+Website knowledge import is available as an optional creation step and under
 Configure → General → Import website. Owners can enter a bare domain, follow crawl progress,
 select pages, inspect extracted Markdown, and import the selection as one knowledge candidate.
 The next review shows the normalized candidate. **Approve and use** approves the revision and
 attaches it through the normal revision-checked agent configuration API. Public website replies
-require the explicit visibility checkbox; imports otherwise stay private. Closing or reloading
-retains the draft and server-side crawl history. Skipping website import leaves the agent usable.
+require explicit owner authorization through the visibility checkbox or **Allow customer replies**;
+imports otherwise stay private. Closing or reloading resumes the exact persisted import and derives
+completion from its ready revision, current approval, active source, and saved agent knowledge bindings.
+Approved private sources display their customer-channel restriction. Withdrawn, unavailable, failed and
+cancelled imports remain distinct and can be retried without reporting success. An approved source that
+is not attached offers **Use knowledge** without approving it again. Skipping website import leaves the
+agent usable. The importer refreshes the saved draft before attachment to preserve other source/tool
+bindings and uses the normal revision conflict check against concurrent edits.
 
 The server-side Firecrawl v2 adapter supports local or Cloud origins through
 `AGENTS_FIRECRAWL_URL` and a private `AGENTS_FIRECRAWL_API_KEY`. Schema074 stores organization,

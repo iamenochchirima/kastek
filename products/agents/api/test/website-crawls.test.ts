@@ -3,7 +3,9 @@ import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FirecrawlClient, FirecrawlError } from "../src/adapters/providers/firecrawl/client";
-import { KnowledgeStore } from "../src/capabilities/knowledge/knowledge";
+import { KnowledgeStore, requireKnowledgeMember } from "../src/capabilities/knowledge/knowledge";
+import { KnowledgeRetrieval } from "../src/capabilities/knowledge/retrieval";
+import { textDigest } from "../src/contracts/source-contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { WebsiteCrawlStore, websiteCrawlUrl } from "../src/product/agents/website-crawls";
 import { setupPlatformSchema } from "../src/composition/setup";
@@ -59,6 +61,32 @@ describe("website crawl URL admission",()=>{
   const sources=await knowledge.list(scope);expect(sources).toHaveLength(1);expect(sources[0].visibility).toBe("private");expect(sources[0].revisions).toHaveLength(0);
   expect([...objects.values()].map(value=>Buffer.from(value).toString()).join()).toContain("Source: https://example.com/services");
   expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1",[imported.job.id])).rows[0].count).toBe("1");
+ });
+ it("seals reviewed website evidence, binds only approved revisions, and fences private or withdrawn customer retrieval",async()=>{
+  const{scope,agentId}=await fixture();provider();
+  const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();await tick();
+  const complete=await store.get(scope,agentId,crawl.id);
+  const{job}=await store.import(scope,agentId,crawl.id,{operationId:randomUUID(),pageIds:[complete.pages[0].id]},"document-test-v1");
+  const text="We offer booking support.",chunk={id:randomUUID(),revisionId:job.revisionId,ordinal:0,start:0,end:text.length,page:1,section:null,text,digest:textDigest(text),tokens:6};
+  // Controlled extraction isolates the canonical persistence and authorization path from parser execution.
+  await pool.query("UPDATE agents_platform.ingestion_jobs SET state='indexing' WHERE id=$1",[job.id]);
+  await knowledge.publishExtraction(job.id,{text,chunks:[chunk],normalizerRelease:"fixture-nfc-v1",acquiredAt:new Date().toISOString(),embeddings:[Array.from({length:384},(_,i)=>i===0?1:0)]});
+  expect((await knowledge.getJob(scope,job.id)).state).toBe("ready");
+  expect((await knowledge.preview(scope,job.sourceId,job.revisionId)).chunks).toHaveLength(1);
+  expect(Number((await pool.query("SELECT count(*) FROM agents_platform.chunk_embeddings WHERE chunk_id=$1",[chunk.id])).rows[0].count)).toBe(1);
+  const agent=await platform.getAgent(scope.accountId,scope.organizationId,agentId);
+  const configuration={...agent.draft,sourceRevisionIds:[job.revisionId],tools:["knowledge.search" as const,"knowledge.read" as const]};
+  await expect(platform.saveConfiguration({...scope,agentId,expectedRevision:agent.draft_revision,configuration,confirmImpact:true})).rejects.toMatchObject({code:"SOURCE_REVISION_UNAVAILABLE"});
+  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"approve",revisionId:job.revisionId});
+  const saved=await platform.saveConfiguration({...scope,agentId,expectedRevision:agent.draft_revision,configuration,confirmImpact:true});
+  expect(saved.agent.draft.sourceRevisionIds).toEqual([job.revisionId]);
+  const retrieval=new KnowledgeRetrieval(pool),retrievalScope={organizationId:scope.organizationId,versionId:saved.snapshot.id,sourceRevisionIds:[job.revisionId],publicOnly:true};
+  const search=(publicOnly=true)=>retrieval.search({...retrievalScope,publicOnly},"booking",{kind:"lexical-v1"},async db=>{await requireKnowledgeMember(db,scope);});
+  expect(await search()).toEqual([]);expect(await search(false)).toHaveLength(1);
+  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"visibility",visibility:"public"});
+  expect(await search()).toHaveLength(1);
+  await knowledge.setPolicy(scope,job.sourceId,{operationId:randomUUID(),expectedGeneration:2,action:"withdraw"});
+  expect(await search()).toEqual([]);expect(await search(false)).toEqual([]);
  });
  it("polls an active Firecrawl cursor without following its URL or failing the crawl",async()=>{
   const{scope,agentId}=await fixture(),remote=provider();const crawl=await store.start(scope,agentId,{operationId:randomUUID(),url:"example.com"});await tick();
