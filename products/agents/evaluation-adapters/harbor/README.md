@@ -391,3 +391,59 @@ The new mode is optional source preparation. It changes no native runtime, produ
 analytics registry or deployment. Its eight MockTransport/mapping/driver tests are contract checks only;
 real Growth Harbor trials, model quality, provider acceptance and operational isolation remain
 owner-run.
+
+## Guided setup and native enquiries
+
+[Guided setup owner cases](cases/guided-setup.json) separates FAQ, support, booking,
+intake and combined configurations of the same customer-service agent runtime. It is
+an owner acceptance matrix, not an additional runnable Harbor suite. Prepare a fresh
+isolated agent and immutable scope for each profile. Reuse existing FAQ and Inbox
+suites for their supported purposes. Run native enquiry and combined cases with the
+owner-controlled HTTP ports and independent native records described in the manifest.
+No evaluations were run for this addition.
+
+`PlatformClient.setup_readiness()` reads the saved draft revision, requirement gaps
+and channel states. Readiness describes configuration metadata. It does not replace
+the prepared immutable version or prove a successful provider call. Scope preparation,
+model pinning, grants and trial isolation continue through the existing platform APIs.
+The adapter never grants itself access or modifies a reserved agent.
+
+Native enquiries use `capabilities.enquiries.enabled`, its exact selected `fields`,
+the `enquiry.submit` tool and matching grant operation. Customer details are stored
+in Agents after explicit confirmation; no CRM account is required. The host helpers are:
+
+- `VisitorClient.enquiries(conversation_id)` and
+  `VisitorClient.decide_enquiry(conversation_id, enquiry_id, decision, request_digest)`.
+- `PlatformClient.task_enquiries(task_id)` and
+  `PlatformClient.decide_enquiry(task_id, enquiry_id, decision, request_digest)` for
+  the signed-in task principal, retaining the prepared version.
+- `PlatformClient.submitted_enquiries(limit=50)` for a bounded staff record page
+  filtered to the prepared agent. Pending proposals are absent from this staff list.
+
+The helpers use the normal routes:
+
+```text
+GET  /api/website/:deploymentId/customer-conversations/:conversationId/enquiries
+POST /api/website/:deploymentId/customer-conversations/:conversationId/enquiries/:enquiryId/decision
+GET  /api/organizations/:organizationId/tasks/:taskId/enquiries
+POST /api/organizations/:organizationId/tasks/:taskId/enquiries/:enquiryId/decision
+GET  /api/organizations/:organizationId/enquiries?agentId=:preparedAgentId&limit=50
+GET  /api/organizations/:organizationId/agents/:agentId/setup-readiness
+```
+
+The caller supplies every approve/reject decision and exact digest. Transport retries
+preserve that decision; the adapter never chooses it automatically. Visitor requests
+carry only the visitor bearer credential, without the operator cookie. Native DTO
+checks retain enquiry, task, agent and conversation identities, bounded configured
+fields, state and digest. A pending or approved proposal is not a submitted enquiry.
+Require the actual `submitted` tool receipt and matching staff record with its
+submission timestamp. Inspect absence of submitted records for rejection, expiry,
+wrong-session requests and authority withdrawal. Check the same native identity after
+retries rather than accepting a second generated record. Retain personal-data evidence
+in private trial artifacts.
+
+Release impact: host adapter methods and owner manifests only; no API/schema change,
+new runtime, grant bypass, analytics event or production rollout. Existing bounded
+HTTP failures remain the diagnostic signal. Rollback removes these helper methods
+and the manifest without changing native data or existing suites. Focused mocked-HTTP
+unit checks and Python compilation establish adapter contracts, not agent outcomes.

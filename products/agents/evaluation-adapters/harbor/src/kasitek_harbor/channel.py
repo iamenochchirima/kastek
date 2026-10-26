@@ -5,6 +5,7 @@ import re
 from uuid import UUID
 import httpx
 from .client import PlatformRequestError
+from .enquiries import validate_enquiries
 from .persistence import persist
 
 
@@ -35,13 +36,13 @@ class VisitorClient:
                 or re.fullmatch(conversation + r"/messages", path)
                 or re.fullmatch(
                     conversation
-                    + r"/(?:bookings|tool-reviews)/[0-9a-fA-F-]{36}/decision",
+                    + r"/(?:bookings|tool-reviews|enquiries)/[0-9a-fA-F-]{36}/decision",
                     path,
                 )
             )
         ) or (
             method == "GET"
-            and re.fullmatch(conversation + r"/(?:bookings|tool-reviews)", path)
+            and re.fullmatch(conversation + r"/(?:bookings|tool-reviews|enquiries)", path)
         )
         if not permitted:
             raise ValueError("Visitor request escaped its prepared website publication")
@@ -85,6 +86,28 @@ class VisitorClient:
 
     async def tool_reviews(self, conversation_id):
         return await self._confirmations(conversation_id, "tool-reviews", "reviews")
+
+    async def enquiries(self, conversation_id):
+        UUID(conversation_id)
+        result = await self._request("GET", f"{self.path}/{conversation_id}/enquiries")
+        rows = validate_enquiries(result)
+        if any(row.get("customerConversationId") != conversation_id for row in rows):
+            raise ValueError("Enquiry escaped the prepared visitor conversation")
+        return rows
+
+    async def decide_enquiry(self, conversation_id, enquiry_id, decision, request_digest):
+        result = await self._decide(
+            conversation_id, "enquiries", enquiry_id, decision, request_digest
+        )
+        rows = validate_enquiries({"enquiries": [result.get("enquiry")]})
+        if (
+            rows[0]["id"] != enquiry_id
+            or rows[0].get("customerConversationId") != conversation_id
+            or rows[0]["requestDigest"] != request_digest
+            or rows[0]["state"] not in ({"approved", "submitted"} if decision == "approve" else {"rejected"})
+        ):
+            raise ValueError("Enquiry decision changed its exact customer request")
+        return rows[0]
 
     async def _decide(self, conversation_id, kind, identity, decision, request_digest):
         UUID(conversation_id)

@@ -12,6 +12,7 @@ import httpx
 
 from .config import PreparedScope
 from .native import ExecutionExport
+from .enquiries import validate_enquiries
 from .persistence import persist
 
 TERMINAL_STATES = frozenset(
@@ -237,6 +238,91 @@ class PlatformClient:
             ),
             task_id,
         )
+
+    async def task_enquiries(self, task_id: str) -> list[dict]:
+        await self.status(task_id)
+        result = await self.request(
+            "GET", f"{self.organization_path}/tasks/{task_id}/enquiries"
+        )
+        return validate_enquiries(result, agent_id=self.scope.agent_id, task_id=task_id)
+
+    async def decide_enquiry(self, task_id, enquiry_id, decision, request_digest):
+        UUID(task_id)
+        UUID(enquiry_id)
+        if decision not in {"approve", "reject"} or not re.fullmatch(
+            r"[a-f0-9]{64}", request_digest
+        ):
+            raise ValueError("Expected an explicit decision and exact enquiry digest")
+        # Only the operator's supplied decision is sent. Repeated transport attempts
+        # preserve its task, enquiry and exact field digest.
+        await self.status(task_id)
+        body = {"decision": decision, "requestDigest": request_digest}
+        for attempt in range(2):
+            try:
+                result = await self.request(
+                    "POST",
+                    f"{self.organization_path}/tasks/{task_id}/enquiries/{enquiry_id}/decision",
+                    body,
+                )
+                rows = validate_enquiries(
+                    {"enquiries": [result.get("enquiry")]},
+                    agent_id=self.scope.agent_id,
+                    task_id=task_id,
+                )
+                if (
+                    rows[0]["id"] != enquiry_id
+                    or rows[0]["requestDigest"] != request_digest
+                    or rows[0]["state"] not in ({"approved", "submitted"} if decision == "approve" else {"rejected"})
+                ):
+                    raise ValueError("Enquiry decision changed its exact request")
+                return rows[0]
+            except httpx.TransportError:
+                if attempt:
+                    raise
+        raise AssertionError("Unreachable retry state")
+
+    async def submitted_enquiries(self, *, limit=50) -> list[dict]:
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise ValueError("Expected a bounded enquiry page size")
+        result = await self.request(
+            "GET", f"{self.organization_path}/enquiries",
+            params={"agentId": str(self.scope.agent_id), "limit": limit},
+        )
+        rows = validate_enquiries(result, agent_id=self.scope.agent_id, submitted_only=True)
+        if len(rows) > limit:
+            raise ValueError("Native enquiry response exceeded the requested page")
+        return rows
+
+    async def setup_readiness(self) -> dict:
+        result = await self.request(
+            "GET", f"{self.organization_path}/agents/{self.scope.agent_id}/setup-readiness"
+        )
+        readiness = result.get("readiness") if isinstance(result, dict) else None
+        if (
+            not isinstance(readiness, dict)
+            or readiness.get("agentId") != str(self.scope.agent_id)
+            or type(readiness.get("draftRevision")) is not int
+            or readiness["draftRevision"] < 1
+            or not isinstance(readiness.get("readyToTest"), bool)
+            or not isinstance(readiness.get("requirements"), dict)
+            or not isinstance(readiness.get("channels"), list)
+        ):
+            raise ValueError("Missing native setup readiness")
+        for requirement in readiness["requirements"].values():
+            if not isinstance(requirement, dict) or requirement.get("state") not in {
+                "ready", "needs_setup", "deferred"
+            }:
+                raise ValueError("Unsupported native setup requirement")
+        for channel in readiness["channels"]:
+            if (
+                not isinstance(channel, dict)
+                or channel.get("kind") not in {"website", "whatsapp", "telegram", "facebook", "instagram"}
+                or channel.get("state") not in {"connected", "needs_attention", "paused", "needs_connection"}
+            ):
+                raise ValueError("Unsupported native setup channel")
+        # Readiness describes current saved metadata, not the prepared immutable
+        # version or a successful live provider call.
+        return readiness
 
     async def cancel(self, task_id: str) -> dict:
         UUID(task_id)
