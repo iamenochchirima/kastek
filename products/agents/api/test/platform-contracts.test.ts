@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   agentConfigurationSchema, assertGrantAuthority, assertRuntimeAvailable, assertTaskTransition,
-  defaultBusinessConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, requestDigest,
+  defaultBusinessConfiguration, executionGrantSchema, executionKindSchema, parseAllowedOrigin, normalizeWebsiteDomain, requestDigest,
   type AdmissionAuthority,
 } from "../src/contracts/contracts";
 
@@ -102,6 +102,17 @@ describe("fresh platform execution contract", () => {
     expect(requestDigest({ input: "hello", scope: { a: 1, b: 2 } }))
       .toBe(requestDigest({ scope: { b: 2, a: 1 }, input: "hello" }));
     expect(requestDigest({ input: "hello" })).not.toBe(requestDigest({ input: "different" }));
+  });
+
+  it("normalizes website domain input without relaxing request-origin validation", () => {
+    expect(normalizeWebsiteDomain(" kasitek.co.za ")).toBe("https://kasitek.co.za");
+    expect(normalizeWebsiteDomain("WWW.KASITEK.CO.ZA/")).toBe("https://www.kasitek.co.za");
+    expect(normalizeWebsiteDomain("https://kasitek.co.za:443/")).toBe("https://kasitek.co.za");
+    expect(normalizeWebsiteDomain("http://localhost:3000")).toBe("http://localhost:3000");
+    for (const value of ["", "*", "*.kasitek.co.za", "%2a.kasitek.co.za", "http://kasitek.co.za", "kasitek.co.za/path", "user:secret@kasitek.co.za", "kasitek.co.za?x=1", "kasitek.co.za#fragment", "//kasitek.co.za", "kasitek.co.za\\path", "kasi tek.co.za", "ftp://kasitek.co.za"]) {
+      expect(() => normalizeWebsiteDomain(value)).toThrow();
+    }
+    expect(() => parseAllowedOrigin("kasitek.co.za")).toThrow();
   });
 
   it("accepts exact HTTPS origins and local development, without wildcards or URL paths", () => {

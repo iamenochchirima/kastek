@@ -10,6 +10,11 @@ It rejects unknown schemas and does not import Growth state.
 
 ## Product scope and implementation gaps
 
+Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
+HTTPS origin. Explicit HTTPS URLs and local HTTP development origins remain supported. Paths,
+queries, fragments, embedded credentials and wildcard domains are rejected. Incoming visitor
+Origin headers still require an exact allowed origin; normalization applies only during setup.
+
 Standalone session bootstrap creates **My workspace** and its owner membership for an account
 with no membership history. Concurrent requests reuse that workspace. Existing or revoked
 memberships are not replaced. Additional workspaces remain an explicit Settings action.

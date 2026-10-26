@@ -4,7 +4,7 @@ import {
 agentConfigurationSchema,
 assertRuntimeAvailable,
 executionGrantSchema,
-parseAllowedOrigin,PlatformError,
+parseAllowedOrigin,normalizeWebsiteDomain,PlatformError,
 type ExecutionGrant
 } from "../../contracts/contracts";
 
@@ -54,7 +54,7 @@ export class DeploymentStore extends AuthorityStore {
     });
   }
   private async publishWebsiteInTransaction(db:PoolClient,input:{accountId:string;organizationId:string;agentId:string;versionId:string;allowedOrigins:string[]}):Promise<WebsiteDeployment> {
-    const origins = [...new Set(input.allowedOrigins.map(parseAllowedOrigin))];
+    const origins = [...new Set(input.allowedOrigins.map(normalizeWebsiteDomain))];
     if (origins.length < 1 || origins.length > 10) throw new PlatformError("INVALID_ORIGIN", 400, "Select 1 to 10 website origins");
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db, input.accountId, input.organizationId);

@@ -75,6 +75,14 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request("/api/session", {cookie})).body.organizations).toEqual(first.body.organizations);
   });
 
+  it("stores bare website domains as deduplicated HTTPS origins", async () => {
+    const f = await readyAgent();
+    const result = await request(`${f.base}/agents/${f.agent.id}/deployments`, {method: "POST", cookie: f.cookie, origin: browserOrigin,
+      payload: {allowedOrigins: ["kasitek.co.za", "https://kasitek.co.za/"]}});
+    expect(result.status).toBe(201);
+    expect(result.body.deployment.allowedOrigins).toEqual(["https://kasitek.co.za"]);
+  });
+
   async function readyAgent(visibility: "public" | "private" = "public") {
     const user = await actor(), base = `/api/organizations/${user.org}`;
     const create = await request(`${base}/agents`, { method: "POST", cookie: user.cookie, origin: browserOrigin, payload: { name: "Opening hours" } });

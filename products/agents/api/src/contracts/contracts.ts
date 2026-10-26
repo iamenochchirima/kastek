@@ -226,6 +226,16 @@ export function requestDigest(value: unknown): string {
   return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
+export function normalizeWebsiteDomain(value: string): string {
+  const input = value.trim();
+  if (!input || /[\s\\]/.test(input) || input.startsWith("//")) {
+    throw new PlatformError("INVALID_ORIGIN", 400, "Enter a valid website domain");
+  }
+  const origin = parseAllowedOrigin(/^[a-z][a-z\d+.-]*:\/\//i.test(input) ? input : `https://${input}`);
+  if (new URL(origin).hostname.includes("*")) throw new PlatformError("INVALID_ORIGIN", 400, "Enter an exact website domain");
+  return origin;
+}
+
 export function parseAllowedOrigin(value: string): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new PlatformError("INVALID_ORIGIN", 400, "Enter a valid website origin"); }
