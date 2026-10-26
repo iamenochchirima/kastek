@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 const timestamp = "2026-10-27T10:00:00.000Z";
-async function fixture(page: Page, role = "owner") {
+async function fixture(
+  page: Page,
+  role = "owner",
+  assigneeAccountId: string | null = null,
+) {
   const commands: Record<string, unknown>[] = [];
   let enquiry = {
     id: "enquiry",
@@ -22,7 +26,7 @@ async function fixture(page: Page, role = "owner") {
     conversationId: null,
     customerConversationId: "thread",
     contactId: null as string | null,
-    assigneeAccountId: null as string | null,
+    assigneeAccountId,
     dueAt: null as string | null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -64,6 +68,8 @@ async function fixture(page: Page, role = "owner") {
       expect(body.expectedRevision).toBe(enquiry.revision);
       enquiry = { ...enquiry, revision: String(Number(enquiry.revision) + 1) };
       if (body.action === "claim") enquiry.assigneeAccountId = "owner";
+      if (body.action === "assign")
+        enquiry.assigneeAccountId = body.assigneeAccountId;
       if (body.action === "unassign") enquiry.assigneeAccountId = null;
       if (body.action === "set-status") enquiry.status = body.status;
       if (body.action === "reopen") enquiry.status = "new";
@@ -294,4 +300,20 @@ test("uncertain contact creation preserves the request on retry", async ({
   await page.getByRole("button", { name: "Retry save", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(attempted[1]).toEqual(attempted[0]);
+});
+
+test("revoked assignee remains distinct from unassigned", async ({ page }) => {
+  await fixture(page, "owner", "former-staff");
+  await page.goto("/app/customers");
+  await expect(page.getByText("Former member", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /Ada.*New/ }).click();
+  const assignee = page.getByLabel("Enquiry assignee");
+  await expect(assignee).toHaveValue("former-staff");
+  await expect(assignee.locator("option:checked")).toHaveText("Former member");
+  await expect(assignee.locator("option:checked")).toHaveAttribute("disabled", "");
+  await expect(page.getByRole("button", { name: "Assign to me" })).toHaveCount(
+    0,
+  );
+  await assignee.selectOption("staff");
+  await expect(assignee).toHaveValue("staff");
 });

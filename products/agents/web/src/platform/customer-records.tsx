@@ -809,6 +809,15 @@ export function CustomersPage() {
                         }
                       >
                         <option value="">Unassigned</option>
+                        {detail.assigneeAccountId &&
+                        !members.some(
+                          (member) =>
+                            member.accountId === detail.assigneeAccountId,
+                        ) ? (
+                          <option value={detail.assigneeAccountId} disabled>
+                            Former member
+                          </option>
+                        ) : null}
                         {members.map((member) => (
                           <option
                             key={member.accountId}
@@ -1143,7 +1152,10 @@ export function CustomersPage() {
                         {members.find(
                           (member) =>
                             member.accountId === item.assigneeAccountId,
-                        )?.name ?? "Unassigned"}
+                        )?.name ??
+                          (item.assigneeAccountId
+                            ? "Former member"
+                            : "Unassigned")}
                         {item.dueAt ? ` · Due ${date(item.dueAt)}` : ""}
                       </p>
                     </div>
