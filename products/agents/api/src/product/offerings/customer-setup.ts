@@ -17,7 +17,7 @@ function setupInstructions(value: CustomerSetup): string {
       ...(setup.booking ? [`Appointment preferences: ${JSON.stringify(setup.booking)}.`] : []),
     ] : []),
     ...(setup.responsibilities.includes("enquiries") ? [
-      `Collect enquiry details: ${setup.intake?.fields.join(", ") ?? "name, email, message"}. Ask only for information needed for the enquiry. Use enquiry.submit to save the completed enquiry after the customer confirms its exact details. Only report it saved after the tool returns a submitted receipt.`,
+      `Collect enquiry details: ${setup.intake?.fields.join(", ") ?? "name, email, message"}. Ask only for information needed for the enquiry. Use enquiry.read for this customer's earlier enquiries and enquiry.amend for a confirmed correction. Use enquiry.submit to save the completed enquiry after the customer confirms its exact details. Only report it saved after the tool returns a submitted receipt.`,
     ] : []),
     ...(setup.behaviour.handoffInstructions ? [`Human handoff preferences: ${JSON.stringify(setup.behaviour.handoffInstructions)}.`] : []),
     "Selected channels are setup preferences only; they do not establish connections or grant tools.",
@@ -39,7 +39,7 @@ export function applyCustomerSetup(configuration: AgentConfiguration, setup: Cus
   if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) tools.add("channel.request_handoff");
   else tools.delete("channel.request_handoff");
   const enquiries = selected.has("enquiries") ? { enabled: true as const, fields: setup.intake?.fields ?? ["name", "email", "message"] as Array<"name" | "email" | "message"> } : { enabled: false as const };
-  if (enquiries.enabled) tools.add("enquiry.submit"); else tools.delete("enquiry.submit");
+  if (enquiries.enabled) { tools.add("enquiry.submit"); tools.add("enquiry.read"); tools.add("enquiry.amend"); } else { tools.delete("enquiry.submit"); tools.delete("enquiry.read"); tools.delete("enquiry.amend"); }
   // Calendar access still requires a separately authorized policy, never just setup intent.
   const businessActions = !selected.has("bookings") && previous?.responsibilities.includes("bookings") ? { enabled: false as const } : configuration.capabilities.businessActions;
   return { ...configuration, instructions: setupInstructions(setup), tools: [...tools], capabilities: { ...configuration.capabilities, businessActions, enquiries } };

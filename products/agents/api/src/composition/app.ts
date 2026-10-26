@@ -1,3 +1,5 @@
+import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
+import { CustomerRecordStore } from "../product/customer-records/store";
 import { customerSetupReadiness } from "../product/agents/setup-readiness";
 import {EnquiryStore} from "../capabilities/enquiries/enquiries";
 import {registerEnquiryRoutes} from "../product/enquiries/routes";
@@ -147,7 +149,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const apiRegistry=connected?.registry??new ExecutableAdapterRegistry<unknown>();
   if(!connected)apiRegistry.register(nativeApiAdapterManifest(),executeGenericNativeApi);
   const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog,testLoopback:options.testConnectionLoopback}):undefined;
-  const grantOperations=operationsForConfiguration;
+  const grantOperations=(configuration:AgentConfiguration)=>operationsForConfiguration(configuration,true);
   async function assertBindings(configuration: AgentConfiguration): Promise<void> {
     if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     if (configuration.retrievalProfile.kind === "hybrid-v1" && (!documentRuntime || !await documentRuntime.available(configuration.retrievalProfile.embeddingRelease))) {
@@ -275,6 +277,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
+  registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});
   registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

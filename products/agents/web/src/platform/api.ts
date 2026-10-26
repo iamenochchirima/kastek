@@ -10,7 +10,7 @@ export type Configuration = {
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "enquiry.submit")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
   skillIds?: string[];
   capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
