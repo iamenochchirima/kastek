@@ -266,7 +266,8 @@ export class InboxStore {
     if(row.state!=="automation_active"||row.ownership_generation!==input.binding.ownershipGeneration||!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Conversation ownership changed");
     const key=`enquiry-review:${input.reviewId}`;
     if((await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2",[row.id,key])).rowCount)return;
-    const body=enquiryReviewText(input.fields);
+    const review=(await db.query("SELECT amends_enquiry_id FROM agents_platform.enquiries WHERE id=$1",[input.reviewId])).rows[0];
+    const body=enquiryReviewText(input.fields,Boolean(review?.amends_enquiry_id));
     const maximum=row.channel_kind==="whatsapp"?1024:row.channel_kind==="telegram"?4096:1000;
     if(Array.from(body).length>maximum)throw new PlatformError("ENQUIRY_CHANNEL_REVIEW_LIMIT",413,"Enquiry details exceed this channel’s confirmation message limit");
     const buttons=enquiryReviewButtons(input.reviewId),enquiryReview={id:input.reviewId,taskId:input.taskId,requestDigest:input.requestDigest};

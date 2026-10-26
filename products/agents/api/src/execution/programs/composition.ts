@@ -14,13 +14,13 @@ const programs: Readonly<Record<ProgramReference["id"], ProgramDescriptor>> = Ob
   "grounded-conversation": Object.freeze({
     id: "grounded-conversation", version: "1", executionKind: "business", controller: "shared-business-loop-v1",
     input: "bounded-text-v1", output: "grounded-answer-or-escalation-v1",
-    allowedTools: Object.freeze(["knowledge.search", "knowledge.read", "channel.request_handoff", "enquiry.submit"]),
+    allowedTools: Object.freeze(["knowledge.search", "knowledge.read", "channel.request_handoff", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]),
     personalMemory: false, delegation: false, sandbox: false, connectedTools: true, workflows: Object.freeze([]),
   }),
   "tool-directed": Object.freeze({
     id: "tool-directed", version: "1", executionKind: "business", controller: "shared-business-loop-v1",
     input: "bounded-text-v1", output: "evidence-backed-result-v1",
-    allowedTools: Object.freeze(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "enquiry.submit"]),
+    allowedTools: Object.freeze(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]),
     personalMemory: true, delegation: true, sandbox: true, connectedTools: true, workflows: Object.freeze(["report-delivery-v1"]),
   }),
 });

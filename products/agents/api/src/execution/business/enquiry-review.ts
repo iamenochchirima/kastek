@@ -5,7 +5,7 @@ import {PlatformError,terminalTaskStates} from "../../contracts/contracts";
 import type {TaskOutcome} from "../../contracts/execution";
 import {event} from "../lifecycle/execution";
 
-export async function awaitEnquiryConfirmation(ctx:restate.WorkflowContext,pool:Pool,taskId:string,operationId:string,args:unknown):Promise<TaskOutcome|undefined>{
+export async function awaitEnquiryConfirmation(ctx:restate.WorkflowContext,pool:Pool,taskId:string,operationId:string,args:unknown,operation:"enquiry.submit"|"enquiry.amend"="enquiry.submit"):Promise<TaskOutcome|undefined>{
  const enquiries=new EnquiryStore(pool);
  for(let check=0;check<64;check++){
   const status=await ctx.run(`enquiry-confirmation:${operationId}:${check}`,async()=>{
@@ -14,7 +14,7 @@ export async function awaitEnquiryConfirmation(ctx:restate.WorkflowContext,pool:
     if(!task)throw new PlatformError("TASK_NOT_FOUND",404,"Task not found");
     if(task.state==="cancel_requested")return {outcome:{state:"cancelled"} as TaskOutcome};
     if(terminalTaskStates.has(task.state))return {outcome:{state:task.state} as TaskOutcome};
-    const enquiry=await enquiries.prepare(taskId,operationId,args);
+    const enquiry=await enquiries.prepare(taskId,operationId,args,operation);
     if(["approved","submitted"].includes(enquiry.state)){await pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_review'",[taskId]);return {approved:true};}
     if(enquiry.state!=="pending")return {outcome:{state:"incomplete",errorCode:`ENQUIRY_${enquiry.state.toUpperCase()}`} as TaskOutcome};
     const deadline=Math.min(Date.parse(enquiry.expiresAt),new Date(task.deadline_at).getTime());

@@ -4,7 +4,7 @@ import {EnquiryStore,type EnquiryFields} from "../../capabilities/enquiries/enqu
 import {PlatformError,requestDigest} from "../../contracts/contracts";
 import type {ChannelSendRequest,ChannelWebhookEvent} from "../../contracts/channel-adapters";
 import {assertCurrentAuthority,loadExecution} from "../../execution/lifecycle/execution";
-export function enquiryReviewText(fields:EnquiryFields){return ["Submit these enquiry details?",...Object.entries(fields).map(([name,value])=>`${name.charAt(0).toUpperCase()+name.slice(1)}: ${value}`)].join("\n");}
+export function enquiryReviewText(fields:EnquiryFields,amendment=false){return [amendment?"Save these updated enquiry details?":"Submit these enquiry details?",...Object.entries(fields).map(([name,value])=>`${name.charAt(0).toUpperCase()+name.slice(1)}: ${value}`)].join("\n");}
 export function enquiryReviewButtons(id:string){z.uuid().parse(id);return [{title:"Confirm",payload:`enquiry:a:${id}`},{title:"Decline",payload:`enquiry:r:${id}`}];}
 export function enquiryReviewDecision(event:ChannelWebhookEvent):{id:string;decision:"approve"|"reject"}|null{
  if(!["message","interaction"].includes(event.kind)||!event.interaction||event.echo)return null;
@@ -17,7 +17,7 @@ export async function assertEnquiryReviewPrompt(db:Pool|PoolClient,request:Chann
  if(!request.enquiryReview)return;
  const review=z.strictObject({id:z.uuid(),taskId:z.uuid(),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.enquiryReview);
  const row=(await db.query(`SELECT e.* FROM agents_platform.enquiries e JOIN agents_platform.customer_task_links l ON l.task_id=e.task_id WHERE e.id=$1 AND e.task_id=$2 AND l.conversation_id=$3 AND e.state='pending' AND e.expires_at>now() FOR SHARE OF e,l`,[review.id,review.taskId,conversationId])).rows[0];
- if(!row||row.request_digest!==review.requestDigest||request.text!==enquiryReviewText(row.fields)||requestDigest(request.buttons)!==requestDigest(enquiryReviewButtons(review.id)))throw new PlatformError("CHANNEL_REVIEW_UNAVAILABLE",403,"Enquiry confirmation is unavailable");
+ if(!row||row.request_digest!==review.requestDigest||request.text!==enquiryReviewText(row.fields,Boolean(row.amends_enquiry_id))||requestDigest(request.buttons)!==requestDigest(enquiryReviewButtons(review.id)))throw new PlatformError("CHANNEL_REVIEW_UNAVAILABLE",403,"Enquiry confirmation is unavailable");
  await assertCurrentAuthority(db,await loadExecution(db,review.taskId));
 }
 export class ChannelEnquiryReviews {

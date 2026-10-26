@@ -45,6 +45,7 @@ import { runRequiredReport, type ActionRuntime } from "../../workflows/report-de
 import { channelPorts } from "../../infrastructure/channel-ports";
 import type { ToolReviewStore } from "../../capabilities/reviews/tool-reviews";
 import type { BookingService } from "../../workflows/booking/bookings";
+import { visibleRecordTools } from "../../capabilities/enquiries/record-tools";
 import { awaitEnquiryConfirmation } from "./enquiry-review";
 import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
@@ -197,10 +198,10 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
-  const modelTools = toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
+  const modelTools = await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])]).filter(tool => Boolean(task.channel_binding) || tool.function.name !== "channel_request_handoff");
+  })() : [])]).filter(tool => Boolean(task.channel_binding) || tool.function.name !== "channel_request_handoff"));
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {
@@ -439,10 +440,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                 if("errorCode" in reviewed)productArgumentError=reviewed.errorCode;else productReview=reviewed.review;}
             }
             const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192);
-            if(name==="enquiry.submit") {
+            if(name==="enquiry.submit"||name==="enquiry.amend") {
               let proposal:unknown;
               try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments));}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
-              const confirmed=await awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal);
+              const confirmed=await awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name);
               if(confirmed){outcome=confirmed;stop=true;break;}
             }
             if(name==="booking.reserve") {
