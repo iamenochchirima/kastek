@@ -3,7 +3,7 @@ const base = "/api/organizations/org", agentPath = `${base}/agents/agent`, crawl
 const configuration = { executionKind: "business", instructions: "Answer from approved knowledge", model: { selection: { kind: "organization_default" }, maxInputBytes: 32000, maxOutputTokens: 4096, maxDurationSeconds: 120 }, tools: [], sourceRevisionIds: [], capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
 async function fixture(page: Page, options: { resume?: boolean; failImport?: boolean; unavailable?: boolean } = {}) {
   const calls: { path: string; body: Record<string, unknown> | null }[] = [];
-  const agent = { id: "agent", name: "Shop assistant", draft: configuration, draftRevision: 1 };
+  const agent = { id: "agent", offering: "customer-service", name: "Shop assistant", draft: configuration, draftRevision: 1 };
   const pages = [{ id: "home", url: "https://example.com", title: "Home", markdown: "# Our shop\n<script>alert('not executable')</script>" }, { id: "about", url: "https://example.com/about", title: "About", markdown: "We repair bicycles." }];
   let crawl: Record<string, unknown> | null = options.resume ? { id: "crawl", url: "https://example.com", state: "completed", pages, completed: 2, total: 2, errorCode: null } : null;
   let generation = 1, approved = false, visibility = "private", fail = options.failImport;
@@ -43,9 +43,11 @@ async function create(page: Page) {
   if ((page.viewportSize()?.width ?? 1440) <= 640) await page.getByRole("button", { name: "Agents & history", exact: true }).click();
   await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).click();
   const dialog = page.getByRole("dialog", { name: "Create agent", exact: true });
-  await dialog.getByLabel("Name", { exact: true }).fill("Shop assistant");
-  await dialog.getByRole("button", { name: "Create agent", exact: true }).click();
-  return page.getByRole("dialog", { name: "Add website knowledge", exact: true });
+  await dialog.getByLabel("Business name", { exact: true }).fill("Shop");
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Business knowledge", exact: true })).toBeVisible();
+  return dialog;
 }
 for (const width of [1440, 768, 390]) test(`create, crawl, review and explicitly approve website knowledge at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 }); const calls = await fixture(page, { failImport: true });
@@ -89,8 +91,8 @@ test("website import remains optional when crawler is unavailable", async ({ pag
   await expect(dialog.getByRole("status")).toContainText("unavailable");
   await dialog.getByLabel("Business website").fill("example.com");
   await expect(dialog.getByRole("button", { name: "Crawl website", exact: true })).toBeDisabled();
-  await dialog.getByRole("button", { name: "Continue to agent" }).click();
-  await expect(dialog).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Skip for now" }).click();
+  await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   expect(calls.some(call => call.path === crawlPath && call.body)).toBe(false);
 });
 test("cancel stops a crawl without importing or approving knowledge", async ({ page }) => {

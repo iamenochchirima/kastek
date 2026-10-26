@@ -9,11 +9,11 @@ type CrawlPage = { id: string; url: string; title: string; markdown: string };
 type WebsiteCrawl = { id: string; url: string; state: string; pages: CrawlPage[]; total: number; completed: number; errorCode: string | null; importJobId?: string | null; importJob?: KnowledgeImport | null };
 const active = (crawl: WebsiteCrawl) => ["queued", "submitting", "running", "scraping", "crawling"].includes(crawl.state);
 
-export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, onBusyChange }: {
-  organizationId: string; agentId: string; onComplete: () => void; onBusyChange?: (busy: boolean) => void;
+export function WebsiteKnowledgeImport({ organizationId, agentId, onComplete, onBusyChange, initialUrl = "" }: {
+  organizationId: string; agentId: string; onComplete: () => void; onBusyChange?: (busy: boolean) => void; initialUrl?: string;
 }) {
   const base = organizationPath(organizationId), path = `${base}/agents/${encodeURIComponent(agentId)}/website-crawls`;
-  const [url, setUrl] = useState(""), [crawl, setCrawl] = useState<WebsiteCrawl | null>(null);
+  const [url, setUrl] = useState(initialUrl), [crawl, setCrawl] = useState<WebsiteCrawl | null>(null);
   const [selected, setSelected] = useState<string[]>([]), [previewId, setPreviewId] = useState("");
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [source, setSource] = useState<KnowledgeSource | null>(null), [preview, setPreview] = useState<KnowledgePreview | null>(null);
