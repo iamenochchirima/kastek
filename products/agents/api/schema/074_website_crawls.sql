@@ -1,0 +1,28 @@
+CREATE TABLE agents_platform.website_crawls (
+  id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  account_id uuid NOT NULL REFERENCES agents_platform.accounts(id),
+  operation_id text NOT NULL,
+  request_digest text NOT NULL,
+  url text NOT NULL,
+  provider_origin text NOT NULL,
+  provider_id text,
+  state text NOT NULL CHECK (state IN ('queued','submitting','scraping','completed','failed','cancelled')),
+  page_limit integer NOT NULL,
+  discovery_depth integer NOT NULL,
+  pages jsonb NOT NULL DEFAULT '[]',
+  total integer NOT NULL DEFAULT 0,
+  completed integer NOT NULL DEFAULT 0,
+  error_code text,
+  poll_failures integer NOT NULL DEFAULT 0,
+  import_job_id uuid REFERENCES agents_platform.ingestion_jobs(id),
+  import_digest text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deadline timestamptz NOT NULL DEFAULT now()+interval '20 minutes',
+  lease_until timestamptz,
+  FOREIGN KEY (organization_id,agent_id) REFERENCES agents_platform.agents(organization_id,id),
+  UNIQUE(organization_id,account_id,operation_id)
+);
+CREATE INDEX website_crawl_dispatch ON agents_platform.website_crawls(state,lease_until,updated_at);
