@@ -12,8 +12,8 @@ export function WebsiteChannelSettings({ agentId, organizationId, owner, showCon
   const [deployments, setDeployments] = useState<Deployment[] | null>(null), [selected, setSelected] = useState("");
   const [settings, setSettings] = useState<Settings | null>(null), [origins, setOrigins] = useState("");
   const [savedPaused, setSavedPaused] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
-  useEffect(() => { let live = true; setDeployments(null); setSelected(""); setSettings(null); setError("");
-    api<{ deployments: Deployment[] }>(path).then(result => { if (live) { setDeployments(result.deployments); setSelected(result.deployments[0]?.id ?? ""); } }).catch(e => { if (live) setError(message(e)); });
+  useEffect(() => { let live = true; setDeployments(null); setSelected(""); setSettings(null); setOrigins(""); setError("");
+    api<{ deployments: Deployment[]; agent?: { setup?: { business?: { website?: string } } | null } }>(path).then(result => { if (live) { setDeployments(result.deployments); setSelected(result.deployments[0]?.id ?? ""); if (!result.deployments.length && typeof result.agent?.setup?.business?.website === "string") setOrigins(result.agent.setup.business.website); } }).catch(e => { if (live) setError(message(e)); });
     return () => { live = false; };
   }, [path]);
   useEffect(() => { let live = true; setSettings(null); if (selected) api<Settings>(`${path}/deployments/${encodeURIComponent(selected)}/appearance`).then(result => { if (live) { setSettings(result); setSavedPaused(result.paused); } }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [selected, path]);

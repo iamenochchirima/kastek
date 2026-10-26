@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 const base="/api/organizations/org/channels";
 // Controlled HTTP responses exercise the real UI without contacting a provider or model.
-async function fixture(page:Page,callback=false){
+async function fixture(page:Page,callback=false,query=""){
   let connection:Record<string,unknown>|null=null;const calls:{path:string;body:Record<string,unknown>|null}[]=[],errors:string[]=[];
   page.on("pageerror",error=>errors.push(error.message));
   await page.route("**/api/**",async route=>{
@@ -11,6 +11,7 @@ async function fixture(page:Page,callback=false){
     else if(path===`${base}/catalogue`)data={channels:["website","whatsapp","telegram","facebook","instagram"].map(kind=>({kind,name:kind==="facebook"?"Messenger":kind[0]!.toUpperCase()+kind.slice(1),assetLabel:"Account",modes:[{id:kind==="telegram"?"bot":"meta",available:true}],restrictions:[]}))};
     else if(path===base)data={connections:connection?[connection]:[],deployments:[],websites:[]};
     else if(path.endsWith("/agents/summaries"))data={agents:[{id:"agent",name:"Support"}],nextCursor:null};
+    else if(path.endsWith("/agents/outside"))data={agent:{id:"outside",name:"Outside first page",setup:{business:{website:"kasitek.co.za"}}},deployments:[]};
     else if(path===`${base}/telegram/connect`){connection={id:"one",kind:"telegram",mode:"bot",name:body.name,assetId:"123",state:"pending",revision:1,credentialRevision:1,metadata:{}};data={connection,status:"replacement_required",replacementConfirmation:"opaque-reviewed-webhook"};}
     else if(path.endsWith("/telegram/setup")){expect(body.confirmReplacement).toBe("opaque-reviewed-webhook");connection={...connection,state:"active",revision:2};data={connection,status:"active"};}
     else if(path.endsWith("/bind")){expect(body.agentId).toBe("agent");data={deployment:{id:"binding"}};}
@@ -24,7 +25,7 @@ async function fixture(page:Page,callback=false){
     else {await route.fulfill({status:404,json:{error:{message:"Fixture route unavailable"}}});return;}
     await route.fulfill({json:data});
   });
-  await page.goto(`/app/connections${callback?"?code=provider-code&state=owner-state":""}`);return{calls,errors};
+  await page.goto(`/app/connections${callback?"?code=provider-code&state=owner-state":query}`);return{calls,errors};
 }
 for(const width of [1440,768,390])test(`explicit Telegram webhook replacement and binding at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:1000});const f=await fixture(page);
@@ -60,4 +61,32 @@ test("channel Inbox filters, uncertain receipts and conversation drafts remain i
   await page.goto("/app/inbox");await page.getByLabel("Filter Inbox channel").selectOption("telegram");await page.getByLabel("Filter Inbox connection").selectOption("bot");await expect.poll(()=>reads.some(value=>value.includes("channel=telegram")&&value.includes("connectionId=bot"))).toBe(true);
   await page.getByRole("button",{name:/Support a/}).click();await expect(page.getByLabel("Delivery status")).toContainText("Outcome unknown · Check provider before retrying");await expect(page.getByLabel("Message attachments")).toContainText("details.pdf");await page.getByLabel("Reply to customer").fill("Draft A");
   await page.getByRole("button",{name:/Support b/}).click();await expect(page.getByLabel("Reply to customer")).toHaveValue("");await page.getByLabel("Reply to customer").fill("Draft B");await page.getByRole("button",{name:/Support a/}).click();await expect(page.getByLabel("Reply to customer")).toHaveValue("Draft A");expect(writes).toEqual([]);
+});
+
+
+test("guided channel intent selects an agent outside the first page and prefills its website",async({page})=>{
+  const f=await fixture(page,false,"?agentId=outside&channel=website&returnTo=%2Fapp%2Fagents%2Foutside%3Fsetup%3Dchannels");
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.getByLabel("Serving agent")).toHaveValue("outside");
+  await expect(dialog.getByLabel("Website domains")).toHaveValue("kasitek.co.za");
+  await expect(page.getByRole("link",{name:"Back to agent",exact:true,includeHidden:true})).toHaveAttribute("href","/app/agents/outside?setup=channels");
+  await dialog.getByRole("button",{name:"Close",exact:true}).last().click();
+  await expect(dialog).toBeHidden();
+  expect(f.calls.some(call=>call.body!==null)).toBe(false);
+  expect(f.errors).toEqual([]);
+});
+
+test("Meta callback restores scoped agent context and retains asset selection",async({page})=>{
+  await page.addInitScript(()=>sessionStorage.setItem("agents.channel-setup.org",JSON.stringify({state:"owner-state",expiresAt:Date.now()+60000,agentId:"agent",channel:"facebook",returnTo:"/app/agents/agent?setup=channels"})));
+  const f=await fixture(page,true),dialog=page.getByRole("dialog");
+  await expect(dialog.getByLabel("Channel asset")).toBeVisible();
+  await expect(page).toHaveURL(/agentId=agent/);
+  await expect(page).not.toHaveURL(/[?&](code|state)=/);
+  await expect(page.getByRole("link",{name:"Back to agent",exact:true,includeHidden:true})).toHaveAttribute("href","/app/agents/agent?setup=channels");
+  await dialog.getByLabel("Channel asset").selectOption("page");
+  await dialog.getByRole("button",{name:"Use selected asset"}).click();
+  await expect(dialog.getByLabel("Serving agent")).toHaveValue("agent");
+  expect(f.calls.filter(call=>call.path.endsWith("/meta/complete"))).toHaveLength(1);
+  expect(await page.evaluate(()=>sessionStorage.getItem("agents.channel-setup.org"))).toBeNull();
+  expect(f.errors).toEqual([]);
 });

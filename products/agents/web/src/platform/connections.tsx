@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { RemoteConnections } from "./remote-connections";
 import { ApiConnections } from "./api-connections";
-import { CustomerChannels } from "./customer-channels";
+import { CustomerChannels, channelSetupContext } from "./customer-channels";
 import { SupportedConnections } from "./supported-connections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,14 @@ const repositoryProfile = (profile?: ConnectionProfile["id"]) => profile === "gi
 const operationLabel = (value: string) => value.replaceAll("_", " ").replace(/^./, letter => letter.toUpperCase());
 export function ConnectionsPage() {
   const { organizationId, session } = useWorkspace(), path = `${organizationPath(organizationId)}/connections`;
-  const [searchParams] = useSearchParams();
+  const [rawSearchParams, setSearchParams] = useSearchParams();
+  const searchParams = channelSetupContext(organizationId, rawSearchParams);
+  useEffect(() => {
+    if (searchParams.toString() !== rawSearchParams.toString()) setSearchParams(searchParams, { replace: true });
+  }, [searchParams, rawSearchParams, setSearchParams]);
   const requestedProfile = searchParams.get("profile");
   const requestedReturn = searchParams.get("returnTo");
-  const returnTo = requestedReturn?.startsWith("/app/agents/") && !requestedReturn.includes("\\") ? requestedReturn : null;
+  const returnTo = requestedReturn?.startsWith("/app/agents/") && !/[\\\x00-\x1f\x7f]/.test(requestedReturn) ? requestedReturn : null;
   const [apiOpen, setApiOpen] = useState(requestedProfile === "custom-api" || requestedProfile === "custom-api-v1" && !searchParams.get("setup"));
   const [remoteOpen, setRemoteOpen] = useState(requestedProfile === "custom-mcp" || requestedProfile === "remote-mcp-v1" && !searchParams.get("setup"));
   const handledProfile = useRef("");
@@ -70,7 +74,7 @@ export function ConnectionsPage() {
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   return <section className="management-page"><div className="management-header"><h1>Connections</h1><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setApiOpen(true)}>Custom API</Button><Button variant="outline" onClick={() => setRemoteOpen(true)}>Custom MCP</Button><Button onClick={() => open("create")} disabled={!data || !profiles.length}>Add connection</Button></div></div>{returnTo ? <Link className="mb-5 inline-block text-sm underline underline-offset-4" to={returnTo}>Back to agent</Link> : null}{!dialog ? <ErrorMessage value={error} /> : null}
-    <CustomerChannels organizationId={organizationId} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} />
+    <CustomerChannels defaultAgentId={searchParams.get("agentId") ?? undefined} organizationId={organizationId} owner={session.organizations.find(organization => organization.id === organizationId)?.role === "owner"} />
     <h2 className="mb-4 text-lg font-medium">Business tools</h2>
     {!data && !error ? <Loading /> : data ? <div className="management-list">{data.connections.length ? data.connections.map(connection => {
       const expired = new Date(connection.expiresAt).getTime() <= Date.now();

@@ -25,7 +25,21 @@ async function facebookSdk(appId:string,version:string):Promise<Facebook> {
 const stateNames:Record<ChannelConnection["state"],string>={pending:"Setup incomplete",active:"Connected",needs_attention:"Needs attention",disconnected:"Disconnected",removed:"Removed"};
 const modeNames:Record<string,string>={meta:"Facebook login",instagram_login:"Instagram login",cloud_api:"WhatsApp Business",bot:"Telegram bot",website:"Website"};
 type Setup={kind:ChannelKind;connection?:ChannelConnection};
-export function CustomerChannels({organizationId,owner}:{organizationId:string;owner:boolean}) {
+const resumeKey = (organizationId: string) => `agents.channel-setup.${organizationId}`;
+export function channelSetupContext(organizationId: string, params: URLSearchParams): URLSearchParams {
+  const restored = new URLSearchParams(params);
+  if (!params.get("state")) return restored;
+  try {
+    const pending = JSON.parse(sessionStorage.getItem(resumeKey(organizationId)) ?? "null");
+    if (!pending || pending.state !== params.get("state") || typeof pending.expiresAt !== "number" || pending.expiresAt < Date.now()) return restored;
+    for (const key of ["agentId", "returnTo", "channel"] as const) {
+      if (!restored.has(key) && typeof pending[key] === "string") restored.set(key, pending[key]);
+    }
+  } catch { /* A blocked or cleared browser store does not prevent authorization. */ }
+  return restored;
+}
+
+export function CustomerChannels({organizationId,owner,defaultAgentId}:{organizationId:string;owner:boolean;defaultAgentId?:string}) {
   const [params,setParams]=useSearchParams(),{confirm}=useConfirmationDialog();
   const [catalogue,setCatalogue]=useState<CustomerChannel[]>([]),[data,setData]=useState<ChannelList|null>(null),[error,setError]=useState("");
   const [setup,setSetup]=useState<Setup|null>(null),[busy,setBusy]=useState(false),[name,setName]=useState(""),[secret,setSecret]=useState(""),[mode,setMode]=useState("");
@@ -34,31 +48,56 @@ export function CustomerChannels({organizationId,owner}:{organizationId:string;o
   const [replacement,setReplacement]=useState(""),[signup,setSignup]=useState<Extract<MetaBegin,{flow:"embedded_signup"}>|null>(null),[sdk,setSdk]=useState<Facebook|null>(null);
   const [signupCode,setSignupCode]=useState(""),[wabaId,setWabaId]=useState(""),[manual,setManual]=useState(false);
   const callback=useRef<{state:string;promise:Promise<{ticket:string;connectionId:string}>}|null>(null),signupCompleted=useRef("");
+  const openedIntent = useRef("");
   const definition=catalogue.find(item=>item.kind===setup?.kind);
   const activeBinding=data?.deployments.find(item=>item.connectionId===setup?.connection?.id&&item.state==="active");
   const ingressFailure=data?.ingressFailures?.find(item=>item.connectionId===setup?.connection?.id);
   const uncertainSetup=data?.setupClaims?.find(item=>item.connectionId===setup?.connection?.id&&item.state!=="complete");
   async function refresh() {const result=await channelApi<ChannelList>(organizationId);setData(result);return result;}
   useEffect(()=>{let active=true;Promise.all([channelApi<{channels:CustomerChannel[]}>(organizationId,"/catalogue"),channelApi<ChannelList>(organizationId),api<{agents:{id:string;name:string}[];nextCursor:string|null}>(`${organizationPath(organizationId)}/agents/summaries?limit=100`)])
-    .then(([catalogue,list,options])=>{if(active){setCatalogue(catalogue.channels);setData(list);setAgents(options.agents);setAgentCursor(options.nextCursor);}}).catch(cause=>{if(active)setError(channelError(cause));});return()=>{active=false;};},[organizationId]);
+    .then(async ([catalogue,list,options])=>{
+      if(defaultAgentId && !options.agents.some(agent=>agent.id===defaultAgentId)) {
+        try { const result=await api<{agent:{id:string;name:string}}>(`${organizationPath(organizationId)}/agents/${encodeURIComponent(defaultAgentId)}`); options.agents.push({id:result.agent.id,name:result.agent.name}); }
+        catch(cause) { if(active)setError(channelError(cause)); }
+      }
+      if(active){setCatalogue(catalogue.channels);setData(list);setAgents(options.agents);setAgentCursor(options.nextCursor);}
+    }).catch(cause=>{if(active)setError(channelError(cause));});return()=>{active=false;};},[organizationId,defaultAgentId]);
+  async function ensureAgentOption(id: string) {
+    if(!id || agents.some(agent=>agent.id===id))return;
+    try { const {agent}=await api<{agent:{id:string;name:string}}>(`${organizationPath(organizationId)}/agents/${encodeURIComponent(id)}`);setAgents(current=>current.some(item=>item.id===agent.id)?current:[...current,{id:agent.id,name:agent.name}]); }
+    catch(cause) { setError(channelError(cause)); }
+  }
   function open(kind:ChannelKind,connection?:ChannelConnection) {
     const current=catalogue.find(item=>item.kind===kind);setSetup({kind,connection});setName(connection?.name??current?.name??channelNames[kind]);setMode(connection?.mode??current?.modes.find(item=>item.available)?.id??current?.modes[0]?.id??"");
     setSecret("");setError("");setTicket("");setAssets([]);setAssetId("");setPin("");setReplacement("");setSignup(null);setSdk(null);setSignupCode("");setWabaId("");setManual(false);
-    setAgentId(data?.deployments.find(item=>item.connectionId===connection?.id&&item.state==="active")?.agentId??"");
+    const serving=data?.deployments.find(item=>item.connectionId===connection?.id&&item.state==="active")?.agentId??(agents.some(agent=>agent.id===defaultAgentId)?defaultAgentId!:"");
+    setAgentId(serving);void ensureAgentOption(serving);
   }
+  const requestedChannel = params.get("channel");
+  useEffect(()=>{
+    if(!owner || !data || !catalogue.length || params.has("code") || params.has("state") || params.has("error"))return;
+    const intent=`${organizationId}:${requestedChannel}:${defaultAgentId??""}`;
+    if(!requestedChannel || openedIntent.current===intent)return;
+    const channel=catalogue.find(item=>item.kind===requestedChannel);
+    if(!channel)return;
+    openedIntent.current=intent;
+    if(channel.modes.some(item=>item.available))open(channel.kind);
+    // The intent opens once after the scoped catalogue and agent options load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[owner,data,catalogue,requestedChannel,defaultAgentId,organizationId,params]);
   function close() {if(!busy){setSetup(null);setSecret("");setSignup(null);setSignupCode("");setWabaId("");setTicket("");setError("");}}
   async function discover(value:string,cursor?:string) {const page=await channelApi<{assets:ChannelAsset[];nextCursor:string|null}>(organizationId,"/meta/assets",{ticket:value,...(cursor?{cursor}:{})});setAssets(previous=>cursor?[...new Map([...previous,...page.assets].map(item=>[item.id,item])).values()]:page.assets);setAssetCursor(page.nextCursor);}
   async function authorized(result:{ticket:string;connectionId:string}) {
     const {connection}=await channelApi<{connection:ChannelConnection}>(organizationId,`/${result.connectionId}`);
-    setSetup({kind:connection.kind,connection});setName(connection.name);setMode(connection.mode);setTicket(result.ticket);setAssetId("");setSecret("");setSignup(null);await discover(result.ticket);await refresh();
+    const current=await refresh();setSetup({kind:connection.kind,connection});const serving=current.deployments.find(item=>item.connectionId===connection.id&&item.state==="active")?.agentId??defaultAgentId??"";setAgentId(serving);await ensureAgentOption(serving);setName(connection.name);setMode(connection.mode);setTicket(result.ticket);setAssetId("");setSecret("");setSignup(null);await discover(result.ticket);await refresh();
   }
   const code=params.get("code"),oauthState=params.get("state"),authorizationError=params.get("error");
   useEffect(()=>{
     if(!owner||(!authorizationError&&(!code||!oauthState)))return;
-    if(authorizationError){setError("Authorization cancelled. Connect the account again.");const next=new URLSearchParams(params);for(const key of ["code","state","error","error_description","error_reason"])next.delete(key);setParams(next,{replace:true});return;}
+    if(authorizationError){setError("Authorization cancelled. Connect the account again.");const next=channelSetupContext(organizationId,params);openedIntent.current=`${organizationId}:${next.get("channel")}:${next.get("agentId")??""}`;for(const key of ["code","state","error","error_description","error_reason"])next.delete(key);setParams(next,{replace:true});return;}
     let active=true;setBusy(true);
     if(!callback.current||callback.current.state!==oauthState)callback.current={state:oauthState!,promise:channelApi<{ticket:string;connectionId:string}>(organizationId,"/meta/complete",{state:oauthState,code})};
-    void callback.current.promise.then(result=>{if(active)return authorized(result);}).catch(cause=>{if(active)setError(channelError(cause));}).finally(()=>{if(active){setBusy(false);const next=new URLSearchParams(params);next.delete("code");next.delete("state");setParams(next,{replace:true});}});
+    void callback.current.promise.then(result=>{if(active)return authorized(result);}).catch(cause=>{if(active)setError(channelError(cause));}).finally(()=>{if(active){setBusy(false);const next=channelSetupContext(organizationId,params);openedIntent.current=`${organizationId}:${next.get("channel")}:${next.get("agentId")??""}`;next.delete("code");next.delete("state");setParams(next,{replace:true});try { sessionStorage.removeItem(resumeKey(organizationId)); } catch { /* Authorization is already complete. */ }}});
     return()=>{active=false;};
     // The callback handle owns a single session-bound exchange, even if the component remount effect is replayed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,7 +132,11 @@ export function CustomerChannels({organizationId,owner}:{organizationId:string;o
       setSetup({...setup,connection});
       if(manual&&setup.kind==="whatsapp"){await authorized(await channelApi<{ticket:string;connectionId:string}>(organizationId,"/meta/manual",{connectionId:connection.id,expectedRevision:connection.revision,accessToken:secret,wabaId}));return;}
       const result=await channelApi<MetaBegin>(organizationId,"/meta/begin",{connectionId:connection.id,expectedRevision:connection.revision});
-      if(result.flow==="oauth"){window.location.assign(result.authorizationUrl);return;}
+      if(result.flow==="oauth"){
+        try { sessionStorage.setItem(resumeKey(organizationId),JSON.stringify({state:result.state,expiresAt:Date.now()+15*60_000,agentId,channel:setup.kind,returnTo:params.get("returnTo")??""})); }
+        catch { /* Browser storage may be unavailable; authorization can still proceed. */ }
+        window.location.assign(result.authorizationUrl);return;
+      }
       setSignup(result);setSignupCode("");setWabaId("");setSdk(await facebookSdk(result.appId,result.apiVersion));
     }catch(cause){setError(channelError(cause));}finally{setBusy(false);}
   }
