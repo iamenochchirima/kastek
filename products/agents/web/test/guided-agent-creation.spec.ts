@@ -121,7 +121,7 @@ test("booking policy is selected in guided setup and saved before review and dir
   await expect(policyDialog).toBeHidden();await expect(dialog.getByRole("combobox",{name:"Booking policy",exact:true})).toHaveValue("policy");
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   expect(requests.filter(request=>request.path.endsWith("/configuration")).at(-1)!.body.configuration).toEqual(expect.objectContaining({capabilities:expect.objectContaining({businessActions:{enabled:true,profileId:"calendar-booking-v1",permittedOperations:["calendar.availability","calendar.book"],policyId:"policy",policyDigest:"digest"}})}));
-  await page.goto("/app/agents/new-agent?setup=guided");dialog=page.getByRole("dialog",{name:"Create agent",exact:true});await expect(dialog.getByRole("heading",{name:"Ready to test",exact:true})).toBeVisible();
+  await page.goto("/app/agents/new-agent?setup=guided");dialog=page.getByRole("dialog",{name:"Create agent",exact:true});await expect(dialog.getByRole("heading",{name:"Review agent",exact:true})).toBeVisible();
   await dialog.getByRole("button",{name:"Back",exact:true}).click();await expect(dialog.getByRole("combobox",{name:"Booking policy",exact:true})).toHaveValue("policy");
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
 });

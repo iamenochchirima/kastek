@@ -1,7 +1,7 @@
 import { BookingPolicies, type BookingPoliciesProps } from "./booking-policies";
 
 export type GuidedBookingSetupProps = Pick<BookingPoliciesProps,
-  "agentId" | "configuration" | "onChange" | "initialDurationMinutes" | "returnTo" | "onBusyChange" | "onBeforeConnect"
+  "agentId" | "configuration" | "onChange" | "initialDurationMinutes" | "returnTo" | "onBusyChange" | "onBeforeConnect" | "onPolicySelectedDuration"
 >;
 
 export function GuidedBookingSetup(props: GuidedBookingSetupProps) {

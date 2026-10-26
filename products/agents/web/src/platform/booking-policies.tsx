@@ -19,9 +19,10 @@ export type BookingPoliciesProps = {
   autoSelectCreated?: boolean;
   onBusyChange?: (busy: boolean) => void;
   onBeforeConnect?: () => Promise<void>;
+  onPolicySelectedDuration?: (durationMinutes: number) => void;
 };
 
-export function BookingPolicies({ agentId, configuration, onChange, initialDurationMinutes = 30, returnTo, embedded = false, autoSelectCreated = false, onBusyChange, onBeforeConnect }: BookingPoliciesProps) {
+export function BookingPolicies({ agentId, configuration, onChange, initialDurationMinutes = 30, returnTo, embedded = false, autoSelectCreated = false, onBusyChange, onBeforeConnect, onPolicySelectedDuration }: BookingPoliciesProps) {
   const navigate = useNavigate();
   const { organizationId, session } = useWorkspace();
   const owner = session.organizations.find(organization => organization.id === organizationId)?.role === "owner";
@@ -34,6 +35,7 @@ export function BookingPolicies({ agentId, configuration, onChange, initialDurat
   const selected = reference.enabled ? policies.find(policy => policy.id === reference.policyId && policy.policyDigest === reference.policyDigest) : null;
   function choose(id: string, candidates = policies) {
     const policy = candidates.find(item => item.id === id && item.state === "active");
+    if (policy) onPolicySelectedDuration?.(policy.definition.durationMinutes);
     onChange({ ...configuration, capabilities: { ...configuration.capabilities, businessActions: policy ? { enabled: true, profileId: "calendar-booking-v1", permittedOperations: policy.definition.permittedOperations, policyId: policy.id, policyDigest: policy.policyDigest } : { enabled: false } } });
   }
   async function create(event: FormEvent) {

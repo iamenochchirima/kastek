@@ -81,7 +81,10 @@ export function CustomerChannels({organizationId,owner,defaultAgentId}:{organiza
     const channel=catalogue.find(item=>item.kind===requestedChannel);
     if(!channel)return;
     openedIntent.current=intent;
-    if(channel.modes.some(item=>item.available))open(channel.kind);
+    if(channel.modes.some(item=>item.available)) {
+      const existing=defaultAgentId?data.connections.find(connection=>connection.kind===channel.kind&&data.deployments.some(binding=>binding.connectionId===connection.id&&binding.agentId===defaultAgentId&&binding.state==="active")):undefined;
+      open(channel.kind,existing);
+    }
     // The intent opens once after the scoped catalogue and agent options load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[owner,data,catalogue,requestedChannel,defaultAgentId,organizationId,params]);

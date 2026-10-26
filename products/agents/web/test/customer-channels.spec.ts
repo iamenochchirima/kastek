@@ -1,15 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 const base="/api/organizations/org/channels";
 // Controlled HTTP responses exercise the real UI without contacting a provider or model.
-async function fixture(page:Page,callback=false,query=""){
-  let connection:Record<string,unknown>|null=null;const calls:{path:string;body:Record<string,unknown>|null}[]=[],errors:string[]=[];
+async function fixture(page:Page,callback=false,query="",existing=false){
+  let connection:Record<string,unknown>|null=existing?{id:"one",kind:"telegram",mode:"bot",name:"Existing support bot",assetId:"123",state:"active",revision:1,credentialRevision:1,metadata:{}}:null;const calls:{path:string;body:Record<string,unknown>|null}[]=[],errors:string[]=[];
   page.on("pageerror",error=>errors.push(error.message));
   await page.route("**/api/**",async route=>{
     const req=route.request(),path=new URL(req.url()).pathname,body=req.postData()?req.postDataJSON():null;calls.push({path,body});let data:unknown;
     const current=()=>connection??{id:"one",kind:"facebook",mode:"meta",name:"Support page",assetId:null,state:"pending",revision:1,credentialRevision:0,metadata:{}};
     if(path==="/api/session")data={account:{id:"owner",email:"owner@example.test",displayName:"Owner"},organizations:[{id:"org",name:"Workspace",role:"owner"}]};
     else if(path===`${base}/catalogue`)data={channels:["website","whatsapp","telegram","facebook","instagram"].map(kind=>({kind,name:kind==="facebook"?"Messenger":kind[0]!.toUpperCase()+kind.slice(1),assetLabel:"Account",modes:[{id:kind==="telegram"?"bot":"meta",available:true}],restrictions:[]}))};
-    else if(path===base)data={connections:connection?[connection]:[],deployments:[],websites:[]};
+    else if(path===base)data={connections:connection?[connection]:[],deployments:existing?[{id:"binding",connectionId:"one",agentId:"agent",state:"active"}]:[],websites:[]};
     else if(path.endsWith("/agents/summaries"))data={agents:[{id:"agent",name:"Support"}],nextCursor:null};
     else if(path.endsWith("/agents/outside"))data={agent:{id:"outside",name:"Outside first page",setup:{business:{website:"kasitek.co.za"}}},deployments:[]};
     else if(path===`${base}/telegram/connect`){connection={id:"one",kind:"telegram",mode:"bot",name:body.name,assetId:"123",state:"pending",revision:1,credentialRevision:1,metadata:{}};data={connection,status:"replacement_required",replacementConfirmation:"opaque-reviewed-webhook"};}
@@ -89,4 +89,15 @@ test("Meta callback restores scoped agent context and retains asset selection",a
   expect(f.calls.filter(call=>call.path.endsWith("/meta/complete"))).toHaveLength(1);
   expect(await page.evaluate(()=>sessionStorage.getItem("agents.channel-setup.org"))).toBeNull();
   expect(f.errors).toEqual([]);
+});
+
+
+test("guided manage channel opens the existing serving connection",async({page})=>{
+  const f=await fixture(page,false,"?agentId=agent&channel=telegram",true);
+  const dialog=page.getByRole("dialog",{name:"Manage Telegram",exact:true});
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Serving agent")).toHaveValue("agent");
+  await expect(dialog.getByRole("button",{name:"Connect agent",exact:true})).toBeDisabled();
+  await expect(dialog.getByLabel("Replacement bot token")).toBeVisible();
+  expect(f.calls.some(call=>call.body!==null)).toBe(false);expect(f.errors).toEqual([]);
 });
