@@ -7,6 +7,7 @@ These images precede feature-page implementation and are not approved implementa
 - [Inbox overview](inbox-overview-light-v1.png): full channel tabs, conversation list and unselected reading pane. SMS stays unavailable as in the current interface.
 - [Inbox conversation](inbox-light-v1.png): selected conversation, reply pane and customer details. Keep the overview's channel tabs when opening a conversation.
 - [Connections](connections-light-v1.png): connected accounts and compact platform catalogue.
+- [Connections revision](connections-light-v2.png): Growth-specific account table, compact platform rows and messaging/publishing/email filters. Generated as a new light-theme proposal; not implemented.
 - [Agents](agents-light-v1.png): four Growth defaults, conversation history and the existing general assistant drawer.
 
 Sample contacts, messages, counts and connection states are illustrative. Provider actions
