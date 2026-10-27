@@ -30,7 +30,7 @@ for (const { theme, width } of [
     await expect(queue.getByText("Could we reschedule?")).toBeVisible();
     await expect(queue.getByText("Customer", { exact: true })).toBeVisible();
     await expect(queue.getByText("[Response unavailable]", { exact: true })).toBeVisible();
-    if (width >= 768) await expect(page.getByRole("heading", { name: "Select a conversation" })).toBeVisible();
+    if (width > 1050) await expect(page.getByRole("heading", { name: "Select a conversation" })).toBeVisible();
     const search = page.getByRole("textbox", { name: "Search conversations" });
     await search.fill("Sarah");
     await expect.poll(() => searches.includes("Sarah")).toBe(true);

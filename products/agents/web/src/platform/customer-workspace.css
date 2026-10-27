@@ -172,3 +172,12 @@
   .inbox-queue-column { border-right: 0; }
   .inbox-queue-column.has-selection { display: none; }
 }
+
+.inbox-back { display: none; }
+@media (max-width: 1050px) {
+  .inbox-layout { display: block; }
+  .inbox-queue-column { border-right: 0; }
+  .inbox-queue-column.has-selection { display: none; }
+  .inbox-conversation-detail:has(> .inbox-no-selection) { display: none; }
+  .inbox-back { display: inline-flex; }
+}
