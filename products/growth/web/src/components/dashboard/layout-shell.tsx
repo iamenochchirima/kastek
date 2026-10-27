@@ -611,7 +611,7 @@ function WorkspaceShell({
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
         <div className={cn("dashboard-theme flex min-h-[100dvh] bg-canvas", pathname === "/inbox" && "h-dvh overflow-hidden")}>
-          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[240px]")}>
+          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[256px]")}>
               <SidebarContent
                 orgs={orgs}
                 activeOrgId={activeOrgId}
@@ -647,7 +647,7 @@ function WorkspaceShell({
             reduceMotion={appearance.interface.reduceMotion}
             onOpen={() => void agents.openGeneral()}
           />
-          <main className={cn("flex min-h-0 min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[240px]")}>
+          <main className={cn("flex min-h-0 min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[256px]")}>
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
