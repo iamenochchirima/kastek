@@ -11,7 +11,7 @@ async function fixture(page: Page, separateActions = false) {
   let connections = [connection], automation: Record<string, unknown> | null = null;
   let action = { id: "review-one", reviewId: "review-one", taskId: "scheduled-task", rootTaskId: "scheduled-task", reviewerAccountId: account, connectionId, connectionRevision: 1, destination: { label: "Reports", resource: "daily-reports" }, artifactId: "report", title: "Daily report", payloadDigest: "payload-digest", reviewDigest: "exact-review-digest", state: "pending_review", expiresAt: new Date(Date.now() + 3600_000).toISOString(), preview: { name: "report.md", contentType: "text/markdown", content: "# Approved report\nTotal: 60\n<script>unsafe()</script>" }, receipt: undefined as undefined | { id: string; payloadDigest: string; acceptedAt: string } };
   const requests: { path: string; body: Record<string, unknown> }[] = [];
-  let loseDecision = false, staleRevision = false, canControl = true, canDownloadArtifacts = true;
+  let loseDecision = false, staleRevision = false, canControl = true, canDownloadArtifacts = true, failOccurrence = false;
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname, method = request.method();
     const body = request.postDataJSON() as Record<string, unknown> | null;
@@ -31,6 +31,7 @@ async function fixture(page: Page, separateActions = false) {
     else if (path.endsWith("/automations/daily") && method === "PATCH") { automation = { ...automation, ...body, revision: Number(automation!.revision) + 1 }; data = { automation }; }
     else if (/\/automations\/daily\/(pause|resume|revoke)$/.test(path)) { automation = { ...automation, revision: Number(automation!.revision) + 1, state: path.endsWith("/pause") ? "paused" : path.endsWith("/resume") ? "active" : "revoked" }; data = { automation }; }
     else if (path.endsWith("/event-key")) data = { key: null, eventUrl: "/api/automation-events/daily", rotated: true };
+    else if (path.endsWith("/occurrences") && failOccurrence) { failOccurrence = false; await route.fulfill({ status: 503, json: { error: { message: "Occurrences unavailable" } } }); return; }
     else if (path.endsWith("/occurrences")) data = { occurrences: [{ id: "occurrence-one", automationId: "daily", revision: 1, status: "accepted", taskId: "scheduled-task", scheduledAt: new Date().toISOString(), errorCode: null, createdAt: new Date().toISOString() }, { id: "occurrence-two", automationId: "daily", revision: 1, status: "skipped_overlap", taskId: null, scheduledAt: new Date().toISOString(), errorCode: null, createdAt: new Date().toISOString() }] };
     else if (path.endsWith("/tool-reviews")) data = { reviews: [] };
     else if (path.endsWith("/api-connections")) data = { connections: [] };
@@ -43,7 +44,7 @@ async function fixture(page: Page, separateActions = false) {
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
-  return { requests, loseDecision: () => { loseDecision = true; }, staleRevision: () => { staleRevision = true; }, uncertain: () => { action = { ...action, state: "uncertain" }; }, automation: () => automation, reviewer: (id: string) => { action = { ...action, reviewerAccountId: id }; canControl = false; canDownloadArtifacts = false; }, expire: () => { action = { ...action, expiresAt: new Date(Date.now() - 60_000).toISOString() }; } };
+  return { requests, failNextOccurrence: () => { failOccurrence = true; }, loseDecision: () => { loseDecision = true; }, staleRevision: () => { staleRevision = true; }, uncertain: () => { action = { ...action, state: "uncertain" }; }, automation: () => automation, reviewer: (id: string) => { action = { ...action, reviewerAccountId: id }; canControl = false; canDownloadArtifacts = false; }, expire: () => { action = { ...action, expiresAt: new Date(Date.now() - 60_000).toISOString() }; } };
 }
 
 test("mock connections: keys stay write-only, stale revisions preserve input, revoke is explicit", async ({ page }) => {
@@ -355,4 +356,23 @@ test("automation dialog visual states in light and dark", async ({ page }) => {
     expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.screenshot({ path: test.info().outputPath(`automation-error-${theme}-${width}.png`), animations: "disabled" });
   }
+});
+
+
+test("automation occurrence load errors stay in the dialog and can retry", async ({ page }) => {
+  const data = await fixture(page);
+  await page.goto("/app/automations");
+  await page.getByRole("button", { name: "Create automation", exact: true }).click();
+  const form = page.getByRole("dialog");
+  await form.getByRole("textbox", { name: "Name", exact: true }).fill("Daily report");
+  await form.getByRole("textbox", { name: "Task", exact: true }).fill("Prepare report");
+  await form.getByRole("button", { name: "Create automation", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Daily report" })).toBeVisible();
+  data.failNextOccurrence();
+  await page.getByRole("button", { name: "Occurrences", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("alert")).toContainText("Occurrences unavailable");
+  await dialog.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(dialog.getByText("skipped overlap")).toBeVisible();
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
 });
