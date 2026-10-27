@@ -113,8 +113,10 @@ test("updates contact fields through the form and reloads the saved record", asy
   await page.getByRole("button", { name: /^All contacts/ }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "View contact Migration contact edit", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Contact details", exact: true })).toBeVisible();
+  const mobileDetails = page.getByRole("dialog", { name: "Contact details", exact: true });
+  await expect(mobileDetails).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(mobileDetails).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
