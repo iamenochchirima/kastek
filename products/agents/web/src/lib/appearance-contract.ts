@@ -1,7 +1,7 @@
 export type ThemeMode = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 export type Density = "comfortable" | "compact";
-export type AccentId = "indigo" | "violet" | "cyan" | "emerald" | "rose";
+export type AccentId = "blue" | "indigo" | "violet" | "cyan" | "emerald" | "rose";
 
 export interface InterfacePreferences {
   reduceMotion: boolean;
@@ -31,6 +31,13 @@ export interface AccentPreset {
 }
 
 export const ACCENTS: readonly AccentPreset[] = [
+  {
+    id: "blue",
+    name: "Blue",
+    swatch: "#2569D2",
+    light: { base: "#2569D2", strong: "#1C56B3", soft: "rgba(37, 105, 210, 0.10)" },
+    dark: { base: "#5099F8", strong: "#1E60C8", soft: "rgba(80, 153, 248, 0.12)" },
+  },
   {
     id: "indigo",
     name: "Indigo",
