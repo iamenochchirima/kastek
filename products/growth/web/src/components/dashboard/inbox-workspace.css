@@ -86,8 +86,12 @@
 .growth-inbox .inbox-conversation-header { height: 72px; min-height: 72px; padding-inline: 20px; background: var(--card); }
 .growth-inbox .inbox-reading-content { padding: 20px 22px; }
 .growth-inbox .inbox-reading-content > div { max-width: none; }
+.growth-inbox .inbox-message-stack { max-width: min(85%, 36rem); overflow-wrap: anywhere; }
+.growth-inbox .inbox-message-email { max-width: none; }
+.growth-inbox .inbox-message-meta { padding-inline: 2px; }
+.growth-inbox .inbox-message-receipt > span { font-size: 11px; line-height: 16px; }
 .growth-inbox .inbox-message-bubble {
-  max-width: min(85%, 36rem);
+  max-width: 100%;
   padding: 11px 14px;
   border-radius: 10px;
   font-size: 13px;
@@ -156,12 +160,18 @@
   .growth-inbox .inbox-conversation-header { height: 60px; min-height: 60px; padding-inline: 12px; }
   .growth-inbox .inbox-conversation-header button { min-width: 44px; min-height: 44px; }
   .growth-inbox .inbox-reading-content { padding: 16px 12px; }
-  .growth-inbox .inbox-message-bubble { max-width: 90%; font-size: 13px; }
+  .growth-inbox .inbox-message-stack { max-width: 90%; }
+  .growth-inbox .inbox-message-bubble { font-size: 13px; }
   .growth-inbox .inbox-composer-footer { padding: 8px 8px max(10px, env(safe-area-inset-bottom)); }
   .growth-inbox .inbox-composer { padding: 8px; }
   .growth-inbox .inbox-composer-row { gap: 4px; }
   .growth-inbox .inbox-composer-input { min-height: 48px; padding: 12px 8px; }
   .growth-inbox .inbox-composer-send { width: 48px; height: 48px; min-width: 48px; }
+}
+@media (hover: none) {
+  .growth-inbox .inbox-message-actions { position: static; display: flex; justify-content: flex-end; margin: -4px -6px 4px 0; opacity: 1; }
+  .growth-inbox .inbox-message-actions > div { border: 0; background: transparent; box-shadow: none; }
+  .growth-inbox .inbox-message-actions button { width: 44px; height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .growth-inbox *, .growth-inbox *::before, .growth-inbox *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

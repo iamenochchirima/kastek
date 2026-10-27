@@ -94,3 +94,27 @@ test("persists an accessible composer reply through the controlled API", async (
   const state = await response.json();
   expect(state.inboxMessages.some((message: { text: string; status: string }) => message.text === reply && message.status === "SENT")).toBe(true);
 });
+
+
+test("keeps message controls keyboard accessible and receipts below bubbles", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/inbox?conversation=fixture-inbox");
+  const stack = page.locator(".inbox-message-stack").first();
+  const bubble = stack.locator(".inbox-message-bubble");
+  const receipt = stack.locator(".inbox-message-meta");
+  await expect(bubble).toBeVisible();
+  const bubbleBounds = await bubble.boundingBox();
+  const receiptBounds = await receipt.boundingBox();
+  expect(bubbleBounds).not.toBeNull();
+  expect(receiptBounds).not.toBeNull();
+  expect(receiptBounds!.y).toBeGreaterThanOrEqual(bubbleBounds!.y + bubbleBounds!.height);
+
+  const actions = stack.getByRole("button", { name: "Message actions", exact: true });
+  await actions.focus();
+  await expect(stack.locator(".inbox-message-actions")).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "Reply", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(actions).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

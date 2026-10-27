@@ -3537,6 +3537,7 @@ export default function InboxPageClient({
                   )}
                 >
                   {message.sender === "customer" && selectedConversation.channel !== "email" ? <Avatar className="inbox-avatar mt-0.5 h-8 w-8 shrink-0" data-tone={conversationAvatarTone(selectedConversation.name)}><AvatarFallback className="inbox-avatar text-xs" data-tone={conversationAvatarTone(selectedConversation.name)}>{selectedConversation.avatar}</AvatarFallback></Avatar> : null}
+                  <div className={cn("inbox-message-stack min-w-0", selectedConversation.channel === "email" && "inbox-message-email w-full")}>
                   <div
                     className={cn(
                       "group relative text-foreground",
@@ -3577,7 +3578,7 @@ export default function InboxPageClient({
                         </div>
                       </div>
                     ) : null}
-                    <div className="absolute -top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="inbox-message-actions absolute -top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <div className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-lg">
                         <Button
                           ref={(node) => {
@@ -3586,6 +3587,8 @@ export default function InboxPageClient({
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
+                          aria-label="React to message"
+                          disabled={!message.canReact || !selectedConversationCapabilities.reaction}
                           onClick={() => toggleReactionPicker(message.id)}
                         >
                           <Smile className="h-3 w-3" />
@@ -3595,7 +3598,7 @@ export default function InboxPageClient({
                           onOpenChange={(open) => setOpenActionsMessageId(open ? message.id : null)}
                         >
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Message actions">
                               <MoreHorizontal className="h-3 w-3" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -3642,7 +3645,8 @@ export default function InboxPageClient({
                       channel={selectedConversation?.channel || "whatsapp"}
                       onOpenMedia={(url, kind, caption) => setLightbox({ url, kind, caption })}
                     />
-                    <div className={cn("space-y-1", stickerOnly ? "mt-0.5" : "mt-1.5")}>
+                  </div>
+                    <div className={cn("inbox-message-meta space-y-1", message.sender === "customer" ? "inbox-message-meta-incoming" : "inbox-message-meta-outgoing", stickerOnly ? "mt-0.5" : "mt-1.5")}>
                       {message.status === "failed" && message.errorMessage ? (
                         <div className="flex max-w-[240px] flex-col items-end gap-1">
                           <p className="text-right text-[10px] leading-snug text-destructive">
@@ -3670,7 +3674,7 @@ export default function InboxPageClient({
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className={cn("inbox-message-receipt flex items-center gap-1.5", message.sender === "customer" ? "justify-start" : "justify-end")}>
                         {reactionDisplayByMessageId[message.id] ? (
                           <button
                             type="button"
@@ -3811,6 +3815,7 @@ export default function InboxPageClient({
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Attach a file"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={!Object.values(selectedConversationCapabilities.attachments).some(Boolean)}
                   title={
@@ -3834,6 +3839,9 @@ export default function InboxPageClient({
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Choose emoji"
+                  aria-expanded={showEmojiPicker}
+                  aria-controls={showEmojiPicker ? "inbox-composer-emoji-picker" : undefined}
                   onClick={() => setShowEmojiPicker((current) => !current)}
                 >
                   <Smile className="h-4 w-4" />
@@ -3841,6 +3849,7 @@ export default function InboxPageClient({
                 {showEmojiPicker ? (
                   <div
                     ref={emojiPickerRef}
+                    id="inbox-composer-emoji-picker"
                     className="absolute bottom-[calc(100%+10px)] right-14 z-[var(--z-popover)] overflow-hidden rounded-xl border border-border/70 shadow-[var(--shadow-floating)]"
                   >
                     <Picker
