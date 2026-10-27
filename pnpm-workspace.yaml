@@ -9,6 +9,7 @@ packages:
   - products/agency/api
   - apps/admin-site
   - apps/labs-site
+  - packages/ui
   - packages/contracts
   - packages/server-support
   - services/analytics

@@ -217,3 +217,18 @@ test("shares bootstrap reads between matched layout and page loaders", async ({ 
     expect(count(after) - count(before), path).toBe(1);
   }
 });
+
+
+test("persists shared workspace theme and density through reload", async ({ page }) => {
+  await page.goto("/workspace/settings?section=appearance");
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("button", { name: "compact", exact: true }).click();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-density", "compact");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 19, 22)");
+  await expect(page.getByRole("button", { name: "Dark", exact: true })).toHaveAttribute("aria-pressed", "true");
+});

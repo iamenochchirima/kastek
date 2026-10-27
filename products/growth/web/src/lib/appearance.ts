@@ -24,7 +24,7 @@ export { ACCENTS, APPEARANCE_STORAGE_KEYS } from "./appearance-contract";
 
 export const DEFAULT_APPEARANCE: AppearancePreferences = {
   theme: "system",
-  accent: "indigo",
+  accent: "blue",
   density: "comfortable",
   interface: {
     reduceMotion: false,

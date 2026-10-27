@@ -22,6 +22,7 @@ membership, database access or permission to call internal operations.
 | `apps/labs-site/` | Public Labs website |
 | `packages/contracts/` | Shared transport and event contracts |
 | `packages/server-support/` | Shared server implementation behind explicit exports |
+| `packages/ui/` | Shared workspace theme, appearance definitions and generic React controls |
 | `services/analytics/` | Analytics ingestion, publishing, registry and query service |
 | `services/operations/` | Independent Labs admin sessions, durable monitoring, incidents, and notification intent |
 | `infra/identity/` | Keycloak development identity configuration |

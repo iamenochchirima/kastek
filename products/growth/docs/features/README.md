@@ -36,6 +36,15 @@ The table below groups those routes by feature; it is not the complete route lis
 | Billing | `/billing`, `/upgrade` | `(dashboard)/billing/page.tsx`, `(dashboard)/upgrade/page.tsx` | Use a test account and the configured billing test environment; do not use live payment credentials for local verification. |
 | Developer surfaces | `/developers`, `/developers/api`, `/developers/cli`, `/developers/mcp` | `(dashboard)/developers/` | Verify against the documented local service and credentials for the specific developer workflow. |
 
+## Workspace appearance
+
+Growth uses the shared `@kasitek-labs/ui` Geist theme and controls, with white light
+surfaces and neutral charcoal dark surfaces. The dashboard retains its own navigation
+and data flows. Appearance settings under `/workspace/settings?section=appearance`
+retain theme, accent, density and motion controls. Existing saved accents remain;
+unset preferences use blue. Preferences remain local to each browser origin. Public
+landing styles retain their cream and green treatment.
+
 ## Frontend and offline verification
 
 The built Vite application uses the same-origin API proxy in `web/scripts/serve.mjs`.

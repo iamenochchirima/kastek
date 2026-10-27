@@ -16,6 +16,14 @@ Paths and commands on this page are relative to `products/growth/` unless stated
 Install dependencies from the repository root with `pnpm install --frozen-lockfile`. Root
 `pnpm dev:growth` and `pnpm dev:growth-api` also start the frontend and API directly.
 
+## Shared frontend controls
+
+Growth imports workspace controls and theme tokens from `@kasitek-labs/ui` in
+`packages/ui/`. Growth dev, build and typecheck commands build its JavaScript and
+declarations first. Rebuild that package after changing a shared React control during
+a running development session. Theme CSS is consumed directly from source. See the
+[root package guide](../../../../../packages/ui/README.md) for exports and styling boundaries.
+
 ## Toolchain
 
 Use the versions pinned by the repository where they exist:
