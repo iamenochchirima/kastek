@@ -51,6 +51,7 @@ for (const scenario of [
 }
 
 test("keeps operational overview data available while analytics loads or fails", async ({ page }) => {
+  await mkdir(proofDirectory, { recursive: true });
   let release!: () => void;
   const analyticsGate = new Promise<void>((resolve) => { release = resolve; });
   await page.route("**/api/workspace/summary", async (route) => {
@@ -69,9 +70,11 @@ test("keeps operational overview data available while analytics loads or fails",
     await expect(page.getByRole("link", { name: "Active campaigns", exact: false })).toBeVisible();
     const postsAttention = page.getByText("Posts needing attention", { exact: true }).locator("..");
     await expect(postsAttention.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", "/content");
+    await page.screenshot({ path: `${proofDirectory}/overview-analytics-loading.png`, fullPage: true, animations: "disabled" });
   } finally { release(); }
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Needs attention", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent campaigns", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Active campaigns", exact: false })).toBeVisible();
+  await page.screenshot({ path: `${proofDirectory}/overview-analytics-failed.png`, fullPage: true, animations: "disabled" });
 });
