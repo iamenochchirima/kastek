@@ -8,7 +8,7 @@ test("uses one conversation from quick access, full page and history", async ({ 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your agents" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your agents", exact: true }).getByRole("article")).toHaveCount(4);
   await expect(page.getByText("Approved sources required")).toBeVisible();
   await page.screenshot({ path: "../../../.audit/growth-agents-overview-desktop.png", fullPage: true, animations: "disabled" });
   await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
@@ -154,7 +154,7 @@ test("shows unavailable separately from an empty list and recovers", async ({ pa
   await expect(page.getByText("No conversations yet", { exact: true })).toHaveCount(0);
   await page.unroute("**/api/agents/bootstrap");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your agents", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your agents", exact: true })).toBeVisible();
 });
 
 test("keeps the Agents workspace readable in dark theme", async ({ page }) => {
@@ -162,7 +162,7 @@ test("keeps the Agents workspace readable in dark theme", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("kasitek-theme", "dark"));
   await page.goto("/agents");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.getByRole("heading", { name: "Your agents", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your agents", exact: true })).toBeVisible();
   await page.screenshot({ path: "../../../.audit/growth-agents-overview-dark.png", animations: "disabled", fullPage: true });
 });
 

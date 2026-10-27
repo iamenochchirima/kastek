@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/interface-icons";
 import { useGrowthAgents } from "./agent-provider";
 import { AgentConversation } from "./agent-conversation";
 

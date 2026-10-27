@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Check, LoaderCircle, Pencil } from "lucide-react";
+import { Check, LoaderCircle, Pencil } from "@/components/ui/interface-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
