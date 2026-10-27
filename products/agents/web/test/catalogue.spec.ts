@@ -33,12 +33,12 @@ async function fixture(page: Page, failInitially = false) {
       }), github] };
     } else if (path.endsWith("/catalogue/skills")) {
       const entry = { ...catalogueItem("skill:skill1", skill.name), kind: "skill" as const, description: skill.description, publisher: { id: "org", name: "Support", verified: false }, configuration: { tools: [], connectedToolBindingIds: [], skillIds: ["skill1"] }, readiness: { state: reviewed ? "ready" : "unavailable", reasons: reviewed ? [] : [{ code: "REVIEW_REQUIRED", message: "Review required before adding this skill." }] }, action: { kind: reviewed ? "add" : "none" } };
-      const curated = { ...catalogueItem("curated:grounded-answers", "Grounded answers"), kind: "skill" as const, source: { kind: "curated" as const, slug: "grounded-answers" }, configuration: { tools: [], connectedToolBindingIds: [], skillIds: curatedInstalled ? ["curated1"] : [] } };
+      const curated = { ...catalogueItem("curated:grounded-answers", "grounded-answers"), kind: "skill" as const, source: { kind: "curated" as const, slug: "grounded-answers" }, configuration: { tools: [], connectedToolBindingIds: [], skillIds: curatedInstalled ? ["curated1"] : [] } };
       data = { ...toolCatalogue, entries: [curated, ...(imported ? [entry] : [])] } as Catalogue;
     } else if (path.endsWith("/skills/curated/grounded-answers/install")) {
       expect(request.postDataJSON().operationId).toBeTruthy(); curatedInstalled = true;
       data = { package: { ...skill, id: "curated1", name: "Grounded answers", reviewState: "reviewed" } };
-    } else if (path.endsWith("/skills/curated/grounded-answers")) data = { skill: { name: "Grounded answers", description: "Answer from approved sources.", compatibility: null }, body: "Cite approved knowledge." };
+    } else if (path.endsWith("/skills/curated/grounded-answers")) data = { skill: { name: "grounded-answers", description: "Answer from approved sources.", compatibility: null }, body: "Cite approved knowledge." };
     else if (path.endsWith("/skills/packages") && request.method() === "POST") {
       expect(request.postDataJSON().files).toEqual([{ path: "SKILL.md", content: "---\nname: support-writing\ndescription: Write concise customer replies.\n---\nWrite plainly." }]); imported = true; data = { package: skill };
     } else if (path.endsWith("/skills/packages/skill1/review")) {
@@ -125,6 +125,13 @@ test("mock transport: curated skill preview installs a real revision into the dr
   const state = await fixture(page);
   await page.goto("/app/agents/root?section=skills");
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("curated");
+  await expect(page.getByRole("button", { name: "Grounded answers", exact: true })).toBeVisible();
+  for (const width of [1280, 390]) for (const theme of ["light", "dark"]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(value => document.documentElement.classList.toggle("dark", value === "dark"), theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/catalogue-skills-${width}-${theme}.png`), animations: "disabled" });
+  }
   await page.getByRole("button", { name: "Add Grounded answers", exact: true }).click();
   const preview = page.getByRole("dialog");
   await expect(preview.getByText("Cite approved knowledge.", { exact: true })).toBeVisible();

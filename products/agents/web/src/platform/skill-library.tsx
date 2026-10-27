@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { api, message, type SkillPackage } from "./api";
 import { SkillRevisionControls } from "./skill-revisions";
+import { catalogueLabel } from "./catalogue-label";
 import { ErrorMessage, Loading } from "./shell";
 
 export function SkillImport({ path, onImported }: { path: string; onImported: (skill: SkillPackage) => void }) {
@@ -63,7 +64,7 @@ export function SkillPreview({ path, id, canReview, onReviewed, onUseRevision, c
       setData({ ...data, package: result.package }); onReviewed(); toast.success("Skill reviewed");
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
-  return <Dialog open onOpenChange={open => { if (!open && !busy) close(); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!busy}><DialogHeader><DialogTitle>{data?.package.name ?? "Skill preview"}</DialogTitle><DialogDescription>{data?.package.description ?? "Loading skill"}</DialogDescription></DialogHeader><ErrorMessage value={error} />{!data && !error ? <Loading /> : data ? <>
+  return <Dialog open onOpenChange={open => { if (!open && !busy) close(); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!busy}><DialogHeader><DialogTitle>{data?.package.name ? catalogueLabel(data.package.name) : "Skill preview"}</DialogTitle><DialogDescription>{data?.package.description ?? "Loading skill"}</DialogDescription></DialogHeader><ErrorMessage value={error} />{!data && !error ? <Loading /> : data ? <>
     <SkillRevisionControls requirementsRepair={requirementsRepair?.(data.package)} path={path} skill={data.package} owner={canReview} update={skill => { setData({ ...data, package: skill }); onReviewed(); }} onUseRevision={onUseRevision} />
     {data.package.compatibility ? <p className="text-sm text-muted-foreground">{data.package.compatibility}</p> : null}
     <label className="block space-y-2 text-sm">Files<select className="w-full rounded-md border border-border bg-background p-2" value={file} onChange={event => { setFile(event.target.value); setContent(null); setFileError(""); }}>{data.package.files.map(entry => <option value={entry.path} key={entry.path}>{entry.path}</option>)}</select></label>
@@ -87,5 +88,5 @@ export function CuratedSkillPreview({ path, slug, onInstalled, close }: { path: 
     try { const result = await api<{ package: SkillPackage }>(`${path}/${encodeURIComponent(slug)}/install`, { operationId }); onInstalled(result.package); }
     catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
-  return <Dialog open onOpenChange={open => { if (!open && !busy) close(); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!busy}><DialogHeader><DialogTitle>{data?.skill.name ?? "Skill preview"}</DialogTitle><DialogDescription>{data?.skill.description ?? "Loading skill"}</DialogDescription></DialogHeader><ErrorMessage value={error} />{data ? <><p className="text-xs text-muted-foreground">KasiTek</p>{data.skill.compatibility ? <p className="text-sm text-muted-foreground">{data.skill.compatibility}</p> : null}<pre className="skill-preview-body">{data.body}</pre><div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={close}>Close</Button><Button type="button" disabled={busy} onClick={() => void install()}>{busy ? "Adding…" : "Add skill"}</Button></div></> : !error ? <Loading /> : <Button type="button" variant="outline" onClick={close}>Close</Button>}</DialogContent></Dialog>;
+  return <Dialog open onOpenChange={open => { if (!open && !busy) close(); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!busy}><DialogHeader><DialogTitle>{data?.skill.name ? catalogueLabel(data.skill.name) : "Skill preview"}</DialogTitle><DialogDescription>{data?.skill.description ?? "Loading skill"}</DialogDescription></DialogHeader><ErrorMessage value={error} />{data ? <><p className="text-xs text-muted-foreground">KasiTek</p>{data.skill.compatibility ? <p className="text-sm text-muted-foreground">{data.skill.compatibility}</p> : null}<pre className="skill-preview-body">{data.body}</pre><div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={close}>Close</Button><Button type="button" disabled={busy} onClick={() => void install()}>{busy ? "Adding…" : "Add skill"}</Button></div></> : !error ? <Loading /> : <Button type="button" variant="outline" onClick={close}>Close</Button>}</DialogContent></Dialog>;
 }
