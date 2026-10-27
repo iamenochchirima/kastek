@@ -137,6 +137,9 @@ for (const width of [1440, 768, 390])
     ).toBeVisible();
     if (width === 390) {
       await expect(page.locator('[data-sonner-toast][data-type="success"]').first()).toHaveCSS("pointer-events", "none");
+      await expect(page.locator('[data-sonner-toast][data-type="success"]').first()).toHaveAttribute("data-y-position", "top");
+    } else if (width >= 1200) {
+      await expect(page.locator('[data-sonner-toast][data-type="success"]').first()).toHaveAttribute("data-y-position", "bottom");
     }
     await page
       .getByLabel("Enquiry status", { exact: true })
