@@ -266,3 +266,43 @@ test("chat model save reads current configuration instead of stale tab fields", 
   expect((state.saves[1].configuration as { model: object }).model).not.toHaveProperty("provider");
   expect((state.saves[1].configuration as { model: object }).model).not.toHaveProperty("model");
 });
+
+test("owner can cancel agent deletion and sees errors before a successful deletion", async ({ page }) => {
+  await fixture(page);
+  let deletes = 0;
+  let deleted = false;
+  await page.route(`**/api/organizations/${org}/agents/${agentId}`, async route => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    deletes++;
+    if (deletes === 1) return route.fulfill({ status: 409, json: { error: { code: "AGENT_TASKS_ACTIVE", message: "Wait for active agent tasks to finish before deleting" } } });
+    deleted = true;
+    return route.fulfill({ status: 204, body: "" });
+  });
+  await page.route("**/agents/summaries*", route => deleted ? route.fulfill({ json: { agents: [], nextCursor: null } }) : route.fallback());
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Support?" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(deletes).toBe(0);
+  await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete agent", exact: true }).click();
+  await expect(dialog).toContainText("Wait for active agent tasks to finish before deleting");
+  expect(deletes).toBe(1);
+  await dialog.getByRole("button", { name: "Delete agent", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/agents$/);
+  await expect(page.getByText("Agent deleted", { exact: true })).toBeVisible();
+  expect(deletes).toBe(2);
+});
+
+test("a rejected deletion keeps the agent available", async ({ page }) => {
+  await fixture(page);
+  await page.route(`**/api/organizations/${org}/agents/${agentId}`, route => route.request().method() === "DELETE" ? route.fulfill({ status: 403, json: { error: { message: "Not authorized" } } }) : route.fallback());
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByRole("button", { name: "Delete agent", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Support?" });
+  await dialog.getByRole("button", { name: "Delete agent", exact: true }).click();
+  await expect(dialog).toContainText("Not authorized");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toBeVisible();
+});

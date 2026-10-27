@@ -387,6 +387,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const [versions, deployments] = await Promise.all([store.listVersions(user.id, org, agentId), store.listDeployments(user.id, org, agentId)]);
     return { agent: dto(agent), versions: versions.map(dto), deployments: deployments.map(dto) };
   });
+  app.delete(`${base}/agents/:agentId`, async (request, reply) => {
+    await store.deleteAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));
+    return reply.code(204).send();
+  });
   app.get(`${base}/agents/:agentId/setup-readiness`, async request => ({ readiness: await customerSetupReadiness(pool, (await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId)) }));
   app.put(`${base}/agents/:agentId`, async (request) => {
     const input = z.strictObject({ name: z.string().min(1).max(120).optional(), configuration: agentConfigurationSchema,

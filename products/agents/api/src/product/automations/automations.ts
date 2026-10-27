@@ -51,7 +51,7 @@ export class AutomationService {
   const c=automationInputSchema.parse(input),reviewerAccountId=c.reviewerAccountId??s.accountId;
   if(c.schedule.kind==='once'&&(Date.parse(c.schedule.at)<=Date.now()||Date.parse(c.schedule.at)>=Date.parse(c.expiresAt)))throw new PlatformError('AUTOMATION_SCHEDULE_INVALID',400,'Choose a future run time before expiry');
   if(Date.parse(c.expiresAt)<=Date.now()||Date.parse(c.expiresAt)>Date.now()+30*86_400_000)throw new PlatformError('AUTOMATION_EXPIRY_INVALID',400,'Choose an expiry within 30 days');
-  const version=(await db.query<VersionRecord>('SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE',[s.organizationId,c.versionId])).rows[0];
+  const version=(await db.query<VersionRecord>('SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a',[s.organizationId,c.versionId])).rows[0];
   if(!version)throw new PlatformError('VERSION_NOT_FOUND',404,'Version not found');
   const cfg=agentConfigurationSchema.parse(version.configuration);assertRuntimeAvailable(cfg);
   if(cfg.memory.enabled)throw new PlatformError('AUTOMATION_PERSONAL_SCOPE_DENIED',403,'Automation cannot use personal memory');

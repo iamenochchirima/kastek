@@ -1053,6 +1053,14 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
 | External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
 
+Workspace members can delete an agent from General configuration. The membership-authorized
+`DELETE /api/organizations/:organizationId/agents/:agentId` marks the agent deleted, revokes its
+deployments and execution grants, and pauses its automations. It retains versions, conversation
+history and customer records. Active or unsettled tasks and in-flight channel deliveries return
+a conflict; the user can retry after they finish. Provider accounts remain connected. Deleted
+agents cannot be restored through the interface. Migration `080_agent_deletion.sql` adds the
+deletion marker.
+
 
 ### Configuration activation
 

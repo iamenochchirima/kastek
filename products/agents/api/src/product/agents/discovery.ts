@@ -18,7 +18,7 @@ export class PlatformDiscovery {
       CASE WHEN v.id IS NULL THEN NULL ELSE json_build_object('id',v.id,'number',v.number,'draftRevision',v.draft_revision,'executionKind',v.execution_kind) END AS "latestVersion",
       (v.id IS NULL OR v.draft_revision<>a.draft_revision) AS "hasUnpublishedChanges"
       FROM agents_platform.agents a LEFT JOIN LATERAL (SELECT id,number,draft_revision,execution_kind FROM agents_platform.agent_versions WHERE agent_id=a.id ORDER BY number DESC LIMIT 1) v ON true
-      WHERE a.organization_id=$1 AND strpos(lower(a.name),lower($6))>0 AND a.created_at<=$2 AND ($3::timestamptz IS NULL OR (a.created_at,a.id)<($3::timestamptz,$4::uuid))
+      WHERE a.organization_id=$1 AND a.deleted_at IS NULL AND strpos(lower(a.name),lower($6))>0 AND a.created_at<=$2 AND ($3::timestamptz IS NULL OR (a.created_at,a.id)<($3::timestamptz,$4::uuid))
       ORDER BY a.created_at DESC,a.id DESC LIMIT $5`,[org,cursor.snapshot,cursor.position||null,cursor.id||null,query.limit+1,q])).rows as (AgentSummary&{position:string})[];
     return finishPage(rows,query.limit,scope,cursor.snapshot,row=>({position:row.position,id:row.id}));
   }

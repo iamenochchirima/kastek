@@ -9,7 +9,7 @@ import { PiPulse as Activity, PiRobot as Bot, PiChatCircle as MessageSquare, PiP
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { api, ApiError, message, organizationPath, type Agent, type Configuration, type Deployment, type KnowledgeSource, type KnowledgeSources, type Version } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
@@ -43,6 +43,8 @@ export function AgentEditor() {
   const [origins, setOrigins] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false), [deleteBusy, setDeleteBusy] = useState(false), [deleteError, setDeleteError] = useState("");
+  const deleted = useRef(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false), [knowledgeBusy, setKnowledgeBusy] = useState(false);
   async function refreshKnowledge() { const [current, sources] = await Promise.all([api<{ agent: Agent; versions: Version[]; deployments: Deployment[] }>(path), api<KnowledgeSources>(`${organizationPath(organizationId)}/knowledge/sources`)]); setAgent(current.agent); setName(current.agent.name); setConfiguration(current.agent.draft); setVersions(current.versions); setDeployments(current.deployments); setKnowledge(sources.sources); refresh(); }
@@ -51,7 +53,7 @@ export function AgentEditor() {
   const dirty = Boolean(agent && configuration && (name !== agent.name || JSON.stringify(configuration) !== JSON.stringify(agent.draft)));
   const pendingSetup = Boolean(agent && (!versions[0] || JSON.stringify(agent.draft) !== JSON.stringify(versions[0].configuration)));
   const needsApply = dirty || pendingSetup;
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => !deleted.current && dirty && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => { if (blocker.state !== "blocked") return; let live = true; void confirm({ title: "Discard unsaved changes?", description: "Your configuration has not been saved.", confirmLabel: "Discard changes", variant: "destructive" }).then(discard => { if (live) { if (discard) blocker.proceed(); else blocker.reset(); } }); return () => { live = false; }; }, [blocker, confirm]);
   async function applyConfiguration(configuration: Configuration, name: string, draftBefore = { name, configuration }, expectedRevision = agent?.draftRevision): Promise<boolean> {
     if (!agent) return false;
@@ -97,6 +99,18 @@ export function AgentEditor() {
     } finally { setBusy(false); }
   }
   async function publish(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const { deployment } = await api<{ deployment: Deployment }>(`${path}/deployments`, { allowedOrigins: origins.split(/[\n,]/).map(origin => origin.trim()).filter(Boolean) }); setDeployments(current => [...current, deployment]); setPublishOpen(false); toast.success("Website published"); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
+  async function deleteAgent() {
+    if (deleteBusy) return;
+    setDeleteBusy(true); setDeleteError("");
+    try {
+      await api(path, undefined, "DELETE");
+      deleted.current = true;
+      refresh();
+      toast.success("Agent deleted");
+      navigate("/app/agents", { replace: true });
+    } catch (e) { setDeleteError(message(e)); }
+    finally { setDeleteBusy(false); }
+  }
   if (!agent || !configuration) return <><ErrorMessage value={error} />{!error ? <Loading /> : null}</>;
   return <div className={`agent-editor agent-view-${view}`}><header className="agent-editor-header"><div className="flex min-w-0 items-center gap-3"><span className="agent-avatar"><Bot size={20} /></span><h1 className="truncate text-lg font-semibold">{agent.name}</h1></div><div className="flex items-center gap-2">{section === "configuration" ? <Button type="submit" form="agent-general-form" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button> : <Button size="sm" variant="outline" onClick={newChat}><Plus size={15} />New chat</Button>}</div></header>
     <nav className="agent-tabs" aria-label="Agent sections">{([["chat", "Chat", MessageSquare], ["activity", "Activity", Activity], ["configuration", "Configure", Settings2]] as const).map(([id, label, Icon]) => <button type="button" key={id} onClick={() => setSection(id)} aria-current={(id === "configuration" ? view === "configure" : view === id) ? "page" : undefined} className={(id === "configuration" ? view === "configure" : view === id) ? "is-active" : ""}><Icon size={16} />{label}</button>)}</nav>
@@ -120,6 +134,7 @@ export function AgentEditor() {
       <AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} />
       </section>
       <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
+      <section className="agent-config-panel"><h2>Delete agent</h2><Button type="button" variant="destructive" disabled={busy} onClick={() => { setDeleteError(""); setDeleteOpen(true); }}>Delete agent</Button></section>
     </form></div> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind={section} configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} />{section === "tools" ? <CustomerRecordTools configuration={configuration} onChange={setConfiguration} /> : null}<form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button></form></> : <section className="max-w-2xl space-y-5" aria-label="Website deployment">
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Website</h2><Button disabled={needsApply || busy || !versions.length} onClick={() => setPublishOpen(true)}>Publish website</Button></div>
       {dirty ? <p role="status" className="text-sm text-muted-foreground">Save changes before connecting your website.</p> : null}
@@ -127,6 +142,7 @@ export function AgentEditor() {
     </section>}
     </>}
     </div>
+    <Dialog open={deleteOpen} onOpenChange={value => { if (!deleteBusy) setDeleteOpen(value); }}><DialogContent showCloseButton={!deleteBusy} onInteractOutside={event => { if (deleteBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (deleteBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Delete {agent.name}?</DialogTitle><DialogDescription>Connected channels and automations will stop. Conversation history and customer records will be retained. This cannot be undone.{dirty ? " Unsaved changes will be discarded." : ""}</DialogDescription></DialogHeader><ErrorMessage value={deleteError} /><DialogFooter><Button type="button" variant="outline" disabled={deleteBusy} onClick={() => setDeleteOpen(false)}>Cancel</Button><Button type="button" variant="destructive" disabled={deleteBusy} onClick={() => void deleteAgent()}>{deleteBusy ? "Deleting…" : "Delete agent"}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={knowledgeOpen} onOpenChange={value => { if (!knowledgeBusy) setKnowledgeOpen(value); }}><DialogContent className="sm:max-w-2xl" showCloseButton={!knowledgeBusy} onInteractOutside={event => { if (knowledgeBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (knowledgeBusy) event.preventDefault(); }}><DialogHeader><DialogTitle>Import website</DialogTitle><DialogDescription>Review website content before adding it to your agent.</DialogDescription></DialogHeader><WebsiteKnowledgeImport organizationId={organizationId} agentId={agent.id} onComplete={() => void refreshKnowledge().catch(e => setError(message(e)))} onBusyChange={setKnowledgeBusy} /></DialogContent></Dialog>
     <Dialog open={publishOpen} onOpenChange={setPublishOpen}><DialogContent><DialogHeader><DialogTitle>Publish website</DialogTitle><DialogDescription>Your agent will be available on the listed websites. Saved changes apply to new messages.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={event => void publish(event)}><ErrorMessage value={error} /><label className="block space-y-2 text-sm">Website domains<Textarea rows={3} required placeholder="example.com" value={origins} onChange={event => setOrigins(event.target.value)} /></label><p className="text-xs text-muted-foreground">One domain per line. Public knowledge only.</p><Button type="submit" disabled={busy || !origins.trim()}>{busy ? "Publishing…" : "Publish website"}</Button></form></DialogContent></Dialog>
   </div>;

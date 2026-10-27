@@ -42,7 +42,7 @@ export class AuthorityStore {
     if (!row.rows[0]) denied();
   }
   protected async version(db: Db, organizationId: string, versionId: string): Promise<VersionRecord> {
-    return (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND id=$2 FOR SHARE", [organizationId, versionId])).rows[0] ?? absent();
+    return (await db.query<VersionRecord>("SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a", [organizationId, versionId])).rows[0] ?? absent();
   }
   protected async insertGrant(db: Db, grant: ExecutionGrant): Promise<ExecutionGrant> {
     await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,

@@ -35,6 +35,7 @@ opaque HTTP-only product session, never a service or model credential.
 - `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
 - `/app/agents`: agent directory and guided customer-service setup.
 - `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and website setup.
+- In an agent's General configuration, Delete agent stops its deployments and automations and retains conversation history and customer records. Deletion waits for active tasks and message delivery to finish.
 - `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
 - `/app/inbox`: customer conversations, assignment, human replies and handoff.
 - `/app/customers`: enquiry and contact records, follow-up and activity.

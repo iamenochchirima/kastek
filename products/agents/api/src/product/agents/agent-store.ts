@@ -62,11 +62,31 @@ function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfi
 export class AgentStore extends AuthorityStore {
   async listAgents(accountId: string, organizationId: string): Promise<AgentRecord[]> {
     return this.transaction(async (db) => { await this.membership(db, accountId, organizationId);
-      return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 ORDER BY created_at,id", [organizationId])).rows; });
+      return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND deleted_at IS NULL ORDER BY created_at,id", [organizationId])).rows; });
   }
   async getAgent(accountId: string, organizationId: string, agentId: string): Promise<AgentRecord> {
     return this.transaction(async (db) => { await this.membership(db, accountId, organizationId);
-      return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [organizationId, agentId])).rows[0] ?? absent(); });
+      return (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL", [organizationId, agentId])).rows[0] ?? absent(); });
+  }
+  async deleteAgent(accountId:string, organizationId:string, agentId:string):Promise<void> {
+    await this.transaction(async db => {
+      await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [organizationId]);
+      await this.membership(db,accountId,organizationId);
+      const agent=(await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[organizationId,agentId])).rows[0] ?? absent();
+      if ((await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id
+        WHERE v.organization_id=$1 AND v.agent_id=$2 AND (t.state NOT IN ('completed','incomplete','refused','failed','cancelled') OR t.disposition<>'settled') LIMIT 1`,[organizationId,agent.id])).rowCount)
+        throw new PlatformError("AGENT_TASKS_ACTIVE",409,"Wait for active agent tasks to finish before deleting");
+      await db.query("UPDATE agents_platform.website_deployments SET revoked_at=now() WHERE organization_id=$1 AND agent_id=$2 AND revoked_at IS NULL",[organizationId,agent.id]);
+      await db.query("UPDATE agents_platform.channel_deployments SET state='revoked',revision=revision+1,updated_at=now() WHERE organization_id=$1 AND agent_id=$2 AND state<>'revoked'",[organizationId,agent.id]);
+      if ((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.channel_deployments d ON d.id=o.deployment_id
+        WHERE d.organization_id=$1 AND d.agent_id=$2 AND o.state='sending' LIMIT 1`,[organizationId,agent.id])).rowCount)
+        throw new PlatformError("AGENT_DELIVERY_ACTIVE",409,"Wait for active message delivery to finish before deleting");
+      await db.query(`UPDATE agents_platform.automations a SET state='paused',updated_at=now() FROM agents_platform.automation_revisions r JOIN agents_platform.agent_versions v ON v.id=r.version_id
+        WHERE a.organization_id=$1 AND a.id=r.automation_id AND a.revision=r.revision AND v.agent_id=$2 AND a.state='active'`,[organizationId,agent.id]);
+      await db.query(`UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE organization_id=$1 AND revoked_at IS NULL
+        AND version_id IN (SELECT id FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2)`,[organizationId,agent.id]);
+      await db.query("UPDATE agents_platform.agents SET deleted_at=now(),updated_at=now() WHERE organization_id=$1 AND id=$2",[organizationId,agent.id]);
+    });
   }
   async createAgent(input: { accountId: string; organizationId: string; name: string; offering?: "faq" | "customer-service"; configuration?: AgentConfiguration }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration ?? customerConfiguration(input.offering));
@@ -79,7 +99,7 @@ export class AgentStore extends AuthorityStore {
     const config = agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
       const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),
-        draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND draft_revision=$3 RETURNING *`,
+        draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 RETURNING *`,
       [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120)])).rows[0];
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       return row; });
@@ -111,7 +131,7 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
-      let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
+      let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
       if(setup)config=agentConfigurationSchema.parse(applyCustomerSetup(config,setup,agent.setup??undefined));
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
@@ -153,7 +173,7 @@ export class AgentStore extends AuthorityStore {
     return this.transaction(async (db) => {
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [input.organizationId]);
       await this.membership(db, input.accountId, input.organizationId);
-      const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
+      const agent = (await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.organizationId, input.agentId])).rows[0] ?? absent();
       if (agent.draft_revision !== input.expectedRevision) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       const existing = (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE agent_id=$1 AND draft_revision=$2", [agent.id, agent.draft_revision])).rows[0];
       if (existing) return existing;
@@ -238,7 +258,7 @@ export class AgentStore extends AuthorityStore {
   async listVersions(accountId: string, organizationId: string, agentId: string): Promise<VersionRecord[]> {
     return this.transaction(async (db) => {
       await this.membership(db, accountId, organizationId);
-      if (!(await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [organizationId, agentId])).rows[0]) absent();
+      if (!(await db.query("SELECT id FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL", [organizationId, agentId])).rows[0]) absent();
       return (await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC", [organizationId, agentId])).rows;
     });
   }
