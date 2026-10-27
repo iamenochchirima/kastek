@@ -119,6 +119,8 @@ test("captures six pages at their native reference dimensions", async ({ page, c
         pageHeading: measure(main?.querySelector("h1") ?? null),
         sidebar: measure([...document.querySelectorAll("aside")].find(visible) ?? null),
         topbar: measure([...document.querySelectorAll("header")].find(visible) ?? null),
+        activityPanel: measure(main?.querySelector("svg[aria-label$=\" trend\"]")?.closest("section") ?? null),
+        detailPanel: measure([...main?.querySelectorAll("aside[aria-label]") ?? []].find(visible) ?? null),
         firstAction: measure([...main?.querySelectorAll("button") ?? []].find(visible) ?? null),
         firstColumnHeading: measure(main?.querySelector("th") ?? null),
         firstDataRow: measure(main?.querySelector("tbody tr") ?? null),
