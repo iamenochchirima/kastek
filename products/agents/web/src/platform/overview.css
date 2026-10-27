@@ -48,3 +48,24 @@
 .overview-channel-track span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
 @media (max-width: 1100px) { .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .overview-layout { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .workspace-page.overview-page { padding: 22px 16px 36px; } .overview-top { flex-wrap: wrap; } .overview-top h1 { font-size: 24px; } .overview-actions { width: 100%; justify-content: space-between; } .overview-metrics { gap: 8px; } .overview-metric { padding: 12px; gap: 10px; } .overview-metric-icon { width: 38px; height: 38px; } .overview-metric-value { font-size: 20px; } .overview-panel { padding: 16px; } .overview-table { min-width: 500px; } }
+
+/* Overview icons and status treatments. */
+.overview-period-wrap { position: relative; display: inline-flex; align-items: center; }
+.overview-period-wrap > svg { position: absolute; left: 12px; color: var(--muted-foreground); pointer-events: none; }
+.overview-period-wrap .overview-period { padding-left: 36px; }
+.overview-metric[data-tone="warning"] .overview-metric-value { color: #d86e50; }
+.overview-metric[data-tone="success"] .overview-metric-value { color: #29a96b; }
+.overview-metric:nth-child(3) .overview-metric-value { color: var(--brand); }
+.overview-chart .overview-chart-vertical { opacity: .45; }
+.overview-link { display: inline-flex; align-items: center; gap: 4px; }
+.overview-agent, .overview-table-channel { display: inline-flex; align-items: center; gap: 10px; }
+.overview-agent-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 7px; color: var(--brand); background: var(--brand-soft); }
+.overview-person-main { display: block; }
+.overview-person-name { display: flex; }
+.overview-person-preview { display: block; }
+.overview-handoff { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 6px; color: #cf705a; background: color-mix(in srgb, #d86e50 12%, var(--card)); font-size: 12px; }
+.overview-channel { display: flex; align-items: center; gap: 14px; }
+.overview-channel-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; color: var(--foreground); background: var(--muted); border-radius: 50%; }
+.overview-channel-icon[data-channel="whatsapp"] { color: #29a96b; background: color-mix(in srgb, #29a96b 12%, var(--card)); }
+.overview-channel-main { flex: 1; min-width: 0; }
+@media (max-width: 600px) { .overview-handoff { padding: 4px 6px; } }

@@ -17,8 +17,9 @@ pnpm dev:agents
 
 Dev, build and typecheck commands first compile the shared UI package. Rebuild
 `@kasitek-labs/ui` after changing a shared React control during development. Theme
-CSS is consumed directly from source. Shared controls use Phosphor icons; product
-state and theme preference handling remain local. See the
+CSS is consumed directly from source. The overview and workspace navigation use
+Hugeicons free icons; shared controls use Phosphor icons. Product state and theme
+preference handling remain local. See the
 [shared package guide](../../../packages/ui/README.md).
 
 Open http://localhost:3100. Vite proxies `/api` to `127.0.0.1:4100`; set
