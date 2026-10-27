@@ -97,3 +97,29 @@ test("knowledge and settings dialog visual states in light and dark", async ({ p
     await page.keyboard.press("Escape");
   }
 });
+
+test("tablet task detail and knowledge preview visual states", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: session });
+    if (path.endsWith(`/tasks/${taskId}`)) return route.fulfill({ json: { task: { id: taskId, state: "completed", input: "Summarize customer support requests", output: "Most requests were resolved on the first reply.", errorCode: null, conversationId: "conversation" }, events: [], eventsNextCursor: null, operations: [] } });
+    if (path.endsWith("/knowledge/sources")) return route.fulfill({ json: { sources: [{ id: "source", title: "Support guide", state: "active", visibility: "private", generation: 1, canApprove: true, revisions: [{ id: "revision", revision: 1, state: "approved", acquiredAt: "2026-10-18T12:00:00Z" }] }], imports: [] } });
+    if (path.endsWith("/revisions/revision/preview")) return route.fulfill({ json: { text: "Support requests should be answered using the approved support guide.", chunks: [], acquiredAt: "2026-10-18T12:00:00Z" } });
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto(`/app/tasks/${taskId}`);
+    await expect(page.getByText("Most requests were resolved on the first reply.")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`task-detail-${theme}-768.png`), animations: "disabled" });
+    await page.goto("/app/knowledge");
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Support guide" });
+    await expect(dialog.getByText("Support requests should be answered using the approved support guide.")).toBeVisible();
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`knowledge-preview-${theme}-768.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+  }
+});
