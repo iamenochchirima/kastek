@@ -99,8 +99,8 @@ test("history restores through save; website setup uses current configuration on
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Answer customer questions."); expect(state.snapshots).toHaveLength(2);
   await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Website", exact: true }).click(); await page.getByRole("button", { name: "Publish website", exact: true }).click();
-  await page.getByRole("textbox", { name: "Allowed website origins" }).fill("https://example.com"); await page.getByRole("dialog").getByRole("button", { name: "Publish website", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Open website chat" })).toBeVisible(); expect(state.deployments[0].allowedOrigins).toEqual(["https://example.com"]);
+  await page.getByRole("textbox", { name: "Website domains" }).fill("https://example.com"); await page.getByRole("dialog").getByRole("button", { name: "Publish website", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Website", exact: true })).toHaveValue("website"); expect(state.deployments[0].allowedOrigins).toEqual(["https://example.com"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("configuration-mobile.png") });
 });
