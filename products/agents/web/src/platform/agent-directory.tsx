@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { api, message, organizationPath, type AgentSummary, type ConversationSummary, type Page } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { GuidedAgentCreation } from "./guided-agent-creation";
+import { AgentLanding } from "./agent-landing";
 
 type Directory = { refresh: () => void; newChat: () => void; chatGeneration: number };
 const DirectoryContext = createContext<Directory>({ refresh: () => {}, newChat: () => {}, chatGeneration: 0 });
@@ -22,13 +23,14 @@ export function AgentDirectory() {
   const [agents, setAgents] = useState<AgentSummary[] | null>(null), [agentCursor, setAgentCursor] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]), [conversationCursor, setConversationCursor] = useState<string | null>(null);
   const [error, setError] = useState(""), [historyError, setHistoryError] = useState(""), [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   useEffect(() => { const timer = setTimeout(() => setQuery(search.trim()), 250); return () => clearTimeout(timer); }, [search]);
   const [generation, setGeneration] = useState(0), [chatGeneration, setChatGeneration] = useState(0), [historyLoading, setHistoryLoading] = useState(false);
   const resumeSetup = new URLSearchParams(location.search).get("setup") === "guided";
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [directoryOpen, setDirectoryOpen] = useState(false);
-  const scope = useRef({ path, agentId, generation, query });
-  scope.current = { path, agentId, generation, query };
+  const scope = useRef({ path, agentId, generation, query, filter });
+  scope.current = { path, agentId, generation, query, filter };
   const refresh = useCallback(() => setGeneration(value => value + 1), []);
   const newChat = useCallback(() => {
     if (!agentId) return;
@@ -40,7 +42,7 @@ export function AgentDirectory() {
     } catch { /* Server history remains authoritative if browser storage is unavailable. */ }
     setChatGeneration(value => value + 1); navigate(`/app/agents/${agentId}`); setDirectoryOpen(false);
   }, [agentId, navigate, organizationId, session.account.id]);
-  useEffect(() => { let live = true; api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}`).then(result => { if (live) { setAgents(result.agents); setAgentCursor(result.nextCursor); setError(""); } }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, generation, query]);
+  useEffect(() => { let live = true; setAgents(null); setAgentCursor(null); setError(""); api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&status=${encodeURIComponent(filter)}`).then(result => { if (live) { setAgents(result.agents); setAgentCursor(result.nextCursor); } }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [path, generation, query, filter]);
   useEffect(() => {
     setConversations([]); setConversationCursor(null); setHistoryError("");
     if (!agentId) return;
@@ -48,7 +50,7 @@ export function AgentDirectory() {
     api<Page<"conversations", ConversationSummary>>(`${path}/conversations?agentId=${encodeURIComponent(agentId)}`).then(result => { if (live) { setConversations(result.conversations); setConversationCursor(result.nextCursor); } }).catch(e => { if (live) setHistoryError(message(e)); }).finally(() => { if (live) setHistoryLoading(false); });
     return () => { live = false; };
   }, [path, agentId, generation]);
-  async function moreAgents() { if (!agentCursor || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&cursor=${encodeURIComponent(agentCursor)}`); if (scope.current.path !== captured.path || scope.current.generation !== captured.generation || scope.current.query !== captured.query) return; setAgents(current => [...(current ?? []), ...result.agents]); setAgentCursor(result.nextCursor); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
+  async function moreAgents() { if (!agentCursor || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"agents", AgentSummary>>(`${path}/agents/summaries?q=${encodeURIComponent(query)}&status=${encodeURIComponent(filter)}&cursor=${encodeURIComponent(agentCursor)}`); if (scope.current.path !== captured.path || scope.current.generation !== captured.generation || scope.current.query !== captured.query || scope.current.filter !== captured.filter) return; setAgents(current => [...(current ?? []), ...result.agents]); setAgentCursor(result.nextCursor); } catch (e) { setError(message(e)); } finally { setBusy(false); } }
   async function moreConversations() { if (!conversationCursor || !agentId || busy) return; setBusy(true); const captured = scope.current; try { const result = await api<Page<"conversations", ConversationSummary>>(`${path}/conversations?agentId=${encodeURIComponent(agentId)}&cursor=${encodeURIComponent(conversationCursor)}`); if (scope.current.path !== captured.path || scope.current.agentId !== captured.agentId || scope.current.generation !== captured.generation) return; setConversations(current => [...current, ...result.conversations]); setConversationCursor(result.nextCursor); } catch (e) { setHistoryError(message(e)); } finally { setBusy(false); } }
   const activeSection = new URLSearchParams(location.search).get("section") ?? "chat";
   const configMode = Boolean(agentId && ["configuration", "tools", "skills", "publish"].includes(activeSection));
@@ -66,7 +68,7 @@ export function AgentDirectory() {
     {agentCursor ? <Button variant="ghost" size="sm" onClick={() => void moreAgents()} disabled={busy}>Load more agents</Button> : null}
     {agentId ? <section className="conversation-directory"><div className="agent-directory-heading"><h2><History size={14} />Conversations</h2><Button aria-label="Start new conversation" title="New chat" size="icon" variant="ghost" onClick={newChat}><Plus size={16} /></Button></div><ErrorMessage value={historyError} />{historyLoading ? <div role="status" className="p-3 text-xs text-muted-foreground">Loading conversations…</div> : conversations.length ? <nav aria-label="Conversation history">{conversations.map(conversation => <Link key={conversation.id} to={`/app/agents/${agentId}/conversations/${conversation.id}`} onClick={() => setDirectoryOpen(false)} aria-current={conversationId === conversation.id ? "page" : undefined} className={`conversation-link ${conversationId === conversation.id ? "is-active" : ""}`}><span className="truncate">{conversation.title}</span></Link>)}</nav> : !historyError ? <p className="px-3 py-4 text-xs text-muted-foreground">No conversations yet</p> : null}{conversationCursor ? <Button size="sm" variant="ghost" onClick={() => void moreConversations()} disabled={busy}>Older conversations</Button> : null}</section> : null}
   </>;
-  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}><div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId ?? "overview"}><Outlet key={location.pathname.startsWith("/app/agents/") ? agentId : "overview"} /></div></div></div>
+  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}>{agentId ? <div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId}><Outlet key={agentId} /></div></div></div> : <AgentLanding agents={agents} search={search} onSearch={setSearch} filter={filter} onFilter={setFilter} error={error} onRetry={refresh} hasMore={Boolean(agentCursor)} onMore={() => void moreAgents()} busy={busy} onCreate={() => setOpen(true)} />}
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Agents & history</DialogTitle><DialogDescription className="sr-only">Choose an agent or conversation.</DialogDescription></DialogHeader>{directory}</DialogContent></Dialog>
     <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open || resumeSetup} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
   </DirectoryContext.Provider>;

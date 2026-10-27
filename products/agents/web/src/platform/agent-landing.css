@@ -1,0 +1,51 @@
+.agent-landing { display: flex; width: 100%; min-height: 100%; color: var(--foreground); }
+.workspace-main > .workspace-outlet > div.agent-landing { height: 100%; overflow-y: auto; padding: 0; }
+.agent-landing-main { flex: 1; min-width: 0; padding: 38px 28px; }
+.agent-landing-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin: 0 14px 26px; }
+.agent-landing-header h1 { font-size: 26px; font-weight: 650; letter-spacing: -.035em; line-height: 1.2; }
+.agent-landing-header p { color: var(--muted-foreground); margin-top: 5px; font-size: 13px; }
+.agent-landing-header button { gap: 8px; }
+.agent-landing-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 20px; }
+.agent-landing-search { display: flex; align-items: center; gap: 8px; width: min(380px, 100%); padding: 0 12px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted-foreground); background: var(--card); }
+.agent-landing-search:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.agent-landing-search input { height: 42px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.agent-landing-filter { height: 42px; padding: 0 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--foreground); font-size: 13px; }
+.agent-landing-columns { display: grid; grid-template-columns: 1.15fr 1fr .55fr .65fr 46px; gap: 16px; padding: 13px 10px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.agent-landing-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 8px; border: 1px solid transparent; border-bottom-color: var(--border); }
+.agent-landing-row.is-selected { border-color: var(--brand); border-radius: 10px; background: color-mix(in srgb, var(--brand) 3%, var(--card)); }
+.agent-landing-row-main { display: grid; grid-template-columns: 1.15fr 1fr .55fr .65fr; gap: 16px; align-items: center; flex: 1; min-width: 0; padding: 16px 0; text-align: left; font-size: 13px; }
+.agent-landing-row-main > span { min-width: 0; }
+.agent-landing-name { display: flex; gap: 14px; align-items: center; }
+.agent-landing-name > span:last-child { min-width: 0; }
+.agent-landing-name strong, .agent-landing-name small { display: block; overflow-wrap: anywhere; }
+.agent-landing-name strong { font-size: 13px; font-weight: 600; }
+.agent-landing-name small { margin-top: 4px; font-size: 12px; color: var(--muted-foreground); }
+.agent-landing-avatar, .agent-landing-detail-avatar { display: grid; flex: none; place-items: center; width: 52px; height: 52px; border-radius: 10px; color: var(--brand); background: var(--brand-soft); }
+.agent-landing-purpose, .agent-landing-date { color: var(--muted-foreground); overflow-wrap: anywhere; }
+.agent-landing-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+.agent-landing-status::before { content: ""; display: block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.agent-landing-status[data-status="Configured"] { color: #32a66f; background: color-mix(in srgb, #32a66f 13%, var(--card)); }
+.agent-landing-quick-chat { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 7px; }
+.agent-landing-quick-chat:hover { background: var(--muted); }
+.agent-landing-detail { width: 320px; flex: none; padding: 56px 26px 28px; border-left: 1px solid var(--border); position: relative; }
+.agent-landing-close { position: absolute; top: 22px; right: 24px; color: var(--muted-foreground); font-size: 23px; line-height: 1; }
+.agent-landing-detail-avatar { width: 74px; height: 74px; border-radius: 16px; }
+.agent-landing-detail-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.agent-landing-detail-title h2 { font-size: 19px; font-weight: 650; overflow-wrap: anywhere; }
+.agent-landing-description { margin-top: 18px; color: var(--muted-foreground); font-size: 14px; line-height: 1.55; }
+.agent-landing-detail-actions { display: grid; gap: 10px; margin-top: 24px; }
+.agent-landing-detail-actions a { gap: 8px; }
+.agent-landing-detail-section { border-top: 1px solid var(--border); padding: 24px 0; margin-top: 24px; font-size: 13px; }
+.agent-landing-detail-section h3 { font-weight: 600; margin-bottom: 14px; }
+.agent-landing-detail-section p, .agent-landing-detail-section dt { color: var(--muted-foreground); }
+.agent-landing-detail-section dl { display: grid; gap: 13px; }
+.agent-landing-detail-section dl div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.agent-landing-detail-section dd { overflow-wrap: anywhere; }
+.agent-landing-channels { display: flex; flex-wrap: wrap; gap: 8px; }
+.agent-landing-channels span { display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid var(--border); border-radius: 7px; font-size: 12px; }
+.agent-landing-empty, .agent-landing-loading { padding: 42px 12px; text-align: center; color: var(--muted-foreground); font-size: 13px; }
+.agent-landing-empty button { margin-top: 16px; }
+.agent-landing-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; color: var(--destructive); font-size: 13px; }
+@media (max-width: 1150px) { .agent-landing-detail { width: 270px; padding-left: 20px; padding-right: 20px; } .agent-landing-main { padding-left: 20px; padding-right: 20px; } .agent-landing-columns, .agent-landing-row-main { gap: 10px; } }
+@media (max-width: 900px) { .agent-landing { flex-direction: column; } .agent-landing-detail { width: auto; border-left: 0; border-top: 1px solid var(--border); padding: 28px 24px; } .agent-landing-detail-avatar { width: 55px; height: 55px; } .agent-landing-detail-actions { max-width: 360px; } }
+@media (max-width: 600px) { .agent-landing-main { padding: 24px 16px; } .agent-landing-header { margin: 0 0 22px; } .agent-landing-header h1 { font-size: 23px; } .agent-landing-header button { white-space: nowrap; } .agent-landing-columns { display: none; } .agent-landing-row-main { grid-template-columns: 1fr auto; gap: 8px; } .agent-landing-name { grid-column: 1; } .agent-landing-purpose { grid-column: 1 / -1; } .agent-landing-date { grid-column: 1; font-size: 12px; } .agent-landing-row-main > span:nth-child(3) { grid-column: 2; grid-row: 1; } .agent-landing-quick-chat { align-self: center; } }

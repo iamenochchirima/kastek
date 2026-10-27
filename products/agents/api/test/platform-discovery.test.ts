@@ -51,6 +51,45 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect(JSON.stringify(all.body)).not.toMatch(/instructions|configuration|position/);
     expect((await get(`${f.base}/agents/summaries?limit=101`,f.cookie)).status).toBe(400);
   });
+  it("filters agent configuration status before pagination and binds the cursor",async()=>{
+    const f=await fixture();
+    const pending=await store.createAgent({accountId:f.user.id,organizationId:f.org,name:"Pending"});
+    await store.createVersion({accountId:f.user.id,organizationId:f.org,agentId:pending.id,expectedRevision:1});
+    await store.updateDraft({accountId:f.user.id,organizationId:f.org,agentId:pending.id,expectedRevision:1,configuration:pending.draft});
+    const setup=await store.createAgent({accountId:f.user.id,organizationId:f.org,name:"Setup"});
+    const setup2=await store.createAgent({accountId:f.user.id,organizationId:f.org,name:"Setup second"});
+    const read=async(status:string)=>get(`${f.base}/agents/summaries?status=${status}`,f.cookie);
+    expect((await read("configured")).body.agents.map(x=>x.id)).toEqual([f.agent]);
+    expect((await read("changes-pending")).body.agents.map(x=>x.id)).toEqual([pending.id]);
+    expect(new Set((await read("setup")).body.agents.map(x=>x.id))).toEqual(new Set([setup.id,setup2.id]));
+    const first=await get(`${f.base}/agents/summaries?status=setup&limit=1`,f.cookie);
+    expect(first.body.agents).toHaveLength(1);expect(first.body.nextCursor).toBeTruthy();
+    const second=await get(`${f.base}/agents/summaries?status=setup&limit=1&cursor=${first.body.nextCursor}`,f.cookie);
+    expect(second.body.agents).toHaveLength(1);expect(second.body.agents[0].id).not.toBe(first.body.agents[0].id);
+    expect((await get(`${f.base}/agents/summaries?status=all&cursor=${first.body.nextCursor}`,f.cookie)).status).toBe(400);
+    expect((await read("nonsense")).status).toBe(400);
+    expect((await get(`${f.base}/agents/summaries?status=setup&q=second`,f.cookie)).body.agents.map(x=>x.id)).toEqual([setup2.id]);
+  });
+  it("returns agent setup, active channels and non-evaluation customer activity",async()=>{
+    const f=await fixture(),deployment=randomUUID(),session=randomUUID(),conversation=randomUUID();
+    await pool.query(`UPDATE agents_platform.agents SET setup=$2 WHERE id=$1`,[f.agent,{responsibilities:["answer-questions","enquiries"]}]);
+    await pool.query(`INSERT INTO agents_platform.website_deployments(id,organization_id,agent_id,version_id,allowed_origins,published_by) VALUES($1,$2,$3,$4,'["https://customer.test"]',$5)`,[deployment,f.org,f.agent,f.version,f.user.id]);
+    await pool.query(`INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,repeat('a',64),'https://customer.test')`,[session,deployment]);
+    await pool.query(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,'2025-01-01T00:00:00Z')`,[conversation,f.org,deployment,f.agent,f.version,session]);
+    const connection=randomUUID(),channelDeployment=randomUUID();
+    await pool.query(`INSERT INTO agents_platform.channel_connections(id,organization_id,created_by,kind,name,asset_id,mode,state) VALUES($1,$2,$3,'telegram','Telegram','fixture-bot','bot','active')`,[connection,f.org,f.user.id]);
+    await pool.query(`INSERT INTO agents_platform.channel_deployments(id,organization_id,connection_id,agent_id,version_id,created_by) VALUES($1,$2,$3,$4,$5,$6)`,[channelDeployment,f.org,connection,f.agent,f.version,f.user.id]);
+    const read=async()=> (await get(`${f.base}/agents/summaries`,f.cookie)).body.agents.find(x=>x.id===f.agent);
+    expect(await read()).toMatchObject({offering:"faq",responsibilities:["answer-questions","enquiries"],activeChannels:["telegram","website"],lastCustomerConversationAt:"2025-01-01T00:00:00.000Z"});
+    const trialId=randomUUID(),digest='a'.repeat(64);
+    await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,expires_at,model_routes,model_routes_digest,root_token_limit)
+      VALUES($1,$2,$3,$4,$5,$6,$7,2048,$7,now()+interval '1 day','{}',$7,2048)`,[trialId,randomUUID(),f.org,f.user.id,f.agent,f.version,digest]);
+    await pool.query(`INSERT INTO agents_platform.evaluation_trial_channels(trial_id,deployment_id,session_id,origin,request_digest,root_token_limit) VALUES($1,$2,$3,'https://customer.test',$4,2048)`,[trialId,deployment,session,digest]);
+    expect(await read()).toMatchObject({activeChannels:["telegram","website"],lastCustomerConversationAt:null});
+    await pool.query(`UPDATE agents_platform.website_deployments SET revoked_at=now() WHERE id=$1`,[deployment]);
+    await pool.query(`UPDATE agents_platform.channel_connections SET state='disconnected' WHERE id=$1`,[connection]);
+    expect(await read()).toMatchObject({activeChannels:[],lastCustomerConversationAt:null});
+  });
   it("discovers only exact-principal conversations, rechecks revocation, and binds cursors to scope/filters",async()=>{
     const f=await fixture(),other=await actor();await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')",[f.org,other.user.id]);
     const own=await seed(f);await seed(f);await seed(f,other.user);

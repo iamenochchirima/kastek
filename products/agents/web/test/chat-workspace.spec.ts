@@ -46,7 +46,8 @@ test("mock transport: default chat, server history after storage clear, pinned c
   expect(await page.evaluate(() => (window as unknown as { injected?: boolean }).injected)).toBeUndefined();
   expect(await page.evaluate(() => Object.entries(sessionStorage).some(([k,v]) => k.startsWith("agents.chat") && v.includes("Hello.")))).toBe(false);
   await page.evaluate(() => sessionStorage.clear()); await page.goto("/app/agents");
-  await page.getByRole("link", { name: /Research assistant/ }).click();
+  await page.getByRole("button", { name: "Show Research assistant details" }).click();
+  await page.getByRole("link", { name: "Open chat", exact: true }).click();
   await page.getByRole("navigation", { name: "Conversation history" }).getByRole("link").click();
   await expect(page.getByText("Hello.", { exact: true })).toBeVisible();
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("What is my project?");

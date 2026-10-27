@@ -4,22 +4,47 @@ import type { Account } from "../../contracts/records";
 import { finishPage,readPageCursor,type PageQuery } from "../../infrastructure/read-pages";
 import { PlatformStore } from "./store";
 
-export interface AgentSummary {id:string;name:string;draftRevision:number;updatedAt:Date;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
+export interface AgentSummary {id:string;name:string;draftRevision:number;updatedAt:Date;offering:"faq"|"customer-service"|null;responsibilities:string[];activeChannels:string[];lastCustomerConversationAt:Date|null;latestVersion:{id:string;number:number;draftRevision:number;executionKind:string}|null;hasUnpublishedChanges:boolean}
 export interface ConversationSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;title:string;updatedAt:Date;state:TaskState;canContinue:true}
 export interface TaskSummary {id:string;agentId:string;agentName:string;versionId:string;versionNumber:number;conversationId:string|null;state:TaskState;createdAt:Date;updatedAt:Date;canControl:boolean;reviewOnly:boolean}
 const missing=()=>{throw new PlatformError("NOT_FOUND",404,"Record not found");};
 export class PlatformDiscovery {
   constructor(private pool:Pool,private store:PlatformStore){}
-  async agents(user:Account,org:string,query:PageQuery&{q?:string}) {
+  async agents(user:Account,org:string,query:PageQuery&{q?:string;status?:"all"|"configured"|"changes-pending"|"setup"}) {
     await this.store.requireMembership(user.id,org);
     const q=query.q?.trim()??"";
-    const scope={kind:"agents",user:user.id,org,q},cursor=readPageCursor(query.cursor,scope);
-    const rows=(await this.pool.query(`SELECT a.id,a.name,a.draft_revision AS "draftRevision",a.updated_at AS "updatedAt",a.created_at::text AS position,
-      CASE WHEN v.id IS NULL THEN NULL ELSE json_build_object('id',v.id,'number',v.number,'draftRevision',v.draft_revision,'executionKind',v.execution_kind) END AS "latestVersion",
-      (v.id IS NULL OR v.draft_revision<>a.draft_revision) AS "hasUnpublishedChanges"
-      FROM agents_platform.agents a LEFT JOIN LATERAL (SELECT id,number,draft_revision,execution_kind FROM agents_platform.agent_versions WHERE agent_id=a.id ORDER BY number DESC LIMIT 1) v ON true
-      WHERE a.organization_id=$1 AND a.deleted_at IS NULL AND strpos(lower(a.name),lower($6))>0 AND a.created_at<=$2 AND ($3::timestamptz IS NULL OR (a.created_at,a.id)<($3::timestamptz,$4::uuid))
-      ORDER BY a.created_at DESC,a.id DESC LIMIT $5`,[org,cursor.snapshot,cursor.position||null,cursor.id||null,query.limit+1,q])).rows as (AgentSummary&{position:string})[];
+    const status=query.status??"all";
+    const scope={kind:"agents",user:user.id,org,q,status},cursor=readPageCursor(query.cursor,scope);
+    const rows=(await this.pool.query(`WITH page AS MATERIALIZED (
+      SELECT a.id,a.organization_id,a.name,a.offering,a.setup,a.draft_revision,a.updated_at,a.created_at,
+        v.id AS version_id,v.number AS version_number,v.draft_revision AS version_draft_revision,v.execution_kind AS version_execution_kind
+      FROM agents_platform.agents a
+      LEFT JOIN LATERAL (SELECT id,number,draft_revision,execution_kind FROM agents_platform.agent_versions WHERE agent_id=a.id ORDER BY number DESC LIMIT 1) v ON true
+      WHERE a.organization_id=$1 AND a.deleted_at IS NULL AND strpos(lower(a.name),lower($6))>0 AND a.created_at<=$2
+        AND ($3::timestamptz IS NULL OR (a.created_at,a.id)<($3::timestamptz,$4::uuid))
+        AND ($7='all' OR ($7='setup' AND v.id IS NULL) OR ($7='configured' AND v.id IS NOT NULL AND v.draft_revision=a.draft_revision)
+          OR ($7='changes-pending' AND v.id IS NOT NULL AND v.draft_revision<>a.draft_revision))
+      ORDER BY a.created_at DESC,a.id DESC LIMIT $5
+    ) SELECT a.id,a.name,a.offering,a.draft_revision AS "draftRevision",a.updated_at AS "updatedAt",a.created_at::text AS position,
+      COALESCE(a.setup->'responsibilities','[]'::jsonb) AS responsibilities,
+      CASE WHEN a.version_id IS NULL THEN NULL ELSE json_build_object('id',a.version_id,'number',a.version_number,'draftRevision',a.version_draft_revision,'executionKind',a.version_execution_kind) END AS "latestVersion",
+      (a.version_id IS NULL OR a.version_draft_revision<>a.draft_revision) AS "hasUnpublishedChanges",
+      ARRAY(SELECT DISTINCT channels.kind FROM (
+        SELECT 'website'::text AS kind FROM agents_platform.website_deployments w
+        WHERE w.organization_id=a.organization_id AND w.agent_id=a.id AND w.revoked_at IS NULL
+        UNION ALL
+        SELECT c.kind FROM agents_platform.channel_deployments d
+        JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
+        WHERE d.organization_id=a.organization_id AND d.agent_id=a.id AND d.state='active' AND c.state='active'
+          AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=d.id)
+      ) channels ORDER BY channels.kind) AS "activeChannels",
+      (SELECT c.updated_at FROM agents_platform.customer_conversations c
+        WHERE c.organization_id=a.organization_id AND c.agent_id=a.id
+          AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
+          AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)
+        ORDER BY c.updated_at DESC,c.id DESC LIMIT 1) AS "lastCustomerConversationAt"
+      FROM page a
+      ORDER BY a.created_at DESC,a.id DESC`,[org,cursor.snapshot,cursor.position||null,cursor.id||null,query.limit+1,q,status])).rows as (AgentSummary&{position:string})[];
     return finishPage(rows,query.limit,scope,cursor.snapshot,row=>({position:row.position,id:row.id}));
   }
   async conversations(user:Account,org:string,query:PageQuery&{agentId:string;versionId?:string}) {
