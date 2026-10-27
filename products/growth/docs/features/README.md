@@ -42,7 +42,9 @@ Growth uses the shared `@kasitek-labs/ui` Geist theme and controls, with white l
 surfaces and neutral charcoal dark surfaces. The dashboard retains its own navigation
 and data flows. Appearance settings under `/workspace/settings?section=appearance`
 retain theme, accent, density and motion controls. Existing saved accents remain;
-unset preferences use blue. Preferences remain local to each browser origin. Public
+unset preferences use blue. Preferences remain local to each browser origin.
+The sidebar, Inbox controls and assistant launcher use Hugeicons Stroke Rounded
+through `components/ui/interface-icons.tsx`; provider logos remain separate. Public
 landing styles retain their cream and green treatment.
 
 ## Frontend and offline verification
