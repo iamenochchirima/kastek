@@ -9,7 +9,7 @@
 .growth-overview-panel { min-width:0; overflow:hidden; border:1px solid var(--border); border-radius:7px; background:var(--card); }
 .growth-overview-panel-header { display:flex; min-height:52px; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
 .growth-overview-panel-header h2 { font-size:14px; font-weight:600; }
-.growth-overview-chart { width:100%; height:auto; min-height:190px; }
+.growth-overview-chart { width:100%; height:auto; min-height:0; }
 .growth-overview-attention { display:flex; min-height:87px; align-items:center; gap:10px; padding:16px 0; border-bottom:1px solid var(--border); }
 .growth-overview-attention:last-child { border:0; }
 .growth-overview-attention-icon { display:grid; width:36px; height:36px; place-items:center; flex-shrink:0; border-radius:50%; color:var(--primary); background:color-mix(in srgb,var(--primary) 8%,transparent); }
