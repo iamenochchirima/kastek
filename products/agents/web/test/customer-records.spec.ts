@@ -119,6 +119,13 @@ for (const width of [1440, 768, 390])
     await expect(
       page.getByRole("heading", { name: "Ada", exact: true }),
     ).toBeVisible();
+    const list = page.getByRole("table");
+    if (width >= 1200) {
+      await expect(list).toBeVisible();
+      await expect(page.getByRole("region", { name: "Enquiry details" })).toBeVisible();
+    } else {
+      await expect(list).toBeHidden();
+    }
     await page.getByRole("button", { name: "Assign to me" }).click();
     await expect(
       page.getByRole("button", { name: "Unassign me" }),
@@ -200,13 +207,13 @@ test("contact creation, correction and linked enquiries", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Grace", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Edit contact", exact: true }).click();
+  await page.getByRole("region", { name: "Contact details" }).getByRole("button", { name: "Edit contact", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByLabel("Phone", { exact: true })
     .fill("+27123456789");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("+27123456789", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Contact details" }).getByText("+27123456789", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Please call me/ }),
   ).toBeVisible();

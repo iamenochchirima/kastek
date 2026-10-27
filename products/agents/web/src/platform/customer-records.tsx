@@ -597,6 +597,116 @@ export function CustomersPage() {
           </Button>
         </div>
       ) : null}
+      <div className={`customer-content${selectedContact || selected ? " has-selection" : ""}`}>
+        <div className="customer-list-pane">
+        <>
+          <form className="customer-filters flex flex-wrap items-end gap-3" onSubmit={filters}>
+            <label className="block min-w-0 flex-1 basis-48 space-y-2 text-sm">
+              Search
+              <Input
+                aria-label="Search customers"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                maxLength={120}
+              />
+            </label>
+            {view === "enquiries" ? (
+              <>
+                <label className="space-y-2 text-sm">
+                  Status
+                  <select
+                    aria-label="Filter enquiry status"
+                    className="task-filter w-full"
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value)}
+                  >
+                    <option value="">All statuses</option>
+                    {Object.entries(statusLabels).map(([key, value]) => (
+                      <option key={key} value={key}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm">
+                  Due date
+                  <select
+                    aria-label="Filter due date"
+                    className="task-filter w-full"
+                    value={dueFilter}
+                    onChange={(event) => setDueFilter(event.target.value)}
+                  >
+                    <option value="">Any due date</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="scheduled">Scheduled</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm">
+                  Assignment
+                  <select
+                    aria-label="Filter enquiry assignment"
+                    className="task-filter w-full"
+                    value={assigned}
+                    onChange={(event) => setAssigned(event.target.value)}
+                  >
+                    <option value="">Everyone</option>
+                    <option value="mine">Assigned to me</option>
+                    <option value="unassigned">Unassigned</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
+            <Button variant="outline" type="submit">
+              Search
+            </Button>
+          </form>
+          {(view === "contacts" ? contacts : enquiries) === null && !error ? (
+            <Loading />
+          ) : view === "contacts" ? (
+            <div className="customer-table-wrap">
+              {contacts?.length ? (
+                <table className="customer-table">
+                  <thead><tr><th>Contact</th><th>Email</th><th>Phone</th>{owner ? <th><span className="sr-only">Actions</span></th> : null}</tr></thead>
+                  <tbody>{contacts.map((contact) => (
+                    <tr key={contact.id} className={selectedContact === contact.id ? "is-selected" : undefined}>
+                      <td data-label="Contact"><Link className="customer-record-link" to={`?view=contacts&contact=${encodeURIComponent(contact.id)}`}><span aria-hidden="true" className="customer-initial">{contactName(contact).slice(0, 1).toUpperCase()}</span><span>{contactName(contact)}</span></Link></td>
+                      <td data-label="Email">{contact.email || "—"}</td><td data-label="Phone">{contact.phone || "—"}</td>
+                      {owner ? <td><Button variant="ghost" size="sm" onClick={() => openEditor({ kind: "contact", contact })}>Edit contact</Button></td> : null}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              ) : <p className="customer-empty">No contacts</p>}
+            </div>
+          ) : (
+            <div className="customer-table-wrap">
+              {enquiries?.length ? (
+                <table className="customer-table">
+                  <thead><tr><th>Customer</th><th>Enquiry</th><th>Status</th><th>Assignee</th><th>Due date</th><th>Created</th></tr></thead>
+                  <tbody>{enquiries.map((item) => (
+                    <tr key={item.id} className={selected === item.id ? "is-selected" : undefined}>
+                      <td data-label="Customer"><Link aria-label={`${item.fields.name || item.fields.service || "Enquiry"} · ${statusLabels[item.status]}`} className="customer-record-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}><span aria-hidden="true" className="customer-initial">{(item.fields.name || item.fields.service || "E").slice(0, 1).toUpperCase()}</span><span>{item.fields.name || "Enquiry"}</span></Link></td>
+                      <td data-label="Enquiry"><Link className="customer-enquiry-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}>{item.fields.service || item.fields.message || item.fields.email || item.fields.phone || "Enquiry"}</Link></td>
+                      <td data-label="Status"><span className={`customer-status customer-status-${item.status}`}>{statusLabels[item.status]}</span></td>
+                      <td data-label="Assignee">{members.find((member) => member.accountId === item.assigneeAccountId)?.name ?? (item.assigneeAccountId ? "Former member" : "Unassigned")}</td>
+                      <td data-label="Due date">{item.dueAt ? date(item.dueAt) : "—"}</td><td data-label="Created"><time dateTime={item.createdAt}>{date(item.createdAt)}</time></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              ) : <p className="customer-empty">No enquiries</p>}
+            </div>
+          )}
+          {next ? (
+            <Button
+              variant="outline"
+              disabled={loadingMore}
+              onClick={() => void more()}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </Button>
+          ) : null}
+        </>
+        </div>
+        {selectedContact || selected ? <section className="customer-detail-pane" aria-label={selectedContact ? "Contact details" : "Enquiry details"}>
       {selectedContact ? (
         <>
           <Button
@@ -1038,114 +1148,9 @@ export function CustomersPage() {
             </fieldset>
           ) : null}
         </>
-      ) : (
-        <>
-          <form className="customer-filters flex flex-wrap items-end gap-3" onSubmit={filters}>
-            <label className="block min-w-0 flex-1 basis-48 space-y-2 text-sm">
-              Search
-              <Input
-                aria-label="Search customers"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                maxLength={120}
-              />
-            </label>
-            {view === "enquiries" ? (
-              <>
-                <label className="space-y-2 text-sm">
-                  Status
-                  <select
-                    aria-label="Filter enquiry status"
-                    className="task-filter w-full"
-                    value={status}
-                    onChange={(event) => setStatus(event.target.value)}
-                  >
-                    <option value="">All statuses</option>
-                    {Object.entries(statusLabels).map(([key, value]) => (
-                      <option key={key} value={key}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm">
-                  Due date
-                  <select
-                    aria-label="Filter due date"
-                    className="task-filter w-full"
-                    value={dueFilter}
-                    onChange={(event) => setDueFilter(event.target.value)}
-                  >
-                    <option value="">Any due date</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="scheduled">Scheduled</option>
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm">
-                  Assignment
-                  <select
-                    aria-label="Filter enquiry assignment"
-                    className="task-filter w-full"
-                    value={assigned}
-                    onChange={(event) => setAssigned(event.target.value)}
-                  >
-                    <option value="">Everyone</option>
-                    <option value="mine">Assigned to me</option>
-                    <option value="unassigned">Unassigned</option>
-                  </select>
-                </label>
-              </>
-            ) : null}
-            <Button variant="outline" type="submit">
-              Search
-            </Button>
-          </form>
-          {(view === "contacts" ? contacts : enquiries) === null && !error ? (
-            <Loading />
-          ) : view === "contacts" ? (
-            <div className="customer-table-wrap">
-              {contacts?.length ? (
-                <table className="customer-table">
-                  <thead><tr><th>Contact</th><th>Email</th><th>Phone</th>{owner ? <th><span className="sr-only">Actions</span></th> : null}</tr></thead>
-                  <tbody>{contacts.map((contact) => (
-                    <tr key={contact.id}>
-                      <td data-label="Contact"><Link className="customer-record-link" to={`?view=contacts&contact=${encodeURIComponent(contact.id)}`}><span aria-hidden="true" className="customer-initial">{contactName(contact).slice(0, 1).toUpperCase()}</span><span>{contactName(contact)}</span></Link></td>
-                      <td data-label="Email">{contact.email || "—"}</td><td data-label="Phone">{contact.phone || "—"}</td>
-                      {owner ? <td><Button variant="ghost" size="sm" onClick={() => openEditor({ kind: "contact", contact })}>Edit contact</Button></td> : null}
-                    </tr>
-                  ))}</tbody>
-                </table>
-              ) : <p className="customer-empty">No contacts</p>}
-            </div>
-          ) : (
-            <div className="customer-table-wrap">
-              {enquiries?.length ? (
-                <table className="customer-table">
-                  <thead><tr><th>Customer</th><th>Enquiry</th><th>Status</th><th>Assignee</th><th>Due date</th><th>Created</th></tr></thead>
-                  <tbody>{enquiries.map((item) => (
-                    <tr key={item.id}>
-                      <td data-label="Customer"><Link aria-label={`${item.fields.name || item.fields.service || "Enquiry"} · ${statusLabels[item.status]}`} className="customer-record-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}><span aria-hidden="true" className="customer-initial">{(item.fields.name || item.fields.service || "E").slice(0, 1).toUpperCase()}</span><span>{item.fields.name || "Enquiry"}</span></Link></td>
-                      <td data-label="Enquiry"><Link className="customer-enquiry-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}>{item.fields.service || item.fields.message || item.fields.email || item.fields.phone || "Enquiry"}</Link></td>
-                      <td data-label="Status"><span className={`customer-status customer-status-${item.status}`}>{statusLabels[item.status]}</span></td>
-                      <td data-label="Assignee">{members.find((member) => member.accountId === item.assigneeAccountId)?.name ?? (item.assigneeAccountId ? "Former member" : "Unassigned")}</td>
-                      <td data-label="Due date">{item.dueAt ? date(item.dueAt) : "—"}</td><td data-label="Created"><time dateTime={item.createdAt}>{date(item.createdAt)}</time></td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              ) : <p className="customer-empty">No enquiries</p>}
-            </div>
-          )}
-          {next ? (
-            <Button
-              variant="outline"
-              disabled={loadingMore}
-              onClick={() => void more()}
-            >
-              {loadingMore ? "Loading…" : "Load more"}
-            </Button>
-          ) : null}
-        </>
-      )}
+      ) : null}
+        </section> : null}
+      </div>
       <Dialog
         open={Boolean(editor)}
         onOpenChange={(open) => {

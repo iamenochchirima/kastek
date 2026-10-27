@@ -54,3 +54,16 @@
 .customer-detail-main > dl, .customer-detail-main > details, .customer-detail-main > section, .customer-detail-sidebar > section { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
 .customer-detail-columns h3 { font-size: 14px; font-weight: 600; }
 @media (max-width: 900px) { .customer-detail-columns { grid-template-columns: 1fr; } }
+.customer-content { min-width: 0; }
+.customer-list-pane { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.customer-detail-pane { min-width: 0; }
+.customer-detail-pane > button:first-child { margin-bottom: 16px; }
+.customer-table tr.is-selected { background: var(--brand-soft); }
+@media (min-width: 1200px) {
+  .customer-content.has-selection { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; gap: 24px; }
+  .customer-detail-pane { padding-left: 20px; border-left: 1px solid var(--border); }
+  .customer-detail-pane .customer-detail-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 1199px) {
+  .customer-content.has-selection .customer-list-pane { display: none; }
+}
