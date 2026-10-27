@@ -57,6 +57,7 @@ for (const width of [1440, 768, 390]) {
     await page.goto("/app/agents/root?section=tools");
     const catalogue = page.getByRole("region", { name: "Tools catalogue" });
     await expect(catalogue.getByRole("heading", { name: "Knowledge search", exact: true })).toBeVisible();
+    if (width === 390) expect(await page.getByRole("heading", { name: "Customer support", exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await expect(catalogue.getByRole("heading", { name: "GitHub", exact: true })).toHaveCount(0);
     await catalogue.getByRole("button", { name: "Add Human support", exact: true }).click();
     expect(state.draft().tools).not.toContain("channel.request_handoff");

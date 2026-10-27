@@ -68,6 +68,7 @@
 @media (max-width: 1100px) { .agent-general-grid { grid-template-columns: 1fr; grid-template-areas: "readiness" "basic" "channels" "knowledge" "model" "extras" "save" "history"; } }
 @media (max-width: 767px) {
   .agent-workspace .agent-editor-header { padding: 16px; }
+  .agent-workspace .agent-editor-header h1 { max-width: none; }
   .agent-workspace .agent-tabs { padding: 0 16px; gap: 22px; }
   .agent-workspace .agent-view-configure .agent-editor-body { padding: 18px 16px 36px; }
   .agent-workspace .chat-messages { padding: 20px 16px; }
