@@ -384,3 +384,20 @@ test("customer editor keeps keyboard focus and supports both themes", async ({
   }
   expect(surfaces[0]).not.toBe(surfaces[1]);
 });
+
+for (const view of ["enquiries", "contacts"] as const) {
+  test(`failed ${view} load does not appear empty and can be retried`, async ({ page }) => {
+    await fixture(page);
+    let failing = true;
+    await page.route(`**/customer-records/${view}*`, async route => {
+      if (failing) return route.fulfill({ status: 503, json: { error: { message: "Records unavailable" } } });
+      return route.fallback();
+    });
+    await page.goto(view === "contacts" ? "/app/customers?view=contacts" : "/app/customers");
+    await expect(page.getByText("Records unavailable")).toBeVisible();
+    await expect(page.getByText(view === "contacts" ? "No contacts" : "No enquiries")).toHaveCount(0);
+    failing = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByRole("table")).toBeVisible();
+  });
+}

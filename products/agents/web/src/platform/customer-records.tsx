@@ -661,8 +661,8 @@ export function CustomersPage() {
               Search
             </Button>
           </form>
-          {(view === "contacts" ? contacts : enquiries) === null && !error ? (
-            <Loading />
+          {(view === "contacts" ? contacts : enquiries) === null ? (
+            !error ? <Loading /> : null
           ) : view === "contacts" ? (
             <div className="customer-table-wrap">
               {contacts?.length ? (
