@@ -319,3 +319,25 @@ test("mock automation: an older workflow configuration cannot silently replace a
   await page.goto("/app/automations"); await expect(page.getByRole("button", { name: "Create automation", exact: true })).toBeDisabled();
   await expect(page.getByRole("link", { name: "Configure agent", exact: true })).toBeVisible();
 });
+
+test("automation form shows field errors inline and keeps input", async ({ page }) => {
+  const data = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/automations");
+  await page.getByRole("button", { name: "Create automation", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const name = dialog.getByRole("textbox", { name: "Name", exact: true });
+  const task = dialog.getByRole("textbox", { name: "Task", exact: true });
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await task.fill("Keep this request");
+  await dialog.getByRole("button", { name: "Create automation", exact: true }).click();
+  await expect(name).toBeFocused();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  await expect(name).toHaveAttribute("aria-describedby", "automation-error-name");
+  await expect(dialog.locator("#automation-error-name")).toBeVisible();
+  await expect(task).toHaveValue("Keep this request");
+  expect(data.requests.filter(request => request.path.endsWith("/automations"))).toHaveLength(0);
+  await name.fill("Daily report");
+  await expect(dialog.locator("#automation-error-name")).toHaveCount(0);
+  await expect(task).toHaveValue("Keep this request");
+});
