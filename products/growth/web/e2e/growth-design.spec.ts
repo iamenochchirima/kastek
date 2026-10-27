@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const proofDirectory = fileURLToPath(new URL("../../../.audit/growth-redesign/cross-page/", import.meta.url));
+const proofDirectory = fileURLToPath(new URL("../../../../.audit/growth-redesign/cross-page/", import.meta.url));
 const pages = [
   { name: "overview", path: "/workspace", heading: "Overview" },
   { name: "connections", path: "/connections", heading: "Connections" },

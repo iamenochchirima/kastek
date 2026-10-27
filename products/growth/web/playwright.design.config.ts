@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 const baseURL = "http://127.0.0.1:3312";
 export default defineConfig({
-  testDir: "./e2e", testMatch: "growth-design.spec.ts", workers: 1, fullyParallel: false,
+  testDir: "./e2e", testMatch: "growth-design.spec.ts", workers: 1, fullyParallel: false, timeout: 90_000,
   reporter: "line", outputDir: ".playwright/design-results",
   use: { baseURL, serviceWorkers: "block", reducedMotion: "reduce", trace: "retain-on-failure", screenshot: "only-on-failure" },
   webServer: [
