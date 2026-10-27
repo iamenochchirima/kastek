@@ -77,6 +77,44 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
     if (started) docker("rm", "-f", container); await app?.close(); await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); }
   }, 30_000);
   afterEach(async context => { if (context.task.result?.state === "fail") for (const [name, page] of [["visitor", visitor], ["staff", staff], ["widget", widget]] as const) if (page && !page.isClosed()) { await page.screenshot({ path: resolve(artifact, `${name}-failure.png`), fullPage: true }); console.error(`${name} fixture page: ${(await page.locator("body").innerText()).slice(0, 2000)}`); } });
+  it("persists customer follow-up through the browser and owned API", async () => {
+    const platform = new PlatformStore(pool);
+    const account = await platform.ensureAccount({ issuer: "https://inbox-identity.test", subject: randomUUID(), email: "records@inbox.test", displayName: "Records operator" });
+    const org = await platform.createOrganization(account.id, "Customer records verification");
+    const session = await platform.createSession({ accountId: account.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 600_000) });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    try {
+      await context.addCookies([{ name: "agents_session", value: session.token, url: origin }]);
+      staff = await context.newPage();
+      let networkChanged = false;
+      staff.on("requestfailed", (request: any) => { if (request.failure()?.errorText === "net::ERR_NETWORK_CHANGED") networkChanged = true; });
+      await staff.goto(`${origin}/app/customers`);
+      const add = staff.getByRole("button", { name: "Add enquiry", exact: true });
+      try { await browserExpect(add).toBeVisible({ timeout: 5000 }); }
+      catch (error) { if (!networkChanged) throw error; await staff.reload(); await browserExpect(add).toBeVisible({ timeout: 5000 }); }
+      await add.click();
+      const editor = staff.getByRole("dialog", { name: "Add enquiry" });
+      await editor.getByLabel("Name", { exact: true }).fill("Fixture customer");
+      await editor.getByLabel("Message", { exact: true }).fill("Needs a follow-up");
+      await editor.getByRole("button", { name: "Save", exact: true }).click();
+      await staff.getByRole("link", { name: /Fixture customer · New/ }).click();
+      await staff.getByLabel("Enquiry status", { exact: true }).selectOption("in_progress");
+      await staff.getByLabel("Internal note", { exact: true }).fill("Call next week");
+      await staff.getByRole("button", { name: "Add note", exact: true }).click();
+      await browserExpect(staff.getByText("Call next week", { exact: true })).toBeVisible();
+      const rows = (await pool.query("SELECT id, status, fields, assignee_account_id FROM agents_platform.customer_record_enquiries WHERE organization_id=$1", [org.id])).rows;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "in_progress", fields: { name: "Fixture customer", message: "Needs a follow-up" }, assignee_account_id: account.id });
+      const notes = (await pool.query("SELECT body, actor_account_id FROM agents_platform.customer_record_activity WHERE enquiry_id=$1 AND kind='note'", [rows[0].id])).rows;
+      expect(notes).toEqual([{ body: "Call next week", actor_account_id: account.id }]);
+      await staff.reload();
+      await browserExpect(staff.getByLabel("Enquiry status", { exact: true })).toHaveValue("in_progress");
+      await browserExpect(staff.getByText("Call next week", { exact: true })).toBeVisible();
+    } catch (error) {
+      if (staff && !staff.isClosed()) { await staff.screenshot({ path: resolve(artifact, "customer-follow-up-failure.png"), fullPage: true }); console.error("Customer fixture page:", (await staff.locator("body").innerText()).slice(0, 2000)); }
+      throw error;
+    } finally { await context.close(); }
+  }, 30_000);
   it("takes over active work, delivers a human reply, returns on new input and recovers browser views", async () => {
     const platform = new PlatformStore(pool), account = await platform.ensureAccount({ issuer: "https://inbox-identity.test", subject: randomUUID(), email: "operator@inbox.test", displayName: "Support operator" });
     const org = await platform.createOrganization(account.id, "Customer Inbox verification"), scope = { accountId: account.id, organizationId: org.id };
