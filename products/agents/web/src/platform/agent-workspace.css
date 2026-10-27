@@ -11,9 +11,11 @@
 .agent-workspace .conversation-link { min-height: 38px; padding: 10px; font-size: 13px; }
 .agent-workspace .agent-editor-header { padding: 24px 28px 20px; }
 .agent-workspace .agent-editor-header h1 { font-size: 20px; letter-spacing: -.025em; }
+.agent-workspace .agent-view-chat .agent-editor-header .agent-avatar { width: 48px; height: 48px; border-radius: 12px; }
+.agent-workspace .agent-view-chat .agent-editor-header .agent-avatar svg { width: 24px; height: 24px; }
 .agent-workspace .agent-tabs { padding: 0 28px; }
 .agent-workspace .agent-tabs button { display: inline-flex; align-items: center; gap: 8px; }
-.agent-workspace .agent-tabs button.is-active { color: var(--foreground); border-bottom-color: var(--primary); }
+.agent-workspace .agent-tabs button.is-active { color: var(--primary); border-bottom-color: var(--primary); }
 .agent-workspace .agent-view-configure .agent-editor-body { padding: 24px 28px 48px; }
 .agent-workspace .configuration-tabs { gap: 4px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
 .agent-workspace .configuration-tabs button { padding: 9px 12px; border-radius: 6px 6px 0 0; font-size: 13px; }
