@@ -2,9 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 test.setTimeout(20000);
 test.use({launchOptions:{channel:"chromium-headless-shell"}});
 const base="/api/organizations/org/inbox/conversation";
-async function fixture(page:Page,assigned=true,lost=false,mediaLost=false){
+async function fixture(page:Page,assigned=true,lost=false,mediaLost=false,available=true,catalogueAvailableWhenDisconnected=false){
   const calls:{path:string;body:Record<string, unknown> | null}[]=[],errors:string[]=[];let granted=false,consentRevision=0,replyLost=lost;
-  const conversation={id:"conversation",agentId:"agent",agentName:"Support",deploymentId:null,versionId:"version",channel:"whatsapp",state:"human_owned",assigneeAccountId:assigned?"owner":"other",revision:"7",ownershipGeneration:"1",createdAt:"2026-10-21T10:00:00Z",updatedAt:"2026-10-21T10:00:00Z"};
+  const conversation={id:"conversation",agentId:"agent",agentName:"Support",deploymentId:null,versionId:"version",channel:"whatsapp",channelAvailable:available,state:"human_owned",assigneeAccountId:assigned?"owner":"other",revision:"7",ownershipGeneration:"1",createdAt:"2026-10-21T10:00:00Z",updatedAt:"2026-10-21T10:00:00Z"};
   const messages=[{id:"visitor",sequence:"1",authorKind:"visitor",body:"Yes, send my appointment updates",createdAt:conversation.createdAt,channelFacts:{attachments:[{kind:"document",fileName:"appointment.pdf",index:0}]}},{id:"reply",sequence:"2",authorKind:"human",body:"Previous reply",createdAt:conversation.createdAt,deliveries:[{id:"unknown",segment:0,state:"unknown",reason:null}]}];
   page.on("pageerror",error=>errors.push(error.message));
   await page.route("**/api/**",async route=>{
@@ -15,7 +15,7 @@ async function fixture(page:Page,assigned=true,lost=false,mediaLost=false){
     else if(path.endsWith("/inbox/members"))data={members:[{id:"owner",displayName:"Owner"},{id:"other",displayName:"Other"}]};
     else if(path.endsWith("/inbox"))data={conversations:[conversation],nextCursor:null};
     else if(path===base)data={conversation,messages,nextSequence:"2",earlierBefore:null};
-    else if(path.endsWith("/whatsapp/templates"))data={templates:[{id:"approved",name:"appointment_update",language:"en_US",category:"UTILITY",status:"APPROVED",supported:true,components:[{type:"HEADER",format:"TEXT",text:"Hello {{1}}"},{type:"BODY",text:"Your booking is {{1}} at {{2}}."},{type:"FOOTER",text:"Contact support for changes."}]},{id:"unsupported",name:"unsupported_media",language:"en_US",category:"UTILITY",status:"APPROVED",supported:false,components:[]}],nextCursor:null};
+    else if(path.endsWith("/whatsapp/templates")){if(!conversation.channelAvailable&&!catalogueAvailableWhenDisconnected){await route.fulfill({status:409,json:{error:{message:"Channel unavailable"}}});return;}data={templates:[{id:"approved",name:"appointment_update",language:"en_US",category:"UTILITY",status:"APPROVED",supported:true,components:[{type:"HEADER",format:"TEXT",text:"Hello {{1}}"},{type:"BODY",text:"Your booking is {{1}} at {{2}}."},{type:"FOOTER",text:"Contact support for changes."}]},{id:"unsupported",name:"unsupported_media",language:"en_US",category:"UTILITY",status:"APPROVED",supported:false,components:[]}],nextCursor:null};}
     else if(path.endsWith("/whatsapp/consent")){if(body){expect(body.expectedRevision).toBe("7");expect(body.evidence).toEqual({kind:"customer_message",messageId:"visitor"});granted=body.granted;consentRevision++;}data={revision:consentRevision,granted,categories:granted?["UTILITY"]:[]};}
     else if(path.endsWith("/media-reply")){if(mediaLost){mediaLost=false;conversation.revision="8";await route.fulfill({status:502,json:{error:{message:"Media acknowledgement lost"}}});return;}data={conversation};}
     else if(path.endsWith("/whatsapp/template-reply")){if(replyLost){replyLost=false;await route.fulfill({status:502,json:{error:{message:"Acknowledgement lost"}}});return;}data={conversation};}
@@ -24,7 +24,7 @@ async function fixture(page:Page,assigned=true,lost=false,mediaLost=false){
     await route.fulfill({json:data});
   });
   await page.goto("/app/inbox");await page.getByRole("button",{name:/Support.*WhatsApp/}).click();await expect(page.getByRole("region",{name:"Channel support"})).toBeVisible();
-  return{calls,errors};
+  return{calls,errors,disconnect:()=>{conversation.channelAvailable=false;}};
 }
 async function choose(page:Page){await page.getByText("WhatsApp template reply",{exact:true}).click();await page.getByLabel("Approved template").selectOption("approved");await page.getByLabel("Header value 1").fill("Ada <img src=x>");await page.getByLabel("Body value 1").fill("confirmed");await page.getByLabel("Body value 2").fill("09:00");}
 async function optIn(page:Page){await page.getByText("Customer opt-in",{exact:true}).click();await expect(page.getByLabel("Customer decision")).toHaveValue("");await expect(page.getByLabel("Utility",{exact:true})).not.toBeChecked();await page.getByLabel("Customer decision").selectOption("yes");await page.getByLabel("Utility",{exact:true}).check();await page.getByLabel("Customer message",{exact:true}).selectOption("visitor");await page.getByRole("button",{name:"Record decision"}).click();await expect(page.getByText("Recorded for utility.",{exact:true})).toBeVisible();}
@@ -60,4 +60,45 @@ test("canonical media reply preserves source, nonce and original revision across
   await page.getByRole("button",{name:"Reply with attachment",exact:true}).click();await expect.poll(()=>f.calls.filter(call=>call.path.endsWith("/media-reply")).length).toBe(2);
   const retries=f.calls.filter(call=>call.path.endsWith("/media-reply"));expect(retries[1]!.body).toEqual(first.body);
   await expect.poll(()=>page.evaluate(()=>JSON.parse(sessionStorage.getItem("agents.channel-media.owner.org.conversation")??"null"))).toBeNull();expect(f.errors).toEqual([]);
+});
+
+test("disconnected channel blocks new attachment replies while preserving consent and recovery",async({page})=>{
+  const f=await fixture(page,true,false,false,false);
+  await page.getByText("Attachments",{exact:true}).click();
+  await expect(page.getByRole("button",{name:"Reply with attachment"})).toBeDisabled();
+  await page.getByText("Customer opt-in",{exact:true}).click();
+  await expect(page.getByLabel("Customer decision")).toBeEnabled();
+  await page.getByRole("button",{name:"Review unknown delivery"}).click();
+  await expect(page.getByRole("button",{name:"Continue without resending"})).toBeEnabled();
+  expect(f.calls.some(call=>call.path.endsWith("/media-reply"))).toBe(false);
+});
+
+test("pending template retry survives disconnect and unavailable template catalogue",async({page})=>{
+  const f=await fixture(page,true,true);await choose(page);await optIn(page);
+  await page.getByRole("button",{name:"Send template"}).click();
+  await expect(page.getByRole("alert").filter({hasText:"Acknowledgement lost"})).toBeVisible();
+  f.disconnect();await page.reload();await page.getByRole("button",{name:/Support.*WhatsApp/}).click();
+  await page.getByText("WhatsApp template reply",{exact:true}).click();
+  await page.getByRole("button",{name:"Retry pending template"}).click();
+  await expect.poll(()=>f.calls.filter(call=>call.path.endsWith("/template-reply")).length).toBe(2);
+  const replies=f.calls.filter(call=>call.path.endsWith("/template-reply"));expect(replies[1]!.body).toEqual(replies[0]!.body);
+});
+
+test("pending attachment retry remains available after disconnect",async({page})=>{
+  const f=await fixture(page,true,false,true);await page.getByText("Attachments",{exact:true}).click();
+  await page.getByRole("button",{name:"Reply with attachment"}).click();
+  await expect(page.getByRole("alert").filter({hasText:"Media acknowledgement lost"})).toBeVisible();
+  f.disconnect();await page.reload();await page.getByRole("button",{name:/Support.*WhatsApp/}).click();
+  await page.getByText("Attachments",{exact:true}).click();
+  await expect(page.getByRole("button",{name:"Reply with attachment"})).toBeEnabled();
+  await page.getByRole("button",{name:"Reply with attachment"}).click();
+  await expect.poll(()=>f.calls.filter(call=>call.path.endsWith("/media-reply")).length).toBe(2);
+  const replies=f.calls.filter(call=>call.path.endsWith("/media-reply"));expect(replies[1]!.body).toEqual(replies[0]!.body);
+});
+
+
+test("disconnected channel blocks a new template even when catalogue data is available",async({page})=>{
+  const f=await fixture(page,true,false,false,false,true);await choose(page);await optIn(page);
+  await expect(page.getByRole("button",{name:"Send template"})).toBeDisabled();
+  expect(f.calls.some(call=>call.path.endsWith("/template-reply"))).toBe(false);
 });

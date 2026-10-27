@@ -485,7 +485,9 @@ in the URL. Owners can search and page through workspace members when assigning 
 The conversation response includes the authorized assignee's display name even when that member
 is outside the current picker page. Queue and staff timeline responses report whether the channel
 binding is active; the interface identifies unavailable channels and disables new replies while the
-server continues to check binding authority when commands are submitted.
+server continues to check binding authority when commands are submitted. A saved template or
+attachment reply whose acknowledgement was lost can still be retried with its original command;
+this checks the existing outcome and does not authorize a new reply on a disconnected channel.
 
 The Inbox queue includes the latest message preview, bounded to 500 characters. Assistant output
 is checked against current evidence access before it is displayed. Customer names and record links
