@@ -1,19 +1,19 @@
 .management-page {
   width: 100%;
-  max-width: 68rem;
+  max-width: 76rem;
   margin-inline: auto;
-  padding: 2rem clamp(1rem, 3vw, 2.5rem) 3rem;
+  padding: 1.75rem clamp(1rem, 3vw, 2rem) 3rem;
 }
-.management-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.75rem; }
-.management-header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -.04em; }
+.management-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+.management-header h1 { font-size: 1.375rem; font-weight: 600; letter-spacing: -.025em; }
 .management-list { border-top: 1px solid var(--border); }
 .management-list > * + * { border-top: 1px solid var(--border); }
-.management-row { padding-block: 1.125rem; }
+.management-row { padding: 1rem .25rem; }
 .management-empty { padding-block: 3rem; color: var(--muted-foreground); font-size: .875rem; }
 .configuration-section { width: 100%; max-width: 48rem; }
 .configuration-section legend { font-size: .875rem; font-weight: 600; }
 .specialist-configuration { border-left: 2px solid var(--border); padding: .25rem 0 .25rem 1rem; }
-.settings-group { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: 1.5rem; padding-block: 1.75rem; border-top: 1px solid var(--border); }
+.settings-group { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: 1.5rem; padding-block: 1.5rem; border-top: 1px solid var(--border); }
 .settings-group h2 { font-size: .875rem; font-weight: 600; }
 .settings-value { font-size: .875rem; overflow-wrap: anywhere; }
 .settings-label { font-size: .75rem; color: var(--muted-foreground); margin-bottom: .25rem; }
@@ -32,4 +32,17 @@
   .management-header { margin-bottom: 1.25rem; }
   .settings-group { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .management-row > .flex { gap: .75rem; }
+}
+
+/* Common management surfaces retain the same compact treatment in both themes. */
+.management-page .task-list { border: 1px solid var(--border); border-radius: .5rem; overflow: hidden; }
+.management-page .task-list-row { min-height: 4rem; padding: .75rem 1rem; gap: .875rem; }
+.management-page .task-list-row:last-child { border-bottom: 0; }
+.management-page .task-list-row:hover { background: var(--muted); }
+.management-page .task-filter { color: var(--foreground); background: var(--card); font-size: .8125rem; }
+.management-page .task-list-row .agent-avatar { width: 2rem; height: 2rem; border-radius: .4rem; background: var(--muted); color: var(--muted-foreground); }
+.management-page .task-state { text-transform: capitalize; }
+@media (max-width: 640px) {
+  .management-page .task-list-row { padding-inline: .75rem; }
+  .management-page .task-list-row .agent-avatar { display: flex; }
 }
