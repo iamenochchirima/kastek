@@ -1027,8 +1027,13 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `product/connections/provider-connections.ts`, `product/connections/provider-oauth.ts`, `product/connections/provider-services.ts`, `adapters/providers/`, `workflows/booking/` | Shared native OAuth, selected actions, explicit service sharing, calendar booking policies, exact contact confirmation and read-only reconciliation. |
 | `composition/setup.ts` | Fresh database initialization and schema checks. |
 
-The management client is in `web/`. Its chat, configuration, management and explicit
-website-publication paths share these APIs. Growth and Agencies retain independent
+The management client is in `web/`. It uses Geist and shared light and neutral charcoal dark
+appearance tokens. Theme preferences remain in Settings. The agent workspace groups setup and
+configuration, while Connections presents real available channels and business tools in a searchable
+catalogue. Custom MCP setup opens a URL-first side panel. Provider marks do not imply availability.
+The [visual references](../design/interface-concepts/README.md) are concepts; current server state
+and authorization determine which actions the client can show. Its chat, configuration, management
+and explicit website-publication paths share these APIs. Growth and Agencies retain independent
 membership, permissions, and domain records. Embedded execution remains unavailable.
 
 | User entry point | Current behavior | Verification |
@@ -1038,6 +1043,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/agents` | Compact searchable agent directory with server conversation history. | Chat workspace, discovery and browser regression suites. |
 | `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history scoped to its original agent and principal, per-turn configuration snapshots, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
+| `/app/customers` | Enquiry and contact lists with follow-up, activity and authorized Inbox links. Desktop can show a selected record beside the list; smaller screens open the detail view. | `customer-records.spec.ts` and native record database checks. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |
