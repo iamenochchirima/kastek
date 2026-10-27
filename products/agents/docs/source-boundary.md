@@ -494,7 +494,8 @@ is checked against current evidence access before it is displayed. Customer name
 appear only when linked enquiries identify exactly one contact in the organization; otherwise the
 interface uses an anonymous customer label. Search matches that customer name, the agent name, and
 visitor or human message text. Search and all filters are bound to the cursor. The substring search
-can scan matching tenant conversations; production-scale latency has not been benchmarked. Migration
+can scan message data; production-scale latency has not been benchmarked. Message candidates are
+joined to conversations in the current organization before they can match the queue. Migration
 `082_inbox_customer_identity.sql` adds the contact lookup index.
 
 Staff and visitor timelines expose at most 100 messages per read. Earlier messages and Latest

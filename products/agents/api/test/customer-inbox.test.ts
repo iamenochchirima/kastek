@@ -280,12 +280,21 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       expect((await app.inject({ method: "GET", url: `${path}?search=%25` })).json().conversations).toHaveLength(0);
       expect((await app.inject({ method: "GET", url: `${path}/${f.conversation.id}` })).json().conversation.customerName).toBe("Alex Mokoena");
       expect((await app.inject({ method: "GET", url: `${path}/${f.conversation.id}` })).json().conversation.customerContactId).toBe(contact);
+      await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "Visitor follow-up" });
+      expect((await inbox.list(f.scope, { limit: 30, search: "visitor follow" })).items.map(item => item.id)).toEqual([f.conversation.id]);
+      await command(f, "reply", { body: "Literal 100%_\\value" });
+      for (const search of ["100%_\\value", "%_", "\\value"]) {
+        const found = await inbox.list(f.scope, { limit: 30, search });
+        expect(found.items.map(item => item.id)).toEqual([f.conversation.id]);
+      }
+      await expect(inbox.list({ ...f.scope, accountId: f.outsider.id }, { limit: 30, search: "confirmed" })).rejects.toBeDefined();
       const secondContact = randomUUID();
       await pool.query("INSERT INTO agents_platform.customer_contacts(id,organization_id,name) VALUES($1,$2,$3)", [secondContact, f.org.id, "Another customer"]);
       await pool.query("INSERT INTO agents_platform.customer_record_enquiries(id,organization_id,customer_conversation_id,contact_id,fields,original_fields) VALUES($1,$2,$3,$4,'{}','{}')", [randomUUID(), f.org.id, f.conversation.id, secondContact]);
       expect((await app.inject({ method: "GET", url: path })).json().conversations[0].customerName).toBeNull();
       expect((await app.inject({ method: "GET", url: path })).json().conversations[0].customerContactId).toBeNull();
       expect((await app.inject({ method: "GET", url: `${path}/${f.conversation.id}` })).json().conversation.customerContactId).toBeNull();
+      expect((await inbox.list(f.scope, { limit: 30, search: "Mokoena" })).items).toHaveLength(0);
     } finally { await app.close(); }
   });
   it("enforces canonical message and customer version immutability in PostgreSQL", async () => {
@@ -293,6 +302,17 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(pool.query("UPDATE agents_platform.customer_messages SET body='changed' WHERE conversation_id=$1", [f.conversation.id])).rejects.toMatchObject({ code: "23514" });
     await expect(pool.query("UPDATE agents_platform.customer_messages SET author_kind='visitor' WHERE conversation_id=$1", [f.conversation.id])).rejects.toMatchObject({ code: "23514" });
     await expect(pool.query("UPDATE agents_platform.customer_conversations SET version_id=$2 WHERE id=$1", [f.conversation.id, randomUUID()])).rejects.toMatchObject({ code: "23514" });
+  });
+  it("excludes evaluation conversations from message search", async () => {
+    const f = await fixture();
+    await command(f, "claim"); await command(f, "takeover"); await command(f, "reply", { body: "Unique trial search phrase" });
+    expect((await inbox.list(f.scope, { limit: 30, search: "trial search" })).items.map(item => item.id)).toEqual([f.conversation.id]);
+    const trialId = randomUUID(), digest = "a".repeat(64);
+    await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,expires_at,model_routes,model_routes_digest,root_token_limit)
+      VALUES($1,$2,$3,$4,$5,$6,$7,2048,$7,now()+interval '1 day','{}',$7,2048)`, [trialId, randomUUID(), f.org.id, f.owner.id, f.agent.id, f.version.id, digest]);
+    await pool.query(`INSERT INTO agents_platform.evaluation_trial_channels(trial_id,deployment_id,session_id,origin,request_digest,root_token_limit)
+      VALUES($1,$2,$3,$4,$5,2048)`, [trialId, f.deployment.id, f.visitor.sessionId, origin, digest]);
+    expect((await inbox.list(f.scope, { limit: 30, search: "trial search" })).items).toHaveLength(0);
   });
   it("rechecks withdrawn assistant evidence on bounded earlier pages for both audiences", async () => {
     const f=await fixture(),input=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Original question"}),taskId=input.message.task_id!;

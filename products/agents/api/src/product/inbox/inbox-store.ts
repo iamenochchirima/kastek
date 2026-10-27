@@ -196,7 +196,9 @@ export class InboxStore {
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
         AND ($12::text IS NULL OR strpos(lower(coalesce(identity.customer_name,'')),lower($12))>0 OR strpos(lower(a.name),lower($12))>0
-          OR EXISTS(SELECT 1 FROM agents_platform.customer_messages m WHERE m.conversation_id=c.id AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))
+          OR c.id IN (SELECT m.conversation_id FROM agents_platform.customer_messages m
+            JOIN agents_platform.customer_conversations owned ON owned.id=m.conversation_id
+            WHERE owned.organization_id=$1 AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)
         AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)${sort === "oldest" ? ">" : "<"}($7::timestamptz,$8::uuid))
