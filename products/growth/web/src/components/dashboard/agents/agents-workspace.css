@@ -1,4 +1,4 @@
-.growth-agents-workspace [data-slot="tabs-trigger"][data-state="active"] { color: var(--primary); }
+.growth-agents-workspace [data-slot="tabs-trigger"][data-state="active"] { color: var(--primary); background:transparent; border-color:transparent transparent var(--primary); box-shadow:none; }
 .growth-agents-feature { display:flex; min-width:0; min-height:180px; flex-direction:column; border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--card); }
 .growth-agents-table-wrap { overflow:hidden; border:1px solid var(--border); border-radius:7px; }
 .growth-agents-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:13px; text-align:left; }

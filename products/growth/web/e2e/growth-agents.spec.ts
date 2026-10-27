@@ -65,7 +65,7 @@ for (const width of [768, 390]) test(`supports keyboard and full-screen chat at 
   await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Growth assistant", exact: true });
   await expect(dialog).toBeVisible();
-  await page.screenshot({ path: `../../../.audit/growth-agents-assistant-${width}.png`, fullPage: true, animations: "disabled" });
+  await page.screenshot({ path: `../../../.audit/growth-agents-assistant-${width}.png`, fullPage: false, animations: "disabled" });
   expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   const bounds = await dialog.boundingBox();
   expect(bounds?.width).toBeLessThanOrEqual(width);
