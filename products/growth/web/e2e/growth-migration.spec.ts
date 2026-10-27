@@ -96,15 +96,26 @@ test("renders sign-in and signup when the session is absent and guards private r
 
 test("updates contact fields through the form and reloads the saved record", async ({ page, request }) => {
   await page.goto("/contacts?q=27720001111");
+  await page.getByRole("button", { name: /^View contact / }).first().click();
+  const details = page.getByRole("complementary", { name: "Contact details", exact: true });
+  await expect(details.getByText("+27720001111", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Close contact details", exact: true }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).first().click();
-  await page.getByRole("dialog", { name: "Search results", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("textbox", { name: "Full name", exact: true }).fill("Migration contact edit");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByText("Contact updated.", { exact: true })).toBeVisible();
   await page.goto("/contacts?q=27720001111");
-  await expect(page.getByRole("cell", { name: "Migration contact edit", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "View contact Migration contact edit", exact: true })).toBeVisible();
   const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
   expect(state.contacts[0].fullName).toBe("Migration contact edit");
+  await page.getByRole("button", { name: /^Excluded/ }).click();
+  await expect(page.getByRole("button", { name: "View contact Migration contact edit", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: /^All contacts/ }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "View contact Migration contact edit", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Contact details", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("creates a campaign through its setup and confirmation screens", async ({ page, request }) => {
