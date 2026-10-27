@@ -42,3 +42,48 @@ test("Inbox rejects a delayed response for a different customer conversation",as
  await page.getByRole("button",{name:/Other support/}).click();await expect(page.getByText("Other conversation content",{exact:true})).toBeVisible();fixture.release();
  await expect.poll(()=>fixture.requests.length).toBeGreaterThan(1);await expect(page.getByText("Canonical response 6",{exact:true})).toHaveCount(0);await expect(page.getByText("Other conversation content",{exact:true})).toBeVisible();
 });
+
+test("Inbox shows a retryable error instead of loading indefinitely", async ({ page }) => {
+  let failList = true;
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: { account: { id: "owner", email: "support@example.test", displayName: "Support" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] } });
+    if (path.endsWith("/inbox")) {
+      if (failList) { return route.fulfill({ status: 503, json: { error: { message: "Inbox unavailable" } } }); }
+      return route.fulfill({ json: { conversations: [], nextCursor: null } });
+    }
+    if (path.endsWith("/members")) return route.fulfill({ json: { members: [] } });
+    if (path.endsWith("/agents/summaries")) return route.fulfill({ json: { agents: [], nextCursor: null } });
+    return route.fulfill({ json: { connections: [] } });
+  });
+  await page.goto("/app/inbox");
+  const list = page.getByRole("complementary", { name: "Customer conversations" });
+  await expect(list.getByText("Inbox unavailable")).toBeVisible();
+  failList = false;
+  await list.getByRole("button", { name: "Retry" }).click();
+  await expect(list.getByText("No customer conversations")).toBeVisible();
+  await expect(list.getByText("Inbox unavailable")).toHaveCount(0);
+});
+
+test("Inbox conversation error offers retry and clears on recovery", async ({ page }) => {
+  let failDetail = true;
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: { account: { id: "owner", email: "support@example.test", displayName: "Support" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] } });
+    if (path.endsWith("/inbox")) return route.fulfill({ json: { conversations: [detail], nextCursor: null } });
+    if (path.endsWith(`/inbox/${conversation}`)) {
+      if (failDetail) return route.fulfill({ status: 503, json: { error: { message: "Conversation unavailable" } } });
+      return route.fulfill({ json: { conversation: detail, messages: messages(1, 1), nextSequence: "1", earlierBefore: null } });
+    }
+    if (path.endsWith("/members")) return route.fulfill({ json: { members: [] } });
+    if (path.endsWith("/agents/summaries")) return route.fulfill({ json: { agents: [], nextCursor: null } });
+    return route.fulfill({ json: { connections: [], enquiries: [] } });
+  });
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /^Support agent/ }).click();
+  await expect(page.getByText("Conversation unavailable")).toBeVisible();
+  failDetail = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByText("Canonical response 1")).toBeVisible();
+  await expect(page.getByText("Conversation unavailable")).toHaveCount(0);
+});
