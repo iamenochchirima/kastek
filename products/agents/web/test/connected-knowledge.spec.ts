@@ -32,7 +32,10 @@ for (const width of [1440, 768, 390]) {
         else if (body.action === "visibility") { expect(approved).toBe(true); published = true; source = { ...source, generation: 3, visibility: body.visibility }; }
         else if (body.action === "withdraw") source = { ...source, generation: 4, state: "withdrawn" };
         data = { source };
-      } else if (path.endsWith("/api-connections")) data = { connections: [] };
+      } else if (path.endsWith("/channels/catalogue")) data = { channels: [] };
+      else if (path.endsWith("/channels")) data = { connections: [], deployments: [], websites: [] };
+      else if (path.endsWith("/agents/summaries")) data = { agents: [], nextCursor: null };
+      else if (path.endsWith("/api-connections")) data = { connections: [] };
     else if (path.endsWith("/remote-connections")) data = { connections: [] };
       else if (path.endsWith("/connectors")) data = { connectors: [] };
     else if (path.endsWith("/connections")) {
@@ -61,19 +64,19 @@ for (const width of [1440, 768, 390]) {
     await dialog.getByRole("textbox", { name: "Title", exact: true }).fill("Returns");
     await dialog.getByRole("textbox", { name: "Content", exact: true }).fill("Returns accepted within 30 days.");
     await dialog.getByRole("button", { name: "Import source", exact: true }).click();
-    await expect(page.getByText("Awaiting approval · Private · Revision 1")).toBeVisible();
+    await expect(page.locator(".knowledge-record").filter({ hasText: "Returns" })).toContainText(/Awaiting approval.*Private.*Revision 1/);
     expect(approved).toBe(false); expect(published).toBe(false);
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.getByRole("dialog").getByText("Returns accepted within 30 days.")).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Approve source", exact: true }).click();
-    await expect(page.getByText("Ready · Private · Revision 1")).toBeVisible();
+    await expect(page.locator(".knowledge-record").filter({ hasText: "Returns" })).toContainText(/Ready.*Private.*Revision 1/);
     await page.getByRole("button", { name: "Make public", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Make public", exact: true }).click();
-    await expect(page.getByText("Ready · Public · Revision 1")).toBeVisible();
+    await expect(page.locator(".knowledge-record").filter({ hasText: "Returns" })).toContainText(/Ready.*Public.*Revision 1/);
     await page.getByRole("button", { name: "Withdraw", exact: true }).click();
     await page.keyboard.press("Escape");
-    await expect(page.getByText("Ready · Public · Revision 1")).toBeVisible();
+    await expect(page.locator(".knowledge-record").filter({ hasText: "Returns" })).toContainText(/Ready.*Public.*Revision 1/);
     await expect(page.getByRole("dialog")).toBeHidden();
     const evidence = resolve(process.cwd(), "../../../.audit"); await mkdir(evidence, { recursive: true });
     await page.screenshot({ path: resolve(evidence, `connected-knowledge-${width}.png`), fullPage: true, animations: "disabled" });
