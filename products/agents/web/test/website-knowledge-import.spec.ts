@@ -30,7 +30,19 @@ async function fixture(page: Page, options: { resume?: boolean; failImport?: boo
     else if (path === `${base}/knowledge/sources`) data = { sources: crawl?.importJobId ? [source()] : [], imports: crawl?.importJobId ? [job] : [] };
     else if (path.endsWith("/revisions/revision/preview")) data = { text: "We repair bicycles.", chunks: [], acquiredAt: "2026-10-26T12:00:00Z" };
     else if (path.endsWith("/sources/source/policy")) { expect(body.expectedGeneration).toBe(generation); generation++; if (body.action === "approve") approved = true; if (body.action === "visibility") visibility = body.visibility; data = { source: source() }; }
-    else if (path === `${agentPath}/configuration`) { expect(approved).toBe(true); expect(body.confirmImpact).toBe(true); expect(body.configuration.sourceRevisionIds).toEqual(["revision"]); expect(body.configuration.tools).toEqual(["knowledge.search", "knowledge.read"]); agent.draft = body.configuration; agent.draftRevision = 2; data = { agent, snapshot: { id: "version", number: 1, configuration: body.configuration }, deployments: [] }; }
+    else if (path === `${agentPath}/configuration`) {
+      expect(body.expectedRevision).toBe(agent.draftRevision);
+      if (body.setupStep) {
+        // Guided setup saves its draft before website knowledge is approved.
+        if (!approved) expect(body.configuration.sourceRevisionIds).not.toContain("revision");
+      } else {
+        expect(approved).toBe(true); expect(body.confirmImpact).toBe(true);
+        expect(body.configuration.sourceRevisionIds).toEqual(["revision"]);
+        expect(body.configuration.tools).toEqual(["knowledge.search", "knowledge.read"]);
+      }
+      agent.draft = body.configuration; agent.draftRevision++;
+      data = { agent, snapshot: { id: "version", number: 1, configuration: body.configuration }, deployments: [] };
+    }
     else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
     else if (path.endsWith("/model-providers/default")) data = { selection: null, revision: 0 };
     else if (path.endsWith("/model-providers")) data = { connections: [] };
