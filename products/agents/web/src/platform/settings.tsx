@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogOut, Moon, Sun, Monitor } from "lucide-react";
+import { LogOut, Moon, Sun, Monitor, UserRound, Building2, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { bootstrapAppearance } from "@/components/theme-script";
@@ -7,6 +7,7 @@ import { APPEARANCE_STORAGE_KEYS, type ThemeMode } from "@/lib/appearance-contra
 import { ErrorMessage, useWorkspace } from "./shell";
 import { message } from "./api";
 import "./management.css";
+import "./workspace-surfaces.css";
 import { ModelProvidersSettings } from "./model-providers";
 
 export function SettingsPage() {
@@ -31,7 +32,7 @@ export function SettingsPage() {
     <header className="management-header"><h1>Settings</h1></header>
     <ErrorMessage value={error} />
     <section className="settings-group" aria-labelledby="settings-account">
-      <h2 id="settings-account">Account</h2>
+      <h2 id="settings-account" className="settings-heading"><UserRound size={16} strokeWidth={1.7} aria-hidden="true" />Account</h2>
       <div className="space-y-4">
         <div><p className="settings-label">Name</p><p className="settings-value">{session.account.displayName || session.account.email}</p></div>
         <div><p className="settings-label">Email</p><p className="settings-value">{session.account.email}</p></div>
@@ -39,7 +40,7 @@ export function SettingsPage() {
       </div>
     </section>
     <section className="settings-group" aria-labelledby="settings-workspace">
-      <h2 id="settings-workspace">Workspace</h2>
+      <h2 id="settings-workspace" className="settings-heading"><Building2 size={16} strokeWidth={1.7} aria-hidden="true" />Workspace</h2>
       <div className="space-y-4">
         <label className="block space-y-2 text-sm">Current workspace<select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={organizationId} onChange={event => selectWorkspace(event.target.value)}>{session.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         {workspace ? <p className="text-xs capitalize text-muted-foreground">{workspace.role}</p> : null}
@@ -48,7 +49,7 @@ export function SettingsPage() {
     </section>
     <ModelProvidersSettings key={organizationId} organizationId={organizationId} owner={workspace?.role === "owner"} />
     <section className="settings-group" aria-labelledby="settings-appearance">
-      <h2 id="settings-appearance">Appearance</h2>
+      <h2 id="settings-appearance" className="settings-heading"><Palette size={16} strokeWidth={1.7} aria-hidden="true" />Appearance</h2>
       <fieldset className="space-y-3"><legend className="mb-3 text-sm">Theme</legend><div className="flex flex-wrap gap-2">{([{value:"light",label:"Light",Icon:Sun},{value:"dark",label:"Dark",Icon:Moon},{value:"system",label:"System",Icon:Monitor}] as const).map(({value,label,Icon}) => <Button key={value} size="sm" variant={theme === value ? "secondary" : "outline"} aria-pressed={theme === value} onClick={() => changeTheme(value)}><Icon className="size-4" />{label}</Button>)}</div></fieldset>
     </section>
   </section>;
