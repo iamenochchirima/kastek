@@ -37,6 +37,12 @@ for (const width of [1440, 768, 390]) test(`widget appearance preserves input an
   const writes = await fixture(page);
   const dialog = page.getByRole("dialog", { name: "Widget appearance", exact: true });
   await expect(dialog).toBeVisible();
+  if (width === 768) {
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(15);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width - 15);
+  }
   await dialog.getByLabel("Chat title", { exact: true }).fill("Welcome team");
   await dialog.getByLabel("Window width (px)").fill("600");
   await dialog.getByLabel("Window height (px)").fill("800");

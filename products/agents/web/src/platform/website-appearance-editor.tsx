@@ -26,7 +26,7 @@ export function WebsiteAppearanceEditor({ appearance, owner, onSave }: { appeara
     try { await onSave({ ...draft, avatarUrl: draft.avatarUrl.trim(), quickReplies }); setOpen(false); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save appearance"); } finally { setBusy(false); }
   }
   const disabled = !owner || busy;
-  return <><Button type="button" variant="outline" onClick={begin}>{owner ? "Customize widget" : "View appearance"}</Button><Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent className="sm:max-w-6xl" aria-describedby={undefined}><DialogHeader><DialogTitle>Widget appearance</DialogTitle></DialogHeader>
+  return <><Button type="button" variant="outline" onClick={begin}>{owner ? "Customize widget" : "View appearance"}</Button><Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent className="sm:max-w-[min(72rem,calc(100vw-2rem))]" aria-describedby={undefined}><DialogHeader><DialogTitle>Widget appearance</DialogTitle></DialogHeader>
     <form onSubmit={save} className="min-w-0 space-y-5"><div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><div className="min-w-0 space-y-5">
       <label className="block space-y-2 text-sm"><span>Chat title</span><Input required maxLength={80} value={draft.title} disabled={disabled} onChange={event => change({ title: event.target.value })} /></label>
       <label className="block space-y-2 text-sm"><span>Greeting</span><Textarea maxLength={240} value={draft.greeting} disabled={disabled} onChange={event => change({ greeting: event.target.value })} /></label>
