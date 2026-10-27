@@ -231,4 +231,11 @@ test("persists shared workspace theme and density through reload", async ({ page
   await expect(page.locator("html")).toHaveAttribute("data-density", "compact");
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 19, 22)");
   await expect(page.getByRole("button", { name: "Dark", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-pressed", "true");
 });

@@ -1,6 +1,6 @@
 import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
-import { XIcon } from "lucide-react"
+import { PiX as XIcon } from "react-icons/pi"
 
 import { cn } from "./utils.js"
 

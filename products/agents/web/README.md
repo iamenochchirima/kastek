@@ -1,7 +1,9 @@
 # Agents interface
 
 React 19, Vite and React Router provide a small standalone Agents product. Reused
-UI primitives, fonts and theme tokens live under `src/components/` and `src/styles/`.
+UI controls, appearance definitions and light/dark tokens come from the public
+`@kasitek-labs/ui` package. Local UI modules re-export those controls. Font loading
+and product layouts remain in `src/styles/`.
 The active product code is `src/platform/`; the router is `src/routes/router.tsx`.
 
 ## Run
@@ -12,6 +14,12 @@ Start the API, database, identity provider and Restate worker using the
 ```sh
 pnpm dev:agents
 ```
+
+Dev, build and typecheck commands first compile the shared UI package. Rebuild
+`@kasitek-labs/ui` after changing a shared React control during development. Theme
+CSS is consumed directly from source. Shared controls use Phosphor icons; product
+state and theme preference handling remain local. See the
+[shared package guide](../../../packages/ui/README.md).
 
 Open http://localhost:3100. Vite proxies `/api` to `127.0.0.1:4100`; set
 `AGENTS_API_PROXY_TARGET` to change that server target. The browser receives an
