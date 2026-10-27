@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Sparkles } from "lucide-react";
+import { PiSparkle as Sparkles } from "react-icons/pi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
@@ -50,10 +50,12 @@ function savePosition(position: LauncherPosition) {
 export function GrowthAssistantLauncher({
   open,
   hidden = false,
+  bottomInset = 0,
   onOpen,
 }: {
   open: boolean;
   hidden?: boolean;
+  bottomInset?: number;
   reduceMotion?: boolean;
   onOpen: () => void;
 }) {
@@ -140,8 +142,8 @@ export function GrowthAssistantLauncher({
   if (open || hidden) return null;
 
   const style: CSSProperties | undefined = position
-    ? { left: position.left, top: position.top }
-    : undefined;
+    ? { left: position.left, top: bottomInset ? `min(${position.top}px, calc(100dvh - ${LAUNCHER_SIZE + 24 + bottomInset}px))` : position.top }
+    : bottomInset ? { bottom: bottomInset + 24 } : undefined;
 
   return (
     <div

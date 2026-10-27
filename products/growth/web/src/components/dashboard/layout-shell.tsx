@@ -599,7 +599,7 @@ function WorkspaceShell({
     <MotionConfig reducedMotion={appearance.interface.reduceMotion ? "always" : "user"}>
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
-        <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
+        <div className={cn("dashboard-theme flex min-h-[100dvh] bg-canvas", pathname === "/inbox" && "h-dvh overflow-hidden")}>
           <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[240px]")}>
               <SidebarContent
                 collapsed={collapsed}
@@ -629,10 +629,11 @@ function WorkspaceShell({
           <GrowthAssistantLauncher
             open={agents.panelOpen}
             hidden={mobileSheetOpen}
+            bottomInset={pathname === "/inbox" ? 128 : 0}
             reduceMotion={appearance.interface.reduceMotion}
             onOpen={() => void agents.openGeneral()}
           />
-          <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[240px]")}>
+          <main className={cn("flex min-h-0 min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[240px]")}>
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
@@ -643,7 +644,7 @@ function WorkspaceShell({
             />
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
-            <div key={pathname} className="v-route-enter min-w-0 flex-1">
+            <div key={pathname} className={cn("v-route-enter min-w-0 flex-1", pathname === "/inbox" && "flex min-h-0 flex-col")}>
               {children}
             </div>
           </main>

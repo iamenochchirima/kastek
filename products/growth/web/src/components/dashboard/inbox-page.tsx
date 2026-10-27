@@ -6,33 +6,32 @@ import emojiData from "@emoji-mart/data";
 import type { EmojiMartData } from "@emoji-mart/data";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft,
-  Archive,
-  Check,
-  ChevronDown,
-  Clock,
-  Copy,
-  FileAudio,
-  FileImage,
-  FileText,
-  FileVideo,
-  Filter,
-  Mail,
-  MessageCircle,
-  MoreHorizontal,
-  MoreVertical,
-  Paperclip,
-  Phone,
-  RotateCcw,
-  Search,
-  Send,
-  Smile,
-  Star,
-  Tag,
-  Trash2,
-  Users,
-  X,
-} from "lucide-react";
+  PiArrowLeft as ArrowLeft,
+  PiCheck as Check,
+  PiCaretDown as ChevronDown,
+  PiClock as Clock,
+  PiCopy as Copy,
+  PiFileAudio as FileAudio,
+  PiFileImage as FileImage,
+  PiFileText as FileText,
+  PiFileVideo as FileVideo,
+  PiFunnel as Filter,
+  PiEnvelope as Mail,
+  PiChatCircle as MessageCircle,
+  PiDotsThree as MoreHorizontal,
+  PiDotsThreeVertical as MoreVertical,
+  PiPaperclip as Paperclip,
+  PiPhone as Phone,
+  PiArrowCounterClockwise as RotateCcw,
+  PiMagnifyingGlass as Search,
+  PiPaperPlaneTilt as Send,
+  PiSmiley as Smile,
+  PiStar as Star,
+  PiTrash as Trash2,
+  PiUsersThree as Users,
+  PiX as X,
+} from "react-icons/pi";
+import "./inbox-workspace.css";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -58,12 +57,11 @@ import {
   PageHeader,
   PageHeaderActions,
   PageHeaderContent,
-  PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -724,6 +722,8 @@ export default function InboxPageClient({
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [composerError, setComposerError] = useState("");
   const [filter, setFilter] = useState("all");
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [showContactDetails, setShowContactDetails] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [replyDraft, setReplyDraft] = useState<{ messageId: string; text: string } | null>(null);
@@ -1070,7 +1070,10 @@ export default function InboxPageClient({
       filter === "all" ||
       (filter === "unread" && conversation.unread) ||
       (filter === "starred" && conversation.starred);
-    return channelMatch && connectionMatch && filterMatch;
+    const query = conversationSearch.trim().toLocaleLowerCase();
+    const searchMatch = !query || [conversation.name, conversation.handle, conversation.lastMessage, conversation.emailSubject, conversation.emailFrom, conversation.connectionLabel]
+      .some(value => value?.toLocaleLowerCase().includes(query));
+    return channelMatch && connectionMatch && filterMatch && searchMatch;
   });
 
   const selectedChannelConversationCount =
@@ -2671,7 +2674,7 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="relative flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
+      <div className="growth-inbox relative flex min-h-0 flex-col overflow-hidden bg-background">
         <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
         <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
@@ -2703,13 +2706,10 @@ export default function InboxPageClient({
           </DialogContent>
         </Dialog>
 
-        <header className="shrink-0 border-b border-border bg-card px-4 pt-4 sm:px-6 sm:pt-5">
+        <header className="inbox-page-header shrink-0 border-b border-border bg-background px-4 pt-4 sm:px-6 sm:pt-5">
           <PageHeader className="items-center">
             <PageHeaderContent>
               <PageHeaderTitle>Inbox</PageHeaderTitle>
-              <PageHeaderDescription>
-                {selectedChannel === "email" ? "Email inbox." : "Customer conversations."}
-              </PageHeaderDescription>
             </PageHeaderContent>
             <PageHeaderActions>
             <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setShowChannelPanel(true)}>
@@ -2728,8 +2728,22 @@ export default function InboxPageClient({
                   key={channel.id}
                   type="button"
                   role="tab"
+                  id={`inbox-tab-${channel.id}`}
+                  aria-controls="inbox-channel-panel"
+                  aria-label={channel.id === "all" ? "All conversations" : channel.name}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={event => {
+                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                    event.preventDefault();
+                    const tabs = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[role="tab"]:not(:disabled)') ?? []);
+                    const index = tabs.indexOf(event.currentTarget);
+                    const target = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+                    tabs[target]?.focus();
+                    tabs[target]?.click();
+                  }}
                   aria-selected={isActive}
                   aria-disabled={channel.disabled}
+                  disabled={channel.disabled}
                   onClick={() => {
                     if (channel.disabled) return;
                     setSelectedChannel(channel.id);
@@ -2740,16 +2754,16 @@ export default function InboxPageClient({
                   className={cn(
                     "inline-flex min-h-9 shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
-                      ? "border-foreground text-foreground"
+                      ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
                     channel.disabled && "cursor-not-allowed opacity-45 hover:border-transparent hover:text-muted-foreground",
                   )}
                 >
                   <Icon className={cn("h-4 w-4", channel.id === "whatsapp" && "text-status-success")} />
                   {channel.id === "all" ? "All conversations" : channel.name}
-                  {channel.unreadCount > 0 ? (
-                    <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums text-foreground">
-                      {channel.unreadCount}
+                  {channel.count > 0 ? (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] tabular-nums", isActive ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground")}>
+                      {channel.count}
                     </span>
                   ) : null}
                 </button>
@@ -2758,11 +2772,11 @@ export default function InboxPageClient({
           </div>
         </header>
 
-        <div className="min-h-0 flex flex-1 overflow-hidden">
+        <div id="inbox-channel-panel" role="tabpanel" aria-labelledby={`inbox-tab-${selectedChannel}`} className="min-h-0 flex flex-1 overflow-hidden">
 
         <div
           className={cn(
-            "min-h-0 shrink-0 flex-col border-r border-border bg-card",
+            "inbox-conversation-list min-h-0 shrink-0 flex-col border-r border-border bg-background",
             emailConversationOpen
               ? "hidden"
               : mobileConversationOpen
@@ -2770,7 +2784,7 @@ export default function InboxPageClient({
                 : "flex w-full",
             selectedChannel === "email"
               ? "w-full"
-              : "md:w-[340px] lg:w-[380px]",
+              : "md:w-[310px] lg:w-[330px]",
           )}
         >
           <div className="flex min-h-0 flex-1">
@@ -2837,7 +2851,7 @@ export default function InboxPageClient({
                 {selectedChannel === "email" ? "Mail" : "Conversations"}
               </p>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {filteredConversations.length} {selectedChannel === "email" ? "messages" : "total"}
+                {filteredConversations.length}
               </span>
             </div>
 
@@ -2878,7 +2892,10 @@ export default function InboxPageClient({
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={selectedChannel === "email" ? "Search mail..." : "Search conversations..."}
-                className="border-border bg-secondary pl-9"
+                aria-label="Search conversations"
+                value={conversationSearch}
+                onChange={event => setConversationSearch(event.target.value)}
+                className="border-border bg-background pl-9 shadow-none"
               />
             </div>
 
@@ -2897,6 +2914,7 @@ export default function InboxPageClient({
                 <button
                   key={filterItem.id}
                   type="button"
+                  aria-pressed={filter === filterItem.id}
                   onClick={() => {
                     setFilter(filterItem.id);
                     setSelectedConversationId(null);
@@ -2905,7 +2923,7 @@ export default function InboxPageClient({
                   className={cn(
                     "flex min-h-9 shrink-0 items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                     filter === filterItem.id
-                      ? "bg-secondary text-foreground"
+                      ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >
@@ -2916,7 +2934,7 @@ export default function InboxPageClient({
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className="p-2">
+            <div className="inbox-conversation-rows px-2 py-1">
               {supportsConnectionFilter && !selectedChannelConnected ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
@@ -3029,10 +3047,10 @@ export default function InboxPageClient({
                     <div
                       key={conversation.id}
                       className={cn(
-                        "mb-1 flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-all duration-200",
+                        "inbox-conversation-row flex w-full items-start gap-3 border-b border-border/60 px-2 py-3 text-left transition-colors",
                         selectedConversation?.id === conversation.id
-                          ? "border-primary/20 bg-primary/10"
-                          : "border-transparent hover:bg-secondary",
+                          ? "rounded-md bg-secondary"
+                          : "hover:bg-secondary/60",
                       )}
                     >
                       <DropdownMenu>
@@ -3145,7 +3163,7 @@ export default function InboxPageClient({
                       <button
                         type="button"
                         onClick={() => openConversation(conversation.id)}
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="mb-0.5 flex min-w-0 items-start gap-2">
@@ -3162,16 +3180,6 @@ export default function InboxPageClient({
                               {formatConversationTime(conversation.time)}
                             </span>
                           </div>
-                          <p className="mb-1 truncate text-xs text-muted-foreground">
-                            {conversation.handle}
-                            {(conversation.channel === "whatsapp"
-                              ? whatsappConnections.length
-                              : conversation.channel === "instagram"
-                                ? metaConnections.instagram.length
-                                : metaConnections.facebook.length) > 1
-                              ? ` · ${conversation.connectionLabel}`
-                              : ""}
-                          </p>
                           {activeCallsByConversationId[conversation.id] ? (
                             <div className="mb-1">
                               <Badge className="border-0 bg-status-info-soft text-[10px] text-status-info">
@@ -3208,7 +3216,7 @@ export default function InboxPageClient({
 
         <div
           className={cn(
-            "min-h-0 flex flex-1 flex-col bg-background",
+            "inbox-reading-pane min-h-0 flex flex-1 flex-col bg-background",
             emailConversationOpen
               ? "flex w-full"
               : mobileConversationOpen
@@ -3218,7 +3226,7 @@ export default function InboxPageClient({
         >
           <div
             className={cn(
-              "flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6",
+              "inbox-conversation-header flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6",
               !selectedConversation && "hidden",
             )}
           >
@@ -3232,6 +3240,7 @@ export default function InboxPageClient({
                       "h-9 w-9 shrink-0 text-muted-foreground",
                       selectedConversation.channel === "email" ? "inline-flex" : "md:hidden",
                     )}
+                    aria-label="Back to conversations"
                     onClick={() => {
                       if (selectedConversation.channel === "email") {
                         setSelectedConversationId(null);
@@ -3293,20 +3302,16 @@ export default function InboxPageClient({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="hidden h-9 w-9 text-muted-foreground sm:inline-flex">
-                        <Tag className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add Tag</TooltipContent>
-                  </Tooltip>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground min-[1440px]:hidden" aria-label="Contact details" onClick={() => setShowContactDetails(true)}>
+                    <Users className="h-4 w-4" />
+                  </Button>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 text-muted-foreground"
+                        aria-label={selectedConversation.starred ? "Unstar conversation" : "Star conversation"}
                         onClick={() => void toggleConversationStar()}
                       >
                         <Star
@@ -3319,14 +3324,6 @@ export default function InboxPageClient({
                     </TooltipTrigger>
                     <TooltipContent>Star Conversation</TooltipContent>
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="hidden h-9 w-9 text-muted-foreground sm:inline-flex">
-                        <Archive className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Archive</TooltipContent>
-                  </Tooltip>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
@@ -3334,13 +3331,9 @@ export default function InboxPageClient({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowContactDetails(true)}>
                         <Users className="mr-2 h-4 w-4" />
-                        View Contact
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Tag className="mr-2 h-4 w-4" />
-                        Manage Tags
+                        Contact details
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -3349,9 +3342,6 @@ export default function InboxPageClient({
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete Conversation
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        Block Contact
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -3397,8 +3387,8 @@ export default function InboxPageClient({
             </div>
           ) : null}
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="p-3 sm:p-6">
+          <ScrollArea className={cn("min-h-0 flex-1", !selectedConversation && "inbox-empty-scroll")}>
+            <div className={cn("p-3 sm:p-6", !selectedConversation && "h-full")}>
             {selectedConversation ? (
             <div className="mx-auto max-w-3xl space-y-4">
               {selectedConversationCall ? (
@@ -3567,7 +3557,7 @@ export default function InboxPageClient({
                         : stickerOnly
                         ? "p-0"
                         : cn(
-                            "rounded-lg p-3",
+                            "inbox-message-bubble rounded-lg px-3.5 py-2.5",
                             message.sender === "customer"
                               ? "bg-secondary"
                               : "border border-primary/20 bg-primary/10",
@@ -3746,9 +3736,9 @@ export default function InboxPageClient({
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-secondary/60">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">Select a conversation</p>
+                  <p className="text-base font-medium text-foreground">Select a conversation</p>
                   <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                    Choose a conversation from the list to view messages and reply.
+                    View messages and reply.
                   </p>
                 </div>
               </div>
@@ -3819,10 +3809,6 @@ export default function InboxPageClient({
                 </div>
               ) : null}
               <div className="mb-3 flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="hidden h-7 gap-1.5 text-xs text-muted-foreground sm:inline-flex">
-                  <Clock className="h-3 w-3" />
-                  Schedule
-                </Button>
                 <div className="flex-1" />
                 <Badge
                   variant="outline"
@@ -3832,10 +3818,10 @@ export default function InboxPageClient({
                     currentChannel.color,
                   )}
                 >
-                  Replying via {currentChannel.name}
+                  Reply via {channels.find(channel => channel.id === selectedConversation.channel)?.name}
                 </Badge>
               </div>
-              <div className="flex items-end gap-2 rounded-lg bg-secondary p-1">
+              <div className="flex items-end gap-2 rounded-lg border border-border bg-background p-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -3892,6 +3878,7 @@ export default function InboxPageClient({
                 <Button
                   size="icon"
                   className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+                  aria-label="Send message"
                   onClick={() => void sendMessage()}
                   disabled={composerLoading || (!messageInput.trim() && !selectedFile)}
                 >
@@ -3902,6 +3889,15 @@ export default function InboxPageClient({
           </div>
           ) : null}
         </div>
+        {selectedConversation ? <aside aria-label="Contact details" className="inbox-contact-panel hidden w-[250px] shrink-0 border-l border-border bg-background min-[1440px]:block">
+          <InboxContactDetails conversation={selectedConversation} />
+        </aside> : null}
+        <Sheet open={showContactDetails && Boolean(selectedConversation)} onOpenChange={setShowContactDetails}>
+          <SheetContent className="w-[min(340px,100vw)] overflow-y-auto p-0">
+            <SheetHeader className="border-b border-border p-5"><SheetTitle>Contact details</SheetTitle></SheetHeader>
+            {selectedConversation ? <InboxContactDetails conversation={selectedConversation} /> : null}
+          </SheetContent>
+        </Sheet>
         </div>
         <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       </div>
@@ -4360,4 +4356,25 @@ function MediaLightbox({
       </DialogContent>
     </Dialog>
   );
+}
+
+function InboxContactDetails({ conversation }: { conversation: InboxConversation }) {
+  const ChannelIcon = inboxChannelIcon(conversation.channel);
+  return <div className="space-y-6 p-5">
+    <div>
+      <h2 className="mb-5 text-sm font-medium">Contact</h2>
+      <Avatar className="mb-3 h-11 w-11"><AvatarFallback className="bg-primary/10 text-sm text-primary">{conversation.avatar}</AvatarFallback></Avatar>
+      <p className="break-words text-sm font-medium">{conversation.name}</p>
+      <p className="mt-1 break-all text-xs text-muted-foreground">{conversation.emailFrom || conversation.handle}</p>
+      {conversation.tags.length ? <div className="mt-3 flex flex-wrap gap-1">{conversation.tags.map(tag => <Badge key={tag} variant="secondary" className="text-[11px]">{tag}</Badge>)}</div> : null}
+    </div>
+    <div className="border-t border-border pt-5">
+      <h3 className="mb-4 text-sm font-medium">Details</h3>
+      <dl className="space-y-4 text-xs">
+        <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Channel</dt><dd className="flex items-center gap-1.5 capitalize"><ChannelIcon className={cn("h-3.5 w-3.5", inboxChannelIconClass(conversation.channel))} />{conversation.channel === "facebook" ? "Messenger" : conversation.channel}</dd></div>
+        <div><dt className="text-muted-foreground">Connected account</dt><dd className="mt-1.5 break-words">{conversation.connectionLabel}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Last activity</dt><dd>{formatConversationTime(conversation.time)}</dd></div>
+      </dl>
+    </div>
+  </div>;
 }

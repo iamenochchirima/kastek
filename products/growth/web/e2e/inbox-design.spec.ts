@@ -21,6 +21,12 @@ test("keeps every channel tab available while switching channels", async ({ page
   await sms.click({ force: true });
   await expect(channels(page).getByRole("tab", { name: "All conversations", exact: true })).toHaveAttribute("aria-selected", "true");
 
+  await channels(page).getByRole("tab", { name: "All conversations", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(channels(page).getByRole("tab", { name: "WhatsApp", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("End");
+  await expect(channels(page).getByRole("tab", { name: "Messenger", exact: true })).toHaveAttribute("aria-selected", "true");
+
   for (const name of ["WhatsApp", "Email", "Instagram", "Messenger", "All conversations"]) {
     const tab = channels(page).getByRole("tab", { name, exact: true });
     await tab.click();
@@ -72,6 +78,8 @@ test("persists an accessible composer reply through the controlled API", async (
   await page.addInitScript(() => localStorage.setItem("kasitek-theme", "dark"));
   await page.goto("/inbox?conversation=fixture-inbox");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const contact = page.getByRole("complementary", { name: "Contact details", exact: true });
+  await expect(contact.getByText("+27720001111", { exact: true })).toBeVisible();
   const composer = page.getByPlaceholder("Message Fixture customer...");
   const reply = "Inbox design persisted reply";
   await composer.fill(reply);

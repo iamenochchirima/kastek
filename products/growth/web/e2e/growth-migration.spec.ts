@@ -159,7 +159,7 @@ test("sends an Inbox reply and reloads its saved message", async ({ page, reques
   await page.goto("/inbox?conversation=fixture-inbox");
   const input = page.getByPlaceholder("Message Fixture customer...");
   await input.fill("Migration Inbox reply");
-  await page.locator('button:has(svg.lucide-send)').click();
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(input).toHaveValue("");
   await page.reload();
   await expect(page.getByText("Migration Inbox reply", { exact: true }).first()).toBeVisible();
