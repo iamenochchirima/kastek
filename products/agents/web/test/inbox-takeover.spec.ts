@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 const org = "11111111-1111-4111-8111-111111111111";
 const conversationId = "33333333-3333-4333-8333-333333333333";
 
-test("staff can claim, take over, reply and return a conversation", async ({ page }) => {
+for (const theme of ["light", "dark"] as const) test(`staff can claim, take over, reply and return a conversation in ${theme}`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme: theme });
+  await page.setViewportSize({ width: theme === "dark" ? 390 : 1440, height: 900 });
   let conversation = { id: conversationId, agentId: "agent", agentName: "Support agent", deploymentId: "deployment", versionId: "version", channel: "website", state: "automation_active", assigneeAccountId: null as string | null, revision: "1", ownershipGeneration: "1", createdAt: "2026-10-01T12:00:00Z", updatedAt: "2026-10-01T12:00:00Z" };
   const commands: { action: string; expectedRevision: string; body?: string }[] = [];
   const messages: { id: string; sequence: string; authorKind: string; body: string; createdAt: string }[] = [];
@@ -36,6 +38,9 @@ test("staff can claim, take over, reply and return a conversation", async ({ pag
   await page.getByLabel("Reply to customer").fill("A staff response");
   await page.getByRole("button", { name: "Send reply" }).click();
   await expect(page.getByText("A staff response", { exact: true })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  await page.screenshot({ path: test.info().outputPath(`inbox-takeover-${theme}.png`), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Return to automation" }).click();
   await expect(page.getByRole("button", { name: "Take over" })).toBeVisible();
   expect(commands.map(command => command.action)).toEqual(["claim", "takeover", "reply", "return"]);
