@@ -1,3 +1,4 @@
+import "./customer-workspace.css";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -551,8 +552,8 @@ export function CustomersPage() {
   const contactName = (contact: Contact) =>
     contact.name || contact.email || contact.phone || "Contact";
   return (
-    <section className="workspace-page min-w-0 space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <section className="workspace-page customer-page min-w-0 space-y-6">
+      <header className="customer-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Customers</h1>
         <Button
           onClick={() =>
@@ -562,7 +563,7 @@ export function CustomersPage() {
           {view === "contacts" ? "Add contact" : "Add enquiry"}
         </Button>
       </header>
-      <nav aria-label="Customer views" className="flex border-b gap-5">
+      <nav aria-label="Customer views" className="customer-tabs flex border-b gap-5">
         {(["enquiries", "contacts"] as const).map((value) => (
           <Link
             key={value}
@@ -608,7 +609,7 @@ export function CustomersPage() {
           {!contactDetail && !error ? (
             <Loading />
           ) : contactDetail ? (
-            <article className="max-w-3xl space-y-6">
+            <article className="customer-detail contact-detail space-y-6">
               <header className="flex flex-wrap justify-between gap-3">
                 <h2 className="text-xl font-semibold break-words">
                   {contactName(contactDetail.contact)}
@@ -680,7 +681,7 @@ export function CustomersPage() {
             <Loading />
           ) : detail ? (
             <fieldset disabled={busy || pendingUpdate} className="min-w-0">
-              <article className="max-w-4xl space-y-6">
+              <article className="customer-detail enquiry-detail space-y-6">
                 <header className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-semibold break-words">
@@ -703,6 +704,8 @@ export function CustomersPage() {
                     </Button>
                   ) : null}
                 </header>
+                <div className="customer-detail-columns">
+                  <div className="customer-detail-main">
                 <FieldList fields={detail.fields} />
                 {detail.originalFields ? (
                   <details className="border-t pt-4">
@@ -714,6 +717,69 @@ export function CustomersPage() {
                     </div>
                   </details>
                 ) : null}
+                <section
+                  className="border-t pt-4 space-y-4"
+                  aria-label="Internal activity"
+                >
+                  <h3 className="font-medium">Internal activity</h3>
+                  {canManage ? (
+                    <form
+                      className="space-y-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void command("note", { body: note.trim() });
+                      }}
+                    >
+                      <label className="block space-y-2 text-sm">
+                        Internal note
+                        <Textarea
+                          maxLength={4000}
+                          value={note}
+                          onChange={(event) => {
+                            setNote(event.target.value);
+                            writeStored(noteKey, event.target.value);
+                          }}
+                        />
+                      </label>
+                      <Button disabled={!note.trim() || busy} type="submit">
+                        Add note
+                      </Button>
+                    </form>
+                  ) : null}
+                  <ol className="space-y-4">
+                    {activity.map((item) => (
+                      <li key={item.id} className="border-l-2 pl-3 text-sm">
+                        <p className="capitalize">
+                          {label(item.kind)}{" "}
+                          <span className="text-muted-foreground normal-case">
+                            · {date(item.createdAt)} ·{" "}
+                            {members.find(
+                              (member) =>
+                                member.accountId === item.actorAccountId,
+                            )?.name ??
+                              (item.actorAccountId ? "Staff member" : "System")}
+                          </span>
+                        </p>
+                        {item.body ? (
+                          <p className="mt-1 whitespace-pre-wrap break-words">
+                            {item.body}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                  {activityCursor ? (
+                    <Button
+                      variant="outline"
+                      disabled={loadingActivity}
+                      onClick={() => void moreActivity()}
+                    >
+                      {loadingActivity ? "Loading…" : "Earlier activity"}
+                    </Button>
+                  ) : null}
+                </section>
+                  </div>
+                  <div className="customer-detail-sidebar">
                 <section
                   className="border-t pt-4 space-y-3"
                   aria-label="Source"
@@ -966,74 +1032,15 @@ export function CustomersPage() {
                     </div>
                   ) : null}
                 </section>
-                <section
-                  className="border-t pt-4 space-y-4"
-                  aria-label="Internal activity"
-                >
-                  <h3 className="font-medium">Internal activity</h3>
-                  {canManage ? (
-                    <form
-                      className="space-y-3"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void command("note", { body: note.trim() });
-                      }}
-                    >
-                      <label className="block space-y-2 text-sm">
-                        Internal note
-                        <Textarea
-                          maxLength={4000}
-                          value={note}
-                          onChange={(event) => {
-                            setNote(event.target.value);
-                            writeStored(noteKey, event.target.value);
-                          }}
-                        />
-                      </label>
-                      <Button disabled={!note.trim() || busy} type="submit">
-                        Add note
-                      </Button>
-                    </form>
-                  ) : null}
-                  <ol className="space-y-4">
-                    {activity.map((item) => (
-                      <li key={item.id} className="border-l-2 pl-3 text-sm">
-                        <p className="capitalize">
-                          {label(item.kind)}{" "}
-                          <span className="text-muted-foreground normal-case">
-                            · {date(item.createdAt)} ·{" "}
-                            {members.find(
-                              (member) =>
-                                member.accountId === item.actorAccountId,
-                            )?.name ??
-                              (item.actorAccountId ? "Staff member" : "System")}
-                          </span>
-                        </p>
-                        {item.body ? (
-                          <p className="mt-1 whitespace-pre-wrap break-words">
-                            {item.body}
-                          </p>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ol>
-                  {activityCursor ? (
-                    <Button
-                      variant="outline"
-                      disabled={loadingActivity}
-                      onClick={() => void moreActivity()}
-                    >
-                      {loadingActivity ? "Loading…" : "Earlier activity"}
-                    </Button>
-                  ) : null}
-                </section>
+                  </div>
+                </div>
               </article>
             </fieldset>
           ) : null}
         </>
       ) : (
         <>
-          <form className="flex flex-wrap items-end gap-3" onSubmit={filters}>
+          <form className="customer-filters flex flex-wrap items-end gap-3" onSubmit={filters}>
             <label className="block min-w-0 flex-1 basis-48 space-y-2 text-sm">
               Search
               <Input
@@ -1096,87 +1103,36 @@ export function CustomersPage() {
           {(view === "contacts" ? contacts : enquiries) === null && !error ? (
             <Loading />
           ) : view === "contacts" ? (
-            <div className="divide-y">
+            <div className="customer-table-wrap">
               {contacts?.length ? (
-                contacts.map((contact) => (
-                  <article
-                    key={contact.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-4"
-                  >
-                    <div className="min-w-0">
-                      <h2 className="font-medium break-words">
-                        <Link
-                          className="underline underline-offset-4"
-                          to={`?view=contacts&contact=${encodeURIComponent(contact.id)}`}
-                        >
-                          {contactName(contact)}
-                        </Link>
-                      </h2>
-                      <p className="text-sm text-muted-foreground break-words">
-                        {[contact.email, contact.phone]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    </div>
-                    {owner ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditor({ kind: "contact", contact })}
-                      >
-                        Edit contact
-                      </Button>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <p className="py-8 text-sm text-muted-foreground">
-                  No contacts
-                </p>
-              )}
+                <table className="customer-table">
+                  <thead><tr><th>Contact</th><th>Email</th><th>Phone</th>{owner ? <th><span className="sr-only">Actions</span></th> : null}</tr></thead>
+                  <tbody>{contacts.map((contact) => (
+                    <tr key={contact.id}>
+                      <td data-label="Contact"><Link className="customer-record-link" to={`?view=contacts&contact=${encodeURIComponent(contact.id)}`}><span aria-hidden="true" className="customer-initial">{contactName(contact).slice(0, 1).toUpperCase()}</span><span>{contactName(contact)}</span></Link></td>
+                      <td data-label="Email">{contact.email || "—"}</td><td data-label="Phone">{contact.phone || "—"}</td>
+                      {owner ? <td><Button variant="ghost" size="sm" onClick={() => openEditor({ kind: "contact", contact })}>Edit contact</Button></td> : null}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              ) : <p className="customer-empty">No contacts</p>}
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="customer-table-wrap">
               {enquiries?.length ? (
-                enquiries.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}
-                    className="flex flex-wrap items-start justify-between gap-3 py-4 hover:bg-muted/30 rounded-sm focus-visible:outline focus-visible:outline-ring"
-                  >
-                    <div className="min-w-0">
-                      <h2 className="font-medium break-words">
-                        {item.fields.name || item.fields.service || "Enquiry"}
-                      </h2>
-                      <p className="text-sm text-muted-foreground break-words">
-                        {item.fields.service ||
-                          item.fields.email ||
-                          item.fields.phone}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {members.find(
-                          (member) =>
-                            member.accountId === item.assigneeAccountId,
-                        )?.name ??
-                          (item.assigneeAccountId
-                            ? "Former member"
-                            : "Unassigned")}
-                        {item.dueAt ? ` · Due ${date(item.dueAt)}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-sm sm:text-right">
-                      <p>{statusLabels[item.status]}</p>
-                      <time className="text-xs text-muted-foreground">
-                        {date(item.createdAt)}
-                      </time>
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <p className="py-8 text-sm text-muted-foreground">
-                  No enquiries
-                </p>
-              )}
+                <table className="customer-table">
+                  <thead><tr><th>Customer</th><th>Enquiry</th><th>Status</th><th>Assignee</th><th>Due date</th><th>Created</th></tr></thead>
+                  <tbody>{enquiries.map((item) => (
+                    <tr key={item.id}>
+                      <td data-label="Customer"><Link aria-label={`${item.fields.name || item.fields.service || "Enquiry"} · ${statusLabels[item.status]}`} className="customer-record-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}><span aria-hidden="true" className="customer-initial">{(item.fields.name || item.fields.service || "E").slice(0, 1).toUpperCase()}</span><span>{item.fields.name || "Enquiry"}</span></Link></td>
+                      <td data-label="Enquiry"><Link className="customer-enquiry-link" to={`?${new URLSearchParams({ ...Object.fromEntries(params), enquiry: item.id })}`}>{item.fields.service || item.fields.message || item.fields.email || item.fields.phone || "Enquiry"}</Link></td>
+                      <td data-label="Status"><span className={`customer-status customer-status-${item.status}`}>{statusLabels[item.status]}</span></td>
+                      <td data-label="Assignee">{members.find((member) => member.accountId === item.assigneeAccountId)?.name ?? (item.assigneeAccountId ? "Former member" : "Unassigned")}</td>
+                      <td data-label="Due date">{item.dueAt ? date(item.dueAt) : "—"}</td><td data-label="Created"><time dateTime={item.createdAt}>{date(item.createdAt)}</time></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              ) : <p className="customer-empty">No enquiries</p>}
             </div>
           )}
           {next ? (

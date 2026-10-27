@@ -1,0 +1,56 @@
+/* Customers and inbox share the workspace's compact record treatment. */
+.customer-page, .inbox-page { max-width: none; }
+.customer-page-header h1, .inbox-page > header h1 { font-size: 22px; letter-spacing: -.035em; }
+.customer-tabs { margin-bottom: 0; gap: 24px; }
+.customer-tabs a { padding: 12px 2px; text-decoration: none; }
+.customer-filters { padding: 0 0 4px; }
+.customer-filters label { color: var(--muted-foreground); font-size: 12px; }
+.customer-filters input, .customer-filters select { color: var(--foreground); }
+.customer-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.customer-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.customer-table th { height: 42px; padding: 0 14px; background: var(--muted); color: var(--muted-foreground); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.customer-table td { height: 54px; padding: 9px 14px; border-top: 1px solid var(--border); color: var(--muted-foreground); vertical-align: middle; }
+.customer-table tbody tr:hover { background: color-mix(in srgb, var(--muted) 65%, transparent); }
+.customer-table td:first-child { color: var(--foreground); font-weight: 500; }
+.customer-record-link { display: inline-flex; align-items: center; gap: 10px; min-width: 150px; color: var(--foreground); text-decoration: none; }
+.customer-record-link:hover, .customer-enquiry-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.customer-initial { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: 50%; background: var(--muted); color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+.customer-enquiry-link { display: block; max-width: 240px; overflow: hidden; color: var(--foreground); text-overflow: ellipsis; white-space: nowrap; }
+.customer-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 5px; background: var(--muted); white-space: nowrap; font-size: 12px; }
+.customer-status::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ""; }
+.customer-status-new, .customer-status-in_progress { color: var(--brand); background: var(--brand-soft); }
+.customer-status-waiting_on_customer { color: var(--warning); background: var(--status-attention-soft); }
+.customer-status-closed { color: var(--success); background: var(--status-success-soft); }
+.customer-empty { padding: 40px 16px; color: var(--muted-foreground); font-size: 13px; }
+.customer-detail { max-width: 100%; }
+.customer-detail > header { padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.customer-detail > dl { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.customer-detail > section, .customer-detail > details { padding: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.customer-detail > section h3 { font-size: 14px; font-weight: 600; }
+.customer-detail [aria-label="Internal activity"] li { border-color: var(--line-strong); }
+.customer-detail [aria-label="Internal activity"] li > p:not(:first-child) { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
+.inbox-layout { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.inbox-list { padding: 10px; border-right: 1px solid var(--border); background: var(--card); }
+.inbox-conversation { border-color: transparent; border-radius: 6px; }
+.inbox-conversation:hover { background: var(--muted); }
+.inbox-conversation.is-selected { border-color: var(--border); background: var(--brand-soft); }
+.inbox-conversation-detail { padding: 18px; }
+.customer-messages article { border-color: var(--border); border-radius: 8px; }
+@media (max-width: 767px) {
+  .customer-page, .inbox-page { padding-inline: 16px; }
+  .customer-table-wrap { overflow: visible; border: 0; }
+  .customer-table, .customer-table tbody { display: block; }
+  .customer-table thead { display: none; }
+  .customer-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+  .customer-table td { display: block; height: auto; min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .customer-table td:first-child { grid-column: 1 / -1; }
+  .customer-table td:not(:first-child)::before { display: block; margin-bottom: 3px; color: var(--muted-foreground); content: attr(data-label); font-size: 11px; }
+  .customer-enquiry-link { white-space: normal; overflow-wrap: anywhere; }
+  .inbox-layout { display: block; }
+  .inbox-list { border-right: 0; }
+}
+.customer-detail-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); align-items: start; gap: 24px; }
+.customer-detail-main, .customer-detail-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.customer-detail-main > dl, .customer-detail-main > details, .customer-detail-main > section, .customer-detail-sidebar > section { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.customer-detail-columns h3 { font-size: 14px; font-weight: 600; }
+@media (max-width: 900px) { .customer-detail-columns { grid-template-columns: 1fr; } }
