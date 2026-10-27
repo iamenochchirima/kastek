@@ -181,3 +181,10 @@
   .inbox-conversation-detail:has(> .inbox-no-selection) { display: none; }
   .inbox-back { display: inline-flex; }
 }
+
+/* Keep the queue controls compact without hiding filter options. */
+.inbox-queue-column .inbox-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-block: 16px 12px; }
+.inbox-queue-column .inbox-filters select { width: 100%; min-width: 0; padding-inline: 8px 4px; font-size: 12px; }
+@media (max-width: 480px) {
+  .inbox-queue-column .inbox-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

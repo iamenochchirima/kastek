@@ -21,3 +21,8 @@
 .inbox-no-selection h2 { font-size: 15px; font-weight: 600; }
 .inbox-no-selection p { margin-top: 6px; color: var(--muted-foreground); font-size: 13px; }
 @media (max-width: 767px) { .inbox-no-selection { display: none; } }
+
+/* Compact conversation rows retain room for two lines of preview text. */
+.inbox-queue-items .inbox-conversation { min-height: 80px; padding: 12px 16px; }
+.inbox-queue-end { gap: 6px; }
+.inbox-queue-items .inbox-conversation.is-selected { width: calc(100% - 16px); margin-inline: 8px; padding-inline: 8px; border-radius: 8px; }
