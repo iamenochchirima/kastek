@@ -4,7 +4,8 @@ Light-theme design proposals generated with the built-in image tool on 27 Octobe
 They follow the shared Geist, neutral surface, fine-border and outline-icon direction.
 These images precede feature-page implementation and are not approved implementation specifications.
 
-- [Inbox](inbox-light-v1.png): conversation list, reply pane and customer details.
+- [Inbox overview](inbox-overview-light-v1.png): full channel tabs, conversation list and unselected reading pane. SMS stays unavailable as in the current interface.
+- [Inbox conversation](inbox-light-v1.png): selected conversation, reply pane and customer details. Keep the overview's channel tabs when opening a conversation.
 - [Connections](connections-light-v1.png): connected accounts and compact platform catalogue.
 - [Agents](agents-light-v1.png): four Growth defaults, conversation history and the existing general assistant drawer.
 
