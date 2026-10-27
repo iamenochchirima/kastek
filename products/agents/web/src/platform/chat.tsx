@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStored, type Task } from "./api";
-import { ArrowUp, Bot, User } from "lucide-react";
+import { PiArrowUp as ArrowUp, PiRobot as Bot, PiUser as User } from "react-icons/pi";
 import { TaskEvents } from "./task-events";
 import { MessageContent } from "./message-content";
 import { ErrorMessage } from "./shell";

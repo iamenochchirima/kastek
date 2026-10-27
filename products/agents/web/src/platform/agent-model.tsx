@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Check } from "lucide-react";
+import { PiCaretDown as ChevronDown, PiCheck as Check, PiMagnifyingGlass } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -134,9 +134,9 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
     if (next.reasoning === undefined) delete next.reasoning;
     update({ generation: Object.keys(next).length ? next : undefined });
   }
-  return <div className="space-y-4">
-    <label className="block space-y-2 text-sm font-medium">Model
-      <Input aria-label="Search agent models" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search models" />
+  return <div className="agent-model-section space-y-4">
+    <label className="block space-y-2 text-sm font-medium"><span className="agent-model-heading">Model</span>
+      <span className="agent-model-search"><PiMagnifyingGlass size={16} aria-hidden="true" /><Input aria-label="Search agent models" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search models" /></span>
       <select aria-label="Agent model" className="min-h-10 w-full rounded-md border bg-background p-2 font-normal" value={current} disabled={loading}
         onChange={event => update({ selection: JSON.parse(event.target.value) as Configuration["model"]["selection"] })}>
         <option value={JSON.stringify({ kind: "organization_default" })}>Organization default{defaultModel?.selection ? ` · ${defaultModel.selection.modelId}` : ""}</option>
