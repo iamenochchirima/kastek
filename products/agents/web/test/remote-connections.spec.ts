@@ -55,7 +55,7 @@ for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const state = await fixture(page);
     await page.goto("/app/connections");
-    await page.getByRole("button", { name: "Custom MCP", exact: true }).click();
+    await page.getByRole("button", { name: "Add custom MCP", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("textbox", { name: "Server URL", exact: true })).toBeFocused();
     await expect(dialog.getByLabel("Authentication", { exact: true })).not.toBeVisible();
@@ -95,7 +95,7 @@ for (const width of [1440, 768, 390]) {
 test("mock transport: MCP credential errors preserve URL and masked secret for retry", async ({ page }) => {
   const state = await fixture(page, "failure");
   await page.goto("/app/connections");
-  await page.getByRole("button", { name: "Custom MCP", exact: true }).click();
+  await page.getByRole("button", { name: "Add custom MCP", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Server URL", { exact: true }).fill("https://mcp.example.test/mcp");
   await dialog.getByText("Advanced", { exact: true }).click();

@@ -27,7 +27,8 @@ export function catalogueItemAdded(item: CatalogueItem, configuration: Configura
 function CatalogueIcon({ item }: { item: CatalogueItem }) {
   const Icon = item.kind === "skill" ? FileText : item.id.includes("knowledge") ? BookOpen :
     item.id.includes("handoff") ? Headphones : item.id.includes("github") || item.id.includes("deepwiki") ? GitBranch : Plug;
-  return <span className="catalogue-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.6} /></span>;
+  const brand = item.name.toLowerCase().includes("google calendar") ? "google-calendar.svg" : item.name.toLowerCase().includes("gmail") ? "google-gmail.svg" : item.name.toLowerCase().includes("google drive") ? "google-drive.svg" : null;
+  return <span className="catalogue-icon" aria-hidden="true">{brand ? <img src={`/images/integrations/${brand}`} alt="" /> : <Icon size={19} strokeWidth={1.6} />}</span>;
 }
 
 export function AgentCatalogue({ organizationId, agentId, kind, draftRevision, configuration, onChange, onBeforeConnect }: CatalogueProps) {
