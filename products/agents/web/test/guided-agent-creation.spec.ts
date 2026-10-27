@@ -40,9 +40,15 @@ async function start(page: Page) {
 }
 for (const width of [1440, 768, 390]) test(`guided setup preserves choices and knowledge at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); const requests = await fixture(page); const dialog = await start(page);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await dialog.getByLabel("Website (optional)").fill("bicycles.example");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByRole("alert")).toHaveText("Enter your business name.");
+  await expect(dialog.getByLabel("Business name", { exact: true })).toHaveAttribute("aria-describedby", "setup-error-business");
+  await expect(dialog.getByLabel("Business name", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(dialog.getByLabel("Website (optional)")).toHaveValue("bicycles.example");
   await dialog.getByLabel("Business name", { exact: true }).fill("Bicycle shop");
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
   await dialog.getByLabel("Website (optional)").fill("bicycles.example");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await dialog.getByLabel(/Book appointments/).check();
