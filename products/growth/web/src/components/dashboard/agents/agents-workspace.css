@@ -49,3 +49,12 @@
  .growth-agents-feature button,.growth-agents-feature a { min-height:44px; }
  .growth-agent-chat form button[aria-label="Send message"] { width:44px; height:44px; }
 }
+
+.growth-agents-tabs>[data-slot="tabs-trigger"] { flex:none; padding-left:8px; padding-right:8px; }
+.growth-agent-composer-controls { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; }
+.growth-agent-composer-controls .growth-agent-context-compact { display:contents; }
+.growth-agent-composer-controls [data-context-chip] { grid-column:1/-1; justify-self:start; }
+.growth-agent-composer-controls [data-context-action] { justify-self:start; min-width:0; max-width:100%; }
+.growth-agent-composer-controls>button { flex-shrink:0; }
+.growth-agents-workspace h1 { font-size:28px; line-height:1.2; }
+.growth-agents-workspace #recent-conversations,.growth-agents-workspace #ongoing-work { font-size:16px; }
