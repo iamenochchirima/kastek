@@ -41,6 +41,12 @@ async function fixture(page: Page, available = true, role = "owner", override?: 
 
 test("Google calendar UI fixture requires an explicit calendar and booking service consent", async ({ page }) => {
   const state = await fixture(page);
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(value => document.documentElement.classList.toggle("dark", value === "dark"), theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/connections-table-${width}-${theme}.png`), animations: "disabled" });
+  }
   await page.getByRole("button", { name: "Connect or manage" }).click();
   await page.getByRole("button", { name: "Choose calendar" }).click();
   await page.getByRole("combobox", { name: "Calendar", exact: true }).selectOption("primary");
