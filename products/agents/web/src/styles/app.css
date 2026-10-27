@@ -228,3 +228,10 @@
   .task-list-row > .agent-avatar { display: none; }
   .task-state { max-width: 116px; }
 }
+
+/* Passive confirmations should not cover mobile controls or pause on hover. */
+@media (max-width: 640px) {
+  [data-sonner-toaster] { pointer-events: none; }
+  [data-sonner-toast] { pointer-events: auto; }
+  [data-sonner-toast][data-type="success"]:not(:has(button, a, input, select, textarea, [role="button"])) { pointer-events: none; }
+}

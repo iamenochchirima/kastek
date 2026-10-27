@@ -135,6 +135,9 @@ for (const width of [1440, 768, 390])
     await expect(
       page.getByRole("button", { name: "Unassign me" }),
     ).toBeVisible();
+    if (width === 390) {
+      await expect(page.locator('[data-sonner-toast][data-type="success"]').first()).toHaveCSS("pointer-events", "none");
+    }
     await page
       .getByLabel("Enquiry status", { exact: true })
       .selectOption("in_progress");
