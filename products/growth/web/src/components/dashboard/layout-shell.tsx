@@ -628,7 +628,7 @@ function WorkspaceShell({
           </Sheet>
           <GrowthAssistantLauncher
             open={agents.panelOpen}
-            hidden={mobileSheetOpen}
+            hidden={mobileSheetOpen || pathname === "/inbox"}
             bottomInset={pathname === "/inbox" ? 128 : 0}
             reduceMotion={appearance.interface.reduceMotion}
             onOpen={() => void agents.openGeneral()}

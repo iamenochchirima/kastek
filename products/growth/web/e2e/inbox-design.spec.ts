@@ -60,7 +60,7 @@ test("opens contact details and returns to the conversation list on mobile", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/inbox");
   await customerRow(page).click();
-  await expect(page.getByPlaceholder("Message Fixture customer...")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Reply message", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Contact details", exact: true }).click();
   const details = page.getByRole("dialog", { name: "Contact details", exact: true });
   await expect(details).toBeVisible();
@@ -74,13 +74,15 @@ test("opens contact details and returns to the conversation list on mobile", asy
 });
 
 test("persists an accessible composer reply through the controlled API", async ({ page, request }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(() => localStorage.setItem("kasitek-theme", "dark"));
   await page.goto("/inbox?conversation=fixture-inbox");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const contact = page.getByRole("complementary", { name: "Contact details", exact: true });
   await expect(contact.getByText("+27720001111", { exact: true })).toBeVisible();
-  const composer = page.getByPlaceholder("Message Fixture customer...");
+  await expect(page.getByRole("button", { name: "Open Growth assistant", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message", exact: true })).toHaveText("Send");
+  const composer = page.getByRole("textbox", { name: "Reply message", exact: true });
   const reply = "Inbox design persisted reply";
   await composer.fill(reply);
   await page.getByRole("button", { name: "Send message", exact: true }).click();

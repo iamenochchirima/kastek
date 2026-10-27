@@ -157,7 +157,7 @@ test("saves a content draft from the complete composer and reloads it", async ({
 
 test("sends an Inbox reply and reloads its saved message", async ({ page, request }) => {
   await page.goto("/inbox?conversation=fixture-inbox");
-  const input = page.getByPlaceholder("Message Fixture customer...");
+  const input = page.getByRole("textbox", { name: "Reply message", exact: true });
   await input.fill("Migration Inbox reply");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect(input).toHaveValue("");

@@ -26,12 +26,14 @@ import {
   Search,
   Send,
   Smile,
+  Sparkles,
   Star,
   Trash2,
   Users,
   X,
 } from "@/components/ui/interface-icons";
 import "./inbox-workspace.css";
+import { useGrowthAgents } from "./agents/agent-provider";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -701,6 +703,7 @@ export default function InboxPageClient({
   emailConnections: EmailConnectionView[];
 }) {
   const [searchParams] = useSearchParams();
+  const assistant = useGrowthAgents();
   const { confirm } = useConfirmationDialog();
   const appearance = useAppearance();
   const emojiTheme = resolveTheme(appearance.theme);
@@ -2674,7 +2677,7 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="growth-inbox relative flex min-h-0 flex-col overflow-hidden bg-background">
+      <div className="growth-inbox relative flex min-h-0 flex-col overflow-hidden bg-background" data-channel={selectedChannel} data-conversation-open={Boolean(selectedConversation)}>
         <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
         <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
@@ -2712,6 +2715,7 @@ export default function InboxPageClient({
               <PageHeaderTitle>Inbox</PageHeaderTitle>
             </PageHeaderContent>
             <PageHeaderActions>
+            <Button variant="ghost" size="icon" aria-label="Open Growth assistant" onClick={() => void assistant.openGeneral()}><Sparkles className="h-4 w-4" /></Button>
             <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setShowChannelPanel(true)}>
               <Filter className="h-4 w-4" />
               Manage channels
@@ -3046,6 +3050,7 @@ export default function InboxPageClient({
                   return (
                     <div
                       key={conversation.id}
+                      data-selected={selectedConversation?.id === conversation.id}
                       className={cn(
                         "inbox-conversation-row flex w-full items-start gap-3 border-b border-border/60 px-2 py-3 text-left transition-colors",
                         selectedConversation?.id === conversation.id
@@ -3060,19 +3065,9 @@ export default function InboxPageClient({
                             className="relative shrink-0 rounded-full outline-none ring-offset-background transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             aria-label={`View quick contact info for ${conversation.name}`}
                           >
-                            <Avatar className="h-10 w-10 bg-secondary">
-                              <AvatarFallback className="bg-secondary text-sm text-foreground">
-                                {conversation.avatar}
-                              </AvatarFallback>
+                            <Avatar className="inbox-avatar h-10 w-10" data-tone={conversationAvatarTone(conversation.name)}>
+                              <AvatarFallback className="inbox-avatar text-sm" data-tone={conversationAvatarTone(conversation.name)}>{conversation.avatar}</AvatarFallback>
                             </Avatar>
-                            <div
-                              className={cn(
-                                "absolute -bottom-0.5 -right-0.5 rounded-full p-0.5",
-                                channelInfo.bgColor,
-                              )}
-                            >
-                              <ConversationChannelIcon className={cn("h-3 w-3", channelInfo.color)} />
-                            </div>
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
@@ -3170,13 +3165,13 @@ export default function InboxPageClient({
                             <span
                               title={conversation.name}
                               className={cn(
-                                "min-w-0 flex-1 truncate text-sm",
+                                "inbox-conversation-name min-w-0 flex-1 truncate text-sm",
                                 conversation.unread ? "font-semibold text-foreground" : "text-foreground",
                               )}
                             >
                               {conversation.name}
                             </span>
-                            <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
+                            <span className="inbox-conversation-time shrink-0 pt-0.5 text-xs text-muted-foreground">
                               {formatConversationTime(conversation.time)}
                             </span>
                           </div>
@@ -3191,18 +3186,12 @@ export default function InboxPageClient({
                               </Badge>
                             </div>
                           ) : null}
-                          <p
-                            className={cn(
-                              "truncate text-sm",
-                              conversation.unread ? "text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            <EmojiText value={conversation.lastMessage} />
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="inbox-conversation-preview min-w-0 flex-1 truncate text-muted-foreground"><EmojiText value={conversation.lastMessage} /></p>
+                            <ConversationChannelIcon className={cn("h-3.5 w-3.5 shrink-0", channelInfo.color)} />
+                            {conversation.unread ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /> : null}
+                          </div>
                         </div>
-                        {conversation.unread ? (
-                          <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                        ) : null}
                       </button>
                     </div>
                   );
@@ -3251,10 +3240,8 @@ export default function InboxPageClient({
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <div className="relative shrink-0">
-                    <Avatar className="h-10 w-10 bg-secondary">
-                      <AvatarFallback className="bg-secondary text-foreground">
-                        {selectedConversation.avatar}
-                      </AvatarFallback>
+                    <Avatar className="inbox-avatar h-10 w-10" data-tone={conversationAvatarTone(selectedConversation.name)}>
+                      <AvatarFallback className="inbox-avatar" data-tone={conversationAvatarTone(selectedConversation.name)}>{selectedConversation.avatar}</AvatarFallback>
                     </Avatar>
                     <div
                       className={cn(
@@ -3302,7 +3289,7 @@ export default function InboxPageClient({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground min-[1440px]:hidden" aria-label="Contact details" onClick={() => setShowContactDetails(true)}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground min-[1280px]:hidden" aria-label="Contact details" onClick={() => setShowContactDetails(true)}>
                     <Users className="h-4 w-4" />
                   </Button>
                   <Tooltip>
@@ -3388,7 +3375,7 @@ export default function InboxPageClient({
           ) : null}
 
           <ScrollArea className={cn("min-h-0 flex-1", !selectedConversation && "inbox-empty-scroll")}>
-            <div className={cn("p-3 sm:p-6", !selectedConversation && "h-full")}>
+            <div className={cn("inbox-reading-content p-3 sm:p-6", !selectedConversation && "h-full")}>
             {selectedConversation ? (
             <div className="mx-auto max-w-3xl space-y-4">
               {selectedConversationCall ? (
@@ -3541,7 +3528,7 @@ export default function InboxPageClient({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "flex",
+                    "flex items-start gap-2.5",
                     selectedConversation?.channel === "email"
                       ? "justify-start"
                       : message.sender === "customer"
@@ -3549,6 +3536,7 @@ export default function InboxPageClient({
                         : "justify-end",
                   )}
                 >
+                  {message.sender === "customer" && selectedConversation.channel !== "email" ? <Avatar className="inbox-avatar mt-0.5 h-8 w-8 shrink-0" data-tone={conversationAvatarTone(selectedConversation.name)}><AvatarFallback className="inbox-avatar text-xs" data-tone={conversationAvatarTone(selectedConversation.name)}>{selectedConversation.avatar}</AvatarFallback></Avatar> : null}
                   <div
                     className={cn(
                       "group relative text-foreground",
@@ -3559,8 +3547,8 @@ export default function InboxPageClient({
                         : cn(
                             "inbox-message-bubble rounded-lg px-3.5 py-2.5",
                             message.sender === "customer"
-                              ? "bg-secondary"
-                              : "border border-primary/20 bg-primary/10",
+                              ? "inbox-message-incoming border border-border bg-card"
+                              : "inbox-message-outgoing bg-primary/10",
                           ),
                     )}
                   >
@@ -3731,7 +3719,7 @@ export default function InboxPageClient({
               <div ref={messagesEndRef} />
             </div>
             ) : (
-              <div className="flex min-h-full items-center justify-center px-6 py-16 text-center">
+              <div className="inbox-empty-state flex min-h-full items-center justify-center px-6 py-16 text-center">
                 <div className="max-w-xs">
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-secondary/60">
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
@@ -3773,8 +3761,8 @@ export default function InboxPageClient({
           ) : null}
 
           {selectedConversation ? (
-          <div className="border-t border-border bg-card p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
-            <div className="mx-auto max-w-3xl">
+          <div className="inbox-composer-footer bg-background p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
+            <div className="inbox-composer mx-auto max-w-3xl">
               {composerError ? (
                 <div className="mb-3 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-xs text-destructive">
                   {composerError}
@@ -3808,20 +3796,11 @@ export default function InboxPageClient({
                   </button>
                 </div>
               ) : null}
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex-1" />
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "h-5 border-0 text-[10px]",
-                    currentChannel.bgColor,
-                    currentChannel.color,
-                  )}
-                >
-                  Reply via {channels.find(channel => channel.id === selectedConversation.channel)?.name}
-                </Badge>
+              <div className="inbox-composer-tools flex items-center justify-between gap-2">
+                <span className="text-xs font-medium">Reply</span>
+                <span className="text-[11px] text-muted-foreground">{channels.find(channel => channel.id === selectedConversation.channel)?.name}</span>
               </div>
-              <div className="flex items-end gap-2 rounded-lg border border-border bg-background p-2">
+              <div className="inbox-composer-row flex items-end gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -3848,7 +3827,8 @@ export default function InboxPageClient({
                   value={messageInput}
                   onChange={(event) => setMessageInput(event.target.value)}
                   rows={1}
-                  className="min-h-10 max-h-40 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                  aria-label="Reply message"
+                  className="inbox-composer-input min-h-14 max-h-40 flex-1 resize-none border-0 bg-transparent px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 <Button
                   variant="ghost"
@@ -3876,26 +3856,26 @@ export default function InboxPageClient({
                   </div>
                 ) : null}
                 <Button
-                  size="icon"
-                  className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+                  size="sm"
+                  className="inbox-composer-send h-9 shrink-0 gap-2 bg-primary px-3 text-primary-foreground hover:bg-primary/90"
                   aria-label="Send message"
                   onClick={() => void sendMessage()}
                   disabled={composerLoading || (!messageInput.trim() && !selectedFile)}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4 sm:hidden" /><span className="hidden sm:inline">Send</span>
                 </Button>
               </div>
             </div>
           </div>
           ) : null}
         </div>
-        {selectedConversation ? <aside aria-label="Contact details" className="inbox-contact-panel hidden w-[250px] shrink-0 border-l border-border bg-background min-[1440px]:block">
-          <InboxContactDetails conversation={selectedConversation} />
+        {selectedConversation ? <aside aria-label="Contact details" className="inbox-contact-panel hidden shrink-0 border-l border-border bg-background min-[1280px]:block">
+          <InboxContactDetails conversation={selectedConversation} messages={renderedMessages} />
         </aside> : null}
         <Sheet open={showContactDetails && Boolean(selectedConversation)} onOpenChange={setShowContactDetails}>
           <SheetContent className="w-[min(340px,100vw)] overflow-y-auto p-0">
             <SheetHeader className="border-b border-border p-5"><SheetTitle>Contact details</SheetTitle></SheetHeader>
-            {selectedConversation ? <InboxContactDetails conversation={selectedConversation} /> : null}
+            {selectedConversation ? <InboxContactDetails conversation={selectedConversation} messages={renderedMessages} /> : null}
           </SheetContent>
         </Sheet>
         </div>
@@ -4358,12 +4338,18 @@ function MediaLightbox({
   );
 }
 
-function InboxContactDetails({ conversation }: { conversation: InboxConversation }) {
+function conversationAvatarTone(name: string) {
+  const tones = ["rose", "blue", "green", "violet", "amber", "cyan"] as const;
+  const hash = Array.from(name).reduce((sum, letter) => sum + letter.codePointAt(0)!, 0);
+  return tones[hash % tones.length];
+}
+
+function InboxContactDetails({ conversation, messages }: { conversation: InboxConversation; messages: ConversationMessage[] }) {
   const ChannelIcon = inboxChannelIcon(conversation.channel);
   return <div className="space-y-6 p-5">
     <div>
       <h2 className="mb-5 text-sm font-medium">Contact</h2>
-      <Avatar className="mb-3 h-11 w-11"><AvatarFallback className="bg-primary/10 text-sm text-primary">{conversation.avatar}</AvatarFallback></Avatar>
+      <Avatar className="inbox-avatar mb-3 h-12 w-12" data-tone={conversationAvatarTone(conversation.name)}><AvatarFallback className="inbox-avatar text-sm" data-tone={conversationAvatarTone(conversation.name)}>{conversation.avatar}</AvatarFallback></Avatar>
       <p className="break-words text-sm font-medium">{conversation.name}</p>
       <p className="mt-1 break-all text-xs text-muted-foreground">{conversation.emailFrom || conversation.handle}</p>
       {conversation.tags.length ? <div className="mt-3 flex flex-wrap gap-1">{conversation.tags.map(tag => <Badge key={tag} variant="secondary" className="text-[11px]">{tag}</Badge>)}</div> : null}
@@ -4376,5 +4362,12 @@ function InboxContactDetails({ conversation }: { conversation: InboxConversation
         <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Last activity</dt><dd>{formatConversationTime(conversation.time)}</dd></div>
       </dl>
     </div>
+    {messages.length ? <section className="border-t border-border pt-5" aria-label="Recent activity">
+      <h3 className="mb-4 text-sm font-medium">Recent activity</h3>
+      <ol className="space-y-4">{messages.slice(-3).reverse().map(message => <li key={message.id} className="flex items-start gap-2">
+        <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-[11px]"><span>{message.sender === "customer" ? "Message received" : "Reply"}</span><time className="shrink-0 text-muted-foreground">{message.time}</time></div><p className="mt-1 truncate text-[11px] text-muted-foreground">{getMessageDisplayText(message)}</p></div>
+      </li>)}</ol>
+    </section> : null}
   </div>;
 }
