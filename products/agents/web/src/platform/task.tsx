@@ -1,7 +1,7 @@
 import { taskErrorLabel } from "./task-errors";
 import "./management.css";
 import "./workspace-surfaces.css";
-import { ArrowLeft } from "lucide-react";
+import { PiArrowLeft as ArrowLeft } from "react-icons/pi";
 import { Link } from "react-router-dom";
 import { MessageContent } from "./message-content";
 import { TaskEvents } from "./task-events";

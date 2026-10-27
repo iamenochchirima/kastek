@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { BookOpen, Check, FileText, GitBranch, Headphones, Plug, Search } from "lucide-react";
+import { PiBookOpen as BookOpen, PiCheck as Check, PiFileText as FileText, PiGitBranch as GitBranch, PiHeadset as Headphones, PiPlugsConnected as Plug, PiMagnifyingGlass as Search } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";

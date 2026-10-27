@@ -1,6 +1,6 @@
 import {EnquiryConfirmations} from "./enquiry-confirmations";
 import { taskErrorLabel } from "./task-errors";
-import { FileText, Download } from "lucide-react";
+import { PiFileText as FileText, PiDownload as Download } from "react-icons/pi";
 import "./management.css";
 import { Button } from "@/components/ui/button";
 import { TaskReview } from "./task-review";

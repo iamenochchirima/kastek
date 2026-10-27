@@ -2,7 +2,7 @@ import "./customer-workspace.css";
 import {useSearchParams} from "react-router-dom";
 import {ConversationEnquiries} from "./enquiry-confirmations";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { PiArrowLeft as ArrowLeft, PiArrowsClockwise as RefreshCw } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, message, organizationPath, readStored, writeStored } from "./api";

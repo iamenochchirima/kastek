@@ -1,7 +1,7 @@
 import { ApiRequestEditor, initialRequestDraft, requestTemplate } from "./api-request-editor";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Braces } from "lucide-react";
+import { PiBracketsCurly as Braces } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

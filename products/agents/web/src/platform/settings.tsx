@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogOut, Moon, Sun, Monitor, UserRound, Building2, Palette } from "lucide-react";
+import { PiSignOut as LogOut, PiMoon as Moon, PiSun as Sun, PiMonitor as Monitor, PiUserCircle as UserRound, PiBuildings as Building2, PiPalette as Palette } from "react-icons/pi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { bootstrapAppearance } from "@/components/theme-script";

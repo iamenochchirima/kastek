@@ -1,6 +1,6 @@
 import "./management.css";
 import "./workspace-surfaces.css";
-import { Workflow } from "lucide-react";
+import { PiFlowArrow as Workflow } from "react-icons/pi";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";

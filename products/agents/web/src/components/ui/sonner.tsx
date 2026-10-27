@@ -1,13 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
+import { PiCheckCircle as CircleCheckIcon, PiInfo as InfoIcon, PiCircleNotch as Loader2Icon, PiXCircle as OctagonXIcon, PiWarning as TriangleAlertIcon } from "react-icons/pi"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 function useDocumentTheme() {

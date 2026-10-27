@@ -1,7 +1,7 @@
 import "./management.css";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ListTodo, RefreshCw } from "lucide-react";
+import { PiArrowUpRight as ArrowUpRight, PiListChecks as ListTodo, PiArrowsClockwise as RefreshCw } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { api, message, organizationPath, type AgentSummary, type Page, type TaskSummary } from "./api";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";

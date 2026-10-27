@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Bot, ListTodo, BookOpen, Plug, CalendarClock, Settings, Menu, LogOut, PanelLeftClose, Inbox, Users } from "lucide-react";
+import { PiRobot as Bot, PiListChecks as ListTodo, PiBookOpen as BookOpen, PiPlugsConnected as Plug, PiClockCountdown as CalendarClock, PiGearSix as Settings, PiList as Menu, PiSignOut as LogOut, PiSidebarSimple as PanelLeftClose, PiTray as Inbox, PiUsersThree as Users } from "react-icons/pi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

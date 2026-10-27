@@ -1,6 +1,6 @@
 import "./management.css";
 import "./workspace-surfaces.css";
-import { FileText } from "lucide-react";
+import { PiFileText as FileText } from "react-icons/pi";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
