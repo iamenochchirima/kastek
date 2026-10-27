@@ -26,6 +26,7 @@ export function WorkspaceShell() {
     return () => { viewport.removeEventListener("resize", resize); document.documentElement.style.removeProperty("--workspace-height"); };
   }, []);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("agents.sidebar.collapsed") === "true"; } catch { return false; } });
   const [session, setSession] = useState<Session | null>(null);
   const [organizationId, setOrganizationId] = useState("");
   const [error, setError] = useState("");
@@ -45,19 +46,20 @@ export function WorkspaceShell() {
     catch (e) { toast.error(message(e)); } finally { setBusy(false); }
   }
   async function logout() { setBusy(true); try { const result = await api<{ redirectTo: string }>("/api/auth/logout", {}); sessionStorage.clear(); window.location.assign(result.redirectTo || "/login"); } catch (e) { toast.error(message(e)); setBusy(false); } }
+  function toggleSidebar() { setSidebarCollapsed(current => { const next = !current; try { localStorage.setItem("agents.sidebar.collapsed", String(next)); } catch { /* The sidebar still works when storage is unavailable. */ } return next; }); }
   function selectWorkspace(id: string) { if (!session?.organizations.some(org => org.id === id)) return; setOrganizationId(id); sessionStorage.setItem("agents.organization", id); navigate("/app/agents"); }
   if (signedOut) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   const navigation = <>
-    <Link to="/app/overview" className="workspace-brand"><span className="brand-symbol"><HugeiconsIcon icon={Robot01Icon} size={19} /></span>Agents</Link>
+    <Link to="/app/overview" className="workspace-brand" aria-label="Agents overview"><span className="brand-symbol"><HugeiconsIcon icon={Robot01Icon} size={19} /></span><span className="workspace-brand-label">Agents</span></Link>
     {session?.organizations.length ? <select aria-label="Workspace" className="workspace-select" value={organizationId} onChange={event => event.target.value === "new" ? setWorkspaceOpen(true) : selectWorkspace(event.target.value)}>{session.organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}<option value="new">Create workspace</option></select> : null}
     <nav aria-label="Main navigation" className="workspace-navigation">{([
       ["/app/overview", "Overview", DashboardSquare01Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
-    ] as const).map(([path, label, icon]) => <NavLink key={String(path)} to={String(path)} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></NavLink>)}</nav>
+    ] as const).map(([path, label, icon]) => <NavLink key={String(path)} to={String(path)} aria-label={label} title={label} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></NavLink>)}</nav>
     <div className="workspace-account"><span className="account-avatar">{(session?.account.displayName || session?.account.email || "A").slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{session?.account.displayName || "Account"}</p><p className="truncate text-xs text-muted-foreground">{session?.account.email}</p></div><Button aria-label="Sign out" title="Sign out" size="icon" variant="ghost" onClick={() => void logout()} disabled={!session || busy}><HugeiconsIcon icon={Logout01Icon} size={16} /></Button></div>
   </>;
-  return <div className="dashboard-theme workspace-shell bg-background text-foreground">
+  return <div className={`dashboard-theme workspace-shell bg-background text-foreground ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-content" className="skip-link">Skip to content</a>
-    <aside className="workspace-sidebar">{navigation}</aside>
+    <aside className="workspace-sidebar"><Button className="workspace-sidebar-toggle" variant="ghost" size="icon" aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}><HugeiconsIcon icon={SidebarLeft01Icon} size={18} /></Button>{navigation}</aside>
     <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span></header>
     <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}><DialogContent className="workspace-navigation-drawer" onCloseAutoFocus={event => { event.preventDefault(); navigationTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Workspace navigation</DialogTitle><DialogDescription className="sr-only">Select a workspace page.</DialogDescription></DialogHeader>{navigation}<Button variant="ghost" onClick={() => setNavigationOpen(false)}><HugeiconsIcon icon={SidebarLeft01Icon} size={16} />Close navigation</Button></DialogContent></Dialog>
     <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>

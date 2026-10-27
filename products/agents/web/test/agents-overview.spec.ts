@@ -76,3 +76,19 @@ test("overview shows loading and updates the requested period", async ({ page })
   expect(requested[0]).toBe("7");
   expect(requested.at(-1)).toBe("30");
 });
+
+test("sidebar collapse persists while navigation and mobile menu remain usable", async ({ page }) => {
+  await mockWorkspace(page, async route => { await route.fulfill({ json: dashboard }); });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/app/overview");
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Collapse sidebar" })).toHaveAttribute("aria-expanded", "true");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(page.getByRole("dialog").getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+});

@@ -22,6 +22,9 @@ Hugeicons free icons; shared controls use Phosphor icons. Product state and them
 preference handling remain local. See the
 [shared package guide](../../../packages/ui/README.md).
 
+The desktop workspace sidebar can be collapsed to icon navigation. Its state is
+stored in the browser; mobile uses the navigation drawer.
+
 Open http://localhost:3100. Vite proxies `/api` to `127.0.0.1:4100`; set
 `AGENTS_API_PROXY_TARGET` to change that server target. The browser receives an
 opaque HTTP-only product session, never a service or model credential.
