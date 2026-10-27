@@ -20,5 +20,3 @@
 .inbox-no-selection h2 { font-size: 15px; font-weight: 600; }
 .inbox-no-selection p { margin-top: 6px; color: var(--muted-foreground); font-size: 13px; }
 @media (max-width: 767px) { .inbox-no-selection { display: none; } }
-
-@media (max-width: 420px) { .inbox-queue-channel { display: none; } }
