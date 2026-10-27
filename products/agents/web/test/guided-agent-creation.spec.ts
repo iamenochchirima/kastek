@@ -147,3 +147,44 @@ test("creation validation visual states in light and dark", async ({ page }) => 
     await page.keyboard.press("Escape");
   }
 });
+
+test("tablet conditional setup stays usable in both themes", async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/agents");
+    await page.evaluate(() => sessionStorage.clear());
+    const dialog = await start(page);
+    const capture = async (step: string) => {
+      expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      const bounds = await dialog.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(15);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(753);
+      await page.screenshot({ path: test.info().outputPath(`setup-${step}-${theme}-768.png`), animations: "disabled" });
+    };
+    await dialog.getByLabel("Business name", { exact: true }).fill("Bicycle shop");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await dialog.getByLabel(/Book appointments/).check();
+    await dialog.getByLabel(/Collect enquiries/).check();
+    await capture("responsibilities");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(dialog.getByRole("heading", { name: "Business knowledge" })).toBeVisible();
+    await capture("knowledge");
+    await dialog.getByRole("button", { name: "Skip for now", exact: true }).click();
+    await dialog.getByLabel("WhatsApp", { exact: true }).check();
+    await capture("channels");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(dialog.getByLabel("Duration (minutes)")).toBeVisible();
+    await dialog.getByLabel("Phone", { exact: true }).check();
+    await capture("preferences");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(dialog.getByRole("heading", { name: "Appointments", exact: true })).toBeVisible();
+    await capture("bookings");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(dialog.getByRole("heading", { name: "Review agent", exact: true })).toBeVisible();
+    await capture("review");
+    await page.keyboard.press("Escape");
+  }
+});
