@@ -24,8 +24,8 @@
 .customer-empty { padding: 40px 16px; color: var(--muted-foreground); font-size: 13px; }
 .customer-detail { max-width: 100%; }
 .customer-detail > header { padding-bottom: 18px; border-bottom: 1px solid var(--border); }
-.customer-detail > dl { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
-.customer-detail > section, .customer-detail > details { padding: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.customer-detail > dl { padding: 0 0 18px; border-bottom: 1px solid var(--border); }
+.customer-detail > section, .customer-detail > details { padding: 0 0 18px; border-bottom: 1px solid var(--border); }
 .customer-detail > section h3 { font-size: 14px; font-weight: 600; }
 .customer-detail [aria-label="Internal activity"] li { border-color: var(--line-strong); }
 .customer-detail [aria-label="Internal activity"] li > p:not(:first-child) { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
@@ -51,7 +51,9 @@
 }
 .customer-detail-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); align-items: start; gap: 24px; }
 .customer-detail-main, .customer-detail-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
-.customer-detail-main > dl, .customer-detail-main > details, .customer-detail-main > section, .customer-detail-sidebar > section { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.customer-detail-main > dl, .customer-detail-main > details, .customer-detail-main > section, .customer-detail-sidebar > section { margin: 0; padding: 0 0 20px; border: 0; border-bottom: 1px solid var(--border); background: transparent; }
+.customer-detail-main > dl dt { margin-bottom: 4px; }
+.customer-detail-main > details summary { color: var(--muted-foreground); }
 .customer-detail-columns h3 { font-size: 14px; font-weight: 600; }
 @media (max-width: 900px) { .customer-detail-columns { grid-template-columns: 1fr; } }
 .customer-content { min-width: 0; }
