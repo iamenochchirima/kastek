@@ -63,8 +63,10 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   await dialog.getByLabel("Phone", { exact: true }).check();
   await page.screenshot({ path: test.info().outputPath(`preferences-${width}.png`), fullPage: true });
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await dialog.evaluate(element => { element.scrollTop = element.scrollHeight; });
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByRole("heading",{name:"Appointments",exact:true})).toBeVisible();
+  expect(await dialog.evaluate(element => element.scrollTop)).toBe(0);
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   await expect(dialog).toContainText("Channels still need connecting.");
   await page.screenshot({ path: test.info().outputPath(`review-${width}.png`), fullPage: true });

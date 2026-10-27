@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, Globe, MessageCircle, CalendarDays, UserRoundPlus, Headphones } from "lucide-react";
+import { PiBuildings as Building2, PiCheck as Check, PiGlobe as Globe, PiChatCircle as MessageCircle, PiCalendarBlank as CalendarDays, PiUserPlus as UserRoundPlus, PiHeadphones as Headphones } from "react-icons/pi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -39,6 +39,8 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
   const [step, setStep] = useState(0), [busy, setBusy] = useState(false), [importBusy, setImportBusy] = useState(false), [error, setError] = useState("");
   const [agent, setAgent] = useState<Agent | null>(null), [knowledgeAdded, setKnowledgeAdded] = useState(false);
   const createRequest = useRef<Promise<Agent> | null>(null);
+  const dialogContent = useRef<HTMLDivElement>(null);
+  useEffect(() => { dialogContent.current?.scrollTo({ top: 0 }); }, [step]);
   const needsKnowledge = selected.some(value => value === "answer-questions" || value === "customer-support");
   const steps = ["Business", "Responsibilities", ...(needsKnowledge ? ["Knowledge"] : []), "Channels", "Preferences", ...(selected.includes("bookings") ? ["Bookings"] : []), "Review"];
   const current = steps[step] ?? "Review";
@@ -117,7 +119,7 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
       setAgent(null); createRequest.current = null; setStep(0); setBusiness({ name: "", website: "", description: "" }); setBehaviour({ agentName: "", language: "English", tone: "friendly", handoffInstructions: "" }); setKnowledgeAdded(false); setSelected(["answer-questions", "customer-support"]); setSelectedChannels(["website"]); setIntakeFields(["name", "email", "message"]); setBooking({ durationMinutes: 30, notes: "" });
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
-  return <Dialog open={open} onOpenChange={value => { if (!busy && !importBusy) onOpenChange(value); }}><DialogContent className="sm:max-w-3xl" showCloseButton={!busy && !importBusy} onInteractOutside={event => { if (busy || importBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (busy || importBusy) event.preventDefault(); }}>
+  return <Dialog open={open} onOpenChange={value => { if (!busy && !importBusy) onOpenChange(value); }}><DialogContent ref={dialogContent} className="sm:max-w-3xl" showCloseButton={!busy && !importBusy} onInteractOutside={event => { if (busy || importBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (busy || importBusy) event.preventDefault(); }}>
     <DialogHeader><DialogTitle>Create agent</DialogTitle><DialogDescription className="sr-only">Set up your customer service agent.</DialogDescription></DialogHeader>
     <div className="space-y-2"><div className="flex justify-between text-xs text-muted-foreground"><span>{current}</span><span>Step {step + 1} of {steps.length}</span></div><div className="flex gap-1" aria-label={`Step ${step + 1} of ${steps.length}: ${current}`}>{steps.map((label, index) => <span key={label} className={`h-1 flex-1 rounded-full ${index <= step ? "bg-primary" : "bg-muted"}`} />)}</div></div>
     <section className="min-w-0 space-y-5 py-2" aria-label={current}>

@@ -154,3 +154,24 @@ for (const state of ["withdrawn", "missing", "failed"] as const) test(`resume ${
   await expect(dialog.getByText(state === "withdrawn" ? "Website knowledge withdrawn" : state === "missing" ? "Knowledge unavailable" : "Knowledge import failed.", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Website knowledge added", { exact: true })).toHaveCount(0);
 });
+
+for (const theme of ["light", "dark"] as const) test(`website review remains usable in ${theme} on mobile`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: theme });
+  await fixture(page);
+  const dialog = await create(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  await dialog.getByLabel("Business website").fill("example.com");
+  await dialog.getByRole("button", { name: "Crawl website", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Review pages" })).toBeVisible();
+  await dialog.getByRole("button", { name: /Home https/ }).click();
+  await expect(dialog.getByRole("region", { name: "Page preview" })).toBeVisible();
+  expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`website-pages-${theme}.png`) });
+  await dialog.getByRole("checkbox", { name: "Include Home", exact: true }).check();
+  await dialog.getByRole("checkbox", { name: "Include About", exact: true }).check();
+  await dialog.getByRole("button", { name: "Import selected (2)" }).click();
+  await expect(dialog.getByRole("heading", { name: "Review knowledge" })).toBeVisible();
+  expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`website-knowledge-${theme}.png`) });
+});
