@@ -204,7 +204,7 @@ function DesktopTopbar({
   const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "KT";
 
   return (
-    <header className="sticky top-0 z-[var(--z-topbar)] hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
+    <header className="sticky top-0 z-[var(--z-topbar)] hidden h-14 items-center gap-3 border-b border-line bg-surface px-4 [&_svg]:stroke-[1.5] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
         {orgs.length > 0 ? (
           <div className="min-w-0 max-w-[190px]" data-tour="workspace-switcher">
@@ -216,9 +216,9 @@ function DesktopTopbar({
       </nav>
 
       <div className="mx-auto w-full max-w-sm flex-1 px-2">
-        <button type="button" onClick={onOpenCommand} className="flex h-9 w-full items-center gap-2 rounded-full border border-line bg-surface px-3.5 text-[13px] text-ink-3 transition-colors duration-150 hover:border-line-strong hover:text-ink-2">
+        <button type="button" onClick={onOpenCommand} className="flex h-8 w-full items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink-3 transition-colors duration-150 hover:border-line-strong hover:text-ink-2">
           <Search className="size-3.5" />
-          <span className="flex-1 text-left">Search or jump to…</span>
+          <span className="flex-1 text-left">Search…</span>
           <kbd className="rounded-sm border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-2">⌘K</kbd>
         </button>
       </div>
@@ -229,17 +229,17 @@ function DesktopTopbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" aria-label="Account" data-tour="profile" className="rounded-full">
-              <Avatar className="size-9 ring-2 ring-brand-soft">
+              <Avatar className="size-8 ring-1 ring-line">
                 {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-                <AvatarFallback className="bg-primary text-[11px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-surface-2 text-[11px] font-medium text-ink-2">{initials}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <div className="flex items-center gap-2 px-2 py-2">
-              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-line">
                 {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-                <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p>
@@ -286,7 +286,7 @@ function MobileTopbar({
     .join("") || "KT";
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-[12px] md:hidden">
+    <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center gap-2 border-b border-line bg-surface px-3 [&_svg]:stroke-[1.5] md:hidden">
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Open menu">
           <Menu className="h-5 w-5" />
@@ -296,8 +296,8 @@ function MobileTopbar({
       <Link to="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
         <img src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></p>
-          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sectionLabel}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">Growth</p>
+          <p className="truncate text-[11px] text-muted-foreground">{sectionLabel}</p>
         </div>
       </Link>
 
@@ -310,17 +310,17 @@ function MobileTopbar({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label="Account" data-tour="profile" className="shrink-0 rounded-full">
-            <Avatar className="h-8 w-8 ring-2 ring-brand-soft">
+            <Avatar className="h-8 w-8 ring-1 ring-line">
               {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <div className="flex items-center gap-2 px-2 py-2">
-            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-line">
               {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-foreground">{accountName}</p>
@@ -371,7 +371,7 @@ function NavigationSection({
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-          className="flex w-full items-center justify-between px-2.5 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground"
+          className="flex w-full items-center justify-between px-2.5 pb-1.5 pt-3 text-[11px] font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground"
           aria-expanded={isOpen}
           aria-controls={`sidebar-section-${group.label.toLowerCase()}`}
         >
@@ -398,10 +398,10 @@ function NavigationSection({
             aria-label={collapsed ? item.name : undefined}
             title={collapsed ? item.name : undefined}
             className={cn(
-              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors duration-[150ms]",
+              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors duration-[150ms] [&_svg]:stroke-[1.5]",
               collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               active
-                ? "text-sidebar-accent-foreground after:absolute after:left-0 after:top-1/2 after:h-5 after:w-[3px] after:-translate-y-1/2 after:rounded-r-full after:bg-primary"
+                ? "font-medium text-sidebar-accent-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
             >
@@ -450,7 +450,7 @@ function SidebarContent({
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-16 items-center border-b border-line",
+          "flex h-14 items-center border-b border-line",
           collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
@@ -459,13 +459,13 @@ function SidebarContent({
           onClick={onNavigate}
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
-          <img src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
-          {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></span> : null}
+          <img src="/logo.png" alt="KasiTek" width={28} height={28} className="h-7 w-7 rounded-md" />
+          {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">Growth</span> : null}
         </Link>
 
       </div>
 
-      <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
+      <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2.5 py-2", collapsed && "px-2")}>
         {navigationGroups.map((group) => (
           <NavigationSection
             key={group.label}
@@ -600,7 +600,7 @@ function WorkspaceShell({
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
         <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
-          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
+          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[240px]")}>
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
@@ -632,7 +632,7 @@ function WorkspaceShell({
             reduceMotion={appearance.interface.reduceMotion}
             onOpen={() => void agents.openGeneral()}
           />
-          <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[68px]" : "md:pl-[264px]")}>
+          <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[240px]")}>
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
