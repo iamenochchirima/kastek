@@ -17,3 +17,31 @@
 @media (max-width: 700px) { .connection-grid { grid-template-columns: minmax(0,1fr); } .connection-search { width: 100%; } .connection-entry { gap: .65rem; } }
 
 .dark .brand-github { filter: invert(1); }
+
+/* The MCP setup uses the existing accessible dialog as a full-height side panel. */
+.mcp-sheet[data-slot="dialog-content"] {
+  display: block;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: min(100%, 31rem);
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  transform: none;
+  translate: none;
+  overflow-y: auto;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+  padding: 2rem;
+}
+.mcp-sheet[data-state="open"] { animation: mcp-sheet-enter 180ms ease-out; }
+.mcp-sheet[data-state="closed"] { animation: mcp-sheet-exit 140ms ease-in; }
+.mcp-sheet-header { margin: 1.5rem 0 2rem; text-align: left; }
+.mcp-sheet-header [data-slot="dialog-title"] { font-size: 1.25rem; letter-spacing: -.025em; }
+.mcp-sheet form > label:first-child { display: block; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+@keyframes mcp-sheet-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes mcp-sheet-exit { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@media (max-width: 640px) { .mcp-sheet[data-slot="dialog-content"] { width: 100%; padding: 1.5rem; border: 0; } }
+@media (prefers-reduced-motion: reduce) { .mcp-sheet[data-state] { animation: none; } }

@@ -58,6 +58,16 @@ for (const width of [1440, 768, 390]) {
     await page.getByRole("button", { name: "Add custom MCP", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("textbox", { name: "Server URL", exact: true })).toBeFocused();
+    await dialog.evaluate(element => Promise.allSettled(element.getAnimations().map(animation => animation.finished)));
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(Math.abs(bounds!.x + bounds!.width - width)).toBeLessThan(2);
+    expect(bounds!.height).toBe(1000);
+    if (width === 390) expect(bounds!.width).toBe(width);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Add custom MCP", exact: true }).click();
+    await expect(dialog.getByRole("textbox", { name: "Server URL", exact: true })).toBeFocused();
     await expect(dialog.getByLabel("Authentication", { exact: true })).not.toBeVisible();
     await dialog.getByLabel("Server URL", { exact: true }).fill("https://mcp.example.test/mcp");
     await page.screenshot({ path: resolve(process.cwd(), `../../../.audit/mock-mcp-url-${width}.png`), fullPage: true, animations: "disabled" });
