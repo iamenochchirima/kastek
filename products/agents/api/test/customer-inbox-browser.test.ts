@@ -127,9 +127,14 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
     const visitorContext = await browser.newContext({ viewport: { width: 768, height: 1000 } }); visitor = await visitorContext.newPage();
     visitor.on("pageerror", (error: Error) => console.error("Visitor browser error:", error.message));
     visitor.on("console", (entry: any) => { if (entry.type() === "error") console.error("Visitor console:", entry.text().slice(0, 600)); });
-    visitor.on("requestfailed", (request: any) => console.error("Visitor request failed:", new URL(request.url()).pathname, request.failure()));
+    let visitorNetworkChanged=false;
+    visitor.on("requestfailed", (request: any) => { if(request.failure()?.errorText==="net::ERR_NETWORK_CHANGED")visitorNetworkChanged=true; console.error("Visitor request failed:", new URL(request.url()).pathname, request.failure()); });
     visitor.on("response", (response: any) => { if (response.status() >= 400) console.error("Visitor HTTP failure:", new URL(response.url()).pathname, response.status()); });
-    await visitor.goto(`${origin}/chat/${deployment.id}`); await visitor.getByRole("textbox", { name: "Message", exact: true }).fill("Can you help with my account?"); await visitor.getByRole("button", { name: "Send message", exact: true }).click();
+    await visitor.goto(`${origin}/chat/${deployment.id}`);
+    const visitorInput=visitor.getByRole("textbox", { name: "Message", exact: true });
+    try { await browserExpect(visitorInput).toBeVisible({timeout:5000}); }
+    catch(error) { if(!visitorNetworkChanged)throw error; await visitor.reload(); await browserExpect(visitorInput).toBeVisible({timeout:5000}); }
+    await visitorInput.fill("Can you help with my account?"); await visitor.getByRole("button", { name: "Send message", exact: true }).click();
     await eventually(async () => modelCalls === 1); await staff.goto(`${origin}/app/inbox`); await staff.getByRole("button", { name: /Website support/ }).click();
     await staff.getByRole("button", { name: "Assign to me", exact: true }).click(); await staff.getByRole("button", { name: "Take over", exact: true }).click();
     await staff.getByRole("textbox", { name: "Reply to customer", exact: true }).fill("I handled your account request. Support is here."); await staff.getByRole("button", { name: "Send reply", exact: true }).click();
@@ -145,7 +150,7 @@ const enabled = process.env.AGENTS_INBOX_BROWSER === "1" && process.env.AGENTS_T
     await browserExpect(visitor.getByText("We received your update after support helped.", { exact: true })).toBeVisible({ timeout: 30_000 });
     expect(modelCalls).toBe(2); expect(JSON.stringify(modelInputs[1])).toContain("I handled your account request. Support is here.");
     await visitor.reload(); await browserExpect(visitor.getByText("I handled your account request. Support is here.", { exact: true })).toBeVisible(); await browserExpect(visitor.getByText("We received your update after support helped.", { exact: true })).toBeVisible();
-    for (const width of [1440, 768, 390]) { await staff.setViewportSize({ width, height: 1000 }); await browserExpect(staff.getByRole("heading", { name: "Website conversation", exact: true })).toBeVisible(); expect(await staff.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true); await staff.screenshot({ path: resolve(artifact, `inbox-${width}.png`), fullPage: true }); }
+    for (const width of [1440, 768, 390]) { await staff.setViewportSize({ width, height: 1000 }); await browserExpect(staff.getByRole("heading", { name: "Customer", exact: true })).toBeVisible(); expect(await staff.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true); await staff.screenshot({ path: resolve(artifact, `inbox-${width}.png`), fullPage: true }); }
     expect(providerFailure).toBeUndefined();
     const messages = (await pool.query("SELECT author_kind,body FROM agents_platform.customer_messages ORDER BY conversation_id,sequence")).rows; expect(messages.filter(row => row.author_kind === "human")).toHaveLength(1); expect(messages.some(row => row.body === "LATE AUTOMATED REPLY")).toBe(false);
     const widgetContext = await browser.newContext({ viewport: { width: 390, height: 844 } }); widget = await widgetContext.newPage();
