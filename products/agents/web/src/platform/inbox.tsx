@@ -138,7 +138,7 @@ export function InboxPage() {
     if (!timeline || busy) return false; const id = selected, key = pendingKey;
     const command = pending ?? { commandId: crypto.randomUUID(), expectedRevision: timeline.conversation.revision, action, ...extra };
     setPending(command); writeStored(key, command); setBusy(true); setError("");
-    try { await api(`${base}/${id}/commands`, command); writeStored(key, null); if (selectedRef.current === id) { setPending(null); if (command.action === "reply") { setBody(""); writeStored(draftKey, null); } await loadConversation(id); } await loadList(); return true; }
+    try { await api(`${base}/${id}/commands`, command); writeStored(key, null); if (selectedRef.current === id) { setPending(null); if (command.action === "reply") { setBody(""); writeStored(draftKey, null); } await loadConversation(id); } const queuePath = path; await loadList().catch(e => { if (pathRef.current === queuePath) setListError(message(e)); }); return true; }
     catch (e) { if (e instanceof ApiError && e.status < 500) { writeStored(key, null); if (selectedRef.current === id) setPending(null); await loadConversation(id).catch(() => {}); } if (selectedRef.current === id) setError(message(e)); return false; }
     finally { setBusy(false); }
   }

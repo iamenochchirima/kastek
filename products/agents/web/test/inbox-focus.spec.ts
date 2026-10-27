@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function fixture(page: Page, options: { reject?: boolean; delay?: boolean; loseOnce?: boolean } = {}) {
+async function fixture(page: Page, options: { reject?: boolean; delay?: boolean; loseOnce?: boolean; failQueue?: boolean } = {}) {
   const time = "2026-10-01T12:00:00Z";
   let state = "handoff_pending", assigned: string | null = null, revision = 1, lost = false;
   let release!: () => void;
@@ -28,7 +28,7 @@ async function fixture(page: Page, options: { reject?: boolean; delay?: boolean;
       revision++; return route.fulfill({ json: { conversation: conversation() } });
     }
     if (path.endsWith("/inbox/conv")) return route.fulfill({ json: { conversation: conversation(), messages: [], nextSequence: "0", earlierBefore: null } });
-    if (path.endsWith("/inbox")) return route.fulfill({ json: { conversations: [conversation()], nextCursor: null } });
+    if (path.endsWith("/inbox")) { if (options.failQueue && revision > 1) return route.fulfill({ status: 503, json: { error: { message: "Queue unavailable" } } }); return route.fulfill({ json: { conversations: [conversation()], nextCursor: null } }); }
     return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
   });
   await page.goto("/app/inbox");
@@ -105,4 +105,14 @@ test("successful retry moves focus according to the original action", async ({ p
   const retry = page.getByRole("button", { name: "Retry pending action" });
   await expect(retry).toBeVisible(); await retry.focus(); await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Take over", exact: true })).toBeFocused();
+});
+
+
+test("confirmed claim keeps keyboard focus when queue refresh fails", async ({ page }) => {
+  await fixture(page, { failQueue: true });
+  await page.getByRole("button", { name: "Assign to me" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Queue unavailable")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Take over", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Retry pending action" })).toHaveCount(0);
 });

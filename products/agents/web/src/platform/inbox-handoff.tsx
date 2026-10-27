@@ -33,7 +33,16 @@ export async function focusAfterHandoff(action: string, origin: HTMLElement, ope
       : action === "unassign" ? control("claim")
       : action === "assign" ? control("assignment")
       : control("takeover") || control("reopen");
-    (target || control("summary"))?.focus();
+    const destination = target || control("summary");
+    if (destination instanceof HTMLButtonElement || destination instanceof HTMLTextAreaElement) {
+      if (destination.disabled) await new Promise<void>(resolve => {
+        const observer = new MutationObserver(() => { if (!destination.disabled) { observer.disconnect(); clearTimeout(timeout); resolve(); } });
+        const timeout = window.setTimeout(() => { observer.disconnect(); resolve(); }, 1000);
+        observer.observe(destination, { attributes: true, attributeFilter: ["disabled"] });
+        if (!destination.disabled) { observer.disconnect(); clearTimeout(timeout); resolve(); }
+      });
+    }
+    if (!movedElsewhere && getSection() === section && (document.activeElement === origin || document.activeElement === document.body)) destination?.focus();
   } finally { document.removeEventListener("focusin", observeFocus); }
 }
 
