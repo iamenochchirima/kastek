@@ -15,3 +15,8 @@
 .inbox-composer textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; box-shadow: none; }
 .inbox-composer-actions { display: flex; justify-content: flex-end; }
 @media (max-width: 767px) { .inbox-message-content { max-width: calc(100% - 44px); } }
+
+@media (min-width: 1051px) and (min-height: 700px) {
+  .inbox-channel-controls { flex: 0 1 auto; min-height: 0; max-height: 45%; overflow-y: auto; overscroll-behavior: contain; }
+  .inbox-thread .inbox-composer { flex: none; }
+}
