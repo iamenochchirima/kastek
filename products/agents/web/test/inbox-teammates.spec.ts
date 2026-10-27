@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("owner can search and assign teammates beyond the first page and retry failures", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const base = { id: "conv", agentId: "agent", agentName: "Support", deploymentId: "dep", versionId: "v", channel: "website", state: "automation_active", assigneeAccountId: null as string | null, revision: "1", ownershipGeneration: "1", createdAt: "2026-10-01T12:00:00Z", updatedAt: "2026-10-01T12:00:00Z" };
   let conversation = { ...base }, pageFailures = 0, searchFailures = 0;
   const actions: { action: string; assigneeAccountId?: string }[] = [];
@@ -34,7 +36,16 @@ test("owner can search and assign teammates beyond the first page and retry fail
   await page.goto("/app/inbox");
   await page.getByRole("button", { name: /^Customer Agent Support/ }).click();
   await expect(page.getByRole("button", { name: "Assign to me" })).toBeVisible();
-  await page.getByText("Assign teammate", { exact: true }).click();
+  const disclosure = page.getByText("Assign teammate", { exact: true });
+  await disclosure.focus();
+  await page.keyboard.press("Enter");
+  await page.getByLabel("Search teammates").focus();
+  await page.keyboard.press("Escape");
+  await expect(disclosure).toBeFocused();
+  await expect(page.getByLabel("Search teammates")).not.toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Search teammates")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const picker = page.getByRole("combobox", { name: "Assign conversation" });
   await expect(picker.getByRole("option", { name: "First teammate" })).toHaveCount(1);
   await page.getByRole("button", { name: "More teammates" }).click();

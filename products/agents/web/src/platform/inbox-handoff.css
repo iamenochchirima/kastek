@@ -19,4 +19,5 @@
 .inbox-thread .customer-messages article { max-width: min(80%, 640px); border-radius: 10px; }
 .inbox-thread .customer-messages article.bg-background { border-color: transparent; background: var(--brand-soft); }
 .inbox-thread .customer-messages article p:first-child { margin-bottom: 7px; }
-@media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assign { left: 0; right: auto; } .inbox-thread .customer-messages article { max-width: 92%; } }
+@media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assignment[open] { width: 100%; } .inbox-handoff-assign { position: static; width: 100%; margin-top: 8px; box-shadow: none; } .inbox-thread .customer-messages article { max-width: 92%; } }
+@media (prefers-reduced-motion: reduce) { .inbox-page .inbox-conversation { transition: none; } }
