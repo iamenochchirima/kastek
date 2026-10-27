@@ -1,3 +1,4 @@
+import "./growth-workspace.css";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -189,15 +190,11 @@ function DesktopTopbar({
   organizationName,
   sectionLabel,
   user,
-  orgs,
-  activeOrgId,
   onOpenCommand,
 }: {
   organizationName: string;
   sectionLabel: string;
   user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
-  orgs: Org[];
-  activeOrgId: string | null;
   onOpenCommand: () => void;
 }) {
   const accountName = user?.name ?? "Account";
@@ -206,11 +203,7 @@ function DesktopTopbar({
   return (
     <header className="sticky top-0 z-[var(--z-topbar)] hidden h-14 items-center gap-3 border-b border-line bg-surface px-4 [&_svg]:stroke-[1.5] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
-        {orgs.length > 0 ? (
-          <div className="min-w-0 max-w-[190px]" data-tour="workspace-switcher">
-            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
-          </div>
-        ) : <span className="truncate">{organizationName}</span>}
+        <span title={organizationName}>Growth</span>
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
         <span className="truncate font-medium text-ink-1">{sectionLabel}</span>
       </nav>
@@ -437,7 +430,15 @@ function SidebarContent({
   setCollapsed,
   onNavigate,
   billingSummary = null,
+  orgs = [],
+  activeOrgId = null,
+  user,
+  onOpenCommand,
 }: {
+  orgs?: Org[];
+  activeOrgId?: string | null;
+  user?: { name?: string | null; email?: string | null; image?: string | null };
+  onOpenCommand?: () => void;
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   onNavigate?: () => void;
@@ -445,9 +446,11 @@ function SidebarContent({
 }) {
   const { pathname } = useLocation();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
+  const accountName = user?.name || "Account";
+  const accountInitials = accountName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]).join("").toUpperCase();
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <div className="growth-sidebar flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border text-sidebar-foreground">
       <div
         className={cn(
           "flex h-14 items-center border-b border-line",
@@ -459,12 +462,16 @@ function SidebarContent({
           onClick={onNavigate}
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
-          <img src="/logo.png" alt="KasiTek" width={28} height={28} className="h-7 w-7 rounded-md" />
-          {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">Growth</span> : null}
+          <span className="growth-brand-mark" aria-hidden="true">K</span>
+          {!collapsed ? <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">Growth</span> : null}
         </Link>
 
       </div>
 
+      <div className={cn("shrink-0 space-y-3 p-3", collapsed && "px-2")}>
+        {orgs.length ? <div data-tour="workspace-switcher"><OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} /></div> : null}
+        <button type="button" onClick={onOpenCommand} aria-label="Quick search" className={cn("growth-quick-search", collapsed && "justify-center px-0")}><Search className="size-4 shrink-0" />{!collapsed ? <><span className="flex-1 text-left">Quick search</span><kbd>⌘K</kbd></> : null}</button>
+      </div>
       <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2.5 py-2", collapsed && "px-2")}>
         {navigationGroups.map((group) => (
           <NavigationSection
@@ -479,6 +486,10 @@ function SidebarContent({
         ))}
       </nav>
 
+      <div className="growth-sidebar-footer shrink-0 border-t border-border p-2">
+        <Link to="/workspace/settings" onClick={onNavigate} className={cn("flex min-h-10 items-center gap-3 rounded-md px-2.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground", collapsed && "justify-center px-0")} aria-label="Settings"><Settings className="size-4" />{!collapsed ? "Settings" : null}</Link>
+        <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label="Workspace account" className={cn("flex min-h-12 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-secondary",collapsed && "justify-center px-0")}><Avatar className="size-8 shrink-0">{user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}<AvatarFallback className="text-xs">{accountInitials}</AvatarFallback></Avatar>{!collapsed ? <><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium">{accountName}</span><span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{user?.email}</span></span><ChevronDown className="size-3.5 text-muted-foreground" /></> : null}</button></DropdownMenuTrigger><DropdownMenuContent side="top" align="start" className="w-56"><DropdownMenuItem asChild><Link to="/workspace/settings?section=profile">Profile</Link></DropdownMenuItem><DropdownMenuItem asChild><Link to="/workspace/team">Team</Link></DropdownMenuItem><DropdownMenuSeparator /><AccountMenuItems /></DropdownMenuContent></DropdownMenu>
+      </div>
       {setCollapsed ? (
         <div className="shrink-0 border-t border-border p-2">
           <Button
@@ -602,6 +613,10 @@ function WorkspaceShell({
         <div className={cn("dashboard-theme flex min-h-[100dvh] bg-canvas", pathname === "/inbox" && "h-dvh overflow-hidden")}>
           <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[240px]")}>
               <SidebarContent
+                orgs={orgs}
+                activeOrgId={activeOrgId}
+                user={user}
+                onOpenCommand={() => setCommandOpen(true)}
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
                 billingSummary={billingSummary}
@@ -612,13 +627,12 @@ function WorkspaceShell({
             <SheetContent side="left" className="flex w-64 flex-col gap-0 overflow-hidden p-0">
               <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
               <SheetDescription className="sr-only">Navigate between KasiTek workspace sections.</SheetDescription>
-              {orgs.length > 0 ? (
-                <div className="shrink-0 border-b border-line p-3" data-tour="workspace-switcher">
-                  <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
-                </div>
-              ) : null}
               <div className="min-h-0 flex-1">
                 <SidebarContent
+                  orgs={orgs}
+                  activeOrgId={activeOrgId}
+                  user={user}
+                  onOpenCommand={() => { setMobileSheetOpen(false); setCommandOpen(true); }}
                   collapsed={false}
                   billingSummary={billingSummary}
                   onNavigate={() => setMobileSheetOpen(false)}
@@ -638,18 +652,18 @@ function WorkspaceShell({
               organizationName={organizationName}
               sectionLabel={sectionLabel}
               user={user}
-              orgs={orgs}
-              activeOrgId={activeOrgId}
               onOpenCommand={() => setCommandOpen(true)}
             />
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
+            <div className="flex min-h-0 min-w-0 flex-1">
             <div key={pathname} className={cn("v-route-enter min-w-0 flex-1", pathname === "/inbox" && "flex min-h-0 flex-col")}>
               {children}
             </div>
+            <GrowthAssistantDock />
+            </div>
           </main>
           <ProductTour status={productTourStatus} />
-          <GrowthAssistantDock />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
         </>

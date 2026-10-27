@@ -1,5 +1,19 @@
 import { HugeiconsIcon, type HugeiconsIconProps, type IconSvgElement } from "@hugeicons/react";
 import {
+  PlusSignIcon,
+  ArrowUpRight01Icon,
+  Loading03Icon,
+  SquareIcon,
+  RoboticIcon,
+  Edit02Icon,
+  ArrowRight02Icon,
+  Activity01Icon,
+  LeftToRightListBulletIcon,
+  PlayIcon,
+  Upload01Icon,
+  SmartPhone01Icon,
+  Alert02Icon,
+  CheckmarkCircle02Icon,
   Link01Icon,
   Calendar03Icon,
   CalendarCheckIn01Icon,
@@ -98,3 +112,18 @@ export const Smile = roundedIcon(SmileIcon);
 export const Star = roundedIcon(StarIcon);
 export const Trash2 = roundedIcon(Delete02Icon);
 export const X = roundedIcon(Cancel01Icon);
+
+export const Plus = roundedIcon(PlusSignIcon);
+export const ArrowUpRight = roundedIcon(ArrowUpRight01Icon);
+export const LoaderCircle = roundedIcon(Loading03Icon);
+export const Square = roundedIcon(SquareIcon);
+export const Bot = roundedIcon(RoboticIcon);
+export const Pencil = roundedIcon(Edit02Icon);
+export const ArrowRight = roundedIcon(ArrowRight02Icon);
+export const Activity = roundedIcon(Activity01Icon);
+export const List = roundedIcon(LeftToRightListBulletIcon);
+export const Play = roundedIcon(PlayIcon);
+export const Upload = roundedIcon(Upload01Icon);
+export const Smartphone = roundedIcon(SmartPhone01Icon);
+export const AlertTriangle = roundedIcon(Alert02Icon);
+export const CheckCircle2 = roundedIcon(CheckmarkCircle02Icon);

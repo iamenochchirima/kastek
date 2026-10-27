@@ -1,0 +1,8 @@
+.dashboard-theme .growth-sidebar { background: color-mix(in srgb, var(--surface-2) 56%, var(--surface)); }
+.growth-brand-mark { display: grid; place-items: center; width: 30px; height: 32px; background: #17191d; color: white; border-radius: 6px; font-size: 22px; font-weight: 650; line-height: 1; letter-spacing: -.09em; }
+.growth-quick-search { display: flex; min-height: 34px; width: 100%; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted-foreground); font-size: 12px; }
+.growth-quick-search kbd { border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; font-size: 10px; }
+.growth-sidebar-footer { background: inherit; }
+.dashboard-theme [data-slot="page-header-title"] { letter-spacing: -.035em; }
+.growth-sidebar button:focus-visible, .growth-sidebar a:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+@media (max-width: 767px) { .growth-sidebar button, .growth-sidebar a { min-height: 44px; } }

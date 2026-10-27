@@ -209,13 +209,13 @@ test("returns from controlled checkout and verifies the receipt once", async ({ 
 
 test("launches the selected OAuth flow and displays its controlled failure return", async ({ page, request }) => {
   await page.goto("/connections");
-  await page.getByRole("button", { name: "Add Facebook Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Connect Facebook", exact: true }).click();
   await page.getByRole("button", { name: "Continue to Meta", exact: true }).click();
   await expect(page).toHaveURL(/connections\?error=fixture_provider_unavailable/);
   await expect(page.getByText("Connection could not be completed: fixture_provider_unavailable", { exact: true })).toBeVisible();
   const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
   expect(state.requests.some((item: { path: string }) => item.path === "/api/social/oauth/meta/start")).toBe(true);
-  await expect(page.getByRole("button", { name: "Add Facebook Pages", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect Facebook", exact: true })).toBeVisible();
 });
 
 test("shows pending navigation while a route loader waits", async ({ page }) => {
@@ -264,4 +264,23 @@ test("persists shared workspace theme and density through reload", async ({ page
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
   await expect(page.getByRole("button", { name: "System", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("filters connection accounts and handles an unavailable email authorization", async ({ page }) => {
+  await page.goto("/connections");
+  const accounts = page.getByRole("region", { name: "Connected accounts", exact: true });
+  await expect(accounts.getByRole("button", { name: "Fixture WhatsApp", exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Search connections", exact: true }).fill("no-such-account");
+  await expect(accounts.getByText("No matching accounts", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Search connections", exact: true }).fill("");
+  await page.getByRole("group", { name: "Connection status", exact: true }).getByRole("button", { name: "Needs attention 0", exact: true }).click();
+  await expect(accounts.getByText("No matching accounts", { exact: true })).toBeVisible();
+  await page.getByRole("group", { name: "Connection status", exact: true }).getByRole("button", { name: "All 1", exact: true }).click();
+  await expect(accounts.getByRole("button", { name: "Fixture WhatsApp", exact: true })).toBeVisible();
+  await page.getByRole("group", { name: "Platform category", exact: true }).getByRole("button", { name: "Email", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Connect Facebook", exact: true })).toHaveCount(0);
+  await page.route("**/api/email/oauth/google/start?returnTo=/connections", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Email provider not configured" }) }));
+  await page.getByRole("button", { name: "Connect Gmail", exact: true }).click();
+  await expect(page.getByText("Email provider not configured", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect Gmail", exact: true })).toBeEnabled();
 });

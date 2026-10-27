@@ -2,12 +2,12 @@
 
 Light-theme design proposals generated with the built-in image tool on 27 October 2026.
 They follow the shared Geist, neutral surface, fine-border and outline-icon direction.
-These images precede feature-page implementation and are not approved implementation specifications.
+The owner approved implementation of the Growth image-matched redesign on 27 October 2026. The [Linear specification](https://linear.app/kasitek/document/growth-dashboard-redesign-image-matched-implementation-plan-and-ui-1ebf2b277493) defines the checklist and acceptance rules. The owner chose existing real fields and metrics where illustrative image data is unavailable.
 
 - [Inbox overview](inbox-overview-light-v1.png): full channel tabs, conversation list and unselected reading pane. SMS stays unavailable as in the current interface.
 - [Inbox conversation](inbox-light-v1.png): selected conversation, reply pane and customer details. Keep the overview's channel tabs when opening a conversation.
 - [Connections](connections-light-v1.png): connected accounts and compact platform catalogue.
-- [Connections revision](connections-light-v2.png): Growth-specific account table, compact platform rows and messaging/publishing/email filters. Generated as a new light-theme proposal; not implemented.
+- [Connections revision](connections-light-v2.png): Growth-specific account table, compact platform rows and messaging/publishing/email filters. Selected visual reference for the account table and catalogue.
 - [Agents](agents-light-v1.png): four Growth defaults, conversation history and the existing general assistant drawer.
 
 Sample contacts, messages, counts and connection states are illustrative. Provider actions
@@ -31,4 +31,4 @@ was supplied for visual style, not for Growth navigation or available tools.
 - [Contacts](contacts-light-v1.png): contact table, filters and a contact detail panel.
 - [Posts](content-light-v1.png): publishing list with platform/status filters and a post preview.
 
-The [additional prompt set](growth-expansion-prompts.json) records the built-in generation instructions. These are light-theme proposals, not implemented screens or assertions of available data. Counts, dates, records, actions and metrics require validation against existing contracts before implementation.
+The [additional prompt set](growth-expansion-prompts.json) records the built-in generation instructions. These are the visual references for the approved redesign, not assertions of available data. Counts, dates, records, actions and metrics require validation against existing contracts before implementation.
