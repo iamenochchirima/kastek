@@ -99,7 +99,7 @@ test("mock transport: import, inspect, review and add a private skill revision",
   await page.getByLabel("Skill file", { exact: true }).setInputFiles({ name: "SKILL.md", mimeType: "text/markdown", buffer: Buffer.from("---\nname: support-writing\ndescription: Write concise customer replies.\n---\nWrite plainly.") });
   await page.getByRole("button", { name: "Import", exact: true }).click();
   const preview = page.getByRole("dialog");
-  await expect(preview.getByRole("heading", { name: "support-writing" })).toBeVisible();
+  await expect(preview.getByRole("heading", { name: "Support writing" })).toBeVisible();
   await expect(preview.getByText("Write plainly.", { exact: true })).toBeVisible();
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -110,9 +110,9 @@ test("mock transport: import, inspect, review and add a private skill revision",
   await expect(preview.getByText("Reviewed", { exact: true })).toBeVisible();
   await preview.getByRole("button", { name: "Close", exact: true }).first().click();
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("curated");
-  await expect(page.getByRole("button", { name: "Add support-writing", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Support writing", exact: true })).toHaveCount(0);
   await page.getByRole("combobox", { name: "Library", exact: true }).selectOption("private");
-  await page.getByRole("button", { name: "Add support-writing", exact: true }).click();
+  await page.getByRole("button", { name: "Add Support writing", exact: true }).click();
   expect(state.draft().skillIds).toEqual([]);
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
@@ -187,9 +187,9 @@ test("mock transport: skill rollback replaces only the same publisher and source
   });
   await page.goto("/app/agents/root?section=skills");
   const rows = page.getByRole("article");
-  await rows.nth(0).getByRole("button", { name: "Add support-writing", exact: true }).click();
-  await rows.nth(2).getByRole("button", { name: "Add support-writing", exact: true }).click();
-  await rows.nth(0).getByRole("button", { name: "support-writing", exact: true }).click();
+  await rows.nth(0).getByRole("button", { name: "Add Support writing", exact: true }).click();
+  await rows.nth(2).getByRole("button", { name: "Add Support writing", exact: true }).click();
+  await rows.nth(0).getByRole("button", { name: "Support writing", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("Compare revisions", { exact: true }).click();
   await dialog.getByRole("combobox", { name: "Compare revision" }).selectOption("old");
