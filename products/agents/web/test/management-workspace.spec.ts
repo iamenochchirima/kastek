@@ -62,3 +62,38 @@ test("task rows keep long agent names readable on mobile in both themes", async 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
+
+test("knowledge and settings dialog visual states in light and dark", async ({ page }) => {
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: session });
+    if (path.endsWith("/knowledge/sources")) return route.fulfill({ json: { sources: [], imports: [] } });
+    if (path.endsWith("/model-providers/catalogue")) return route.fulfill({ json: { providers: [] } });
+    if (path.endsWith("/model-providers/default")) return route.fulfill({ json: { selection: null, revision: 0 } });
+    if (path.endsWith("/model-providers")) return route.fulfill({ json: { connections: [] } });
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/knowledge");
+    await page.getByRole("button", { name: "Add source", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel("Title", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await dialog.getByRole("textbox", { name: "Content", exact: true }).fill("Keep this information");
+    await dialog.getByRole("button", { name: "Import source", exact: true }).click();
+    await expect(dialog.getByLabel("Title", { exact: true })).toHaveAttribute("aria-describedby", "source-error-title");
+    await expect(dialog.locator("#source-error-title")).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "Content", exact: true })).toHaveValue("Keep this information");
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`knowledge-dialog-${theme}-${width}.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+    await page.goto("/app/settings");
+    await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`settings-dialog-${theme}-${width}.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+  }
+});

@@ -133,3 +133,17 @@ test("booking policy is selected in guided setup and saved before review and dir
   await dialog.getByRole("button",{name:"Back",exact:true}).click();await expect(dialog.getByRole("combobox",{name:"Booking policy",exact:true})).toHaveValue("policy");
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
 });
+
+test("creation validation visual states in light and dark", async ({ page }) => {
+  await fixture(page);
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: theme });
+    const dialog = await start(page);
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText("Enter your business name.");
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`creation-error-${theme}-${width}.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+  }
+});

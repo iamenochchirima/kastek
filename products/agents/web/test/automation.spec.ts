@@ -341,3 +341,18 @@ test("automation form shows field errors inline and keeps input", async ({ page 
   await expect(dialog.locator("#automation-error-name")).toHaveCount(0);
   await expect(task).toHaveValue("Keep this request");
 });
+
+test("automation dialog visual states in light and dark", async ({ page }) => {
+  await fixture(page);
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/automations");
+    await page.getByRole("button", { name: "Create automation", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Create automation", exact: true }).click();
+    await expect(dialog.locator("#automation-error-name")).toBeVisible();
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`automation-error-${theme}-${width}.png`), animations: "disabled" });
+  }
+});
