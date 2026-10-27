@@ -580,7 +580,7 @@ export default function ContactsManager({
     const metadataKeys = [...new Set(checkedContacts.flatMap(contact => Object.keys(contact.metadata || {})))].sort();
     const rows = [["phone", "fullName", "location", "tags", "notes", "optIn", "excluded", "listLabel", ...metadataKeys],
       ...checkedContacts.map(contact => [contact.phone, contact.fullName || "", contact.location || "", contact.tags.join(", "), contact.notes || "", String(contact.optIn), String(contact.excluded), contact.listLabel, ...metadataKeys.map(key => contact.metadata?.[key] || "")])];
-    downloadContactFile(new Blob([contactCsv(rows)], { type: "text/csv;charset=utf-8" }), "selected-contacts.csv");
+    downloadContactFile(new Blob([contactCsv(rows, true)], { type: "text/csv;charset=utf-8" }), "selected-contacts.csv");
     setNotice(`Exported ${checkedContacts.length} ${checkedContacts.length === 1 ? "contact" : "contacts"}.`);
   }
 
@@ -1060,5 +1060,10 @@ function initials(name: string | null, phone: string) { return name?.trim().spli
 function avatarTone(value: string) { return ["blue", "rose", "green", "amber", "violet"][Array.from(value).reduce((sum, char) => sum + char.codePointAt(0)!, 0) % 5]; }
 function recordDate(value: string) { return new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }); }
 
-function contactCsv(rows: string[][]) { return rows.map(row => row.map(value => `"${value.replace(/"/g, '""')}"`).join(",")).join("\n") + "\n"; }
+function contactCsv(rows: string[][], spreadsheetSafe = false) {
+  return rows.map(row => row.map(value => {
+    const literal = spreadsheetSafe && /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
+    return `"${literal.replace(/"/g, '""')}"`;
+  }).join(",")).join("\n") + "\n";
+}
 function downloadContactFile(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 0); }
