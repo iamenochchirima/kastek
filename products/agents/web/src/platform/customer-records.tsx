@@ -602,10 +602,11 @@ export function CustomersPage() {
         <div className="customer-list-pane">
         <>
           <form className="customer-filters flex flex-wrap items-end gap-3" onSubmit={filters}>
-            <label className="block min-w-0 flex-1 basis-48 space-y-2 text-sm">
-              Search
+            <label className="block min-w-0 flex-1 basis-48 text-sm">
+              <span className="sr-only">Search</span>
               <Input
                 aria-label="Search customers"
+                placeholder="Search customers"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 maxLength={120}
@@ -613,8 +614,8 @@ export function CustomersPage() {
             </label>
             {view === "enquiries" ? (
               <>
-                <label className="space-y-2 text-sm">
-                  Status
+                <label className="text-sm">
+                  <span className="sr-only">Status</span>
                   <select
                     aria-label="Filter enquiry status"
                     className="task-filter w-full"
@@ -629,8 +630,8 @@ export function CustomersPage() {
                     ))}
                   </select>
                 </label>
-                <label className="space-y-2 text-sm">
-                  Due date
+                <label className="text-sm">
+                  <span className="sr-only">Due date</span>
                   <select
                     aria-label="Filter due date"
                     className="task-filter w-full"
@@ -642,8 +643,8 @@ export function CustomersPage() {
                     <option value="scheduled">Scheduled</option>
                   </select>
                 </label>
-                <label className="space-y-2 text-sm">
-                  Assignment
+                <label className="text-sm">
+                  <span className="sr-only">Assignment</span>
                   <select
                     aria-label="Filter enquiry assignment"
                     className="task-filter w-full"
@@ -696,6 +697,9 @@ export function CustomersPage() {
               ) : <p className="customer-empty">No enquiries</p>}
             </div>
           )}
+          {(view === "contacts" ? contacts : enquiries)?.length ? (
+            <p className="customer-result-count">{(view === "contacts" ? contacts : enquiries)?.length} shown</p>
+          ) : null}
           {next ? (
             <Button
               variant="outline"
@@ -833,9 +837,9 @@ export function CustomersPage() {
                   aria-label="Internal activity"
                 >
                   <h3 className="font-medium">Internal activity</h3>
-                  <ol className="space-y-4">
+                  <ol className="customer-activity-list">
                     {activity.map((item) => (
-                      <li key={item.id} className="border-l-2 pl-3 text-sm">
+                      <li key={item.id} className="text-sm">
                         <p className="capitalize">
                           {label(item.kind)}{" "}
                           <span className="text-muted-foreground normal-case">
