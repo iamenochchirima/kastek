@@ -33,6 +33,8 @@ test("owner can search and assign teammates beyond the first page and retry fail
   });
   await page.goto("/app/inbox");
   await page.getByRole("button", { name: /^Customer Agent Support/ }).click();
+  await expect(page.getByRole("button", { name: "Assign to me" })).toBeVisible();
+  await page.getByText("Assign teammate", { exact: true }).click();
   const picker = page.getByRole("combobox", { name: "Assign conversation" });
   await expect(picker.getByRole("option", { name: "First teammate" })).toHaveCount(1);
   await page.getByRole("button", { name: "More teammates" }).click();

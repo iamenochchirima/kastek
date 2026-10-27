@@ -23,7 +23,7 @@ for (const { theme, width } of [{ theme: "light", width: 1440 }, { theme: "dark"
     const item = page.getByRole("button", { name: /^Customer Agent Support agent/ });
     await expect(item).toBeVisible();
     await page.getByLabel("Filter Inbox status").selectOption("resolved");
-    await expect(page.getByText("No customer conversations")).toBeVisible();
+    await expect(page.getByText("No matching conversations")).toBeVisible();
     expect(requests.some(query => new URLSearchParams(query).get("state") === "resolved")).toBe(true);
     await page.getByLabel("Filter Inbox status").selectOption("");
     await item.click();
@@ -32,6 +32,7 @@ for (const { theme, width } of [{ theme: "light", width: 1440 }, { theme: "dark"
       await expect(item).toBeHidden();
       await page.getByRole("button", { name: "Conversations", exact: true }).click();
       await expect(item).toBeVisible();
+      await expect(page.getByLabel("Filter Inbox status")).toBeVisible();
     }
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -1,10 +1,22 @@
-.inbox-handoff { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.inbox-handoff { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-bottom: 16px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
 .inbox-handoff--handoff_pending { border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); background: var(--status-attention-soft); }
 .inbox-handoff-summary { display: flex; min-width: 0; align-items: center; gap: 10px; }
-.inbox-handoff-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 8px; background: var(--muted); color: var(--muted-foreground); }
-.inbox-handoff--handoff_pending .inbox-handoff-icon { color: var(--warning); }
+.inbox-handoff-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 50%; background: var(--muted); color: var(--muted-foreground); }
+.inbox-handoff--handoff_pending .inbox-handoff-icon { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, var(--card)); }
 .inbox-handoff-summary h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .inbox-handoff-summary p { margin: 3px 0 0; color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
 .inbox-handoff-actions, .inbox-handoff-assign { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inbox-handoff-assignment { position: relative; }
+.inbox-handoff-assignment summary { display: inline-flex; min-height: 32px; align-items: center; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); font-size: 12px; font-weight: 500; cursor: pointer; list-style: none; }
+.inbox-handoff-assignment summary::-webkit-details-marker { display: none; }
+.inbox-handoff-assignment summary:hover { background: var(--muted); }
+.inbox-handoff-assignment summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.inbox-handoff-assign { position: absolute; z-index: 10; top: calc(100% + 6px); right: 0; width: min(320px, calc(100vw - 48px)); padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / 12%); }
+.inbox-handoff-assign input, .inbox-handoff-assign select { width: 100%; }
 .inbox-handoff-assign select { max-width: min(100%, 210px); }
-@media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assign { max-width: 100%; } }
+.inbox-handoff-assign [role="alert"] { color: var(--destructive); font-size: 12px; }
+.inbox-thread .customer-messages { gap: 20px; }
+.inbox-thread .customer-messages article { max-width: min(80%, 640px); border-radius: 10px; }
+.inbox-thread .customer-messages article.bg-background { border-color: transparent; background: var(--brand-soft); }
+.inbox-thread .customer-messages article p:first-child { margin-bottom: 7px; }
+@media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assign { left: 0; right: auto; } .inbox-thread .customer-messages article { max-width: 92%; } }

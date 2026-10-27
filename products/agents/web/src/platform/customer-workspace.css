@@ -156,3 +156,19 @@
   .inbox-thread { min-height: 0; }
   .inbox-message-scroll { flex: 1; min-height: 0; max-height: none; overscroll-behavior: contain; }
 }
+
+/* The queue owns its heading and controls, leaving the conversation pane clear. */
+.inbox-layout { grid-template-columns: minmax(350px, 420px) minmax(0, 1fr); }
+.inbox-queue-column { min-width: 0; border-right: 1px solid var(--border); background: var(--card); }
+.inbox-queue-column > header { padding: 20px 16px 0; }
+.inbox-queue-column > header h1 { font-size: 22px; letter-spacing: -.035em; }
+.inbox-queue-column .inbox-filters { padding: 0 16px; }
+.inbox-queue-column .inbox-list { border-right: 0; }
+@media (min-width: 1051px) and (min-height: 700px) {
+  .inbox-queue-column { display: flex; min-height: 0; flex-direction: column; }
+  .inbox-queue-column .inbox-list { flex: 1; }
+}
+@media (max-width: 767px) {
+  .inbox-queue-column { border-right: 0; }
+  .inbox-queue-column.has-selection { display: none; }
+}
