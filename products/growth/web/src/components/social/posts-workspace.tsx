@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PostsLibraryWorkspace } from "@/components/social/posts-library-workspace";
 import {
@@ -1055,7 +1055,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           <SheetContent className="w-full max-w-[760px] gap-0 border-l border-border bg-card p-0 sm:max-w-[760px]">
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
-                <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</p>
+                <SheetTitle className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</SheetTitle>
                 <p className="mt-1 text-sm text-muted-foreground">Step {composerStep} of 4</p>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setIsComposerOpen(false)} aria-label="Close composer">

@@ -175,7 +175,7 @@ test("saves a content draft from the complete composer and reloads it", async ({
   await expect(preview.getByText("Migration draft saved through the composer.", { exact: true })).toBeVisible();
   await preview.getByRole("button", { name: "Edit post", exact: true }).click();
   // The original composer must receive the selected record, rather than creating a new draft.
-  const editComposer = page.getByRole("dialog").filter({ has: page.getByText("Choose destinations", { exact: true }) });
+  const editComposer = page.getByRole("dialog", { name: "Edit post", exact: true });
   await expect(editComposer).toBeVisible();
   await editComposer.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(editComposer.getByPlaceholder("Write your post...")).toHaveValue("Migration draft saved through the composer.");
