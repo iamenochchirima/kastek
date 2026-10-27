@@ -19,7 +19,6 @@ import {
   PageHeader,
   PageHeaderActions,
   PageHeaderContent,
-  PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
 import {
@@ -31,8 +30,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/server-api";
-import { MotionReveal } from "@/components/ui/motion-reveal";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Search, Download, X, Users, Phone, ArrowLeft, ChevronRight } from "@/components/ui/interface-icons";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import "./contacts-workspace.css";
 import { Link } from "react-router";
 import { useNavigate, useRevalidator } from "react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -75,11 +75,13 @@ type ContactsManagerProps = {
     tag: string;
     location: string;
     listLabel: string;
+    page?: number;
   };
   stats: {
     totalContacts: number;
     optedInContacts: number;
     excludedContacts: number;
+    filteredTotal?: number;
   };
 };
 
@@ -122,6 +124,7 @@ function buildSearchParams(filters: ContactsManagerProps["filters"]) {
   if (filters.optIn && filters.optIn !== "all") params.set("optIn", filters.optIn);
   if (filters.excluded && filters.excluded !== "all") params.set("excluded", filters.excluded);
   if (filters.listLabel) params.set("listLabel", filters.listLabel);
+  if (filters.page && filters.page > 1) params.set("page", String(filters.page));
   return params;
 }
 
@@ -138,7 +141,7 @@ function renderMetadataValue(value: unknown) {
         href={value}
         target="_blank"
         rel="noreferrer"
-        className="inline-block max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap text-sky-300 underline-offset-2 hover:underline"
+        className="inline-block max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap text-primary underline-offset-2 hover:underline"
         title={value}
       >
         {truncateValue(value)}
@@ -204,7 +207,18 @@ export default function ContactsManager({
   const [renamingListLabel, setRenamingListLabel] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTargetLabel, setDeleteTargetLabel] = useState<string | null>(null);
-  const [listSearch, setListSearch] = useState("");
+  const [view, setView] = useState<"contacts" | "lists">("contacts");
+  const [showFilters, setShowFilters] = useState(false);
+  const [inspectingId, setInspectingId] = useState<string | null>(null);
+  const [wideDetails, setWideDetails] = useState(false);
+  const [searchInput, setSearchInput] = useState(filters.q);
+  useEffect(() => { setSearchInput(filters.q); }, [filters.q]);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const apply = () => setWideDetails(media.matches);
+    apply(); media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
   const allKnownContacts = useMemo(() => {
     const byId = new Map<string, ContactView>();
     for (const contact of contacts) {
@@ -230,28 +244,23 @@ export default function ContactsManager({
 
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.label.localeCompare(b.label)), [lists]);
   const metadataColumns = useMemo(() => activeList?.metadataKeys || [], [activeList]);
-  const filteredListContacts = useMemo(() => {
-    const normalizedQuery = listSearch.trim().toLowerCase();
-    if (!normalizedQuery) return contacts;
-
-    return contacts.filter((contact) => {
-      const metadataValues = Object.values(contact.metadata || {});
-      return [
-        contact.fullName || "",
-        contact.phone,
-        contact.location || "",
-        contact.tags.join(" "),
-        ...metadataValues,
-      ].some((value) => value.toLowerCase().includes(normalizedQuery));
-    });
-  }, [contacts, listSearch]);
-
-  useEffect(() => {
-    setListSearch("");
-  }, [filters.listLabel]);
+  const displayedContacts = useMemo(() => {
+    const source = filters.q ? searchResults : contacts;
+    return source.filter(contact =>
+      (!filters.listLabel || contact.listLabel === filters.listLabel) &&
+      (filters.optIn === "all" || !filters.optIn || contact.optIn === (filters.optIn === "true")) &&
+      (filters.excluded === "all" || !filters.excluded || contact.excluded === (filters.excluded === "true")) &&
+      (!filters.tag || contact.tags.some(tag => tag.toLowerCase() === filters.tag.toLowerCase())) &&
+      (!filters.location || (contact.location || "").toLowerCase().includes(filters.location.toLowerCase()))
+    );
+  }, [contacts, searchResults, filters]);
+  const inspectedContact = allKnownContacts.find(contact => contact.id === inspectingId) || null;
+  const currentPage = filters.page || 1;
+  const filteredTotal = stats.filteredTotal ?? displayedContacts.length;
+  const pageCount = Math.max(1, Math.ceil(filteredTotal / 50));
 
   function navigate(next: Partial<ContactsManagerProps["filters"]>) {
-    const params = buildSearchParams({ ...filters, ...next });
+    const params = buildSearchParams({ ...filters, ...next, page: next.page ?? 1 });
     const query = params.toString();
     navigateTo(`/contacts${query ? `?${query}` : ""}`);
   }
@@ -359,7 +368,6 @@ export default function ContactsManager({
         `Imported into ${importListLabel || "default"}: ${(body.summary as { created?: number }).created ?? 0} created, ${(body.summary as { updated?: number }).updated ?? 0} updated, ${(body.summary as { invalidRows?: number }).invalidRows ?? 0} invalid rows.`,
       );
       setCsvFile(null);
-      setListSearch("");
       setShowImportModal(false);
       navigate({
         q: "",
@@ -536,240 +544,100 @@ export default function ContactsManager({
     setDeleteTargetLabel(label);
   }
 
+  function openImport() {
+    setImportListLabel(filters.listLabel || "default");
+    setCsvFile(null); setDefaultOptIn(false); setConsentConfirmed(false); setShowImportModal(true);
+  }
+
+  function closeInspector() { setInspectingId(null); }
+
+  function contactDetails(contact: ContactView) {
+    return <div className="contacts-record-content">
+      <div className="contacts-record-heading">
+        <div className="contacts-person-avatar" data-tone={avatarTone(contact.fullName || contact.phone)}>{initials(contact.fullName, contact.phone)}</div>
+        <h2>{contact.fullName || contact.phone}</h2>
+        <p><Phone className="size-4" />{contact.phone}</p>
+        <div className="contacts-tags">{contact.tags.map(tag => <span key={tag}>{tag}</span>)}</div>
+      </div>
+      <section>
+        <div className="contacts-record-section-heading"><h3>Contact details</h3><Button variant="ghost" size="sm" onClick={() => { closeInspector(); startEdit(contact); }}>Edit</Button></div>
+        <dl>
+          <div><dt>Full name</dt><dd>{contact.fullName || "—"}</dd></div>
+          <div><dt>Phone</dt><dd>{contact.phone}</dd></div>
+          <div><dt>List</dt><dd>{contact.listLabel}</dd></div>
+          <div><dt>Location</dt><dd>{contact.location || "—"}</dd></div>
+          <div><dt>Consent</dt><dd><span className={contact.optIn ? "contacts-consent is-opted-in" : "contacts-consent"}>{contact.optIn ? "Opted in" : "Not opted in"}</span></dd></div>
+          <div><dt>Excluded</dt><dd>{contact.excluded ? "Yes" : "No"}</dd></div>
+          {contact.optInSource ? <div><dt>Consent source</dt><dd>{contact.optInSource}</dd></div> : null}
+          {contact.optInDate ? <div><dt>Consent recorded</dt><dd>{recordDate(contact.optInDate)}</dd></div> : null}
+        </dl>
+      </section>
+      {Object.keys(contact.metadata || {}).length ? <section><h3>Custom fields</h3><dl>{Object.entries(contact.metadata || {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{renderMetadataValue(value)}</dd></div>)}</dl></section> : null}
+      {contact.notes ? <section><h3>Notes</h3><p className="contacts-record-notes">{contact.notes}</p></section> : null}
+      <section><h3>Record activity</h3><dl><div><dt>Added</dt><dd>{recordDate(contact.createdAt)}</dd></div><div><dt>Updated</dt><dd>{recordDate(contact.updatedAt)}</dd></div><div><dt>Last marketing</dt><dd>{contact.lastMarketingSent ? recordDate(contact.lastMarketingSent) : "Never"}</dd></div></dl></section>
+      {contact.customerId ? <section><CustomerDetailsLink customerId={contact.customerId} /></section> : null}
+    </div>;
+  }
+
   return (
-    <div className="min-h-[100dvh] p-4 sm:p-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <PageHeader>
-          <PageHeaderContent>
-            <PageHeaderTitle>Contacts</PageHeaderTitle>
-            <PageHeaderDescription>Contact lists and consent.</PageHeaderDescription>
-          </PageHeaderContent>
-          <PageHeaderActions>
-            <Button
-              type="button"
-              onClick={() => {
-                setImportListLabel(filters.listLabel || "default");
-                setCsvFile(null);
-                setDefaultOptIn(false);
-                setConsentConfirmed(false);
-                setShowImportModal(true);
-              }}
-            >
-              Import contacts
-            </Button>
-          </PageHeaderActions>
+    <div className="contacts-workspace" data-record-open={Boolean(inspectedContact)}>
+      <div className="contacts-main">
+        <PageHeader className="contacts-page-header">
+          <PageHeaderContent><PageHeaderTitle>Contacts</PageHeaderTitle></PageHeaderContent>
+          <PageHeaderActions><Button variant="outline" onClick={openImport}><Download className="size-4 rotate-180" />Import contacts</Button></PageHeaderActions>
         </PageHeader>
 
-        {(error || notice) && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              error
-                ? "border-destructive/30 bg-status-danger-soft text-destructive"
-                : "border-status-success/30 bg-status-success-soft text-status-success"
-            }`}
-          >
-            {error || notice}
+        <div className="contacts-view-tabs" aria-label="Contact views">
+          <button type="button" aria-current={view === "contacts" && filters.optIn === "all" && filters.excluded === "all" ? "page" : undefined} onClick={() => { setView("contacts"); navigate({ optIn: "all", excluded: "all" }); }}>All contacts <span>{stats.totalContacts}</span></button>
+          <button type="button" aria-current={view === "contacts" && filters.optIn === "true" ? "page" : undefined} onClick={() => { setView("contacts"); navigate({ optIn: "true", excluded: "all" }); }}>Opted in <span>{stats.optedInContacts}</span></button>
+          <button type="button" aria-current={view === "contacts" && filters.excluded === "true" ? "page" : undefined} onClick={() => { setView("contacts"); navigate({ excluded: "true", optIn: "all" }); }}>Excluded <span>{stats.excludedContacts}</span></button>
+          <button type="button" aria-current={view === "lists" ? "page" : undefined} onClick={() => setView("lists")}>Lists <span>{lists.length}</span></button>
+        </div>
+
+        {(error || notice) ? <div className={`contacts-feedback ${error ? "is-error" : ""}`} role={error ? "alert" : "status"}>{error || notice}</div> : null}
+        {(importing || importProgress.phase === "done") && !showImportModal ? <ImportProgressPanel progress={importProgress} /> : null}
+
+        <div className="contacts-toolbar">
+          <form onSubmit={event => { event.preventDefault(); setView("contacts"); navigate({ q: searchInput.trim() }); }} className="contacts-search">
+            <Search className="size-4" />
+            <Input name="q" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Search contacts..." aria-label="Search contacts" />
+            <Button type="submit" variant="ghost" size="sm">Search</Button>
+          </form>
+          <Select value={filters.listLabel || "all"} onValueChange={value => { setView("contacts"); navigate({ listLabel: value === "all" ? "" : value }); }}>
+            <SelectTrigger aria-label="Contact list"><SelectValue placeholder="All lists" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All lists</SelectItem>{sortedLists.map(list => <SelectItem key={list.label} value={list.label}>{list.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(true)}>Filters</Button>
+          <Dialog open={showFilters} onOpenChange={setShowFilters}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Contact filters</DialogTitle><DialogDescription className="sr-only">Filter contacts by consent, exclusion, tag or location.</DialogDescription></DialogHeader>
+            <div className="contacts-filter-fields">
+              <label>Consent<Select value={filters.optIn || "all"} onValueChange={value => navigate({ optIn: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Any consent</SelectItem><SelectItem value="true">Opted in</SelectItem><SelectItem value="false">Not opted in</SelectItem></SelectContent></Select></label>
+              <label>Exclusion<Select value={filters.excluded || "all"} onValueChange={value => navigate({ excluded: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Any exclusion</SelectItem><SelectItem value="true">Excluded</SelectItem><SelectItem value="false">Not excluded</SelectItem></SelectContent></Select></label>
+              <form onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); navigate({ tag: String(values.get("tag") || ""), location: String(values.get("location") || "") }); setShowFilters(false); }}><label>Tag<Input name="tag" defaultValue={filters.tag} /></label><label>Location<Input name="location" defaultValue={filters.location} /></label><Button type="submit" size="sm">Apply filters</Button></form>
+            </div>
+          </DialogContent></Dialog>
+          {filters.listLabel ? <ListActionsMenu label={filters.listLabel} onAddContacts={prepareAddContacts} onDownload={downloadListCsv} onRename={openRenameModal} onDelete={openDeleteModal} /> : null}
+          {(filters.q || filters.listLabel || filters.tag || filters.location || filters.optIn !== "all" || filters.excluded !== "all") ? <Button variant="ghost" size="sm" onClick={() => { setSearchInput(""); navigate({ q: "", listLabel: "", tag: "", location: "", optIn: "all", excluded: "all" }); }}>Clear filters</Button> : null}
+        </div>
+
+        {view === "lists" ? <div className="contacts-table-scroll"><table className="contacts-table"><caption className="sr-only">Contact lists</caption><thead><tr><th>List</th><th>Contacts</th><th>Location</th><th>Custom fields</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{sortedLists.map(list => <tr key={list.label}><td><button className="contacts-name-button" onClick={() => { setView("contacts"); navigate({ listLabel: list.label }); }}>{list.label}</button></td><td>{list.totalContacts}</td><td>{list.primaryLocation || "—"}</td><td><div className="contacts-tags">{list.metadataKeys.map(key => <span key={key}>{key}</span>)}</div></td><td><ListActionsMenu label={list.label} onAddContacts={prepareAddContacts} onDownload={downloadListCsv} onRename={openRenameModal} onDelete={openDeleteModal} /></td></tr>)}</tbody></table>{!lists.length ? <div className="contacts-empty"><Users className="size-6" /><p>No lists yet</p><Button size="sm" onClick={openImport}>Import contacts</Button></div> : null}</div> : <>
+          <div className="contacts-table-scroll">
+            <table className="contacts-table"><caption className="sr-only">Contacts</caption><thead><tr><th>Contact</th><th>Phone</th><th>List</th><th>Location</th><th>Tags</th><th>Consent</th><th>Last marketing</th>{metadataColumns.map(key => <th key={key}>{key}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody>{displayedContacts.map(contact => <tr key={contact.id} data-selected={contact.id === inspectingId}><td><button type="button" className="contacts-name-button" aria-label={`View contact ${contact.fullName || contact.phone}`} onClick={() => setInspectingId(contact.id)}><span className="contacts-person-avatar" data-tone={avatarTone(contact.fullName || contact.phone)}>{initials(contact.fullName, contact.phone)}</span><span>{contact.fullName || "Unnamed contact"}</span></button></td><td>{contact.phone}</td><td><span className="contacts-list-label">{contact.listLabel}</span></td><td className="contacts-secondary">{contact.location || "—"}</td><td><div className="contacts-tags">{contact.tags.map(tag => <span key={tag}>{tag}</span>)}</div></td><td><span className={contact.excluded ? "contacts-consent is-excluded" : contact.optIn ? "contacts-consent is-opted-in" : "contacts-consent"}>{contact.excluded ? "Excluded" : contact.optIn ? "Opted in" : "Not opted in"}</span></td><td className="contacts-secondary">{contact.lastMarketingSent ? recordDate(contact.lastMarketingSent) : "Never"}</td>{metadataColumns.map(key => <td key={key}>{renderMetadataValue(contact.metadata?.[key])}</td>)}<td><Button size="sm" variant="ghost" onClick={() => startEdit(contact)}>Edit</Button></td></tr>)}</tbody>
+            </table>
+            {!displayedContacts.length ? <div className="contacts-empty"><Users className="size-6" /><p>{contacts.length || filters.q ? "No matching contacts" : "No contacts yet"}</p><Button size="sm" onClick={openImport}>Import contacts</Button></div> : null}
           </div>
-        )}
+          <footer className="contacts-table-footer"><span>{filteredTotal ? `${(currentPage - 1) * 50 + 1}–${(currentPage - 1) * 50 + displayedContacts.length} of ${filteredTotal}` : "0"} {filteredTotal === 1 ? "contact" : "contacts"}</span><nav aria-label="Contacts pagination"><Button variant="outline" size="icon-sm" aria-label="Previous contacts page" disabled={currentPage <= 1} onClick={() => navigate({ page: currentPage - 1 })}><ArrowLeft className="size-4" /></Button><span>Page {currentPage} of {pageCount}</span><Button variant="outline" size="icon-sm" aria-label="Next contacts page" disabled={currentPage >= pageCount} onClick={() => navigate({ page: currentPage + 1 })}><ChevronRight className="size-4" /></Button></nav></footer>
+        </>}
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          <StatCard label="Total contacts" value={stats.totalContacts} />
-          <StatCard label="Opted in" value={stats.optedInContacts} />
-          <StatCard label="Excluded" value={stats.excludedContacts} />
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Contact lists</h2>
-              <p className="text-sm text-muted-foreground">
-                Search lists quickly, then open one to work with its contacts and custom fields.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const formData = new FormData(event.currentTarget);
-                  navigate({
-                    q: String(formData.get("q") || ""),
-                    listLabel: "",
-                    location: "",
-                    tag: "",
-                    optIn: "all",
-                    excluded: "all",
-                  });
-                }}
-                className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
-              >
-                <Input
-                  name="q"
-                  defaultValue={filters.q}
-                  placeholder="Search list, phone, name, field"
-                  className="w-full sm:w-[360px]"
-                />
-                <Button type="submit" variant="outline">
-                  Search
-                </Button>
-              </form>
-              <Button
-                type="button"
-                onClick={() => {
-                  setImportListLabel(filters.listLabel || "default");
-                  setCsvFile(null);
-                  setDefaultOptIn(false);
-                  setConsentConfirmed(false);
-                  setShowImportModal(true);
-                }}
-              >
-                Create
-              </Button>
-            </div>
-          </div>
-          {(importing || importProgress.phase === "done") && !showImportModal ? (
-            <ImportProgressPanel progress={importProgress} />
-          ) : null}
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold text-foreground">Contact lists</h2>
-            <p className="text-sm text-muted-foreground">
-              Open a list to see its contacts with the fields for that list format.
-            </p>
-          </div>
-          {lists.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-sm text-muted-foreground">
-              No contact lists yet. Use <span className="font-medium text-foreground">Create</span> to import your first one.
-            </div>
-          ) : (
-            <>
-            <div className="space-y-3 md:hidden">
-              {sortedLists.map((list) => (
-                <div
-                  key={list.label}
-                  className="w-full rounded-xl border border-border bg-secondary/30 p-4 text-left"
-                >
-                  <button
-                    type="button"
-                    onClick={() => navigate({ listLabel: list.label })}
-                    aria-label={`Open contact list ${list.label}`}
-                    className="block w-full text-left transition-colors hover:text-primary"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-medium text-foreground">{list.label}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {list.primaryLocation || "No shared location"}
-                        </div>
-                      </div>
-                      <div className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground">
-                        {list.totalContacts}
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {list.metadataKeys.length > 0 ? (
-                        list.metadataKeys.map((key) => (
-                          <span
-                            key={key}
-                            className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-xs text-muted-foreground"
-                          >
-                            {key}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No extra fields</span>
-                      )}
-                    </div>
-                  </button>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate({ listLabel: list.label })}
-                      className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                    >
-                      Open list
-                    </button>
-                    <ListActionsMenu
-                      label={list.label}
-                      onAddContacts={prepareAddContacts}
-                      onDownload={downloadListCsv}
-                      onRename={openRenameModal}
-                      onDelete={openDeleteModal}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/40 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 text-left">List</th>
-                    <th className="px-4 py-3 text-left">Contacts</th>
-                    <th className="px-4 py-3 text-left">Primary location</th>
-                    <th className="px-4 py-3 text-left">Fields</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedLists.map((list) => (
-                    <tr
-                      key={list.label}
-                      onClick={() => navigate({ listLabel: list.label })}
-                      className="cursor-pointer border-t border-border transition-colors hover:bg-secondary/60"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{list.label}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">Open list</div>
-                      </td>
-                      <td className="px-4 py-3 text-foreground">{list.totalContacts}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {list.primaryLocation || "No shared location"}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        <div className="flex flex-wrap gap-2">
-                          {list.metadataKeys.length > 0 ? (
-                            list.metadataKeys.map((key) => (
-                              <span
-                                key={key}
-                                className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs"
-                              >
-                                {key}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs">No extra fields</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end">
-                          <ListActionsMenu
-                            label={list.label}
-                            onAddContacts={prepareAddContacts}
-                            onDownload={downloadListCsv}
-                            onRename={openRenameModal}
-                            onDelete={openDeleteModal}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </section>
-
-        {selectedContact && form ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+        {inspectedContact && wideDetails ? <aside className="contacts-record-panel" aria-label="Contact details"><Button variant="ghost" size="icon" aria-label="Close contact details" className="contacts-record-close" onClick={closeInspector}><X className="size-4" /></Button>{contactDetails(inspectedContact)}</aside> : null}
+        <Sheet open={Boolean(inspectedContact && !wideDetails)} onOpenChange={open => { if (!open) closeInspector(); }}><SheetContent className="contacts-record-sheet w-[min(360px,100vw)] overflow-y-auto p-0"><SheetHeader className="sr-only"><SheetTitle>Contact details</SheetTitle><SheetDescription>Contact record and consent</SheetDescription></SheetHeader>{inspectedContact ? contactDetails(inspectedContact) : null}</SheetContent></Sheet>
+        <Dialog open={Boolean(selectedContact && form)} onOpenChange={open => { if (!open && !savingId) { setEditingId(null); setForm(null); } }}>
+          <DialogContent className="contacts-edit-dialog max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+          {selectedContact && form ? <div>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Edit contact</h2>
-                <p className="text-xs text-muted-foreground">{selectedContact.phone}</p>
+                <DialogTitle>Edit contact</DialogTitle>
+                <DialogDescription>{selectedContact.phone}</DialogDescription>
               </div>
               <Button
                 type="button"
@@ -778,6 +646,7 @@ export default function ContactsManager({
                   setForm(null);
                 }}
                 size="sm"
+                disabled={Boolean(savingId)}
                 variant="outline"
               >
                 Close
@@ -864,8 +733,9 @@ export default function ContactsManager({
                 {savingId === selectedContact.id ? "Saving..." : "Save changes"}
               </Button>
             </div>
-          </section>
-        ) : null}
+          </div> : null}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
           <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto">
@@ -949,292 +819,6 @@ export default function ContactsManager({
           </DialogContent>
         </Dialog>
 
-        <Dialog open={Boolean(filters.q)} onOpenChange={(open) => !open && navigate({ q: "" })}>
-          <DialogContent showCloseButton={false} className="flex h-[min(84svh,860px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
-              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <DialogTitle>Search results</DialogTitle>
-                  <DialogDescription>
-                    Results for <span className="font-semibold text-foreground">{filters.q}</span>.
-                  </DialogDescription>
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => navigate({ q: "" })}
-                  size="sm"
-                  variant="outline"
-                >
-                  Close
-                </Button>
-              </div>
-
-              {searchResults.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">No contacts matched that search.</div>
-              ) : (
-                <div className="flex-1 overflow-auto">
-                  <div className="space-y-3 p-4 md:hidden">
-                    {searchResults.map((contact) => (
-                      <div key={contact.id} className="rounded-xl border border-border bg-secondary/20 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-foreground">{contact.fullName || "-"}</div>
-                            <div className="mt-1 text-sm text-foreground">{contact.phone}</div>
-                          </div>
-                          <div className="text-right text-xs text-muted-foreground">
-                            <div>{contact.listLabel}</div>
-                            <div className="mt-1">{contact.location || "-"}</div>
-                          </div>
-                        </div>
-                        <div className="mt-3 text-xs text-muted-foreground">
-                          {contact.tags.length ? contact.tags.join(", ") : "No tags"}
-                        </div>
-                        <div className="mt-4 flex flex-wrap justify-end gap-2">
-                          <CustomerDetailsLink customerId={contact.customerId} />
-                          <button
-                            type="button"
-                            onClick={() => navigate({ q: "", listLabel: contact.listLabel })}
-                            className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-                          >
-                            Open list
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => startEdit(contact)}
-                            className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-secondary/80 text-muted-foreground backdrop-blur">
-                      <tr>
-                        <th className="px-4 py-3 text-left">Name</th>
-                        <th className="px-4 py-3 text-left">Phone</th>
-                        <th className="px-4 py-3 text-left">List</th>
-                        <th className="px-4 py-3 text-left">Location</th>
-                        <th className="px-4 py-3 text-left">Tags</th>
-                        <th className="px-4 py-3 text-left">Last marketing</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {searchResults.map((contact) => (
-                        <tr key={contact.id} className="border-t border-border">
-                          <td className="px-4 py-3 text-foreground">{contact.fullName || "-"}</td>
-                          <td className="px-4 py-3 text-foreground">{contact.phone}</td>
-                          <td className="px-4 py-3 text-foreground">{contact.listLabel}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{contact.location || "-"}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {contact.tags.length ? contact.tags.join(", ") : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {contact.lastMarketingSent
-                              ? new Date(contact.lastMarketingSent).toLocaleString("en-ZA")
-                              : "Never"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-end gap-2">
-                              <CustomerDetailsLink customerId={contact.customerId} />
-                              <button
-                                type="button"
-                                onClick={() => navigate({ q: "", listLabel: contact.listLabel })}
-                                className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-                              >
-                                Open list
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => startEdit(contact)}
-                                className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
-              )}
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={Boolean(filters.listLabel && !filters.q)} onOpenChange={(open) => !open && navigate({ listLabel: "" })}>
-          <DialogContent showCloseButton={false} className="flex h-[min(88svh,920px)] max-w-7xl flex-col gap-0 overflow-hidden p-0">
-              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <DialogTitle>
-                    {filters.listLabel} ({contacts.length})
-                  </DialogTitle>
-                  <DialogDescription>Viewing one contact list.</DialogDescription>
-                  <div className="mt-4 flex flex-wrap items-end gap-3">
-                    <label className="w-full space-y-2 text-sm sm:max-w-[280px]">
-                      <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                        Switch list
-                      </span>
-                      <Select value={filters.listLabel || "all"} onValueChange={(value) => navigate({ listLabel: value === "all" ? "" : value })}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="All contact lists" />
-                        </SelectTrigger>
-                        <SelectContent>
-                        <SelectItem value="all">All contact lists</SelectItem>
-                        {sortedLists.map((list) => (
-                          <SelectItem key={list.label} value={list.label}>
-                            {list.label}
-                          </SelectItem>
-                        ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
-                    {activeList ? (
-                      <p className="pb-2 text-xs text-muted-foreground">
-                        {activeList.totalContacts} contacts in this list
-                      </p>
-                    ) : null}
-                    <label className="w-full space-y-2 text-sm sm:max-w-[320px]">
-                      <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                        Search this list
-                      </span>
-                      <Input
-                        value={listSearch}
-                        onChange={(event) => setListSearch(event.target.value)}
-                        placeholder="Search name, phone, tag, field"
-                      />
-                    </label>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ListActionsMenu
-                    label={filters.listLabel}
-                    onAddContacts={prepareAddContacts}
-                    onDownload={downloadListCsv}
-                    onRename={openRenameModal}
-                    onDelete={openDeleteModal}
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => navigate({ listLabel: "" })}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              {filteredListContacts.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">
-                  No contacts match this list search.
-                </div>
-              ) : (
-                <div className="flex-1 overflow-auto">
-                  <div className="space-y-3 p-4 md:hidden">
-                    {filteredListContacts.map((contact) => (
-                      <div key={contact.id} className="rounded-xl border border-border bg-secondary/20 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium text-foreground">{contact.fullName || "-"}</div>
-                            <div className="mt-1 text-sm text-foreground">{contact.phone}</div>
-                            <div className="mt-1 text-xs text-muted-foreground">{contact.location || "-"}</div>
-                          </div>
-                          <div className="flex gap-2">
-                            <CustomerDetailsLink customerId={contact.customerId} />
-                            <button
-                              type="button"
-                              onClick={() => startEdit(contact)}
-                              className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                        {metadataColumns.length > 0 ? (
-                          <div className="mt-3 grid gap-2">
-                            {metadataColumns.map((key) => (
-                              <div key={key} className="text-xs text-muted-foreground">
-                                <span className="font-medium text-foreground">{key}: </span>
-                                {typeof contact.metadata?.[key] === "string" ? contact.metadata[key] : "-"}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="mt-3 text-xs text-muted-foreground">
-                          Tags: {contact.tags.length ? contact.tags.join(", ") : "-"}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Excluded: {contact.excluded ? "Yes" : "No"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-secondary/80 text-muted-foreground backdrop-blur">
-                      <tr>
-                        <th className="px-4 py-3 text-left">Name</th>
-                        <th className="px-4 py-3 text-left">Phone</th>
-                        <th className="px-4 py-3 text-left">Location</th>
-                        {metadataColumns.map((key) => (
-                          <th key={key} className="px-4 py-3 text-left">
-                            {key}
-                          </th>
-                        ))}
-                        <th className="px-4 py-3 text-left">Tags</th>
-                        <th className="px-4 py-3 text-left">Excluded</th>
-                        <th className="px-4 py-3 text-left">Last marketing</th>
-                        <th className="px-4 py-3 text-left">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredListContacts.map((contact) => (
-                        <tr key={contact.id} className="border-t border-border">
-                          <td className="px-4 py-3 text-foreground">{contact.fullName || "-"}</td>
-                          <td className="px-4 py-3 text-foreground">{contact.phone}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{contact.location || "-"}</td>
-                          {metadataColumns.map((key) => (
-                            <td key={key} className="px-4 py-3 text-muted-foreground">
-                              {renderMetadataValue(contact.metadata?.[key])}
-                            </td>
-                          ))}
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {contact.tags.length ? contact.tags.join(", ") : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-foreground">{contact.excluded ? "Yes" : "No"}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {contact.lastMarketingSent
-                              ? new Date(contact.lastMarketingSent).toLocaleString("en-ZA")
-                              : "Never"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <CustomerDetailsLink customerId={contact.customerId} />
-                              <button
-                                type="button"
-                                onClick={() => startEdit(contact)}
-                                className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground"
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
-              )}
-          </DialogContent>
-        </Dialog>
-
         <Dialog open={Boolean(renamingListLabel)} onOpenChange={(open) => {
           if (!open) {
             setRenamingListLabel(null);
@@ -1307,17 +891,6 @@ export default function ContactsManager({
         </Dialog>
       </div>
     </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <MotionReveal hoverLift className="h-full">
-    <div className="h-full rounded-xl border border-border bg-card p-5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
-    </div>
-    </MotionReveal>
   );
 }
 
@@ -1397,3 +970,7 @@ function ListActionsMenu({
     </DropdownMenu>
   );
 }
+
+function initials(name: string | null, phone: string) { return name?.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase() || phone.slice(-2); }
+function avatarTone(value: string) { return ["blue", "rose", "green", "amber", "violet"][Array.from(value).reduce((sum, char) => sum + char.codePointAt(0)!, 0) % 5]; }
+function recordDate(value: string) { return new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }); }

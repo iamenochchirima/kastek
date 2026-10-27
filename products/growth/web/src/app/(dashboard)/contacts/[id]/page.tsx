@@ -4,7 +4,8 @@ import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
 import { Link } from "react-router";
 import { redirect } from "react-router";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { MotionReveal } from "@/components/ui/motion-reveal";
+import { ArrowLeft } from "@/components/ui/interface-icons";
+import "@/components/dashboard/contacts/contacts-workspace.css";
 
 type CustomerDetailResponse = {
   customer: {
@@ -105,10 +106,10 @@ export async function clientLoader(route: ClientLoaderFunctionArgs) {
 export default function CustomerDetailPage() {
   const { detail, customerName } = useLoaderData<typeof clientLoader>();
   return (
-    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
+    <div className="customer-detail-workspace">
       <div className="mx-auto max-w-6xl space-y-6">
-        <Link to="/contacts" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Back to Contacts
+        <Link to="/contacts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" />Contacts
         </Link>
 
         <section className="rounded-xl border border-border bg-card p-6">
@@ -151,7 +152,7 @@ export default function CustomerDetailPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No channel identities have been recorded yet.</p>
+                <p className="text-sm text-muted-foreground">No channel identities</p>
               )}
             </div>
           </section>
@@ -183,7 +184,7 @@ export default function CustomerDetailPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No WhatsApp contact record is linked yet.</p>
+                <p className="text-sm text-muted-foreground">No linked contact</p>
               )}
             </div>
           </section>
@@ -216,7 +217,7 @@ export default function CustomerDetailPage() {
                 </div>
               ))
             ) : (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No conversations are linked to this customer yet.</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground">No conversations</p>
             )}
           </div>
         </section>
@@ -244,7 +245,7 @@ export default function CustomerDetailPage() {
                 </Link>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">This customer has not been included in a WhatsApp campaign.</p>
+              <p className="text-sm text-muted-foreground">No campaigns</p>
             )}
           </div>
         </section>
@@ -274,7 +275,7 @@ export default function CustomerDetailPage() {
                 </div>
               ))
             ) : (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No bookings are linked to this customer yet.</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground">No bookings</p>
             )}
           </div>
         </section>
@@ -307,11 +308,11 @@ export default function CustomerDetailPage() {
                 </div>
               ))
             ) : (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No Agent Platform runs have been linked to this customer yet.</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground">No agent activity</p>
             )}
           </div>
         </section>
       </div>
-    </MotionReveal>
+    </div>
   );
 }
