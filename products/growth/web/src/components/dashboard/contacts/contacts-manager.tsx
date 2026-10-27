@@ -2,6 +2,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -209,6 +210,16 @@ export default function ContactsManager({
   const [deleteTargetLabel, setDeleteTargetLabel] = useState<string | null>(null);
   const [view, setView] = useState<"contacts" | "lists">("contacts");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortField, setSortField] = useState<"name" | "phone" | "added">("added");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [addingContact, setAddingContact] = useState(false);
+  const [addContactError, setAddContactError] = useState("");
+  const [addContactForm, setAddContactForm] = useState({ fullName: "", phone: "", listLabel: "default", location: "", tags: "", notes: "", optIn: false, consentConfirmed: false });
+  const selectionScope = buildSearchParams(filters).toString();
+  useEffect(() => { setCheckedIds(new Set()); }, [selectionScope]);
   const [inspectingId, setInspectingId] = useState<string | null>(null);
   const [wideDetails, setWideDetails] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.q);
@@ -254,6 +265,22 @@ export default function ContactsManager({
       (!filters.location || (contact.location || "").toLowerCase().includes(filters.location.toLowerCase()))
     );
   }, [contacts, searchResults, filters]);
+  const pageContacts = useMemo(() => [...displayedContacts].sort((a, b) => {
+    const comparison = sortField === "added"
+      ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      : (sortField === "name" ? a.fullName || "" : a.phone).localeCompare(sortField === "name" ? b.fullName || "" : b.phone, undefined, { numeric: true, sensitivity: "base" });
+    const directed = sortDirection === "asc" ? comparison : -comparison;
+    return directed || a.id.localeCompare(b.id);
+  }), [displayedContacts, sortField, sortDirection]);
+  const checkedContacts = pageContacts.filter(contact => checkedIds.has(contact.id));
+  const contactColumns = [
+    { id: "phone", label: "Phone" }, { id: "list", label: "List" },
+    { id: "location", label: "Location" }, { id: "tags", label: "Tags" },
+    { id: "consent", label: "Consent" }, { id: "marketing", label: "Last marketing" },
+    ...metadataColumns.map(key => ({ id: `metadata:${key}`, label: key })),
+  ];
+  const visibleContactColumns = contactColumns.filter(column => !hiddenColumns.has(column.id));
+
   const inspectedContact = allKnownContacts.find(contact => contact.id === inspectingId) || null;
   const currentPage = filters.page || 1;
   const filteredTotal = stats.filteredTotal ?? displayedContacts.length;
@@ -521,14 +548,7 @@ export default function ContactsManager({
 
       const blob = await response.blob();
       const filename = parseDownloadFilename(response.headers.get("content-disposition"), label);
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(objectUrl);
+      downloadContactFile(blob, filename);
       setNotice(`Downloaded ${filename}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to download contacts CSV");
@@ -542,6 +562,49 @@ export default function ContactsManager({
 
   function openDeleteModal(label: string) {
     setDeleteTargetLabel(label);
+  }
+
+  function contactCell(contact: ContactView, columnId: string) {
+    switch (columnId) {
+      case "phone": return contact.phone;
+      case "list": return <span className="contacts-list-label">{contact.listLabel}</span>;
+      case "location": return contact.location || "—";
+      case "tags": return <div className="contacts-tags">{contact.tags.map(tag => <span key={tag}>{tag}</span>)}</div>;
+      case "consent": return <span className={contact.excluded ? "contacts-consent is-excluded" : contact.optIn ? "contacts-consent is-opted-in" : "contacts-consent"}>{contact.excluded ? "Excluded" : contact.optIn ? "Opted in" : "Not opted in"}</span>;
+      case "marketing": return contact.lastMarketingSent ? recordDate(contact.lastMarketingSent) : "Never";
+      default: return renderMetadataValue(contact.metadata?.[columnId.slice("metadata:".length)]);
+    }
+  }
+
+  function exportCheckedContacts() {
+    const metadataKeys = [...new Set(checkedContacts.flatMap(contact => Object.keys(contact.metadata || {})))].sort();
+    const rows = [["phone", "fullName", "location", "tags", "notes", "optIn", "excluded", "listLabel", ...metadataKeys],
+      ...checkedContacts.map(contact => [contact.phone, contact.fullName || "", contact.location || "", contact.tags.join(", "), contact.notes || "", String(contact.optIn), String(contact.excluded), contact.listLabel, ...metadataKeys.map(key => contact.metadata?.[key] || "")])];
+    downloadContactFile(new Blob([contactCsv(rows)], { type: "text/csv;charset=utf-8" }), "selected-contacts.csv");
+    setNotice(`Exported ${checkedContacts.length} ${checkedContacts.length === 1 ? "contact" : "contacts"}.`);
+  }
+
+  async function addContact() {
+    if (!addContactForm.phone.trim()) { setAddContactError("Enter a phone number."); return; }
+    if (addContactForm.optIn && !addContactForm.consentConfirmed) { setAddContactError("Confirm permission to record consent."); return; }
+    setAddingContact(true); setAddContactError("");
+    try {
+      const csv = contactCsv([["phone", "fullName", "location", "tags", "notes", "optIn"], [addContactForm.phone.trim(), addContactForm.fullName.trim(), addContactForm.location.trim(), addContactForm.tags, addContactForm.notes, String(addContactForm.optIn)]]);
+      const payload = new FormData();
+      payload.append("file", new File([csv], "contact.csv", { type: "text/csv" }));
+      payload.append("listLabel", addContactForm.listLabel.trim() || "default");
+      payload.append("defaultOptIn", "false");
+      payload.append("consentConfirmed", String(addContactForm.consentConfirmed));
+      const response = await fetch(apiUrl("/api/whatsapp/contacts/import"), { method: "POST", credentials: "include", body: payload });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to add contact");
+      if (result.summary?.invalidRows) throw new Error(result.invalid?.[0]?.error || "Check the contact's phone number.");
+      setShowAddContact(false); setNotice("Contact saved.");
+      setAddContactForm({ fullName: "", phone: "", listLabel: "default", location: "", tags: "", notes: "", optIn: false, consentConfirmed: false });
+      setView("contacts"); navigate({ listLabel: addContactForm.listLabel.trim() || "default", q: "", optIn: "all", excluded: "all", tag: "", location: "" });
+      revalidator.revalidate();
+    } catch (error) { setAddContactError(error instanceof Error ? error.message : "Failed to add contact"); }
+    finally { setAddingContact(false); }
   }
 
   function openImport() {
@@ -584,7 +647,7 @@ export default function ContactsManager({
       <div className="contacts-main">
         <PageHeader className="contacts-page-header">
           <PageHeaderContent><PageHeaderTitle>Contacts</PageHeaderTitle></PageHeaderContent>
-          <PageHeaderActions><Button variant="outline" onClick={openImport}><Download className="size-4 rotate-180" />Import contacts</Button></PageHeaderActions>
+          <PageHeaderActions><Button variant="outline" onClick={openImport}><Download className="size-4 rotate-180" />Import contacts</Button><Button onClick={() => { setAddContactError(""); setAddContactForm(current => ({ ...current, listLabel: filters.listLabel || "default" })); setShowAddContact(true); }}>Add contact</Button></PageHeaderActions>
         </PageHeader>
 
         <div className="contacts-view-tabs" aria-label="Contact views">
@@ -608,6 +671,11 @@ export default function ContactsManager({
             <SelectContent><SelectItem value="all">All lists</SelectItem>{sortedLists.map(list => <SelectItem key={list.label} value={list.label}>{list.label}</SelectItem>)}</SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={() => setShowFilters(true)}>Filters</Button>
+          {view === "contacts" ? <>
+            <Select value={sortField} onValueChange={value => setSortField(value as typeof sortField)}><SelectTrigger aria-label="Sort current page"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="name">Name · this page</SelectItem><SelectItem value="phone">Phone · this page</SelectItem><SelectItem value="added">Added · this page</SelectItem></SelectContent></Select>
+            <Button size="sm" variant="outline" aria-label={`Sort current page ${sortDirection === "asc" ? "descending" : "ascending"}`} onClick={() => setSortDirection(direction => direction === "asc" ? "desc" : "asc")}>{sortDirection === "asc" ? "Ascending" : "Descending"}</Button>
+            <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline">Columns</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuCheckboxItem checked disabled>Contact</DropdownMenuCheckboxItem>{contactColumns.map(column => <DropdownMenuCheckboxItem key={column.id} checked={!hiddenColumns.has(column.id)} onSelect={event => event.preventDefault()} onCheckedChange={checked => setHiddenColumns(current => { const next = new Set(current); if (checked) next.delete(column.id); else next.add(column.id); return next; })}>{column.label}</DropdownMenuCheckboxItem>)}</DropdownMenuContent></DropdownMenu>
+          </> : null}
           <Dialog open={showFilters} onOpenChange={setShowFilters}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Contact filters</DialogTitle><DialogDescription className="sr-only">Filter contacts by consent, exclusion, tag or location.</DialogDescription></DialogHeader>
             <div className="contacts-filter-fields">
               <label>Consent<Select value={filters.optIn || "all"} onValueChange={value => navigate({ optIn: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Any consent</SelectItem><SelectItem value="true">Opted in</SelectItem><SelectItem value="false">Not opted in</SelectItem></SelectContent></Select></label>
@@ -619,10 +687,11 @@ export default function ContactsManager({
           {(filters.q || filters.listLabel || filters.tag || filters.location || filters.optIn !== "all" || filters.excluded !== "all") ? <Button variant="ghost" size="sm" onClick={() => { setSearchInput(""); navigate({ q: "", listLabel: "", tag: "", location: "", optIn: "all", excluded: "all" }); }}>Clear filters</Button> : null}
         </div>
 
-        {view === "lists" ? <div className="contacts-table-scroll"><table className="contacts-table"><caption className="sr-only">Contact lists</caption><thead><tr><th>List</th><th>Contacts</th><th>Location</th><th>Custom fields</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{sortedLists.map(list => <tr key={list.label}><td><button className="contacts-name-button" onClick={() => { setView("contacts"); navigate({ listLabel: list.label }); }}>{list.label}</button></td><td>{list.totalContacts}</td><td>{list.primaryLocation || "—"}</td><td><div className="contacts-tags">{list.metadataKeys.map(key => <span key={key}>{key}</span>)}</div></td><td><ListActionsMenu label={list.label} onAddContacts={prepareAddContacts} onDownload={downloadListCsv} onRename={openRenameModal} onDelete={openDeleteModal} /></td></tr>)}</tbody></table>{!lists.length ? <div className="contacts-empty"><Users className="size-6" /><p>No lists yet</p><Button size="sm" onClick={openImport}>Import contacts</Button></div> : null}</div> : <>
-          <div className="contacts-table-scroll">
-            <table className="contacts-table"><caption className="sr-only">Contacts</caption><thead><tr><th>Contact</th><th>Phone</th><th>List</th><th>Location</th><th>Tags</th><th>Consent</th><th>Last marketing</th>{metadataColumns.map(key => <th key={key}>{key}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody>{displayedContacts.map(contact => <tr key={contact.id} data-selected={contact.id === inspectingId}><td><button type="button" className="contacts-name-button" aria-label={`View contact ${contact.fullName || contact.phone}`} onClick={() => setInspectingId(contact.id)}><span className="contacts-person-avatar" data-tone={avatarTone(contact.fullName || contact.phone)}>{initials(contact.fullName, contact.phone)}</span><span>{contact.fullName || "Unnamed contact"}</span></button></td><td>{contact.phone}</td><td><span className="contacts-list-label">{contact.listLabel}</span></td><td className="contacts-secondary">{contact.location || "—"}</td><td><div className="contacts-tags">{contact.tags.map(tag => <span key={tag}>{tag}</span>)}</div></td><td><span className={contact.excluded ? "contacts-consent is-excluded" : contact.optIn ? "contacts-consent is-opted-in" : "contacts-consent"}>{contact.excluded ? "Excluded" : contact.optIn ? "Opted in" : "Not opted in"}</span></td><td className="contacts-secondary">{contact.lastMarketingSent ? recordDate(contact.lastMarketingSent) : "Never"}</td>{metadataColumns.map(key => <td key={key}>{renderMetadataValue(contact.metadata?.[key])}</td>)}<td><Button size="sm" variant="ghost" onClick={() => startEdit(contact)}>Edit</Button></td></tr>)}</tbody>
+        {view === "contacts" && checkedContacts.length ? <div className="contacts-selection-bar" role="status"><span>{checkedContacts.length} selected on this page</span><Button size="sm" variant="outline" onClick={exportCheckedContacts}>Export selected CSV</Button><Button size="sm" variant="ghost" onClick={() => setCheckedIds(new Set())}>Clear selection</Button></div> : null}
+        {view === "lists" ? <div className="contacts-table-scroll" role="region" aria-label="Contact lists table" tabIndex={0}><table className="contacts-table"><caption className="sr-only">Contact lists</caption><thead><tr><th>List</th><th>Contacts</th><th>Location</th><th>Custom fields</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{sortedLists.map(list => <tr key={list.label}><td><button className="contacts-name-button" onClick={() => { setView("contacts"); navigate({ listLabel: list.label }); }}>{list.label}</button></td><td>{list.totalContacts}</td><td>{list.primaryLocation || "—"}</td><td><div className="contacts-tags">{list.metadataKeys.map(key => <span key={key}>{key}</span>)}</div></td><td><ListActionsMenu label={list.label} onAddContacts={prepareAddContacts} onDownload={downloadListCsv} onRename={openRenameModal} onDelete={openDeleteModal} /></td></tr>)}</tbody></table>{!lists.length ? <div className="contacts-empty"><Users className="size-6" /><p>No lists yet</p><Button size="sm" onClick={openImport}>Import contacts</Button></div> : null}</div> : <>
+          <div className="contacts-table-scroll" role="region" aria-label="Contacts table" tabIndex={0}>
+            <table className="contacts-table"><caption className="sr-only">Contacts</caption><thead><tr><th className="contacts-checkbox-cell"><Checkbox aria-label="Select contacts on this page" disabled={!pageContacts.length} checked={checkedContacts.length === pageContacts.length && pageContacts.length > 0 ? true : checkedContacts.length ? "indeterminate" : false} onCheckedChange={checked => setCheckedIds(checked ? new Set(pageContacts.map(contact => contact.id)) : new Set())} /></th><th>Contact</th>{visibleContactColumns.map(column => <th key={column.id}>{column.label}</th>)}<th><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody>{pageContacts.map(contact => <tr key={contact.id} data-selected={checkedIds.has(contact.id) || contact.id === inspectingId}><td className="contacts-checkbox-cell"><Checkbox aria-label={`Select contact ${contact.fullName || contact.phone}`} checked={checkedIds.has(contact.id)} onCheckedChange={checked => setCheckedIds(current => { const next = new Set(current); if (checked) next.add(contact.id); else next.delete(contact.id); return next; })} /></td><td><button type="button" className="contacts-name-button" aria-label={`View contact ${contact.fullName || contact.phone}`} onClick={() => setInspectingId(contact.id)}><span className="contacts-person-avatar" data-tone={avatarTone(contact.fullName || contact.phone)}>{initials(contact.fullName, contact.phone)}</span><span>{contact.fullName || "Unnamed contact"}</span></button></td>{visibleContactColumns.map(column => <td key={column.id}>{contactCell(contact, column.id)}</td>)}<td><Button size="sm" variant="ghost" onClick={() => startEdit(contact)}>Edit</Button></td></tr>)}</tbody>
             </table>
             {!displayedContacts.length ? <div className="contacts-empty"><Users className="size-6" /><p>{contacts.length || filters.q ? "No matching contacts" : "No contacts yet"}</p><Button size="sm" onClick={openImport}>Import contacts</Button></div> : null}
           </div>
@@ -737,6 +806,22 @@ export default function ContactsManager({
           </DialogContent>
         </Dialog>
 
+        <Dialog open={showAddContact} onOpenChange={open => { if (!addingContact) setShowAddContact(open); }}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+            <DialogHeader><DialogTitle>Add contact</DialogTitle><DialogDescription>An existing phone number updates its contact.</DialogDescription></DialogHeader>
+            <form onSubmit={event => { event.preventDefault(); void addContact(); }} className="contacts-add-form" noValidate>
+              <label>Full name<Input value={addContactForm.fullName} onChange={event => setAddContactForm(current => ({ ...current, fullName: event.target.value }))} /></label>
+              <label>Phone<Input type="tel" aria-invalid={Boolean(addContactError)} value={addContactForm.phone} onChange={event => setAddContactForm(current => ({ ...current, phone: event.target.value }))} />{addContactError ? <span role="alert" className="text-destructive">{addContactError}</span> : null}</label>
+              <label>List<Input value={addContactForm.listLabel} onChange={event => setAddContactForm(current => ({ ...current, listLabel: event.target.value }))} /></label>
+              <label>Location<Input value={addContactForm.location} onChange={event => setAddContactForm(current => ({ ...current, location: event.target.value }))} /></label>
+              <label>Tags<Input value={addContactForm.tags} onChange={event => setAddContactForm(current => ({ ...current, tags: event.target.value }))} /></label>
+              <label className="contacts-add-notes">Notes<Textarea rows={2} value={addContactForm.notes} onChange={event => setAddContactForm(current => ({ ...current, notes: event.target.value }))} /></label>
+              <label className="contacts-add-consent"><Checkbox checked={addContactForm.optIn} onCheckedChange={checked => setAddContactForm(current => ({ ...current, optIn: checked === true }))} />Opted in to marketing</label>
+              {addContactForm.optIn ? <label className="contacts-add-consent"><Checkbox checked={addContactForm.consentConfirmed} onCheckedChange={checked => setAddContactForm(current => ({ ...current, consentConfirmed: checked === true }))} />I have permission to record this marketing consent.</label> : null}
+              <DialogFooter className="contacts-add-footer"><Button type="button" variant="outline" disabled={addingContact} onClick={() => setShowAddContact(false)}>Cancel</Button><Button type="submit" disabled={addingContact || (addContactForm.optIn && !addContactForm.consentConfirmed)}>{addingContact ? "Saving..." : "Save contact"}</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
         <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
           <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
@@ -974,3 +1059,6 @@ function ListActionsMenu({
 function initials(name: string | null, phone: string) { return name?.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase() || phone.slice(-2); }
 function avatarTone(value: string) { return ["blue", "rose", "green", "amber", "violet"][Array.from(value).reduce((sum, char) => sum + char.codePointAt(0)!, 0) % 5]; }
 function recordDate(value: string) { return new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }); }
+
+function contactCsv(rows: string[][]) { return rows.map(row => row.map(value => `"${value.replace(/"/g, '""')}"`).join(",")).join("\n") + "\n"; }
+function downloadContactFile(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 0); }
