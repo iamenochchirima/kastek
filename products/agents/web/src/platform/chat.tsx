@@ -1,5 +1,5 @@
 import { taskErrorLabel } from "./task-errors";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStored, type Task } from "./api";
@@ -19,8 +19,8 @@ function restorable(entries: Entry[]): Entry[] {
     versionId: entry.task.versionId,
   } : undefined }));
 }
-export function Chat({ endpoint, storageKey, token, agentId, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, view = "chat", cancellable = false }: {
-  endpoint: string; storageKey: string; token?: string; agentId?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; view?: "chat" | "activity";
+export function Chat({ endpoint, storageKey, token, agentId, versionId, versionNumber, initialConversationId, expectedAgentId, onPendingChanged, onConversationReady, onPinnedVersion, composerAccessory, view = "chat", cancellable = false }: {
+  endpoint: string; storageKey: string; token?: string; agentId?: string; versionId?: string; versionNumber?: number; cancellable?: boolean; initialConversationId?: string; expectedAgentId?: string; onPendingChanged?: (pending: boolean) => void; onConversationReady?: (conversationId: string) => void; onPinnedVersion?: (id: string) => void; composerAccessory?: ReactNode; view?: "chat" | "activity";
 }) {
   const [entries, setEntries] = useState<Entry[]>(() => restorable(readStored<Entry[]>(storageKey) ?? []));
   const [savedChats, setSavedChats] = useState<SavedChat[]>(() => (readStored<SavedChat[]>(`${storageKey}.conversations`) ?? []).map(chat => ({ ...chat, entries: restorable(chat.entries) })));
@@ -169,9 +169,9 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
     <div className="chat-feedback">{cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : null}<ErrorMessage value={error} />
     {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
     </div>
-    {view === "chat" ? <form onSubmit={event => void send(event)} className="chat-composer">
+    {view === "chat" ? <form onSubmit={event => void send(event)} className={`chat-composer${composerAccessory ? " has-accessory" : ""}`}>
       <label className="block space-y-2 text-sm"><span className="sr-only">Message</span><Textarea value={input} onChange={event => { setInput(event.target.value); writeStored(`${storageKey}.draft`, event.target.value); }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} required rows={3} placeholder="Message your agent…" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied} /></label>
-      <div className="flex flex-wrap gap-3"><Button type="submit" aria-label="Send message" className="chat-send" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied || !input.trim()}>{sending ? "Sending…" : <><ArrowUp size={17} /><span>Send</span></>}</Button>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</div>
+      <div className="chat-composer-actions flex flex-wrap gap-3">{composerAccessory}<Button type="submit" aria-label="Send message" className="chat-send" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied || !input.trim()}>{sending ? "Sending…" : <><ArrowUp size={17} /><span>Send</span></>}</Button>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</div>
     </form> : null}
   </section>;
 }

@@ -66,7 +66,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
     catch (cause) { setSaveError(message(cause)); }
   }
   return <>
-    <Button size="sm" variant="ghost" className="max-w-full min-w-0" aria-label={`Chat model: ${label}`} disabled={saving} onClick={() => { setPending(activeKey); setSearch(""); setSaveError(""); setOpen(true); }}><span className="truncate">{label}</span><ChevronDown className="size-3 shrink-0" /></Button>
+    <Button type="button" size="sm" variant="ghost" className="chat-model-picker max-w-full min-w-0" aria-label={`Chat model: ${label}`} disabled={saving} onClick={() => { setPending(activeKey); setSearch(""); setSaveError(""); setOpen(true); }}><span className="truncate">{label}</span><ChevronDown className="size-3 shrink-0" /></Button>
     <Dialog open={open} onOpenChange={value => { if (!saving) setOpen(value); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Choose model</DialogTitle><DialogDescription>New messages use the saved model.</DialogDescription></DialogHeader>
       {dirty && <p role="status" className="text-sm text-muted-foreground">Save configuration changes in Configure before switching models.</p>}
       {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
