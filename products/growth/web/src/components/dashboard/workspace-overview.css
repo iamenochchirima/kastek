@@ -30,3 +30,5 @@
 @media (max-width:1279px) { .growth-overview-grid { grid-template-columns:minmax(0,1fr); } .growth-overview-metric { gap:10px; padding:10px; } }
 @media (max-width:767px) { .growth-overview-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); row-gap:20px; } .growth-overview-metric:nth-child(2) { border:0; } .growth-overview-metric:nth-child(3) { padding-left:4px; } .growth-overview-quick { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:639px) { .growth-overview-attention { gap:8px; } .growth-overview-attention-icon { width:30px; height:30px; } .growth-overview-attention>span:nth-child(2) { font-size:12px; } .growth-overview-action { min-height:44px; padding:6px; } .growth-overview-metric { gap:8px; } .growth-overview-metric>svg { width:20px; height:20px; } .growth-overview-panel-header { padding:10px; } }
+
+.growth-overview-grid[data-workspace="false"] { grid-template-columns:minmax(0,1fr); }

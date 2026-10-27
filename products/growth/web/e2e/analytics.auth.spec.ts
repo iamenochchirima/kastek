@@ -75,7 +75,7 @@ test.describe("authenticated customer analytics", () => {
 
     const overview = page.locator('section[aria-labelledby="workspace-analytics-title"]');
     await expect(overview.getByText("No activity yet", { exact: true })).toBeVisible();
-    await expect(overview.getByText("Messages received", { exact: true })).toHaveCount(0);
+    await expect(overview.getByRole("link", { name: /Messages received/ })).toHaveCount(0);
     await expect(overview.getByText("Not Instrumented", { exact: true })).toHaveCount(0);
     await expect(overview.getByText(/0\/\d+ points/)).toHaveCount(0);
     await expect(overview.locator('[role="img"]')).toHaveCount(0);
