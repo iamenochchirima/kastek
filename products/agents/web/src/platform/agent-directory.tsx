@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { PiRobot as Bot, PiCaretLeft as ChevronLeft, PiClockCounterClockwise as History, PiPlus as Plus, PiMagnifyingGlass as Search, PiChatCircle, PiPulse, PiSlidersHorizontal } from "react-icons/pi";
+import { PiRobot as Bot, PiCaretLeft as ChevronLeft, PiCaretRight, PiClockCounterClockwise as History, PiPlus as Plus, PiMagnifyingGlass as Search, PiChatCircle, PiPulse, PiSlidersHorizontal, PiTray, PiUsers, PiPlugs } from "react-icons/pi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,8 @@ import { api, message, organizationPath, type AgentSummary, type ConversationSum
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { GuidedAgentCreation } from "./guided-agent-creation";
 
-type Directory = { refresh: () => void; newChat: () => void; chatGeneration: number };
-const DirectoryContext = createContext<Directory>({ refresh: () => {}, newChat: () => {}, chatGeneration: 0 });
+type Directory = { refresh: () => void; newChat: () => void; chatGeneration: number; agents: AgentSummary[] | null; error: string; query: string; hasMore: boolean; busy: boolean; moreAgents: () => void; createAgent: () => void };
+const DirectoryContext = createContext<Directory>({ refresh: () => {}, newChat: () => {}, chatGeneration: 0, agents: null, error: "", query: "", hasMore: false, busy: false, moreAgents: () => {}, createAgent: () => {} });
 export const useAgentDirectory = () => useContext(DirectoryContext);
 
 export function AgentDirectory() {
@@ -66,9 +66,21 @@ export function AgentDirectory() {
     {agentCursor ? <Button variant="ghost" size="sm" onClick={() => void moreAgents()} disabled={busy}>Load more agents</Button> : null}
     {agentId ? <section className="conversation-directory"><div className="agent-directory-heading"><h2><History size={14} />Conversations</h2><Button aria-label="Start new conversation" title="New chat" size="icon" variant="ghost" onClick={newChat}><Plus size={16} /></Button></div><ErrorMessage value={historyError} />{historyLoading ? <div role="status" className="p-3 text-xs text-muted-foreground">Loading conversations…</div> : conversations.length ? <nav aria-label="Conversation history">{conversations.map(conversation => <Link key={conversation.id} to={`/app/agents/${agentId}/conversations/${conversation.id}`} onClick={() => setDirectoryOpen(false)} aria-current={conversationId === conversation.id ? "page" : undefined} className={`conversation-link ${conversationId === conversation.id ? "is-active" : ""}`}><span className="truncate">{conversation.title}</span></Link>)}</nav> : !historyError ? <p className="px-3 py-4 text-xs text-muted-foreground">No conversations yet</p> : null}{conversationCursor ? <Button size="sm" variant="ghost" onClick={() => void moreConversations()} disabled={busy}>Older conversations</Button> : null}</section> : null}
   </>;
-  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration }}><div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId ?? "overview"}><Outlet key={location.pathname.startsWith("/app/agents/") ? agentId : "overview"} /></div></div></div>
+  return <DirectoryContext.Provider value={{ refresh, newChat, chatGeneration, agents, error, query, hasMore: Boolean(agentCursor), busy, moreAgents: () => void moreAgents(), createAgent: () => setOpen(true) }}><div className={`agent-workspace ${configMode ? "is-configuring" : ""}`}><aside className="agent-directory">{configMode ? configurationDirectory : directory}</aside><div className="agent-content"><div className="agent-mobile-toolbar"><Button ref={directoryTrigger} variant="ghost" size="sm" onClick={() => setDirectoryOpen(true)}><ChevronLeft size={16} />Agents & history</Button></div><div className="agent-route" key={agentId ?? "overview"}><Outlet key={location.pathname.startsWith("/app/agents/") ? agentId : "overview"} /></div></div></div>
     <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}><DialogContent className="agent-directory-drawer" onCloseAutoFocus={event => { event.preventDefault(); directoryTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Agents & history</DialogTitle><DialogDescription className="sr-only">Choose an agent or conversation.</DialogDescription></DialogHeader>{directory}</DialogContent></Dialog>
     <GuidedAgentCreation key={`${session.account.id}.${organizationId}`} open={open || resumeSetup} onOpenChange={value => { setOpen(value); if (!value && resumeSetup) navigate(`/app/agents/${agentId}`,{replace:true}); }} organizationId={organizationId} resumeAgentId={resumeSetup ? agentId : undefined} onCreated={id => { refresh(); setOpen(false); setDirectoryOpen(false); navigate(`/app/agents/${id}`); }} onDraftCreated={refresh} />
   </DirectoryContext.Provider>;
 }
-export function AgentWelcome() { return <section className="agent-welcome"><span className="agent-welcome-icon"><Bot size={30} /></span><h1>What shall we work on?</h1><p>Select an agent to start a chat.</p></section>; }
+export function AgentWelcome() {
+  const { agents, error, query, hasMore, busy, moreAgents, createAgent, refresh } = useAgentDirectory();
+  return <section className="agent-overview">
+    <header className="agent-overview-header"><div><h1>Agents</h1><p>Overview</p></div><Button onClick={createAgent}><Plus size={16} /> Create agent</Button></header>
+    <div className="agent-overview-body">
+      <section aria-labelledby="overview-agents"><div className="agent-overview-section-heading"><h2 id="overview-agents">Your agents</h2></div>
+        {error ? <div className="agent-overview-state"><ErrorMessage value={error} /><Button variant="outline" size="sm" onClick={refresh}>Retry</Button></div> : !agents ? <Loading /> : agents.length ? <div className="agent-overview-list">{agents.map(agent => <Link key={agent.id} className="agent-overview-row" to={`/app/agents/${agent.id}`}><span className="agent-avatar"><Bot size={18} /></span><span className="agent-overview-name">{agent.name}</span><PiCaretRight size={16} aria-hidden="true" /></Link>)}</div> : <div className="agent-overview-state"><p>{query ? "No matching agents" : "No agents yet"}</p>{!query && <Button variant="outline" size="sm" onClick={createAgent}>Create agent</Button>}</div>}
+        {hasMore && !error && <Button variant="ghost" size="sm" disabled={busy} onClick={moreAgents}>Load more agents</Button>}
+      </section>
+      <section aria-labelledby="overview-workspace"><div className="agent-overview-section-heading"><h2 id="overview-workspace">Workspace</h2></div><div className="agent-overview-links">{([["/app/inbox", "Inbox", PiTray], ["/app/customers", "Customers", PiUsers], ["/app/connections", "Connections", PiPlugs]] as const).map(([url, label, Icon]) => <Link key={url} to={url}><Icon size={18} /><span>{label}</span><PiCaretRight size={15} aria-hidden="true" /></Link>)}</div></section>
+    </div>
+  </section>;
+}

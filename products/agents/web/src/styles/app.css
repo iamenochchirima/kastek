@@ -150,10 +150,22 @@
 .configuration-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
 .configuration-tabs button { padding: 7px 12px; border-radius: 6px; font-size: 12px; color: var(--muted-foreground); }
 .configuration-tabs button[aria-current="page"] { background: var(--muted); color: var(--foreground); font-weight: 500; }
-.agent-welcome { display: flex; flex: 1; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px; text-align: center; }
-.agent-welcome h1, .agent-welcome h2 { font-size: 24px; font-weight: 500; letter-spacing: -.035em; }
-.agent-welcome p { font-size: 13px; color: var(--muted-foreground); }
-.agent-welcome-icon { display: grid; place-items: center; width: 62px; height: 62px; background: var(--accent); color: var(--primary); border-radius: 18px; margin-bottom: 6px; }
+.agent-overview { height: 100%; overflow-y: auto; }
+.agent-overview-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 30px 36px; border-bottom: 1px solid var(--border); }
+.agent-overview-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+.agent-overview-header p { margin-top: 3px; color: var(--muted-foreground); font-size: 13px; }
+.agent-overview-body { display: grid; gap: 36px; max-width: 920px; padding: 32px 36px 56px; }
+.agent-overview-section-heading { margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+.agent-overview-list, .agent-overview-links { overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--card); }
+.agent-overview-row, .agent-overview-links a { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 16px; font-size: 13px; }
+.agent-overview-row + .agent-overview-row, .agent-overview-links a + a { border-top: 1px solid var(--border); }
+.agent-overview-row:hover, .agent-overview-links a:hover { background: var(--muted); }
+.agent-overview-row > svg:last-child, .agent-overview-links a > svg:last-child { margin-left: auto; flex-shrink: 0; color: var(--muted-foreground); }
+.agent-overview-name { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.agent-overview-links a { min-height: 48px; }
+.agent-overview-links a > svg:first-child { color: var(--muted-foreground); }
+.agent-overview-state { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 20px 0; color: var(--muted-foreground); font-size: 13px; }
+@media (max-width: 640px) { .agent-overview-header { padding: 24px 20px; } .agent-overview-body { gap: 28px; padding: 24px 20px 40px; } }
 .chat-workspace { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .chat-messages { flex: 1; overflow-y: auto; padding: 32px max(28px, calc((100% - 780px)/2)); min-height: 100px; scroll-behavior: smooth; }
 .chat-turn { padding-bottom: 30px; }
