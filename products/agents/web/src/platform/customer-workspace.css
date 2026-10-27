@@ -92,3 +92,53 @@
 @media (max-width: 1199px) {
   .customer-content.has-selection .customer-list-pane { display: none; }
 }
+
+/* Inbox keeps the queue and conversation together without nesting every item in a card. */
+.inbox-page > header { padding-bottom: 2px; }
+.inbox-heading-subtitle { margin-top: 4px; color: var(--muted-foreground); font-size: 13px; }
+.inbox-filters { margin-block: 20px 16px; align-items: center; }
+.inbox-layout { gap: 0; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); background: var(--background); }
+.inbox-list { padding: 0; background: var(--card); }
+.inbox-list-heading { display: flex; min-height: 54px; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+.inbox-list-heading span { color: var(--foreground); font-size: 13px; }
+.inbox-list > .space-y-2 { margin: 0; }
+.inbox-list > .space-y-2 > * + * { margin-top: 0; }
+.inbox-conversation { display: flex; min-height: 76px; align-items: flex-start; gap: 12px; padding: 15px 16px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; transition: background-color .15s; }
+.inbox-conversation.is-selected { background: var(--brand-soft); box-shadow: inset 3px 0 var(--brand); }
+.inbox-conversation-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--background); color: var(--muted-foreground); }
+.inbox-conversation.is-selected .inbox-conversation-icon { color: var(--brand); }
+.inbox-conversation-content { min-width: 0; flex: 1; }
+.inbox-conversation-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--foreground); font-size: 13px; font-weight: 600; }
+.inbox-conversation-title time { flex: none; color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+.inbox-conversation-meta { display: block; margin-top: 6px; color: var(--muted-foreground); font-size: 12px; }
+.inbox-conversation-meta span { padding: 0 2px; }
+.inbox-list > p { padding-inline: 18px; }
+.inbox-conversation-detail { padding: 22px 24px; }
+.inbox-detail-header h2 { font-size: 15px; font-weight: 600; }
+.inbox-detail-header > div:first-child { min-width: 0; }
+.inbox-message-scroll { padding: 14px 0; }
+.customer-messages { display: flex; flex-direction: column; gap: 16px; }
+.customer-messages article { width: fit-content; max-width: min(80%, 640px); margin: 0; padding: 12px 14px; }
+.customer-messages article:has(> p:first-child) { background: var(--muted); }
+.customer-messages article.bg-background { align-self: flex-end; background: var(--card); }
+@media (max-width: 767px) {
+  .inbox-layout { grid-template-columns: none; }
+  .inbox-conversation-detail { padding: 18px 16px; }
+  .customer-messages article { max-width: 92%; }
+}
+.inbox-detail-columns { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) minmax(200px, 250px); gap: 24px; }
+.inbox-context { grid-column: 2; grid-row: 1; min-width: 0; padding-left: 20px; border-left: 1px solid var(--border); }
+.inbox-context > h3 { margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+.inbox-context > dl { display: grid; gap: 14px; font-size: 12px; }
+.inbox-context > dl div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; }
+.inbox-context dt { color: var(--muted-foreground); }
+.inbox-context dd { overflow-wrap: anywhere; }
+.inbox-context section { padding-top: 16px; border-top: 1px solid var(--border); }
+.inbox-thread { display: flex; min-width: 0; flex-direction: column; grid-column: 1; grid-row: 1; }
+.inbox-thread > form { margin-top: auto; }
+@media (max-width: 1050px) {
+  .inbox-detail-columns { display: flex; flex-direction: column; gap: 16px; }
+  .inbox-context { padding: 0 0 16px; border-left: 0; border-bottom: 1px solid var(--border); }
+  .inbox-context > dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) { .inbox-context > dl { grid-template-columns: 1fr; } }
