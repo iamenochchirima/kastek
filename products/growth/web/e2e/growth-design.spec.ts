@@ -72,7 +72,7 @@ test("keeps operational overview data available while analytics loads or fails",
     await expect(postsAttention.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", "/content");
     await page.screenshot({ path: `${proofDirectory}/overview-analytics-loading.png`, fullPage: true, animations: "disabled" });
   } finally { release(); }
-  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Needs attention", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Recent campaigns", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Active campaigns", exact: false })).toBeVisible();
