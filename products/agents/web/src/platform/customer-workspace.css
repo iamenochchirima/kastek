@@ -55,6 +55,14 @@
 .customer-detail-main > dl dt { margin-bottom: 4px; }
 .customer-detail-main > details summary { color: var(--muted-foreground); }
 .customer-detail-columns h3 { font-size: 14px; font-weight: 600; }
+.customer-expand-detail { display: none; }
+.customer-detail-identity { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 12px; }
+.customer-detail-avatar { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font-size: 15px; font-weight: 600; }
+.enquiry-detail .customer-detail-main > section { border-bottom: 0; }
+.enquiry-detail .customer-detail-sidebar { order: -1; }
+.enquiry-detail .customer-detail-sidebar > section { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.enquiry-detail .customer-detail-sidebar > section > dl { grid-template-columns: 1fr; }
+.enquiry-detail .customer-detail-sidebar > section > dl > div { grid-column: auto; }
 @media (max-width: 900px) { .customer-detail-columns { grid-template-columns: 1fr; } }
 .customer-content { min-width: 0; }
 .customer-list-pane { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
@@ -62,9 +70,15 @@
 .customer-detail-pane > button:first-child { margin-bottom: 16px; }
 .customer-table tr.is-selected { background: var(--brand-soft); }
 @media (min-width: 1200px) {
+  .customer-expand-detail { display: inline-flex; }
   .customer-content.has-selection { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; gap: 24px; }
   .customer-detail-pane { padding-left: 20px; border-left: 1px solid var(--border); }
   .customer-detail-pane .customer-detail-columns { grid-template-columns: 1fr; }
+  .customer-content.has-enquiry-full { display: block; }
+  .customer-content.has-enquiry-full .customer-list-pane { display: none; }
+  .customer-content.has-enquiry-full .customer-detail-pane { padding-left: 0; border-left: 0; }
+  .customer-content.has-enquiry-full .customer-detail-columns { grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); }
+  .customer-content.has-enquiry-full .customer-detail-sidebar { order: 0; }
 }
 @media (max-width: 1199px) {
   .customer-content.has-selection .customer-list-pane { display: none; }

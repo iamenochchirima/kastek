@@ -123,6 +123,11 @@ for (const width of [1440, 768, 390])
     if (width >= 1200) {
       await expect(list).toBeVisible();
       await expect(page.getByRole("region", { name: "Enquiry details" })).toBeVisible();
+      await page.getByRole("button", { name: "Expand", exact: true }).click();
+      await expect(list).toBeHidden();
+      await page.screenshot({ path: test.info().outputPath("customer-expanded.png"), fullPage: true });
+      await page.getByRole("button", { name: "Show list", exact: true }).click();
+      await expect(list).toBeVisible();
     } else {
       await expect(list).toBeHidden();
     }

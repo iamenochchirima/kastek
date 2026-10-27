@@ -112,6 +112,7 @@ export function CustomersPage() {
   const view = params.get("view") === "contacts" ? "contacts" : "enquiries",
     selected = params.get("enquiry") ?? "",
     selectedContact = params.get("contact") ?? "";
+  const [fullEnquiry, setFullEnquiry] = useState(false);
   const [search, setSearch] = useState(params.get("search") ?? ""),
     [status, setStatus] = useState(params.get("status") ?? ""),
     [assigned, setAssigned] = useState(params.get("assigned") ?? ""),
@@ -597,7 +598,7 @@ export function CustomersPage() {
           </Button>
         </div>
       ) : null}
-      <div className={`customer-content${selectedContact || selected ? " has-selection" : ""}`}>
+      <div className={`customer-content${selectedContact || selected ? " has-selection" : ""}${selected && !selectedContact && fullEnquiry ? " has-enquiry-full" : ""}`}>
         <div className="customer-list-pane">
         <>
           <form className="customer-filters flex flex-wrap items-end gap-3" onSubmit={filters}>
@@ -783,7 +784,7 @@ export function CustomersPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate({ enquiry: "" })}
+            onClick={() => { setFullEnquiry(false); navigate({ enquiry: "" }); }}
           >
             ← Enquiries
           </Button>
@@ -793,14 +794,24 @@ export function CustomersPage() {
             <fieldset disabled={busy || pendingUpdate} className="min-w-0">
               <article className="customer-detail enquiry-detail space-y-6">
                 <header className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold break-words">
-                      {detail.fields.name || detail.fields.service || "Enquiry"}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {statusLabels[detail.status]} · {date(detail.createdAt)}
-                    </p>
+                  <div className="customer-detail-identity">
+                    <span className="customer-detail-avatar" aria-hidden="true">
+                      {(detail.fields.name || detail.fields.service || "E").trim().slice(0, 1).toUpperCase()}
+                    </span>
+                    <div>
+                      <h2 className="text-xl font-semibold break-words">
+                        {detail.fields.name || detail.fields.service || "Enquiry"}
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {date(detail.createdAt)}
+                      </p>
+                    </div>
+                    <span className={`customer-status customer-status-${detail.status}`}>{statusLabels[detail.status]}</span>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                  <Button className="customer-expand-detail" variant="outline" size="sm" onClick={() => setFullEnquiry(!fullEnquiry)}>
+                    {fullEnquiry ? "Show list" : "Expand"}
+                  </Button>
                   {canManage ? (
                     <Button
                       disabled={busy}
@@ -813,25 +824,37 @@ export function CustomersPage() {
                       Edit details
                     </Button>
                   ) : null}
+                  </div>
                 </header>
                 <div className="customer-detail-columns">
                   <div className="customer-detail-main">
-                <FieldList fields={detail.fields} />
-                {detail.originalFields ? (
-                  <details className="border-t pt-4">
-                    <summary className="cursor-pointer text-sm">
-                      Original submission
-                    </summary>
-                    <div className="mt-4">
-                      <FieldList fields={detail.originalFields} />
-                    </div>
-                  </details>
-                ) : null}
                 <section
                   className="border-t pt-4 space-y-4"
                   aria-label="Internal activity"
                 >
                   <h3 className="font-medium">Internal activity</h3>
+                  <ol className="space-y-4">
+                    {activity.map((item) => (
+                      <li key={item.id} className="border-l-2 pl-3 text-sm">
+                        <p className="capitalize">
+                          {label(item.kind)}{" "}
+                          <span className="text-muted-foreground normal-case">
+                            · {date(item.createdAt)} ·{" "}
+                            {members.find(
+                              (member) =>
+                                member.accountId === item.actorAccountId,
+                            )?.name ??
+                              (item.actorAccountId ? "Staff member" : "System")}
+                          </span>
+                        </p>
+                        {item.body ? (
+                          <p className="mt-1 whitespace-pre-wrap break-words">
+                            {item.body}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
                   {canManage ? (
                     <form
                       className="space-y-3"
@@ -856,28 +879,6 @@ export function CustomersPage() {
                       </Button>
                     </form>
                   ) : null}
-                  <ol className="space-y-4">
-                    {activity.map((item) => (
-                      <li key={item.id} className="border-l-2 pl-3 text-sm">
-                        <p className="capitalize">
-                          {label(item.kind)}{" "}
-                          <span className="text-muted-foreground normal-case">
-                            · {date(item.createdAt)} ·{" "}
-                            {members.find(
-                              (member) =>
-                                member.accountId === item.actorAccountId,
-                            )?.name ??
-                              (item.actorAccountId ? "Staff member" : "System")}
-                          </span>
-                        </p>
-                        {item.body ? (
-                          <p className="mt-1 whitespace-pre-wrap break-words">
-                            {item.body}
-                          </p>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ol>
                   {activityCursor ? (
                     <Button
                       variant="outline"
@@ -890,6 +891,16 @@ export function CustomersPage() {
                 </section>
                   </div>
                   <div className="customer-detail-sidebar">
+                <section className="space-y-4" aria-label="Enquiry properties">
+                  <h3 className="font-medium">Properties</h3>
+                  <FieldList fields={detail.fields} />
+                  {detail.originalFields ? (
+                    <details>
+                      <summary className="cursor-pointer text-sm text-muted-foreground">Original submission</summary>
+                      <div className="mt-4"><FieldList fields={detail.originalFields} /></div>
+                    </details>
+                  ) : null}
+                </section>
                 <section
                   className="border-t pt-4 space-y-3"
                   aria-label="Source"
