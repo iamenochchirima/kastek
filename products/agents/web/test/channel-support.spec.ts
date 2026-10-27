@@ -3,7 +3,7 @@ test.setTimeout(20000);
 test.use({launchOptions:{channel:"chromium-headless-shell"}});
 const base="/api/organizations/org/inbox/conversation";
 async function fixture(page:Page,assigned=true,lost=false,mediaLost=false){
-  const calls:{path:string;body:any}[]=[],errors:string[]=[];let granted=false,consentRevision=0,replyLost=lost;
+  const calls:{path:string;body:Record<string, unknown> | null}[]=[],errors:string[]=[];let granted=false,consentRevision=0,replyLost=lost;
   const conversation={id:"conversation",agentId:"agent",agentName:"Support",deploymentId:null,versionId:"version",channel:"whatsapp",state:"human_owned",assigneeAccountId:assigned?"owner":"other",revision:"7",ownershipGeneration:"1",createdAt:"2026-10-21T10:00:00Z",updatedAt:"2026-10-21T10:00:00Z"};
   const messages=[{id:"visitor",sequence:"1",authorKind:"visitor",body:"Yes, send my appointment updates",createdAt:conversation.createdAt,channelFacts:{attachments:[{kind:"document",fileName:"appointment.pdf",index:0}]}},{id:"reply",sequence:"2",authorKind:"human",body:"Previous reply",createdAt:conversation.createdAt,deliveries:[{id:"unknown",segment:0,state:"unknown",reason:null}]}];
   page.on("pageerror",error=>errors.push(error.message));
@@ -32,7 +32,7 @@ test("exact template preview requires explicit evidenced consent and sends only 
   const f=await fixture(page);await choose(page);await expect(page.getByRole("button",{name:"Send template"})).toBeDisabled();
   await expect(page.getByLabel("Template preview")).toHaveText("Hello Ada <img src=x>\n\nYour booking is confirmed at 09:00.\n\nContact support for changes.");expect(await page.locator("img").count()).toBe(0);
   await optIn(page);await page.getByRole("button",{name:"Send template"}).click();const sent=f.calls.find(call=>call.path.endsWith("/template-reply"))!;
-  expect(sent.body).toMatchObject({expectedRevision:"7",templateId:"approved",parameters:{header:["Ada <img src=x>"],body:["confirmed","09:00"]}});expect(Object.keys(sent.body).sort()).toEqual(["commandId","expectedRevision","parameters","templateId"]);expect(f.errors).toEqual([]);
+  expect(sent.body).toMatchObject({expectedRevision:"7",templateId:"approved",parameters:{header:["Ada <img src=x>"],body:["confirmed","09:00"]}});expect(Object.keys(sent.body!).sort()).toEqual(["commandId","expectedRevision","parameters","templateId"]);expect(f.errors).toEqual([]);
 });
 test("unknown recovery requires explicit confirmation and never resends; attachments are secure links",async({page})=>{
   const f=await fixture(page);await page.getByText("Attachments",{exact:true}).click();const link=page.getByRole("link",{name:"appointment.pdf"});await expect(link).toHaveAttribute("href",`${base}/messages/visitor/attachments/0`);await expect(link).toHaveAttribute("target","_blank");
@@ -52,7 +52,7 @@ test("lost template acknowledgement retains original command on explicit retry",
 test("canonical media reply preserves source, nonce and original revision across lost acknowledgement reload",async({page})=>{
   const f=await fixture(page,true,false,true);await page.getByText("Attachments",{exact:true}).click();
   await page.getByRole("button",{name:"Reply with attachment",exact:true}).click();await expect(page.getByRole("alert").filter({hasText:"Media acknowledgement lost"})).toBeVisible();
-  const first=f.calls.find(call=>call.path.endsWith("/media-reply"))!;expect(first.body).toMatchObject({sourceMessageId:"visitor",index:0,expectedRevision:"7"});expect(Object.keys(first.body).sort()).toEqual(["commandId","expectedRevision","index","sourceMessageId"]);
+  const first=f.calls.find(call=>call.path.endsWith("/media-reply"))!;expect(first.body).toMatchObject({sourceMessageId:"visitor",index:0,expectedRevision:"7"});expect(Object.keys(first.body!).sort()).toEqual(["commandId","expectedRevision","index","sourceMessageId"]);
   expect(await page.evaluate(()=>sessionStorage.getItem("agents.channel-media.owner.org.conversation"))).not.toBeNull();
   await page.reload();await page.getByRole("button",{name:/Support.*WhatsApp/}).click();await page.getByText("Attachments",{exact:true}).click();
   await expect(page.getByText("An attachment reply awaits acknowledgement. Retry the same attachment to check its outcome.",{exact:true})).toBeVisible();
