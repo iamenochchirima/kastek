@@ -21,9 +21,26 @@ export function InboxHandoff({ conversation, accountId, owner, members, busy, pe
   members: Member[];
   busy: boolean;
   pending: boolean;
-  onCommand(action: Action, extra?: { assigneeAccountId: string }): void;
+  onCommand(action: Action, extra?: { assigneeAccountId: string }): Promise<boolean>;
 }) {
   const [assignee, setAssignee] = useState("");
+  const section = useRef<HTMLElement>(null);
+  async function moveAfterCommand(action: "claim" | "takeover" | "return", origin: HTMLElement) {
+    const startedFocused = document.activeElement === origin;
+    let movedElsewhere = false;
+    const observeFocus = (event: FocusEvent) => {
+      if (event.target !== origin && event.target !== document.body) movedElsewhere = true;
+    };
+    document.addEventListener("focusin", observeFocus);
+    try {
+      const succeeded = await onCommand(action);
+      if (!succeeded || !startedFocused) return;
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      if (movedElsewhere || !section.current || (document.activeElement !== origin && document.activeElement !== document.body)) return;
+      const target = action === "takeover" ? document.getElementById("inbox-reply") : section.current.querySelector<HTMLElement>('[data-handoff-focus="takeover"]');
+      target?.focus();
+    } finally { document.removeEventListener("focusin", observeFocus); }
+  }
   const { organizationId } = useWorkspace();
   const [query, setQuery] = useState(""), [search, setSearch] = useState("");
   const [options, setOptions] = useState<Member[]>([]), [cursor, setCursor] = useState<string | null>(null);
@@ -54,12 +71,12 @@ export function InboxHandoff({ conversation, accountId, owner, members, busy, pe
   const title = state === "handoff_pending" ? "Waiting for a person" : state === "human_owned" ? "Human support" : state === "resolved" ? "Conversation resolved" : "Automation active";
   const detail = state === "human_owned" ? mine ? "Assigned to you" : `Assigned to ${name}` : assigneeAccountId ? mine ? "Assigned to you" : `Assigned to ${name}` : "Unassigned";
 
-  return <section className={`inbox-handoff inbox-handoff--${state}`} aria-label="Conversation ownership">
+  return <section ref={section} className={`inbox-handoff inbox-handoff--${state}`} aria-label="Conversation ownership">
     <div className="inbox-handoff-summary"><span className="inbox-handoff-icon" aria-hidden="true"><HugeiconsIcon icon={UserGroupIcon} size={18} /></span><div><h3>{title}</h3><p>{detail}</p></div></div>
     <div className="inbox-handoff-actions">
-      {!assigneeAccountId ? <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCommand("claim")}>Assign to me</Button> : null}
-      {mine && state !== "human_owned" && state !== "resolved" ? <Button size="sm" disabled={disabled} onClick={() => onCommand("takeover")}>Take over</Button> : null}
-      {mine && (state === "human_owned" || state === "handoff_pending") ? <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCommand("return")}>Return to automation</Button> : null}
+      {!assigneeAccountId ? <Button size="sm" variant="outline" disabled={disabled} onClick={event => void moveAfterCommand("claim", event.currentTarget)}>Assign to me</Button> : null}
+      {mine && state !== "human_owned" && state !== "resolved" ? <Button size="sm" disabled={disabled} data-handoff-focus="takeover" onClick={event => void moveAfterCommand("takeover", event.currentTarget)}>Take over</Button> : null}
+      {mine && (state === "human_owned" || state === "handoff_pending") ? <Button size="sm" variant="outline" disabled={disabled} onClick={event => void moveAfterCommand("return", event.currentTarget)}>Return to automation</Button> : null}
       {mine && state !== "resolved" ? <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCommand("resolve")}>Resolve</Button> : null}
       {mine && state === "resolved" ? <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCommand("reopen")}>Reopen</Button> : null}
       {(owner || mine) && assigneeAccountId ? <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onCommand("unassign")}>Unassign</Button> : null}
