@@ -205,8 +205,9 @@ The public root restores the landing page. Sign in and Get started use the confi
 identity provider; registration requires email verification. A signed, transaction-bound
 return destination preserves internal application links through login.
 
-The workspace sidebar contains Inbox, Agents, Tasks, Knowledge, Connections, Automations
-and Settings. Creation exposes one customer-service offering with selectable responsibilities.
+The workspace sidebar contains Agents, Inbox, Customers, Tasks, Knowledge, Connections,
+Automations and Settings. Creation exposes one customer-service offering with selectable
+responsibilities.
 The conditional appointment step binds an authorized Google or Microsoft calendar policy.
 Every runnable business agent opens Chat,
 with Activity and Configure tabs.

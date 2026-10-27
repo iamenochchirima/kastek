@@ -31,9 +31,9 @@ operator limits, verification scope, and remaining work.
 
 Owner: Agents engineering. Last reviewed: 2026-10-23.
 
-The standalone product targets customer-service, FAQ, booking, and intake agents across customer
-channels, with a shared inbox for staff support. Research and campaign experiences belong in
-Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
+The standalone product offers a customer-service agent with selectable question answering, support,
+booking and enquiry responsibilities across customer channels, with a shared inbox for staff
+support. Research and campaign experiences belong in Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
 define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
 are implemented. Google Calendar booking is implemented through explicit owner policy and exact customer confirmation.
 Connections now includes setup and agent binding for WhatsApp, Telegram, Messenger and Instagram,

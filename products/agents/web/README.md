@@ -28,12 +28,17 @@ opaque HTTP-only product session, never a service or model credential.
 ## Product paths
 
 - `/login`: provider sign-in.
-- `/app/agents`: workspace selection and agent creation.
-- `/app/agents/:agentId`: configuration, private Test and explicit Publish.
+- `/app/agents`: agent directory and guided customer-service setup.
+- `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and website setup.
+- `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
+- `/app/inbox`: customer conversations, assignment, human replies and handoff.
+- `/app/customers`: enquiry and contact records, follow-up and activity.
 - `/app/knowledge`: private imports, candidate review, revision approval and withdrawal.
-- `/app/connections`: scoped report/GitHub credentials and selected API/MCP tools.
+- `/app/connections`: customer channels, provider accounts and selected API/MCP tools.
 - `/app/automations`: pinned UTC/event occurrences and report reviewer controls.
+- `/app/tasks`: authorized tasks, filters and conversation or review links.
 - `/app/tasks/:taskId`: operation activity, citations, child/resource state and exact report review.
+- `/app/settings`: account, workspace, model providers and theme preferences.
 - `/chat/:deploymentId`: anonymous chat for an explicitly published version.
 
 Saving a draft and testing a version never change a publication. Website
