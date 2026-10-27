@@ -14,7 +14,7 @@ export function inboxConversation(row: CustomerConversation) {
   return { id: row.id, agentId: row.agent_id, deploymentId: row.deployment_id, versionId: row.version_id, channel: row.channel_kind ?? "website",
     channelDeploymentId: row.channel_deployment_id, externalConversationId: row.external_conversation_id,
     connectionId:channel.connection_id??null,connectionName:channel.connection_name??null,assetId:channel.asset_id??null,
-    state: row.state, assigneeAccountId: row.assignee_account_id, revision: row.revision, ownershipGeneration: row.ownership_generation,
+    state: row.state, assigneeAccountId: row.assignee_account_id, assigneeDisplayName: row.assignee_display_name ?? null, revision: row.revision, ownershipGeneration: row.ownership_generation,
     createdAt: row.created_at, updatedAt: row.updated_at, agentName: (row as CustomerConversation & { agent_name?: string }).agent_name,
     customerName: row.customer_name ?? null, customerContactId: row.customer_contact_id ?? null,
     lastMessage: row.last_message_body != null && row.last_message_author_kind && row.last_message_created_at
@@ -44,7 +44,11 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
     const result = await options.inbox.list(scope, filters);
     return { conversations: result.items.map(inboxConversation), nextCursor: result.nextCursor };
   });
-  app.get(`${base}/members`, async request => ({ members: (await options.inbox.members(await options.resolveScope(request))).map(row => ({ id: row.id, displayName: row.display_name })) }));
+  app.get(`${base}/members`, async request => {
+    const filters=z.object({search:z.string().trim().max(200).optional(),cursor:z.string().min(1).max(2048).optional(),limit:z.coerce.number().int().min(1).max(200).default(200)}).parse(request.query);
+    const result=await options.inbox.members(await options.resolveScope(request),filters);
+    return {members:result.items.map(row=>({id:row.id,displayName:row.display_name})),nextCursor:result.nextCursor};
+  });
   app.get(`${base}/:conversationId`, async request => {
     const scope = await options.resolveScope(request), { conversationId } = params(request), input = page.parse(request.query), result = await options.inbox.readStaff(scope, conversationId, input.after, input.limit, input.before);
     const hasBookings=!!(await options.inbox.pool.query(`SELECT 1 FROM agents_platform.customer_task_links l

@@ -107,6 +107,24 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE organization_id=$1 AND account_id=$2", [f.org.id, f.member.id]);
     await expect(inbox.readStaff({ ...f.scope, accountId: f.member.id }, f.conversation.id)).rejects.toMatchObject({ code: "INBOX_ACCESS_DENIED" });
   });
+  it("pages and searches active teammates beyond the first 200", async () => {
+    const f=await fixture();
+    await pool.query(`WITH added AS (
+      INSERT INTO agents_platform.accounts(id,issuer,subject,email,display_name)
+      SELECT gen_random_uuid(),'https://team.test',gen_random_uuid()::text,'member@example.test', 'Member ' || n FROM generate_series(1,205) n RETURNING id
+    ) INSERT INTO agents_platform.memberships(organization_id,account_id,role) SELECT $1,id,'member' FROM added`,[f.org.id]);
+    const first=await inbox.members(f.scope,{limit:200});expect(first.items).toHaveLength(200);expect(first.nextCursor).toBeTruthy();
+    const second=await inbox.members(f.scope,{limit:200,cursor:first.nextCursor!});expect(second.items).toHaveLength(7);
+    expect(new Set([...first.items,...second.items].map(row=>row.id)).size).toBe(207);
+    const found=await inbox.members(f.scope,{search:"member 205",limit:50});expect(found.items.map(row=>row.display_name)).toEqual(["Member 205"]);
+    await command(f,"assign",{assigneeAccountId:found.items[0]!.id});
+    expect((await inbox.list(f.scope,{limit:30})).items[0]?.assignee_display_name).toBe("Member 205");
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.assignee_display_name).toBe("Member 205");
+    await expect(inbox.members(f.scope,{search:"member",cursor:first.nextCursor!})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+    await expect(inbox.members({...f.scope,accountId:f.outsider.id},{})).rejects.toMatchObject({code:"INBOX_ACCESS_DENIED"});
+    await pool.query("UPDATE agents_platform.memberships SET revoked_at=now() WHERE organization_id=$1 AND account_id=$2",[f.org.id,found.items[0]!.id]);
+    expect((await inbox.members(f.scope,{search:"member 205"})).items).toHaveLength(0);
+  });
   it("allows exactly one racing assignment claim", async () => {
     const f = await fixture(), results = await Promise.allSettled([f.owner.id, f.member.id].map(accountId => inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: "1", action: "claim" })));
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);

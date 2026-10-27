@@ -12,13 +12,13 @@ const channels = { website: "Website", whatsapp: "WhatsApp", telegram: "Telegram
 const channelIcons = { website: Globe02Icon, whatsapp: WhatsappIcon, telegram: TelegramIcon, facebook: Facebook01Icon, instagram: InstagramIcon };
 const statuses = { automation_active: "Automated", handoff_pending: "Needs a person", human_owned: "With support", resolved: "Resolved" };
 
-export function InboxQueue({ items, selected, search, error, hasMore, onSearch, onSelect, onRetry, onMore }: {
-  items: QueueItem[] | null; selected: string; search: string; error: string; hasMore: boolean;
+export function InboxQueue({ items, selected, search, filtered, error, hasMore, onSearch, onSelect, onRetry, onMore }: {
+  items: QueueItem[] | null; selected: string; search: string; filtered: boolean; error: string; hasMore: boolean;
   onSearch(value: string): void; onSelect(id: string): void; onRetry(): void; onMore(): void;
 }) {
   return <aside aria-label="Customer conversations" className={`${selected ? "hidden md:block" : ""} inbox-list min-w-0`}>
     <div className="inbox-queue-heading"><h2>Conversations</h2><label className="inbox-queue-search"><HugeiconsIcon icon={Search01Icon} size={17} aria-hidden="true" /><Input aria-label="Search conversations" placeholder="Search conversations" value={search} onChange={event => onSearch(event.target.value)} /></label></div>
-    {items && error ? <ErrorMessage value={error} /> : null}
+    {items && error ? <div className="space-y-2 p-3"><ErrorMessage value={error} /><Button size="sm" variant="outline" onClick={onRetry}>Retry</Button></div> : null}
     {!items ? error ? <div className="space-y-3 p-3"><ErrorMessage value={error} /><Button size="sm" variant="outline" onClick={onRetry}>Retry</Button></div> : <Loading /> : items.length ? <div className="inbox-queue-items">{items.map(item => {
       const customer = item.customerName?.trim();
       const preview = item.lastMessage?.body.trim();
@@ -28,7 +28,7 @@ export function InboxQueue({ items, selected, search, error, hasMore, onSearch, 
           <span className="inbox-queue-preview">{preview || (item.lastMessage ? "Message" : "No messages yet")}</span>
         </span><span className="inbox-queue-channel" aria-label={channels[item.channel]}><HugeiconsIcon icon={channelIcons[item.channel]} size={18} aria-hidden="true" /></span><span className="inbox-queue-end"><time dateTime={item.updatedAt}>{new Date(item.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time><span className={`inbox-queue-status status-${item.state}`}>{statuses[item.state]}</span></span>
       </button>;
-    })}</div> : <p className="inbox-queue-empty">{search.trim() ? "No matching conversations" : "No customer conversations"}</p>}
+    })}</div> : <p className="inbox-queue-empty">{search.trim() || filtered ? "No matching conversations" : "No customer conversations"}</p>}
     {hasMore ? <Button variant="ghost" className="m-3" onClick={onMore}>Load more conversations</Button> : null}
   </aside>;
 }

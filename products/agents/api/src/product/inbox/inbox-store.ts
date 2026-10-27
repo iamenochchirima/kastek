@@ -20,7 +20,7 @@ export interface CustomerConversation {
   execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
   assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
   return_watermark: string; created_at: Date; updated_at: Date;
-  customer_name?: string | null; customer_contact_id?: string | null; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
+  customer_name?: string | null; customer_contact_id?: string | null; assignee_display_name?: string | null; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
   last_message_id?: string | null; last_message_task_id?: string | null;
 }
 // A conversation can have multiple enquiries; only expose a name when they resolve to one contact.
@@ -56,8 +56,9 @@ export class InboxStore {
     return row?.role ?? denied();
   }
   private async conversation(db: Db, id: string, lock = false): Promise<CustomerConversation> {
-    return (await db.query<CustomerConversation>(`SELECT c.*,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id FROM agents_platform.customer_conversations c
+    return (await db.query<CustomerConversation>(`SELECT c.*,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name FROM agents_platform.customer_conversations c
       LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+      LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
       ${customerIdentityJoin}
       WHERE c.id=$1 ${lock ? "FOR UPDATE OF c" : ""}`, [id])).rows[0] ?? absent();
   }
@@ -180,9 +181,10 @@ export class InboxStore {
       const search = filters.search?.trim() || null;
       const scopeKey = { kind: "customer-inbox-v3", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null, search };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
-      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,
+      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
         last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+        LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
         LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
@@ -207,7 +209,20 @@ export class InboxStore {
       return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
   }
-  async members(scope: InboxScope) { return transaction(this.pool, async db => { await this.membership(db, scope); return (await db.query(`SELECT a.id,a.display_name FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL ORDER BY a.display_name,a.id LIMIT 200`, [scope.organizationId])).rows; }); }
+  async members(scope: InboxScope, filters: {search?: string; cursor?: string; limit?: number} = {}) {
+    return transaction(this.pool, async db => {
+      await this.membership(db, scope);
+      const search=filters.search?.trim() || null, limit=filters.limit ?? 200;
+      const key={kind:"inbox-members-v1",...scope,search}, anchor=this.cursors.read(filters.cursor,key);
+      const rows=(await db.query<{id:string;display_name:string}>(`SELECT a.id,a.display_name FROM agents_platform.memberships m
+        JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL
+        AND a.created_at<=$2::timestamptz AND ($3::uuid IS NULL OR a.id>$3)
+        AND ($4::text IS NULL OR strpos(lower(a.display_name),lower($4))>0)
+        ORDER BY a.id LIMIT $5`,[scope.organizationId,anchor.snapshot,anchor.id || null,search,limit+1])).rows;
+      const items=rows.slice(0,limit), last=items.at(-1);
+      return {items,nextCursor:rows.length>limit && last ? this.cursors.next({snapshot:anchor.snapshot,position:last.id,id:last.id},key):null};
+    });
+  }
   async command(scope: InboxScope, id: string, input: InboxCommand, preparedDelivery?:PreparedChannelDelivery, sourceDigest?:string) {
     const result = await transaction(this.pool, async db => {
       const role = await this.membership(db, scope), row = await this.conversation(db, id, true); if (row.organization_id !== scope.organizationId) denied();

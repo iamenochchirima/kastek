@@ -480,6 +480,10 @@ Inbox conversation lists order by `updated_at DESC, id DESC` using the existing 
 index. Shared versioned cursors retain the exact timestamp and identity and bind the workspace,
 actor and filters; they do not look up mutable anchor rows. An activity change after the cursor
 snapshot appears on a fresh list read.
+The web queue refreshes its loaded window while visible, and selected conversations are reflected
+in the URL. Owners can search and page through workspace members when assigning a conversation.
+The conversation response includes the authorized assignee's display name even when that member
+is outside the current picker page.
 
 The Inbox queue includes the latest message preview, bounded to 500 characters. Assistant output
 is checked against current evidence access before it is displayed. Customer names and record links

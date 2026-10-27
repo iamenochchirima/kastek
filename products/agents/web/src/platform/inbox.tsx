@@ -14,7 +14,7 @@ import { ChannelSupport } from "./channel-support";
 import { ErrorMessage, Loading, useWorkspace } from "./shell";
 
 export type InboxConversation = { customerName?: string | null; customerContactId?: string | null; lastMessage?: { body: string; authorKind: string; createdAt: string } | null; hasBookings?: boolean; id: string; agentId: string; agentName?: string; deploymentId: string | null; channelDeploymentId?: string | null; externalConversationId?: string | null; connectionId?: string | null; connectionName?: string | null; assetId?: string | null; versionId: string;
-  channel: "website" | "whatsapp" | "telegram" | "facebook" | "instagram"; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved"; assigneeAccountId: string | null;
+  channel: "website" | "whatsapp" | "telegram" | "facebook" | "instagram"; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved"; assigneeAccountId: string | null; assigneeDisplayName?: string | null;
   revision: string; ownershipGeneration: string; createdAt: string; updatedAt: string };
 type ChannelDelivery = { id:string;segment:number;state:"pending"|"sending"|"accepted"|"sent"|"delivered"|"read"|"failed"|"unknown"|"suppressed";reason:string|null };
 export type CustomerMessage = { channelFacts?:{occurredAt:string|null;replyToProviderMessageId:string|null;attachments:{kind:string;fileName?:string;index:number}[]};deliveries?:ChannelDelivery[]; id: string; sequence: string; authorKind: "visitor" | "human" | "assistant"; body: string; createdAt: string; authorAccountId?: string; taskId?: string };
@@ -33,7 +33,7 @@ export function HistoryNavigation({ timeline, earlier, latest, onEarlier, onLate
 export function InboxPage() {
   const { organizationId, session } = useWorkspace(), base = `${organizationPath(organizationId)}/inbox`;
   const [items, setItems] = useState<InboxConversation[] | null>(null), [cursor, setCursor] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedConversation = searchParams.get("conversation");
   const [selected, setSelected] = useState(searchParams.get("conversation") ?? ""), [timeline, setTimeline] = useState<CustomerTimeline | null>(null), [members, setMembers] = useState<{ id: string; displayName: string }[]>([]);
   const [connectionId,setConnectionId]=useState(""),[connections,setConnections]=useState<{id:string;name:string;kind:string}[]>([]);
@@ -43,20 +43,52 @@ export function InboxPage() {
   const [error, setError] = useState(""), [listError, setListError] = useState(""), [timelineError, setTimelineError] = useState(""), [busy, setBusy] = useState(false), [body, setBody] = useState("");
   const [pending, setPending] = useState<Command | null>(null);
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([]), [agentCursor, setAgentCursor] = useState<string | null>(null);
-  useEffect(() => { if (requestedConversation) setSelected(requestedConversation); }, [requestedConversation]);
+  useEffect(() => { setSelected(requestedConversation ?? ""); setBefore(null); pageRef.current = null; historyRequest.current++; }, [requestedConversation]);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const [before, setBefore] = useState<string | null>(null), pageRef = useRef(before), historyRequest = useRef(0);
   pageRef.current = before;
   function historyPage(value: string | null) { pageRef.current = value; historyRequest.current++; setTimeline(null); setBefore(value); }
+  function selectConversation(id: string) {
+    selectedRef.current = id; setSelected(id); historyPage(null); setError("");
+    setSearchParams(previous => { const next = new URLSearchParams(previous); if (id) next.set("conversation", id); else next.delete("conversation"); return next; });
+  }
   const path = `${base}?${new URLSearchParams({ ...(connectionId ? { connectionId } : {}), ...(channel ? { channel } : {}), ...(state ? { state } : {}), ...(agentId ? { agentId } : {}), ...(assigned ? { assigned } : {}), ...(search ? { search } : {}) })}`;
   const pathRef = useRef(path); pathRef.current = path;
+  const itemsRef = useRef(items); itemsRef.current = items;
+  const cursorRef = useRef(cursor); cursorRef.current = cursor;
+  const listRequest = useRef(0);
+  const loadingMore = useRef(false);
+  const pollingList = useRef(false);
   const pendingKey = `agents.inbox.pending.${session.account.id}.${organizationId}.${selected}`;
   const draftKey = `agents.inbox.draft.${session.account.id}.${organizationId}.${selected}`;
   const owner = session.organizations.find(org => org.id === organizationId)?.role === "owner";
   const mine = timeline?.conversation.assigneeAccountId === session.account.id;
   async function loadList(more = false) {
-    const expected = path; const result = await api<{ conversations: InboxConversation[]; nextCursor: string | null }>(path + (more && cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""));
-    if (pathRef.current !== expected) return; setItems(old => more ? [...new Map([...old ?? [], ...result.conversations].map(item => [item.id, item])).values()] : result.conversations); setCursor(result.nextCursor); setListError("");
+    if (more && loadingMore.current) return;
+    const expected = path, request = ++listRequest.current;
+    const current = () => pathRef.current === expected && listRequest.current === request;
+    if (more) {
+      const next = cursorRef.current;
+      if (!next) return;
+      loadingMore.current = true;
+      try {
+        const result = await api<{ conversations: InboxConversation[]; nextCursor: string | null }>(`${expected}&cursor=${encodeURIComponent(next)}`);
+        if (!current()) return;
+        const merged = [...new Map([...(itemsRef.current ?? []), ...result.conversations].map(item => [item.id, item])).values()];
+        itemsRef.current = merged; cursorRef.current = result.nextCursor; setItems(merged); setCursor(result.nextCursor); setListError("");
+      } finally { loadingMore.current = false; }
+      return;
+    }
+    // Rebuild the loaded window with one fresh cursor chain, so refresh never
+    // combines pages from different snapshots or drops pages already opened.
+    const target = Math.max(1, itemsRef.current?.length ?? 0);
+    const collected: InboxConversation[] = []; let next: string | null = null;
+    do {
+      const result: { conversations: InboxConversation[]; nextCursor: string | null } = await api(expected + (next ? `&cursor=${encodeURIComponent(next)}` : ""));
+      if (!current()) return;
+      collected.push(...result.conversations); next = result.nextCursor;
+    } while (next && collected.length < target);
+    itemsRef.current = collected; cursorRef.current = next; setItems(collected); setCursor(next); setListError("");
   }
   async function loadConversation(id: string) {
     const expectedPage = pageRef.current, request = ++historyRequest.current;
@@ -66,7 +98,24 @@ export function InboxPage() {
       if (current()) { setTimeline(result); setTimelineError(""); }
     } catch (error) { if (current()) { setTimeline(null); throw error; } }
   }
-  useEffect(() => { let live = true; setItems(null); setCursor(null); setListError(""); api<{ conversations: InboxConversation[]; nextCursor: string | null }>(path).then(result => { if (live) { setItems(result.conversations); setCursor(result.nextCursor); setListError(""); } }).catch(e => { if (live) setListError(message(e)); }); return () => { live = false; }; }, [path]);
+  useEffect(() => {
+    let live = true; itemsRef.current = null; cursorRef.current = null; setItems(null); setCursor(null); setListError("");
+    void loadList().catch(e => { if (live) setListError(message(e)); });
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && !loadingMore.current && !pollingList.current) {
+        pollingList.current = true;
+        void loadList().catch(e => { if (live) setListError(message(e)); }).finally(() => { pollingList.current = false; });
+      }
+    }, 10000);
+    return () => {
+      live = false;
+      // Invalidate every outstanding request for this filter, including later refreshes.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      listRequest.current++;
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
   useEffect(()=>{let live=true;void api<{connections:{id:string;name:string;kind:string}[]}>(`${organizationPath(organizationId)}/channels`).then(result=>{if(live)setConnections(result.connections);}).catch(()=>{if(live)setConnections([]);});return()=>{live=false;};},[organizationId]);
   useEffect(() => { let live = true; api<{ members: { id: string; displayName: string }[] }>(`${base}/members`).then(result => { if (live) setMembers(result.members); }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [base]);
   useEffect(() => { let live = true; api<{ agents: { id: string; name: string }[]; nextCursor: string | null }>(`${organizationPath(organizationId)}/agents/summaries?limit=100`).then(result => { if (live) { setAgentOptions(result.agents); setAgentCursor(result.nextCursor); } }).catch(e => { if (live) setError(message(e)); }); return () => { live = false; }; }, [organizationId]);
@@ -94,10 +143,10 @@ export function InboxPage() {
   const agents = agentOptions.map(agent => [agent.id, agent.name]);
   return <section className="workspace-page inbox-page min-w-0"><header className="flex items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Inbox</h1><p className="inbox-heading-subtitle">Customer conversations</p></div><Button variant="outline" size="sm" onClick={() => void loadList().catch(e => setListError(message(e)))}><HugeiconsIcon icon={RefreshIcon} size={16} />Refresh</Button></header>
     <div className="inbox-filters my-5 flex flex-wrap gap-2"><select aria-label="Filter Inbox status" className="task-filter" value={state} onChange={event => setState(event.target.value)}><option value="">All statuses</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="Filter Inbox agent" className="task-filter" value={agentId} onChange={event => setAgentId(event.target.value)}><option value="">All agents</option>{agents.map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select><select aria-label="Filter Inbox assignment" className="task-filter" value={assigned} onChange={event => setAssigned(event.target.value)}><option value="">Everyone</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option></select><select aria-label="Filter Inbox channel" className="task-filter" value={channel} onChange={event => setChannel(event.target.value)}><option value="">All channels</option>{Object.entries(channelLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>{connections.length?<select aria-label="Filter Inbox connection" className="task-filter max-w-full" value={connectionId} onChange={event=>setConnectionId(event.target.value)}><option value="">All connections</option>{connections.map(connection=><option key={connection.id} value={connection.id}>{connection.name}</option>)}</select>:null}{agentCursor ? <Button size="sm" variant="ghost" onClick={() => void moreAgents()}>Load more agents</Button> : null}</div>
-    <ErrorMessage value={error} /><div className="inbox-layout mt-4 grid min-w-0 gap-5 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"><InboxQueue items={items} selected={selected} search={searchInput} error={listError} hasMore={Boolean(cursor)} onSearch={setSearchInput} onSelect={id => { selectedRef.current = id; setSelected(id); historyPage(null); setError(""); }} onRetry={() => void loadList().catch(e => setListError(message(e)))} onMore={() => void loadList(true).catch(e => setError(message(e)))} />
-      <div className="inbox-conversation-detail min-w-0">{selected ? <><Button variant="ghost" size="sm" className="mb-3 md:hidden" onClick={() => setSelected("")}><HugeiconsIcon icon={ArrowLeft01Icon} size={16} />Conversations</Button>{timeline ? <><header className="inbox-detail-header mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-4"><div><h2 className="font-medium">{timeline.conversation.customerName || "Customer"}</h2><p className="mt-1 text-xs text-muted-foreground">{channelLabels[timeline.conversation.channel]} · {labels[timeline.conversation.state]}</p></div></header>
+    <ErrorMessage value={error} /><div className="inbox-layout mt-4 grid min-w-0 gap-5 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]"><InboxQueue items={items} selected={selected} search={searchInput} filtered={Boolean(state || agentId || assigned || channel || connectionId)} error={listError} hasMore={Boolean(cursor)} onSearch={setSearchInput} onSelect={selectConversation} onRetry={() => void loadList().catch(e => setListError(message(e)))} onMore={() => void loadList(true).catch(e => setError(message(e)))} />
+      <div className="inbox-conversation-detail min-w-0">{selected ? <><Button variant="ghost" size="sm" className="mb-3 md:hidden" onClick={() => selectConversation("")}><HugeiconsIcon icon={ArrowLeft01Icon} size={16} />Conversations</Button>{timeline ? <><header className="inbox-detail-header mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-4"><div><h2 className="font-medium">{timeline.conversation.customerName || "Customer"}</h2><p className="mt-1 text-xs text-muted-foreground">{channelLabels[timeline.conversation.channel]} · {labels[timeline.conversation.state]}</p></div></header>
       <InboxHandoff key={timeline.conversation.id} conversation={timeline.conversation} accountId={session.account.id} owner={owner} members={members} busy={busy} pending={!!pending} onCommand={(action, extra) => void runCommand(action, extra)} />
-      <div className="inbox-detail-columns"><aside className="inbox-context" aria-label="Conversation details"><h3>Details</h3><dl><div><dt>Agent</dt><dd>{timeline.conversation.agentName ?? items?.find(item => item.id === timeline.conversation.id)?.agentName ?? agentOptions.find(agent => agent.id === timeline.conversation.agentId)?.name ?? "Agent"}</dd></div><div><dt>Channel</dt><dd>{channelLabels[timeline.conversation.channel]}</dd></div><div><dt>Status</dt><dd>{labels[timeline.conversation.state]}</dd></div><div><dt>Assignee</dt><dd>{inboxAssigneeName(timeline.conversation.assigneeAccountId, members)}</dd></div></dl>{timeline.conversation.customerContactId ? <Button asChild variant="outline" size="sm" className="mt-4"><Link to={`/app/customers?view=contacts&contact=${encodeURIComponent(timeline.conversation.customerContactId)}`}>View customer</Link></Button> : null}<ConversationEnquiries key={`enquiries:${timeline.conversation.id}:${timeline.conversation.revision}:${timeline.latestSequence ?? timeline.nextSequence}`} path={`${base}/${encodeURIComponent(timeline.conversation.id)}/enquiries`}/>
+      <div className="inbox-detail-columns"><aside className="inbox-context" aria-label="Conversation details"><h3>Details</h3><dl><div><dt>Agent</dt><dd>{timeline.conversation.agentName ?? items?.find(item => item.id === timeline.conversation.id)?.agentName ?? agentOptions.find(agent => agent.id === timeline.conversation.agentId)?.name ?? "Agent"}</dd></div><div><dt>Channel</dt><dd>{channelLabels[timeline.conversation.channel]}</dd></div><div><dt>Status</dt><dd>{labels[timeline.conversation.state]}</dd></div><div><dt>Assignee</dt><dd>{inboxAssigneeName(timeline.conversation.assigneeAccountId, members, timeline.conversation.assigneeDisplayName)}</dd></div></dl>{timeline.conversation.customerContactId ? <Button asChild variant="outline" size="sm" className="mt-4"><Link to={`/app/customers?view=contacts&contact=${encodeURIComponent(timeline.conversation.customerContactId)}`}>View customer</Link></Button> : null}<ConversationEnquiries key={`enquiries:${timeline.conversation.id}:${timeline.conversation.revision}:${timeline.latestSequence ?? timeline.nextSequence}`} path={`${base}/${encodeURIComponent(timeline.conversation.id)}/enquiries`}/>
       {timeline.conversation.hasBookings ? <InboxBookings key={`${organizationId}.${timeline.conversation.id}`} path={`${base}/${encodeURIComponent(timeline.conversation.id)}/bookings`} refreshKey={`${timeline.conversation.revision}:${timeline.latestSequence ?? timeline.nextSequence}:${timeline.conversation.state}`} /> : null}</aside><div className="inbox-thread">
       <HistoryNavigation timeline={timeline} earlier={!!timeline.earlierBefore} latest={before === null} onEarlier={() => historyPage(timeline.earlierBefore ?? null)} onLatest={() => historyPage(null)} /><div className="inbox-message-scroll max-h-[60vh] overflow-y-auto py-2"><CustomerMessages messages={timeline.messages} /></div><ChannelSupport key={`${organizationId}:${timeline.conversation.id}`} orgId={organizationId} conversation={timeline.conversation} accountId={session.account.id} messages={timeline.messages} onChanged={async()=>{await Promise.all([loadList(),loadConversation(timeline.conversation.id)]);}} />{mine && timeline.conversation.state === "human_owned" ? <form onSubmit={reply} className="mt-4 space-y-3 border-t pt-4"><label className="block space-y-2 text-sm"><span>Reply to customer</span><Textarea value={pending?.body ?? body} disabled={busy || !!pending} maxLength={8000} onChange={event => { setBody(event.target.value); writeStored(draftKey, event.target.value); }} rows={3} /></label><Button type="submit" disabled={busy || !!pending || !body.trim()}>{busy ? "Sending…" : "Send reply"}</Button></form> : null}{pending && !busy ? <Button className="mt-3" variant="outline" onClick={() => void runCommand(pending.action)}>Retry pending action</Button> : null}</div></div></> : timelineError ? <div className="space-y-3"><ErrorMessage value={timelineError} /><Button size="sm" variant="outline" onClick={() => void loadConversation(selected).catch(e => setTimelineError(message(e)))}>Retry</Button></div> : <Loading />}</> : <InboxNoSelection />}</div></div></section>;
 }

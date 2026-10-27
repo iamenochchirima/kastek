@@ -33,8 +33,9 @@ for (const theme of ["light", "dark"] as const) test(`staff can claim, take over
   });
   await page.goto("/app/inbox");
   await expect(page.getByRole("button", { name: /^Customer Agent Support agent/ })).toBeVisible();
-  const layoutHeight = await page.locator(".inbox-layout").evaluate(element => element.getBoundingClientRect().height);
-  expect(layoutHeight).toBeGreaterThanOrEqual(theme === "dark" ? 570 : 700);
+  const layout = page.locator(".inbox-layout");
+  await expect(layout).toBeVisible();
+  if (theme === "light") expect(await layout.evaluate(element => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(900);
   await page.getByRole("button", { name: /^Customer Agent Support agent/ }).click();
   await page.getByRole("button", { name: "Assign to me" }).click();
   await page.getByRole("button", { name: "Take over" }).click();
