@@ -23,3 +23,12 @@ Dark variants should preserve the composition using the shared neutral charcoal 
 The [prompt set](prompts.json) records the generation instructions. The existing Agents
 [Connections reference](../../../agents/design/interface-concepts/connections-light.png)
 was supplied for visual style, not for Growth navigation or available tools.
+
+## Additional Growth concepts
+
+- [Overview](overview-light-v2.png): compact business metrics, conversation activity and attention items.
+- [Agents revision](agents-light-v2.png): four Growth presets, recent conversations and the general assistant drawer.
+- [Contacts](contacts-light-v1.png): contact table, filters and a contact detail panel.
+- [Posts](content-light-v1.png): publishing list with platform/status filters and a post preview.
+
+The [additional prompt set](growth-expansion-prompts.json) records the built-in generation instructions. These are light-theme proposals, not implemented screens or assertions of available data. Counts, dates, records, actions and metrics require validation against existing contracts before implementation.
