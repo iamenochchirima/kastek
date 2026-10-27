@@ -1,0 +1,1 @@
+CREATE INDEX customer_record_enquiries_inbox ON agents_platform.customer_record_enquiries(organization_id,customer_conversation_id,contact_id) WHERE customer_conversation_id IS NOT NULL AND contact_id IS NOT NULL;

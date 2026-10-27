@@ -20,7 +20,17 @@ export interface CustomerConversation {
   execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
   assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
   return_watermark: string; created_at: Date; updated_at: Date;
+  customer_name?: string | null; customer_contact_id?: string | null; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
+  last_message_id?: string | null; last_message_task_id?: string | null;
 }
+// A conversation can have multiple enquiries; only expose a name when they resolve to one contact.
+const customerIdentityJoin = `LEFT JOIN LATERAL (
+  SELECT CASE WHEN count(DISTINCT contact.id)=1 THEN max(NULLIF(trim(contact.name),'')) END AS customer_name,
+    CASE WHEN count(DISTINCT contact.id)=1 THEN min(contact.id::text)::uuid END AS customer_contact_id
+  FROM agents_platform.customer_record_enquiries record
+  JOIN agents_platform.customer_contacts contact ON contact.organization_id=record.organization_id AND contact.id=record.contact_id
+  WHERE record.organization_id=c.organization_id AND record.customer_conversation_id=c.id
+) identity ON true`;
 export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
   author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date;
   channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
@@ -46,8 +56,9 @@ export class InboxStore {
     return row?.role ?? denied();
   }
   private async conversation(db: Db, id: string, lock = false): Promise<CustomerConversation> {
-    return (await db.query<CustomerConversation>(`SELECT c.*,cn.id connection_id,cn.name connection_name,cn.asset_id FROM agents_platform.customer_conversations c
+    return (await db.query<CustomerConversation>(`SELECT c.*,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id FROM agents_platform.customer_conversations c
       LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+      ${customerIdentityJoin}
       WHERE c.id=$1 ${lock ? "FOR UPDATE OF c" : ""}`, [id])).rows[0] ?? absent();
   }
   private async visitor(db: Db, scope: VisitorScope): Promise<{ organization_id: string; agent_id: string; version_id: string }> {
@@ -164,22 +175,35 @@ export class InboxStore {
       await this.trialStaff(db,scope,conversation);
       return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
   }
-  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; cursor?: string; limit: number }) {
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
-      const scopeKey = { kind: "customer-inbox-v2", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null };
+      const search = filters.search?.trim() || null;
+      const scopeKey = { kind: "customer-inbox-v3", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null, search };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
-      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+      const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,
+        last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+        ${customerIdentityJoin}
+        LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
         AND ($11::uuid IS NULL OR cn.id=$11)
+        AND ($12::text IS NULL OR strpos(lower(coalesce(identity.customer_name,'')),lower($12))>0 OR strpos(lower(a.name),lower($12))>0
+          OR EXISTS(SELECT 1 FROM agents_platform.customer_messages m WHERE m.conversation_id=c.id AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)
         AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
         ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
-        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null, filters.connectionId ?? null])).rows;
+        anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null, filters.connectionId ?? null, search])).rows;
       const items = rows.slice(0, filters.limit), last = items.at(-1);
+      for (const item of items) if (item.last_message_body != null) {
+        if (item.last_message_author_kind === "assistant") {
+          const candidate = { id: item.last_message_id, task_id: item.last_message_task_id, body: item.last_message_body } as CustomerMessage;
+          item.last_message_body = await this.readableMessage(db, candidate) ?? "[Response unavailable]";
+        }
+        item.last_message_body = item.last_message_body.slice(0,500);
+      }
       return { items, nextCursor: rows.length > filters.limit && last ? this.cursors.next({ snapshot: anchor.snapshot, position: last.cursor_position, id: last.id }, scopeKey) : null };
     });
   }

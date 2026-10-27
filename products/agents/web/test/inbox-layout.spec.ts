@@ -20,7 +20,7 @@ for (const { theme, width } of [{ theme: "light", width: 1440 }, { theme: "dark"
       return route.fulfill({ status: 404, json: { error: { message: `Unexpected request ${path}` } } });
     });
     await page.goto("/app/inbox");
-    const item = page.getByRole("button", { name: /^Support agent/ });
+    const item = page.getByRole("button", { name: /^Customer Agent Support agent/ });
     await expect(item).toBeVisible();
     await page.getByLabel("Filter Inbox status").selectOption("resolved");
     await expect(page.getByText("No customer conversations")).toBeVisible();

@@ -481,6 +481,14 @@ index. Shared versioned cursors retain the exact timestamp and identity and bind
 actor and filters; they do not look up mutable anchor rows. An activity change after the cursor
 snapshot appears on a fresh list read.
 
+The Inbox queue includes the latest message preview, bounded to 500 characters. Assistant output
+is checked against current evidence access before it is displayed. Customer names and record links
+appear only when linked enquiries identify exactly one contact in the organization; otherwise the
+interface uses an anonymous customer label. Search matches that customer name, the agent name, and
+visitor or human message text. Search and all filters are bound to the cursor. The substring search
+can scan matching tenant conversations; production-scale latency has not been benchmarked. Migration
+`082_inbox_customer_identity.sql` adds the contact lookup index.
+
 Staff and visitor timelines expose at most 100 messages per read. Earlier messages and Latest
 messages replace the current page. Polling rechecks that page's current evidence policy; request
 identity includes the conversation and selected page so delayed results cannot replace another
@@ -1039,7 +1047,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | User entry point | Current behavior | Verification |
 | --- | --- | --- |
 | `/` | Restored public landing with provider-backed signup and sign-in. | Public-entry browser tests and isolated actual identity signup/verification. |
-| `/app/inbox` | Filtered conversation queue and message workspace with agent, channel, ownership, enquiry and appointment details. Authorized staff can assign, take over, reply, resolve and return conversations to automation; appointment recovery remains status-only. | Canonical Inbox HTTP/browser, `inbox-layout.spec.ts`, `inbox-bookings.spec.ts`, and durable takeover/status acceptance. |
+| `/app/inbox` | Searchable conversation queue with safe previews and a message workspace with customer, agent, channel, ownership, enquiry and appointment details. Authorized staff can assign, take over, reply, resolve and return conversations to automation; appointment recovery remains status-only. | `customer-inbox.test.ts`, `inbox-queue.spec.ts`, `inbox-layout.spec.ts`, `inbox-handoff-states.spec.ts`, `inbox-bookings.spec.ts`, and durable takeover/status acceptance. |
 | `/app/overview` | Workspace-scoped customer conversation totals and daily activity, new enquiries, current pending handoffs, recent conversations and channel totals. Seven- and 30-day periods use UTC calendar dates; pending handoffs and recently updated conversations are current rather than period-limited. Evaluation-trial conversations are excluded. | `agents-overview.spec.ts`, `customer-inbox.test.ts`. |
 | `/app/agents` | Searchable, paginated agent directory with configuration-status filters, selected-agent responsibilities, connected channels and latest customer-conversation update. Chat and configuration open from the selected agent; conversation history appears in its chat workspace. | `agent-entry-directory.spec.ts`, chat workspace and discovery regression suites. |
 | `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |

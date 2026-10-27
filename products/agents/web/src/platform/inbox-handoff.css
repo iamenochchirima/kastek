@@ -1,0 +1,10 @@
+.inbox-handoff { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.inbox-handoff--handoff_pending { border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); background: var(--status-attention-soft); }
+.inbox-handoff-summary { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.inbox-handoff-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 8px; background: var(--muted); color: var(--muted-foreground); }
+.inbox-handoff--handoff_pending .inbox-handoff-icon { color: var(--warning); }
+.inbox-handoff-summary h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.inbox-handoff-summary p { margin: 3px 0 0; color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.inbox-handoff-actions, .inbox-handoff-assign { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inbox-handoff-assign select { max-width: min(100%, 210px); }
+@media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assign { max-width: 100%; } }
