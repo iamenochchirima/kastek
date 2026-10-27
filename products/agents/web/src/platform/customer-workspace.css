@@ -34,12 +34,14 @@
 .customer-activity-list li { position: relative; padding: 0 0 18px 20px; }
 .customer-activity-list li::before { position: absolute; top: 5px; left: -5px; width: 9px; height: 9px; border: 2px solid var(--background); border-radius: 50%; background: var(--brand); content: ""; }
 .customer-detail [aria-label="Internal activity"] li > p:not(:first-child) { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
-.inbox-layout { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.inbox-layout { min-height: max(320px, calc(100dvh - 172px)); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .inbox-list { padding: 10px; border-right: 1px solid var(--border); background: var(--card); }
 .inbox-conversation { border-color: transparent; border-radius: 6px; }
 .inbox-conversation:hover { background: var(--muted); }
 .inbox-conversation.is-selected { border-color: var(--border); background: var(--brand-soft); }
-.inbox-conversation-detail { padding: 18px; }
+.inbox-conversation-detail { display: flex; min-height: 0; flex-direction: column; padding: 18px; }
+.inbox-conversation-detail > form { margin-top: auto; }
+.inbox-conversation-detail:has(> p:only-child) { display: grid; place-items: center; }
 .customer-messages article { border-color: var(--border); border-radius: 8px; }
 @media (max-width: 767px) {
   .customer-page, .inbox-page { padding-inline: 16px; }
@@ -52,7 +54,7 @@
   .customer-table td:first-child { grid-column: 1 / -1; }
   .customer-table td:not(:first-child)::before { display: block; margin-bottom: 3px; color: var(--muted-foreground); content: attr(data-label); font-size: 11px; }
   .customer-enquiry-link { white-space: normal; overflow-wrap: anywhere; }
-  .inbox-layout { display: block; }
+  .inbox-layout { display: block; min-height: max(240px, calc(100dvh - 330px)); }
   .inbox-list { border-right: 0; }
 }
 .customer-detail-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); align-items: start; gap: 24px; }
