@@ -476,14 +476,16 @@ Returning control admits only a new visitor message. Generation checks suppress 
 output and fence subsequent operations, including inherited specialist authority.
 The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.
 
-Inbox conversation lists order by `updated_at DESC, id DESC` using the existing tenant/activity
-index. Shared versioned cursors retain the exact timestamp and identity and bind the workspace,
-actor and filters; they do not look up mutable anchor rows. An activity change after the cursor
+Inbox conversation lists support newest-first (`updated_at DESC, id DESC`, the default) and
+oldest-first (`updated_at ASC, id ASC`) using the existing tenant/activity index. Shared versioned
+cursors retain the exact timestamp and identity and bind the workspace, actor, sort and filters; they do not look up mutable anchor rows. An activity change after the cursor
 snapshot appears on a fresh list read.
 The web queue refreshes its loaded window while visible, and selected conversations are reflected
 in the URL. Owners can search and page through workspace members when assigning a conversation.
 The conversation response includes the authorized assignee's display name even when that member
-is outside the current picker page.
+is outside the current picker page. Queue and staff timeline responses report whether the channel
+binding is active; the interface identifies unavailable channels and disables new replies while the
+server continues to check binding authority when commands are submitted.
 
 The Inbox queue includes the latest message preview, bounded to 500 characters. Assistant output
 is checked against current evidence access before it is displayed. Customer names and record links

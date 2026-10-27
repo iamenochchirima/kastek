@@ -31,9 +31,10 @@ test("Inbox remains usable at 200% browser zoom in both themes", async ({ baseUR
     });
     await page.goto(new URL("/app/inbox", baseURL).href);
     const zoom = await worker.evaluate(async (url: string) => {
-      const api = (globalThis as any).chrome;
+      const api = (globalThis as unknown as { chrome: { tabs: { query(query: object): Promise<{ id: number; url?: string }[]>; setZoom(id: number, factor: number): Promise<void>; getZoom(id: number): Promise<number> } } }).chrome;
       const tabs = await api.tabs.query({});
-      const target = tabs.find((tab: { url?: string }) => tab.url === url);
+      const target = tabs.find(tab => tab.url === url);
+      if (!target) throw new Error("Zoom test tab not found");
       await api.tabs.setZoom(target.id, 2);
       return api.tabs.getZoom(target.id);
     }, page.url());

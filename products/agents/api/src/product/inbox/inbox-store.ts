@@ -20,7 +20,7 @@ export interface CustomerConversation {
   execution_conversation_id: string | null; state: "automation_active" | "handoff_pending" | "human_owned" | "resolved";
   assignee_account_id: string | null; revision: string; ownership_generation: string; next_sequence: string;
   return_watermark: string; created_at: Date; updated_at: Date;
-  customer_name?: string | null; customer_contact_id?: string | null; assignee_display_name?: string | null; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
+  customer_name?: string | null; customer_contact_id?: string | null; assignee_display_name?: string | null; channel_available?: boolean; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
   last_message_id?: string | null; last_message_task_id?: string | null;
 }
 // A conversation can have multiple enquiries; only expose a name when they resolve to one contact.
@@ -174,16 +174,20 @@ export class InboxStore {
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
       await this.trialStaff(db,scope,conversation);
-      return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
+      return { conversation, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
-  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; cursor?: string; limit: number }) {
+  async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
+      const sort = filters.sort ?? "newest";
       const search = filters.search?.trim() || null;
-      const scopeKey = { kind: "customer-inbox-v3", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null, search };
+      const scopeKey = { kind: "customer-inbox-v3", ...scope, state: filters.state ?? null, agentId: filters.agentId ?? null, assigned: filters.assigned ?? null, channel: filters.channel ?? null, connectionId: filters.connectionId ?? null, search, ...(sort === "oldest" ? { sort } : {}) };
       const anchor = this.cursors.read(filters.cursor, scopeKey);
       const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
+        CASE WHEN c.channel_kind='website' THEN (wd.id IS NOT NULL AND wd.revoked_at IS NULL AND wd.paused=false)
+          ELSE (cd.id IS NOT NULL AND cd.state='active' AND cn.id IS NOT NULL AND cn.state='active') END AS channel_available,
         last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
-        LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id
+        LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id AND cd.organization_id=c.organization_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id AND cn.organization_id=c.organization_id
+        LEFT JOIN agents_platform.website_deployments wd ON wd.id=c.deployment_id AND wd.organization_id=c.organization_id
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
         LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
@@ -195,8 +199,8 @@ export class InboxStore {
           OR EXISTS(SELECT 1 FROM agents_platform.customer_messages m WHERE m.conversation_id=c.id AND m.author_kind IN ('visitor','human') AND strpos(lower(m.body),lower($12))>0))
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels e WHERE e.session_id=c.session_id)
         AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels e WHERE e.deployment_id=c.channel_deployment_id)
-        AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)<($7::timestamptz,$8::uuid))
-        ORDER BY c.updated_at DESC,c.id DESC LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
+        AND c.updated_at<=$6::timestamptz AND ($7::timestamptz IS NULL OR (c.updated_at,c.id)${sort === "oldest" ? ">" : "<"}($7::timestamptz,$8::uuid))
+        ORDER BY c.updated_at ${sort === "oldest" ? "ASC" : "DESC"},c.id ${sort === "oldest" ? "ASC" : "DESC"} LIMIT $9`, [scope.organizationId, filters.state ?? null, filters.agentId ?? null, filters.assigned ?? null, scope.accountId,
         anchor.snapshot, anchor.position || null, anchor.id || null, filters.limit + 1, filters.channel ?? null, filters.connectionId ?? null, search])).rows;
       const items = rows.slice(0, filters.limit), last = items.at(-1);
       for (const item of items) if (item.last_message_body != null) {

@@ -60,6 +60,26 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("reports the website channel as unavailable when paused or revoked", async () => {
+    const f = await fixture();
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(true);
+    expect((await inbox.list(f.scope, {limit: 30})).items[0]?.channel_available).toBe(true);
+    await pool.query("UPDATE agents_platform.website_deployments SET paused=true WHERE id=$1", [f.deployment.id]);
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(false);
+    expect((await inbox.list(f.scope, {limit: 30})).items[0]?.channel_available).toBe(false);
+    const app = Fastify();
+    registerInboxRoutes(app, { inbox, resolveScope: async () => f.scope, resolveVisitor: async () => f.visitor });
+    try {
+      const result = await app.inject({ url: `/api/organizations/${f.org.id}/inbox/${f.conversation.id}` });
+      expect(result.statusCode).toBe(200);
+      expect(result.json().conversation.channelAvailable).toBe(false);
+      const list = await app.inject({ url: `/api/organizations/${f.org.id}/inbox` });
+      expect(list.json().conversations[0].channelAvailable).toBe(false);
+    } finally { await app.close(); }
+    await pool.query("UPDATE agents_platform.website_deployments SET paused=false, revoked_at=now() WHERE id=$1", [f.deployment.id]);
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(false);
+    expect((await inbox.list(f.scope, {limit: 30})).items[0]?.channel_available).toBe(false);
+  });
   it("summarizes workspace conversations and enquiries with calendar windows and current handoffs", async () => {
     const f = await fixture(), other = await fixture();
     await pool.query("UPDATE agents_platform.customer_conversations SET state='handoff_pending', created_at=now()-interval '10 days' WHERE id=$1", [f.conversation.id]);
@@ -210,6 +230,23 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
         VALUES($1,$2,$3,$4,$5,$6,$7)`, [id,f.org.id,f.deployment.id,f.agent.id,f.version.id,session,index===0?"2025-02-01T00:00:00.123456Z":"2025-01-15T00:00:00.654321Z"]);
     }
     const first = await inbox.list(f.scope,{limit:1}); expect(first.items.map(row=>row.id)).toEqual([ids[0]]); expect(first.nextCursor).toBeTruthy();
+    const oldest = await inbox.list(f.scope,{limit:1,sort:"oldest"});
+    expect(oldest.items.map(row=>row.id)).toEqual([f.conversation.id]);
+    const app = Fastify();
+    app.setErrorHandler((error: any, _request, reply) => reply.code(error.status ?? (error.name === "ZodError" ? 400 : 500)).send({ error: { code: error.code } }));
+    registerInboxRoutes(app, { inbox, resolveScope: async () => f.scope, resolveVisitor: async () => f.visitor });
+    const route = `/api/organizations/${f.org.id}/inbox?sort=oldest&limit=1`;
+    const response = await app.inject({ method: "GET", url: route });
+    expect(response.statusCode).toBe(200); expect(response.json().conversations[0].id).toBe(f.conversation.id);
+    expect((await app.inject({ method: "GET", url: `${route}&cursor=${encodeURIComponent(response.json().nextCursor)}` })).json().conversations[0].id).toBe(ids[2]);
+    expect((await app.inject({ method: "GET", url: `/api/organizations/${f.org.id}/inbox?sort=invalid` })).statusCode).toBe(400);
+    await app.close();
+    const oldestSecond = await inbox.list(f.scope,{limit:1,sort:"oldest",cursor:oldest.nextCursor!});
+    expect(oldestSecond.items.map(row=>row.id)).toEqual([ids[2]]);
+    const oldestThird = await inbox.list(f.scope,{limit:1,sort:"oldest",cursor:oldestSecond.nextCursor!});
+    expect(oldestThird.items.map(row=>row.id)).toEqual([ids[1]]);
+    await expect(inbox.list(f.scope,{limit:1,cursor:oldest.nextCursor!})).rejects.toMatchObject({code:"INVALID_CURSOR"});
+    await expect(inbox.list(f.scope,{limit:1,sort:"oldest",cursor:first.nextCursor!})).rejects.toMatchObject({code:"INVALID_CURSOR"});
     // Mutating the original row cannot change the signed cursor's stored timestamp anchor.
     await pool.query("UPDATE agents_platform.customer_conversations SET updated_at=now() WHERE id=$1",[ids[0]]);
     expect((await inbox.list(f.scope,{limit:1})).items[0]?.id).toBe(ids[0]);

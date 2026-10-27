@@ -17,6 +17,7 @@ export function inboxConversation(row: CustomerConversation) {
     state: row.state, assigneeAccountId: row.assignee_account_id, assigneeDisplayName: row.assignee_display_name ?? null, revision: row.revision, ownershipGeneration: row.ownership_generation,
     createdAt: row.created_at, updatedAt: row.updated_at, agentName: (row as CustomerConversation & { agent_name?: string }).agent_name,
     customerName: row.customer_name ?? null, customerContactId: row.customer_contact_id ?? null,
+    ...(row.channel_available === undefined ? {} : { channelAvailable: row.channel_available }),
     lastMessage: row.last_message_body != null && row.last_message_author_kind && row.last_message_created_at
       ? { body: row.last_message_body, authorKind: row.last_message_author_kind, createdAt: row.last_message_created_at } : null };
 }
@@ -40,7 +41,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   const base = "/api/organizations/:organizationId/inbox";
   app.get(base, async request => {
     const scope = await options.resolveScope(request), filters = z.object({ state: z.enum(["automation_active", "handoff_pending", "human_owned", "resolved"]).optional(),
-      agentId: uuid.optional(), channel: channelKindSchema.optional(), connectionId:uuid.optional(), assigned: z.enum(["mine", "unassigned"]).optional(), search: z.string().trim().max(200).optional(), cursor: z.string().min(1).max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
+      agentId: uuid.optional(), channel: channelKindSchema.optional(), connectionId:uuid.optional(), assigned: z.enum(["mine", "unassigned"]).optional(), search: z.string().trim().max(200).optional(), sort: z.enum(["newest", "oldest"]).optional(), cursor: z.string().min(1).max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(request.query);
     const result = await options.inbox.list(scope, filters);
     return { conversations: result.items.map(inboxConversation), nextCursor: result.nextCursor };
   });
@@ -54,7 +55,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
     const hasBookings=!!(await options.inbox.pool.query(`SELECT 1 FROM agents_platform.customer_task_links l
       JOIN agents_platform.tasks t ON t.id=l.task_id JOIN agents_platform.booking_intents b ON b.task_id=t.id
       WHERE l.conversation_id=$1 AND t.organization_id=$2 LIMIT 1`,[conversationId,scope.organizationId])).rowCount;
-    return { conversation: {...inboxConversation(result.conversation),hasBookings}, messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
+    return { conversation: {...inboxConversation(result.conversation),hasBookings,channelAvailable:result.channelAvailable}, messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   app.post(`${base}/:conversationId/commands`, async request => {
     const input = z.strictObject({ commandId: uuid, expectedRevision: revision, action: z.enum(["claim", "assign", "unassign", "takeover", "reply", "resolve", "reopen", "return"]), assigneeAccountId: uuid.nullable().optional(), body: z.string().trim().min(1).max(8000).optional() }).parse(request.body);
