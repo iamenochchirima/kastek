@@ -41,3 +41,24 @@ test("mock transport: task events page without duplicates and policy denial clea
  await page.goto(`/app/tasks/${taskId}`);await expect(page.getByText("Private derived response",{exact:true})).toBeVisible();await page.getByText("Event history",{exact:true}).click();await page.getByRole("button",{name:"Load more events",exact:true}).click();await expect(page.getByText("task completed",{exact:true})).toBeVisible();await expect(page.getByText("task accepted",{exact:true})).toHaveCount(1);expect(requests).toBe(1);
  denied=true;await page.getByRole("button",{name:"Refresh status",exact:true}).click();await expect(page.getByRole("alert")).toContainText("Access removed");await expect(page.getByText("Private derived response",{exact:true})).toHaveCount(0);await expect(page.getByText("Private request",{exact:true})).toHaveCount(0);await expect(page.getByText("task accepted",{exact:true})).toHaveCount(0);
 });
+
+test("task rows keep long agent names readable on mobile in both themes", async ({ page }) => {
+  const name = "Support" + "x".repeat(120);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: session });
+    if (path.endsWith("/agents/summaries")) return route.fulfill({ json: { agents: [], nextCursor: null } });
+    if (path.endsWith("/tasks")) return route.fulfill({ json: { tasks: [{ id: taskId, agentId: "agent", agentName: name, state: "cancel_requested", createdAt: "2026-10-18T12:00:00Z", reviewOnly: true }], nextCursor: null } });
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/tasks");
+    const row = page.locator(".task-list-row");
+    await expect(row.getByRole("link", { name, exact: true })).toBeVisible();
+    await expect(row.getByText("cancel requested", { exact: true })).toBeVisible();
+    expect(await row.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
