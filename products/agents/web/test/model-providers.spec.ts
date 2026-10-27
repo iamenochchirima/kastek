@@ -155,3 +155,36 @@ test("stale catalogue preserves a retired default and recovers from empty discov
   await dialog.getByLabel("Search models").fill("no-matches"); await expect(dialog.getByText("No matching models", { exact: true })).toBeVisible();
   expect(state.calls.filter(call => call.path.endsWith("/probe"))).toHaveLength(0);
 });
+
+test("tablet provider key and revocation dialogs in both themes", async ({ page }) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/app/settings");
+  await expect(page.getByText("No model providers", { exact: true })).toBeVisible();
+  await add(page);
+  const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Production", exact: true }) });
+  await expect(row).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await row.getByRole("button", { name: "Edit key" }).click();
+    let dialog = page.getByRole("dialog", { name: "Edit provider" });
+    await expect(dialog.getByLabel("Replacement API key")).toHaveValue("");
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`provider-edit-${theme}-768.png`), animations: "disabled" });
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await row.getByRole("button", { name: "Revoke", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Affected agents", exact: true });
+    await expect(dialog.getByText("Support agent")).toBeVisible();
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`provider-affected-${theme}-768.png`), animations: "disabled" });
+    await dialog.getByRole("button", { name: "Revoke key", exact: true }).click();
+    const confirm = page.getByRole("alertdialog");
+    await expect(confirm).toBeVisible();
+    expect(await confirm.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`provider-confirm-${theme}-768.png`), animations: "disabled" });
+    await confirm.getByRole("button", { name: "Cancel", exact: true }).click();
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  }
+  expect(state.calls.some(call => call.path.endsWith("/revoke"))).toBe(false);
+});
