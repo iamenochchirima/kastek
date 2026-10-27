@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
+const layoutExpect = expect.configure({ soft: true });
 const proofDirectory = fileURLToPath(new URL("../../../../.audit/growth-redesign/cross-page/", import.meta.url));
 const pages = [
   { name: "overview", path: "/workspace", heading: "Overview" },
@@ -42,7 +43,7 @@ for (const scenario of [
       await expect(page.locator("html")).toHaveAttribute("data-theme", scenario.theme);
       await expect(page.getByRole("heading", { name: /^(Unable to load workspace|Page not found|Unexpected Application Error!)$/ })).toHaveCount(0);
       await expect(page.getByText("Unexpected Application Error!", { exact: true })).toHaveCount(0);
-      await expect.poll(() => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth), { message: `${entry.name} must contain overflow inside its labelled table regions` }).toBeLessThanOrEqual(1);
+      await layoutExpect.poll(() => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth), { message: `${entry.name} must contain overflow inside its labelled table regions` }).toBeLessThanOrEqual(1);
       expect(errors, `${entry.name} browser runtime errors`).toEqual([]);
       await page.screenshot({ path: `${proofDirectory}/${entry.name}-${scenario.width}-${scenario.theme}.png`, fullPage: true, animations: "disabled" });
     });
