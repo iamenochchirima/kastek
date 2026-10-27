@@ -376,3 +376,32 @@ test("automation occurrence load errors stay in the dialog and can retry", async
   await expect(dialog.getByText("skipped overlap")).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
 });
+
+test("tablet automation list and occurrence recovery in both themes", async ({ page }) => {
+  const data = await fixture(page);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/app/automations");
+  await page.getByRole("button", { name: "Create automation", exact: true }).click();
+  const form = page.getByRole("dialog");
+  await form.getByRole("textbox", { name: "Name", exact: true }).fill("Daily research");
+  await form.getByRole("textbox", { name: "Task", exact: true }).fill("Prepare the daily report");
+  await form.getByRole("button", { name: "Create automation", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Daily research" })).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`automation-list-${theme}-768.png`), animations: "disabled" });
+    data.failNextOccurrence();
+    await page.getByRole("button", { name: "Occurrences", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("alert")).toContainText("Occurrences unavailable");
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`automation-error-${theme}-768.png`), animations: "disabled" });
+    await dialog.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(dialog.getByText("skipped overlap")).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath(`automation-occurrences-${theme}-768.png`), animations: "disabled" });
+    await page.keyboard.press("Escape");
+  }
+});
