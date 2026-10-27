@@ -123,3 +123,33 @@ test("tablet task detail and knowledge preview visual states", async ({ page }) 
     await page.keyboard.press("Escape");
   }
 });
+
+test("task detail long output and access denial fit desktop and phone in both themes", async ({ page }) => {
+  let denied = false;
+  const longOutput = `Report ${"unbroken".repeat(100)}`;
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: session });
+    if (path.endsWith(`/tasks/${taskId}`)) {
+      if (denied) return route.fulfill({ status: 403, json: { error: { message: "Access removed" } } });
+      return route.fulfill({ json: { task: { id: taskId, state: "completed", input: "Review the report", output: longOutput, errorCode: null, conversationId: "conversation" }, events: [], eventsNextCursor: null, operations: [] } });
+    }
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"] as const) {
+    denied = false;
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto(`/app/tasks/${taskId}`);
+    await expect(page.getByText(longOutput, { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`task-long-${theme}-${width}.png`), animations: "disabled", fullPage: true });
+    denied = true;
+    await page.getByRole("button", { name: "Refresh status", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Access removed");
+    await expect(page.getByText(longOutput, { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Review the report", { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`task-denied-${theme}-${width}.png`), animations: "disabled" });
+  }
+});
