@@ -14,7 +14,7 @@
 .catalogue-icon img { width: 24px; height: 24px; object-fit: contain; }
 .catalogue-details h2 { font-size: 14px; font-weight: 550; line-height: 1.5; overflow-wrap: anywhere; }
 .catalogue-details p { margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--muted-foreground); overflow-wrap: anywhere; }
-.catalogue-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalogue-description { white-space: normal; }
 .catalogue-publisher { display: inline-block; color: var(--muted-foreground); font-size: 11px; }
 .catalogue-details p.catalogue-readiness { font-size: 12px; }
 .catalogue-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 3px; }
