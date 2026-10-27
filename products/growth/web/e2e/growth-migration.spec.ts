@@ -153,6 +153,19 @@ test("saves a content draft from the complete composer and reloads it", async ({
   await expect(page.getByText("Migration draft saved through the composer.", { exact: true }).first()).toBeVisible();
   const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
   expect(state.posts.some((post: { content: string; status: string }) => post.content === "Migration draft saved through the composer." && post.status === "DRAFT")).toBe(true);
+  await page.getByRole("tab", { name: /^Drafts/ }).click();
+  await page.getByRole("textbox", { name: "Search posts", exact: true }).fill("Migration draft saved");
+  await expect(page.getByRole("region", { name: "Posts", exact: true }).getByRole("row")).toHaveCount(2);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: /^Preview / }).click();
+  const preview = page.getByRole("dialog", { name: "Post preview", exact: true });
+  await expect(preview.getByText("Migration draft saved through the composer.", { exact: true })).toBeVisible();
+  await preview.getByRole("button", { name: "Edit post", exact: true }).click();
+  // The original composer must receive the selected record, rather than creating a new draft.
+  const editComposer = page.getByRole("dialog").filter({ has: page.getByText("Choose destinations", { exact: true }) });
+  await expect(editComposer).toBeVisible();
+  await editComposer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(editComposer.getByPlaceholder("Write your post...")).toHaveValue("Migration draft saved through the composer.");
 });
 
 test("sends an Inbox reply and reloads its saved message", async ({ page, request }) => {

@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { ArrowUpRight, CalendarDays, FileImage, Play } from "lucide-react";
+import { ArrowUpRight, CalendarDays, FileImage, Play } from "@/components/ui/interface-icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { apiUrl } from "@/lib/server-api";

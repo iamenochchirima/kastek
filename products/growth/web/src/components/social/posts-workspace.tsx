@@ -1,33 +1,21 @@
-import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 import { useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
 
 import { apiUrl } from "@/lib/server-api";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, LayoutGrid, List, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, Play, Plus, RotateCcw, Smartphone, Sparkles, Upload, X } from "@/components/ui/interface-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  PageHeader,
-  PageHeaderActions,
-  PageHeaderContent,
-  PageHeaderDescription,
-  PageHeaderTitle,
-} from "@/components/ui/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
-import { SocialPostsLibrary } from "@/components/social/social-posts-library";
-import { MotionReveal } from "@/components/ui/motion-reveal";
+import { PostsLibraryWorkspace } from "@/components/social/posts-library-workspace";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -45,7 +33,6 @@ import {
   getPlatformIconClass,
   getPlatformLabel,
   getPlatformTone,
-  getPostStatusMeta,
   getPublishJobStatusMeta,
 } from "@/components/social/social-shared";
 
@@ -215,10 +202,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const agents = useGrowthAgents();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
-  const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState<"ALL" | SocialPlatform>("ALL");
-  const [historyViewMode, setHistoryViewMode] = useState<"grid" | "table">("grid");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
@@ -319,19 +302,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       else setRefreshing(false);
     }
   }
-
-  const filteredPosts = useMemo(() => {
-    const allowedStatuses = view === "history" ? ["PUBLISHED", "FAILED"] : ["DRAFT", "SCHEDULED", "PROCESSING"];
-    return posts.filter((post) => {
-      if (!allowedStatuses.includes(post.status)) return false;
-      if (activeFilter !== "ALL" && post.status !== activeFilter) return false;
-      if (platformFilter !== "ALL" && !post.channels.includes(platformFilter)) return false;
-      const needle = search.trim().toLowerCase();
-      return !needle || `${post.title || ""} ${post.content || ""}`.toLowerCase().includes(needle);
-    });
-  }, [activeFilter, platformFilter, posts, search, view]);
-
-  const filters = view === "history" ? ["ALL", "PUBLISHED", "FAILED"] as const : ["ALL", "DRAFT", "SCHEDULED", "PROCESSING"] as const;
 
   const connectedChannels = useMemo(
     () => channels.filter((channel) => channel.status === "CONNECTED"),
@@ -952,202 +922,14 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   return (
-    <div className="min-h-[100dvh] p-4 sm:p-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <div className="space-y-4 border-b border-border pb-4">
-          <PageHeader>
-            <PageHeaderContent>
-              <PageHeaderTitle>{view === "history" ? "Posts" : "Create"}</PageHeaderTitle>
-              <PageHeaderDescription>{view === "history" ? "Published posts and retries." : "Draft and schedule posts."}</PageHeaderDescription>
-            </PageHeaderContent>
-            <PageHeaderActions>
-              {view === "posts" ? (
-                <AskGrowthAgent featureId="content" context={{ kind: "workspace" }}>Draft with agent</AskGrowthAgent>
-              ) : null}
-              <Button className="gap-2" onClick={openNewComposer}>
-                <Plus className="h-4 w-4" />
-                Create post
-              </Button>
-            </PageHeaderActions>
-          </PageHeader>
-
-          <ContentWorkspaceNavigation active={view} />
-        </div>
-
-        {error ? (
-          <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <MotionReveal delay={0.08}>
-        <Card>
-          <CardHeader className="flex flex-col gap-4 border-b border-border lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>{view === "history" ? "Published posts" : "Drafts and scheduled posts"}</CardTitle>
-              <CardDescription>{view === "history" ? "Review outcomes, failures, and retry work." : "Posts ready for review and publishing."}</CardDescription>
-            </div>
-            <Tabs value={activeFilter} onValueChange={(value) => setActiveFilter(value as "ALL" | SocialPostStatus)}>
-              <TabsList className="bg-secondary/50">
-                {filters.map((status) => (
-                  status === "ALL" ? <TabsTrigger key={status} value="ALL">All</TabsTrigger> :
-                  <TabsTrigger key={status} value={status}>
-                    {getPostStatusMeta(status).label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <TabsContent value={activeFilter}>
-                <span />
-              </TabsContent>
-            </Tabs>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search posts" />
-              </div>
-              <Select
-                value={platformFilter}
-                onValueChange={(value) => setPlatformFilter(value as "ALL" | SocialPlatform)}
-              >
-                <SelectTrigger className="h-10 w-[10rem]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">All channels</SelectItem>{SOCIAL_PLATFORM_ORDER.map((platform) => <SelectItem key={platform} value={platform}>{getPlatformLabel(platform)}</SelectItem>)}</SelectContent>
-              </Select>
-              {view === "history" ? (
-                <div className="inline-flex h-10 items-center rounded-md border border-border bg-card p-1" role="group" aria-label="Posts display options">
-                  <Button
-                    type="button"
-                    variant={historyViewMode === "grid" ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label="Show posts as cards"
-                    aria-pressed={historyViewMode === "grid"}
-                    title="Card view"
-                    onClick={() => setHistoryViewMode("grid")}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={historyViewMode === "table" ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label="Show posts as table rows"
-                    aria-pressed={historyViewMode === "table"}
-                    title="Table view"
-                    onClick={() => setHistoryViewMode("table")}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
-              <Button variant="outline" className="gap-2" onClick={() => void loadData({ showLoading: false })} disabled={refreshing} aria-label="Refresh posts">
-                <RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Refreshing..." : "Refresh"}
-              </Button>
-            </div>
-            {loading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Skeleton className="h-6 w-48" />
-                        <Skeleton className="h-6 w-24 rounded-full" />
-                      </div>
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-5/6" />
-                      <div className="flex flex-wrap gap-2">
-                        {Array.from({ length: 3 }).map((__, badgeIndex) => (
-                          <Skeleton key={badgeIndex} className="h-6 w-20 rounded-full" />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid w-full gap-2 sm:flex sm:flex-wrap lg:w-auto">
-                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
-                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : filteredPosts.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-                No posts match the current filter yet.
-              </div>
-            ) : view === "history" ? (
-              <SocialPostsLibrary posts={filteredPosts} viewMode={historyViewMode} />
-            ) : (
-              filteredPosts.map((post) => {
-                const status = getPostStatusMeta(post.status);
-                const StatusIcon = status.icon;
-                const publishJobs =
-                  post.publishJobs?.filter((job) => supportedManualPublishPlatforms.includes(job.platform)) || [];
-
-                return (
-                  <div key={post.id} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {post.title || "Untitled social post"}
-                          </h3>
-                          <Badge className={status.className}>
-                            <StatusIcon className="mr-1 h-3.5 w-3.5" />
-                            {status.label}
-                          </Badge>
-                        </div>
-                        <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                          {post.content}
-                        </p>
-                        {post.media?.length ? <div className="flex flex-wrap gap-2">{post.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.id} className="relative overflow-hidden rounded-lg border border-border"><video className="h-20 w-28 object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"><Play className="h-2.5 w-2.5" />{formatDuration(item.durationMs)}</span></div> : <img width={112} height={80} key={item.id} className="h-20 w-28 rounded-lg border border-border object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />)}</div> : null}
-                        <div className="flex flex-wrap gap-2">
-                          {post.variants?.map((variant) => {
-                            const Icon = getPlatformIcon(variant.platform);
-                            return (
-                              <Badge key={variant.id} className={getPlatformTone(variant.platform)}>
-                                <Icon className={`mr-1 h-3.5 w-3.5 ${getPlatformIconClass(variant.platform)}`} />
-                                {getPlatformLabel(variant.platform)}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {post.scheduledFor
-                            ? `Scheduled for ${formatDateTime(post.scheduledFor)}`
-                            : `Saved ${formatDateTime(post.createdAt)}`}
-                        </div>
-                        {publishJobs.length ? (
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Destinations</p>
-                            <div className="grid gap-2 md:grid-cols-2">
-                            {publishJobs.map((job) => {
-                              const jobMeta = getPublishJobStatusMeta(job.status);
-                              const JobIcon = jobMeta.icon;
-                              const PlatformIcon = getPlatformIcon(job.platform);
-                              return (
-                                <div key={job.id} className="rounded-lg border border-border/60 bg-background/45 px-3 py-2.5">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                                      <PlatformIcon className={`h-4 w-4 shrink-0 ${getPlatformIconClass(job.platform)}`} />
-                                      <span className="truncate">{getPlatformLabel(job.platform)}</span>
-                                    </div>
-                                    <Badge className={`shrink-0 ${jobMeta.className}`}>
-                                      {JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}
-                                      {jobMeta.label}
-                                    </Badge>
-                                  </div>
-                                  {job.scheduledFor ? (
-                                    <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(job.scheduledFor)}</p>
-                                  ) : null}
-                                  {job.errorMessage ? (
-                                    <p className="mt-2 text-xs text-destructive">{job.errorMessage}</p>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center lg:w-auto">
+    <div className="min-w-0">
+      <PostsLibraryWorkspace key={view}
+        posts={posts} channels={channels} loading={loading} refreshing={refreshing} error={error}
+        initialStatus={view === "history" ? "PUBLISHED" : "ALL"}
+        onCreate={openNewComposer} onEdit={openEditComposer}
+        onRefresh={() => void loadData({ showLoading: false })}
+        onActivity={(post) => void openActivity(post)} onDelete={openDeleteModal}
+        renderPublishActions={(post) => <div className="flex flex-wrap gap-2">
                         {supportedManualPublishPlatforms.map((platform) => {
                           if (!post.channels.includes(platform)) return null;
 
@@ -1211,27 +993,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                             </div>
                           );
                         })}
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditComposer(post)}>
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => void openActivity(post)}>
-                          <Activity className="h-4 w-4" />
-                          Activity
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openDeleteModal(post)} disabled={deletingPost}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-        </MotionReveal>
-      </div>
+        </div>}
+      />
 
       <Dialog open={Boolean(activityPost)} onOpenChange={(open) => { if (!open) setActivityPost(null); }}>
         {activityPost ? (
