@@ -1,4 +1,5 @@
 import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
+import { registerOverviewRoutes } from "../product/overview/routes";
 import { CustomerRecordStore } from "../product/customer-records/store";
 import { customerSetupReadiness } from "../product/agents/setup-readiness";
 import {EnquiryStore} from "../capabilities/enquiries/enquiries";
@@ -278,6 +279,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});
+  registerOverviewRoutes(app,{pool,resolveScope});
   registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

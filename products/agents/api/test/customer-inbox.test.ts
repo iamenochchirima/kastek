@@ -8,6 +8,7 @@ import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { InboxStore, type ChannelBinding, type InboxCommand } from "../src/product/inbox/inbox-store";
 import { registerInboxRoutes } from "../src/product/inbox/inbox-routes";
+import { registerOverviewRoutes } from "../src/product/overview/routes";
 import { transaction } from "../src/infrastructure/database";
 import { registerChannelPorts } from "../src/infrastructure/channel-ports";
 import { beginOperation } from "../src/execution/lifecycle/execution";
@@ -59,6 +60,35 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("summarizes workspace conversations and enquiries with calendar windows and current handoffs", async () => {
+    const f = await fixture(), other = await fixture();
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='handoff_pending', created_at=now()-interval '10 days' WHERE id=$1", [f.conversation.id]);
+    await pool.query("INSERT INTO agents_platform.customer_record_enquiries(id,organization_id,fields,original_fields) VALUES($1,$2,'{}','{}')", [randomUUID(), f.org.id]);
+    const app = Fastify();
+    registerOverviewRoutes(app, { pool, resolveScope: async request => ({ organizationId: f.org.id, accountId: request.headers['x-account'] as string }) });
+    const get = (days: string, accountId = f.owner.id) => app.inject({ method: 'GET', url: `/api/organizations/${f.org.id}/overview?days=${days}`, headers: { 'x-account': accountId } });
+    try {
+      const week = (await get('7')).json();
+      expect(week.counts).toEqual({ conversations: 0, needsAttention: 1, enquiries: 1, activeAgents: 0 });
+      expect(week.conversationActivity).toHaveLength(7);
+      expect(week.needsAttention.map((row: { id: string }) => row.id)).toEqual([f.conversation.id]);
+      const month = (await get('30')).json();
+      expect(month.counts).toEqual({ conversations: 1, needsAttention: 1, enquiries: 1, activeAgents: 1 });
+      expect(month.channels).toEqual([{ channel: 'website', count: 1 }]);
+      expect(month.recentActivity.map((row: { id: string }) => row.id)).toEqual([f.conversation.id]);
+      expect(month.recentActivity.some((row: { id: string }) => row.id === other.conversation.id)).toBe(false);
+      const trialId = randomUUID(), digest = 'a'.repeat(64);
+      await pool.query(`INSERT INTO agents_platform.evaluation_trials(id,trial_id,organization_id,account_id,agent_id,version_id,composition_digest,max_tokens,request_digest,expires_at,model_routes,model_routes_digest,root_token_limit)
+        VALUES($1,$2,$3,$4,$5,$6,$7,2048,$7,now()+interval '1 day','{}',$7,2048)`, [trialId, randomUUID(), f.org.id, f.owner.id, f.agent.id, f.version.id, digest]);
+      await pool.query(`INSERT INTO agents_platform.evaluation_trial_channels(trial_id,deployment_id,session_id,origin,request_digest,root_token_limit)
+        VALUES($1,$2,$3,$4,$5,2048)`, [trialId, f.deployment.id, f.visitor.sessionId, origin, digest]);
+      const excluded = (await get('30')).json();
+      expect(excluded.counts).toEqual({ conversations: 0, needsAttention: 0, enquiries: 1, activeAgents: 0 });
+      expect(excluded.recentActivity).toEqual([]);
+      expect((await get('30', f.outsider.id)).statusCode).toBe(403);
+      expect((await get('8')).statusCode).toBe(500);
+    } finally { await app.close(); }
+  });
   it("recovers the same conversation and visitor message/task after lost acknowledgements", async () => {
     const f = await fixture(); expect((await inbox.open(f.visitor)).id).toBe(f.conversation.id);
     const input = { requestKey: randomUUID(), body: "What are your hours?" };

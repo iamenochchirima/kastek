@@ -28,7 +28,8 @@ opaque HTTP-only product session, never a service or model credential.
 ## Product paths
 
 - `/login`: provider sign-in.
-- `/app/agents`: workspace overview, agent directory and guided customer-service setup.
+- `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
+- `/app/agents`: agent directory and guided customer-service setup.
 - `/app/agents/:agentId`: chat, activity and configuration, including tools, skills and website setup.
 - `/app/agents/:agentId/conversations/:conversationId`: authorized conversation history and chat.
 - `/app/inbox`: customer conversations, assignment, human replies and handoff.
