@@ -14,7 +14,7 @@ const pages = [
 
 async function expectLoaded(page: Page, name: typeof pages[number]["name"]) {
   if (name === "overview") await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
-  if (name === "connections") await expect(page.getByRole("region", { name: "Connected accounts", exact: true })).toBeVisible();
+  if (name === "connections") await expect(page.getByRole("heading", { name: "Connected accounts", exact: true })).toBeVisible();
   if (name === "inbox") await expect(page.getByRole("textbox", { name: "Reply message", exact: true })).toBeVisible();
   if (name === "agents") await expect(page.getByRole("region", { name: "Your agents", exact: true })).toBeVisible();
   if (name === "contacts") await expect(page.getByRole("button", { name: "View contact Fixture contact", exact: true })).toBeVisible();
