@@ -8,7 +8,7 @@ for (const theme of ["light", "dark"] as const) test(`thread shows real authors 
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/session") return route.fulfill({ json: { account: { id: "owner", email: "owner@example.test", displayName: "Jordan" }, organizations: [{ id: "org", name: "Workspace", role: "owner" }] } });
-    if (path.endsWith("/members")) return route.fulfill({ json: { members: [{ id: "owner", displayName: "Jordan" }], nextCursor: null } });
+    if (path.endsWith("/members")) return route.fulfill({ json: { members: [], nextCursor: null } });
     if (path.endsWith("/agents/summaries")) return route.fulfill({ json: { agents: [{ id: "agent", name: "KasiAI" }], nextCursor: null } });
     if (path.endsWith("/channels")) return route.fulfill({ json: { connections: [] } });
     if (path.endsWith("/enquiries")) return route.fulfill({ json: { enquiries: [] } });
