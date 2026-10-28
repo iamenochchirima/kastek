@@ -31,6 +31,7 @@ opaque HTTP-only product session, never a service or model credential.
 
 ## Product paths
 
+- `/landingv2`: public alternate landing design with a coastal hero, switchable Personal/Business illustrations, knowledge and tools, human handoff and website previews. Sign-in and creation actions use existing login/signup routes. Examples are illustrative, do not call models or connect providers, and do not establish availability of personal-agent execution. The route is marked `noindex`; `/` keeps the current homepage.
 - `/login`: provider sign-in.
 - `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
 - `/app/agents`: searchable agent directory with configuration filters, selected-agent details, chat and configuration links, and guided customer-service setup.
@@ -74,3 +75,21 @@ Production hosting must serve `dist`, fall back to `index.html` for frontend
 paths, and proxy `/api` before that fallback. The supplied Nginx container uses
 `AGENTS_API_UPSTREAM=http://api:4100`. Preserve Origin and cookie headers. No
 production deployment is part of this implementation.
+
+## Alternate landing release
+
+The 28 October 2026 `/landingv2` update is a low-risk, frontend-only design preview.
+Rollout is direct navigation to that route; promoting it to `/` is a separate decision.
+The Git commit identifies the source change; no production version or deployment is claimed.
+API, schema, migrations, analytics events, structured logs, worker metrics and alerts are
+not applicable. Authentication, execution and provider contracts are unchanged. The
+coastal image is generated artwork, encoded locally into 2048px and 960px WebP assets.
+Product illustrations are HTML and Hugeicons with existing Google brand assets.
+No third-party fonts, images, analytics or model calls are loaded by this page.
+
+Verify the public route at 1440px, 768px and 390px, check the preview switch, mobile
+navigation, keyboard focus, signup destination and reduced motion, then run the affected
+frontend lint/build and `pnpm verify:boundaries`. Rollback removes the isolated route,
+page files and coastal assets. No data rollback is needed. Review this preview before
+promoting the homepage; production monitoring and a post-deployment review are not
+applicable until a deployment is authorized.

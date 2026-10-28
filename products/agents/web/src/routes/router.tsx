@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Link } from "react-router-dom";
 import { WorkspaceShell } from "@/platform/shell";
 import { AgentEditor } from "@/platform/agents";
@@ -16,11 +17,18 @@ import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
 import { OverviewPage } from "@/platform/overview";
 
+const LandingV2 = lazy(() => import("@/platform/landing-v2").then(module => ({ default: module.LandingV2 })));
+
+function LandingV2Route() {
+  return <Suspense fallback={<main aria-busy="true" aria-label="Loading Agents" style={{ minHeight: "100dvh", background: "#fefefd" }} />}><LandingV2 /></Suspense>;
+}
+
 function NotFound() {
   return <main className="dashboard-theme min-h-dvh bg-background px-6 py-16 text-foreground"><div className="mx-auto max-w-xl space-y-5"><h1 className="text-2xl font-semibold">Page not found</h1><Link to="/app/agents" className="text-sm underline underline-offset-4">Open Agents</Link></div></main>;
 }
 export const router = createBrowserRouter([
   { path: "/", Component: Landing },
+  { path: "/landingv2", Component: LandingV2Route },
   { path: "/signup", Component: Signup },
   { path: "/login", Component: Login },
   { path: "/chat/:deploymentId", Component: WebsiteChat },
