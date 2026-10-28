@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultBusinessConfiguration, requestDigest } from "../src/contracts/contracts";
-import { assertComposition, compileComposition, resolveProgram, type CompositionDependencies } from "../src/execution/programs/composition";
+import { assertComposition, assertInspectableComposition, compileComposition, resolveProgram, type CompositionDependencies } from "../src/execution/programs/composition";
 
 const faq = { id: "grounded-conversation", version: "1" } as const;
 const directed = { id: "tool-directed", version: "1" } as const;
@@ -47,5 +47,19 @@ describe("trusted program composition", () => {
     expect(() => assertComposition({ ...published, program: { ...published.program, version: "2" } }, published)).toThrow();
     const current = compileComposition(faq, faqConfiguration(), { ...dependencies, runtime: { ...dependencies.runtime, release: "next" } });
     expect(() => assertComposition(published, current)).toThrowError(expect.objectContaining({ code: "PROGRAM_RELEASE_UNAVAILABLE" }));
+  });
+  it.each([
+    ["knowledge.search", "knowledge.read", "channel.request_handoff"],
+    ["knowledge.search", "knowledge.read", "channel.request_handoff", "enquiry.submit"],
+  ])("recognizes a prior grounded release for inspection without allowing it to execute", (...allowedTools) => {
+    const current = compileComposition(faq, faqConfiguration(), dependencies);
+    const original = { ...resolveProgram(faq), allowedTools };
+    const { digest: _digest, ...content } = current;
+    const historicalContent = { ...content, program: { ...content.program, digest: requestDigest(original) } };
+    const historical = { ...historicalContent, digest: requestDigest(historicalContent) };
+    expect(() => assertComposition(historical, current)).toThrow();
+    expect(() => assertInspectableComposition(historical, current)).not.toThrow();
+    expect(() => assertInspectableComposition({ ...historical, configurationDigest: "0".repeat(64) }, current)).toThrow();
+    expect(() => assertInspectableComposition(historical, { ...current, runtime: { ...current.runtime, release: "changed" } })).toThrow();
   });
 });

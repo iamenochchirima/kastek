@@ -5,6 +5,7 @@ import { assertCurrentEvidence, taskEvidenceManifest } from "../execution/contex
 import { requestTreeCancellation } from "../execution/lifecycle/execution";
 import { registerChannelPorts } from "../infrastructure/channel-ports";
 import { PlatformStore } from "../product/agents/store";
+import { inspectInboxOutput } from "../execution/lifecycle/state";
 import { InboxStore } from "../product/inbox/inbox-store";
 
 export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; assertServices(configuration: AgentConfiguration): Promise<void> }) {
@@ -51,7 +52,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {
       const task = (await db.query("SELECT output,state FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       if (!task || task.output !== body || !["completed", "incomplete"].includes(task.state)) return null;
-      try { await assertCurrentEvidence(db, taskId, await taskEvidenceManifest(db, taskId), { requireActiveTask: false }); return body; }
+      try { return await inspectInboxOutput(async () => { await assertCurrentEvidence(db, taskId, await taskEvidenceManifest(db, taskId), { requireActiveTask: false }); return body; }); }
       catch (error) { if (error instanceof PlatformError) return null; throw error; }
     },
     cancelRoot: taskId => requestTreeCancellation(pool, taskId),

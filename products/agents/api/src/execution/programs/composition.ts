@@ -99,3 +99,19 @@ export function assertComposition(published: EffectiveComposition, current: Effe
   const { digest, ...content } = parsed;
   if (digest !== requestDigest(content) || digest !== current.digest) throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE", 503, "The pinned composition is unavailable");
 }
+
+/** Recognize previously shipped grounded v1 descriptors when inspecting completed Inbox output. */
+export function assertInspectableComposition(published: EffectiveComposition, current: EffectiveComposition): void {
+  const priorTools = [
+    ["knowledge.search", "knowledge.read", "channel.request_handoff"],
+    ["knowledge.search", "knowledge.read", "channel.request_handoff", "enquiry.submit"],
+  ];
+  const original = priorTools.map(allowedTools => ({ ...programs["grounded-conversation"], allowedTools }))
+    .find(program => published.program.id === program.id && published.program.version === program.version && published.program.digest === requestDigest(program));
+  if (!original) {
+    return assertComposition(published, current);
+  }
+  const { digest: _digest, ...content } = current;
+  const historical = { ...content, program: { ...content.program, digest: requestDigest(original) } };
+  assertComposition(published, { ...historical, digest: requestDigest(historical) });
+}

@@ -1070,6 +1070,10 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
 | External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
 
+Inbox message inspection recognizes the two previously shipped grounded-conversation v1 program
+descriptors when the remaining pinned composition still matches. It continues to check the saved
+output, current authority and evidence policies. This does not make those releases executable.
+
 The controlled `inbox-accessibility.spec.ts` checks keyboard selection, claim and takeover,
 live-region updates, long unbroken names and message text, and sampled target dimensions at
 1440px and 390px. Its 24px size check is a subset of [WCAG 2.2 target-size guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html); it is not a

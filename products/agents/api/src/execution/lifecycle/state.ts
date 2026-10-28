@@ -1,4 +1,5 @@
 import type { Pool,PoolClient } from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
 agentConfigurationSchema,
 assertRuntimeAvailable,
@@ -6,12 +7,16 @@ PlatformError
 } from "../../contracts/contracts";
 
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
-import { assertComposition } from "../programs/composition";
+import { assertComposition, assertInspectableComposition } from "../programs/composition";
 import { compileValidatedComposition } from "./validated-composition";
 import { loadTaskModelRoutes } from "../models/persistence";
 export { transaction } from "../../infrastructure/database";
 
 import { HARNESS_RELEASE,type Execution } from "../../contracts/execution";
+const inboxInspection = new AsyncLocalStorage<boolean>();
+export function inspectInboxOutput<T>(fn: () => Promise<T>): Promise<T> {
+  return inboxInspection.run(true, fn);
+}
 // Immutable task keys let writer locks coexist with Inbox foreign-key references.
 export async function loadExecution(db: Pool | PoolClient, taskId: string, lock = false): Promise<Execution> {
   const task = (await db.query(`SELECT t.*,v.configuration,v.agent_id,v.tool_bindings,v.effective_composition AS published_composition FROM agents_platform.tasks t
@@ -26,8 +31,10 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
   if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE", 409, "Published connected tools are unavailable");
   const connectedBindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
   const current = compileValidatedComposition(configuration, connectedBindings);
-  assertComposition(task.effective_composition, current);
-  if (!task.parent_task_id) assertComposition(task.published_composition, current);
+  const inspect = inboxInspection.getStore() && ["completed", "incomplete"].includes(task.state);
+  const check = inspect ? assertInspectableComposition : assertComposition;
+  check(task.effective_composition, current);
+  if (!task.parent_task_id) check(task.published_composition, current);
   const models = await loadTaskModelRoutes(db, task.id, task.organization_id);
   return { task, configuration, agentId: task.agent_id,toolBindings:task.tool_bindings, connectedBindings, models };
 }
