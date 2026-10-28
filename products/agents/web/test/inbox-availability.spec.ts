@@ -16,7 +16,9 @@ for (const available of [true, false, undefined]) {
       return route.fulfill({ status: 404, json: { error: { message: `Unexpected request ${path}` } } });
     });
     await page.goto(`/app/inbox?conversation=${id}`);
+    await page.getByRole("button", { name: "Details", exact: true }).click();
     await expect(page.getByText("Customer record unavailable")).toBeVisible();
+    await page.getByRole("button", { name: "Details", exact: true }).click();
     const queue = page.getByRole("complementary", { name: "Customer conversations" });
     if (available === false) await expect(queue.getByText("Channel unavailable", { exact: true })).toBeVisible();
     else await expect(queue.getByText("Channel unavailable", { exact: true })).toHaveCount(0);

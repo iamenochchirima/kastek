@@ -19,7 +19,9 @@ test("expanded WhatsApp controls scroll independently and leave the reply compos
   });
   await page.goto("/app/inbox");
   await page.getByRole("button", { name: /^Customer Agent Support/ }).click();
+  await page.getByRole("button", { name: "Details", exact: true }).click();
   await expect(page.getByLabel("Conversation details").getByText("Jordan", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Details", exact: true }).click();
   await page.getByText("WhatsApp template reply", { exact: true }).click();
   await page.getByLabel("Approved template").selectOption("approved");
   const controls = page.locator(".inbox-channel-controls");

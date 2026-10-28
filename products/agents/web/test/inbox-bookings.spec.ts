@@ -29,7 +29,7 @@ async function fixture(page: Page, options: { noBookings?: boolean; delayed?: bo
 }
 for (const width of [1440, 768, 390]) test(`mock transport: staff appointment status has no customer decision controls at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); const state = await fixture(page);
-  await page.getByRole("button", { name: "Conversation A", exact: false }).click();
+  await page.getByRole("button", { name: "Conversation A", exact: false }).click(); await page.getByRole("button", { name: "Details", exact: true }).click();
   const appointments = page.getByRole("region", { name: "Staff appointments", exact: true });
   await expect(appointments.getByRole("heading", { name: "Appointment A", exact: true })).toBeVisible();
   await expect(appointments).toContainText("Africa/Johannesburg");
@@ -42,14 +42,14 @@ for (const width of [1440, 768, 390]) test(`mock transport: staff appointment st
 });
 
 test("mock transport: FAQ Inbox details never fetch unrelated booking records", async ({ page }) => {
-  const state = await fixture(page, { noBookings: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click();
+  const state = await fixture(page, { noBookings: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click(); await page.getByRole("button", { name: "Details", exact: true }).click();
   await expect(page.getByText("Help with Conversation A", { exact: true })).toBeVisible();
   await expect.poll(state.details).toBeGreaterThan(1); expect(state.reads).toEqual([]);
   await expect(page.getByRole("region", { name: "Staff appointments", exact: true })).toHaveCount(0);
 });
 
 test("mock transport: delayed booking reads cannot replace another Inbox conversation", async ({ page }) => {
-  const state = await fixture(page, { delayed: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click();
+  const state = await fixture(page, { delayed: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click(); await page.getByRole("button", { name: "Details", exact: true }).click();
   await expect.poll(() => state.reads.length).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Conversation B", exact: false }).click();
   const appointments = page.getByRole("region", { name: "Staff appointments", exact: true });
@@ -61,7 +61,7 @@ test("mock transport: delayed booking reads cannot replace another Inbox convers
   expect(state.writes[0].path).toBe("/api/organizations/org/inbox/conv-b/bookings/booking-b/reconcile");
 });
 for (const recovery of ["uncertain", "in_progress"] as const) test(`mock transport: staff recovery ${recovery} offers status only`, async ({ page }) => {
-  const state = await fixture(page, { recovery }); await page.getByRole("button", { name: "Conversation A", exact: false }).click();
+  const state = await fixture(page, { recovery }); await page.getByRole("button", { name: "Conversation A", exact: false }).click(); await page.getByRole("button", { name: "Details", exact: true }).click();
   const appointments = page.getByRole("region", { name: "Staff appointments", exact: true });
   await appointments.getByRole("button", { name: "Check status", exact: true }).click();
   await expect.poll(() => state.writes.length).toBe(1);
@@ -73,7 +73,7 @@ for (const recovery of ["uncertain", "in_progress"] as const) test(`mock transpo
 
 
 test("mock transport: late staff status recovery cannot update a newly selected conversation", async ({ page }) => {
-  const state = await fixture(page, { delayedRecovery: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click();
+  const state = await fixture(page, { delayedRecovery: true }); await page.getByRole("button", { name: "Conversation A", exact: false }).click(); await page.getByRole("button", { name: "Details", exact: true }).click();
   const appointments = page.getByRole("region", { name: "Staff appointments", exact: true });
   await appointments.getByRole("button", { name: "Check status", exact: true }).click(); await expect.poll(() => state.writes.length).toBe(1);
   await page.getByRole("button", { name: "Conversation B", exact: false }).click();

@@ -1076,6 +1076,8 @@ output, current authority and evidence policies. This does not make those releas
 Saving unchanged settings refreshes these known older releases through normal configuration and
 channel validation, creating a new snapshot for subsequent messages. A widget keeps a failed
 message's error visible while its existing retry is pending.
+The Inbox conversation gives messages the main pane; the Details control opens and closes the
+customer and conversation details without resizing the thread.
 
 The controlled `inbox-accessibility.spec.ts` checks keyboard selection, claim and takeover,
 live-region updates, long unbroken names and message text, and sampled target dimensions at

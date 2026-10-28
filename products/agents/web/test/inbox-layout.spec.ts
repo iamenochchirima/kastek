@@ -28,6 +28,18 @@ for (const { theme, width } of [{ theme: "light", width: 1440 }, { theme: "dark"
     await page.getByLabel("Filter Inbox status").selectOption("");
     await item.click();
     await expect(page.getByText("Customer question")).toBeVisible();
+    const details = page.getByRole("button", { name: "Details", exact: true });
+    await expect(details).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByLabel("Conversation details")).toBeHidden();
+    const thread = page.locator(".inbox-thread");
+    const threadWidth = await thread.evaluate(element => element.getBoundingClientRect().width);
+    expect(threadWidth).toBeGreaterThan(width === 390 ? 250 : 400);
+    await details.click();
+    await expect(page.getByLabel("Conversation details")).toBeVisible();
+    expect(await thread.evaluate(element => element.getBoundingClientRect().width)).toBe(threadWidth);
+    await details.press("Escape");
+    await expect(page.getByLabel("Conversation details")).toBeHidden();
+    await expect(details).toBeFocused();
     if (width <= 1050) {
       await expect(item).toBeHidden();
       const detailWidth = await page.locator(".inbox-conversation-detail").evaluate(element => element.getBoundingClientRect().width);
