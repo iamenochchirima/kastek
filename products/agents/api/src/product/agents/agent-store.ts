@@ -15,6 +15,7 @@ import { loadBookingPolicy } from "../../workflows/booking/policy";
 import { customerSetupSchema, customerConfigurationForSetup, applyCustomerSetup, type CustomerSetup } from "../offerings/customer-setup";
 import { customerConfiguration } from "../offerings/offerings";
 import { compilePublishedComposition } from "../../execution/programs/publication";
+import { assertComposition, assertInspectableComposition } from "../../execution/programs/composition";
 
 import { publishedToolBindings } from "../../capabilities/tools";
 
@@ -146,8 +147,20 @@ export class AgentStore extends AuthorityStore {
       const name=input.name===undefined?agent.name:text(input.name,120);
       const setupChanged=(setup!==undefined&&!isDeepStrictEqual(agent.setup,setup))||(input.setupStep!==undefined&&agent.setup_step!==input.setupStep);
       const changed=!isDeepStrictEqual(agentConfigurationSchema.parse(agent.draft),config)||setupChanged;
-      if(!changed&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
-      if(!changed&&latest&&latest.draft_revision===agent.draft_revision){
+      let refreshRelease = false;
+      if (!changed && latest && latest.draft_revision === agent.draft_revision) {
+        const bindings = (await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])", [input.organizationId, config.connectedToolBindingIds])).rows.map(row => capabilityBindingSchema.parse(row.binding));
+        if (bindings.length !== config.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE",409,"Published connected tools are unavailable");
+        const current = compilePublishedComposition(config, bindings);
+        try { assertComposition(latest.effective_composition, current); }
+        catch (error) {
+          if (!(error instanceof PlatformError) || error.code !== "PROGRAM_RELEASE_UNAVAILABLE") throw error;
+          assertInspectableComposition(latest.effective_composition, current);
+          refreshRelease = true;
+        }
+      }
+      if(!changed&&!refreshRelease&&latest&&latest.draft_revision===agent.draft_revision&&name===agent.name)return {agent,snapshot:latest,deployments};
+      if(!changed&&!refreshRelease&&latest&&latest.draft_revision===agent.draft_revision){
         agent=(await db.query<AgentRecord>("UPDATE agents_platform.agents SET name=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *",[input.organizationId,input.agentId,name])).rows[0]!;
         return {agent,snapshot:latest,deployments};
       }

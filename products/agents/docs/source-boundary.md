@@ -1073,6 +1073,9 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 Inbox message inspection recognizes the two previously shipped grounded-conversation v1 program
 descriptors when the remaining pinned composition still matches. It continues to check the saved
 output, current authority and evidence policies. This does not make those releases executable.
+Saving unchanged settings refreshes these known older releases through normal configuration and
+channel validation, creating a new snapshot for subsequent messages. A widget keeps a failed
+message's error visible while its existing retry is pending.
 
 The controlled `inbox-accessibility.spec.ts` checks keyboard selection, claim and takeover,
 live-region updates, long unbroken names and message text, and sampled target dimensions at

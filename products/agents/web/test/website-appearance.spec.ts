@@ -5,7 +5,7 @@ const servers: Server[] = [];
 test.use({ launchOptions: { channel: "chromium-headless-shell" } });
 test.afterEach(async()=>{await Promise.all(servers.splice(0).map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))));});
 async function fixture(page: Page, paused=false, appearance: Record<string,unknown> = {}) {
-  const sent: Record<string,unknown>[] = [], errors:string[]=[];let sessions=0,lost=true;
+  const sent: Record<string,unknown>[] = [], errors:string[]=[];let sessions=0,lost=true,refreshes=0;
   page.on("pageerror",error=>errors.push(error.message));
   const server=createServer(async(req,res)=>{
     res.setHeader("content-type","application/json");const path=new URL(req.url!,"http://fixture.test").pathname;
@@ -17,18 +17,21 @@ async function fixture(page: Page, paused=false, appearance: Record<string,unkno
     if(path.endsWith("/messages")){
       expect(req.headers.authorization).toBe("Bearer private-session");
       if(req.method==="POST"){let body="";for await(const chunk of req)body+=chunk;sent.push(JSON.parse(body));if(lost){lost=false;res.end("lost acknowledgement");return;}}
+      else refreshes++;
       res.end(JSON.stringify({conversation:{id:"one",state:"automation_active"},messages:sent.length?[{authorKind:"visitor",body:sent[0]!.body},{authorKind:"human",body:"We are open."}]:[]}));return;
     }
     res.statusCode=404;res.end("{}");
   });servers.push(server);await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
   const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;await page.goto(origin);
   await expect(page.getByRole("button",{name:"Ask support",exact:true})).toBeVisible();
-  return {sent,errors,get sessions(){return sessions;}};
+  return {sent,errors,get sessions(){return sessions;},get refreshes(){return refreshes;}};
 }
 test("plain-text appearance, suggested messages and lost acknowledgement reload",async({page})=>{
   const f=await fixture(page);expect(f.sessions).toBe(0);await page.getByRole("button",{name:"Ask support",exact:true}).click();
   await expect(page.getByRole("log")).toContainText("Welcome <script>unsafe</script>");expect(await page.locator("img").count()).toBe(0);
   await page.getByRole("button",{name:"Opening hours",exact:true}).click();await expect(page.getByRole("button",{name:"Retry message"})).toBeVisible();
+  const error = await page.getByRole("status").textContent();expect(error).toBeTruthy();const refreshes=f.refreshes;
+  await expect.poll(()=>f.refreshes).toBeGreaterThan(refreshes);await expect(page.getByRole("status")).toHaveText(error!);
   await page.getByRole("button",{name:"Retry message"}).click();await expect(page.getByRole("log")).toContainText("Support: We are open.");
   await page.screenshot({path:test.info().outputPath("desktop.png")});
   expect(f.sent).toHaveLength(2);expect(f.sent[0]).toEqual(f.sent[1]);expect(f.sessions).toBe(1);
