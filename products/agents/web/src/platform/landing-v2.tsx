@@ -40,7 +40,7 @@ export function LandingV2() {
       <section className="lv2-hero" aria-labelledby="lv2-title">
         <div className="lv2-hero-copy lv2-container">
           <h1 id="lv2-title">An agent for the things you do.</h1>
-          <p>Give your agent instructions, knowledge and tools.<br className="lv2-desktop-break" /> Use it yourself, with your team, or with your customers.</p>
+          <p>Research a topic, compare documents or help a customer.</p>
           <CreateAgent />
         </div>
         <div className="lv2-coast-scene">
@@ -56,7 +56,7 @@ export function LandingV2() {
       </section>
       <div className="lv2-container lv2-sections">
         <section id="personal" className="lv2-feature lv2-personal" aria-labelledby="lv2-personal-heading">
-          <div className="lv2-feature-copy"><h2 id="lv2-personal-heading">For your own work.</h2><p>Research, plan and work with the information and tools you choose.</p></div>
+          <div className="lv2-feature-copy"><h2 id="lv2-personal-heading">For your own work.</h2><p>Work through your documents, research a question or turn your notes into a plan.</p></div>
           <PersonalPreview />
         </section>
         <section id="business" className="lv2-feature lv2-business" aria-labelledby="lv2-business-heading">

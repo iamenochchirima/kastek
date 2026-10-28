@@ -85,6 +85,8 @@ API, schema, migrations, analytics events, structured logs, worker metrics and a
 not applicable. Authentication, execution and provider contracts are unchanged. The
 coastal image is generated artwork, encoded locally into 2048px and 960px WebP assets.
 Product illustrations are HTML and Hugeicons with existing Google brand assets.
+The hero shows the workspace; subsequent sections use distinct weekly-plan and human-handoff
+illustrations rather than repeating the dashboard.
 No third-party fonts, images, analytics or model calls are loaded by this page.
 
 Verify the public route at 1440px, 768px and 390px, check the preview switch, mobile

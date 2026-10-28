@@ -116,7 +116,6 @@
   .lv2-hero-copy { padding-block: 38px 28px; }
   .lv2-hero h1 { max-width: 410px; font-size: clamp(38px, 10.6vw, 55px); line-height: 1.06; }
   .lv2-hero-copy > p { max-width: 350px; margin-block: 18px 24px; font-size: 15px; line-height: 1.5; }
-  .lv2-desktop-break { display: none; }
   .lv2-coast-scene { min-height: 0; padding: 48px 28px 56px; }
   .lv2-coast img { object-position: 44% center; }
   .lv2-preview-switch { top: 14px; right: 45px; }
