@@ -4,7 +4,7 @@ import type { Pool,PoolClient } from "pg";
 import {
 agentConfigurationSchema,assertGrantAuthority,assertRuntimeAvailable,canonicalJson,
 executionGrantSchema,
-PlatformError,requestDigest,
+PlatformError,requestDigest,principalSchema,
 type AdmissionAuthority,
 type ExecutionGrant
 } from "../../contracts/contracts";
@@ -110,8 +110,14 @@ export class AdmissionStore extends AuthorityStore {
     const conversationId = input.conversationId ?? randomUUID();
     if (input.conversationId) {
       const conversation = (await db.query<{ agent_id: string; principal: unknown; deployment_id: string | null }>("SELECT agent_id,principal,deployment_id FROM agents_platform.conversations WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE", [input.authority.organizationId, conversationId])).rows[0];
-      if (!conversation || conversation.agent_id !== version.agent_id || canonicalJson(conversation.principal) !== canonicalJson(input.authority.principal) ||
+      if (!conversation || conversation.agent_id !== version.agent_id ||
         conversation.deployment_id !== (input.authority.principal.kind === "visitor" ? input.authority.principal.deploymentId : null)) denied();
+      if (canonicalJson(conversation.principal) !== canonicalJson(input.authority.principal)) {
+        const origin = principalSchema.parse(conversation.principal), current = input.authority.principal;
+        if (input.authority.product !== "agents" || origin.kind !== "visitor" || current.kind !== "visitor" || !input.channelBinding ||
+          !await channelPorts(db).visitorLineage?.(db, { organizationId: input.authority.organizationId, agentId: version.agent_id,
+            executionConversationId: conversationId, customerConversationId: input.channelBinding.customerConversationId, current, origin })) denied();
+      }
     } else await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,deployment_id) VALUES($1,$2,$3,$4,$5)",
       [conversationId, input.authority.organizationId, version.agent_id, input.authority.principal, input.authority.principal.kind === "visitor" ? input.authority.principal.deploymentId : null]);
     const priorVersion = (await db.query("SELECT version_id FROM agents_platform.tasks WHERE conversation_id=$1 ORDER BY turn_sequence DESC LIMIT 1", [conversationId])).rows[0];

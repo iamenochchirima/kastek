@@ -14,6 +14,7 @@ import { assertChannelCustomerAuthority } from "../admission/channel-authority";
 import { assertProductAuthority } from "../admission/product-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
+import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -55,6 +56,7 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
+    if (!await currentVisitorLineageAllowed(db,root)) throw unavailable();
     if (!(await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
       WHERE d.id=$1 AND s.id=$2 AND d.agent_id=$3 AND d.organization_id=$4 FOR SHARE OF d`, [root.task.principal.deploymentId, root.task.principal.sessionId, root.agentId, root.task.organization_id])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "channel_customer") {
@@ -95,7 +97,7 @@ export async function historyOrigins(db:Db,current:Execution,extra:string[]):Pro
   await linked(current);
   while(queue.length){const item=queue.shift()!;if(item.id===item.consumer.task.id)throw integrity();
     const origin=await loadExecution(db,item.id);
-    if(origin.task.parent_task_id||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||requestDigest(origin.task.principal)!==requestDigest(current.task.principal)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
+    if(origin.task.parent_task_id||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
     if(seen.has(item.id))continue;if(seen.size>=32)throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
   }return origins;
 }

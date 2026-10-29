@@ -359,6 +359,42 @@ deployment registration to include the new workflow. To stop future effects, rem
 from the published agent configuration or pause its channel. Keep accepted receipts and unknown
 provider deliveries for reconciliation; never resend an unknown effect during rollback.
 
+### Website reply notifications
+
+Website visitors can confirm an email address for notifications about human replies. Configure
+`AGENTS_FOLLOWUP_RESEND_API_KEY` and `AGENTS_FOLLOWUP_EMAIL_SENDER` on both API and worker, using
+an Agents-owned verified Resend sender. API and worker must use the same `AGENTS_PUBLIC_URL`.
+Apply schema085 before either service starts and register the worker's `AgentsCustomerFollowupV1`
+workflow with Restate. New signup requires a matching worker heartbeat observed within 45 seconds
+and a currently registered workflow. Support hours do not establish notification readiness.
+
+The website offers notifications only when this capability is available. Verification uses an
+emailed, one-use code tied to the exact conversation and preference revision. A human reply
+enqueues one notification per message and preference revision. Visible-message read receipts
+suppress pending notifications. Resend acceptance is stored as `accepted`, not delivered or read.
+Rejected and unknown notification outcomes remain visible to authorized Inbox staff.
+
+The email contains a 30-minute one-use return link with its secret in the fragment. Exchange
+requires a valid same-deployment website session and grants access only to that conversation.
+Returning after staff explicitly resumes automation retains the execution conversation while
+checking the new session's scoped access. Evidence inheritance rechecks both session lineages,
+source policy and original grants. A shared email address does not authorize another customer.
+Revoking or changing the preference invalidates recovered-session access and future effects.
+
+The dispatcher never retries an unknown email send. A replay encountering a fresh send claim
+waits; a claim older than 60 seconds becomes `unknown` without another provider request. Inspect
+`customer_followup_notifications` and the bounded `customer_followup_publisher_error` log before
+reconciliation. Removing sender configuration disables new signup and notification admission;
+existing preference reads, opt-out and issued return links remain available. Pausing the website
+or revoking the preference stops its future access. Retain accepted/unknown receipts on rollback.
+
+The controlled `customer-followup-journey.test.ts` verifies API authorization, address verification,
+one human reply notification through a local HTTP mailbox, scoped return and revocation without
+model inference. `customer-return-lineage.test.ts` verifies admission/evidence isolation, source
+withdrawal and claim recovery. Provider delivery, real inbox acceptance and model behavior remain
+owner-run. The handoff acknowledgement is currently a platform receipt; contextual agent-written
+acknowledgement and unrestricted pending-support agent turns remain unavailable.
+
 Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
 appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
 and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.

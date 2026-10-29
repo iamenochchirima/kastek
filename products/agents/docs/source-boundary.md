@@ -1919,6 +1919,49 @@ remains a separate gate. Disable or replace the selected binding to stop new adm
 retain receipts and the accepted executable release for in-flight recovery.
 
 
+## Website customer follow-up
+
+Schema085 adds conversation-bound email preferences, verification/return challenge digests,
+scoped session access, notification/read receipts and worker readiness observations. Website
+follow-up is available through the generated widget and `/support/return/:deploymentId`.
+The optional Agents-owned Resend sender uses `AGENTS_FOLLOWUP_RESEND_API_KEY` and
+`AGENTS_FOLLOWUP_EMAIL_SENDER` on API and worker, with matching `AGENTS_PUBLIC_URL`.
+New signup requires a matching worker observed within 45 seconds and a registered
+`AgentsCustomerFollowupV1` Restate service. Missing credentials, stale worker observations,
+configuration mismatch or an unavailable registry disable signup. Existing authorized preference
+reads, verification, revocation and return exchange remain available after sender removal.
+
+The verified preference authorizes human-reply notifications only. Message/revision identity
+deduplicates intents; visible-message receipts suppress pending sends. A provider receipt records
+acceptance, not delivery/read. Unknown sends are never automatically retried. A worker replay
+waits for a fresh physical claim and marks a claim older than 60 seconds unknown without sending.
+Rejected/unknown outcomes are exposed in authorized Inbox reads.
+
+One-use return links expire after 30 minutes. Their secrets are stored as hashes and carried in
+the URL fragment, then exchanged into a same-deployment visitor session bound to one canonical
+conversation and current verified preference revision. Session recovery preserves the execution
+conversation without replacing its original principal. The product-owned visitor-lineage port
+authorizes differing principals only with exact tenant/agent/deployment/conversation and immutable
+task-link checks. Current and origin return access are rechecked in admission, active authority,
+historical evidence and completed-output reads. Source withdrawal, grant revocation and preference
+revocation remain effective. No email-based identity merge or cross-customer access is allowed.
+
+Validation uses `customer-followup-journey.test.ts` with actual app routes, PostgreSQL and the
+Resend adapter against a controlled local HTTP mailbox; `customer-return-lineage.test.ts` checks
+source revocation, cross-session/cross-customer denial and lost-claim recovery. The existing
+challenge/adapter and website/return browser checks cover their separate boundaries. These checks
+do not establish live mail delivery or model quality. The natural acknowledgement gap remains
+explicit: handoff currently sends a platform receipt, not a post-tool model-generated response.
+
+Release risk is standard across Agents schema/API/worker, widget and return view. Apply schema085
+before matching API/worker artifacts, then register the notification workflow. No new analytics
+event names, Collector configuration or production deployment are introduced. Receipt states and
+the existing structured publisher log identify operational failures without emails or message
+bodies in logs. Stop new signup/sends by removing sender configuration; retain preference
+revocation and scoped return routes. Preserve accepted/unknown receipts during rollback. Product
+release tag, production rollout date and post-release review date remain not applicable until an
+authorized deployment.
+
 ## Configurable product capability release record
 
 | Field | Decision and evidence |

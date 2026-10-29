@@ -32,6 +32,11 @@ import { createAutomationWorkflow,startAutomationDispatcher } from "../product/a
 import { AutomationService } from "../product/automations/automations";
 import { SupportWaitingService } from "../product/inbox/support-waiting";
 import { createSupportWaitingWorkflow,startSupportWaitingDispatcher } from "../product/inbox/support-waiting-runtime";
+import { customerFollowupConfig } from "../product/customer-followup/config";
+import { CustomerFollowupNotifications } from "../product/customer-followup/notifications";
+import { createCustomerFollowupWorkflow,startCustomerFollowupDispatcher } from "../product/customer-followup/runtime";
+import { ResendNotificationSender } from "../adapters/notifications/resend";
+import { followupConfigurationDigest } from "../product/customer-followup/readiness";
 import { actionsFromEnvironment } from "./actions";
 import { runDocumentReaper } from "./document-reaper";
 import { runSourceObjectReaper } from "./source-object-reaper";
@@ -94,8 +99,11 @@ async function main(): Promise<void> {
       connected.assertAvailable(bindings);
     }
   });
-  const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin,
+  const followupConfig = customerFollowupConfig(process.env);
+  const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig),
     assertServices: async () => {} });
+  const followupSender = followupConfig ? new ResendNotificationSender(followupConfig.apiKey,followupConfig.sender,{timeoutMs:10000}) : undefined;
+  const followups = followupConfig && followupSender ? new CustomerFollowupNotifications(pool,(message,beforeAttempt)=>followupSender.send(message,beforeAttempt),followupConfig.publicUrl) : undefined;
   const supportWaiting = new SupportWaitingService(pool,(db,input)=>inbox.publishWaitingNotice(db,input));
   const channelServices=composeChannels(pool,inbox,process.env.AGENTS_PUBLIC_URL??"http://localhost:3100",abort.signal);
   let cancellationPending: Promise<unknown> | undefined;
@@ -114,7 +122,7 @@ async function main(): Promise<void> {
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();
-  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -133,6 +141,8 @@ async function main(): Promise<void> {
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
   const supportDispatcher=startSupportWaitingDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"support_waiting_publisher_error",code})));
+  const followupDispatcher=followups ? startCustomerFollowupDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_followup_publisher_error",code})),{configurationDigest:followupConfigurationDigest(followupConfig!),adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070"}) : undefined;
   const ingestionDispatcher=ingestion?startIngestionDispatcher(ingestion,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"ingestion_publisher_error",code}))):undefined;
   // Object deletion is independent of physical resource cleanup; either backend may be temporarily unavailable.
@@ -145,7 +155,7 @@ async function main(): Promise<void> {
     closing = true;
     abort.abort();
     clearInterval(cancellationTimer); await cancellationPending;
-    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
+    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });

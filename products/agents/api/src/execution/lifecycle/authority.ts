@@ -20,6 +20,7 @@ import { channelBindingSchema } from "../../contracts/channel";
 import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
+import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
@@ -62,6 +63,7 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
     [task.organization_id, task.principal.issuer, task.principal.subject]);
     if (!allowed.rowCount) throw new PlatformError("MEMBERSHIP_INACTIVE", 403, "Workspace access is unavailable");
   } else if (task.principal.kind === "visitor") {
+    if (!await currentVisitorLineageAllowed(db,execution)) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Website return access is unavailable");
     const allowed = await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id
       WHERE d.organization_id=$1 AND d.id=$2 AND EXISTS(SELECT 1 FROM agents_platform.agent_versions v WHERE v.id=$3 AND v.agent_id=d.agent_id AND v.organization_id=d.organization_id) AND d.agent_id=$4 AND d.revoked_at IS NULL AND d.paused=false
       AND s.id=$5 AND s.expires_at>now() FOR SHARE OF d`,

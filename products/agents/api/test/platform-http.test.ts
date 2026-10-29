@@ -314,6 +314,16 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect(injectedConversation.status).toBe(403);
   });
 
+  it("allows the first-party chat origin without authorizing unrelated website origins", async () => {
+    const f = await readyAgent(), published = await publish(f), website = `/api/website/${published.body.deployment.id}`;
+    const firstParty = await request(`${website}/session`, { method:"POST", origin:browserOrigin });
+    expect(firstParty.status).toBe(201);
+    const denied = await request(`${website}/session`, { method:"POST", origin:"https://unrelated.example" });
+    expect(denied.status).toBe(403);
+    const deployment = await store.getWebsiteDeployment(published.body.deployment.id);
+    expect(deployment.allowed_origins).toEqual(["https://shop.example"]);
+  });
+
   it("keeps late native output out of legacy website task and history routes after takeover",async()=>{
     const f=await readyAgent(),published=await publish(f),website=`/api/website/${published.body.deployment.id}`;
     const session=await request(`${website}/session`,{method:"POST",origin:"https://shop.example"});

@@ -8,7 +8,7 @@ import {registerAdminCustomerRoutes} from "../product/customers/routes";
 import {registerAdminReportingRoutes} from "../product/reporting/routes";
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import cookie from "@fastify/cookie";
-import Fastify,{ type FastifyRequest } from "fastify";
+import Fastify,{ type FastifyReply, type FastifyRequest } from "fastify";
 import { createHash,randomBytes,randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -85,6 +85,11 @@ import { registerChannelRoutes } from "../product/channels/channel-routes";
 import { registerChannelWebhooks } from "../product/channels/channel-webhooks";
 import { registerChannelSupportRoutes } from "../product/channels/channel-support-routes";
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
+import { customerFollowupConfig } from "../product/customer-followup/config";
+import { CustomerFollowupChallenges } from "../product/customer-followup/challenges";
+import { registerCustomerFollowupConsent, registerCustomerFollowupReturn } from "../product/customer-followup/routes";
+import { ResendNotificationSender } from "../adapters/notifications/resend";
+import { customerFollowupReady } from "../product/customer-followup/readiness";
 import { registerSupportAlertRoutes } from "../product/inbox/support-alert-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
@@ -113,11 +118,13 @@ const dto = (row: object) => ({ ...Object.fromEntries(Object.entries(row).map(([
 } : {}) });
 
 export async function buildPlatformApp(options: { config: PlatformConfig; pool: Pool; identity?: PlatformIdentity; logging?: boolean;testGoogleOAuth?:GoogleOAuthPort;testGoogleApiBaseUrl?:string;testConnectionLoopback?:boolean;
+  testFollowupSender?: Pick<ResendNotificationSender,"send">;
   testModelProviderOptions?: ConstructorParameters<typeof ModelProviderStore>[3] }) {
   const { config, pool } = options;
   if((options.testGoogleOAuth||options.testGoogleApiBaseUrl)&&config.NODE_ENV!=="test")throw new Error("TEST_GOOGLE_OPTIONS_DENIED");
   if(options.testConnectionLoopback&&config.NODE_ENV!=="test")throw new Error("TEST_CONNECTION_OPTIONS_DENIED");
   if(options.testModelProviderOptions&&config.NODE_ENV!=="test")throw new Error("TEST_MODEL_OPTIONS_DENIED");
+  if(options.testFollowupSender&&config.NODE_ENV!=="test")throw new Error("TEST_FOLLOWUP_OPTIONS_DENIED");
   const store = new PlatformStore(pool);
   const evaluationTrials = new EvaluationTrials(pool);
   const discovery = new PlatformDiscovery(pool,store);
@@ -174,7 +181,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if(configuration.capabilities.sandbox.enabled&&(!sandbox||!await sandbox.available()))throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
   }
   const automations=new AutomationService(pool,assertServices);
-  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
+  const followupConfig = customerFollowupConfig({...process.env, AGENTS_PUBLIC_URL:config.AGENTS_PUBLIC_URL});
+  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig), assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
   const channelServices=composeChannels(pool,inbox,config.AGENTS_PUBLIC_URL);
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;
@@ -717,7 +725,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const { deployment } = await websiteContext(request, reply);
     const row = (await pool.query<{ name: string }>("SELECT name FROM agents_platform.agents WHERE id=$1 AND organization_id=$2", [deployment.agent_id, deployment.organization_id])).rows[0];
     const version=(await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1 AND organization_id=$2",[deployment.version_id,deployment.organization_id])).rows[0];
-    return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,
+    return { name: row?.name ?? "Assistant",appearance:websiteAppearanceSchema.parse(deployment.appearance),paused:deployment.paused,followupPreferencesAvailable:true,followupEnabled:followupConfig?await customerFollowupReady(pool,followupConfig,config.RESTATE_ADMIN_URL):false,
       nativeEnquiryEnabled:Boolean(version?.configuration.capabilities?.enquiries?.enabled),intakeEnabled:Boolean(version?.configuration.connectedToolBindingIds.length || version?.configuration.capabilities?.enquiries?.enabled),bookingEnabled:Boolean(version?.configuration.capabilities?.businessActions?.enabled) };
   });
   app.get("/api/website/:deploymentId/widget.js", async (request, reply) => {
@@ -734,15 +742,21 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     await pool.query("INSERT INTO agents_platform.website_sessions(id,deployment_id,token_hash,origin) VALUES($1,$2,$3,$4)", [randomUUID(), deployment.id, hash(token), websiteOrigin]);
     return reply.code(201).send({ token });
   });
-  registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,
-    resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
-    resolveVisitor: async (request, reply) => {
+  const resolveVisitor = async (request: FastifyRequest, reply: FastifyReply) => {
       const { deployment, websiteOrigin } = await websiteContext(request, reply);
       const authority = await websiteAuthority(request, deployment, websiteOrigin);
       if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Customer session required");
       return { deploymentId: deployment.id, sessionId: authority.principal.sessionId };
-    },
+    };
+  registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,
+    resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
+    resolveVisitor,
   });
+  {
+    const challenges = new CustomerFollowupChallenges(pool), sender = followupConfig ? options.testFollowupSender ?? new ResendNotificationSender(followupConfig.apiKey,followupConfig.sender,{timeoutMs:10000}) : undefined;
+    registerCustomerFollowupReturn(app,{challenges,resolveVisitor,publicRate});
+    registerCustomerFollowupConsent(app,{challenges,resolveVisitor,publicRate,send:sender?input=>sender.send(input):undefined,ready:()=>followupConfig?customerFollowupReady(pool,followupConfig,config.RESTATE_ADMIN_URL):Promise.resolve(false)});
+  }
   app.post("/api/website/:deploymentId/tasks", async (request, reply) => {
     const { deployment, websiteOrigin, grantOrigin } = await websiteContext(request, reply);
     const authority = await websiteAuthority(request, deployment, websiteOrigin), input = websiteTaskInput.parse(request.body);

@@ -7,10 +7,15 @@ import { registerChannelPorts } from "../infrastructure/channel-ports";
 import { PlatformStore } from "../product/agents/store";
 import { inspectInboxOutput } from "../execution/lifecycle/state";
 import { InboxStore } from "../product/inbox/inbox-store";
+import { followupAccess } from "../product/customer-followup/access";
+import { verifiedVisitorLineage } from "../product/customer-followup/lineage";
+import { enqueueCustomerFollowup,customerFollowupFailures } from "../product/customer-followup/notifications";
 
-export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; assertServices(configuration: AgentConfiguration): Promise<void> }) {
+export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; followupEnabled?: boolean; followupAccessEnabled?:boolean; assertServices(configuration: AgentConfiguration): Promise<void> }) {
   const store = new PlatformStore(pool);
   const inbox = new InboxStore(pool, {
+    ...(options.followupEnabled||options.followupAccessEnabled ? { followupAccess,followupFailures:customerFollowupFailures } : {}),
+    ...(options.followupEnabled ? { enqueueFollowup:enqueueCustomerFollowup } : {}),
     async admit(db, input) {
       const deployment = (await db.query(`SELECT d.*,s.origin AS session_origin FROM agents_platform.website_deployments d
         JOIN agents_platform.website_sessions s ON s.deployment_id=d.id WHERE d.id=$1 AND s.id=$2 AND d.revoked_at IS NULL AND d.paused=false AND s.expires_at>now() FOR SHARE OF d,s`,
@@ -58,6 +63,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
     cancelRoot: taskId => requestTreeCancellation(pool, taskId),
   }, createCursorCodec(options.cursorKeys ?? cursorKeysFromEnvironment()));
   registerChannelPorts(pool, {
+    ...(options.followupEnabled||options.followupAccessEnabled ? { visitorLineage:verifiedVisitorLineage } : {}),
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
     requestHandoff: (db, binding, taskId, brief) => inbox.requestHandoff(db, binding, taskId, brief),
     publishAutomated: (db, input) => inbox.publishAutomated(db, input),

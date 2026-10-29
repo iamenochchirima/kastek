@@ -55,7 +55,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
     const hasBookings=!!(await options.inbox.pool.query(`SELECT 1 FROM agents_platform.customer_task_links l
       JOIN agents_platform.tasks t ON t.id=l.task_id JOIN agents_platform.booking_intents b ON b.task_id=t.id
       WHERE l.conversation_id=$1 AND t.organization_id=$2 LIMIT 1`,[conversationId,scope.organizationId])).rowCount;
-    return { conversation: {...inboxConversation(result.conversation),hasBookings,channelAvailable:result.channelAvailable}, handoffBrief:result.handoffBrief, messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
+    return { conversation: {...inboxConversation(result.conversation),hasBookings,channelAvailable:result.channelAvailable}, handoffBrief:result.handoffBrief, followupFailures:result.followupFailures, messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   app.post(`${base}/:conversationId/commands`, async request => {
     const input = z.strictObject({ commandId: uuid, expectedRevision: revision, action: z.enum(["claim", "assign", "unassign", "takeover", "reply", "resolve", "reopen", "return"]), assigneeAccountId: uuid.nullable().optional(), body: z.string().trim().min(1).max(8000).optional() }).parse(request.body);

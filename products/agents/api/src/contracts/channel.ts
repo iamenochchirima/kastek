@@ -6,10 +6,15 @@ export const channelBindingSchema = z.strictObject({ customerConversationId: z.u
 export type ChannelBinding = z.infer<typeof channelBindingSchema>;
 export const handoffBriefSchema = z.strictObject({reason:z.string().trim().min(1).max(200),brief:z.string().trim().min(1).max(2000)});
 export type HandoffBrief = z.infer<typeof handoffBriefSchema>;
+export interface VisitorLineage {
+  organizationId: string; agentId: string; executionConversationId: string; customerConversationId: string;
+  current: { deploymentId: string; sessionId: string }; origin: { deploymentId: string; sessionId: string }; originTaskId?: string;
+}
 export interface ChannelExecutionPorts {
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief): Promise<{ state: "handoff_pending" }>;
   publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void>;
+  visitorLineage?(db: Pool | PoolClient, input: VisitorLineage): Promise<boolean>;
   publishEnquiryReview?(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>;
   publishToolReview?(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;arguments:unknown}):Promise<void>;
   context(db: Pool | PoolClient, binding: ChannelBinding, beforeMessageId: string): Promise<{

@@ -39,6 +39,9 @@ export interface CustomerMessage { id: string; conversation_id: string; sequence
   channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
   deliveries?: {id:string;segment:number;state:string;reason:string|null}[] }
 export interface InboxPorts {
+  followupAccess?(db: Db, scope: VisitorScope, conversationId?: string): Promise<string | null>;
+  enqueueFollowup?(db: PoolClient, conversationId: string, messageId: string): Promise<string | null>;
+  followupFailures?(db: Db, conversationId: string): Promise<Array<{id:string;state:"rejected"|"unknown";createdAt:Date}>>;
   admit(db: PoolClient, input: { deploymentId: string; sessionId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
   admitChannel?(db: PoolClient, input: { deploymentId: string; participantId: string; versionId: string; executionConversationId: string | null;
@@ -84,11 +87,13 @@ export class InboxStore {
   }
   private async visitorConversation(db: Db, scope: VisitorScope, id: string, lock = false): Promise<CustomerConversation> {
     await this.visitor(db, scope); const row = await this.conversation(db, id, lock);
-    if (row.deployment_id !== scope.deploymentId || row.session_id !== scope.sessionId) denied();
+    if (row.deployment_id !== scope.deploymentId || (row.session_id !== scope.sessionId && await this.ports.followupAccess?.(db, scope, id) !== id)) denied();
     return row;
   }
   async open(scope: VisitorScope): Promise<CustomerConversation> {
     return transaction(this.pool, async db => { const deployment = await this.visitor(db, scope);
+      const recovered = await this.ports.followupAccess?.(db, scope);
+      if (recovered) return this.visitorConversation(db, scope, recovered);
       return (await db.query<CustomerConversation>(`INSERT INTO agents_platform.customer_conversations(id,organization_id,deployment_id,agent_id,version_id,session_id)
         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(deployment_id,session_id) DO UPDATE SET session_id=excluded.session_id RETURNING *`,
       [randomUUID(), deployment.organization_id, scope.deploymentId, deployment.agent_id, deployment.version_id, scope.sessionId])).rows[0]!;
@@ -183,7 +188,8 @@ export class InboxStore {
         WHERE c.conversation_id=$1 AND c.action='request_handoff' AND $2::text IN ('handoff_pending','human_owned') AND m.sequence>$3::bigint
         ORDER BY w.requested_at DESC LIMIT 1`,[id,conversation.state,conversation.return_watermark])).rows[0];
       const parsed = handoffBriefSchema.safeParse(receipt?.brief);
-      return { conversation, handoffBrief: parsed.success ? parsed.data : null, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
+      const followupFailures = await this.ports.followupFailures?.(db, id) ?? [];
+      return { conversation, handoffBrief: parsed.success ? parsed.data : null, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
@@ -257,7 +263,8 @@ export class InboxStore {
           { if(!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_UNAVAILABLE",409,"Reconnect or resume this channel before replying");
             const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
             await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]);
-            await enqueueChannelMessage(db,row,message,preparedDelivery); } break;
+            await enqueueChannelMessage(db,row,message,preparedDelivery);
+            if(row.channel_kind === "website") await this.ports.enqueueFollowup?.(db,id,message.id); } break;
         case "resolve": if (!assigned) denied(); state = "resolved"; fence = true; break;
         case "reopen": if (!assigned || state !== "resolved") denied(); state = "human_owned"; fence = true; break;
         case "return": if (!assigned || !["human_owned", "handoff_pending"].includes(state)) denied(); state = "automation_active"; fence = true; break;
