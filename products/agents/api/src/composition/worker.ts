@@ -30,6 +30,8 @@ import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
 import { AutomationService } from "../product/automations/automations";
+import { SupportWaitingService } from "../product/inbox/support-waiting";
+import { createSupportWaitingWorkflow,startSupportWaitingDispatcher } from "../product/inbox/support-waiting-runtime";
 import { actionsFromEnvironment } from "./actions";
 import { runDocumentReaper } from "./document-reaper";
 import { runSourceObjectReaper } from "./source-object-reaper";
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
   });
   const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin,
     assertServices: async () => {} });
+  const supportWaiting = new SupportWaitingService(pool,(db,input)=>inbox.publishWaitingNotice(db,input));
   const channelServices=composeChannels(pool,inbox,process.env.AGENTS_PUBLIC_URL??"http://localhost:3100",abort.signal);
   let cancellationPending: Promise<unknown> | undefined;
   const cancellationTimer = setInterval(() => {
@@ -111,7 +114,7 @@ async function main(): Promise<void> {
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
     executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
   const {host,identityKeys} = workerSecurityFromEnvironment();
-  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -128,6 +131,8 @@ async function main(): Promise<void> {
   });
   const automationDispatcher=startAutomationDispatcher(pool,automations,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
+  const supportDispatcher=startSupportWaitingDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"support_waiting_publisher_error",code})));
   const ingestionDispatcher=ingestion?startIngestionDispatcher(ingestion,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"ingestion_publisher_error",code}))):undefined;
   // Object deletion is independent of physical resource cleanup; either backend may be temporarily unavailable.
@@ -140,7 +145,7 @@ async function main(): Promise<void> {
     closing = true;
     abort.abort();
     clearInterval(cancellationTimer); await cancellationPending;
-    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
+    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });

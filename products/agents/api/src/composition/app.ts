@@ -85,6 +85,7 @@ import { registerChannelRoutes } from "../product/channels/channel-routes";
 import { registerChannelWebhooks } from "../product/channels/channel-webhooks";
 import { registerChannelSupportRoutes } from "../product/channels/channel-support-routes";
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
+import { registerSupportAlertRoutes } from "../product/inbox/support-alert-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
@@ -280,6 +281,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerProviderRoutes(app,{providers,resolveScope,resolveCallbackAccount:async request=>(await account(request)).id});
   registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});
   registerOverviewRoutes(app,{pool,resolveScope});
+  registerSupportAlertRoutes(app,pool,resolveScope);
   registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

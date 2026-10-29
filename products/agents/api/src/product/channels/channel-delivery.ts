@@ -141,7 +141,12 @@ export class ChannelDelivery {
         AND ((m.author_kind='assistant' AND (p.state='automation_active' OR (p.state='handoff_pending' AND m.body=$3 AND m.ownership_generation=o.ownership_generation
           AND m.request_key='handoff:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt
             WHERE receipt.conversation_id=p.id AND receipt.command_id=m.task_id AND receipt.action='request_handoff'
-              AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text)))) OR (m.author_kind='human' AND p.state='human_owned'
+              AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text)) OR
+          (p.state IN ('handoff_pending','human_owned') AND m.task_id IS NULL AND m.ownership_generation=o.ownership_generation
+            AND EXISTS(SELECT 1 FROM agents_platform.support_waiting_notices notice JOIN agents_platform.support_waiting waiting ON waiting.task_id=notice.task_id
+              WHERE notice.message_id=m.id AND notice.state='published' AND notice.body=m.body AND notice.ownership_generation=o.ownership_generation
+                AND waiting.conversation_id=p.id AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages reply
+                  WHERE reply.conversation_id=p.id AND reply.author_kind='human' AND reply.ownership_generation>=waiting.ownership_generation))))) OR (m.author_kind='human' AND p.state='human_owned'
           AND p.assignee_account_id=m.author_account_id AND EXISTS(SELECT 1 FROM agents_platform.memberships mem
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id,HANDOFF_RECEIPT])).rows[0];

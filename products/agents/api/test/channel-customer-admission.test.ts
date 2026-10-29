@@ -70,6 +70,32 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(calls).toBe(2);
     expect((await worker.readDeliveries(again.scope, old.conversation.id)).map(row => row.state)).toEqual(["suppressed", "accepted"]);
   });
+  it("delivers a receipt-bound waiting notice after takeover, but suppresses it after a human reply", async () => {
+    let calls = 0;
+    const f = await fixture(true), incoming = await f.receive("waiting", "I need a person"), taskId = incoming.message.task_id!;
+    const id = incoming.conversation.id;
+    await transaction(pool, db => f.inbox.requestHandoff(db, {customerConversationId:id,inputMessageId:incoming.message.id,ownershipGeneration:incoming.conversation.ownership_generation}, taskId));
+    let current = (await f.inbox.readStaff(f.scope,id)).conversation;
+    await f.inbox.command(f.scope,id,{commandId:randomUUID(),expectedRevision:current.revision,action:"claim"});
+    current = (await f.inbox.readStaff(f.scope,id)).conversation;
+    await f.inbox.command(f.scope,id,{commandId:randomUUID(),expectedRevision:current.revision,action:"takeover"});
+    current = (await f.inbox.readStaff(f.scope,id)).conversation;
+    const notice = {taskId,conversationId:id,ownershipGeneration:current.ownership_generation,stage:1,body:"Still waiting for support."};
+    await pool.query("INSERT INTO agents_platform.support_waiting_notices(task_id,stage,ownership_generation,body) VALUES($1,$2,$3,$4)",[taskId,notice.stage,notice.ownershipGeneration,notice.body]);
+    expect(await transaction(pool,db=>f.inbox.publishWaitingNotice(db,notice))).toBe(true);
+    expect((await f.inbox.readStaff(f.scope,id)).messages.map(message=>message.body)).toContain(notice.body);
+    const worker = new ChannelDelivery(pool,channels,f.inbox,{assertPolicy:async()=>undefined,
+      context:(_connection,credentials,beforeAttempt)=>({credential:credentials.botToken,fetch:async()=>{await beforeAttempt();calls++;return Response.json({ok:true,result:{message_id:42+calls}});}})});
+    await worker.drain(4); expect(calls).toBe(1);
+    const later = {...notice,stage:2};
+    await pool.query("INSERT INTO agents_platform.support_waiting_notices(task_id,stage,ownership_generation,body) VALUES($1,$2,$3,$4)",[taskId,later.stage,later.ownershipGeneration,later.body]);
+    expect(await transaction(pool,db=>f.inbox.publishWaitingNotice(db,later))).toBe(true);
+    current = (await f.inbox.readStaff(f.scope,id)).conversation;
+    await f.inbox.command(f.scope,id,{commandId:randomUUID(),expectedRevision:current.revision,action:"reply",body:"I can help."});
+    await worker.drain(4);
+    expect(calls).toBe(2);
+    expect((await worker.readDeliveries(f.scope,id)).map(row=>row.state)).toEqual(["suppressed","accepted","suppressed","accepted"]);
+  });
   it("admits current saved settings on the shared route and preserves history and human ownership across saves", async () => {
     const f = await fixture(), first = await f.receive("one", "Hello");
     const task = await loadExecution(pool, first.message.task_id!);

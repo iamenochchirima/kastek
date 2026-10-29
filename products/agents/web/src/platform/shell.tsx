@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError, message, type Session } from "./api";
+import { InboxAlertsButton, InboxAlertsDialog, useInboxAlerts } from "./inbox-alerts";
 
 type Workspace = { organizationId: string; session: Session; createWorkspace: () => void; selectWorkspace: (id: string) => void; logout: () => Promise<void> };
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -29,6 +30,10 @@ export function WorkspaceShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("agents.sidebar.collapsed") === "true"; } catch { return false; } });
   const [session, setSession] = useState<Session | null>(null);
   const [organizationId, setOrganizationId] = useState("");
+  const alerts = useInboxAlerts(organizationId, session?.account.id ?? "");
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const alertsTrigger = useRef<HTMLElement | null>(null);
+  function openAlerts() { alertsTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setNavigationOpen(false); setAlertsOpen(true); }
   const [error, setError] = useState("");
   const [signedOut, setSignedOut] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -55,16 +60,18 @@ export function WorkspaceShell() {
     <nav aria-label="Main navigation" className="workspace-navigation">{([
       ["/app/overview", "Overview", DashboardSquare01Icon], ["/app/agents", "Agents", Robot01Icon], ["/app/inbox", "Inbox", InboxIcon], ["/app/customers", "Customers", UserGroupIcon], ["/app/tasks", "Tasks", Task01Icon], ["/app/knowledge", "Knowledge", BookOpen01Icon], ["/app/connections", "Connections", Plug01Icon], ["/app/automations", "Automations", CalendarClockIcon], ["/app/settings", "Settings", Settings01Icon],
     ] as const).map(([path, label, icon]) => <NavLink key={String(path)} to={String(path)} aria-label={label} title={label} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `workspace-nav-link ${isActive ? "is-active" : ""}`}><HugeiconsIcon icon={icon} size={18} strokeWidth={1.6} aria-hidden="true" /><span>{String(label)}</span></NavLink>)}</nav>
+    {organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} /> : null}
     <div className="workspace-account"><span className="account-avatar">{(session?.account.displayName || session?.account.email || "A").slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{session?.account.displayName || "Account"}</p><p className="truncate text-xs text-muted-foreground">{session?.account.email}</p></div><Button aria-label="Sign out" title="Sign out" size="icon" variant="ghost" onClick={() => void logout()} disabled={!session || busy}><HugeiconsIcon icon={Logout01Icon} size={16} /></Button></div>
   </>;
   return <div className={`dashboard-theme workspace-shell bg-background text-foreground ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-content" className="skip-link">Skip to content</a>
     <aside className="workspace-sidebar"><Button className="workspace-sidebar-toggle" variant="ghost" size="icon" aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleSidebar}><HugeiconsIcon icon={SidebarLeft01Icon} size={18} /></Button>{navigation}</aside>
-    <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span></header>
+    <header className="workspace-mobile-header"><Button ref={navigationTrigger} aria-label="Open navigation" size="icon" variant="ghost" onClick={() => setNavigationOpen(true)}><HugeiconsIcon icon={Menu01Icon} size={20} /></Button><Link to="/app/overview" className="font-semibold">Agents</Link><span className="ml-auto truncate text-xs text-muted-foreground">{session?.organizations.find(org => org.id === organizationId)?.name}</span>{organizationId ? <InboxAlertsButton unread={alerts.data?.unread ?? 0} onClick={openAlerts} mobile /> : null}</header>
     <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}><DialogContent className="workspace-navigation-drawer" onCloseAutoFocus={event => { event.preventDefault(); navigationTrigger.current?.focus(); }}><DialogHeader><DialogTitle>Workspace navigation</DialogTitle><DialogDescription className="sr-only">Select a workspace page.</DialogDescription></DialogHeader>{navigation}<Button variant="ghost" onClick={() => setNavigationOpen(false)}><HugeiconsIcon icon={SidebarLeft01Icon} size={16} />Close navigation</Button></DialogContent></Dialog>
     <main id="workspace-content" tabIndex={-1} className={`workspace-main ${location.pathname.startsWith("/app/agents") ? "workspace-main-agents" : ""}`}>
       {error ? <div className="workspace-page space-y-3"><ErrorMessage value={error} /><Button variant="outline" onClick={() => void load()}>Try again</Button></div> : !session ? <div className="workspace-page"><Loading /></div> : !organizationId ? <section className="workspace-page space-y-4"><h1 className="text-2xl font-semibold">No workspace access</h1><Button variant="outline" onClick={() => void load()}>Try again</Button></section> : <WorkspaceContext.Provider value={{ organizationId, session, createWorkspace: () => setWorkspaceOpen(true), selectWorkspace, logout }}><div className="workspace-outlet" key={`${session.account.id}.${organizationId}`}><Outlet /></div></WorkspaceContext.Provider>}
     </main>
+    <InboxAlertsDialog key={`${organizationId}.${session?.account.id}`} open={alertsOpen} onOpenChange={setAlertsOpen} controller={alerts} restoreFocus={() => { if (alertsTrigger.current?.isConnected) alertsTrigger.current.focus(); else navigationTrigger.current?.focus(); }} />
     <Dialog open={workspaceOpen} onOpenChange={setWorkspaceOpen}><DialogContent><DialogHeader><DialogTitle>Create workspace</DialogTitle><DialogDescription>Name your workspace.</DialogDescription></DialogHeader><form onSubmit={event => void createWorkspace(event)} className="space-y-4"><label className="block space-y-2 text-sm">Workspace name<Input required maxLength={120} value={name} onChange={event => setName(event.target.value)} autoFocus /></label><Button type="submit" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create workspace"}</Button></form></DialogContent></Dialog>
   </div>;
 }

@@ -323,6 +323,37 @@ or subscription loss. Setup uncertainty requires explicit native-state reconcili
 time alone never proves success. Quarantined ingress is visible in connection details and can be
 retried deliberately after correcting the displayed failure. Repeated ingress retains its identity.
 
+### Support waiting and staff alerts
+
+An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
+authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads
+and acknowledgement require current membership and the original recipient. Acknowledgement
+records the staff action; it does not establish that a customer received a reply.
+
+The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
+outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders
+after 10 and 30 minutes. Each kind is limited to two stages. These thresholds are reminder policy,
+not a promised response time. After downtime, one notice covers the latest elapsed stage. Configured
+support hours defer updates to the next opening in the published timezone; missing hours remain
+unknown. The initial handoff alert is immediate regardless of hours.
+
+Assignment, takeover and unassignment preserve the waiting episode. An actual human reply,
+resolution, return to automation, a superseding handoff, channel revocation or removal of the
+published human-support capability stops later waiting work. Customer notices use a separate
+receipt and current ownership generation. They do not grant the agent ordinary replying or business
+tool authority during human ownership. Provider delivery applies the existing connection,
+messaging-window and permission checks; a canonical notice is not proof of provider delivery.
+
+Native alerts use `GET /api/organizations/:organizationId/inbox-alerts` and
+`POST /api/organizations/:organizationId/inbox-alerts/:alertId/acknowledge`. They do not send staff
+email, push notifications or third-party messages. Waiting failures use the structured
+`support_waiting_publisher_error` event and `SUPPORT_WAITING_DISPATCH_FAILED` code without message
+bodies. Inspect `support_waiting` dispatch/completion records and `support_waiting_notices` receipt
+states before retrying. Apply schema084 before starting the worker, and refresh its Restate
+deployment registration to include the new workflow. To stop future effects, remove Human support
+from the published agent configuration or pause its channel. Keep accepted receipts and unknown
+provider deliveries for reconciliation; never resend an unknown effect during rollback.
+
 Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
 appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
 and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.

@@ -10,6 +10,7 @@ import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 import { HANDOFF_RECEIPT } from "./handoff-receipt";
+import { recordHandoffWaiting } from "./support-waiting";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -304,9 +305,30 @@ export class InboxStore {
     await this.queueCancellation(db, row.id, updated.ownership_generation);
     const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT,taskId});
     await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), {...updated,handoffReceiptId:receipt.id}]);
+    await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:row.ownership_generation});
     await enqueueChannelMessage(db,row,receipt);
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
+  }
+  async publishWaitingNotice(db: PoolClient, input: { conversationId: string; taskId: string; ownershipGeneration: string; stage: number; body: string }): Promise<boolean> {
+    const row = await this.conversation(db, input.conversationId, true);
+    const notice = (await db.query(`SELECT n.* FROM agents_platform.support_waiting_notices n
+      JOIN agents_platform.support_waiting w ON w.task_id=n.task_id
+      WHERE n.task_id=$1 AND n.stage=$2 AND w.conversation_id=$3 AND w.completed_at IS NULL
+        AND n.state='pending' AND n.ownership_generation=$4 AND n.body=$5
+        AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages m WHERE m.conversation_id=w.conversation_id
+          AND m.author_kind='human' AND m.ownership_generation>=w.ownership_generation)
+      FOR UPDATE OF n,w`, [input.taskId,input.stage,row.id,input.ownershipGeneration,input.body])).rows[0];
+    if (!notice || !["handoff_pending", "human_owned"].includes(row.state) || row.ownership_generation !== input.ownershipGeneration || !await this.activeBinding(db,row)) return false;
+    const currentVersion = (await db.query(`SELECT v.configuration FROM agents_platform.agent_versions v
+      WHERE v.id = CASE WHEN $1='website' THEN (SELECT version_id FROM agents_platform.website_deployments WHERE id=$2)
+        ELSE (SELECT version_id FROM agents_platform.channel_deployments WHERE id=$3) END AND v.organization_id=$4`,
+      [row.channel_kind,row.deployment_id,row.channel_deployment_id,row.organization_id])).rows[0];
+    if (!currentVersion?.configuration?.tools?.includes("channel.request_handoff")) return false;
+    const message = await this.append(db,row,{key:`waiting:${input.taskId}:${input.stage}`,digest:requestDigest(input.body),kind:"assistant",body:input.body});
+    await db.query("UPDATE agents_platform.support_waiting_notices SET state='published',message_id=$3 WHERE task_id=$1 AND stage=$2 AND state='pending'",[input.taskId,input.stage,message.id]);
+    await enqueueChannelMessage(db,row,message);
+    return true;
   }
   async publishEnquiryReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>{
     const row=await this.conversation(db,input.binding.customerConversationId,true);
@@ -337,6 +359,9 @@ export class InboxStore {
     await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(!message.task_id && (await db.query(`SELECT 1 FROM agents_platform.support_waiting_notices n
+      JOIN agents_platform.support_waiting w ON w.task_id=n.task_id WHERE n.message_id=$1 AND w.conversation_id=$2
+      AND n.state='published' AND n.body=$3 AND n.ownership_generation=$4`,[message.id,message.conversation_id,message.body,message.ownership_generation])).rowCount) return message.body;
     if(!message.task_id)return null;
     if(message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands
       WHERE conversation_id=$1 AND command_id=$2 AND action='request_handoff' AND result->>'handoffReceiptId'=$3`,
