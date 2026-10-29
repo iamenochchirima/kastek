@@ -34,6 +34,20 @@ describe("sourced customer reply policy", () => {
     expect(channelReplyPolicy({ ...base, latestCustomerAt: now + 1 }).allowed).toBe(false);
     expect(channelReplyPolicy({ ...base, latestCustomerAt: null }).allowed).toBe(false);
   });
+  it("keeps automated waiting updates inside each messaging channel's permitted reply path", () => {
+    const assistant = { ...base, author: "assistant" as const, assignedHuman: false, relatedInquiryConfirmed: false,
+      latestCustomerAt: now - 86400000 + 1 };
+    for (const kind of ["facebook", "instagram", "whatsapp"] as const) {
+      expect(channelReplyPolicy({ ...assistant, kind, mode: kind === "instagram" ? "instagram_login" : "meta" })).toMatchObject({ allowed: true, reason: "standard" });
+      expect(channelReplyPolicy({ ...assistant, kind, mode: kind === "instagram" ? "instagram_login" : "meta", latestCustomerAt: now - 86400000 })).toMatchObject({
+        allowed: false, reason: kind === "whatsapp" ? "approved_template_required" : "standard_window_closed",
+      });
+    }
+    expect(channelReplyPolicy({ ...assistant, kind: "instagram", mode: "instagram_login", latestCustomerAt: now - 2 * 86400000,
+      humanAgentApproved: true, humanAgentTransportEnabled: true })).toMatchObject({ allowed: false, reason: "standard_window_closed" });
+    expect(channelReplyPolicy({ ...assistant, kind: "telegram", latestCustomerAt: null })).toMatchObject({ allowed: true, reason: "standard" });
+    expect(channelReplyPolicy({ ...assistant, kind: "telegram", latestCustomerAt: now - 30 * 86400000 })).toMatchObject({ allowed: true, reason: "standard" });
+  });
   it("reports the direct Instagram permission only when the server profile and adapter transport are both enabled", () => {
     const direct = new MetaChannelSetup(null as never, null as never,
       [{ ...profile("instagram", "instagram_login"), humanAgentApproved: true }], fetch);
