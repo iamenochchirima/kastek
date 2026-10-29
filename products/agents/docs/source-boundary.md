@@ -151,11 +151,15 @@ Schema090 adds operation-keyed recovery for uncertain reviewed customer HubSpot 
 The worker scans uncertain or expired claimed receipts without calling the provider again. It
 preserves an existing handoff receipt, or creates one only under current channel ownership and
 authority. Inbox staff can see a redacted uncertainty notice even when customer delivery is not
-authorized. There is no in-product reconciliation or dismissal action for this notice yet.
+authorized. Schema091 adds an owner-only read check against the exact reviewed contact. It records a separate
+operation-bound, redacted observation: found means current details match, inconclusive means they
+could not be confirmed, and unavailable means the check failed. It never retries the original write
+or changes its uncertain receipt. Other staff and customers cannot initiate this check. There is no
+notice dismissal action.
 
-Apply schema090 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
+Apply schema090 and schema091 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
 log records bounded retry codes without customer content; analytics and Collector changes are not
-applicable. PostgreSQL, controlled provider and browser fixtures validate recovery and visibility;
+applicable. PostgreSQL, controlled provider and browser fixtures validate recovery, owner-only reads and visibility;
 live-provider acceptance and model evaluations remain owner-run. To stop new recovery, set
 `AGENTS_CONNECTED_UNCERTAIN_RECOVERY=false` on the worker and retain schema and receipts. Existing
 v1 adapter files and pinned identities are unchanged. A separately versioned adapter with its own

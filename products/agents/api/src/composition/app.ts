@@ -85,6 +85,7 @@ import { registerChannelRoutes } from "../product/channels/channel-routes";
 import { registerChannelWebhooks } from "../product/channels/channel-webhooks";
 import { registerChannelSupportRoutes } from "../product/channels/channel-support-routes";
 import { registerInboxRoutes } from "../product/inbox/inbox-routes";
+import { ConnectedReconciliation } from "../product/inbox/connected-reconciliation";
 import { customerFollowupConfig } from "../product/customer-followup/config";
 import { CustomerFollowupChallenges } from "../product/customer-followup/challenges";
 import { registerCustomerFollowupConsent, registerCustomerFollowupReturn } from "../product/customer-followup/routes";
@@ -750,7 +751,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       if (authority.principal.kind !== "visitor") throw new PlatformError("ACCESS_DENIED", 403, "Customer session required");
       return { deploymentId: deployment.id, sessionId: authority.principal.sessionId };
     };
-  registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,
+  registerInboxRoutes(app, { inbox, bookings,toolReviews,enquiries,publicRate,connectedReconciliation:actionServices?new ConnectedReconciliation(pool,providers):undefined,
     resolveScope: async request => ({ accountId: (await account(request)).id, organizationId: organizationId(request) }),
     resolveVisitor,
   });

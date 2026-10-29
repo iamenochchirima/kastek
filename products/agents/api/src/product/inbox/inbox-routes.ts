@@ -33,6 +33,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   bookings?:BookingService;
   enquiries?:EnquiryStore;
   toolReviews?:ToolReviewStore;
+  connectedReconciliation?: {reconcile(scope:InboxScope,conversationId:string,operationId:string,requestId:string):Promise<{state:'found'|'inconclusive'|'unavailable'}>};
   resolveScope(request: FastifyRequest): Promise<InboxScope>;
   resolveVisitor(request: FastifyRequest, reply: FastifyReply): Promise<VisitorScope>;
   publicRate?(deploymentId: string): Promise<void>;
@@ -57,6 +58,14 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
       WHERE l.conversation_id=$1 AND t.organization_id=$2 LIMIT 1`,[conversationId,scope.organizationId])).rowCount;
     return { conversation: {...inboxConversation(result.conversation),hasBookings,channelAvailable:result.channelAvailable}, handoff:result.handoff, handoffBrief:result.handoffBrief, uncertainEffects:result.uncertainEffects, followupFailures:result.followupFailures, messages: result.messages.map(row => message(row, true)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
+  if(options.connectedReconciliation){
+    const service=options.connectedReconciliation;
+    app.post(`${base}/:conversationId/connected-effects/:operationId/reconcile`,async request=>{
+      const {conversationId,operationId}=z.strictObject({conversationId:uuid,operationId:z.string().min(1).max(256)}).parse(request.params);
+      const {requestId}=z.strictObject({requestId:uuid}).parse(request.body);
+      return service.reconcile(await options.resolveScope(request),conversationId,operationId,requestId);
+    });
+  }
   app.post(`${base}/:conversationId/commands`, async request => {
     const input = z.strictObject({ commandId: uuid, expectedRevision: revision, action: z.enum(["claim", "assign", "unassign", "takeover", "reply", "resolve", "reopen", "return"]), assigneeAccountId: uuid.nullable().optional(), body: z.string().trim().min(1).max(8000).optional() }).parse(request.body);
     return { conversation: inboxConversation(await options.inbox.command(await options.resolveScope(request), params(request).conversationId, input)) };

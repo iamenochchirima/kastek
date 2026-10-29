@@ -356,7 +356,9 @@ provider operation; it does not create another appointment.
 
 For an uncertain reviewed HubSpot contact save, the worker recovers the original operation and
 adds a staff-only Inbox notice. It never repeats the provider write or adds a second handoff receipt.
-Staff must check HubSpot before retrying; there is currently no in-product action to clear the notice.
+The connected account owner can run a read-only check in Inbox. A match confirms only the current
+contact details; a missing or unavailable result remains uncertain. The original write and notice
+remain unchanged, and there is no dismissal action.
 
 The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
 outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders

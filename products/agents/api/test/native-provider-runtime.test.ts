@@ -26,11 +26,12 @@ import {exportProviderEffects} from "../src/product/evaluation/history-provider-
 import {transaction} from "../src/infrastructure/database";
 import {captureConnectedUncertain,processConnectedUncertain} from "../src/product/inbox/connected-uncertain-recovery";
 import {clearChannelPorts} from "../src/infrastructure/channel-ports";
+import {ConnectedReconciliation} from "../src/product/inbox/connected-reconciliation";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("managed provider through published agent admission and durable reviews",()=>{
  let admin:Pool,pool:Pool,platform:PlatformStore,providers:ProviderServices,executor:ConnectedExecutor,reviews:ToolReviewStore,server:Server,origin:string;
- let reads=0,writes=0,mode="ok",contact:any,headers:string[]=[],beforeCreateResult:(()=>Promise<void>)|undefined,messagingSequence=100000;
+ let reads=0,writes=0,mode="ok",contact:any,headers:string[]=[],beforeCreateResult:(()=>Promise<void>)|undefined,beforeSearchResult:(()=>Promise<void>)|undefined,messagingSequence=100000;
  const database=`agents_native_runtime_${randomUUID().replaceAll("-","")}`,vault=new ConnectionVault("v1",{v1:randomBytes(32).toString("base64")});
  const token="fixture-native-provider-secret",objects=new Map<string,Uint8Array>();
  const storage={async put(key:string,value:Uint8Array){objects.set(key,Buffer.from(value));},async get(key:string){const value=objects.get(key);if(!value)throw Error("Missing fixture receipt");return value;},async delete(key:string){objects.delete(key);}};
@@ -38,7 +39,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);platform=new PlatformStore(pool);
   server=createServer(async(req,res)=>{headers.push(req.headers.authorization??"");let text="";for await(const chunk of req)text+=chunk;const body=JSON.parse(text);res.setHeader("content-type","application/json");
-   if(req.url!.endsWith("/search")){reads++;res.end(JSON.stringify({total:contact?1:0,results:contact?[contact]:[]}));return;}
+   if(req.url!.endsWith("/search")){reads++;await beforeSearchResult?.();res.end(JSON.stringify({total:contact?1:0,results:contact?[contact]:[]}));return;}
    writes++;contact={id:"123",properties:body.properties};await beforeCreateResult?.();if(mode==="lost"){contact=undefined;req.socket.destroy();return;}res.statusCode=201;res.end(JSON.stringify(contact));
   });await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
   providers=new ProviderServices(pool,vault,{appUrl:"http://localhost:3100",environment:{},tests:{hubspot:{oauth,testApiBaseUrl:origin}}});reviews=new ToolReviewStore(pool);
@@ -47,7 +48,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
  },20000);
  afterAll(async()=>{server?.closeAllConnections();if(server)await new Promise<void>(resolve=>server.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(){
-  reads=0;writes=0;mode="ok";contact=undefined;headers=[];beforeCreateResult=undefined;
+  reads=0;writes=0;mode="ok";contact=undefined;headers=[];beforeCreateResult=undefined;beforeSearchResult=undefined;
   const account=await platform.ensureAccount({issuer:"http://localhost/native-runtime",subject:randomUUID(),email:"operator@example.test",displayName:"Operator"}),organization=await platform.createOrganization(account.id,"Provider runtime"),scope={organizationId:organization.id,accountId:account.id},store=providers.store("hubspot");
   await connectFixtureModel(pool,scope.accountId,scope.organizationId);
   let connection=await store.create(scope,{name:"HubSpot",operations:["contacts.search","contacts.create"]});const auth=await store.authorize(scope,connection.id),state=new URL(auth.authorizationUrl).searchParams.get("state")!;
@@ -159,6 +160,45 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect(await processConnectedUncertain(pool,op.operationId,publish)).toBe('recorded');
   const after=await f.inbox.readStaff(f.scope,f.conversation.id);
   expect(after.messages).toHaveLength(before.messages.length);expect(after.uncertainEffects).toEqual([{operationId:op.operationId,kind:'contact_save_uncertain'}]);expect(writes).toBe(1);
+ },20000);
+ it.each(['found','inconclusive','unavailable'] as const)("allows only the connection owner to check an uncertain contact: %s",async expected=>{
+  const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toMatchObject({code:"CONNECTED_OPERATION_UNCERTAIN"});
+  await transaction(pool,db=>captureConnectedUncertain(db,op.operationId));
+  await processConnectedUncertain(pool,op.operationId,async(db,intent)=>{const value=await f.inbox.recoverUncertainConnectedHandoff(db,intent);return value.outcome==='recorded'?{outcome:'recorded' as const,commandId:value.commandId!}:{outcome:value.outcome};});
+  const service=new ConnectedReconciliation(pool,providers,origin),requestId=randomUUID();
+  contact=expected==='found'?{id:'123',properties:{email:'customer@example.test'}}:undefined;
+  const endpoint=expected==='unavailable'?'http://127.0.0.1:1':origin;
+  const check=expected==='unavailable'?new ConnectedReconciliation(pool,providers,endpoint):service;
+  const result=await check.reconcile(f.scope,f.conversation.id,op.operationId,requestId);expect(result.state).toBe(expected);
+  expect(await check.reconcile(f.scope,f.conversation.id,op.operationId,requestId)).toEqual(result);expect(writes).toBe(1);
+  const staff=await f.inbox.readStaff(f.scope,f.conversation.id);expect(staff.uncertainEffects[0]?.reconciliation?.state).toBe(expected);
+  const visitor=await f.inbox.readVisitor({deploymentId:f.principal.deploymentId,sessionId:f.principal.sessionId},f.conversation.id);expect(visitor).not.toHaveProperty('uncertainEffects');
+  const receipt=(await pool.query('SELECT state,provider_response_digest FROM agents_platform.connected_reconciliation_attempts WHERE request_key=$1',[requestId])).rows[0];expect(receipt.state).toBe(expected);
+  const stranger=await platform.ensureAccount({issuer:'https://fixture.test',subject:randomUUID(),email:'stranger@example.test',displayName:'Stranger'});
+  await expect(service.reconcile({...f.scope,accountId:stranger.id},f.conversation.id,op.operationId,randomUUID())).rejects.toMatchObject({code:'RECONCILIATION_DENIED'});
+ },20000);
+ it("suppresses a contact observation if staff authority is revoked while the lookup runs",async()=>{
+  const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toMatchObject({code:"CONNECTED_OPERATION_UNCERTAIN"});
+  await transaction(pool,db=>captureConnectedUncertain(db,op.operationId));contact={id:'123',properties:{email:'customer@example.test'}};
+  beforeSearchResult=async()=>{beforeSearchResult=undefined;await pool.query('UPDATE agents_platform.memberships SET revoked_at=now() WHERE organization_id=$1 AND account_id=$2',[f.scope.organizationId,f.scope.accountId]);};
+  const result=await new ConnectedReconciliation(pool,providers,origin).reconcile(f.scope,f.conversation.id,op.operationId,randomUUID());
+  expect(result.state).toBe('unavailable');expect(writes).toBe(1);
+  expect((await pool.query('SELECT state,reason,provider_response_digest FROM agents_platform.connected_reconciliation_attempts WHERE operation_id=$1',[op.operationId])).rows[0]).toEqual({state:'unavailable',reason:'authority_changed',provider_response_digest:null});
+ },20000);
+ it("does not duplicate a concurrent staff lookup or retry the original write",async()=>{
+  const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toThrow();await transaction(pool,db=>captureConnectedUncertain(db,op.operationId));
+  contact={id:'123',properties:{email:'customer@example.test'}};const priorReads=reads;
+  let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>release=resolve),entered=new Promise<void>(resolve=>started=resolve);
+  beforeSearchResult=async()=>{started();await gate;};
+  const service=new ConnectedReconciliation(pool,providers,origin),requestId=randomUUID(),first=service.reconcile(f.scope,f.conversation.id,op.operationId,requestId);
+  await entered;await expect(service.reconcile(f.scope,f.conversation.id,op.operationId,requestId)).rejects.toMatchObject({code:'RECONCILIATION_IN_PROGRESS'});release();
+  expect((await first).state).toBe('found');expect(reads-priorReads).toBe(1);expect(writes).toBe(1);
  },20000);
  it("recovers a lost handoff after an uncertain reviewed write without repeating the provider effect",async()=>{
   const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);

@@ -237,15 +237,20 @@ export class InboxStore {
       const parsed = handoffBriefSchema.safeParse(receipt?.brief);
       const followupFailures = await this.ports.followupFailures?.(db, id) ?? [];
       const handoff = await currentHandoff(db,id,conversation.state,conversation.return_watermark);
-      const uncertainEffects = (await db.query(`SELECT e.operation_id FROM agents_platform.connected_uncertain_escalations e
+      const uncertainEffects = (await db.query(`SELECT e.operation_id,attempt.state AS reconciliation_state,attempt.observed_at AS reconciliation_observed_at FROM agents_platform.connected_uncertain_escalations e
         LEFT JOIN agents_platform.customer_commands c ON c.conversation_id=e.conversation_id AND c.command_id=e.command_id AND c.action='request_handoff'
         LEFT JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id
         JOIN agents_platform.customer_task_links l ON l.task_id=e.task_id AND l.conversation_id=e.conversation_id AND l.input_message_id=e.input_message_id AND l.ownership_generation=e.ownership_generation
         JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=l.conversation_id
+        LEFT JOIN LATERAL (SELECT a.state,a.observed_at FROM agents_platform.connected_reconciliation_attempts a
+          WHERE a.operation_id=e.operation_id AND a.organization_id=e.organization_id AND a.conversation_id=e.conversation_id
+            AND a.state IN ('found','inconclusive','unavailable')
+          ORDER BY a.observed_at DESC,a.id DESC LIMIT 1) attempt ON true
         WHERE e.organization_id=$1 AND e.conversation_id=$2
           AND ((e.state='recorded' AND w.task_id IS NOT NULL) OR e.state='ownership_changed'
             OR (e.state='pending' AND e.last_error_code='authority_unavailable'))
-        ORDER BY e.operation_id`,[scope.organizationId,id])).rows.map(row=>({operationId:row.operation_id,kind:'contact_save_uncertain' as const}));
+        ORDER BY e.operation_id`,[scope.organizationId,id])).rows.map(row=>({operationId:row.operation_id,kind:'contact_save_uncertain' as const,
+          ...(row.reconciliation_state?{reconciliation:{state:row.reconciliation_state,observedAt:row.reconciliation_observed_at}}:{})}));
       return { conversation, handoff, handoffBrief: parsed.success ? parsed.data : null, uncertainEffects, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {

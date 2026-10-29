@@ -19,7 +19,7 @@ async function defer(db: Pool | PoolClient, operationId: string, code: "authorit
 }
 // Only a previously claimed, customer-scoped managed write can produce an intent.
 // A claim is evidence of a possible effect, never proof that the provider wrote.
-async function source(db: PoolClient, operationId: string, lock = true) {
+export async function connectedUncertainSource(db: PoolClient, operationId: string, lock = true) {
   const row=(await db.query(`SELECT r.*,r.request_digest AS connected_digest,review.id AS review_id,
     review.binding_digest,review.request_digest AS review_digest,review.arguments,review.state AS review_state,review.connection_policy_revision,
     review.approved_at,review.claimed_at,review.expires_at AS review_expires_at,
@@ -49,7 +49,7 @@ async function source(db: PoolClient, operationId: string, lock = true) {
     || row.connected_digest!==requestDigest({bindingId:row.binding_id,bindingDigest:row.binding_digest,args:row.arguments})) return null;
   return row;
 }
-function claimDigest(row: Record<string,any>) {
+export function connectedUncertainClaimDigest(row: Record<string,any>) {
   return requestDigest({operationId:row.operation_id,organizationId:row.organization_id,taskId:row.task_id,rootTaskId:row.root_task_id,
     bindingId:row.binding_id,bindingDigest:row.binding_digest,connectionId:row.connection_id,connectedDigest:row.connected_digest,
     reviewId:row.review_id,reviewDigest:row.review_digest,connectionPolicyRevision:row.connection_policy_revision,
@@ -62,14 +62,14 @@ export async function captureConnectedUncertain(db: PoolClient, operationId: str
   const location=(await db.query("SELECT organization_id FROM agents_platform.connected_reads WHERE operation_id=$1",[operationId])).rows[0];
   if(!location)return false;
   await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[location.organization_id]);
-  const row=await source(db,operationId);
+  const row=await connectedUncertainSource(db,operationId);
   if(!row)return false;
   if(row.state==="started") {
     const updated=await db.query(`UPDATE agents_platform.connected_reads SET state='uncertain',error_code='CONNECTED_READ_UNCERTAIN',updated_at=now()
       WHERE operation_id=$1 AND state='started' AND claim_expires_at<=clock_timestamp() RETURNING operation_id`,[operationId]);
     if(!updated.rowCount)return false;
   }
-  const digest=claimDigest(row);
+  const digest=connectedUncertainClaimDigest(row);
   const inserted=await db.query(`INSERT INTO agents_platform.connected_uncertain_escalations(operation_id,organization_id,task_id,conversation_id,input_message_id,ownership_generation,claim_digest)
     VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`,
     [operationId,row.organization_id,row.task_id,row.conversation_id,row.input_message_id,row.ownership_generation,digest]);
@@ -106,8 +106,8 @@ export async function processConnectedUncertain(pool: Pool, operationId: string,
     const intent=(await db.query("SELECT * FROM agents_platform.connected_uncertain_escalations WHERE operation_id=$1 FOR UPDATE",[operationId])).rows[0];
     if(!intent)return "missing";
     if(intent.state!=="pending")return intent.state;
-    const prior=await source(db,operationId);
-    if(!prior || prior.state!=="uncertain" || claimDigest(prior)!==intent.claim_digest) throw new Error("CONNECTED_ESCALATION_PROVENANCE_INVALID");
+    const prior=await connectedUncertainSource(db,operationId);
+    if(!prior || prior.state!=="uncertain" || connectedUncertainClaimDigest(prior)!==intent.claim_digest) throw new Error("CONNECTED_ESCALATION_PROVENANCE_INVALID");
     const authority=(await db.query(`SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.execution_grants g ON g.id=t.grant_id AND g.organization_id=t.organization_id
       JOIN agents_platform.customer_conversations c ON c.id=$2 AND c.organization_id=t.organization_id
       JOIN agents_platform.agents a ON a.id=c.agent_id AND a.organization_id=c.organization_id AND a.deleted_at IS NULL

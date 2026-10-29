@@ -4,7 +4,7 @@ const org = "11111111-1111-4111-8111-111111111111";
 const id = "33333333-3333-4333-8333-333333333333";
 type State = "automation_active" | "handoff_pending" | "human_owned" | "resolved";
 
-async function setup(page: Page, state: State, assigneeAccountId: string | null, role = "member", handoffBrief: { reason: string; brief: string } | null = null, handoffData: { requestedAt: string; firstHumanReplyAt: string | null } | null = null, uncertainEffects: Array<{operationId:string;kind:'contact_save_uncertain'}> = []) {
+async function setup(page: Page, state: State, assigneeAccountId: string | null, role = "member", handoffBrief: { reason: string; brief: string } | null = null, handoffData: { requestedAt: string; firstHumanReplyAt: string | null } | null = null, uncertainEffects: Array<{operationId:string;kind:'contact_save_uncertain';reconciliation?:{state:'found'|'inconclusive'|'unavailable';observedAt:string}}> = []) {
   let conversation = { id, agentId: "agent", agentName: "Support agent", deploymentId: "deployment", versionId: "version", channel: "website", state, assigneeAccountId, revision: "1", ownershipGeneration: "1", createdAt: "2026-10-01T12:00:00Z", updatedAt: "2026-10-01T12:00:00Z" };
   const commands: { action: string; expectedRevision: string; commandId: string }[] = [];
   let failure = 0;
@@ -16,6 +16,10 @@ async function setup(page: Page, state: State, assigneeAccountId: string | null,
     if (path.endsWith("/channels")) return route.fulfill({ json: { connections: [] } });
     if (path.endsWith("/enquiries")) return route.fulfill({ json: { enquiries: [] } });
     if (path.endsWith("/inbox")) return route.fulfill({ json: { conversations: [conversation], nextCursor: null } });
+    if (path.endsWith(`/inbox/${id}/connected-effects/operation/reconcile`)) {
+      expect(route.request().postDataJSON().requestId).toMatch(/^[0-9a-f-]{36}$/);
+      return route.fulfill({json:{state:'inconclusive'}});
+    }
     if (path.endsWith(`/inbox/${id}/commands`)) {
       const command = route.request().postDataJSON(); commands.push(command);
       if (failure) { const status = failure; failure = 0; return route.fulfill({ status, json: { error: { message: "Action failed" } } }); }
@@ -39,6 +43,20 @@ async function setup(page: Page, state: State, assigneeAccountId: string | null,
 test("shows uncertain contact saves to staff", async ({page}) => {
   await setup(page,"handoff_pending",null,"member",null,null,[{operationId:"operation",kind:"contact_save_uncertain"}]);
   await expect(page.getByText("Contact save could not be confirmed. Check HubSpot before trying again.")).toBeVisible();
+  await expect(page.getByRole('button',{name:'Check HubSpot'})).toHaveCount(0);
+});
+
+test("lets an owner check an uncertain contact save",async({page})=>{
+  await setup(page,"handoff_pending",null,"owner",null,null,[{operationId:"operation",kind:"contact_save_uncertain"}]);
+  await page.getByRole('button',{name:'Check HubSpot'}).click();
+  await expect(page.getByRole('status').getByText('Could not confirm the contact. Check HubSpot before trying again.')).toBeVisible();
+});
+
+test("restores the last contact check after reload",async({page})=>{
+  await setup(page,"handoff_pending",null,"member",null,null,[{operationId:"operation",kind:"contact_save_uncertain",reconciliation:{state:'found',observedAt:'2026-10-29T10:00:00Z'}}]);
+  await expect(page.getByRole('status').getByText('Contact found in HubSpot.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('status').getByText('Contact found in HubSpot.')).toBeVisible();
 });
 
 test("shows the agent handoff note on demand", async ({page}) => {
