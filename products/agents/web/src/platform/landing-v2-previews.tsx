@@ -1,57 +1,84 @@
 import type { ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUp01Icon, Attachment01Icon, Calendar01Icon, File01Icon, Folder01Icon, Globe02Icon, Home01Icon, InboxIcon, MoreHorizontalIcon, Note01Icon, PlusSignIcon, Search01Icon, Settings01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, ArrowUp01Icon, Attachment01Icon, Calendar01Icon, Chatting01Icon, File01Icon, Globe02Icon, Menu01Icon, MoreHorizontalIcon, Plug01Icon } from "@hugeicons/core-free-icons";
 import "./landing-v2-previews.css";
 
-type DemoIcon = typeof Home01Icon;
-function Icon({ icon, size = 14 }: { icon: DemoIcon; size?: number }) {
-  return <HugeiconsIcon icon={icon} size={size} strokeWidth={1.5} aria-hidden="true" />;
+type DemoIcon = typeof File01Icon;
+function Icon({ icon, size = 20 }: { icon: DemoIcon; size?: number }) {
+  return <HugeiconsIcon icon={icon} size={size} strokeWidth={1.65} aria-hidden="true" />;
 }
-function Mark() { return <span className="lv2-demo-mark" aria-hidden="true" />; }
 function Preview({ label, className, children }: { label: string; className: string; children: ReactNode }) {
-  return <figure className={`lv2-demo ${className}`} aria-label={label}><figcaption className="lv2-demo-sr">Illustrative product preview with example conversations and information.</figcaption>{children}</figure>;
+  return <figure className={`lv2-preview ${className}`} aria-label={label}>
+    <figcaption className="lv2-preview-sr">Illustrative product preview with example information.</figcaption>
+    {children}
+  </figure>;
 }
-function Composer({ label = "Ask anything…" }: { label?: string }) {
-  return <div className="lv2-demo-composer" aria-hidden="true"><Icon icon={Attachment01Icon} /><span>{label}</span><span className="lv2-demo-send"><Icon icon={ArrowUp01Icon} size={13} /></span></div>;
+function Composer({ compact = false }: { compact?: boolean }) {
+  return <div className={`lv2-preview-composer ${compact ? "is-compact" : ""}`} aria-hidden="true">
+    <span>Type a message…</span>
+    {!compact && <Icon icon={Attachment01Icon} size={16} />}
+    <span className="lv2-preview-send"><Icon icon={ArrowUp01Icon} size={14} /></span>
+  </div>;
 }
-function AssistantSidebar() {
-  return <aside className="lv2-demo-sidebar"><div className="lv2-demo-brand"><Mark /><span>My assistant</span><Icon icon={Search01Icon} size={12} /></div><div className="lv2-demo-nav"><span><Icon icon={PlusSignIcon} />New chat</span>{[[Home01Icon, "Home"], [Folder01Icon, "Projects"], [Note01Icon, "Notes"], [File01Icon, "Files"], [Calendar01Icon, "Calendar"]].map(([icon, label]) => <span className={label === "Home" ? "is-selected" : ""} key={String(label)}><Icon icon={icon as DemoIcon} />{String(label)}</span>)}</div><div className="lv2-demo-recent"><small>Today</small><span>Proposal comparison</span><span>Plan for next quarter</span><span>Research suppliers</span><span>Ideas for the offsite</span></div></aside>;
+const sources = [
+  { name: "riversidestudio.co.za", detail: "Website", icon: Globe02Icon },
+  { name: "Services", detail: "PDF · 12 pages", icon: File01Icon },
+  { name: "Pricing", detail: "PDF · 8 pages", icon: File01Icon },
+  { name: "Booking policy", detail: "PDF · 4 pages", icon: File01Icon },
+];
+export function KnowledgePreview() {
+  return <Preview label="Example knowledge sources for Riverside Studio" className="lv2-preview-knowledge">
+    <div className="lv2-preview-heading"><strong>Knowledge sources</strong><span className="lv2-preview-add" aria-hidden="true">+ <span>Add source</span></span></div>
+    <div className="lv2-preview-source-list">{sources.map(source => <div className="lv2-preview-source" key={source.name}>
+      <Icon icon={source.icon} size={23} />
+      <div><strong>{source.name}</strong><small>{source.detail}</small></div>
+      <span className="lv2-preview-ready"><i />Ready</span><Icon icon={MoreHorizontalIcon} size={17} />
+    </div>)}</div>
+  </Preview>;
 }
-function Comparison() {
-  return <><h3>Proposal comparison</h3><p>Northshore costs less. Rivermere delivers two weeks sooner.</p><div className="lv2-demo-table-wrap"><table><thead><tr><th>Area</th><th>Northshore Creative</th><th>Rivermere Studio</th></tr></thead><tbody>{[["Approach", "Brand refresh, phased rollout", "Full redesign, single phase"], ["Timeline", "12 weeks", "10 weeks"], ["Investment", "£24,000", "£28,000"], ["Strengths", "Clear strategy, strong creative", "Faster delivery, broader scope"], ["Considerations", "Longer timeline", "Higher cost"]].map(row => <tr key={row[0]}>{row.map(cell => <td key={cell}>{cell}</td>)}</tr>)}</tbody></table></div><div className="lv2-demo-files"><span><span className="lv2-demo-file-icon"><Icon icon={File01Icon} size={16} /></span><span>Northshore proposal.pdf<small>PDF · 1.4 MB</small></span></span><span><span className="lv2-demo-file-icon is-blue"><Icon icon={File01Icon} size={16} /></span><span>Rivermere proposal.pdf<small>PDF · 1.2 MB</small></span></span></div></>;
-}
-function WorkPlan() {
-  return <Preview label="A weekly plan prepared from example project notes" className="lv2-demo-work-plan">
-    <div className="lv2-plan-meta"><Icon icon={File01Icon} size={17} /><span>Weekly plan</span><small>From your project notes</small></div>
-    <h3>Next week, planned.</h3>
-    <p>The website refresh, organised around your deadlines.</p>
-    <div className="lv2-plan-items">
-      <div><span className="lv2-plan-check" aria-hidden="true" /><div><strong>Review the homepage copy</strong><p>Bring the product descriptions into one document.</p></div><small>Monday</small></div>
-      <div><span className="lv2-plan-check" aria-hidden="true" /><div><strong>Choose the new photographs</strong><p>Shortlist images for the homepage and product pages.</p></div><small>Wednesday</small></div>
-      <div><span className="lv2-plan-check" aria-hidden="true" /><div><strong>Check the website before launch</strong><p>Review the mobile layout, links and contact form.</p></div><small>Friday</small></div>
+export function BusinessPreview() {
+  return <Preview label="An example conversation handed over from an agent to Alex" className="lv2-preview-business">
+    <div className="lv2-preview-heading"><Icon icon={Chatting01Icon} size={18} /><strong>Customer conversation</strong><span className="lv2-preview-takeover" aria-hidden="true">Take over</span><Icon icon={MoreHorizontalIcon} size={16} /></div>
+    <div className="lv2-preview-conversation">
+      <div className="lv2-preview-message"><span className="lv2-preview-avatar">S</span><div><div className="lv2-preview-message-meta"><strong>Sarah</strong><small>10:12</small></div><p>Hi, could I speak to a person about a custom package?</p></div></div>
+      <div className="lv2-preview-joined"><span className="lv2-preview-joined-icon">A</span><span>Alex joined</span><small>10:13</small></div>
+      <div className="lv2-preview-message"><span className="lv2-preview-avatar is-blue">A</span><div><div className="lv2-preview-message-meta"><strong>Alex</strong><small>10:13</small></div><p>Hi Sarah! Of course, I can help with a custom package.<br />What would you like to know?</p></div></div>
     </div>
-    <div className="lv2-plan-sources"><span>Based on</span><span><Icon icon={File01Icon} size={13} />Project notes</span><span><Icon icon={Note01Icon} size={13} />Team meeting</span></div>
+    <Composer />
   </Preview>;
 }
-export function PersonalPreview({ hero = false }: { hero?: boolean }) {
-  if (!hero) return <WorkPlan />;
-  return <Preview label="Personal assistant comparing two proposals" className="lv2-demo-personal lv2-demo-hero"><AssistantSidebar /><div className="lv2-demo-chat"><div className="lv2-demo-chat-top"><span>Personal workspace</span><span className="lv2-demo-avatar">JD</span></div><div className="lv2-demo-user-row"><p>Compare these proposals and prepare a summary.</p><span className="lv2-demo-avatar">JD</span></div><div className="lv2-demo-agent-row"><Mark /><div className="lv2-demo-answer"><Comparison /></div></div><Composer /></div></Preview>;
-}
-const contacts = [{ name: "Sarah Mitchell", initials: "SM", snippet: "Do you have availability…", time: "2m", color: "sand" }, { name: "James Carter", initials: "JC", snippet: "Changing my booking", time: "28m", color: "sage" }, { name: "Priya Singh", initials: "PS", snippet: "Group enquiry", time: "2h", color: "rose" }, { name: "Michael Evans", initials: "ME", snippet: "Cancellation policy", time: "3h", color: "slate" }];
-export function BusinessPreview({ hero = false }: { hero?: boolean }) {
-  if (!hero) return <Preview label="An example customer conversation passed from an agent to Anna" className="lv2-demo-handoff">
-    <div className="lv2-handoff-customer"><span className="lv2-demo-avatar is-sand">SM</span><div><strong>Sarah Mitchell</strong><small>Website conversation</small></div><Icon icon={MoreHorizontalIcon} size={17} /></div>
-    <div className="lv2-handoff-conversation"><p className="lv2-handoff-question">Could I speak to someone about my booking?</p><div className="lv2-handoff-agent"><Mark /><p>I'll ask our team to join.</p></div><div className="lv2-handoff-event"><span className="lv2-demo-avatar is-rose">AN</span><span>Anna joined the conversation</span><small>Just now</small></div><div className="lv2-handoff-human"><span className="lv2-demo-avatar is-rose">AN</span><p>Hi Sarah, I'm Anna. What would you like to know?</p></div></div>
-    <div className="lv2-handoff-status"><span aria-hidden="true" />With your team</div>
-  </Preview>;
-  return <Preview label="Customer conversation in the shared inbox, with a handoff to Anna" className={`lv2-demo-business ${hero ? "lv2-demo-hero" : "lv2-demo-section"}`}><aside className="lv2-demo-sidebar lv2-demo-business-nav"><div className="lv2-demo-brand"><Mark /><span>Support</span></div><div className="lv2-demo-nav">{[[InboxIcon, "Inbox"], [UserGroupIcon, "Customers"], [File01Icon, "Knowledge"], [UserGroupIcon, "Team"], [Settings01Icon, "Settings"]].map(([icon, label]) => <span key={String(label)} className={label === "Inbox" ? "is-selected" : ""}><Icon icon={icon as DemoIcon} />{String(label)}</span>)}</div></aside><div className="lv2-demo-contact-list"><div className="lv2-demo-contact-heading">All conversations <span>⌄</span></div>{contacts.map((person, i) => <div className={`lv2-demo-contact ${i === 0 ? "is-selected" : ""}`} key={person.name}><span className={`lv2-demo-avatar is-${person.color}`}>{person.initials}</span><div><strong>{person.name}</strong><small>{person.snippet}</small></div><small>{person.time}</small></div>)}</div><div className="lv2-demo-thread"><div className="lv2-demo-thread-heading"><span className="lv2-demo-avatar is-sand">SM</span><div><strong>Sarah Mitchell</strong><small>Website conversation</small></div><Icon icon={MoreHorizontalIcon} /></div><div className="lv2-demo-messages"><div className="lv2-demo-message"><p>Hi, do you have availability for 2 nights next month? We’re a family of four.</p><small>10:14</small></div><div className="lv2-demo-message is-reply"><p>Yes, we do. I can see availability from 12–14 April for a family room. Would you like me to ask our team to confirm the details?</p><small>10:15</small></div><div className="lv2-demo-joined"><span className="lv2-demo-avatar is-rose">AN</span>Anna joined the conversation <small>10:16</small></div><div className="lv2-demo-message"><p>Hi Sarah, I’m Anna. Happy to help with your booking and any questions you have.</p></div></div><Composer label="Write a reply…" /></div></Preview>;
-}
-function IntegrationRow({ name, description, icon, image }: { name: string; description: string; icon?: DemoIcon; image?: string }) {
-  return <div className="lv2-demo-integration"><span className="lv2-demo-integration-symbol">{image ? <img src={image} alt="" width="19" height="19" loading="lazy" /> : icon ? <Icon icon={icon} size={17} /> : null}</span><strong>{name}</strong><span className="lv2-demo-integration-description">{description}</span><span className="lv2-demo-added"><i />Added</span></div>;
-}
+const permissions = [
+  { label: "Calendar", description: "Check availability and book appointments.", value: "Connected", icon: Calendar01Icon },
+  { label: "Knowledge", description: "Use your website and documents.", value: "4 sources", icon: File01Icon },
+  { label: "Instructions", description: "Tell it how to behave and what to focus on.", value: "", icon: Menu01Icon },
+  { label: "Tools", description: "Give access to your business tools.", value: "Website, Calendar", icon: Plug01Icon },
+];
 export function AgentSettingsPreview() {
-  return <Preview label="Agent configuration with instructions, business knowledge and connected tools" className="lv2-demo-settings"><aside className="lv2-demo-sidebar"><div className="lv2-demo-brand"><Icon icon={Settings01Icon} /><span>Settings</span></div><div className="lv2-demo-nav"><span className="is-selected"><Icon icon={File01Icon} />Instructions</span><span><Icon icon={Folder01Icon} />Knowledge</span><span><Icon icon={Settings01Icon} />Tools</span></div></aside><div className="lv2-demo-settings-main"><section><h3>Instructions</h3><p>How your agent should work.</p><div className="lv2-demo-instructions">You are a helpful assistant for our work. Use a calm, professional tone, be concise and accurate.<br />Focus on our goals, and ask for clarification when needed.</div></section><section><h3>Knowledge</h3><p>Information your agent can refer to.</p><div className="lv2-demo-integration-list"><IntegrationRow name="Website" description="kasitek.co.za" icon={Globe02Icon} /><IntegrationRow name="Company documents" description="Product brief, market research, brand guidelines" icon={File01Icon} /></div></section><section><h3>Tools</h3><p>Choose the tools your agent can use.</p><div className="lv2-demo-integration-list"><IntegrationRow name="Google Calendar" description="View and manage events" image="/images/integrations/google-calendar.svg" /><IntegrationRow name="Google Drive" description="Search and reference your files" image="/images/integrations/google-drive.svg" /></div></section></div></Preview>;
+  return <Preview label="Example agent access to calendar, knowledge, instructions and tools" className="lv2-preview-access">
+    {permissions.map(row => <div className="lv2-preview-permission" key={row.label}>
+      <Icon icon={row.icon} size={23} /><strong>{row.label}</strong><span className="lv2-preview-permission-description">{row.description}</span>
+      <span className={`lv2-preview-permission-value ${row.label === "Calendar" ? "is-connected" : ""}`}>{row.label === "Calendar" && <i />}{row.value}</span><Icon icon={ArrowRight01Icon} size={15} />
+    </div>)}
+  </Preview>;
+}
+export function ChannelIcons() {
+  return <ul className="lv2-preview-channels" aria-label="Customer messaging channels">
+    <li><Icon icon={Globe02Icon} size={30} /><span>Website</span></li>
+    {[["whatsapp", "WhatsApp"], ["messenger", "Messenger"], ["instagram", "Instagram"], ["telegram", "Telegram"]].map(([file, label]) => <li key={file}><img src={`/images/integrations/${file}.svg`} alt="" width="30" height="30" loading="lazy" /><span>{label}</span></li>)}
+  </ul>;
 }
 export function WebsitePreview() {
-  return <Preview label="An example guesthouse website with an embedded agent chat widget" className="lv2-demo-website"><div className="lv2-demo-browser"><span /><span /><span /></div><div className="lv2-demo-website-nav"><span>Harbour View Guesthouse</span><div><span>Stay</span><span>About</span><span>Explore</span><span>Contact</span><span className="lv2-demo-book">Book a stay</span></div></div><div className="lv2-demo-website-scene"><img className="lv2-demo-coast" src="/images/landing-v2/coast.webp" alt="" loading="lazy" /><div className="lv2-demo-guesthouse-copy"><h3>A quieter place<br />by the sea.</h3><p>Coastal walks, comfortable rooms<br />and a warm welcome.</p></div><div className="lv2-demo-widget"><div className="lv2-demo-widget-heading"><Mark /><strong>Ask our assistant</strong><span aria-hidden="true">×</span></div><p>Hi! I can help with availability, accommodation and local information.</p><Composer label="Type a message…" /></div></div></Preview>;
+  return <Preview label="An example Riverside Studio website with an embedded agent" className="lv2-preview-website">
+    <div className="lv2-preview-site-nav"><strong>Riverside Studio</strong><div><span>Home</span><span>Services</span><span>About</span><span>Contact</span><span className="lv2-preview-site-book" aria-hidden="true">Book a session</span></div></div>
+    <div className="lv2-preview-site-body">
+      <img className="lv2-preview-studio" src="/images/landing-v2/studio.webp" alt="" loading="lazy" />
+      <div className="lv2-preview-site-copy"><h3>A space<br />for what<br />matters.</h3><p>Photography, workshops<br />and creative sessions.</p></div>
+      <div className="lv2-preview-widget">
+        <div className="lv2-preview-widget-heading"><span className="lv2-preview-studio-avatar">R</span><strong>Riverside Studio</strong><span aria-hidden="true">×</span></div>
+        <p>Hi! I can help with bookings,<br />our services and availability.</p>
+        <div className="lv2-preview-widget-question">Do you have<br />availability this week?</div>
+        <Composer compact />
+      </div>
+    </div>
+  </Preview>;
 }

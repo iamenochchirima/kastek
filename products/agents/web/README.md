@@ -31,7 +31,7 @@ opaque HTTP-only product session, never a service or model credential.
 
 ## Product paths
 
-- `/landingv2`: public alternate landing design with a coastal hero, switchable Personal/Business illustrations, knowledge and tools, human handoff and website previews. Sign-in and creation actions use existing login/signup routes. Examples are illustrative, do not call models or connect providers, and do not establish availability of personal-agent execution. The route is marked `noindex`; `/` keeps the current homepage.
+- `/landingv2`: public alternate landing design with an animated blue hero, business-agent laptop artwork, knowledge and tools, human handoff, website preview and personal-agent device artwork. Sign-in and creation actions use existing login/signup routes. Examples are illustrative, do not call models or connect providers, and do not establish availability of personal-agent execution. The route is marked `noindex`; `/` keeps the current homepage.
 - `/login`: provider sign-in.
 - `/app/overview`: customer conversation activity, current handoffs, enquiries and channel totals for the selected workspace.
 - `/app/agents`: searchable agent directory with configuration filters, selected-agent details, chat and configuration links, and guided customer-service setup.
@@ -78,20 +78,37 @@ production deployment is part of this implementation.
 
 ## Alternate landing release
 
-The 28 October 2026 `/landingv2` update is a low-risk, frontend-only design preview.
-Rollout is direct navigation to that route; promoting it to `/` is a separate decision.
-The Git commit identifies the source change; no production version or deployment is claimed.
-API, schema, migrations, analytics events, structured logs, worker metrics and alerts are
-not applicable. Authentication, execution and provider contracts are unchanged. The
-coastal image is generated artwork, encoded locally into 2048px and 960px WebP assets.
-Product illustrations are HTML and Hugeicons with existing Google brand assets.
-The hero shows the workspace; subsequent sections use distinct weekly-plan and human-handoff
-illustrations rather than repeating the dashboard.
-No third-party fonts, images, analytics or model calls are loaded by this page.
+The 29 October 2026 `/landingv2` update implements the owner-approved business-first
+blue/Geist design. The hero shows a customer-service laptop; a later section shows
+one illustrative personal agent across laptop, tablet and phone. Knowledge, handoff,
+permissions and website widget fragments use HTML and Hugeicons. The repeated outcomes
+section and category labels are removed. Product examples are illustrations, not
+interactive execution or evidence that personal-agent deployment is available.
+The personal link opens its availability FAQ. Create actions retain the existing signup
+return destination; sign-in uses the existing login route.
 
-Verify the public route at 1440px, 768px and 390px, check the preview switch, mobile
-navigation, keyboard focus, signup destination and reduced motion, then run the affected
-frontend lint/build and `pnpm verify:boundaries`. Rollback removes the isolated route,
-page files and coastal assets. No data rollback is needed. Review this preview before
-promoting the homepage; production monitoring and a post-deployment review are not
-applicable until a deployment is authorized.
+Owner: Agents web. Risk: low. Affected surface: the isolated public preview route.
+Rollout is direct navigation to `/landingv2`; promoting it to `/` is a separate decision.
+The Git commit identifies the source change; production release version and deployment
+are not applicable to this local preview. API, schema, migrations, analytics events,
+structured logs, worker metrics, dashboards and alerts are not applicable. Authentication,
+provider, execution and permission contracts are unchanged. The Growth feature map and
+platform architecture are unaffected by this illustrative frontend update.
+
+Device artwork and the studio photo are generated, locally encoded WebP assets; see
+[artwork provenance](public/images/landing-v2/ASSETS.md). The 1600px device renders have
+800px alternatives; non-hero images load lazily. Fonts and channel logos use existing
+local assets. No external image, font, analytics or model request runs in the page.
+CSS transforms animate the blue light. Pause/resume controls both backgrounds; invisible
+sections and hidden tabs stop their animations. Reduced-motion preference disables motion.
+
+Verify the public route at desktop 1440px, tablet 768px and mobile 390px/360px. Inspect
+loaded device artwork and complete-page screenshots, check navigation, FAQ, keyboard focus,
+signup destination, pause/resume and reduced motion, then run affected frontend lint/build
+and `pnpm verify:boundaries`. Screenshots are local review evidence under
+`.audit/landing-v2-blue/`, not shipped assets. Browser acceptance covers the landing page;
+model evals and provider acceptance remain with the owner.
+
+Rollback reverts this focused commit, restoring the previous page and assets. No data
+rollback is needed. Review before promoting the homepage. Production monitoring and a
+post-release review date are not applicable until deployment is authorized.
