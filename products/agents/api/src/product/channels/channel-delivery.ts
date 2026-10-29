@@ -1,5 +1,6 @@
 import {assertEnquiryReviewPrompt,enquiryReviewDecision} from "./channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
+import { HANDOFF_RECEIPT } from "../inbox/handoff-receipt";
 import type { Pool, PoolClient } from "pg";
 import { ChannelAdapterError, channelWebhookEventSchema, type ChannelWebhookEvent, type ChannelProviderContext, type MessagingChannelKind, type ChannelSendRequest } from "../../contracts/channel-adapters";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
@@ -137,10 +138,13 @@ export class ChannelDelivery {
         WHERE o.id=$1 AND o.claim_id=$2 AND o.state='sending' AND o.lease_until>now() AND d.state='active' AND c.state='active'
         AND p.channel_deployment_id=d.id AND p.ownership_generation=o.ownership_generation
         AND c.revision=o.connection_revision AND c.credential_revision=o.credential_revision
-        AND ((m.author_kind='assistant' AND p.state='automation_active') OR (m.author_kind='human' AND p.state='human_owned'
+        AND ((m.author_kind='assistant' AND (p.state='automation_active' OR (p.state='handoff_pending' AND m.body=$3 AND m.ownership_generation=o.ownership_generation
+          AND m.request_key='handoff:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt
+            WHERE receipt.conversation_id=p.id AND receipt.command_id=m.task_id AND receipt.action='request_handoff'
+              AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text)))) OR (m.author_kind='human' AND p.state='human_owned'
           AND p.assignee_account_id=m.author_account_id AND EXISTS(SELECT 1 FROM agents_platform.memberships mem
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
-        FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id])).rows[0];
+        FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id,HANDOFF_RECEIPT])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
       if(row.request.enquiryReview)await assertEnquiryReviewPrompt(db,row.request,row.conversation_id);
       if(row.request.toolReview)await assertChannelToolReviewPrompt(db,row.request,row.conversation_id);

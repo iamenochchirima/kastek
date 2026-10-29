@@ -9,6 +9,7 @@ import type { ChannelBinding } from "../../contracts/channel";
 import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
+import { HANDOFF_RECEIPT } from "./handoff-receipt";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -297,10 +298,13 @@ export class InboxStore {
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [taskId, row.id, binding.inputMessageId, binding.ownershipGeneration])).rowCount) denied();
     const existing = (await db.query("SELECT action FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
     if (existing?.action === "request_handoff") return { state: "handoff_pending" };
-    if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active") throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
+    if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active" || !await this.activeBinding(db,row)) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
+    Object.assign(row,updated);
     await this.queueCancellation(db, row.id, updated.ownership_generation);
-    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), updated]);
+    const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT,taskId});
+    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), {...updated,handoffReceiptId:receipt.id}]);
+    await enqueueChannelMessage(db,row,receipt);
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
@@ -334,6 +338,9 @@ export class InboxStore {
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
     if(!message.task_id)return null;
+    if(message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands
+      WHERE conversation_id=$1 AND command_id=$2 AND action='request_handoff' AND result->>'handoffReceiptId'=$3`,
+    [message.conversation_id,message.task_id,message.id])).rowCount) return HANDOFF_RECEIPT;
     const enquiry=(await db.query(`SELECT e.fields,e.request_digest,o.request FROM agents_platform.channel_outbound o JOIN agents_platform.enquiries e ON e.id::text=o.request#>>'{enquiryReview,id}' WHERE o.message_id=$1 AND e.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
     if(enquiry){const text=enquiryReviewText(enquiry.fields);return message.body===text&&enquiry.request.enquiryReview?.requestDigest===enquiry.request_digest?text:null;}
     const prompt=(await db.query(`SELECT r.arguments,r.request_digest,r.binding_digest,o.request FROM agents_platform.channel_outbound o

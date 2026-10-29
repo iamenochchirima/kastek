@@ -14,6 +14,7 @@ import { customerConfiguration } from "../src/product/offerings/offerings";
 import { connectFixtureModel } from "./model-fixture";
 import { inspectionAuthority } from "../src/execution/context/evidence-policy";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
+import { ChannelDelivery } from "../src/product/channels/channel-delivery";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("canonical channel customer admission without inference", () => {
@@ -26,17 +27,49 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     channels = new ChannelStore(pool, new ConnectionVault("test", { test: randomBytes(32).toString("base64") }));
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
-  async function fixture() {
+  async function fixture(physicalChannel = false) {
     const owner = await platform.ensureAccount({ issuer: "https://channel.fixture.test", subject: randomUUID(), email: "owner@example.test", displayName: "Owner" });
     const org = await platform.createOrganization(owner.id, "Customer channels"), scope = { accountId: owner.id, organizationId: org.id };
     await connectFixtureModel(pool, owner.id, org.id, "fixture/channel-model");
     const configured = await platform.createConfiguredAgent({ ...scope, name: "Support", offering: "faq" });
-    const connection = await channels.create(scope, { kind: "telegram", mode: "bot", name: "Support bot", assetId: randomUUID(), state: "active", credentials: { botToken: "fixture-bot-token" } });
+    const assetId = physicalChannel ? String(Math.floor(Math.random() * 1_000_000_000)) : randomUUID();
+    const connection = await channels.create(scope, { kind: "telegram", mode: "bot", name: "Support bot", assetId, state: "active", credentials: { botToken: physicalChannel ? `${assetId}:fixture` : "fixture-bot-token" } });
     const deployment = await channels.bind(scope, connection.id, { expectedRevision: 1, agentId: configured.agent.id });
     const inbox = composeInbox(pool, { publicOrigin: "https://agents.fixture.test", assertServices: async () => undefined });
-    const receive = (key: string, body: string) => inbox.ingressChannel({ deploymentId: deployment.id, externalConversationId: "chat-1", senderId: "customer-1", requestKey: key, body });
+    const receive = (key: string, body: string) => inbox.ingressChannel({ deploymentId: deployment.id, externalConversationId: physicalChannel ? "1234" : "chat-1", senderId: physicalChannel ? "1234" : "customer-1", requestKey: key, body });
     return { scope, owner, org, ...configured, connection, deployment, inbox, receive };
   }
+  it("delivers a committed handoff receipt once and fences it after ownership changes", async () => {
+    let calls = 0;
+    const f = await fixture(true), incoming = await f.receive("support", "I need a person");
+    const binding = { customerConversationId: incoming.conversation.id, inputMessageId: incoming.message.id, ownershipGeneration: incoming.conversation.ownership_generation };
+    await transaction(pool, db => f.inbox.requestHandoff(db, binding, incoming.message.task_id!));
+    const worker = new ChannelDelivery(pool, channels, f.inbox, { assertPolicy: async () => undefined,
+      context: (_connection, credentials, beforeAttempt) => ({ credential: credentials.botToken, fetch: async () => { await beforeAttempt(); calls++; return Response.json({ ok: true, result: { message_id: 42 } }); } }) });
+    await worker.drain(2); await worker.drain(2);
+    expect(calls).toBe(1);
+    expect((await worker.readDeliveries(f.scope, incoming.conversation.id)).map(row => row.state)).toEqual(["accepted"]);
+    const other = await fixture(true), pending = await other.receive("support", "I need a person");
+    await transaction(pool, db => other.inbox.requestHandoff(db, { customerConversationId: pending.conversation.id, inputMessageId: pending.message.id, ownershipGeneration: pending.conversation.ownership_generation }, pending.message.task_id!));
+    const current = (await other.inbox.readStaff(other.scope, pending.conversation.id)).conversation;
+    await other.inbox.command(other.scope, pending.conversation.id, { commandId: randomUUID(), expectedRevision: current.revision, action: "claim" });
+    const claimed = (await other.inbox.readStaff(other.scope, pending.conversation.id)).conversation;
+    await other.inbox.command(other.scope, pending.conversation.id, { commandId: randomUUID(), expectedRevision: claimed.revision, action: "takeover" });
+    await worker.drain(2);
+    expect(calls).toBe(1);
+    expect((await worker.readDeliveries(other.scope, pending.conversation.id))[0].state).toBe("suppressed");
+    const again = await fixture(true), old = await again.receive("old", "I need a person");
+    await transaction(pool, db => again.inbox.requestHandoff(db, { customerConversationId: old.conversation.id, inputMessageId: old.message.id, ownershipGeneration: old.conversation.ownership_generation }, old.message.task_id!));
+    let conversation = (await again.inbox.readStaff(again.scope, old.conversation.id)).conversation;
+    await again.inbox.command(again.scope, old.conversation.id, { commandId: randomUUID(), expectedRevision: conversation.revision, action: "claim" });
+    conversation = (await again.inbox.readStaff(again.scope, old.conversation.id)).conversation;
+    await again.inbox.command(again.scope, old.conversation.id, { commandId: randomUUID(), expectedRevision: conversation.revision, action: "return" });
+    const fresh = await again.receive("new", "I need a person again");
+    await transaction(pool, db => again.inbox.requestHandoff(db, { customerConversationId: fresh.conversation.id, inputMessageId: fresh.message.id, ownershipGeneration: fresh.conversation.ownership_generation }, fresh.message.task_id!));
+    await worker.drain(4);
+    expect(calls).toBe(2);
+    expect((await worker.readDeliveries(again.scope, old.conversation.id)).map(row => row.state)).toEqual(["suppressed", "accepted"]);
+  });
   it("admits current saved settings on the shared route and preserves history and human ownership across saves", async () => {
     const f = await fixture(), first = await f.receive("one", "Hello");
     const task = await loadExecution(pool, first.message.task_id!);

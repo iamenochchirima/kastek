@@ -197,7 +197,10 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   it("records escalation idempotently and blocks further automated operations", async () => {
     const f = await fixture(), incoming = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "I need a person" }), b = binding(f, incoming.message.id);
     await transaction(pool, db => inbox.requestHandoff(db, b, incoming.message.task_id!)); await transaction(pool, db => inbox.requestHandoff(db, b, incoming.message.task_id!));
-    expect((await inbox.readStaff(f.scope, f.conversation.id)).conversation.state).toBe("handoff_pending");
+    const staff = await inbox.readStaff(f.scope, f.conversation.id), visitor = await inbox.readVisitor(f.visitor, f.conversation.id);
+    expect(staff.conversation.state).toBe("handoff_pending");
+    expect(visitor.messages.map(message => message.body)).toEqual(["I need a person", "This conversation has been passed to the support team. You can add details here while you wait."]);
+    expect(staff.messages.filter(message => message.author_kind === "assistant")).toHaveLength(1);
     await expect(inbox.assertBinding(pool, b, { organization_id: f.org.id, version_id: f.version.id })).rejects.toMatchObject({ code: "CHANNEL_OWNERSHIP_CHANGED" });
   });
   it("prevents cross-visitor/deployment and operator-chat reads", async () => {
