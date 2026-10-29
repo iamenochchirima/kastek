@@ -14,6 +14,7 @@ async function fixture(page: Page) {
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test" }, organizations: [{ id: "org", name: "Business", role: "owner" }] };
     else if (path.endsWith("/agents/summaries")) data = { agents: [], nextCursor: null };
+    else if (path.endsWith("/inbox-alerts")) data = { unread: 0, alerts: [] };
     else if (path === `${base}/agents` && req.method() === "POST") {setup=body.setup;name=body.name;data = { agent: agent() };}
     else if (path.endsWith("/website-crawls")) data = { crawls: [], available: true };
     else if (path.endsWith("/configuration")) {expect(body.expectedRevision).toBe(draftRevision);configuration=body.configuration;setup=body.setup ?? setup;setupStep=body.setupStep ?? setupStep;name=body.name;draftRevision++; data = { agent: agent(), deployments: [], snapshot: { id: "version", number: 1, configuration } }; }

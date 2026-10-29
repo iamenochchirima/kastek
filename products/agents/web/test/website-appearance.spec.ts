@@ -39,7 +39,10 @@ test("plain-text appearance, suggested messages and lost acknowledgement reload"
   await page.getByRole("button",{name:"Opening hours",exact:true}).click();await expect(page.getByRole("button",{name:"Retry message"})).toBeVisible();
   const error = await page.getByRole("status").textContent();expect(error).toBeTruthy();const refreshes=f.refreshes;
   await expect.poll(()=>f.refreshes).toBeGreaterThan(refreshes);await expect(page.getByRole("status")).toHaveText(error!);
-  await page.getByRole("button",{name:"Retry message"}).click();await expect(page.getByRole("log")).toContainText("Support: We are open.");
+  await page.getByRole("button",{name:"Retry message"}).click();
+  const humanReply=page.locator('main p[data-author="human"]');
+  await expect(humanReply.locator("strong")).toHaveText("Support");
+  await expect(humanReply).toContainText("We are open.");
   await page.screenshot({path:test.info().outputPath("desktop.png")});
   expect(f.sent).toHaveLength(2);expect(f.sent[0]).toEqual(f.sent[1]);expect(f.sessions).toBe(1);
   await page.keyboard.press("Escape");await expect(page.getByRole("button",{name:"Ask support",exact:true})).toBeFocused();
