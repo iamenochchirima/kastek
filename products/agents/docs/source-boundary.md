@@ -168,6 +168,9 @@ colour, title, greeting, avatar URL, position, window size, corner radius, launc
 suggested messages and branding visibility. Settings use current owner authorization and
 optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
 migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
+The widget can start and switch separate conversations in one browser tab. Each uses its own
+visitor session and pending request, stored in that tab's session storage. Switching waits for
+in-flight requests to finish. An expired session does not grant access to its earlier conversation.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
 
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
@@ -1074,7 +1077,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/connections` | Restricted profiles, custom MCP OAuth and separate Tools/Resources/Templates/Prompts selection, native API preview/credentials/selection, and owner-managed Google/Microsoft calendars and HubSpot action/sharing setup. | Connection browser contracts, published controlled MCP/API execution and actual API/controlled Google browser acceptance; live Google OAuth remains pending. |
 | `/app/automations` | Pin report versions, authorize UTC/event triggers, inspect occurrences and control future runs. | Actual Restate timer/event HTTP checks and scheduled-report fixture. |
 | `/app/tasks/:taskId` | Authorized task detail, exact tool/report review, exact appointment confirmation, and status-only booking recovery. | `tool-reviews.spec.ts`, `bookings.spec.ts`, and real API booking confirmation. |
-| External website widget | Public conversation, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | Generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
+| External website widget | Separate tab-scoped conversations, exact two-step appointment confirmation, and Check status without event resend. FAQ widgets do not fetch bookings. | `widget-conversations.test.ts`; generated-script `website-bookings.spec.ts`; actual isolated Restate/PostgreSQL `booking-business.test.ts`. |
 
 Inbox message inspection recognizes the two previously shipped grounded-conversation v1 program
 descriptors when the remaining pinned composition still matches. It continues to check the saved
