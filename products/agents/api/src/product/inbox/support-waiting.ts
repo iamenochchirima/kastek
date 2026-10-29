@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { supportHoursSchema } from "../../contracts/customer-setup";
 import { transaction } from "../../infrastructure/database";
+import { recordSupportLifecycle } from "../reporting/support-lifecycle";
 
 export const SUPPORT_WAITING_POLICY = Object.freeze({ version: "support-waiting-v1", customerMinutes: [5, 15], staffMinutes: [10, 30] });
 export const SUPPORT_WAITING_NOTICE = "Your request is still waiting for a response from the support team. You can add details here while you wait.";
@@ -26,26 +27,45 @@ export function nextSupportOpening(hours: unknown, at: Date): Date {
 }
 
 async function alertStaff(db: PoolClient, input: { taskId: string; conversationId: string; stage: number; kind: string }) {
-  await db.query(`INSERT INTO agents_platform.support_staff_alerts(id,organization_id,account_id,task_id,conversation_id,stage,kind)
+  const created = await db.query(`INSERT INTO agents_platform.support_staff_alerts(id,organization_id,account_id,task_id,conversation_id,stage,kind)
     SELECT gen_random_uuid(),c.organization_id,m.account_id,$1,c.id,$3,$4 FROM agents_platform.customer_conversations c
     JOIN agents_platform.memberships m ON m.organization_id=c.organization_id AND m.revoked_at IS NULL
     WHERE c.id=$2 AND NOT EXISTS (SELECT 1 FROM agents_platform.evaluation_trials trial
       WHERE (EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels f WHERE f.trial_id=trial.id AND f.session_id=c.session_id)
         OR EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels f WHERE f.trial_id=trial.id AND f.deployment_id=c.channel_deployment_id))
       AND trial.account_id<>m.account_id)
-    ON CONFLICT(task_id,account_id,stage) DO NOTHING`, [input.taskId, input.conversationId, input.stage, input.kind]);
+    ON CONFLICT(task_id,account_id,stage) DO NOTHING RETURNING id`, [input.taskId, input.conversationId, input.stage, input.kind]);
+  return Boolean(created.rowCount);
 }
 
 /** Called in the handoff transaction, after its command receipt exists. */
-export async function recordHandoffWaiting(db: PoolClient, input: { taskId: string; conversationId: string; ownershipGeneration: string }): Promise<void> {
-  await db.query(`INSERT INTO agents_platform.support_waiting(task_id,source_task_id,conversation_id,ownership_generation) VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING`, [input.taskId, input.conversationId, input.ownershipGeneration]);
-  await alertStaff(db, { ...input, stage: 0, kind: "handoff_requested" });
+export async function recordHandoffWaiting(db: PoolClient, input: { taskId: string; conversationId: string; ownershipGeneration: string }): Promise<Date> {
+  const inserted = await db.query<{ requested_at: Date }>(`INSERT INTO agents_platform.support_waiting(task_id,source_task_id,conversation_id,ownership_generation)
+    VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING RETURNING requested_at`, [input.taskId, input.conversationId, input.ownershipGeneration]);
+  const requestedAt = inserted.rows[0]?.requested_at ?? (await db.query<{ requested_at: Date }>(
+    "SELECT requested_at FROM agents_platform.support_waiting WHERE task_id=$1", [input.taskId])).rows[0]?.requested_at;
+  if (!requestedAt) throw new Error("SUPPORT_WAITING_EPISODE_MISSING");
+  if (inserted.rowCount) await recordSupportLifecycle(db, { conversationId: input.conversationId, sourceKey: `handoff:${input.taskId}:requested`,
+    action: "handoff_requested", outcome: "accepted", occurredAt: requestedAt });
+  if (await alertStaff(db, { ...input, stage: 0, kind: "handoff_requested" })) await recordSupportLifecycle(db, {
+    conversationId: input.conversationId, sourceKey: `handoff:${input.taskId}:staff-alert:0`, action: "staff_alert_created", outcome: "created", occurredAt: requestedAt,
+  });
+  return requestedAt;
 }
 
 /** An attachment-only inbound message has its own episode identity and no execution task. */
-export async function recordMessageHandoffWaiting(db: PoolClient, input: { messageId: string; conversationId: string; ownershipGeneration: string }): Promise<void> {
-  await db.query(`INSERT INTO agents_platform.support_waiting(task_id,source_message_id,conversation_id,ownership_generation) VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING`, [input.messageId, input.conversationId, input.ownershipGeneration]);
-  await alertStaff(db, { taskId:input.messageId, conversationId:input.conversationId, stage:0, kind:"handoff_requested" });
+export async function recordMessageHandoffWaiting(db: PoolClient, input: { messageId: string; conversationId: string; ownershipGeneration: string }): Promise<Date> {
+  const inserted = await db.query<{ requested_at: Date }>(`INSERT INTO agents_platform.support_waiting(task_id,source_message_id,conversation_id,ownership_generation)
+    VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING RETURNING requested_at`, [input.messageId, input.conversationId, input.ownershipGeneration]);
+  const requestedAt = inserted.rows[0]?.requested_at ?? (await db.query<{ requested_at: Date }>(
+    "SELECT requested_at FROM agents_platform.support_waiting WHERE task_id=$1", [input.messageId])).rows[0]?.requested_at;
+  if (!requestedAt) throw new Error("SUPPORT_WAITING_EPISODE_MISSING");
+  if (inserted.rowCount) await recordSupportLifecycle(db, { conversationId: input.conversationId, sourceKey: `handoff:${input.messageId}:requested`,
+    action: "handoff_requested", outcome: "accepted", occurredAt: requestedAt });
+  if (await alertStaff(db, { taskId:input.messageId, conversationId:input.conversationId, stage:0, kind:"handoff_requested" })) await recordSupportLifecycle(db, {
+    conversationId: input.conversationId, sourceKey: `handoff:${input.messageId}:staff-alert:0`, action: "staff_alert_created", outcome: "created", occurredAt: requestedAt,
+  });
+  return requestedAt;
 }
 
 export class SupportWaitingService {
@@ -87,7 +107,13 @@ export class SupportWaitingService {
       const customerStage = SUPPORT_WAITING_POLICY.customerMinutes.filter(at => at <= elapsed).length;
       const staffStage = SUPPORT_WAITING_POLICY.staffMinutes.filter(at => at <= elapsed).length;
       if (staffStage > row.staff_stage) {
-        await alertStaff(db, { taskId, conversationId: row.conversation_id, stage: staffStage, kind: conversation.assignee_account_id ? "awaiting_human_reply" : "unassigned" });
+        const occurredAt = new Date(now);
+        if (row.staff_stage === 0) await recordSupportLifecycle(db, { conversationId: row.conversation_id, sourceKey: `handoff:${taskId}:first-overdue`,
+          action: "handoff_overdue", outcome: "created", occurredAt });
+        if (await alertStaff(db, { taskId, conversationId: row.conversation_id, stage: staffStage, kind: conversation.assignee_account_id ? "awaiting_human_reply" : "unassigned" })) {
+          await recordSupportLifecycle(db, { conversationId: row.conversation_id, sourceKey: `handoff:${taskId}:staff-alert:${staffStage}`,
+            action: "staff_alert_created", outcome: "created", occurredAt });
+        }
         row.staff_stage = staffStage;
       }
       if (customerStage > row.customer_stage) {

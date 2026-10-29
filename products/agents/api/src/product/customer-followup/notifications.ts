@@ -4,6 +4,7 @@ import { transaction } from "../../infrastructure/database";
 import type { NotificationMessage, NotificationResult } from "../../adapters/notifications/resend";
 import { CustomerFollowupChallenges } from "./challenges";
 import { customerReturnUrl } from "./return-url";
+import { recordSupportFollowupDelivery } from "../reporting/support-lifecycle";
 
 /** Call in the transaction that records a human reply. No email is sent here. */
 export async function enqueueCustomerFollowup(db: PoolClient, conversationId: string, messageId: string): Promise<string | null> {
@@ -38,10 +39,12 @@ export class CustomerFollowupNotifications {
       if (!row) return {kind:"not_pending" as const};
       if(row.state === "sending") {
         // The sender has a bounded 30-second maximum. A lost process cannot prove whether it sent.
-        const recovered=await db.query("UPDATE agents_platform.customer_followup_notifications SET state='unknown',updated_at=now() WHERE id=$1 AND state='sending' AND updated_at<=now()-interval '60 seconds'",[notificationId]);
+        const recovered=await db.query<{updated_at:Date}>("UPDATE agents_platform.customer_followup_notifications SET state='unknown',updated_at=now() WHERE id=$1 AND state='sending' AND updated_at<=now()-interval '60 seconds' RETURNING updated_at",[notificationId]);
+        if(recovered.rowCount)await recordSupportFollowupDelivery(db,{notificationId,state:"unknown",occurredAt:recovered.rows[0]!.updated_at});
         return {kind:recovered.rowCount ? "unknown" as const : "in_progress" as const};
       }
-      await db.query("UPDATE agents_platform.customer_followup_notifications SET state=$2,updated_at=now() WHERE id=$1", [notificationId, row.eligible ? "sending" : "suppressed"]);
+      const transition=await db.query<{updated_at:Date}>("UPDATE agents_platform.customer_followup_notifications SET state=$2,updated_at=now() WHERE id=$1 RETURNING updated_at", [notificationId, row.eligible ? "sending" : "suppressed"]);
+      if(!row.eligible&&transition.rowCount)await recordSupportFollowupDelivery(db,{notificationId,state:"suppressed",occurredAt:transition.rows[0]!.updated_at});
       return {kind:"claimed" as const,...row};
     });
     if (claimed.kind !== "claimed") return claimed.kind;
@@ -60,12 +63,19 @@ export class CustomerFollowupNotifications {
         if (!result.rowCount) { authorityRevoked = true; throw new Error("Follow-up authorization changed"); }
       };
       const result = await this.send({ to: claimed.email, subject: "Support replied", text: `Your support team replied. Open your conversation:\n\n${link}`, idempotencyKey: `followup_${notificationId}` }, beforeAttempt);
-      if (authorityRevoked) { await this.pool.query("UPDATE agents_platform.customer_followup_notifications SET state='suppressed',updated_at=now() WHERE id=$1 AND state='sending'", [notificationId]); return "suppressed"; }
-      await this.pool.query("UPDATE agents_platform.customer_followup_notifications SET state=$2,provider_id=$3,updated_at=now() WHERE id=$1 AND state='sending'", [notificationId, result.state, result.state === "accepted" ? result.providerId : null]);
+      if (authorityRevoked) { await this.persistOutcome(notificationId,"suppressed"); return "suppressed"; }
+      await this.persistOutcome(notificationId,result.state,result.state === "accepted" ? result.providerId : null);
       return result.state;
     } catch {
-      await this.pool.query("UPDATE agents_platform.customer_followup_notifications SET state='unknown',updated_at=now() WHERE id=$1 AND state='sending'", [notificationId]);
+      await this.persistOutcome(notificationId,"unknown");
       return "unknown";
     }
+  }
+  private async persistOutcome(notificationId:string,state:"accepted"|"rejected"|"unknown"|"suppressed",providerId:string|null=null):Promise<void>{
+    await transaction(this.pool,async db=>{
+      const updated=await db.query<{updated_at:Date}>(`UPDATE agents_platform.customer_followup_notifications SET state=$2,provider_id=$3,updated_at=now()
+        WHERE id=$1 AND state='sending' RETURNING updated_at`,[notificationId,state,state==="accepted"?providerId:null]);
+      if(updated.rowCount)await recordSupportFollowupDelivery(db,{notificationId,state,occurredAt:updated.rows[0]!.updated_at});
+    });
   }
 }

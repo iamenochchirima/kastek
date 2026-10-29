@@ -68,6 +68,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.support.lifecycle@1",
+      "schema": "events/agent/support_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/support_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "agent.schedule.lifecycle@1",
       "schema": "events/agent/schedule_lifecycle/v1.schema.json",
       "examples": ["examples/agent/schedule_lifecycle.json"],

@@ -919,6 +919,29 @@ physical receipts over one hour, with bounded provider, phase and response/failu
 profiles coalesce into one `other` provider. The [integration reference](mcp-integration.md#connection-observability)
 links focused helper, actual OTLP receiver and PostgreSQL producer checks.
 
+### Support lifecycle Analytics and release record
+
+Agents emits the registered `agent.support.lifecycle@1` event through the existing transactional
+Analytics outbox. Its attributes are limited to agent/version, one of the five customer channels,
+bounded lifecycle action/outcome values, event time and an optional duration. Customer, conversation,
+message, staff and contact identifiers, email addresses, summaries and message bodies are excluded.
+Evaluation-trial conversations are excluded before enqueue. The `agent.support.lifecycle_events@1`
+metric counts the event facts; `agent.support.response_time_ms@1` aggregates request-to-acknowledgement
+and request-to-first-human-reply durations. Dimensions are agent, version, channel, action and outcome.
+
+| Release field | Decision |
+| --- | --- |
+| Owner and risk | Agents engineering; standard risk. |
+| Affected services | Agents API and worker; Analytics contract/metric registry. No customer-facing configuration changes. |
+| Release identity | No release tag or deployment has been assigned. Source commits identify the local implementation; package `0.1.0` is not a production release. |
+| API/schema | Additive Analytics event and metric registry entries. No Agents database migration; the existing Analytics outbox and ingestion envelope are reused. |
+| Rollout | Publish the Analytics registry before deploying an Agents API/worker artifact that emits the contract. The existing optional `AGENTS_ANALYTICS_INGESTION_URL` and `AGENTS_ANALYTICS_INGESTION_TOKEN` enable delivery; without both, facts remain durably queued. |
+| Logs and telemetry | No new OTEL signals, Collector revision or endpoint. Event payload redaction is enforced in the producer and verified by focused tests. Existing publisher failure diagnostics and exporter-disable controls remain in effect. |
+| Documentation | Agents README and source-boundary map updated; no public API contract changes. |
+| Validation | Analytics registry check/build, Agents typecheck, targeted support lifecycle/privacy tests, relevant Inbox/channel/follow-up tests and repository boundary check. Owner-run model evaluations and live-provider acceptance remain separate. |
+| Rollback | Roll back matching Agents artifacts to stop new event production; preserve queued immutable outbox records for reconciliation. No schema rollback is needed. Handoff and accepted notification state remain unchanged. |
+| Post-release review | Not scheduled because no deployment is authorized or assigned. |
+
 ### Requested and reported model identities
 
 Native adapters emit a safe `modelIdentity` receipt with the exact requested model, a reported model
@@ -1110,6 +1133,7 @@ It does not call a real model/provider or verify cleanup of a live allocation.
 | `execution/scheduling/capacity.ts`, `execution/scheduling/capacity-turns.ts`, `execution/scheduling/dispatch-claims.ts` | Durable resource queues, independent tenant turns, generation-fenced permits and bounded replica claims. |
 | `workflows/report-delivery/program.ts` | Durable report review waits, exact dispatch and status-only reconciliation through the shared operation lifecycle. |
 | `product/inbox/inbox-store.ts`, `product/inbox/inbox-routes.ts`, `composition/inbox.ts` | Staff authorization, assignment, customer history, ownership changes, human replies and delivery fencing. |
+| `product/reporting/support-lifecycle.ts`, `product/customer-followup/notifications.ts`, `product/channels/channel-delivery.ts`, `product/inbox/support-waiting.ts` | Registered, organization-scoped support lifecycle facts committed with handoff, reply, wait, alert, follow-up and messaging delivery outcomes. Customer identifiers and content stay out of Analytics attributes and dimensions. |
 | `observability/event-store.ts`, `observability/observations.ts`, `observability/connection-telemetry.ts`, `observability/model-telemetry.ts`, `observability/telemetry.ts`, `observability/metrics.ts` | Durable typed task observations, authorized reads, replay-safe export, separate metadata-only connection and model invocation traces/logs, bounded attempt metrics and native budget/unknown-cost gauges. |
 | `product/connections/connections.ts`, `infrastructure/vault.ts`, `workflows/report-delivery/actions.ts`, `adapters/providers/report-delivery.ts` | Scoped encrypted credentials, exact report review, atomic dispatch claims and read-only receipt reconciliation. |
 | `product/automations/automations.ts`, `execution/lifecycle/automation-authority.ts`, `product/automations/automation-runtime.ts` | Immutable owner authorization, occurrence inbox, shared admission and Restate UTC timers. |

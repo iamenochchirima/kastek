@@ -11,6 +11,7 @@ import type { InboxScope, InboxStore } from "../inbox/inbox-store";
 import type { ChannelStore } from "./channel-store";
 import {assertChannelToolReviewPrompt,channelToolReviewDecision} from "./channel-tool-reviews";
 import { channelRecipient } from "./channel-recipient";
+import { recordSupportNotificationDelivery } from "../reporting/support-lifecycle";
 
 const rank: Record<string, number> = { accepted: 1, sent: 2, delivered: 3, read: 4 };
 type Row = Record<string, any>;
@@ -106,15 +107,20 @@ export class ChannelDelivery {
             AND native.event->>'echo'='true' AND (native.event->>'occurredAt')::timestamptz<=$3))) FOR UPDATE OF o`,
       [connectionId,event.providerMessageId,watermark,event.externalConversationId])).rows;
       for (const row of rows) if ((rank[status] ?? 0) > (rank[row.state] ?? 0) && (row.state!=="failed"||["delivered","read"].includes(status)) || status === "failed" && !["delivered","read"].includes(row.state)) {
-        await db.query("UPDATE agents_platform.channel_outbound SET state=$2,reason=$3,updated_at=now() WHERE id=$1",[row.id,status,event.errorCode ?? null]);
-        if(status==="failed")await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending'",[row.message_id,row.segment]);
+        const changed=await db.query("UPDATE agents_platform.channel_outbound SET state=$2,reason=$3,updated_at=now() WHERE id=$1 RETURNING id",[row.id,status,event.errorCode ?? null]);
+        if(changed.rowCount)await recordSupportNotificationDelivery(db,{deliveryId:row.id,state:status,occurredAt:event.occurredAt?new Date(event.occurredAt):new Date()});
+        if(status==="failed"){
+          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment]);
+          for(const delivery of suppressed.rows)await recordSupportNotificationDelivery(db,{deliveryId:delivery.id,state:"suppressed",occurredAt:event.occurredAt?new Date(event.occurredAt):new Date()});
+        }
       }
     });
   }
   private async claimOutbound(): Promise<Row | null> {
     return transaction(this.pool, async db => {
       // A process that lost its claim may already have sent. Expiry preserves uncertainty; it never queues another POST.
-      await db.query("UPDATE agents_platform.channel_outbound SET state='unknown',reason='send_acknowledgement_lost',updated_at=now() WHERE state='sending' AND lease_until<now()");
+      const expired=await db.query("UPDATE agents_platform.channel_outbound SET state='unknown',reason='send_acknowledgement_lost',updated_at=now() WHERE state='sending' AND lease_until<now() RETURNING id");
+      for(const delivery of expired.rows)await recordSupportNotificationDelivery(db,{deliveryId:delivery.id,state:"unknown",occurredAt:new Date()});
       const row = (await db.query(`SELECT o.* FROM agents_platform.channel_outbound o WHERE o.state='pending' AND o.available_at<=now()
         AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_commands receipt
           LEFT JOIN agents_platform.channel_message_facts facts ON facts.message_id=receipt.command_id
@@ -250,7 +256,11 @@ export class ChannelDelivery {
       const changed = await db.query(`UPDATE agents_platform.channel_outbound SET state=$3,provider_message_id=$4,reason=$5,lease_until=NULL,updated_at=now()
         WHERE id=$1 AND claim_id=$2 AND state='sending' RETURNING id`,[row.id,row.claim_id,state,providerId,reason]);
       if (changed.rowCount) {
-        if(state==="failed")await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending'",[row.message_id,row.segment]);
+        await recordSupportNotificationDelivery(db,{deliveryId:row.id,state,occurredAt:new Date()});
+        if(state==="failed"){
+          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment]);
+          for(const delivery of suppressed.rows)await recordSupportNotificationDelivery(db,{deliveryId:delivery.id,state:"suppressed",occurredAt:new Date()});
+        }
         const message = (await db.query("SELECT task_id FROM agents_platform.customer_messages WHERE id=$1",[row.message_id])).rows[0];
         if (message?.task_id) await recordEvent(db,message.task_id,`channel:send:${row.id}:${row.attempts}`,"channel.delivery",{outcome:state === "unknown" ? "uncertain" : state === "suppressed" ? "suppressed" : state === "failed" ? "failed" : "completed",count:1,
           connectionId:row.connection_id,customerMessageId:row.message_id,deliveryId:row.id});

@@ -325,6 +325,9 @@ retried deliberately after correcting the displayed failure. Repeated ingress re
 
 ### Support waiting and staff alerts
 
+Enabling Human support asks for support hours and an editable timezone. Requests use the workspace
+Inbox; outside-hours replies, staff alerts and bounded waiting updates use product defaults.
+
 New customer-support configurations give the agent a structured handoff tool. It can record a
 reason and brief for authorized Inbox staff. The original handoff tool remains available to
 previously published configurations. New configurations permit one agent-written acknowledgement
@@ -377,6 +380,17 @@ Customer notices use a separate
 receipt and current ownership generation. They do not grant the agent ordinary replying or business
 tool authority during human ownership. Provider delivery applies the existing connection,
 messaging-window and permission checks; a canonical notice is not proof of provider delivery.
+
+Support lifecycle facts use the registered `agent.support.lifecycle@1` event and the existing
+Agents Analytics outbox. `agent.support.lifecycle_events@1` counts committed requests,
+acknowledgements, waiting updates, first overdue events, staff alerts, first human replies and
+customer-notification outcomes. `agent.support.response_time_ms@1` measures request-to-acknowledgement
+and request-to-first-human-reply time. Metrics use bounded agent, version, channel, action and outcome
+dimensions; evaluation trials are excluded. Event attributes and metric dimensions contain no
+customer, conversation, message, staff or contact identifiers, emails, summaries or message bodies.
+If the optional Agents Analytics publisher is not configured, events remain in the existing outbox.
+Deploy the Analytics registry before an Agents artifact that emits this contract. No Agents database
+migration or Collector configuration change is required.
 
 Native alerts use `GET /api/organizations/:organizationId/inbox-alerts` and
 `POST /api/organizations/:organizationId/inbox-alerts/:alertId/acknowledge`. They do not send staff

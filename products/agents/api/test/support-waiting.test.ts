@@ -77,6 +77,15 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await f.inbox.list(f.scope, {limit:30})).items.find(item => item.id === f.conversation.id)?.last_message_body).toContain("still waiting");
     const alerts = (await pool.query("SELECT stage FROM agents_platform.support_staff_alerts WHERE task_id=$1 ORDER BY stage", [f.taskId])).rows;
     expect(alerts.map(row => row.stage)).toEqual([0, 2]);
+    const lifecycle = (await pool.query<{ envelope: { data: Record<string, unknown> } }>(
+      "SELECT envelope FROM analytics_outbox WHERE contract_name='agent.support.lifecycle@1' ORDER BY source_sequence",
+    )).rows.map(row => row.envelope.data);
+    expect(lifecycle.filter(event => event.action === "handoff_requested")).toHaveLength(1);
+    expect(lifecycle.filter(event => event.action === "acknowledgement_committed" && event.outcome === "fallback")).toHaveLength(1);
+    expect(lifecycle.filter(event => event.action === "handoff_overdue")).toHaveLength(1);
+    expect(lifecycle.filter(event => event.action === "staff_alert_created")).toHaveLength(2);
+    expect(lifecycle.filter(event => event.action === "waiting_update_committed")).toHaveLength(1);
+    expect(JSON.stringify(lifecycle)).not.toContain(f.conversation.id);
   });
   it("continues after takeover until a real human response, then stops obsolete updates", async () => {
     const f = await fixture(); await f.command("claim"); const taken = await f.command("takeover"); await due(f.taskId, 6);
@@ -84,6 +93,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT ownership_generation,state FROM agents_platform.support_waiting_notices WHERE task_id=$1", [f.taskId])).rows[0]).toMatchObject({ ownership_generation: taken.ownership_generation, state: "published" });
     await f.command("reply", "A person is replying now"); await due(f.taskId, 35); expect(await f.service.advance(f.taskId)).toBeNull();
     expect((await pool.query("SELECT stopped_reason FROM agents_platform.support_waiting WHERE task_id=$1", [f.taskId])).rows[0].stopped_reason).toBe("human_replied");
+    const firstReply = (await pool.query<{ envelope: { data: Record<string, unknown> } }>(
+      "SELECT envelope FROM analytics_outbox WHERE contract_name='agent.support.lifecycle@1' AND envelope->'data'->>'action'='first_human_reply'",
+    )).rows.map(row => row.envelope.data);
+    expect(firstReply).toHaveLength(1);
+    expect(firstReply[0]).toMatchObject({ outcome: "published", channel_type: "website" });
+    expect(firstReply[0]!.duration_ms).toEqual(expect.any(Number));
   });
   it("keeps publication pending until the supported publisher exists", async () => {
     const f = await fixture(); await due(f.taskId, 6); await new SupportWaitingService(pool).advance(f.taskId);

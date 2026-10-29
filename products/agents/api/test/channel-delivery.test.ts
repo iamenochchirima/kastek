@@ -59,6 +59,11 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     await worker.drain();
     expect(sends).toBe(1);
     await worker.drain();expect(sends).toBe(1);
+    const receipts = (await pool.query<{ envelope: { data: Record<string, unknown> } }>(
+      "SELECT envelope FROM analytics_outbox WHERE contract_name='agent.support.lifecycle@1' AND envelope->'data'->>'action'='customer_notification_delivery'",
+    )).rows.map(row => row.envelope.data);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({ channel_type: "telegram", action: "customer_notification_delivery", outcome: "accepted_by_provider" });
   });
   it("suppresses a pending handoff receipt after ownership changes",async()=>{
     const f=await fixture();

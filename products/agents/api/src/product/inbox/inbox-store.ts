@@ -17,6 +17,7 @@ import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../execution/lifecycle/handoff-feedback-contract";
 import { publishSupportStatus,assertSupportStatusNotice,assertSupportStatusNoticeVisible,type StatusNoticeBinding,type StatusEvidenceVerifier } from './support-status-notice';
+import { recordSupportLifecycle } from "../reporting/support-lifecycle";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -190,7 +191,9 @@ export class InboxStore {
         const receipt = await this.append(db,row,{key:`handoff-message:${message.id}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT});
         await db.query(`INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result)
           VALUES($1,$2,'message_handoff',$3,$4)`,[row.id,message.id,requestDigest({messageId:message.id}),{ownership_generation:row.ownership_generation,handoffReceiptId:receipt.id}]);
-        await recordMessageHandoffWaiting(db,{messageId:message.id,conversationId:row.id,ownershipGeneration:row.ownership_generation});
+        const requestedAt=await recordMessageHandoffWaiting(db,{messageId:message.id,conversationId:row.id,ownershipGeneration:row.ownership_generation});
+        await recordSupportLifecycle(db,{conversationId:row.id,sourceKey:`handoff:${message.id}:acknowledgement`,action:"acknowledgement_committed",outcome:"fallback",
+          occurredAt:receipt.created_at,durationMs:Math.max(0,receipt.created_at.getTime()-requestedAt.getTime())});
         await enqueueChannelMessage(db,row,receipt);
       }
       if (row.state === "automation_active") {
@@ -317,6 +320,7 @@ export class InboxStore {
       if (row.revision !== input.expectedRevision) conflict();
       const assigned = row.assignee_account_id === scope.accountId;
       let state = row.state, assignee = row.assignee_account_id, fence = false;
+      let firstResponseEpisode: { task_id: string; requested_at: Date } | undefined;
       switch (input.action) {
         case "claim": if (assignee && !assigned) denied(); assignee = scope.accountId; break;
         case "assign": { if (role !== "owner") denied(); const accountId = input.assigneeAccountId ?? denied(); await this.membership(db, { ...scope, accountId }); assignee = accountId; break; }
@@ -324,10 +328,17 @@ export class InboxStore {
         case "takeover": if (!assigned || state === "resolved") denied(); state = "human_owned"; fence = true; break;
         case "reply": if (!assigned || state !== "human_owned" || !input.body?.trim()) denied();
           { if(!await this.activeBinding(db,row))throw new PlatformError("CHANNEL_UNAVAILABLE",409,"Reconnect or resume this channel before replying");
+            firstResponseEpisode=(await db.query<{task_id:string;requested_at:Date}>(`SELECT w.task_id,w.requested_at FROM agents_platform.support_waiting w
+              WHERE w.conversation_id=$1 AND w.ownership_generation<=$2
+                AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_messages prior WHERE prior.conversation_id=w.conversation_id
+                  AND prior.author_kind='human' AND prior.ownership_generation>=w.ownership_generation)
+              ORDER BY w.requested_at DESC LIMIT 1 FOR UPDATE OF w`,[id,row.ownership_generation])).rows[0];
             const body = input.body ?? denied(); const message = await this.append(db, row, { key: `human:${input.commandId}`, digest, kind: "human", body, accountId: scope.accountId });
             await db.query("INSERT INTO agents_platform.customer_deliveries(id,conversation_id,message_id,ownership_generation,state) VALUES($1,$2,$3,$4,'published')", [randomUUID(), id, message.id, row.ownership_generation]);
             await enqueueChannelMessage(db,row,message,preparedDelivery);
-            if(row.channel_kind === "website") await this.ports.enqueueFollowup?.(db,id,message.id); } break;
+            if(row.channel_kind === "website") await this.ports.enqueueFollowup?.(db,id,message.id);
+            if(firstResponseEpisode)await recordSupportLifecycle(db,{conversationId:id,sourceKey:`handoff:${firstResponseEpisode.task_id}:first-human-reply`,action:"first_human_reply",outcome:"published",
+              occurredAt:message.created_at,durationMs:Math.max(0,message.created_at.getTime()-firstResponseEpisode.requested_at.getTime())}); } break;
         case "resolve": if (!assigned) denied(); state = "resolved"; fence = true; break;
         case "reopen": if (!assigned || state !== "resolved") denied(); state = "human_owned"; fence = true; break;
         case "return": if (!assigned || !["human_owned", "handoff_pending"].includes(state)) denied(); state = "automation_active"; fence = true; break;
@@ -411,8 +422,10 @@ export class InboxStore {
     const receiptBody = booking ? BOOKING_UNCERTAIN_RECEIPT : HANDOFF_RECEIPT;
     const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(receiptBody),kind:"assistant",body:receiptBody,taskId});
     await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, digest, {...updated,handoffReceiptId:receipt.id,...(brief ? {handoffBrief:brief} : {}),...(booking ? {bookingUncertainId:booking.id} : {})}]);
-    await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:row.ownership_generation});
+    const requestedAt=await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:row.ownership_generation});
     await enqueueChannelMessage(db,row,receipt);
+    await recordSupportLifecycle(db,{conversationId:row.id,sourceKey:`handoff:${taskId}:acknowledgement`,action:"acknowledgement_committed",outcome:"fallback",
+      occurredAt:receipt.created_at,durationMs:Math.max(0,receipt.created_at.getTime()-requestedAt.getTime())});
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
@@ -462,6 +475,7 @@ export class InboxStore {
     const message = await this.append(db,row,{key:`waiting:${input.taskId}:${input.stage}`,digest:requestDigest(input.body),kind:"assistant",body:input.body});
     await db.query("UPDATE agents_platform.support_waiting_notices SET state='published',message_id=$3 WHERE task_id=$1 AND stage=$2 AND state='pending'",[input.taskId,input.stage,message.id]);
     await enqueueChannelMessage(db,row,message);
+    await recordSupportLifecycle(db,{conversationId:row.id,sourceKey:`handoff:${input.taskId}:waiting:${input.stage}`,action:"waiting_update_committed",outcome:"published",occurredAt:message.created_at});
     return true;
   }
   // The caller locks the
@@ -502,6 +516,9 @@ export class InboxStore {
     if (!valid || !await this.ports.verifyPendingHandoffReceipt(db,input)) return null;
     const message = await this.append(db,row,{ key:`handoff-receipt:${receipt.task_id}`, digest:requestDigest({origin,text}), kind:"assistant", body:text, taskId:receipt.task_id });
     await enqueueChannelMessage(db,row,message);
+    const waiting=(await db.query<{requested_at:Date}>("SELECT requested_at FROM agents_platform.support_waiting WHERE task_id=$1 AND conversation_id=$2",[receipt.task_id,row.id])).rows[0];
+    if(waiting)await recordSupportLifecycle(db,{conversationId:row.id,sourceKey:`handoff:${receipt.task_id}:acknowledgement`,action:"acknowledgement_committed",outcome:origin,
+      occurredAt:message.created_at,durationMs:Math.max(0,message.created_at.getTime()-waiting.requested_at.getTime())});
     return message.id;
   }
   async publishEnquiryReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>{
