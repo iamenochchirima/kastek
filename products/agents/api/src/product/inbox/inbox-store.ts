@@ -15,6 +15,7 @@ import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-wai
 import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../execution/lifecycle/handoff-feedback-contract";
+import { publishSupportStatus,assertSupportStatusNotice,assertSupportStatusNoticeVisible,type StatusNoticeBinding,type StatusEvidenceVerifier } from './support-status-notice';
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -51,9 +52,13 @@ export interface InboxPorts {
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
   admitChannel?(db: PoolClient, input: { deploymentId: string; participantId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
+  admitSupportStatus?(db:PoolClient,input:{deploymentId:string;sessionId?:string;participantId?:string;versionId:string;executionConversationId:string;
+    input:string;requestKey:string;channelBinding:ChannelBinding;episodeCommandId:string}):Promise<{id:string;conversation_id:string}>;
   readableOutput(db: Db, taskId: string, body: string): Promise<string | null>;
   // Must revalidate input evidence and, for model output, its operation receipt and grounding.
   verifyPendingHandoffReceipt?(db: Db, input: { receipt: Receipt; origin: "model" | "fallback"; text: string }): Promise<boolean>;
+  verifySupportStatus?:StatusEvidenceVerifier;
+  verifyHistoricalSupportStatus?:StatusEvidenceVerifier;
   cancelRoot(taskId: string): Promise<unknown>;
 }
 export type InboxCommand = { commandId: string; expectedRevision: string; action: "claim" | "assign" | "unassign" | "takeover" | "reply" | "resolve" | "reopen" | "return";
@@ -112,6 +117,32 @@ export class InboxStore {
     const next = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET next_sequence=next_sequence+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
     Object.assign(row, next); return message;
   }
+  private async admitWaitingStatus(db:PoolClient,row:CustomerConversation,message:CustomerMessage,sessionId?:string):Promise<void> {
+    if(row.state!=="handoff_pending" || !this.ports.admitSupportStatus || !row.execution_conversation_id)return;
+    const episode=(await db.query(`SELECT w.task_id FROM agents_platform.support_waiting w
+      JOIN agents_platform.customer_commands c ON c.conversation_id=w.conversation_id AND c.command_id=w.task_id
+      WHERE w.conversation_id=$1 AND w.ownership_generation<=$2 AND c.action IN ('request_handoff','message_handoff')
+      ORDER BY w.requested_at DESC LIMIT 1`,[row.id,row.ownership_generation])).rows[0];
+    if(!episode)return;
+    // Keep the cost of classifying waiting messages bounded without hiding those messages from staff.
+    const usage=(await db.query(`SELECT count(*) FILTER (WHERE t.created_at>now()-interval '5 minutes')::int recent,
+      count(*) FILTER (WHERE t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))::int active
+      FROM agents_platform.support_status_executions s JOIN agents_platform.tasks t ON t.id=s.task_id
+      WHERE s.conversation_id=$1 AND s.episode_command_id=$2`,[row.id,episode.task_id])).rows[0];
+    if(usage.recent>=3 || usage.active>0)return;
+    await db.query('SAVEPOINT support_status_admission');
+    try {
+      const task=await this.ports.admitSupportStatus(db,{deploymentId:(row.channel_kind==='website'?row.deployment_id:row.channel_deployment_id)!,
+        ...(row.channel_kind==='website'?{sessionId}:{participantId:row.id}),versionId:row.version_id,executionConversationId:row.execution_conversation_id,
+        input:message.body,requestKey:`support-status:${message.id}`,episodeCommandId:episode.task_id,
+        channelBinding:{customerConversationId:row.id,ownershipGeneration:row.ownership_generation,inputMessageId:message.id}});
+      await db.query('UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1',[message.id,task.id]);message.task_id=task.id;
+      await db.query('RELEASE SAVEPOINT support_status_admission');
+    } catch(error) {
+      await db.query('ROLLBACK TO SAVEPOINT support_status_admission');await db.query('RELEASE SAVEPOINT support_status_admission');
+      if(!(error instanceof PlatformError))throw error;
+    }
+  }
   async ingress(scope: VisitorScope, id: string, input: { requestKey: string; body: string }) {
     return transaction(this.pool, async db => {
       const location = (await db.query("SELECT organization_id FROM agents_platform.website_deployments WHERE id=$1", [scope.deploymentId])).rows[0] ?? denied();
@@ -129,7 +160,7 @@ export class InboxStore {
         await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1", [message.id, task.id]); message.task_id = task.id;
         await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1", [id, task.conversation_id]); row.execution_conversation_id = task.conversation_id;
         await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)", [task.id, id, message.id, row.ownership_generation]);
-      }
+      } else await this.admitWaitingStatus(db,row,message,scope.sessionId);
       return { conversation: row, message, replayed: false };
     });
   }
@@ -168,7 +199,7 @@ export class InboxStore {
         await db.query("UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1",[message.id,task.id]); message.task_id=task.id;
         await db.query("UPDATE agents_platform.customer_conversations SET execution_conversation_id=$2 WHERE id=$1",[row.id,task.conversation_id]); row.execution_conversation_id=task.conversation_id;
         await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)",[task.id,row.id,message.id,row.ownership_generation]);
-      }
+      } else if(!input.requireHandoff) await this.admitWaitingStatus(db,row,message);
       return {conversation:row,message,replayed:false};
     });
   }
@@ -337,6 +368,8 @@ export class InboxStore {
     const digest = requestDigest(cause ? {binding,brief,cause} : brief ? {binding,brief} : binding);
     const existing = (await db.query("SELECT action,request_digest FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
     if (existing?.action === "request_handoff") { if (existing.request_digest !== digest) conflict(); return { state: "handoff_pending" }; }
+    const booking = cause ? (await db.query(`SELECT id FROM agents_platform.booking_intents WHERE task_id=$1 AND operation_id=$2 AND state='uncertain' FOR SHARE`,[taskId,cause.bookingOperationId])).rows[0] : null;
+    if (cause && !booking) throw new PlatformError("BOOKING_OUTCOME_UNAVAILABLE",403,"Appointment outcome is unavailable");
     if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active" || !await this.activeBinding(db,row)) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
     Object.assign(row,updated);
@@ -369,8 +402,6 @@ export class InboxStore {
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]!;
     await this.queueCancellation(db,row.id,updated.ownership_generation,taskId);
     await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)",
-    const booking = cause ? (await db.query(`SELECT id FROM agents_platform.booking_intents WHERE task_id=$1 AND operation_id=$2 AND state='uncertain' FOR SHARE`,[taskId,cause.bookingOperationId])).rows[0] : null;
-    if (cause && !booking) throw new PlatformError("BOOKING_OUTCOME_UNAVAILABLE",403,"Appointment outcome is unavailable");
       [row.id,taskId,digest,{...updated,pendingReceiptTaskId:taskId,handoffBrief:brief}]);
     await reserveReceipt(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation,delayMs,feedback:parsedFeedback});
     await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation});
@@ -467,7 +498,40 @@ export class InboxStore {
     const message=await this.append(db,row,{key,digest:requestDigest({body,toolReview}),kind:"assistant",body,taskId:input.taskId});
     await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
   }
+  async publishSupportStatus(taskId:string):Promise<boolean> {
+    return transaction(this.pool,async db=>{
+      const row=(await db.query(`SELECT s.*,op.output FROM agents_platform.support_status_executions s
+        JOIN agents_platform.operations op ON op.task_id=s.task_id AND op.id='support-status:'||s.task_id::text
+        WHERE s.task_id=$1 AND op.state='completed'`,[taskId])).rows[0];
+      if(!row || !this.ports.verifySupportStatus || typeof row.output?.message?.content!=='string')return false;
+      let value:unknown;try{value=JSON.parse(row.output.message.content);}catch{return false;}
+      if(!value || typeof value!=='object' || typeof (value as {reply?:unknown}).reply!=='string')return false;
+      const body=(value as {reply:string}).reply;
+      const binding:StatusNoticeBinding={taskId,organizationId:row.organization_id,conversationId:row.conversation_id,
+        inputMessageId:row.input_message_id,episodeCommandId:row.episode_command_id,ownershipGeneration:String(row.ownership_generation)};
+      return Boolean(await publishSupportStatus(db,binding,body,this.ports.verifySupportStatus,async(client,target,text)=>{
+        const conversation=await this.conversation(client,target.conversationId,true);
+        const message=await this.append(client,conversation,{key:`support-status:${taskId}`,digest:requestDigest(text),kind:'assistant',body:text,taskId});
+        await enqueueChannelMessage(client,conversation,message);return message.id;
+      }));
+    });
+  }
+  async assertSupportStatusDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
+    const row=(await db.query('SELECT * FROM agents_platform.support_status_executions WHERE task_id=$1',[message.task_id])).rows[0];
+    if(!row || !this.ports.verifySupportStatus)throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
+    const binding:StatusNoticeBinding={taskId:row.task_id,organizationId:row.organization_id,conversationId:row.conversation_id,
+      inputMessageId:row.input_message_id,episodeCommandId:row.episode_command_id,ownershipGeneration:String(row.ownership_generation)};
+    if(!await assertSupportStatusNotice(db,binding,message.id,message.body,this.ports.verifySupportStatus))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
+  }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(message.task_id && message.request_key===`support-status:${message.task_id}`) {
+      if(!this.ports.verifyHistoricalSupportStatus)return null;
+      const row=(await db.query('SELECT * FROM agents_platform.support_status_executions WHERE task_id=$1',[message.task_id])).rows[0];
+      if(!row)return null;
+      const binding:StatusNoticeBinding={taskId:row.task_id,organizationId:row.organization_id,conversationId:row.conversation_id,
+        inputMessageId:row.input_message_id,episodeCommandId:row.episode_command_id,ownershipGeneration:String(row.ownership_generation)};
+      return await assertSupportStatusNoticeVisible(db as PoolClient,binding,message.id,message.body,this.ports.verifyHistoricalSupportStatus)?message.body:null;
+    }
     if (!message.task_id && message.request_key?.startsWith("transition:")) {
       const receipt = (await db.query(`SELECT action FROM agents_platform.customer_commands
         WHERE conversation_id=$1 AND result->>'transitionMessageId'=$2 AND command_id::text=substring($3 from 12)

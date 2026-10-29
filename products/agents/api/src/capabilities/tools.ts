@@ -18,6 +18,7 @@ export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolE
 
 export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number, handoffFeedback?: HandoffFeedbackRequest): Promise<unknown> {
   const execution = await loadExecution(pool, taskId), config = execution.configuration;
+  if(execution.task.execution_purpose==='support_status_v1')throw new PlatformError('TOOL_DENIED',403,'Tool is unavailable');
   if (!builtinToolEnabled(config, name)) throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
   let input: unknown;
   try { input = JSON.parse(rawArguments); } catch { throw new PlatformError("TOOL_ARGUMENTS_INVALID", 400, "Tool arguments must be JSON"); }

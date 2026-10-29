@@ -23,6 +23,8 @@ import { resolveAcceptedModelRoutes } from "../models/resolution";
 import { executionModelLayers } from "../models/settings";
 import { saveTaskModelRoutes } from "../models/persistence";
 import { initializeRootModelAccount } from "../models/accounting";
+import { loadExecution } from "../lifecycle/state";
+import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -51,6 +53,14 @@ export class AdmissionStore extends AuthorityStore {
     return this.transaction(db=>this.admitTaskInTransaction(db,input));
   }
   async admitTaskInTransaction(db:PoolClient,input:AdmitTaskInput):Promise<{task:TaskRecord;replayed:boolean}> {
+    return this.admitForPurpose(db,input);
+  }
+  async admitPendingSupportStatusInTransaction(db:PoolClient,input:AdmitTaskInput & {episodeCommandId:string}):Promise<{task:TaskRecord;replayed:boolean}> {
+    if (!input.channelBinding || !input.conversationId || input.evaluationTrialId || input.authority.product!=="agents" ||
+        !["visitor","channel_customer"].includes(input.authority.principal.kind)) denied();
+    return this.admitForPurpose(db,input,input.episodeCommandId);
+  }
+  private async admitForPurpose(db:PoolClient,input:AdmitTaskInput,episodeCommandId?:string):Promise<{task:TaskRecord;replayed:boolean}> {
     const policy=schedulingPolicyFromEnvironment();
     const requestKey = text(input.requestKey, 128);
     if (!input.input.trim()) throw new PlatformError("INVALID_INPUT", 400, "Enter a message");
@@ -80,7 +90,8 @@ export class AdmissionStore extends AuthorityStore {
     }
     if (Buffer.byteLength(input.input) > config.model.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the input limit");
     const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null,
-      evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null });
+      evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null,
+      ...(episodeCommandId?{purpose:"support_status_v1",episodeCommandId}:{}) });
     const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product=$1 AND organization_id=$2
       AND caller_client_id=$3 AND resource_id=$4 AND request_key=$5`, [input.authority.product, input.authority.organizationId, input.authority.callerClientId, input.authority.resourceId, requestKey])).rows[0];
     if (existing) {
@@ -91,13 +102,13 @@ export class AdmissionStore extends AuthorityStore {
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
     const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
-      layers: executionModelLayers(config, grant), requiresTools: config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0 });
+      layers: [...executionModelLayers(config, grant),...(episodeCommandId?[{kind:"product" as const,reference:"support-status-v1",limits:{maxModelCalls:1,maxToolCalls:0,maxDurationMs:10000,maxCallDurationMs:10000,maxInputTokens:8192,maxOutputTokens:512,maxRootTokens:8704,compactAtTokens:1}}]:[])], requiresTools: !episodeCommandId && (config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0) });
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
     if(active.active_roots>=policy.maxConcurrentRoots)throw new PlatformError("CONCURRENCY_LIMIT",429,"Too many tasks are running");
     const reservation = models.primary.policy.maxRootTokens;
-    if(input.channelBinding) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
+    if(input.channelBinding && !episodeCommandId) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
     if (input.evaluationTrialId && !(await db.query(`UPDATE agents_platform.evaluation_trials SET allocated_tokens=allocated_tokens+$2
       WHERE id=$1 AND state='active' AND expires_at>now() AND allocated_tokens+$2<=max_tokens RETURNING id`, [input.evaluationTrialId, reservation])).rowCount) {
@@ -124,13 +135,20 @@ export class AdmissionStore extends AuthorityStore {
     if (priorVersion && priorVersion.version_id !== input.versionId && input.configurationMode !== "current") throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release${episodeCommandId?",execution_purpose":""}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18${episodeCommandId?",$19":""}) RETURNING *`,
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release])).rows[0]!;
+      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,...(episodeCommandId?["support_status_v1"]:[])])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);
     await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id,
       maxCostMicros: models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros) });
+    if(episodeCommandId) {
+      const binding=channelBindingSchema.parse(input.channelBinding);
+      await db.query(`INSERT INTO agents_platform.support_status_executions(task_id,organization_id,conversation_id,input_message_id,episode_command_id,ownership_generation)
+        VALUES($1,$2,$3,$4,$5,$6)`,[task.id,task.organization_id,binding.customerConversationId,binding.inputMessageId,episodeCommandId,binding.ownershipGeneration]);
+      await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)",[task.id,binding.customerConversationId,binding.inputMessageId,binding.ownershipGeneration]);
+      await assertPendingSupportStatusAuthority(db,await loadExecution(db,task.id));
+    }
     await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)", [task.id]);
     await db.query("INSERT INTO agents_platform.usage_reservations(task_id,organization_id,day,tokens) VALUES($1,$2,$3,$4)", [task.id, input.authority.organizationId, quota.day, reservation]);
     await recordEvent(db, task.id, "accepted", "accepted");

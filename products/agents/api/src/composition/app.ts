@@ -183,7 +183,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   }
   const automations=new AutomationService(pool,assertServices);
   const followupConfig = customerFollowupConfig({...process.env, AGENTS_PUBLIC_URL:config.AGENTS_PUBLIC_URL});
-  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig), assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
+  const inbox = composeInbox(pool, { publicOrigin: new URL(config.AGENTS_PUBLIC_URL).origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig),supportStatusEnabled:true, assertServices, cursorKeys: cursorKeysFromEnvironment({ NODE_ENV:config.NODE_ENV, AGENTS_OIDC_CLIENT_SECRET:config.AGENTS_OIDC_CLIENT_SECRET, AGENTS_CURSOR_KEYS_JSON:config.AGENTS_CURSOR_KEYS_JSON, AGENTS_CURSOR_ACTIVE_KEY_ID:config.AGENTS_CURSOR_ACTIVE_KEY_ID, AGENTS_CURSOR_MAX_AGE_SECONDS:String(config.AGENTS_CURSOR_MAX_AGE_SECONDS) }) });
   const channelServices=composeChannels(pool,inbox,config.AGENTS_PUBLIC_URL);
   const identity = options.identity ?? new PlatformIdentity(config, pool);
   const origin = new URL(config.AGENTS_PUBLIC_URL).origin;

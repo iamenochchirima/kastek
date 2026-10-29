@@ -64,7 +64,7 @@ function contextModelPolicy(execution: Execution, role: "primary" | "compaction"
     maxMessages: policy.maxMessages, maxTools: policy.maxTools, maxRequestBytes: policy.maxRequestBytes,
     estimateRequestTokens: request => Buffer.byteLength(JSON.stringify(request), "utf8") + request.messages.reduce((sum, message) => sum + (message.role === "assistant" ? privateCosts.get(requestDigest(message)) ?? 0 : 0), 0) };
 }
-function accountedModelTokens(value: ModelResponse, reserved: number): number {
+export function accountedModelTokens(value: ModelResponse, reserved: number): number {
   return value.usage.observed === true && Number.isSafeInteger(value.usage.inputTokens) && Number.isSafeInteger(value.usage.outputTokens)
     ? value.usage.inputTokens! + value.usage.outputTokens! : reserved;
 }
@@ -98,7 +98,7 @@ const terminalSql = "('completed','incomplete','refused','failed','cancelled','u
 type JournaledOperation<T> = {result:Result<T>} | {waiting:Extract<CapacityDecision,{state:"waiting"}>} | {
   receipt:{attemptId:string;state:"completed"|"failed"|"uncertain";value:T|null;tokens:number;code:string|null}
 };
-async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
+export async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
   perform: (recovering?:boolean) => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
   for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
     const attemptName=capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`;
@@ -126,7 +126,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       }
     });
     if('waiting' in outcome){
-      if(input.name === "model.handoff_feedback") return {ok:false,code:"CAPACITY_UNAVAILABLE",uncertain:false};
+      if(input.name === "model.handoff_feedback" || input.name === "model.support_status") return {ok:false,code:"CAPACITY_UNAVAILABLE",uncertain:false};
       const remaining=new Date(outcome.waiting.deadline).getTime()-await ctx.date.now();
       if(remaining<=0)return{ok:false,code:"CAPACITY_WAIT_EXPIRED",uncertain:false};
       await restate.RestatePromise.race([ctx.promise(`capacity:${outcome.waiting.requestId}:${outcome.waiting.generation}`).get(),ctx.sleep(remaining)]);

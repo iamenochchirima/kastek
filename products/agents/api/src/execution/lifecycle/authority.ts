@@ -95,6 +95,48 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
   if(configuration.capabilities.businessActions.enabled)await loadBookingPolicy(db,task.organization_id,agentId,configuration.capabilities.businessActions);
 }
 
+/** A status-only root is bound to one visitor message in one pending episode. */
+export async function assertPendingSupportStatusAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
+  const task=execution.task, binding=task.channel_binding && channelBindingSchema.parse(task.channel_binding);
+  if(task.execution_purpose!=="support_status_v1" || task.product!=="agents" || task.parent_task_id || task.root_task_id!==task.id ||
+     !binding || !isCustomerPrincipal(task.principal) || !execution.configuration.tools.includes("channel.request_handoff")) throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
+  const row=(await db.query(`SELECT c.session_id FROM agents_platform.support_status_executions s
+    JOIN agents_platform.tasks current_task ON current_task.id=s.task_id AND current_task.organization_id=s.organization_id
+    JOIN agents_platform.customer_conversations c ON c.id=s.conversation_id AND c.organization_id=s.organization_id
+    JOIN agents_platform.customer_messages m ON m.id=s.input_message_id AND m.conversation_id=c.id
+    JOIN agents_platform.support_waiting w ON w.task_id=s.episode_command_id AND w.conversation_id=c.id
+    JOIN agents_platform.customer_commands command ON command.conversation_id=c.id AND command.command_id=w.task_id
+    WHERE s.task_id=$1 AND s.organization_id=$2 AND s.conversation_id=$3 AND s.input_message_id=$4
+      AND current_task.execution_purpose='support_status_v1' AND current_task.state NOT IN ('cancel_requested','completed','incomplete','refused','failed','cancelled','uncertain')
+      AND current_task.deadline_at>clock_timestamp()
+      AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_cancellations cancel WHERE cancel.task_id=s.task_id AND cancel.completed_at IS NULL)
+      AND s.ownership_generation=$5::bigint AND c.ownership_generation=s.ownership_generation AND c.state='handoff_pending'
+      AND c.agent_id=$6 AND m.author_kind='visitor' AND m.ownership_generation=s.ownership_generation AND m.body=$7
+      AND m.sequence>c.return_watermark AND w.ownership_generation<=s.ownership_generation
+      AND command.action IN ('request_handoff','message_handoff')
+      AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages newer WHERE newer.conversation_id=c.id
+        AND ((newer.author_kind='visitor' AND newer.sequence>m.sequence) OR (newer.author_kind='human' AND newer.ownership_generation>=w.ownership_generation)))
+      AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_commands next WHERE next.conversation_id=c.id
+        AND next.action IN ('request_handoff','message_handoff','return','resolve') AND next.command_id<>w.task_id
+        AND (next.result->>'ownership_generation')::bigint>w.ownership_generation)
+      AND (($8::text='visitor' AND c.channel_kind='website' AND c.deployment_id=$9::uuid)
+        OR ($8::text='channel_customer' AND c.channel_kind<>'website' AND c.channel_deployment_id=$9::uuid AND c.id=$10::uuid))
+      AND ((c.channel_kind='website' AND EXISTS(SELECT 1 FROM agents_platform.website_deployments d
+        WHERE d.id=c.deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id AND d.version_id=$11
+          AND d.revoked_at IS NULL AND NOT d.paused)) OR (c.channel_kind<>'website' AND EXISTS(SELECT 1
+        FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections x ON x.id=d.connection_id AND x.organization_id=d.organization_id
+        WHERE d.id=c.channel_deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id AND d.version_id=$11
+          AND d.state='active' AND x.state='active'))) FOR SHARE OF s,c,m,w,command,current_task`,
+    [task.id,task.organization_id,binding.customerConversationId,binding.inputMessageId,binding.ownershipGeneration,execution.agentId,task.input,
+      task.principal.kind,task.principal.deploymentId,task.principal.kind==='visitor'?task.principal.sessionId:task.principal.participantId,task.version_id])).rows[0];
+  if(!row)throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
+  if(task.principal.kind==='visitor' && row.session_id!==task.principal.sessionId &&
+    !(await channelPorts(db).visitorLineage?.(db,{organizationId:task.organization_id,agentId:execution.agentId,
+      executionConversationId:task.conversation_id,customerConversationId:binding.customerConversationId,current:task.principal,
+      origin:{deploymentId:task.principal.deploymentId,sessionId:row.session_id}})))throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
+  await assertBaseAuthorityForPurpose(db,execution,true);
+}
+
 /** The caller must hold the root, task, conversation and receipt locks until model dispatch.
  * This checks only a pre-reserved acknowledgement operation; it does not admit a new operation. */
 export async function assertHandoffFeedbackAuthority(db: PoolClient, execution: Execution, operationId: string, expectedRequest: unknown): Promise<void> {

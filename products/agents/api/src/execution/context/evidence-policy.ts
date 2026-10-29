@@ -7,7 +7,7 @@ import {
 assertDependencyManifest,collectDependencyGraph,createDependencyManifest,evidenceReferenceSchema,
 type DependencyManifest,type EvidenceDependency,type EvidenceReference
 } from "../../contracts/source-contracts";
-import { assertBaseAuthority } from "../lifecycle/authority";
+import { assertBaseAuthority, assertPendingSupportStatusAuthority } from "../lifecycle/authority";
 import { loadExecution } from "../lifecycle/state";
 import { assertEvaluationTrial } from "../admission/trial-authority";
 import { assertChannelCustomerAuthority } from "../admission/channel-authority";
@@ -258,6 +258,7 @@ export function memoryVisible(value:unknown,id:string,content:string):boolean{
 }
 
 export async function assertCurrentAuthority(db:Pool|PoolClient,execution:Execution):Promise<void>{
-  await assertBaseAuthority(db,execution);
+  if(execution.task.execution_purpose==="support_status_v1")await assertPendingSupportStatusAuthority(db,execution);
+  else await assertBaseAuthority(db,execution);
   if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,execution.task.id);
 }

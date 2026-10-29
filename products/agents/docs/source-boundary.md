@@ -125,6 +125,25 @@ away from V22 and drain or suppress pending receipts before removing its worker.
 tables and provider receipts. A production release ID, rollout and post-release review date are not
 applicable until deployment is authorized.
 
+Schema089 adds the `support_status_v1` execution purpose and immutable notice receipts. While a
+conversation is `handoff_pending`, an eligible customer message can start `AgentsSupportStatusV23`.
+The controller receives the message and current support facts, uses no tools, and returns either a
+status reply or no reply. It allows one model call, at most 512 output tokens and 10 seconds, subject
+to lower configured limits. Admission permits one active turn and three turns per episode in five
+minutes; other messages remain visible to staff. First-contact attachment episodes without an
+execution conversation cannot start this purpose. Human takeover, later visitor messages, channel
+revocation or changed support facts fence publication and delivery. A previously published reply
+remains readable after takeover or later messages while its source authority remains valid.
+
+The release affects the Agents API, worker, Inbox and customer channels. Apply schema089 after
+088, register `AgentsSupportStatusV23` with Restate, and start matching API and worker artifacts.
+Existing model-operation telemetry records outcomes without message bodies; no new analytics or
+Collector changes are introduced. Controlled PostgreSQL, Restate and provider fixtures cover the
+website and Telegram paths. Live-provider acceptance and model-behavior evaluation remain owner-run.
+To roll back, stop new status admissions, drain or cancel outstanding status tasks, then remove the
+V23 worker route while retaining the additive schema and receipts. A production release ID, rollout
+and post-release review date are not applicable until deployment is authorized.
+
 Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
 the single final assistant message; schema077 adds resumable progress and creation idempotency.
 Removing booking or enquiry responsibilities removes setup-owned authority using existing grant

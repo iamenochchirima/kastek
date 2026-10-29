@@ -58,6 +58,17 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
+    if (task.execution_purpose === "support_status_v1" &&
+      (input.id !== `support-status:${task.id}` || input.kind !== "model" || input.name !== "model.support_status" || input.retrySafe || input.reconcile)) {
+      throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
+    }
+    if(task.execution_purpose === "support_status_v1") {
+      const facts=await (await import("../../capabilities/support-status-v2")).supportStatusV2(db,task.organization_id,execution.configuration.supportHours);
+      const request=(await import("../business/support-status-request")).supportStatusRequest(execution,facts);
+      if(requestDigest(input.request)!==requestDigest({modelRequest:request,supportFacts:facts}) || input.evidenceManifest || input.memoryFence) {
+        throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
+      }
+    }
     if (handoffFeedback) {
       const request = await assertHandoffFeedbackAdmissionAuthority(db,execution,input.id,input.request);
       const route=execution.models.primary;
@@ -100,6 +111,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     const child = Boolean(task.parent_task_id);
     const rootExecution = child ? await loadExecution(db, task.root_task_id) : execution;
     const rootPolicy = rootExecution.models.primary.policy;
+    if (task.execution_purpose === "support_status_v1" && budget.model_calls !== 0) throw new PlatformError("ROOT_LIMIT",429,"Task execution limit reached");
     if (!Number.isSafeInteger(input.reservedTokens) || input.reservedTokens < 0 || !Number.isSafeInteger(input.reservedMs) || input.reservedMs < 0 ||
       task.tokens_used + task.tokens_reserved + input.reservedTokens > task.root_token_limit ||
       (model ? budget.model_calls >= (child ? Math.max(0, rootPolicy.maxModelCalls - 1) : rootPolicy.maxModelCalls) : budget.tool_calls >= rootPolicy.maxToolCalls) ||
@@ -113,7 +125,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     const capacity=await requestCapacity(db,request,policy);
     if(capacity.state==='waiting'){
       await event(db,taskId,`capacity-wait:${input.id}:${capacity.generation}`,"capacity.waiting",{operationId:input.id,workload:request.workload});
-      if (handoffFeedback) await releaseCapacity(db,capacity.requestId,"failed");
+      if (handoffFeedback || task.execution_purpose === "support_status_v1") await releaseCapacity(db,capacity.requestId,"failed");
       return {waiting:true,replayed:false,capacity};
     }
     await activateCapacity(db,capacity.requestId,capacity.generation);
@@ -262,7 +274,7 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     assertTaskTransition(task.state, outcome.state);
     await db.query("UPDATE agents_platform.tasks SET state=$2,output=$3,error_code=$4,pending_outcome=NULL,disposition='settled',updated_at=now() WHERE id=$1",
       [taskId, outcome.state, outcome.output ?? null, outcome.errorCode ?? null]);
-    if(task.channel_binding && !task.parent_task_id) await channelPorts(db).publishAutomated(db,
+    if(task.channel_binding && !task.parent_task_id && task.execution_purpose!=="support_status_v1") await channelPorts(db).publishAutomated(db,
       {taskId,binding:task.channel_binding,output:outcome.output??""});
     await event(db, taskId, `terminal:${taskId}`, outcome.state);
   });

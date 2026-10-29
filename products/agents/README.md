@@ -336,6 +336,12 @@ Staff can mark themselves Available or Away in the Inbox. Availability is adviso
 after two minutes unless the visible Inbox renews it. The agent can check aggregate availability
 and the next configured opening; unknown availability is not a promise of a response.
 
+While a conversation is waiting for a person, the agent may answer a question about the request
+using current support facts. It cannot use business tools in this turn and is instructed not to reply
+to ordinary additional details. The platform permits one active status turn per episode and at most
+three in five minutes. Further messages still reach Inbox staff. Attachment-only first contacts
+without an execution conversation do not support these status turns.
+
 An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
 authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads
 and acknowledgement require current membership and the original recipient. Acknowledgement

@@ -20,6 +20,7 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
 import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
+import { createSupportStatusWorkflow,SUPPORT_STATUS_WORKFLOW } from '../execution/business/support-status-business';
 import { ModelProviderStore } from "../product/model-providers/store";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
 import { connectionVaultFromEnvironment } from "../infrastructure/vault";
@@ -104,7 +105,7 @@ async function main(): Promise<void> {
     }
   });
   const followupConfig = customerFollowupConfig(process.env);
-  const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig),
+  const inbox = composeInbox(pool, { publicOrigin: new URL(process.env.AGENTS_PUBLIC_URL ?? "http://localhost:3100").origin, followupAccessEnabled:true,followupEnabled: Boolean(followupConfig),supportStatusEnabled:true,
     assertServices: async () => {} });
   const followupSender = followupConfig ? new ResendNotificationSender(followupConfig.apiKey,followupConfig.sender,{timeoutMs:10000}) : undefined;
   const followups = followupConfig && followupSender ? new CustomerFollowupNotifications(pool,(message,beforeAttempt)=>followupSender.send(message,beforeAttempt),followupConfig.publicUrl) : undefined;
@@ -132,7 +133,8 @@ async function main(): Promise<void> {
   },{release:HANDOFF_HARNESS_RELEASE,workflow:HANDOFF_WORKFLOW_NAME});
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
-  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,receiptWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const statusWorkflow=createSupportStatusWorkflow(pool,{...workflowOptions,publishSupportStatus:taskId=>inbox.publishSupportStatus(taskId)});
+  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -145,6 +147,7 @@ async function main(): Promise<void> {
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
     runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
+    supportStatusRoute:{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:SUPPORT_STATUS_WORKFLOW},
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
     onPhase: metrics?.dispatcherPhase,
   });

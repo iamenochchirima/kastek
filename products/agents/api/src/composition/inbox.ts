@@ -11,10 +11,12 @@ import { HANDOFF_RECEIPT_DEADLINE_MS } from "../product/inbox/handoff-pending-re
 import { followupAccess } from "../product/customer-followup/access";
 import { verifiedVisitorLineage } from "../product/customer-followup/lineage";
 import { enqueueCustomerFollowup,customerFollowupFailures } from "../product/customer-followup/notifications";
+import { verifySupportStatusFacts,verifyHistoricalSupportStatusEvidence } from '../product/inbox/support-status-evidence';
 
-export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; followupEnabled?: boolean; followupAccessEnabled?:boolean; assertServices(configuration: AgentConfiguration): Promise<void> }) {
+export function composeInbox(pool: Pool, options: { publicOrigin: string; cursorKeys?: CursorKeys; followupEnabled?: boolean; followupAccessEnabled?:boolean; supportStatusEnabled?:boolean; assertServices(configuration: AgentConfiguration): Promise<void> }) {
   const store = new PlatformStore(pool);
   const inbox = new InboxStore(pool, {
+    ...(options.supportStatusEnabled ? {verifySupportStatus:verifySupportStatusFacts,verifyHistoricalSupportStatus:verifyHistoricalSupportStatusEvidence} : {}),
     ...(options.followupEnabled||options.followupAccessEnabled ? { followupAccess,followupFailures:customerFollowupFailures } : {}),
     ...(options.followupEnabled ? { enqueueFollowup:enqueueCustomerFollowup } : {}),
     async admit(db, input) {
@@ -55,6 +57,29 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
         channelBinding: input.channelBinding,...(trial?{evaluationTrialId:trial.trial_id}:{configurationMode:"current" as const}) });
       return result.task;
     },
+    ...(options.supportStatusEnabled ? {async admitSupportStatus(db,input) {
+      const binding=input.channelBinding;
+      if(input.sessionId) {
+        const deployment=(await db.query(`SELECT d.*,s.origin AS session_origin FROM agents_platform.website_deployments d
+          JOIN agents_platform.website_sessions s ON s.deployment_id=d.id WHERE d.id=$1 AND s.id=$2
+            AND d.revoked_at IS NULL AND d.paused=false AND s.expires_at>now() FOR SHARE OF d,s`,[input.deploymentId,input.sessionId])).rows[0];
+        if(!deployment || deployment.version_id!==input.versionId)throw new PlatformError('DEPLOYMENT_SCOPE_DENIED',403,'Customer channel is unavailable');
+        const grant=await store.createWebsiteGrantInTransaction(db,{deploymentId:deployment.id,sessionId:input.sessionId,
+          origin:deployment.session_origin===options.publicOrigin?deployment.allowed_origins[0]:deployment.session_origin});
+        return (await store.admitPendingSupportStatusInTransaction(db,{versionId:input.versionId,grantId:grant.id,
+          authority:{product:'agents',organizationId:deployment.organization_id,resourceId:deployment.id,callerClientId:'agents-website',
+            principal:{kind:'visitor',deploymentId:deployment.id,sessionId:input.sessionId}},input:input.input,requestKey:input.requestKey,
+          conversationId:input.executionConversationId,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
+      }
+      const deployment=(await db.query(`SELECT d.* FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections c
+        ON c.id=d.connection_id AND c.organization_id=d.organization_id WHERE d.id=$1 AND d.state='active' AND c.state='active' FOR SHARE OF d,c`,[input.deploymentId])).rows[0];
+      if(!deployment || deployment.version_id!==input.versionId || input.participantId!==binding.customerConversationId)throw new PlatformError('DEPLOYMENT_SCOPE_DENIED',403,'Customer channel is unavailable');
+      const grant=await store.createPendingSupportStatusGrantInTransaction(db,{deploymentId:deployment.id,participantId:input.participantId});
+      return (await store.admitPendingSupportStatusInTransaction(db,{versionId:input.versionId,grantId:grant.id,
+        authority:{product:'agents',organizationId:deployment.organization_id,resourceId:deployment.id,callerClientId:'agents-channel',
+          principal:{kind:'channel_customer',deploymentId:deployment.id,participantId:input.participantId}},input:input.input,requestKey:input.requestKey,
+        conversationId:input.executionConversationId,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
+    }} : {}),
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {
       const task = (await db.query("SELECT output,state FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];
       if (!task || task.output !== body || !["completed", "incomplete"].includes(task.state)) return null;

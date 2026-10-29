@@ -16,6 +16,7 @@ export interface DispatcherOptions {
   onPhase?: (phase:DispatcherPhase,durationMs:number,success:boolean)=>void;
   policy?: Partial<DispatchPolicy>;
   runtimeRoutes?: Record<string,{ingressUrl:string;adminUrl:string;workflowName:string}>;
+  supportStatusRoute?: {ingressUrl:string;adminUrl:string;workflowName:string};
 }
 
 type DispatcherContext={request:typeof fetch;routes:NonNullable<DispatcherOptions["runtimeRoutes"]>;releases:string[]};
@@ -24,6 +25,7 @@ function dispatcherContext(options:DispatcherOptions):DispatcherContext{
   const routes=options.runtimeRoutes??{[HARNESS_RELEASE]:{ingressUrl:options.ingressUrl,adminUrl:options.adminUrl,workflowName:WORKFLOW_NAME}};
   const releases=Object.keys(routes);if(!releases.length||releases.length>8)throw Error("Invalid compatible runtime routes");
   for(const route of Object.values(routes))if(!/^https?:$/.test(new URL(route.ingressUrl).protocol)||!/^https?:$/.test(new URL(route.adminUrl).protocol)||!/^AgentsBusinessRunV[0-9]+$/.test(route.workflowName))throw Error("Invalid compatible runtime route");
+  if(options.supportStatusRoute && (!/^https?:$/.test(new URL(options.supportStatusRoute.ingressUrl).protocol) || !/^https?:$/.test(new URL(options.supportStatusRoute.adminUrl).protocol) || options.supportStatusRoute.workflowName!=='AgentsSupportStatusV23'))throw Error('Invalid support status runtime route');
   return{request,routes,releases};
 }
 
@@ -36,8 +38,8 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
   const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases);
   await drainBatch(rows,policy.parallelism,async row=>{
     try {
-      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
-      const route=routes[task?.harness_release];if(!route)throw new Error("HARNESS_RELEASE_UNAVAILABLE");
+      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id${options.supportStatusRoute?',execution_purpose':''} FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
+      const route=task?.execution_purpose==='support_status_v1'?options.supportStatusRoute:routes[task?.harness_release];if(!route)throw new Error("HARNESS_RELEASE_UNAVAILABLE");
       if (Date.now() - new Date(row.created_at).getTime() >= 24 * 60 * 60 * 1000) {
         await settleTask(pool, row.task_id, { state: "uncertain", errorCode: "DISPATCH_WINDOW_EXPIRED" });
       } else if (task?.parent_task_id) {

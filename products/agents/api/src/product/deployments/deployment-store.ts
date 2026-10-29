@@ -98,12 +98,18 @@ export class DeploymentStore extends AuthorityStore {
       return this.insertGrant(db, grant);
   }
   async createChannelGrantInTransaction(db: PoolClient, input: { deploymentId: string; participantId: string; rootTokenLimit?:number }): Promise<ExecutionGrant> {
+    return this.createChannelGrantForState(db,input,'automation_active');
+  }
+  async createPendingSupportStatusGrantInTransaction(db: PoolClient, input: { deploymentId: string; participantId: string }): Promise<ExecutionGrant> {
+    return this.createChannelGrantForState(db,input,'handoff_pending');
+  }
+  private async createChannelGrantForState(db:PoolClient,input:{deploymentId:string;participantId:string;rootTokenLimit?:number},state:'automation_active'|'handoff_pending'):Promise<ExecutionGrant> {
     const deployment = (await db.query(`SELECT d.* FROM agents_platform.channel_deployments d
       JOIN agents_platform.channel_connections c ON c.organization_id=d.organization_id AND c.id=d.connection_id
       JOIN agents_platform.customer_conversations p ON p.organization_id=d.organization_id AND p.channel_deployment_id=d.id
-      WHERE d.id=$1 AND p.id=$2 AND p.agent_id=d.agent_id AND p.state='automation_active'
+      WHERE d.id=$1 AND p.id=$2 AND p.agent_id=d.agent_id AND p.state=$3
         AND d.state='active' AND c.state='active' AND c.kind<>'website' AND p.channel_kind=c.kind FOR SHARE OF d,c,p`,
-    [input.deploymentId, input.participantId])).rows[0] ?? absent();
+    [input.deploymentId, input.participantId,state])).rows[0] ?? absent();
     const version = await this.version(db, deployment.organization_id, deployment.version_id);
     await this.assertWebsiteConfigurationInTransaction(db, { organizationId: deployment.organization_id, agentId: deployment.agent_id, version });
     const config = agentConfigurationSchema.parse(version.configuration);

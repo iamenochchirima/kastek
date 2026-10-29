@@ -29,4 +29,8 @@ describe("support status tool dispatch", () => {
     vi.mocked(loadExecution).mockResolvedValue({ ...execution(), configuration: { ...configuration, tools: ["channel.request_handoff"] } } as never);
     await expect(executeTool(pool, "task", "operation", "support.get_status", "{}")).rejects.toMatchObject({ code: "TOOL_DENIED" });
   });
+  it("denies even a published tool to a status-only task",async()=>{
+    vi.mocked(loadExecution).mockResolvedValue({...execution(),task:{...execution().task,execution_purpose:'support_status_v1'}} as never);
+    await expect(executeTool(pool,'task','operation','support.get_status','{}')).rejects.toMatchObject({code:'TOOL_DENIED'});
+  });
 });
