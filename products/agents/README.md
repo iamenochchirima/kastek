@@ -349,6 +349,9 @@ records the staff action; it does not establish that a customer received a reply
 
 An attachment-only or unsupported inbound message also starts a handoff, receipt and waiting
 episode without creating an agent task. Its episode is bound to the original inbound message.
+An uncertain appointment outcome can also request support. The customer receives a factual
+uncertainty notice and Inbox staff see a booking-specific brief. Recovery checks the existing
+provider operation; it does not create another appointment.
 
 The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
 outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders
