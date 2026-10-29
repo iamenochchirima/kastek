@@ -10,6 +10,7 @@ import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 import { HANDOFF_RECEIPT } from "./handoff-receipt";
+import { currentHandoff, systemMessageIds, transitionMessages } from "./inbox-presentation";
 import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
 import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
@@ -39,6 +40,7 @@ const customerIdentityJoin = `LEFT JOIN LATERAL (
 ) identity ON true`;
 export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
   author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date; request_key?: string;
+  displayKind?: "system";
   channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
   deliveries?: {id:string;segment:number;state:string;reason:string|null}[] }
 export interface InboxPorts {
@@ -175,6 +177,8 @@ export class InboxStore {
       "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
     for (const message of rows) if (message.author_kind === "assistant") message.body = await this.readableMessage(db,message)??"[Response unavailable]";
     if (rows.length) {
+      const systemIds = await systemMessageIds(db,id,rows.map(row=>row.id));
+      for (const message of rows) if (systemIds.has(message.id)) message.displayKind="system";
       const facts = (await db.query("SELECT * FROM agents_platform.channel_message_facts WHERE message_id=ANY($1::uuid[])",[rows.map(row=>row.id)])).rows;
       const deliveries = (await db.query("SELECT id,message_id,segment,state,reason FROM agents_platform.channel_outbound WHERE message_id=ANY($1::uuid[]) ORDER BY segment",[rows.map(row=>row.id)])).rows;
       for (const message of rows) {
@@ -200,7 +204,8 @@ export class InboxStore {
         ORDER BY w.requested_at DESC LIMIT 1`,[id,conversation.state,conversation.return_watermark])).rows[0];
       const parsed = handoffBriefSchema.safeParse(receipt?.brief);
       const followupFailures = await this.ports.followupFailures?.(db, id) ?? [];
-      return { conversation, handoffBrief: parsed.success ? parsed.data : null, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
+      const handoff = await currentHandoff(db,id,conversation.state,conversation.return_watermark);
+      return { conversation, handoff, handoffBrief: parsed.success ? parsed.data : null, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
@@ -283,7 +288,13 @@ export class InboxStore {
       const updated = (await db.query<CustomerConversation>(`UPDATE agents_platform.customer_conversations SET state=$2,assignee_account_id=$3,revision=revision+1,
         ownership_generation=ownership_generation+$4,return_watermark=CASE WHEN $5 THEN next_sequence-1 ELSE return_watermark END,updated_at=now() WHERE id=$1 RETURNING *`, [id, state, assignee, fence ? 1 : 0, input.action === "return" || input.action === "resolve"])).rows[0]!;
       if (fence) await this.queueCancellation(db, id, updated.ownership_generation);
-      await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,actor_account_id,action,request_digest,result) VALUES($1,$2,$3,$4,$5,$6)", [id, input.commandId, scope.accountId, input.action, digest, updated]);
+      let transitionMessageId: string | null = null;
+      if (row.channel_kind === "website" && row.state !== updated.state && (input.action === "return" || input.action === "resolve")) {
+        const body = transitionMessages[input.action];
+        const message = await this.append(db, updated, { key: `transition:${input.commandId}`, digest: requestDigest(body), kind: "assistant", body });
+        transitionMessageId = message.id;
+      }
+      await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,actor_account_id,action,request_digest,result) VALUES($1,$2,$3,$4,$5,$6)", [id, input.commandId, scope.accountId, input.action, digest, transitionMessageId ? {...updated,transitionMessageId} : updated]);
       await this.observeCommand(db,id,input.commandId,input.action);
       return updated;
     });
@@ -454,6 +465,14 @@ export class InboxStore {
     await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if (!message.task_id && message.request_key?.startsWith("transition:")) {
+      const receipt = (await db.query(`SELECT action FROM agents_platform.customer_commands
+        WHERE conversation_id=$1 AND result->>'transitionMessageId'=$2 AND command_id::text=substring($3 from 12)
+          AND result->>'ownership_generation'=$4 AND action IN ('return','resolve')`,
+        [message.conversation_id,message.id,message.request_key,message.ownership_generation])).rows[0];
+      const expected = receipt?.action === "return" ? transitionMessages.return : receipt?.action === "resolve" ? transitionMessages.resolve : null;
+      return expected === message.body ? expected : null;
+    }
     if(message.task_id && message.request_key===`handoff-receipt:${message.task_id}`) {
       const receipt=(await db.query(`SELECT * FROM agents_platform.pending_handoff_receipts
         WHERE task_id=$1 AND conversation_id=$2 AND ownership_generation=$3 AND message_id=$4

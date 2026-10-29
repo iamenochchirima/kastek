@@ -138,4 +138,19 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       expect((await app.inject({ url })).statusCode).toBe(403);
     } finally { await app.close(); }
   });
+  it("persists website return and resolve events once with command provenance", async () => {
+    const f = await fixture(); await f.command("claim");
+    const current = await f.inbox.readStaff(f.scope,f.conversation.id);
+    const command = { action: "return" as const, commandId: randomUUID(), expectedRevision: current.conversation.revision };
+    await f.inbox.command(f.scope,f.conversation.id,command);
+    await f.inbox.command(f.scope,f.conversation.id,command);
+    let visitor = await f.inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(visitor.messages.filter(message=>message.body==="The conversation has returned to the assistant.")).toHaveLength(1);
+    expect(visitor.messages.at(-1)?.displayKind).toBe("system");
+    await f.command("takeover"); await f.command("resolve");
+    visitor = await f.inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(visitor.messages.at(-1)).toMatchObject({body:"This conversation has been resolved.",displayKind:"system"});
+    const receipt = (await pool.query("SELECT result->>'transitionMessageId' id FROM agents_platform.customer_commands WHERE command_id=$1",[command.commandId])).rows[0];
+    await expect(pool.query("UPDATE agents_platform.customer_messages SET body='Forged' WHERE id=$1",[receipt.id])).rejects.toMatchObject({code:"23514"});
+  });
 });

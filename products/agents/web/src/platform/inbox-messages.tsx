@@ -14,7 +14,7 @@ export function InboxMessages({ messages, customerName, agentName, members }: {
 }) {
   return <div className="inbox-messages" role="log" aria-label="Conversation messages" aria-live="polite">{messages.map(item => {
     const isCustomer = item.authorKind === "visitor";
-    const name = isCustomer ? customerName || "Customer" : item.authorKind === "assistant" ? agentName || "Assistant" : members.find(member => member.id === item.authorAccountId)?.displayName || "Support";
+    const name = item.displayKind === "system" ? "System" : isCustomer ? customerName || "Customer" : item.authorKind === "assistant" ? agentName || "Assistant" : members.find(member => member.id === item.authorAccountId)?.displayName || "Support";
     const initial = isCustomer ? customerName && initials(customerName) : item.authorKind === "human" && name !== "Support" ? initials(name) : "";
     return <article key={item.id} className={`inbox-message inbox-message--${item.authorKind}`}>
       <span className="inbox-message-avatar" aria-hidden="true">{initial || <HugeiconsIcon icon={item.authorKind === "assistant" ? Robot01Icon : UserIcon} size={18} />}</span>

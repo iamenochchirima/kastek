@@ -10,6 +10,14 @@ import "./inbox-handoff.css";
 type Action = "claim" | "assign" | "unassign" | "takeover" | "resolve" | "reopen" | "return";
 type Member = { id: string; displayName: string };
 
+function waitingAge(requestedAt: string) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(requestedAt).getTime()) / 60_000));
+  if (minutes < 1) return "under a minute";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} hr` : `${Math.floor(hours / 24)} days`;
+}
+
 export function inboxAssigneeName(id: string | null, members: Member[], displayName?: string | null) {
   return id ? displayName ?? members.find(member => member.id === id)?.displayName ?? "Unknown teammate" : "Unassigned";
 }
@@ -46,8 +54,9 @@ export async function focusAfterHandoff(action: string, origin: HTMLElement, ope
   } finally { document.removeEventListener("focusin", observeFocus); }
 }
 
-export function InboxHandoff({ conversation, accountId, owner, members, busy, pending, onCommand }: {
+export function InboxHandoff({ conversation, handoff, accountId, owner, members, busy, pending, onCommand }: {
   conversation: InboxConversation;
+  handoff?: { requestedAt: string; firstHumanReplyAt: string | null } | null;
   accountId: string;
   owner: boolean;
   members: Member[];
@@ -91,7 +100,7 @@ export function InboxHandoff({ conversation, accountId, owner, members, busy, pe
   const detail = state === "human_owned" ? mine ? "Assigned to you" : `Assigned to ${name}` : assigneeAccountId ? mine ? "Assigned to you" : `Assigned to ${name}` : "Unassigned";
 
   return <section ref={section} className={`inbox-handoff inbox-handoff--${state}`} aria-label="Conversation ownership">
-    <div className="inbox-handoff-summary"><span className="inbox-handoff-icon" aria-hidden="true"><HugeiconsIcon icon={UserGroupIcon} size={18} /></span><div><h3 tabIndex={-1} data-handoff-focus="summary">{title}</h3><p>{detail}</p></div></div>
+    <div className="inbox-handoff-summary"><span className="inbox-handoff-icon" aria-hidden="true"><HugeiconsIcon icon={UserGroupIcon} size={18} /></span><div><h3 tabIndex={-1} data-handoff-focus="summary">{title}</h3><p>{detail}</p>{handoff && ["handoff_pending", "human_owned"].includes(state) ? <p>{handoff.firstHumanReplyAt ? <>First reply <time dateTime={handoff.firstHumanReplyAt}>{new Date(handoff.firstHumanReplyAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</time></> : <>Awaiting first reply · <time dateTime={handoff.requestedAt} title={new Date(handoff.requestedAt).toLocaleString()}>{waitingAge(handoff.requestedAt)}</time></>}</p> : null}</div></div>
     <div className="inbox-handoff-actions">
       {!assigneeAccountId ? <Button size="sm" variant="outline" disabled={disabled} data-handoff-focus="claim" onClick={event => void moveAfterCommand("claim", event.currentTarget)}>Assign to me</Button> : null}
       {mine && state !== "human_owned" && state !== "resolved" ? <Button size="sm" disabled={disabled} data-handoff-focus="takeover" onClick={event => void moveAfterCommand("takeover", event.currentTarget)}>Take over</Button> : null}

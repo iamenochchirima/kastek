@@ -174,7 +174,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(returned.return_watermark).toBe("2"); expect((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE organization_id=$1", [f.org.id])).rows[0].count).toBe("0");
     const next = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "Thank you, what happens next?" }); expect(next.message.task_id).toBeTruthy();
     const context = await inbox.context(pool, binding(f, next.message.id, returned.ownership_generation), next.message.id);
-    expect(context.map(row => [row.authorKind, row.content])).toEqual([["visitor", "Book it please"], ["human", "I handled that for you"]]);
+    expect(context.map(row => [row.authorKind, row.content])).toEqual([["visitor", "Book it please"], ["human", "I handled that for you"], ["assistant", "The conversation has returned to the assistant."]]);
     await expect(inbox.assertBinding(pool, binding(f, backlog.message.id, returned.ownership_generation), { organization_id: f.org.id, version_id: f.version.id })).rejects.toMatchObject({ code: "CHANNEL_INPUT_DENIED" });
   });
   it("recovers a human reply and never repeats its publication", async () => {

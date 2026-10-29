@@ -9,7 +9,7 @@ describe("website widget conversation switching", () => {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage();
-      const bySession = new Map<string, { id: string; messages: { authorKind: string; body: string }[] }>();
+      const bySession = new Map<string, { id: string; messages: { authorKind: string; body: string; displayKind?: string }[] }>();
       let count = 0, failFirstMessage = true;
       await page.route("http://localhost/**", async (route: any) => {
         const request = route.request(), url = new URL(request.url()), path = url.pathname;
@@ -54,6 +54,8 @@ describe("website widget conversation switching", () => {
       await browserExpect(page.getByRole("log").getByText("First pending")).toBeVisible();
       expect(bySession.size).toBe(2);
       expect([...bySession.values()].map(chat => chat.messages.map(message => message.body))).toEqual([["First pending"], ["Second message"]]);
+      bySession.get("session-1")!.messages.push({authorKind:"assistant",displayKind:"system",body:"Waiting update"},{authorKind:"assistant",body:"Agent update"},{authorKind:"human",body:"Human reply"});
+      for (const label of ["You", "System", "Assistant", "Support"]) await browserExpect(page.getByRole("log").getByText(label, {exact:true})).toBeVisible();
       const afterReload = page.getByRole("combobox", { name: "Conversations" });
       await browserExpect(afterReload).toBeEnabled();
       await afterReload.selectOption({ label: "Conversation 2" });
