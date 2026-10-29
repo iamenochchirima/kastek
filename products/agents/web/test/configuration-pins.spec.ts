@@ -8,7 +8,7 @@ for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const sources = [{ id: "returns", title: "Returns", state: "active", visibility: "public", revisions: [1, 2].map(revision => ({ id: `revision${revision}`, revision, state: "approved", embeddingRelease: "local-embedding-v1" })) },
       { id: "unindexed", title: "Unindexed", state: "active", visibility: "public", revisions: [{ id: "revision3", revision: 1, state: "approved", embeddingRelease: null }] }];
-    const base = { executionKind: "business", program: { id: "grounded-conversation", version: "1" }, instructions: "Answer from approved knowledge. Offer human support when needed.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: ["revision1"], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: ["knowledge.search", "knowledge.read", "channel.request_handoff", "support.get_status"], supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "17:00" }] }, memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+    const base = { executionKind: "business", program: { id: "grounded-conversation", version: "1" }, context: { maxInputTokens: 8192, compactAtTokens: 6144 }, instructions: "Answer from approved knowledge. Offer human support when needed.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: ["revision1"], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: ["knowledge.search", "knowledge.read", "channel.request_handoff", "support.get_status"], supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "17:00" }] }, memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
     let draft = structuredClone(base), draftRevision = 1;
     const versions: { id: string; number: number; configuration: typeof base }[] = [], unexpected: string[] = [], errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -16,6 +16,11 @@ for (const width of [1440, 768, 390]) {
       const request = route.request(), path = new URL(request.url()).pathname;
       let data: unknown;
       if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: "org", name: "Support", role: "owner" }] };
+      else if (path.endsWith("/inbox-alerts")) data = { unread: 0, alerts: [] };
+      else if (path.endsWith("/model-providers")) data = { connections: [] };
+      else if (path.endsWith("/model-providers/default")) data = { selection: null, revision: 1 };
+      else if (path.endsWith("/model-policy")) data = { modelId: null, modelRevision: null, limits: { contextTokens: null, maxInputTokens: null, maxOutputTokens: null, maxCallDurationMs: null, maxRootTokens: null, safetyTokens: null }, effectivePolicy: null, errors: [], controls: { temperature: null, reasoning: null } };
+      else if (path.endsWith("/setup-readiness")) data = { readiness: { readyToTest: false, setupStep: null, requirements: {}, channels: [] } };
       else if (path.endsWith("/knowledge/sources")) data = { sources, imports: [] };
       else if (path.endsWith("/catalogue/tools")) data = toolCatalogue;
       else if (path.endsWith("/agents/root")) {
