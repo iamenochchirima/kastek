@@ -36,8 +36,8 @@ export function applyCustomerSetup(configuration: AgentConfiguration, setup: Cus
   if (selected.has("answer-questions") || selected.has("customer-support")) {
     tools.add("knowledge.search"); tools.add("knowledge.read");
   }
-  if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) { tools.add("channel.request_handoff"); tools.add("support.request_handoff"); tools.add("support.get_status"); }
-  else { tools.delete("channel.request_handoff"); tools.delete("support.request_handoff"); tools.delete("support.get_status"); }
+  if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) { tools.add("channel.request_handoff"); tools.add("support.request_handoff_v2"); tools.delete("support.request_handoff"); tools.add("support.get_status_v2"); tools.delete("support.get_status"); }
+  else { tools.delete("channel.request_handoff"); tools.delete("support.request_handoff"); tools.delete("support.request_handoff_v2"); tools.delete("support.get_status"); tools.delete("support.get_status_v2"); }
   const enquiries = selected.has("enquiries") ? { enabled: true as const, fields: setup.intake?.fields ?? ["name", "email", "message"] as Array<"name" | "email" | "message"> } : { enabled: false as const };
   if (enquiries.enabled) { tools.add("enquiry.submit"); tools.add("enquiry.read"); tools.add("enquiry.amend"); } else { tools.delete("enquiry.submit"); tools.delete("enquiry.read"); tools.delete("enquiry.amend"); }
   // Calendar access still requires a separately authorized policy, never just setup intent.

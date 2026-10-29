@@ -19,7 +19,7 @@ import { createSandboxExecutor } from "../capabilities/sandbox/sandbox-executor"
 import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import { PlatformError,connectedToolAuthorityIds } from "../contracts/contracts";
 import { TaskArtifactStore } from "../execution/artifacts/task-artifacts";
-import { createBusinessWorkflow } from "../execution/business/business";
+import { createBusinessWorkflow, type BusinessOptions } from "../execution/business/business";
 import { ModelProviderStore } from "../product/model-providers/store";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
 import { connectionVaultFromEnvironment } from "../infrastructure/vault";
@@ -27,11 +27,15 @@ import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
 import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
+import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME } from "../contracts/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
 import { AutomationService } from "../product/automations/automations";
 import { SupportWaitingService } from "../product/inbox/support-waiting";
 import { createSupportWaitingWorkflow,startSupportWaitingDispatcher } from "../product/inbox/support-waiting-runtime";
+import { settleReceipt } from "../product/inbox/handoff-pending-receipt";
+import { HANDOFF_RECEIPT } from "../product/inbox/handoff-receipt";
+import { createReceiptWorkflow,startHandoffReceiptDispatcher } from "../product/inbox/handoff-pending-receipt-runtime";
 import { customerFollowupConfig } from "../product/customer-followup/config";
 import { CustomerFollowupNotifications } from "../product/customer-followup/notifications";
 import { createCustomerFollowupWorkflow,startCustomerFollowupDispatcher } from "../product/customer-followup/runtime";
@@ -117,12 +121,18 @@ async function main(): Promise<void> {
   const growthActions=growthActionClientFromEnvironment();
   const productRuntime=growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined;
   if(productRuntime){await productRuntime.loadPublications();registerAgencyProductCapabilities(productRuntime);}
-  const workflow = createBusinessWorkflow(pool, { modelProvider, signal: abort.signal,
+  const workflowOptions: BusinessOptions = { modelProvider, signal: abort.signal,
     product:productRuntime,
     actions:actionServices?.actions,selectReportArtifact:(taskId,name,output)=>artifacts.prepareReport(taskId,name,output),
-    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings });
+    executeSandbox: createSandboxExecutor(pool,sandbox,objects),evidence,knowledgeRuntime,connected,toolReviews,bookings };
+  const workflow = createBusinessWorkflow(pool, workflowOptions);
+  const handoffWorkflow = createBusinessWorkflow(pool, {...workflowOptions,
+    settleHandoffReceipt:(taskId,candidate,definitiveFailure)=>settleReceipt(pool,taskId,candidate?{text:candidate}:null,HANDOFF_RECEIPT,
+      (db,input)=>inbox.publishPendingHandoffReceipt(db,input),definitiveFailure),
+  },{release:HANDOFF_HARNESS_RELEASE,workflow:HANDOFF_WORKFLOW_NAME});
   const {host,identityKeys} = workerSecurityFromEnvironment();
-  const server = createServer(createEndpointHandler({ services: [workflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
+  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,receiptWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -134,6 +144,7 @@ async function main(): Promise<void> {
     policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
+    runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
     onPhase: metrics?.dispatcherPhase,
   });
@@ -141,6 +152,8 @@ async function main(): Promise<void> {
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"automation_publisher_error",code})),()=>actionServices?.actions.reconcilePending()??Promise.resolve());
   const supportDispatcher=startSupportWaitingDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"support_waiting_publisher_error",code})));
+  const receiptDispatcher=startHandoffReceiptDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
+    code=>console.error(JSON.stringify({...diagnosticIdentity,event:"handoff_receipt_publisher_error",code})));
   const followupDispatcher=followups ? startCustomerFollowupDispatcher(pool,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"customer_followup_publisher_error",code})),{configurationDigest:followupConfigurationDigest(followupConfig!),adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070"}) : undefined;
   const ingestionDispatcher=ingestion?startIngestionDispatcher(ingestion,process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",
@@ -155,7 +168,7 @@ async function main(): Promise<void> {
     closing = true;
     abort.abort();
     clearInterval(cancellationTimer); await cancellationPending;
-    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
+    await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);
       server.close(() => { clearTimeout(deadline); resolve(); });

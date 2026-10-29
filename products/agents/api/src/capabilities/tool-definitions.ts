@@ -4,7 +4,7 @@ import type { ToolDefinition } from "../execution/business/model";
 import { REPORT_WORKFLOW_BINDING,toolDescriptor } from "./tool-descriptors";
 
 export const BUILTIN_MODEL_ALIASES = Object.freeze({ knowledge_search: "knowledge.search", knowledge_read: "knowledge.read",
-  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",enquiry_submit:"enquiry.submit",enquiry_read:"enquiry.read",enquiry_amend:"enquiry.amend",records_search:"records.search",records_update:"records.update",channel_request_handoff: "channel.request_handoff", support_request_handoff: "support.request_handoff", support_get_status: "support.get_status" } as const);
+  memory_search: "memory.search", memory_propose: "memory.propose", skills_activate: "skills.activate", skills_read: "skills.read", skills_run:"skills.run", agents_delegate: "agents.delegate", sandbox_analyze: "sandbox.analyze", booking_availability:"booking.availability",booking_reserve:"booking.reserve",enquiry_submit:"enquiry.submit",enquiry_read:"enquiry.read",enquiry_amend:"enquiry.amend",records_search:"records.search",records_update:"records.update",channel_request_handoff: "channel.request_handoff", support_request_handoff: "support.request_handoff", support_request_handoff_v2: "support.request_handoff_v2", support_get_status: "support.get_status", support_get_status_v2: "support.get_status_v2" } as const);
 export function builtinToolEnabled(config: AgentConfiguration, name: string): boolean {
   if(name==="enquiry.submit"||name==="enquiry.read"||name==="enquiry.amend")return config.capabilities.enquiries?.enabled===true&&config.tools.includes(name);
   if(name==="skills.run")return config.skillIds.length>0&&config.capabilities.sandbox.enabled&&config.tools.includes("sandbox.analyze");
@@ -59,7 +59,9 @@ export function toolsFor(config: AgentConfiguration, connectedTools: readonly To
   const definitions: [string, string, object][] = [
     ["channel.request_handoff", "Request human support for the bound customer conversation and pause automation.", {}],
     ["support.request_handoff", "Request human support and provide a factual reason and brief for the support team. Include only details supported by the conversation.", {reason:{type:"string",minLength:1,maxLength:200},brief:{type:"string",minLength:1,maxLength:2000}}],
+    ["support.request_handoff_v2", "Request human support and provide a factual reason and brief for the support team. Include only details supported by the conversation.", {reason:{type:"string",minLength:1,maxLength:200},brief:{type:"string",minLength:1,maxLength:2000}}],
     ["support.get_status", "Read the configured support hours and current schedule status. Hours do not establish staff availability or response time.", {}],
+    ["support.get_status_v2", "Read support hours, the next opening and aggregate staff availability. Availability is not a response-time promise.", {}],
     ["knowledge.search", "Search the approved knowledge sources for this agent.", { query: { type: "string", maxLength: 512 } }],
     ["knowledge.read", "Read the next bounded span of an evidence passage returned by knowledge search. Use its evidenceId and nextOffset exactly.", { evidenceId: { type: "string", format: "uuid" }, offset: { type: "integer", minimum: 0, maximum: 1_048_576 } }],
     ["memory.search", "Read this verified user's approved personal memories. Never another user's memories.", { query: { type: "string", maxLength: 512 } }],

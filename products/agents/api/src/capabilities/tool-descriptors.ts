@@ -21,6 +21,8 @@ const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"re
   {name:"booking.reserve",version:"1",effect:"external_effect",maxDurationMs:60000,maxResultBytes:8192,retry:"status_only",cancel:"reconcile_claimed"},
   {name:"channel.request_handoff",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"support.request_handoff",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
+  {name:"support.request_handoff_v2",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
+  {name:"support.get_status_v2",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"support.get_status",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"knowledge.initial",version:"1",effect:"read",maxDurationMs:90000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},
   {name:"knowledge.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:8192,retry:"safe_read",cancel:"stop_admission"},

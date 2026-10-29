@@ -327,8 +327,14 @@ retried deliberately after correcting the displayed failure. Repeated ingress re
 
 New customer-support configurations give the agent a structured handoff tool. It can record a
 reason and brief for authorized Inbox staff. The original handoff tool remains available to
-previously published configurations. The customer receives a factual receipt when the request
-is committed; the brief is not shown to the customer.
+previously published configurations. New configurations permit one agent-written acknowledgement
+after the request commits. If it cannot be published within five seconds, a factual receipt is
+used. A takeover, resolution, return or loss of authorization can suppress a pending receipt.
+The brief is not shown to the customer.
+
+Staff can mark themselves Available or Away in the Inbox. Availability is advisory and expires
+after two minutes unless the visible Inbox renews it. The agent can check aggregate availability
+and the next configured opening; unknown availability is not a promise of a response.
 
 An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
 authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads
@@ -358,8 +364,10 @@ Native alerts use `GET /api/organizations/:organizationId/inbox-alerts` and
 email, push notifications or third-party messages. Waiting failures use the structured
 `support_waiting_publisher_error` event and `SUPPORT_WAITING_DISPATCH_FAILED` code without message
 bodies. Inspect `support_waiting` dispatch/completion records and `support_waiting_notices` receipt
-states before retrying. Apply schema084 and schema086 before starting the worker, and refresh its Restate
-deployment registration to include the new workflow. To stop future effects, remove Human support
+states before retrying. Apply schema084 through schema088 before starting matching API and worker
+artifacts. Register `AgentsSupportWaitingV1`, `AgentsHandoffReceiptV1` and
+`AgentsBusinessRunV22` with Restate. Inspect `pending_handoff_receipts` and the bounded
+`handoff_receipt_publisher_error` log when an acknowledgement does not appear. To stop future effects, remove Human support
 from the published agent configuration or pause its channel. Pause the channel to stop
 attachment-triggered waiting work. Keep accepted receipts and unknown
 provider deliveries for reconciliation; never resend an unknown effect during rollback.
@@ -397,8 +405,7 @@ The controlled `customer-followup-journey.test.ts` verifies API authorization, a
 one human reply notification through a local HTTP mailbox, scoped return and revocation without
 model inference. `customer-return-lineage.test.ts` verifies admission/evidence isolation, source
 withdrawal and claim recovery. Provider delivery, real inbox acceptance and model behavior remain
-owner-run. The handoff acknowledgement is currently a platform receipt; contextual agent-written
-acknowledgement and unrestricted pending-support agent turns remain unavailable.
+owner-run. Unrestricted pending-support agent turns remain unavailable.
 
 Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
 appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window

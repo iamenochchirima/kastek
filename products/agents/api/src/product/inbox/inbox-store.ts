@@ -11,6 +11,9 @@ import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 import { HANDOFF_RECEIPT } from "./handoff-receipt";
 import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
+import type { Receipt } from "./handoff-pending-receipt";
+import { reserveReceipt } from "./handoff-pending-receipt";
+import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../execution/lifecycle/handoff-feedback-contract";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -35,7 +38,7 @@ const customerIdentityJoin = `LEFT JOIN LATERAL (
   WHERE record.organization_id=c.organization_id AND record.customer_conversation_id=c.id
 ) identity ON true`;
 export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
-  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date;
+  author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date; request_key?: string;
   channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
   deliveries?: {id:string;segment:number;state:string;reason:string|null}[] }
 export interface InboxPorts {
@@ -47,6 +50,8 @@ export interface InboxPorts {
   admitChannel?(db: PoolClient, input: { deploymentId: string; participantId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
   readableOutput(db: Db, taskId: string, body: string): Promise<string | null>;
+  // Must revalidate input evidence and, for model output, its operation receipt and grounding.
+  verifyPendingHandoffReceipt?(db: Db, input: { receipt: Receipt; origin: "model" | "fallback"; text: string }): Promise<boolean>;
   cancelRoot(taskId: string): Promise<unknown>;
 }
 export type InboxCommand = { commandId: string; expectedRevision: string; action: "claim" | "assign" | "unassign" | "takeover" | "reply" | "resolve" | "reopen" | "return";
@@ -189,7 +194,8 @@ export class InboxStore {
       await this.trialStaff(db,scope,conversation);
       const receipt = (await db.query(`SELECT c.result->'handoffBrief' brief FROM agents_platform.customer_commands c
         JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id
-        JOIN agents_platform.customer_messages m ON m.id::text=c.result->>'handoffReceiptId' AND m.conversation_id=c.conversation_id
+        JOIN agents_platform.customer_task_links l ON l.task_id=c.command_id AND l.conversation_id=c.conversation_id
+        JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=c.conversation_id
         WHERE c.conversation_id=$1 AND c.action='request_handoff' AND $2::text IN ('handoff_pending','human_owned') AND m.sequence>$3::bigint
         ORDER BY w.requested_at DESC LIMIT 1`,[id,conversation.state,conversation.return_watermark])).rows[0];
       const parsed = handoffBriefSchema.safeParse(receipt?.brief);
@@ -205,12 +211,12 @@ export class InboxStore {
       const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
         CASE WHEN c.channel_kind='website' THEN (wd.id IS NOT NULL AND wd.revoked_at IS NULL AND wd.paused=false)
           ELSE (cd.id IS NOT NULL AND cd.state='active' AND cn.id IS NOT NULL AND cn.state='active') END AS channel_available,
-        last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,last_message.ownership_generation AS last_message_ownership_generation,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+        last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.request_key AS last_message_request_key,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,last_message.ownership_generation AS last_message_ownership_generation,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id AND cd.organization_id=c.organization_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id AND cn.organization_id=c.organization_id
         LEFT JOIN agents_platform.website_deployments wd ON wd.id=c.deployment_id AND wd.organization_id=c.organization_id
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
-        LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
+        LEFT JOIN LATERAL (SELECT id,task_id,request_key,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
@@ -227,7 +233,7 @@ export class InboxStore {
       const items = rows.slice(0, filters.limit), last = items.at(-1);
       for (const item of items) if (item.last_message_body != null) {
         if (item.last_message_author_kind === "assistant") {
-          const candidate = { id: item.last_message_id, conversation_id: item.id, task_id: item.last_message_task_id, body: item.last_message_body, ownership_generation: item.last_message_ownership_generation } as CustomerMessage;
+          const candidate = { id: item.last_message_id, conversation_id: item.id, task_id: item.last_message_task_id, request_key: (item as unknown as {last_message_request_key:string}).last_message_request_key, body: item.last_message_body, ownership_generation: item.last_message_ownership_generation } as CustomerMessage;
           item.last_message_body = await this.readableMessage(db, candidate) ?? "[Response unavailable]";
         }
         item.last_message_body = item.last_message_body.slice(0,500);
@@ -289,8 +295,8 @@ export class InboxStore {
     const task=(await db.query("SELECT l.task_id FROM agents_platform.customer_task_links l JOIN agents_platform.customer_messages m ON m.id=l.input_message_id WHERE l.conversation_id=$1 ORDER BY m.sequence DESC LIMIT 1",[conversationId])).rows[0];
     if(task)await recordEvent(db,task.task_id,`channel:command:${commandId}`,`channel.${action}`,{count:1});
   }
-  private async queueCancellation(db: PoolClient, id: string, generation: string) {
-    await db.query(`INSERT INTO agents_platform.customer_cancellations(task_id) SELECT task_id FROM agents_platform.customer_task_links WHERE conversation_id=$1 AND ownership_generation<$2 ON CONFLICT DO NOTHING`, [id, generation]);
+  private async queueCancellation(db: PoolClient, id: string, generation: string, exceptTaskId?: string) {
+    await db.query(`INSERT INTO agents_platform.customer_cancellations(task_id) SELECT task_id FROM agents_platform.customer_task_links WHERE conversation_id=$1 AND ownership_generation<$2 AND ($3::uuid IS NULL OR task_id<>$3) ON CONFLICT DO NOTHING`, [id, generation, exceptTaskId ?? null]);
   }
   async drainCancellations() {
     const rows = (await this.pool.query("SELECT task_id FROM agents_platform.customer_cancellations WHERE completed_at IS NULL ORDER BY created_at LIMIT 20")).rows;
@@ -331,9 +337,35 @@ export class InboxStore {
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
     return { state: "handoff_pending" };
   }
+  async requestHandoffV2(db: PoolClient, binding: ChannelBinding, taskId: string, brief: HandoffBrief, delayMs: number, feedback?: HandoffFeedbackRequest): Promise<{ state: "handoff_pending" }> {
+    brief = handoffBriefSchema.parse(brief);
+    const parsedFeedback = feedback ? parseHandoffFeedbackRequest(feedback) : undefined;
+    const row = await this.conversation(db, binding.customerConversationId, true);
+    const linked = (await db.query(`SELECT 1 FROM agents_platform.customer_task_links l
+      JOIN agents_platform.tasks t ON t.id=l.task_id
+      WHERE l.task_id=$1 AND l.conversation_id=$2 AND l.input_message_id=$3 AND l.ownership_generation=$4
+        AND t.root_task_id=t.id AND t.organization_id=$5`,
+      [taskId,row.id,binding.inputMessageId,binding.ownershipGeneration,row.organization_id])).rowCount;
+    if (!linked) denied();
+    const digest = requestDigest({version:2,binding,brief,delayMs,feedbackRequestDigest:parsedFeedback ? requestDigest(parsedFeedback) : null});
+    const existing = (await db.query("SELECT action,request_digest,result FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id,taskId])).rows[0];
+    if (existing) {
+      if (existing.action !== "request_handoff" || existing.request_digest !== digest || existing.result?.pendingReceiptTaskId !== taskId) conflict();
+      return { state:"handoff_pending" };
+    }
+    if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active" || !await this.activeBinding(db,row)) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED",403,"Conversation ownership changed");
+    const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]!;
+    await this.queueCancellation(db,row.id,updated.ownership_generation,taskId);
+    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)",
+      [row.id,taskId,digest,{...updated,pendingReceiptTaskId:taskId,handoffBrief:brief}]);
+    await reserveReceipt(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation,delayMs,feedback:parsedFeedback});
+    await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation});
+    await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
+    return {state:"handoff_pending"};
+  }
   async publishWaitingNotice(db: PoolClient, input: { conversationId: string; taskId: string; ownershipGeneration: string; stage: number; body: string }): Promise<boolean> {
     const row = await this.conversation(db, input.conversationId, true);
-    const notice = (await db.query(`SELECT n.* FROM agents_platform.support_waiting_notices n
+    const notice = (await db.query(`SELECT n.*,w.source_message_id FROM agents_platform.support_waiting_notices n
       JOIN agents_platform.support_waiting w ON w.task_id=n.task_id
       WHERE n.task_id=$1 AND n.stage=$2 AND w.conversation_id=$3 AND w.completed_at IS NULL
         AND n.state='pending' AND n.ownership_generation=$4 AND n.body=$5
@@ -342,14 +374,56 @@ export class InboxStore {
       FOR UPDATE OF n,w`, [input.taskId,input.stage,row.id,input.ownershipGeneration,input.body])).rows[0];
     if (!notice || !["handoff_pending", "human_owned"].includes(row.state) || row.ownership_generation !== input.ownershipGeneration || !await this.activeBinding(db,row)) return false;
     const currentVersion = (await db.query(`SELECT v.configuration FROM agents_platform.agent_versions v
+      JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id
       WHERE v.id = CASE WHEN $1='website' THEN (SELECT version_id FROM agents_platform.website_deployments WHERE id=$2)
-        ELSE (SELECT version_id FROM agents_platform.channel_deployments WHERE id=$3) END AND v.organization_id=$4`,
-      [row.channel_kind,row.deployment_id,row.channel_deployment_id,row.organization_id])).rows[0];
-    if (!currentVersion?.configuration?.tools?.includes("channel.request_handoff")) return false;
+        ELSE (SELECT version_id FROM agents_platform.channel_deployments WHERE id=$3) END
+        AND v.organization_id=$4 AND a.id=$5 AND a.deleted_at IS NULL FOR SHARE OF a,v`,
+      [row.channel_kind,row.deployment_id,row.channel_deployment_id,row.organization_id,row.agent_id])).rows[0];
+    if (!currentVersion || (!notice.source_message_id && !currentVersion.configuration?.tools?.includes("channel.request_handoff"))) return false;
     const message = await this.append(db,row,{key:`waiting:${input.taskId}:${input.stage}`,digest:requestDigest(input.body),kind:"assistant",body:input.body});
     await db.query("UPDATE agents_platform.support_waiting_notices SET state='published',message_id=$3 WHERE task_id=$1 AND stage=$2 AND state='pending'",[input.taskId,input.stage,message.id]);
     await enqueueChannelMessage(db,row,message);
     return true;
+  }
+  // The caller locks the
+  // conversation and receipt and commits the outcome with this message.
+  async publishPendingHandoffReceipt(db: PoolClient, input: { receipt: Receipt; origin: "model" | "fallback"; text: string }): Promise<string | null> {
+    const { receipt, origin, text } = input;
+    const row = await this.conversation(db, receipt.conversation_id, true);
+    if (receipt.outcome || row.state !== "handoff_pending" || row.ownership_generation !== receipt.ownership_generation
+      || !await this.activeBinding(db, row) || !this.ports.verifyPendingHandoffReceipt
+      || (origin === "fallback" && text !== HANDOFF_RECEIPT)
+      || !text.trim() || Buffer.byteLength(text) > 32768) return null;
+    const valid = (await db.query(`SELECT 1 FROM agents_platform.pending_handoff_receipts r
+      JOIN agents_platform.customer_commands c ON c.conversation_id=r.conversation_id AND c.command_id=r.task_id
+      JOIN agents_platform.customer_task_links l ON l.task_id=r.task_id AND l.conversation_id=r.conversation_id
+      JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=l.conversation_id
+      JOIN agents_platform.tasks t ON t.id=l.task_id AND t.organization_id=$3
+      JOIN agents_platform.execution_grants g ON g.id=t.grant_id AND g.organization_id=t.organization_id
+      WHERE r.task_id=$1 AND r.conversation_id=$2 AND r.ownership_generation=$4 AND r.outcome IS NULL
+        AND c.action='request_handoff' AND c.result->>'pendingReceiptTaskId'=r.task_id::text
+        AND c.result->>'ownership_generation'=r.ownership_generation::text
+        AND m.author_kind='visitor' AND m.ownership_generation=l.ownership_generation
+        AND l.ownership_generation+1=r.ownership_generation
+        AND t.root_task_id=t.id AND t.product='agents'
+        AND g.product=t.product AND g.version_id=t.version_id AND g.principal=t.principal
+        AND g.resource_id=t.resource_id AND g.caller_client_id=t.caller_client_id
+        AND t.channel_binding->>'customerConversationId'=r.conversation_id::text
+        AND t.channel_binding->>'inputMessageId'=m.id::text
+        AND t.channel_binding->>'ownershipGeneration'=l.ownership_generation::text
+        AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()
+        AND ((t.principal->>'kind'='visitor' AND $5::text='website'
+          AND t.resource_id=$6::text
+          AND t.principal->>'deploymentId'=$6::text
+          AND EXISTS(SELECT 1 FROM agents_platform.website_sessions s WHERE s.id::text=t.principal->>'sessionId' AND s.deployment_id=$6::uuid AND s.expires_at>clock_timestamp()))
+          OR (t.principal->>'kind'='channel_customer' AND $5::text<>'website'
+          AND t.resource_id=$7::text
+          AND t.principal->>'deploymentId'=$7::text AND t.principal->>'participantId'=r.conversation_id::text))
+      FOR SHARE OF t,g,m,c,l`, [receipt.task_id,row.id,row.organization_id,row.ownership_generation,row.channel_kind,row.deployment_id,row.channel_deployment_id])).rowCount;
+    if (!valid || !await this.ports.verifyPendingHandoffReceipt(db,input)) return null;
+    const message = await this.append(db,row,{ key:`handoff-receipt:${receipt.task_id}`, digest:requestDigest({origin,text}), kind:"assistant", body:text, taskId:receipt.task_id });
+    await enqueueChannelMessage(db,row,message);
+    return message.id;
   }
   async publishEnquiryReview(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>{
     const row=await this.conversation(db,input.binding.customerConversationId,true);
@@ -380,6 +454,15 @@ export class InboxStore {
     await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if(message.task_id && message.request_key===`handoff-receipt:${message.task_id}`) {
+      const receipt=(await db.query(`SELECT * FROM agents_platform.pending_handoff_receipts
+        WHERE task_id=$1 AND conversation_id=$2 AND ownership_generation=$3 AND message_id=$4
+          AND outcome IN ('model','fallback')`,[message.task_id,message.conversation_id,message.ownership_generation,message.id])).rows[0];
+      if(!receipt) return null;
+      if(receipt.outcome==='fallback') return message.body===HANDOFF_RECEIPT?message.body:null;
+      // The model receipt must continue to satisfy the same provenance and evidence checks on reads.
+      return this.ports.verifyPendingHandoffReceipt && await this.ports.verifyPendingHandoffReceipt(db,{receipt,origin:'model',text:message.body}) ? message.body : null;
+    }
     if (!message.task_id && message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands c
       JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id AND w.source_message_id=c.command_id
       JOIN agents_platform.customer_messages origin ON origin.id=w.source_message_id AND origin.conversation_id=w.conversation_id AND origin.author_kind='visitor'
@@ -399,6 +482,10 @@ export class InboxStore {
       WHERE o.message_id=$1 AND r.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
     if(prompt){const text=channelToolReviewText(prompt.arguments);return message.body===text&&prompt.request_digest===requestDigest({bindingDigest:prompt.binding_digest,arguments:prompt.arguments})&&prompt.request.toolReview?.requestDigest===prompt.request_digest?text:null;}
     return this.ports.readableOutput(db,message.task_id,message.body);
+  }
+  async assertPendingReceiptDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
+    if(await this.readableMessage(db,message)!==message.body)
+      throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
   }
   async publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void> {
     const row = await this.conversation(db, input.binding.customerConversationId, true);

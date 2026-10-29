@@ -10,6 +10,11 @@ import { ConnectionVault } from "../src/infrastructure/vault";
 import { channelWebhookEventSchema } from "../src/contracts/channel-adapters";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { SupportWaitingService } from "../src/product/inbox/support-waiting";
+import { composeInbox } from "../src/composition/inbox";
+import { connectFixtureModel } from "./model-fixture";
+import { transaction } from "../src/infrastructure/database";
+import { settleReceipt } from "../src/product/inbox/handoff-pending-receipt";
+import { HANDOFF_RECEIPT } from "../src/product/inbox/handoff-receipt";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("durable channel delivery",()=>{
   const database=`agents_channel_delivery_${randomUUID().replaceAll("-","")}`;
@@ -40,6 +45,37 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const conversation=(await inbox.readStaff(f.scope,f.conversationId)).conversation;
     await inbox.command(f.scope,f.conversationId,{commandId:randomUUID(),expectedRevision:conversation.revision,action:"reply",body});
   }
+  it("delivers a pending handoff receipt once",async()=>{
+    const f=await fixture();
+    await connectFixtureModel(pool,f.scope.accountId,f.scope.organizationId);
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='automation_active',assignee_account_id=NULL WHERE id=$1",[f.conversationId]);
+    const composed=composeInbox(pool,{publicOrigin:"https://customer.test",assertServices:async()=>{}});
+    const incoming=await composed.ingressChannel({deploymentId:f.deploymentId,externalConversationId:f.thread,senderId:"1234",requestKey:randomUUID(),body:"A person please"});
+    const taskId=incoming.message.task_id!;
+    await transaction(pool,db=>composed.requestHandoffV2(db,{customerConversationId:f.conversationId,ownershipGeneration:String(incoming.message.ownership_generation),inputMessageId:incoming.message.id},taskId,{reason:"Human request",brief:"Customer requested a person"},60000));
+    expect(await settleReceipt(pool,taskId,null,HANDOFF_RECEIPT,composed.publishPendingHandoffReceipt.bind(composed),true)).toBe("fallback");
+    let sends=0;
+    const worker=new ChannelDelivery(pool,channels,composed,{assertPolicy:async()=>undefined,context:(_c,credentials,beforeAttempt)=>({credential:credentials.botToken!,fetch:async()=>{await beforeAttempt();sends++;return new Response(JSON.stringify({ok:true,result:{message_id:123}}),{status:200,headers:{"content-type":"application/json"}});}})});
+    await worker.drain();
+    expect(sends).toBe(1);
+    await worker.drain();expect(sends).toBe(1);
+  });
+  it("suppresses a pending handoff receipt after ownership changes",async()=>{
+    const f=await fixture();
+    await connectFixtureModel(pool,f.scope.accountId,f.scope.organizationId);
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='automation_active',assignee_account_id=NULL WHERE id=$1",[f.conversationId]);
+    const composed=composeInbox(pool,{publicOrigin:"https://customer.test",assertServices:async()=>{}});
+    const incoming=await composed.ingressChannel({deploymentId:f.deploymentId,externalConversationId:f.thread,senderId:"1234",requestKey:randomUUID(),body:"A person please"});
+    const taskId=incoming.message.task_id!;
+    await transaction(pool,db=>composed.requestHandoffV2(db,{customerConversationId:f.conversationId,ownershipGeneration:String(incoming.message.ownership_generation),inputMessageId:incoming.message.id},taskId,{reason:"Human request",brief:"Customer requested a person"},60000));
+    expect(await settleReceipt(pool,taskId,null,HANDOFF_RECEIPT,composed.publishPendingHandoffReceipt.bind(composed),true)).toBe("fallback");
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='human_owned',ownership_generation=ownership_generation+1,assignee_account_id=$2 WHERE id=$1",[f.conversationId,f.scope.accountId]);
+    let sends=0;
+    const worker=new ChannelDelivery(pool,channels,composed,{assertPolicy:async()=>undefined,context:(_c,credentials,beforeAttempt)=>({credential:credentials.botToken!,fetch:async()=>{await beforeAttempt();sends++;return new Response('{}',{status:200});}})});
+    await worker.drain();expect(sends).toBe(0);
+    const delivery=(await pool.query("SELECT state FROM agents_platform.channel_outbound WHERE conversation_id=$1",[f.conversationId])).rows[0];
+    expect(delivery.state).toBe("suppressed");
+  });
   it("commits/deduplicates ingress before processing, persists human messages once and preserves native facts",async()=>{
     const f=await fixture(),worker=delivery(async()=>{throw Error("No outbound expected");});
     const event=channelWebhookEventSchema.parse({kind:"message",assetId:f.assetId,eventId:"update-1",externalConversationId:"1234",senderId:"1234",providerMessageId:"message-1",occurredAt:"2026-01-01T00:00:00.000Z",text:"Need help"});

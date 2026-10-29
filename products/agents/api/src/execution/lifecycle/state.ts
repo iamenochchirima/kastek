@@ -12,7 +12,7 @@ import { compileValidatedComposition } from "./validated-composition";
 import { loadTaskModelRoutes } from "../models/persistence";
 export { transaction } from "../../infrastructure/database";
 
-import { HARNESS_RELEASE,type Execution } from "../../contracts/execution";
+import { HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE,type Execution } from "../../contracts/execution";
 const inboxInspection = new AsyncLocalStorage<boolean>();
 export function inspectInboxOutput<T>(fn: () => Promise<T>): Promise<T> {
   return inboxInspection.run(true, fn);
@@ -23,7 +23,7 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
     JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
     WHERE t.id=$1 ${lock ? "FOR NO KEY UPDATE OF t" : ""}`, [taskId])).rows[0];
   if (!task) throw new PlatformError("TASK_NOT_FOUND", 404, "Task not found");
-  if (task.harness_release !== HARNESS_RELEASE) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
+  if (![HARNESS_RELEASE,HANDOFF_HARNESS_RELEASE].includes(task.harness_release)) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE", 503, "Execution release is unavailable");
   const configuration = agentConfigurationSchema.parse(task.effective_configuration ?? task.configuration); assertRuntimeAvailable(configuration);
   const rows = configuration.connectedToolBindingIds.length ? (await db.query(`SELECT b.binding FROM agents_platform.version_connected_tools v
     JOIN agents_platform.capability_bindings b ON b.id=v.binding_id AND b.organization_id=v.organization_id
@@ -31,6 +31,7 @@ export async function loadExecution(db: Pool | PoolClient, taskId: string, lock 
   if (rows.length !== configuration.connectedToolBindingIds.length) throw new PlatformError("CAPABILITY_BINDING_UNAVAILABLE", 409, "Published connected tools are unavailable");
   const connectedBindings = rows.map(row => capabilityBindingSchema.parse(row.binding));
   const current = compileValidatedComposition(configuration, connectedBindings);
+  if (current.runtime.release !== task.harness_release) throw new PlatformError("HARNESS_RELEASE_UNAVAILABLE",503,"Execution release is unavailable");
   const inspect = inboxInspection.getStore() && ["completed", "incomplete"].includes(task.state);
   const check = inspect ? assertInspectableComposition : assertComposition;
   check(task.effective_composition, current);

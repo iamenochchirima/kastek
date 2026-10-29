@@ -124,9 +124,9 @@ export class AdmissionStore extends AuthorityStore {
     if (priorVersion && priorVersion.version_id !== input.versionId && input.configurationMode !== "current") throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null])).rows[0]!;
+      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);
     await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id,

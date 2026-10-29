@@ -32,7 +32,7 @@ export const modelSchema = z.strictObject({
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "support.request_handoff", "support.get_status", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "support.request_handoff", "support.request_handoff_v2", "support.get_status", "support.get_status_v2", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),

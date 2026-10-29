@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
+import type { HandoffFeedbackRequest } from "../execution/lifecycle/handoff-feedback-contract";
 
 export const channelBindingSchema = z.strictObject({ customerConversationId: z.uuid(),
   ownershipGeneration: z.string().regex(/^[1-9][0-9]{0,18}$/), inputMessageId: z.uuid() });
@@ -13,6 +14,7 @@ export interface VisitorLineage {
 export interface ChannelExecutionPorts {
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief): Promise<{ state: "handoff_pending" }>;
+  requestHandoffV2?(db: PoolClient, binding: ChannelBinding, taskId: string, brief: HandoffBrief, feedback?: HandoffFeedbackRequest): Promise<{ state: "handoff_pending" }>;
   publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void>;
   visitorLineage?(db: Pool | PoolClient, input: VisitorLineage): Promise<boolean>;
   publishEnquiryReview?(db:PoolClient,input:{taskId:string;binding:ChannelBinding;reviewId:string;requestDigest:string;fields:Record<string,string|undefined>}):Promise<void>;

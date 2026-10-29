@@ -55,7 +55,7 @@ function define(input: Pick<Definition, "id" | "kind" | "name" | "description" |
 const reviewedDefinitions = [
   define({ id: "knowledge-search", kind: "builtin", name: "Search knowledge", description: "Find passages in approved knowledge.", purposes: ["faq", "customer-service", "research"], tools: ["knowledge.search"] }),
   define({ id: "knowledge-read", kind: "builtin", name: "Read knowledge", description: "Read approved knowledge passages.", purposes: ["faq", "customer-service", "research"], tools: ["knowledge.read"] }),
-  define({ id: "human-handoff", kind: "builtin", name: "Human support", description: "Request human support in the shared inbox.", purposes: ["faq", "customer-service"], tools: ["channel.request_handoff", "support.request_handoff"] }),
+  define({ id: "human-handoff", kind: "builtin", name: "Human support", description: "Request human support in the shared inbox.", purposes: ["faq", "customer-service"], tools: ["channel.request_handoff", "support.request_handoff_v2"] }),
 
 ];
 // Freeze nested metadata as well as the array so another module cannot replace reviewed identity.

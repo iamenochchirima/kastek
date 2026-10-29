@@ -51,6 +51,11 @@ import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
 import { invokeObservedTaskModel } from "../models/observed-invocation";
+import { beginHandoffFeedbackOperation } from "../lifecycle/execution";
+import { assertHandoffFeedbackAuthority } from "../lifecycle/authority";
+import { assertCurrentEvidence } from "../context/evidence-policy";
+import type { HandoffFeedbackRequest } from "../lifecycle/handoff-feedback-contract";
+import { HANDOFF_RECEIPT_DEADLINE_MS } from "../../product/inbox/handoff-pending-receipt";
 function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map()): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
   return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: "serialized-utf8-estimate-v1",
@@ -79,6 +84,7 @@ export interface BusinessOptions {
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
   bookings?:BookingService;
+  settleHandoffReceipt?:(taskId:string,candidate:string|null,definitiveFailure:boolean)=>Promise<unknown>;
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
@@ -99,7 +105,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
     const outcome:JournaledOperation<T> = await ctx.run(`${attemptName}:perform`, async () => {
       let attemptId:string|undefined;
       try {
-        const admission = await beginOperation(pool, taskId, input);
+        const admission = input.name === "model.handoff_feedback" ? await beginHandoffFeedbackOperation(pool,taskId,input) : await beginOperation(pool, taskId, input);
         if(admission.waiting)return {waiting:admission.capacity};
         if (admission.replayed) {
           if (admission.operation.state === "completed") return {result:{ok:true as const,value:admission.operation.output as T}};
@@ -120,6 +126,7 @@ async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: st
       }
     });
     if('waiting' in outcome){
+      if(input.name === "model.handoff_feedback") return {ok:false,code:"CAPACITY_UNAVAILABLE",uncertain:false};
       const remaining=new Date(outcome.waiting.deadline).getTime()-await ctx.date.now();
       if(remaining<=0)return{ok:false,code:"CAPACITY_WAIT_EXPIRED",uncertain:false};
       await restate.RestatePromise.race([ctx.promise(`capacity:${outcome.waiting.requestId}:${outcome.waiting.generation}`).get(),ctx.sleep(remaining)]);
@@ -201,8 +208,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const modelTools = await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])]).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_get_status"].includes(tool.function.name))
-    && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")));
+  })() : [])]).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2"].includes(tool.function.name))
+    && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")
+    && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff")));
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {
@@ -287,8 +295,8 @@ function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   return { state: "failed", errorCode: result.code };
 }
 
-export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
-  return restate.workflow({ name: WORKFLOW_NAME, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
+export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
+  return restate.workflow({ name: runtime.workflow, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
       if (ctx.key !== input.taskId) throw new restate.TerminalError("Task identity mismatch", { errorCode: 400 });
       const taskId = input.taskId;
@@ -296,7 +304,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
       await options.product?.prepareExecution?.(taskId);
       await ctx.run("bind-invocation", async () => {
         const updated = await pool.query(`UPDATE agents_platform.tasks SET runtime_invocation_id=$2 WHERE id=$1
-          AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, HARNESS_RELEASE]);
+          AND harness_release=$3 AND (runtime_invocation_id IS NULL OR runtime_invocation_id=$2)`, [taskId, ctx.request().id, runtime.release]);
         if (!updated.rowCount) throw new restate.TerminalError("Runtime identity mismatch", { errorCode: 409 });
       });
       let outcome: TaskOutcome = { state: "incomplete", errorCode: "ROOT_LIMIT" };
@@ -431,6 +439,17 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             const productBinding=config.productBindings.find(value=>value.alias===call.function.name);
             const name = builtinToolName(call.function.name) ?? binding?.alias ?? productBinding?.alias ?? "unavailable";
             const descriptor = toolDescriptor(name);
+            let handoffFeedback: HandoffFeedbackRequest | undefined;
+            if(name === "support.request_handoff_v2" && snapshot.evidenceManifest) {
+              const feedbackMessages: HarnessMessage[] = [
+                {role:"system",content:"Write a short, natural response to the customer after human support has been requested. The committed tool result is {\"state\":\"handoff_pending\"}. Do not claim that someone is available, has replied, or that a wait time or notification is guaranteed. Use only this result and the customer's message."},
+                {role:"user",content:execution.task.input},
+              ];
+              const proposed = {model:execution.models.primary.binding.modelId,messages:feedbackMessages,maxInputTokens:policy.maxInputTokens,
+                maxOutputTokens:policy.maxOutputTokens,maxDurationSeconds:Math.min(policy.maxCallDurationMs,HANDOFF_RECEIPT_DEADLINE_MS)/1000};
+              const estimated = contextModelPolicy(execution).estimateRequestTokens(proposed);
+              if(estimated + policy.safetyTokens <= policy.maxInputTokens) handoffFeedback = {modelRequest:{...proposed,maxInputTokens:Math.max(1,estimated+policy.safetyTokens)},evidenceManifest:snapshot.evidenceManifest};
+            }
             let productReview:ProductReviewReference|undefined,productArgumentError:string|undefined;
             if(productBinding?.policy.approval==="exact_single_use") {
               if(!options.product){outcome={state:"incomplete",errorCode:"PRODUCT_RUNTIME_UNAVAILABLE"};stop=true;break;}
@@ -521,7 +540,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
                     return {value:{generation:selected.generation,passages},tokens:0};
                   }
                   const skillBound=name==="skills.activate"||name==="skills.read"?Math.min(resultBound,Math.max(0,policy.maxInputTokens-snapshot.estimatedTokens-policy.safetyTokens)):undefined;
-                  const value = await executeTool(pool, taskId, id, name, call.function.arguments,skillBound);
+                  const value = await executeTool(pool, taskId, id, name, call.function.arguments,skillBound,handoffFeedback);
                   if(name==="skills.activate"||name==="skills.read") {
                     const loaded=value as SkillLoadResult,source=skillSourceMessage(skillLoadContextSource(loaded,name));
                     const existing=snapshot.messages.some(message=>message.role==="system"&&message.content===source.content);
@@ -541,7 +560,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             if(result.ok && name==="agents.delegate") {
               const children=result.value as DelegatedChild[];
               await ctx.run(`children-wait:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='waiting_children',updated_at=now() WHERE id=$1 AND state='running'",[taskId]).then(()=>undefined));
-              const pending=children.map(child=>ctx.workflowClient<{run:(ctx:restate.WorkflowContext,input:{taskId:string})=>Promise<TaskOutcome>}>({name:WORKFLOW_NAME},child.taskId).run({taskId:child.taskId}));
+              const pending=children.map(child=>ctx.workflowClient<{run:(ctx:restate.WorkflowContext,input:{taskId:string})=>Promise<TaskOutcome>}>({name:runtime.workflow},child.taskId).run({taskId:child.taskId}));
               for(const [index,invocation] of pending.entries()) {
                 try{await invocation;}catch(error){
                   if(!(error instanceof restate.TerminalError)) throw error;
@@ -570,6 +589,38 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             }
             if(result.ok&&!binding&&!productBinding)validateBuiltinResult(name,result.value);
             if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
+            if(result.ok && name==="support.request_handoff_v2") {
+              let candidate:string|null=null;
+              if(handoffFeedback && options.settleHandoffReceipt && options.evidence) {
+                const feedback=handoffFeedback;
+                const operationId=`handoff-feedback:${taskId}`;
+                const reservedTokens=feedback.modelRequest.maxInputTokens+feedback.modelRequest.maxOutputTokens;
+                const generatedFeedback=await operation<ModelResponse>(ctx,pool,taskId,{id:operationId,kind:"model",name:"model.handoff_feedback",request:feedback,
+                  reservedTokens,reservedMs:feedback.modelRequest.maxDurationSeconds*1000,evidenceManifest:feedback.evidenceManifest},async()=>{
+                    const value=await invokeObservedTaskModel({pool,providerStore:options.modelProvider,execution,operationId,role:"primary",
+                      messages:feedback.modelRequest.messages,maxRequestBytes:policy.maxRequestBytes,
+                      signal:options.signal?AbortSignal.any([options.signal,ctx.request().attemptCompletedSignal]):ctx.request().attemptCompletedSignal},
+                    {...options.modelRuntime,assertAuthority:async(db)=>{
+                      const current=await loadExecution(db,taskId,true);
+                      await assertHandoffFeedbackAuthority(db,current,operationId,feedback);
+                      await assertCurrentEvidence(db,taskId,feedback.evidenceManifest,{requireActiveTask:false});
+                    }});
+                    return {value,tokens:accountedModelTokens(value,reservedTokens)};
+                  });
+                if(generatedFeedback.ok && generatedFeedback.value.finishReason==="stop") {
+                  const content=generatedFeedback.value.message.content?.trim();
+                  if(content && Buffer.byteLength(content)<=4096) {
+                    const valid=await ctx.run(`handoff-feedback-citations:${step}:${callIndex}`,async()=>{
+                      try { await options.evidence!.validateCitations(taskId,content); return true; }
+                      catch(error) { if(error instanceof PlatformError) return false; throw error; }
+                    });
+                    if(valid) candidate=content;
+                  }
+                }
+              }
+              if(options.settleHandoffReceipt) await ctx.run(`handoff-feedback-settle:${step}:${callIndex}`,()=>options.settleHandoffReceipt!(taskId,candidate,candidate===null));
+              outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break;
+            }
             if(result.ok && (name==="channel.request_handoff" || name==="support.request_handoff")) { outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break; }
             if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED", "PRODUCT_AUTHORITY_INACTIVE", "PRODUCT_MANIFEST_INVALID", "PRODUCT_REVIEW_SCOPE_DENIED", "ADAPTER_RELEASE_UNAVAILABLE", "EVIDENCE_INTEGRITY", "PRODUCT_EFFECT_UNCERTAIN"].includes(result.code))) {
               outcome = failed(result); stop = true; break;

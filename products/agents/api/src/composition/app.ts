@@ -91,6 +91,7 @@ import { registerCustomerFollowupConsent, registerCustomerFollowupReturn } from 
 import { ResendNotificationSender } from "../adapters/notifications/resend";
 import { customerFollowupReady } from "../product/customer-followup/readiness";
 import { registerSupportAlertRoutes } from "../product/inbox/support-alert-routes";
+import { registerSupportPresenceRoutes } from "../product/inbox/support-presence-routes";
 import { exportExecutionHistory } from "../product/evaluation/history-export";
 
 import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
@@ -290,6 +291,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   registerCustomerRecordRoutes(app,{store:new CustomerRecordStore(pool),resolveScope});
   registerOverviewRoutes(app,{pool,resolveScope});
   registerSupportAlertRoutes(app,pool,resolveScope);
+  registerSupportPresenceRoutes(app,pool,resolveScope);
   registerEnquiryRoutes(app,{store:enquiries,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   registerBookingRoutes(app,{bookings,resolveScope,resolveTask:async request=>{const {task}=await humanTask(request);return {taskId:task.id,principal:task.principal};}});
   if(apiConnections)registerApiConnectionRoutes(app,{store:apiConnections,resolveScope});

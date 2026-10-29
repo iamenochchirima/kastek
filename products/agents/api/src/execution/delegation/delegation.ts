@@ -5,7 +5,7 @@ import { assertConnectedBindingDependencies } from "../../capabilities/connected
 import { fitUtf8 } from "../../capabilities/tools";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { agentConfigurationSchema,connectedToolAuthorityIds,executionGrantSchema,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
-import { assertCurrentAuthority,event,HARNESS_RELEASE,loadExecution,transaction } from "../lifecycle/execution";
+import { assertCurrentAuthority,event,loadExecution,transaction } from "../lifecycle/execution";
 import { compilePublishedComposition } from "../programs/publication";
 
 export const delegationRequestSchema = z.strictObject({ requests: z.array(z.strictObject({
@@ -76,7 +76,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release,effective_composition,evaluation_trial_id,channel_binding)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
       [id,task.product,task.organization_id,item.version.agent_id,grant.callerClientId,task.principal,item.version.id,grant.id,conversationId,`child:${id}`,digest,
-        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,HARNESS_RELEASE,item.composition,task.evaluation_trial_id,task.channel_binding]);
+        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,task.harness_release,item.composition,task.evaluation_trial_id,task.channel_binding]);
       await saveTaskModelRoutes(db, id, task.organization_id, item.models);
       await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest,input_manifest) VALUES($1,$2,$3,$4,$5,$6,$7)",[parentId,operationId,slot,id,item.binding.id,digest,inputManifest]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)",[id]);

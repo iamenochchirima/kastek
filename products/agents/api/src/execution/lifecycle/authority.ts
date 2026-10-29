@@ -1,6 +1,6 @@
 import type { Pool,PoolClient } from "pg";
 import {
-assertGrantAuthority,isCustomerPrincipal,
+assertGrantAuthority,isCustomerPrincipal,requestDigest,
 executionGrantSchema,
 PlatformError,
 terminalTaskStates
@@ -21,12 +21,19 @@ import { channelPorts } from "../../infrastructure/channel-ports";
 import { assertProductAuthority } from "../admission/product-authority";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed } from "../context/visitor-lineage";
+import { HANDOFF_HARNESS_RELEASE } from "../../contracts/execution";
+import { assertPublishedTools } from "../../capabilities/tool-definitions";
+import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "./handoff-feedback-contract";
 export async function assertBaseAuthority(db: Pool | PoolClient, execution: Execution): Promise<void> {
+  return assertBaseAuthorityForPurpose(db, execution, false);
+}
+
+async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: Execution, handoffFeedback: boolean): Promise<void> {
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
   if (new Date(task.deadline_at).getTime() <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
-  if (task.channel_binding) {
+  if (task.channel_binding && !handoffFeedback) {
     const root = task.parent_task_id ? await loadExecution(db, task.root_task_id) : execution;
     await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);
   }
@@ -86,4 +93,71 @@ export async function assertBaseAuthority(db: Pool | PoolClient, execution: Exec
   }
   await assertCurrentSkillPolicy(db,execution,grant.operations);
   if(configuration.capabilities.businessActions.enabled)await loadBookingPolicy(db,task.organization_id,agentId,configuration.capabilities.businessActions);
+}
+
+/** The caller must hold the root, task, conversation and receipt locks until model dispatch.
+ * This checks only a pre-reserved acknowledgement operation; it does not admit a new operation. */
+export async function assertHandoffFeedbackAuthority(db: PoolClient, execution: Execution, operationId: string, expectedRequest: unknown): Promise<void> {
+  await assertHandoffFeedbackEpisode(db, execution, operationId, expectedRequest, true);
+}
+
+/** Must run under the root/task transaction before reserving this operation. */
+export async function assertHandoffFeedbackAdmissionAuthority(db: PoolClient, execution: Execution, operationId: string, expectedRequest: unknown): Promise<HandoffFeedbackRequest> {
+  return assertHandoffFeedbackEpisode(db, execution, operationId, expectedRequest, false);
+}
+
+async function assertHandoffFeedbackEpisode(db: PoolClient, execution: Execution, operationId: string, expectedRequest: unknown, reserved: boolean): Promise<HandoffFeedbackRequest> {
+  const task = execution.task;
+  const binding = task.channel_binding && channelBindingSchema.parse(task.channel_binding);
+  if (!binding || task.parent_task_id || task.root_task_id !== task.id || task.product !== "agents" ||
+      operationId !== `handoff-feedback:${task.id}` || !isCustomerPrincipal(task.principal) ||
+      task.harness_release !== HANDOFF_HARNESS_RELEASE || !execution.configuration.tools.includes("support.request_handoff_v2")) {
+    throw new PlatformError("HANDOFF_FEEDBACK_DENIED", 403, "Handoff feedback is unavailable");
+  }
+  assertPublishedTools(execution.configuration,execution.toolBindings);
+  const request = parseHandoffFeedbackRequest(expectedRequest);
+  const allowed = await db.query(`SELECT r.feedback_request_digest,r.evidence_manifest,c.session_id
+    ${reserved ? ",op.request,op.request_digest" : ""} FROM agents_platform.pending_handoff_receipts r
+    JOIN agents_platform.customer_conversations c ON c.id=r.conversation_id AND c.organization_id=$2
+    JOIN agents_platform.customer_commands cmd ON cmd.conversation_id=c.id AND cmd.command_id=$1
+    JOIN agents_platform.customer_task_links l ON l.task_id=$1 AND l.conversation_id=c.id
+    JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=c.id
+    JOIN agents_platform.execution_roots root ON root.root_task_id=$1 AND root.settled_at IS NULL
+    ${reserved ? `JOIN agents_platform.operations op ON op.task_id=$1 AND op.id=$3
+    JOIN agents_platform.model_cost_reservations cost ON cost.operation_id=op.id AND cost.task_id=$1
+      AND cost.organization_id=$2 AND cost.root_task_id=$1 AND cost.state='reserved'
+    JOIN agents_platform.capacity_requests cap ON cap.id=op.id AND cap.task_id=$1 AND cap.state='active'` : ""}
+    WHERE r.task_id=$1 AND $3::text=$3::text AND r.conversation_id=$4 AND r.outcome IS NULL AND r.deadline>clock_timestamp()
+      AND c.state='handoff_pending' AND c.ownership_generation=r.ownership_generation
+      AND c.agent_id=$5 AND l.input_message_id=$6 AND l.ownership_generation=$7::bigint
+      AND (($8::text='visitor' AND c.channel_kind='website' AND c.deployment_id=$9::uuid)
+        OR ($8::text='channel_customer' AND c.channel_kind<>'website' AND c.channel_deployment_id=$9::uuid AND c.id=$10::uuid))
+      AND l.ownership_generation+1=r.ownership_generation AND m.author_kind='visitor'
+      AND m.ownership_generation=l.ownership_generation AND m.sequence>c.return_watermark
+      AND cmd.action='request_handoff' AND cmd.result->>'pendingReceiptTaskId'=$1::text
+      AND cmd.result->>'ownership_generation'=r.ownership_generation::text
+      ${reserved ? "AND op.kind='model' AND op.name='model.handoff_feedback' AND op.state='started' AND op.reserved_tokens>0 AND op.reserved_ms>0" : ""}
+      AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_cancellations x WHERE x.task_id=$1 AND x.completed_at IS NULL)
+      AND ((c.channel_kind='website' AND EXISTS (SELECT 1 FROM agents_platform.website_deployments d
+        WHERE d.id=c.deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id AND d.revoked_at IS NULL AND NOT d.paused))
+        OR (c.channel_kind<>'website' AND EXISTS (SELECT 1 FROM agents_platform.channel_deployments d
+          JOIN agents_platform.channel_connections conn ON conn.id=d.connection_id AND conn.organization_id=d.organization_id
+          WHERE d.id=c.channel_deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id
+            AND d.state='active' AND conn.state='active'))) FOR UPDATE OF c,r`,
+  [task.id,task.organization_id,operationId,binding.customerConversationId,execution.agentId,binding.inputMessageId,binding.ownershipGeneration,
+    task.principal.kind,task.principal.deploymentId,task.principal.kind === "visitor" ? task.principal.sessionId : task.principal.participantId]);
+  if (!allowed.rowCount || allowed.rows[0].feedback_request_digest !== requestDigest(request) ||
+      requestDigest(allowed.rows[0].evidence_manifest) !== requestDigest(request.evidenceManifest) ||
+      reserved && (allowed.rows[0].request_digest !== requestDigest(allowed.rows[0].request) ||
+        allowed.rows[0].request_digest !== requestDigest(request))) {
+    throw new PlatformError("HANDOFF_FEEDBACK_DENIED", 403, "Handoff feedback is unavailable");
+  }
+  if (task.principal.kind === "visitor" && allowed.rows[0].session_id !== task.principal.sessionId &&
+      !(await channelPorts(db).visitorLineage?.(db,{ organizationId:task.organization_id,agentId:execution.agentId,
+        executionConversationId:task.conversation_id,customerConversationId:binding.customerConversationId,current:task.principal,
+        origin:{deploymentId:task.principal.deploymentId,sessionId:allowed.rows[0].session_id} }))) {
+    throw new PlatformError("HANDOFF_FEEDBACK_DENIED", 403, "Handoff feedback is unavailable");
+  }
+  await assertBaseAuthorityForPurpose(db, execution, true);
+  return request;
 }

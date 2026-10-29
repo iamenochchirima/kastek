@@ -25,11 +25,11 @@ describe("support status", () => {
   it("pins configured hours and status tool in newly published configurations", () => {
     const configuration = customerConfigurationForSetup({ business: { name: "Example", website: "", description: "" }, responsibilities: ["customer-support"], channels: ["website"], behaviour: { agentName: "Assistant", language: "English", tone: "friendly", handoffInstructions: "" }, supportHours: hours });
     expect(configuration.supportHours).toEqual(hours);
-    expect(toolsFor(configuration).map(tool => tool.function.name)).toContain("support_get_status");
-    expect(publishedToolBindings(configuration).map(binding => binding.name)).toContain("support.get_status");
-    expect(compilePublishedComposition(configuration, []).capabilities.map(item => item.id)).toContain("support.get_status");
+    expect(toolsFor(configuration).map(tool => tool.function.name)).toContain("support_get_status_v2");
+    expect(publishedToolBindings(configuration).map(binding => binding.name)).toContain("support.get_status_v2");
+    expect(compilePublishedComposition(configuration, []).capabilities.map(item => item.id)).toContain("support.get_status_v2");
     expect(() => validateBuiltinResult("support.get_status", supportStatus(hours, new Date("2026-10-26T10:00:00Z")))).not.toThrow();
-    const legacy = { ...configuration, tools: configuration.tools.filter(name => name !== "support.get_status") };
+    const legacy = { ...configuration, tools: configuration.tools.filter(name => name !== "support.get_status_v2") };
     expect(() => compilePublishedComposition(legacy, [])).not.toThrow();
   });
 });

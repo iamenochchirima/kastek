@@ -96,10 +96,34 @@ unconnected and needs-attention states come from records rather than selected ch
 Support hands off to the existing unassigned Inbox queue; free text does not create staffing rules.
 Customer-service setup can save weekly support hours and an IANA timezone. The saved schedule is
 pinned to the agent configuration when published. When human support is selected in setup, its
-`support.get_status` tool returns whether the current time falls within that schedule, together
-with the schedule; it reports unknown if no schedule was configured. It does not infer staff
-presence or a response time from those hours. Previously published configurations without the
-tool retain their original capabilities; saving a new setup publishes the new tool and hours.
+`support.get_status_v2` tool returns whether the current time falls within that schedule, the next
+opening when closed, and aggregate staff availability. It reports unknown when a schedule or
+availability is not known, and never derives staff presence or response times from the schedule.
+The Inbox lets a member explicitly select Available or Away. Availability expires after two minutes;
+only the visible Inbox tab that selected Available renews its lease. Revoked members do not count,
+and the tool never exposes individual staff identities. Previously published configurations keep
+their pinned `support.get_status` tool and its original unknown-presence response.
+
+Schema088 adds support presence. Deploy schema087 and schema088 in order before enabling the new
+API and web code. Rollback disables the new code while retaining the additive schema and its
+checksum registration. Staff availability is advisory and does not guarantee someone will reply.
+
+Schema087 adds pending handoff receipts. New customer configurations use
+`product-capabilities-v12` and `AgentsBusinessRunV22`. The worker registers
+`AgentsHandoffReceiptV1` to settle a single acknowledgement or its factual fallback. The deadline
+is five seconds from the committed request. Existing pinned configurations retain their original
+immediate receipt. Pending receipts use current ownership, channel and evidence checks at
+publication and dispatch. Attachment-origin waiting notices do not require the model handoff tool.
+
+Release risk is high across the Agents API, worker, schema, Inbox and customer channels. Apply
+087 and 088 in order, register the V22 and receipt workflows, and start matching API and worker
+artifacts together. The structured `handoff_receipt_publisher_error` log and receipt states support
+investigation without message bodies. No new analytics or Collector changes are introduced.
+Controlled PostgreSQL, Restate and model-provider fixtures verify the new path; live-provider
+acceptance and model behavior evaluation remain owner-run. To roll back, route new configurations
+away from V22 and drain or suppress pending receipts before removing its worker. Retain the additive
+tables and provider receipts. A production release ID, rollout and post-release review date are not
+applicable until deployment is authorized.
 
 Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
 the single final assistant message; schema077 adds resumable progress and creation idempotency.
@@ -1953,8 +1977,9 @@ Validation uses `customer-followup-journey.test.ts` with actual app routes, Post
 Resend adapter against a controlled local HTTP mailbox; `customer-return-lineage.test.ts` checks
 source revocation, cross-session/cross-customer denial and lost-claim recovery. The existing
 challenge/adapter and website/return browser checks cover their separate boundaries. These checks
-do not establish live mail delivery or model quality. The natural acknowledgement gap remains
-explicit: handoff currently sends a platform receipt, not a post-tool model-generated response.
+do not establish live mail delivery or model quality. New customer configurations allow one
+bounded post-handoff acknowledgement, with a factual fallback if generation cannot be published.
+Older pinned configurations keep their original receipt behavior.
 
 Release risk is standard across Agents schema/API/worker, widget and return view. Apply schema085
 before matching API/worker artifacts, then register the notification workflow. No new analytics

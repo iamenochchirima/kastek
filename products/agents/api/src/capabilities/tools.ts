@@ -1,3 +1,4 @@
+import { supportStatusV2 } from "./support-status-v2";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError,type AgentConfiguration } from "../contracts/contracts";
@@ -12,9 +13,10 @@ import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool } from "./skills/runtime";
 import { supportStatus } from "./support-status";
 import { handoffBriefSchema } from "../contracts/channel";
+import type { HandoffFeedbackRequest } from "../execution/lifecycle/handoff-feedback-contract";
 export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
-export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number): Promise<unknown> {
+export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number, handoffFeedback?: HandoffFeedbackRequest): Promise<unknown> {
   const execution = await loadExecution(pool, taskId), config = execution.configuration;
   if (!builtinToolEnabled(config, name)) throw new PlatformError("TOOL_DENIED", 403, "Tool is unavailable");
   let input: unknown;
@@ -23,12 +25,26 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
     if(name==="enquiry.submit"||name==="enquiry.amend")return new EnquiryStore(pool).submit(taskId,operationId,input,name);
     if(name==="enquiry.read")return new EnquiryStore(pool).readOwn(taskId,input);
     if(name==="records.search"||name==="records.update")return executeRecordTool(pool,taskId,operationId,name,input);
+    if(name === "support.get_status_v2") {
+      z.strictObject({}).parse(input);
+      if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");
+      return supportStatusV2(pool,execution.task.organization_id,config.supportHours);
+    }
     if(name === "support.get_status") {
       z.strictObject({}).parse(input);
       if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");
       return supportStatus(config.supportHours);
     }
     if (name === "skills.activate" || name === "skills.read") return executeSkillTool(pool, taskId, name, input, maxResultBytes);
+    if (name === "support.request_handoff_v2") {
+      const brief = handoffBriefSchema.parse(input);
+      if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");
+      return transaction(pool, db => {
+        const port = channelPorts(db).requestHandoffV2;
+        if (!port) throw new PlatformError("HANDOFF_RELEASE_UNAVAILABLE",503,"Human support is unavailable");
+        return port(db,execution.task.channel_binding!,taskId,brief,handoffFeedback);
+      });
+    }
     if (name === "channel.request_handoff" || name === "support.request_handoff") {
       const brief = name === "support.request_handoff" ? handoffBriefSchema.parse(input) : (z.strictObject({}).parse(input), undefined);
       if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");

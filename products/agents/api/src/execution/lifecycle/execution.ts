@@ -21,6 +21,8 @@ import { type Execution,type MemoryFence,type OperationRecord,type OperationRequ
 import { assertCurrentAuthority } from "../context/evidence-policy";
 import { loadExecution } from "./state";
 import { quoteNormalizedUsage, reserveModelCost, settleModelCost } from "../models/accounting";
+import { assertHandoffFeedbackAdmissionAuthority } from "./authority";
+import { parseHandoffFeedbackRequest } from "./handoff-feedback-contract";
 export async function event(db: Pool | PoolClient, taskId: string, key: string, kind: string, payload: object = {}): Promise<void> {
   await recordEvent(db, taskId, key, kind, payload);
 }
@@ -33,11 +35,38 @@ async function taskIdentity(db:PoolClient,taskId:string):Promise<{organization_i
 
 export type OperationAdmission={waiting?:false;replayed:boolean;operation:OperationRecord;recovering?:boolean}|{waiting:true;replayed:false;capacity:Extract<CapacityDecision,{state:"waiting"}>};
 export async function beginOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<OperationAdmission> {
+  return beginOperationForPurpose(pool,taskId,input,false);
+}
+
+export async function beginHandoffFeedbackOperation(pool: Pool, taskId: string, input: OperationRequest): Promise<OperationAdmission> {
+  if (input.id !== `handoff-feedback:${taskId}` || input.kind !== "model" || input.name !== "model.handoff_feedback" ||
+      !input.evidenceManifest || input.memoryFence || input.retrySafe || input.reconcile) {
+    throw new PlatformError("HANDOFF_FEEDBACK_DENIED",403,"Handoff feedback is unavailable");
+  }
+  const request = parseHandoffFeedbackRequest(input.request);
+  if (requestDigest(request.evidenceManifest) !== requestDigest(input.evidenceManifest) ||
+      input.reservedTokens < request.modelRequest.maxInputTokens + request.modelRequest.maxOutputTokens ||
+      input.reservedMs < request.modelRequest.maxDurationSeconds * 1000) {
+    throw new PlatformError("HANDOFF_FEEDBACK_DENIED",403,"Handoff feedback is unavailable");
+  }
+  return beginOperationForPurpose(pool,taskId,input,true);
+}
+
+async function beginOperationForPurpose(pool: Pool, taskId: string, input: OperationRequest, handoffFeedback: boolean): Promise<OperationAdmission> {
   return transaction(pool, async db => {
     const preliminary = await taskIdentity(db, taskId);
     const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
+    if (handoffFeedback) {
+      const request = await assertHandoffFeedbackAdmissionAuthority(db,execution,input.id,input.request);
+      const route=execution.models.primary;
+      if (request.modelRequest.model !== route.binding.modelId || request.modelRequest.maxInputTokens > route.policy.maxInputTokens ||
+          request.modelRequest.maxOutputTokens > route.policy.maxOutputTokens || request.modelRequest.maxDurationSeconds * 1000 > route.policy.maxCallDurationMs) {
+        throw new PlatformError("HANDOFF_FEEDBACK_DENIED",403,"Handoff feedback is unavailable");
+      }
+      await (await import("../context/evidence-policy")).assertCurrentEvidence(db,taskId,request.evidenceManifest,{requireActiveTask:false});
+    }
     const existing = (await db.query<OperationRecord & { request_digest: string }>("SELECT * FROM agents_platform.operations WHERE id=$1 FOR UPDATE", [input.id])).rows[0];
     if (existing) {
       if (existing.task_id !== taskId || existing.request_digest !== requestDigest(input.request)) throw new PlatformError("OPERATION_CONFLICT", 409, "Operation identity conflict");
@@ -63,9 +92,9 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
       }
       return { replayed: true, operation: existing };
     }
-    await assertCurrentAuthority(db, execution);
+    if (!handoffFeedback) await assertCurrentAuthority(db, execution);
     await checkMemoryFence(db, input.memoryFence);
-    if (input.evidenceManifest) await (await import("../context/evidence-policy")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
+    if (input.evidenceManifest && !handoffFeedback) await (await import("../context/evidence-policy")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
     const model = input.kind === "model" || input.kind === "compaction";
     const root = (await db.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1", [task.root_task_id])).rows[0];
     const child = Boolean(task.parent_task_id);
@@ -84,6 +113,7 @@ export async function beginOperation(pool: Pool, taskId: string, input: Operatio
     const capacity=await requestCapacity(db,request,policy);
     if(capacity.state==='waiting'){
       await event(db,taskId,`capacity-wait:${input.id}:${capacity.generation}`,"capacity.waiting",{operationId:input.id,workload:request.workload});
+      if (handoffFeedback) await releaseCapacity(db,capacity.requestId,"failed");
       return {waiting:true,replayed:false,capacity};
     }
     await activateCapacity(db,capacity.requestId,capacity.generation);

@@ -136,6 +136,13 @@ export class ChannelDelivery {
   }
   private async authority(row: Row): Promise<{connection: Row; message: Row}> {
     return transaction(this.pool, async db => {
+      const pendingReceipt=Boolean((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.customer_messages m ON m.id=o.message_id
+        WHERE o.id=$1 AND m.task_id IS NOT NULL AND m.request_key='handoff-receipt:'||m.task_id::text`,[row.id])).rowCount);
+      // The new table is only referenced for versioned receipts; legacy installations need no migration to deliver v1 messages.
+      const receiptCondition=pendingReceipt ? `OR (p.state='handoff_pending' AND m.task_id IS NOT NULL AND m.ownership_generation=o.ownership_generation
+        AND m.request_key='handoff-receipt:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.pending_handoff_receipts receipt
+          WHERE receipt.task_id=m.task_id AND receipt.conversation_id=p.id AND receipt.message_id=m.id
+            AND receipt.ownership_generation=o.ownership_generation AND receipt.outcome IN ('model','fallback')))` : "";
       const result = (await db.query(`SELECT row_to_json(c) connection,row_to_json(m) message FROM agents_platform.channel_outbound o
         JOIN agents_platform.customer_conversations p ON p.id=o.conversation_id JOIN agents_platform.customer_messages m ON m.id=o.message_id
         JOIN agents_platform.channel_deployments d ON d.id=o.deployment_id JOIN agents_platform.channel_connections c ON c.id=o.connection_id
@@ -145,8 +152,8 @@ export class ChannelDelivery {
         AND ((m.author_kind='assistant' AND (p.state='automation_active' OR (p.state='handoff_pending' AND m.body=$3 AND m.ownership_generation=o.ownership_generation
           AND m.request_key='handoff:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt
             WHERE receipt.conversation_id=p.id AND receipt.command_id=m.task_id AND receipt.action='request_handoff'
-              AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text)) OR
-          (p.state='handoff_pending' AND m.task_id IS NULL AND m.body=$3 AND m.ownership_generation=o.ownership_generation
+              AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text))
+          ${receiptCondition} OR (p.state='handoff_pending' AND m.task_id IS NULL AND m.body=$3 AND m.ownership_generation=o.ownership_generation
             AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt JOIN agents_platform.support_waiting waiting
               ON waiting.task_id=receipt.command_id AND waiting.conversation_id=receipt.conversation_id AND waiting.source_message_id=receipt.command_id
               JOIN agents_platform.customer_messages origin ON origin.id=waiting.source_message_id AND origin.conversation_id=p.id AND origin.author_kind='visitor'
@@ -155,12 +162,19 @@ export class ChannelDelivery {
           (p.state IN ('handoff_pending','human_owned') AND m.task_id IS NULL AND m.ownership_generation=o.ownership_generation
             AND EXISTS(SELECT 1 FROM agents_platform.support_waiting_notices notice JOIN agents_platform.support_waiting waiting ON waiting.task_id=notice.task_id
               WHERE notice.message_id=m.id AND notice.state='published' AND notice.body=m.body AND notice.ownership_generation=o.ownership_generation
-                AND waiting.conversation_id=p.id AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages reply
+                AND waiting.conversation_id=p.id
+                AND EXISTS(SELECT 1 FROM agents_platform.agents a JOIN agents_platform.agent_versions v
+                  ON v.agent_id=a.id AND v.organization_id=a.organization_id AND v.id=d.version_id
+                  WHERE a.id=p.agent_id AND a.organization_id=p.organization_id AND a.deleted_at IS NULL
+                    AND (waiting.source_message_id IS NOT NULL OR (v.configuration->'tools') ? 'channel.request_handoff')
+                  FOR SHARE OF a,v)
+                AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages reply
                   WHERE reply.conversation_id=p.id AND reply.author_kind='human' AND reply.ownership_generation>=waiting.ownership_generation))))) OR (m.author_kind='human' AND p.state='human_owned'
           AND p.assignee_account_id=m.author_account_id AND EXISTS(SELECT 1 FROM agents_platform.memberships mem
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id,HANDOFF_RECEIPT])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
+      if(pendingReceipt) await this.inbox.assertPendingReceiptDelivery(db,result.message);
       if(row.request.enquiryReview)await assertEnquiryReviewPrompt(db,row.request,row.conversation_id);
       if(row.request.toolReview)await assertChannelToolReviewPrompt(db,row.request,row.conversation_id);
       return result;
