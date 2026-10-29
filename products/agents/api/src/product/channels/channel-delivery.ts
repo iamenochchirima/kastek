@@ -115,6 +115,10 @@ export class ChannelDelivery {
       // A process that lost its claim may already have sent. Expiry preserves uncertainty; it never queues another POST.
       await db.query("UPDATE agents_platform.channel_outbound SET state='unknown',reason='send_acknowledgement_lost',updated_at=now() WHERE state='sending' AND lease_until<now()");
       const row = (await db.query(`SELECT o.* FROM agents_platform.channel_outbound o WHERE o.state='pending' AND o.available_at<=now()
+        AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_commands receipt
+          LEFT JOIN agents_platform.channel_message_facts facts ON facts.message_id=receipt.command_id
+          WHERE receipt.conversation_id=o.conversation_id AND receipt.action='message_handoff'
+            AND receipt.result->>'handoffReceiptId'=o.message_id::text AND facts.message_id IS NULL)
         AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_send_limits quota WHERE quota.connection_id=o.connection_id AND quota.next_send_at>now())
         AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound p JOIN agents_platform.customer_messages pm ON pm.id=p.message_id
           JOIN agents_platform.customer_messages om ON om.id=o.message_id WHERE p.conversation_id=o.conversation_id
@@ -142,6 +146,12 @@ export class ChannelDelivery {
           AND m.request_key='handoff:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt
             WHERE receipt.conversation_id=p.id AND receipt.command_id=m.task_id AND receipt.action='request_handoff'
               AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text)) OR
+          (p.state='handoff_pending' AND m.task_id IS NULL AND m.body=$3 AND m.ownership_generation=o.ownership_generation
+            AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt JOIN agents_platform.support_waiting waiting
+              ON waiting.task_id=receipt.command_id AND waiting.conversation_id=receipt.conversation_id AND waiting.source_message_id=receipt.command_id
+              JOIN agents_platform.customer_messages origin ON origin.id=waiting.source_message_id AND origin.conversation_id=p.id AND origin.author_kind='visitor'
+              WHERE receipt.conversation_id=p.id AND receipt.action='message_handoff' AND receipt.result->>'handoffReceiptId'=m.id::text
+                AND receipt.result->>'ownership_generation'=o.ownership_generation::text AND m.request_key='handoff-message:'||origin.id::text)) OR
           (p.state IN ('handoff_pending','human_owned') AND m.task_id IS NULL AND m.ownership_generation=o.ownership_generation
             AND EXISTS(SELECT 1 FROM agents_platform.support_waiting_notices notice JOIN agents_platform.support_waiting waiting ON waiting.task_id=notice.task_id
               WHERE notice.message_id=m.id AND notice.state='published' AND notice.body=m.body AND notice.ownership_generation=o.ownership_generation

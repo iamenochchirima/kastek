@@ -9,6 +9,7 @@ import { ChannelDelivery } from "../src/product/channels/channel-delivery";
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { channelWebhookEventSchema } from "../src/contracts/channel-adapters";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
+import { SupportWaitingService } from "../src/product/inbox/support-waiting";
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("durable channel delivery",()=>{
   const database=`agents_channel_delivery_${randomUUID().replaceAll("-","")}`;
@@ -49,6 +50,39 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const history=await inbox.readStaff(f.scope,f.conversationId);expect(history.messages.map(m=>m.body)).toEqual(["Need help"]);
     expect(history.messages[0].channelFacts?.occurredAt?.toISOString()).toBe(event.occurredAt);
     expect((await pool.query("SELECT state FROM agents_platform.channel_ingress WHERE connection_id=$1",[f.connection.id])).rows[0].state).toBe("completed");
+  });
+  it("acknowledges an attachment-only handoff once and schedules staff and waiting updates",async()=>{
+    const f=await fixture();await pool.query("UPDATE agents_platform.customer_conversations SET state='automation_active',assignee_account_id=NULL WHERE id=$1",[f.conversationId]);
+    let calls=0;const worker=delivery(async()=>{calls++;return Response.json({ok:true,result:{message_id:919}});});
+    const event=channelWebhookEventSchema.parse({kind:"message",assetId:f.assetId,eventId:"attachment-1",externalConversationId:"1234",senderId:"1234",providerMessageId:"attachment-1",occurredAt:new Date().toISOString(),attachments:[{kind:"image",providerMediaId:"image-1"}]});
+    expect(await worker.persist("telegram",[event])).toBe(1);expect(await worker.persist("telegram",[event])).toBe(0);
+    await worker.drain(4);await worker.drain(4);
+    const result=await inbox.readStaff(f.scope,f.conversationId);
+    expect(result.conversation.state).toBe("handoff_pending");
+    expect(result.messages.map(message=>message.body)).toEqual(["[Attachment received. Staff assistance required.]","This conversation has been passed to the support team. You can add details here while you wait."]);
+    expect(calls).toBe(1);
+    const episode=(await pool.query("SELECT * FROM agents_platform.support_waiting WHERE conversation_id=$1",[f.conversationId])).rows[0];
+    expect(episode.source_task_id).toBeNull();expect(episode.source_message_id).toBe(result.messages[0].id);
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.support_staff_alerts WHERE task_id=$1",[episode.task_id])).rows[0].n).toBe(1);
+    const waiting=new SupportWaitingService(pool,(db,notice)=>inbox.publishWaitingNotice(db,notice));
+    await waiting.advance(episode.task_id,new Date(new Date(episode.requested_at).getTime()+11*60_000));
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.support_staff_alerts WHERE task_id=$1",[episode.task_id])).rows[0].n).toBe(2);
+    expect((await inbox.readStaff(f.scope,f.conversationId)).messages.at(-1)?.body).toContain("still waiting");
+    await worker.drain(2);
+  });
+  it("waits for inbound facts before sending and fences an attachment receipt after takeover",async()=>{
+    const f=await fixture();await pool.query("UPDATE agents_platform.customer_conversations SET state='automation_active',assignee_account_id=NULL WHERE id=$1",[f.conversationId]);
+    let calls=0;const worker=delivery(async()=>{calls++;return Response.json({ok:true,result:{message_id:920}});});
+    const incoming=await inbox.ingressChannel({deploymentId:f.deploymentId,externalConversationId:f.thread,senderId:"1234",requestKey:"attachment-race",body:"[Attachment received. Staff assistance required.]",requireHandoff:true});
+    await worker.drain(2);expect(calls).toBe(0);
+    await pool.query(`INSERT INTO agents_platform.channel_message_facts(message_id,connection_id,external_conversation_id,provider_message_id,provider_occurred_at,attachments)
+      VALUES($1,$2,$3,'attachment-race',now(),'[]')`,[incoming.message.id,f.connection.id,f.thread]);
+    const current=(await inbox.readStaff(f.scope,f.conversationId)).conversation;
+    await inbox.command(f.scope,f.conversationId,{commandId:randomUUID(),expectedRevision:current.revision,action:"claim"});
+    const claimed=(await inbox.readStaff(f.scope,f.conversationId)).conversation;
+    await inbox.command(f.scope,f.conversationId,{commandId:randomUUID(),expectedRevision:claimed.revision,action:"takeover"});
+    await worker.drain(2);expect(calls).toBe(0);
+    expect((await worker.readDeliveries(f.scope,f.conversationId))[0].state).toBe("suppressed");
   });
   it("atomically claims segments across workers, distinguishes accepted receipts, and never repeats uncertain sends",async()=>{
     const f=await fixture();let calls=0;

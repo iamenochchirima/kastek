@@ -10,7 +10,7 @@ import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 import { HANDOFF_RECEIPT } from "./handoff-receipt";
-import { recordHandoffWaiting } from "./support-waiting";
+import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
 export type { ChannelBinding } from "../../contracts/channel";
 
 type Db = Pool | PoolClient;
@@ -147,6 +147,11 @@ export class InboxStore {
       if (input.requireHandoff && row.state === "automation_active") {
         Object.assign(row,(await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]);
         await this.queueCancellation(db,row.id,row.ownership_generation);
+        const receipt = await this.append(db,row,{key:`handoff-message:${message.id}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT});
+        await db.query(`INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result)
+          VALUES($1,$2,'message_handoff',$3,$4)`,[row.id,message.id,requestDigest({messageId:message.id}),{ownership_generation:row.ownership_generation,handoffReceiptId:receipt.id}]);
+        await recordMessageHandoffWaiting(db,{messageId:message.id,conversationId:row.id,ownershipGeneration:row.ownership_generation});
+        await enqueueChannelMessage(db,row,receipt);
       }
       if (row.state === "automation_active") {
         if (!this.ports.admitChannel) throw new PlatformError("CHANNEL_RUNTIME_UNAVAILABLE",503,"Channel execution is unavailable");
@@ -375,6 +380,11 @@ export class InboxStore {
     await enqueueChannelMessage(db,row,message,{requestText:body,buttons,toolReview});
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if (!message.task_id && message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands c
+      JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id AND w.source_message_id=c.command_id
+      JOIN agents_platform.customer_messages origin ON origin.id=w.source_message_id AND origin.conversation_id=w.conversation_id AND origin.author_kind='visitor'
+      WHERE c.conversation_id=$1 AND c.action='message_handoff' AND c.result->>'handoffReceiptId'=$2 AND c.result->>'ownership_generation'=$3`,
+    [message.conversation_id,message.id,message.ownership_generation])).rowCount) return HANDOFF_RECEIPT;
     if(!message.task_id && (await db.query(`SELECT 1 FROM agents_platform.support_waiting_notices n
       JOIN agents_platform.support_waiting w ON w.task_id=n.task_id WHERE n.message_id=$1 AND w.conversation_id=$2
       AND n.state='published' AND n.body=$3 AND n.ownership_generation=$4`,[message.id,message.conversation_id,message.body,message.ownership_generation])).rowCount) return message.body;

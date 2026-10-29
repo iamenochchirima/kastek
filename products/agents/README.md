@@ -335,6 +335,9 @@ authorized workspace member. Evaluation conversations alert only their trial own
 and acknowledgement require current membership and the original recipient. Acknowledgement
 records the staff action; it does not establish that a customer received a reply.
 
+An attachment-only or unsupported inbound message also starts a handoff, receipt and waiting
+episode without creating an agent task. Its episode is bound to the original inbound message.
+
 The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
 outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders
 after 10 and 30 minutes. Each kind is limited to two stages. These thresholds are reminder policy,
@@ -343,8 +346,9 @@ support hours defer updates to the next opening in the published timezone; missi
 unknown. The initial handoff alert is immediate regardless of hours.
 
 Assignment, takeover and unassignment preserve the waiting episode. An actual human reply,
-resolution, return to automation, a superseding handoff, channel revocation or removal of the
-published human-support capability stops later waiting work. Customer notices use a separate
+resolution, return to automation, a superseding handoff or channel revocation stops later waiting
+work. Removing the published human-support capability also stops agent-initiated waiting work.
+Customer notices use a separate
 receipt and current ownership generation. They do not grant the agent ordinary replying or business
 tool authority during human ownership. Provider delivery applies the existing connection,
 messaging-window and permission checks; a canonical notice is not proof of provider delivery.
@@ -354,9 +358,10 @@ Native alerts use `GET /api/organizations/:organizationId/inbox-alerts` and
 email, push notifications or third-party messages. Waiting failures use the structured
 `support_waiting_publisher_error` event and `SUPPORT_WAITING_DISPATCH_FAILED` code without message
 bodies. Inspect `support_waiting` dispatch/completion records and `support_waiting_notices` receipt
-states before retrying. Apply schema084 before starting the worker, and refresh its Restate
+states before retrying. Apply schema084 and schema086 before starting the worker, and refresh its Restate
 deployment registration to include the new workflow. To stop future effects, remove Human support
-from the published agent configuration or pause its channel. Keep accepted receipts and unknown
+from the published agent configuration or pause its channel. Pause the channel to stop
+attachment-triggered waiting work. Keep accepted receipts and unknown
 provider deliveries for reconciliation; never resend an unknown effect during rollback.
 
 ### Website reply notifications

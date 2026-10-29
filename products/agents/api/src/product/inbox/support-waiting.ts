@@ -38,8 +38,14 @@ async function alertStaff(db: PoolClient, input: { taskId: string; conversationI
 
 /** Called in the handoff transaction, after its command receipt exists. */
 export async function recordHandoffWaiting(db: PoolClient, input: { taskId: string; conversationId: string; ownershipGeneration: string }): Promise<void> {
-  await db.query(`INSERT INTO agents_platform.support_waiting(task_id,conversation_id,ownership_generation) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, [input.taskId, input.conversationId, input.ownershipGeneration]);
+  await db.query(`INSERT INTO agents_platform.support_waiting(task_id,source_task_id,conversation_id,ownership_generation) VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING`, [input.taskId, input.conversationId, input.ownershipGeneration]);
   await alertStaff(db, { ...input, stage: 0, kind: "handoff_requested" });
+}
+
+/** An attachment-only inbound message has its own episode identity and no execution task. */
+export async function recordMessageHandoffWaiting(db: PoolClient, input: { messageId: string; conversationId: string; ownershipGeneration: string }): Promise<void> {
+  await db.query(`INSERT INTO agents_platform.support_waiting(task_id,source_message_id,conversation_id,ownership_generation) VALUES($1,$1,$2,$3) ON CONFLICT DO NOTHING`, [input.messageId, input.conversationId, input.ownershipGeneration]);
+  await alertStaff(db, { taskId:input.messageId, conversationId:input.conversationId, stage:0, kind:"handoff_requested" });
 }
 
 export class SupportWaitingService {
@@ -72,7 +78,7 @@ export class SupportWaitingService {
         LEFT JOIN agents_platform.channel_connections connection ON connection.id=d.connection_id AND connection.organization_id=c.organization_id AND connection.state='active'
         JOIN agents_platform.agent_versions v ON v.id=CASE WHEN c.channel_kind='website' THEN w.version_id ELSE d.version_id END
         WHERE c.id=$1 AND a.deleted_at IS NULL AND (c.channel_kind='website' OR connection.id IS NOT NULL) FOR SHARE OF a,v`, [row.conversation_id])).rows[0];
-      if (!policy?.configuration?.tools?.includes("channel.request_handoff")) return stop("support_authority_revoked");
+      if (!policy || (row.source_message_id === null && !policy.configuration?.tools?.includes("channel.request_handoff"))) return stop("support_authority_revoked");
       if (row.policy_version !== SUPPORT_WAITING_POLICY.version) return stop("policy_unavailable");
       if (row.next_action_at > now) return row.next_action_at;
       const opening = nextSupportOpening(policy.configuration.supportHours, now);
