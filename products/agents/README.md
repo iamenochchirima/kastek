@@ -355,7 +355,10 @@ uncertainty notice and Inbox staff see a booking-specific brief. Recovery checks
 provider operation; it does not create another appointment.
 
 For an uncertain reviewed HubSpot contact save, the worker recovers the original operation and
-adds a staff-only Inbox notice. It never repeats the provider write or adds a second handoff receipt.
+adds a staff-only Inbox notice. While the handoff and channel remain authorized, it can also send
+one factual customer update about the uncertain save. This update has its own receipt; the original
+handoff receipt stays intact and the provider write is never repeated. A matching contact check,
+takeover or loss of authority suppresses a queued update.
 The connected account owner can run a read-only check in Inbox. A match confirms only the current
 contact details; a missing or unavailable result remains uncertain. The original write and notice
 remain unchanged, and there is no dismissal action.

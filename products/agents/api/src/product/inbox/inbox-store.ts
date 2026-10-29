@@ -11,6 +11,7 @@ import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
 import { BOOKING_UNCERTAIN_RECEIPT, HANDOFF_RECEIPT } from "./handoff-receipt";
 import { currentHandoff, systemMessageIds, transitionMessages } from "./inbox-presentation";
+import { assertConnectedUncertaintyNotice } from "./connected-uncertainty-notice";
 import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
 import type { Receipt } from "./handoff-pending-receipt";
 import { reserveReceipt } from "./handoff-pending-receipt";
@@ -557,6 +558,10 @@ export class InboxStore {
     if(!await assertSupportStatusNotice(db,binding,message.id,message.body,this.ports.verifySupportStatus))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
   }
   private async readableMessage(db:Db,message:CustomerMessage):Promise<string|null>{
+    if (message.request_key?.startsWith('connected-uncertainty:')) {
+      const receipt=(await db.query('SELECT operation_id FROM agents_platform.connected_uncertainty_notices WHERE message_id=$1 AND conversation_id=$2',[message.id,message.conversation_id])).rows[0];
+      return receipt && await assertConnectedUncertaintyNotice(db as PoolClient,receipt.operation_id,message.id,'history') ? message.body : null;
+    }
     if(message.task_id && message.request_key===`support-status:${message.task_id}`) {
       if(!this.ports.verifyHistoricalSupportStatus)return null;
       const row=(await db.query('SELECT * FROM agents_platform.support_status_executions WHERE task_id=$1',[message.task_id])).rows[0];
@@ -602,6 +607,10 @@ export class InboxStore {
       WHERE o.message_id=$1 AND r.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
     if(prompt){const text=channelToolReviewText(prompt.arguments);return message.body===text&&prompt.request_digest===requestDigest({bindingDigest:prompt.binding_digest,arguments:prompt.arguments})&&prompt.request.toolReview?.requestDigest===prompt.request_digest?text:null;}
     return this.ports.readableOutput(db,message.task_id,message.body);
+  }
+  async assertConnectedUncertaintyDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
+    const receipt=(await db.query('SELECT operation_id FROM agents_platform.connected_uncertainty_notices WHERE message_id=$1 AND conversation_id=$2',[message.id,message.conversation_id])).rows[0];
+    if(!receipt || !await assertConnectedUncertaintyNotice(db,receipt.operation_id,message.id,'send')) throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
   }
   async assertPendingReceiptDelivery(db:PoolClient,message:CustomerMessage):Promise<void> {
     if(await this.readableMessage(db,message)!==message.body)

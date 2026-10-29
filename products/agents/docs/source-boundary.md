@@ -155,10 +155,15 @@ authorized. Schema091 adds an owner-only read check against the exact reviewed c
 operation-bound, redacted observation: found means current details match, inconclusive means they
 could not be confirmed, and unavailable means the check failed. It never retries the original write
 or changes its uncertain receipt. Other staff and customers cannot initiate this check. There is no
-notice dismissal action.
+notice dismissal action. Schema092 adds an operation-bound customer uncertainty update, separate
+from the existing handoff receipt. Publication and queued delivery check the current handoff,
+recipient, provider authorization and whether a matching contact was observed. Already visible
+updates remain in conversation history while their original grant is not revoked. Provider delivery retains its existing unknown
+outcome semantics; a check immediately before sending cannot recall an in-flight provider request.
 
-Apply schema090 and schema091 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
-log records bounded retry codes without customer content; analytics and Collector changes are not
+Apply schema090, schema091 and schema092 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
+and `connected_uncertain_notice_failed` logs record bounded retry codes without customer content;
+analytics and Collector changes are not
 applicable. PostgreSQL, controlled provider and browser fixtures validate recovery, owner-only reads and visibility;
 live-provider acceptance and model evaluations remain owner-run. To stop new recovery, set
 `AGENTS_CONNECTED_UNCERTAIN_RECOVERY=false` on the worker and retain schema and receipts. Existing

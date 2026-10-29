@@ -10,6 +10,8 @@ export async function systemMessageIds(db: Pool | PoolClient, conversationId: st
     WHERE w.conversation_id=$1 AND n.state='published' AND n.message_id=ANY($2::uuid[])
     UNION SELECT r.message_id AS id FROM agents_platform.pending_handoff_receipts r
       WHERE r.conversation_id=$1 AND r.outcome='fallback' AND r.message_id=ANY($2::uuid[])
+    UNION SELECT n.message_id AS id FROM agents_platform.connected_uncertainty_notices n
+      WHERE n.conversation_id=$1 AND n.message_id=ANY($2::uuid[])
     UNION SELECT m.id FROM agents_platform.customer_commands c JOIN agents_platform.customer_messages m
       ON m.id::text=c.result->>'handoffReceiptId' AND m.conversation_id=c.conversation_id
       WHERE c.conversation_id=$1 AND c.action IN ('request_handoff','message_handoff') AND m.id=ANY($2::uuid[])

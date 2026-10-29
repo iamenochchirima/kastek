@@ -27,6 +27,7 @@ import {transaction} from "../src/infrastructure/database";
 import {captureConnectedUncertain,processConnectedUncertain} from "../src/product/inbox/connected-uncertain-recovery";
 import {clearChannelPorts} from "../src/infrastructure/channel-ports";
 import {ConnectedReconciliation} from "../src/product/inbox/connected-reconciliation";
+import {publishConnectedUncertaintyUpdate,CONNECTED_UNCERTAINTY_NOTICE} from "../src/product/inbox/connected-uncertainty-notice";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("managed provider through published agent admission and durable reviews",()=>{
@@ -246,12 +247,27 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const assetId=String(messagingSequence++),channels=new ChannelStore(pool,vault),channel=await channels.create(f.scope,{kind:"telegram",mode:"bot",name:"Contact intake",assetId,state:"active",credentials:{botToken:`${assetId}:fixture`}}),deployment=await channels.bind(f.scope,channel.id,{expectedRevision:1,agentId:configured.agent.id});
   const inbox=composeInbox(pool,{publicOrigin:"http://localhost:3100",assertServices:async()=>{}}),received=await inbox.ingressChannel({deploymentId:deployment.id,externalConversationId:"456",senderId:"456",requestKey:randomUUID(),body:"Save my contact details"}),principal={kind:"channel_customer" as const,deploymentId:deployment.id,participantId:received.conversation.id};
   const sent:any[]=[],handler=new ChannelToolReviews(pool,reviews),delivery=new ChannelDelivery(pool,channels,inbox,{
-   context(_connection,credentials,beforeAttempt){return{credential:credentials.botToken!,fetch:async(_url,init)=>{await beforeAttempt();sent.push(JSON.parse(String(init?.body)));return Response.json({ok:true,result:{message_id:55}});}};},
+   context(_connection,credentials,beforeAttempt){return{credential:credentials.botToken!,fetch:async(_url,init)=>{await beforeAttempt();sent.push(JSON.parse(String(init?.body)));return Response.json({ok:true,result:{message_id:54+sent.length}});}};},
    assertPolicy:async()=>{},handleInteraction:(...args)=>handler.handle(...args),acknowledgeInteraction:async()=>{},
   });
   return{...f,connection:shared,bindings,principal,inbox,conversation:received.conversation,task:{...f.task,id:received.message.task_id!},channels,channel,deployment,delivery,sent};
  }
  function callback(f:Awaited<ReturnType<typeof messagingFixture>>,reviewId:string,patch:Partial<ChannelWebhookEvent>={}):ChannelWebhookEvent{return{kind:"interaction",assetId:f.channel.assetId,eventId:randomUUID(),externalConversationId:"456",senderId:"456",occurredAt:new Date().toISOString(),providerMessageId:"55",attachments:[],echo:false,callbackQueryId:randomUUID(),interaction:channelToolReviewButtons(reviewId)[0]!.payload,...patch};}
+ it.each(['send','takeover','confirmed'] as const)('fences an uncertainty update on messaging channel: %s',async scenario=>{
+  const f=await messagingFixture(),op=await operation(f,'contacts.create',{email:'customer@example.test'}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await f.delivery.drain();await f.delivery.persist('telegram',[callback(f,review.id)]);await f.delivery.drain();mode='lost';
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toMatchObject({code:'CONNECTED_OPERATION_UNCERTAIN'});
+  await transaction(pool,db=>captureConnectedUncertain(db,op.operationId));
+  expect(await processConnectedUncertain(pool,op.operationId,f.inbox.recoverUncertainConnectedHandoff.bind(f.inbox))).toBe('recorded');
+  expect(await publishConnectedUncertaintyUpdate(pool,op.operationId)).toBe('published');
+  expect(await publishConnectedUncertaintyUpdate(pool,op.operationId)).toBe('already_published');
+  expect((await f.inbox.readStaff(f.scope,f.conversation.id)).messages.find(message=>message.body===CONNECTED_UNCERTAINTY_NOTICE)?.displayKind).toBe('system');
+  if(scenario==='takeover')for(const action of ['claim','takeover'] as const){const current=await f.inbox.readStaff(f.scope,f.conversation.id);await f.inbox.command(f.scope,f.conversation.id,{commandId:randomUUID(),expectedRevision:current.conversation.revision,action});}
+  if(scenario==='confirmed'){contact={id:'123',properties:{email:'customer@example.test'}};expect((await new ConnectedReconciliation(pool,providers,origin).reconcile(f.scope,f.conversation.id,op.operationId,randomUUID())).state).toBe('found');}
+  await f.delivery.drain(10);await f.delivery.drain(10);
+  const outbound=(await pool.query('SELECT state,reason FROM agents_platform.channel_outbound WHERE conversation_id=$1 ORDER BY created_at',[f.conversation.id])).rows;
+  expect(f.sent.filter(value=>value.text===CONNECTED_UNCERTAINTY_NOTICE),JSON.stringify({sent:f.sent,outbound})).toHaveLength(scenario==='send'?1:0);expect(writes).toBe(1);
+ },20000);
  it("delivers one native exact prompt through the outbox and accepts only the matching verified customer callback",async()=>{
   const f=await messagingFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test",firstName:"Customer"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
   await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);await f.delivery.drain();expect(f.sent).toHaveLength(1);expect(f.sent[0].text).toContain("Email: customer@example.test");expect(f.sent[0].reply_markup.inline_keyboard[0][0].callback_data).toBe(channelToolReviewButtons(review.id)[0]!.payload);

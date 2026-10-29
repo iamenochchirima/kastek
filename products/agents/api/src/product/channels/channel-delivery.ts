@@ -10,6 +10,7 @@ import { recordEvent } from "../../observability/event-store";
 import type { InboxScope, InboxStore } from "../inbox/inbox-store";
 import type { ChannelStore } from "./channel-store";
 import {assertChannelToolReviewPrompt,channelToolReviewDecision} from "./channel-tool-reviews";
+import { channelRecipient } from "./channel-recipient";
 
 const rank: Record<string, number> = { accepted: 1, sent: 2, delivered: 3, read: 4 };
 type Row = Record<string, any>;
@@ -140,6 +141,8 @@ export class ChannelDelivery {
         WHERE o.id=$1 AND m.task_id IS NOT NULL AND m.request_key='handoff-receipt:'||m.task_id::text`,[row.id])).rowCount);
       const supportStatus=Boolean((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.customer_messages m ON m.id=o.message_id
         WHERE o.id=$1 AND m.task_id IS NOT NULL AND m.request_key='support-status:'||m.task_id::text`,[row.id])).rowCount);
+      const connectedUncertainty=Boolean((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.customer_messages m ON m.id=o.message_id
+        WHERE o.id=$1 AND m.request_key LIKE 'connected-uncertainty:%'`,[row.id])).rowCount);
       // The new table is only referenced for versioned receipts; legacy installations need no migration to deliver v1 messages.
       const receiptCondition=pendingReceipt ? `OR (p.state='handoff_pending' AND m.task_id IS NOT NULL AND m.ownership_generation=o.ownership_generation
         AND m.request_key='handoff-receipt:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.pending_handoff_receipts receipt
@@ -148,7 +151,10 @@ export class ChannelDelivery {
       const statusCondition=supportStatus ? `OR (p.state='handoff_pending' AND m.task_id IS NOT NULL AND m.ownership_generation=o.ownership_generation
         AND m.request_key='support-status:'||m.task_id::text AND EXISTS(SELECT 1 FROM agents_platform.support_status_notices notice
           WHERE notice.task_id=m.task_id AND notice.message_id=m.id AND notice.conversation_id=p.id AND notice.ownership_generation=o.ownership_generation))` : '';
-      const result = (await db.query(`SELECT row_to_json(c) connection,row_to_json(m) message FROM agents_platform.channel_outbound o
+      const connectedCondition=connectedUncertainty ? `OR (p.state='handoff_pending' AND m.task_id IS NULL AND m.ownership_generation=o.ownership_generation
+        AND EXISTS(SELECT 1 FROM agents_platform.connected_uncertainty_notices notice WHERE notice.message_id=m.id
+          AND notice.conversation_id=p.id AND notice.ownership_generation=o.ownership_generation))` : '';
+      const result = (await db.query(`SELECT row_to_json(c) connection,row_to_json(m) message,row_to_json(p) conversation FROM agents_platform.channel_outbound o
         JOIN agents_platform.customer_conversations p ON p.id=o.conversation_id JOIN agents_platform.customer_messages m ON m.id=o.message_id
         JOIN agents_platform.channel_deployments d ON d.id=o.deployment_id JOIN agents_platform.channel_connections c ON c.id=o.connection_id
         WHERE o.id=$1 AND o.claim_id=$2 AND o.state='sending' AND o.lease_until>now() AND d.state='active' AND c.state='active'
@@ -160,7 +166,7 @@ export class ChannelDelivery {
               AND receipt.result->>'handoffReceiptId'=m.id::text AND receipt.result->>'ownership_generation'=o.ownership_generation::text
               AND (m.body=$3 OR (m.body=$4 AND EXISTS(SELECT 1 FROM agents_platform.booking_intents b
                 WHERE b.id::text=receipt.result->>'bookingUncertainId' AND b.task_id=m.task_id AND b.state='uncertain')))))
-          ${receiptCondition} ${statusCondition} OR (p.state='handoff_pending' AND m.task_id IS NULL AND m.body=$3 AND m.ownership_generation=o.ownership_generation
+          ${receiptCondition} ${statusCondition} ${connectedCondition} OR (p.state='handoff_pending' AND m.task_id IS NULL AND m.body=$3 AND m.ownership_generation=o.ownership_generation
             AND EXISTS(SELECT 1 FROM agents_platform.customer_commands receipt JOIN agents_platform.support_waiting waiting
               ON waiting.task_id=receipt.command_id AND waiting.conversation_id=receipt.conversation_id AND waiting.source_message_id=receipt.command_id
               JOIN agents_platform.customer_messages origin ON origin.id=waiting.source_message_id AND origin.conversation_id=p.id AND origin.author_kind='visitor'
@@ -183,6 +189,14 @@ export class ChannelDelivery {
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
       if(pendingReceipt) await this.inbox.assertPendingReceiptDelivery(db,result.message);
       if(supportStatus) await this.inbox.assertSupportStatusDelivery(db,result.message);
+      if(connectedUncertainty) {
+        await this.inbox.assertConnectedUncertaintyDelivery(db,result.message);
+        const request=row.request;
+        if(row.segment!==0 || request.text!==result.message.body || request.assetId!==result.connection.asset_id
+          || request.recipientId!==channelRecipient(result.connection.kind,result.connection.asset_id,result.conversation.external_conversation_id)
+          || Object.keys(request).some(key=>!['assetId','recipientId','text'].includes(key)))
+          throw new PlatformError('CHANNEL_DELIVERY_INTEGRITY',403,'Message authority changed');
+      }
       if(row.request.enquiryReview)await assertEnquiryReviewPrompt(db,row.request,row.conversation_id);
       if(row.request.toolReview)await assertChannelToolReviewPrompt(db,row.request,row.conversation_id);
       return result;

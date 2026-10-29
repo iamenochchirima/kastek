@@ -34,6 +34,7 @@ import { createAutomationWorkflow,startAutomationDispatcher } from "../product/a
 import { AutomationService } from "../product/automations/automations";
 import { SupportWaitingService } from "../product/inbox/support-waiting";
 import { captureConnectedUncertainBatch,processConnectedUncertainBatch } from "../product/inbox/connected-uncertain-recovery";
+import { publishConnectedUncertaintyBatch } from "../product/inbox/connected-uncertainty-notice";
 import { createSupportWaitingWorkflow,startSupportWaitingDispatcher } from "../product/inbox/support-waiting-runtime";
 import { settleReceipt } from "../product/inbox/handoff-pending-receipt";
 import { HANDOFF_RECEIPT } from "../product/inbox/handoff-receipt";
@@ -126,6 +127,7 @@ async function main(): Promise<void> {
         const result=await inbox.recoverUncertainConnectedHandoff(db,intent);
         return result.outcome==='recorded' ? {outcome:'recorded' as const,commandId:result.commandId!} : {outcome:result.outcome};
       },20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_recovery_failed',code})));
+      await publishConnectedUncertaintyBatch(pool,20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_notice_failed',code})));
     })().catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_recovery_failed',code:'CONNECTED_UNCERTAIN_RECOVERY_UNAVAILABLE'})))
       .finally(()=>{uncertainPending=undefined;});
   },1000);uncertainTimer.unref();
