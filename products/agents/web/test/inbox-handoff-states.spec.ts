@@ -4,7 +4,7 @@ const org = "11111111-1111-4111-8111-111111111111";
 const id = "33333333-3333-4333-8333-333333333333";
 type State = "automation_active" | "handoff_pending" | "human_owned" | "resolved";
 
-async function setup(page: Page, state: State, assigneeAccountId: string | null, role = "member") {
+async function setup(page: Page, state: State, assigneeAccountId: string | null, role = "member", handoffBrief: { reason: string; brief: string } | null = null) {
   let conversation = { id, agentId: "agent", agentName: "Support agent", deploymentId: "deployment", versionId: "version", channel: "website", state, assigneeAccountId, revision: "1", ownershipGeneration: "1", createdAt: "2026-10-01T12:00:00Z", updatedAt: "2026-10-01T12:00:00Z" };
   const commands: { action: string; expectedRevision: string; commandId: string }[] = [];
   let failure = 0;
@@ -27,7 +27,7 @@ async function setup(page: Page, state: State, assigneeAccountId: string | null,
       conversation = { ...conversation, revision: String(Number(conversation.revision) + 1) };
       return route.fulfill({ json: {} });
     }
-    if (path.endsWith(`/inbox/${id}`)) return route.fulfill({ json: { conversation, messages: [], nextSequence: "1", earlierBefore: null } });
+    if (path.endsWith(`/inbox/${id}`)) return route.fulfill({ json: { conversation, handoffBrief, messages: [], nextSequence: "1", earlierBefore: null } });
     return route.fulfill({ status: 404, json: { error: { message: `Unexpected request ${path}` } } });
   });
   await page.goto(`/app/inbox?conversation=${id}`);
@@ -35,6 +35,13 @@ async function setup(page: Page, state: State, assigneeAccountId: string | null,
   await expect(handoff).toBeVisible();
   return { handoff, commands, failNext: (status: number) => { failure = status; } };
 }
+
+test("shows the agent handoff note on demand", async ({page}) => {
+  await setup(page,"handoff_pending",null,"member",{reason:"Customer requested help",brief:"Customer asked about an order."});
+  await page.getByText("Agent handoff note").click();
+  await expect(page.getByText("Customer requested help")).toBeVisible();
+  await expect(page.getByText("Customer asked about an order.")).toBeVisible();
+});
 
 test("handoff requires assignment before takeover and enables reply only after takeover", async ({ page }) => {
   const { handoff, commands } = await setup(page, "handoff_pending", null);

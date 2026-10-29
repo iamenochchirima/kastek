@@ -325,6 +325,11 @@ retried deliberately after correcting the displayed failure. Repeated ingress re
 
 ### Support waiting and staff alerts
 
+New customer-support configurations give the agent a structured handoff tool. It can record a
+reason and brief for authorized Inbox staff. The original handoff tool remains available to
+previously published configurations. The customer receives a factual receipt when the request
+is committed; the brief is not shown to the customer.
+
 An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
 authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads
 and acknowledgement require current membership and the original recipient. Acknowledgement

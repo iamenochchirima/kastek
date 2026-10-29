@@ -19,7 +19,7 @@ describe("customer setup",()=>{
   expect(config.connectedToolBindingIds).toEqual([]);
   expect(config.capabilities.businessActions.enabled).toBe(false);
   expect(config.capabilities.workflows.enabled).toBe(false);
-  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff","support.get_status","enquiry.submit","enquiry.read","enquiry.amend"]);
+  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff","support.request_handoff","support.get_status","enquiry.submit","enquiry.read","enquiry.amend"]);
  });
  it("removes setup-owned booking/intake/support authority without replacing other configuration",()=>{
   const before=sampleSetup(),config=customerConfigurationForSetup(before);
@@ -29,7 +29,7 @@ describe("customer setup",()=>{
   const derived=applyCustomerSetup(config,after,before);
   expect(derived.capabilities.businessActions.enabled).toBe(false);
   expect(derived.capabilities.enquiries?.enabled).toBe(false);
-  expect(derived.tools).not.toContain("enquiry.submit");expect(derived.tools).not.toContain("channel.request_handoff");
+  expect(derived.tools).not.toContain("enquiry.submit");expect(derived.tools).not.toContain("channel.request_handoff");expect(derived.tools).not.toContain("support.request_handoff");
   expect(derived.sourceRevisionIds).toEqual(config.sourceRevisionIds);
  });
  it("rejects duplicate, unsupported or out-of-bounds settings",()=>{

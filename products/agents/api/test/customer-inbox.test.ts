@@ -13,6 +13,7 @@ import { transaction } from "../src/infrastructure/database";
 import { registerChannelPorts } from "../src/infrastructure/channel-ports";
 import { beginOperation } from "../src/execution/lifecycle/execution";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
+import { executeTool, publishedToolBindings, assertPublishedTools } from "../src/capabilities/tools";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("customer Inbox transactional website channel", () => {
@@ -41,11 +42,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { return platform.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "inbox@example.test", displayName: "Operator" }); }
-  async function fixture() {
+  async function fixture(structuredHandoff = false) {
     const owner = await actor(), member = await actor(), outsider = await actor(), org = await platform.createOrganization(owner.id, "Inbox fixtures");
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [org.id, member.id]);
     await connectFixtureModel(pool, owner.id, org.id);
     const config = defaultBusinessConfiguration(); config.program = { id: "grounded-conversation", version: "1" };
+    if (structuredHandoff) config.tools = ["channel.request_handoff", "support.request_handoff"];
     const agent = await platform.createAgent({ accountId: owner.id, organizationId: org.id, name: "Support", configuration: config });
     const version = await platform.createVersion({ accountId: owner.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const deployment = await platform.publishWebsite({ accountId: owner.id, organizationId: org.id, agentId: agent.id, versionId: version.id, allowedOrigins: [origin] });
@@ -200,8 +202,33 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const staff = await inbox.readStaff(f.scope, f.conversation.id), visitor = await inbox.readVisitor(f.visitor, f.conversation.id);
     expect(staff.conversation.state).toBe("handoff_pending");
     expect(visitor.messages.map(message => message.body)).toEqual(["I need a person", "This conversation has been passed to the support team. You can add details here while you wait."]);
+    expect((await inbox.list(f.scope,{limit:30})).items[0]?.last_message_body).toBe("This conversation has been passed to the support team. You can add details here while you wait.");
     expect(staff.messages.filter(message => message.author_kind === "assistant")).toHaveLength(1);
     await expect(inbox.assertBinding(pool, b, { organization_id: f.org.id, version_id: f.version.id })).rejects.toMatchObject({ code: "CHANNEL_OWNERSHIP_CHANGED" });
+  });
+  it("keeps the structured handoff brief staff-only, idempotent and tied to the current episode", async () => {
+    const f = await fixture(), incoming = await inbox.ingress(f.visitor, f.conversation.id, { requestKey: randomUUID(), body: "I need a person about my delivery" });
+    const b = binding(f, incoming.message.id), taskId = incoming.message.task_id!, brief = {reason:"Delivery question",brief:"The customer asked to speak with a person about their delivery."};
+    await transaction(pool, db => inbox.requestHandoff(db, b, taskId, brief));
+    await transaction(pool, db => inbox.requestHandoff(db, b, taskId, brief));
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).handoffBrief).toEqual(brief);
+    expect(await inbox.readVisitor(f.visitor, f.conversation.id)).not.toHaveProperty("handoffBrief");
+    await expect(transaction(pool, db => inbox.requestHandoff(db, b, taskId, {...brief,reason:"Changed"}))).rejects.toMatchObject({code:"INBOX_CONFLICT"});
+    await expect(inbox.readStaff({organizationId:f.org.id,accountId:f.outsider.id},f.conversation.id)).rejects.toMatchObject({code:"INBOX_ACCESS_DENIED"});
+    await command(f,"claim"); await command(f,"takeover");
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).handoffBrief).toEqual(brief);
+    await command(f,"return");
+    expect((await inbox.readStaff(f.scope, f.conversation.id)).handoffBrief).toBeNull();
+  });
+  it("runs a published structured handoff tool while retaining the legacy tool binding", async () => {
+    const f = await fixture(true), incoming = await inbox.ingress(f.visitor, f.conversation.id, {requestKey:randomUUID(),body:"I want to talk to someone about my order"});
+    const brief = {reason:"Order question",brief:"The customer asked to speak with a person about an order."};
+    expect(await executeTool(pool,incoming.message.task_id!,"fixture:handoff","support.request_handoff",JSON.stringify(brief))).toEqual({state:"handoff_pending"});
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).handoffBrief).toEqual(brief);
+    const config = f.version.configuration, bindings = publishedToolBindings(config);
+    expect(bindings.map(item => item.name)).toContain("channel.request_handoff");
+    expect(bindings.map(item => item.name)).toContain("support.request_handoff");
+    expect(() => assertPublishedTools(config,bindings)).not.toThrow();
   });
   it("prevents cross-visitor/deployment and operator-chat reads", async () => {
     const a = await fixture(), b = await fixture();

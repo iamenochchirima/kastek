@@ -5,7 +5,7 @@ import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { recordEvent } from "../../observability/event-store";
 import { createCursorCodec, cursorKeysFromEnvironment } from "../../infrastructure/read-pages";
 import { transaction } from "../../infrastructure/database";
-import type { ChannelBinding } from "../../contracts/channel";
+import { handoffBriefSchema, type ChannelBinding, type HandoffBrief } from "../../contracts/channel";
 import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
@@ -24,6 +24,7 @@ export interface CustomerConversation {
   return_watermark: string; created_at: Date; updated_at: Date;
   customer_name?: string | null; customer_contact_id?: string | null; assignee_display_name?: string | null; channel_available?: boolean; last_message_body?: string | null; last_message_author_kind?: CustomerMessage["author_kind"] | null; last_message_created_at?: Date | null;
   last_message_id?: string | null; last_message_task_id?: string | null;
+  last_message_ownership_generation?: string | null;
 }
 // A conversation can have multiple enquiries; only expose a name when they resolve to one contact.
 const customerIdentityJoin = `LEFT JOIN LATERAL (
@@ -176,7 +177,13 @@ export class InboxStore {
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
       await this.trialStaff(db,scope,conversation);
-      return { conversation, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
+      const receipt = (await db.query(`SELECT c.result->'handoffBrief' brief FROM agents_platform.customer_commands c
+        JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id
+        JOIN agents_platform.customer_messages m ON m.id::text=c.result->>'handoffReceiptId' AND m.conversation_id=c.conversation_id
+        WHERE c.conversation_id=$1 AND c.action='request_handoff' AND $2::text IN ('handoff_pending','human_owned') AND m.sequence>$3::bigint
+        ORDER BY w.requested_at DESC LIMIT 1`,[id,conversation.state,conversation.return_watermark])).rows[0];
+      const parsed = handoffBriefSchema.safeParse(receipt?.brief);
+      return { conversation, handoffBrief: parsed.success ? parsed.data : null, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
@@ -187,12 +194,12 @@ export class InboxStore {
       const rows = (await db.query<CustomerConversation & { cursor_position: string }>(`SELECT c.*,a.name AS agent_name,cn.id connection_id,cn.name connection_name,cn.asset_id,identity.customer_name,identity.customer_contact_id,assignee.display_name AS assignee_display_name,
         CASE WHEN c.channel_kind='website' THEN (wd.id IS NOT NULL AND wd.revoked_at IS NULL AND wd.paused=false)
           ELSE (cd.id IS NOT NULL AND cd.state='active' AND cn.id IS NOT NULL AND cn.state='active') END AS channel_available,
-        last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
+        last_message.id AS last_message_id,last_message.task_id AS last_message_task_id,last_message.body AS last_message_body,last_message.author_kind AS last_message_author_kind,last_message.created_at AS last_message_created_at,last_message.ownership_generation AS last_message_ownership_generation,c.updated_at::text AS cursor_position FROM agents_platform.customer_conversations c JOIN agents_platform.agents a ON a.id=c.agent_id
         LEFT JOIN agents_platform.channel_deployments cd ON cd.id=c.channel_deployment_id AND cd.organization_id=c.organization_id LEFT JOIN agents_platform.channel_connections cn ON cn.id=cd.connection_id AND cn.organization_id=c.organization_id
         LEFT JOIN agents_platform.website_deployments wd ON wd.id=c.deployment_id AND wd.organization_id=c.organization_id
         LEFT JOIN agents_platform.accounts assignee ON assignee.id=c.assignee_account_id
         ${customerIdentityJoin}
-        LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
+        LEFT JOIN LATERAL (SELECT id,task_id,body,author_kind,created_at,ownership_generation FROM agents_platform.customer_messages WHERE conversation_id=c.id ORDER BY sequence DESC LIMIT 1) last_message ON true
         WHERE c.organization_id=$1 AND ($2::text IS NULL OR c.state=$2) AND ($3::uuid IS NULL OR c.agent_id=$3)
         AND ($4::text IS NULL OR ($4='mine' AND c.assignee_account_id=$5) OR ($4='unassigned' AND c.assignee_account_id IS NULL))
         AND ($10::text IS NULL OR c.channel_kind=$10)
@@ -209,7 +216,7 @@ export class InboxStore {
       const items = rows.slice(0, filters.limit), last = items.at(-1);
       for (const item of items) if (item.last_message_body != null) {
         if (item.last_message_author_kind === "assistant") {
-          const candidate = { id: item.last_message_id, task_id: item.last_message_task_id, body: item.last_message_body } as CustomerMessage;
+          const candidate = { id: item.last_message_id, conversation_id: item.id, task_id: item.last_message_task_id, body: item.last_message_body, ownership_generation: item.last_message_ownership_generation } as CustomerMessage;
           item.last_message_body = await this.readableMessage(db, candidate) ?? "[Response unavailable]";
         }
         item.last_message_body = item.last_message_body.slice(0,500);
@@ -294,17 +301,19 @@ export class InboxStore {
     const message = (await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2 AND author_kind='visitor' AND ownership_generation=$3 AND sequence>$4", [binding.inputMessageId, row.id, binding.ownershipGeneration, row.return_watermark])).rowCount;
     if (!message) throw new PlatformError("CHANNEL_INPUT_DENIED", 403, "Customer message is unavailable");
   }
-  async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string): Promise<{ state: "handoff_pending" }> {
+  async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief): Promise<{ state: "handoff_pending" }> {
+    if (brief) brief = handoffBriefSchema.parse(brief);
     const row = await this.conversation(db, binding.customerConversationId, true);
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [taskId, row.id, binding.inputMessageId, binding.ownershipGeneration])).rowCount) denied();
-    const existing = (await db.query("SELECT action FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
-    if (existing?.action === "request_handoff") return { state: "handoff_pending" };
+    const digest = requestDigest(brief ? {binding,brief} : binding);
+    const existing = (await db.query("SELECT action,request_digest FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
+    if (existing?.action === "request_handoff") { if (existing.request_digest !== digest) conflict(); return { state: "handoff_pending" }; }
     if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active" || !await this.activeBinding(db,row)) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
     Object.assign(row,updated);
     await this.queueCancellation(db, row.id, updated.ownership_generation);
     const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT,taskId});
-    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, requestDigest(binding), {...updated,handoffReceiptId:receipt.id}]);
+    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, digest, {...updated,handoffReceiptId:receipt.id,...(brief ? {handoffBrief:brief} : {})}]);
     await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:row.ownership_generation});
     await enqueueChannelMessage(db,row,receipt);
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});

@@ -11,6 +11,7 @@ import { executeRecordTool } from "./enquiries/record-tools";
 import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool } from "./skills/runtime";
 import { supportStatus } from "./support-status";
+import { handoffBriefSchema } from "../contracts/channel";
 export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
 export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number): Promise<unknown> {
@@ -28,10 +29,10 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
       return supportStatus(config.supportHours);
     }
     if (name === "skills.activate" || name === "skills.read") return executeSkillTool(pool, taskId, name, input, maxResultBytes);
-    if (name === "channel.request_handoff") {
-      z.strictObject({}).parse(input);
+    if (name === "channel.request_handoff" || name === "support.request_handoff") {
+      const brief = name === "support.request_handoff" ? handoffBriefSchema.parse(input) : (z.strictObject({}).parse(input), undefined);
       if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");
-      return transaction(pool, db => channelPorts(db).requestHandoff(db, execution.task.channel_binding!, taskId));
+      return transaction(pool, db => channelPorts(db).requestHandoff(db, execution.task.channel_binding!, taskId, brief));
     }
     if (name.startsWith("knowledge.")) throw new PlatformError("KNOWLEDGE_RUNTIME_UNAVAILABLE", 503, "Grounded knowledge runtime is unavailable");
     if (!config.memory.enabled || execution.task.principal.kind !== "human") throw new PlatformError("MEMORY_SCOPE_DENIED", 403, "Memory is unavailable");

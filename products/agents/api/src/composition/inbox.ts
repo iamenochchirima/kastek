@@ -59,7 +59,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
   }, createCursorCodec(options.cursorKeys ?? cursorKeysFromEnvironment()));
   registerChannelPorts(pool, {
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
-    requestHandoff: (db, binding, taskId) => inbox.requestHandoff(db, binding, taskId),
+    requestHandoff: (db, binding, taskId, brief) => inbox.requestHandoff(db, binding, taskId, brief),
     publishAutomated: (db, input) => inbox.publishAutomated(db, input),
     publishEnquiryReview:(db,input)=>inbox.publishEnquiryReview(db,input),
     publishToolReview:(db,input)=>inbox.publishToolReview(db,input),

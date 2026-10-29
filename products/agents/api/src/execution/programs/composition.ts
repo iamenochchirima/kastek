@@ -50,7 +50,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
   const denied = () => { throw new PlatformError("PROGRAM_COMPOSITION_DENIED", 409, "The configuration exceeds the trusted program contract"); };
   if (configuration.program.id !== reference.id || configuration.program.version !== reference.version) denied();
   if (configuration.executionKind !== program.executionKind) throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "The program requires an available compatible runtime");
-  if (configuration.tools.some(name => !program.allowedTools.includes(name) && !(name === "support.get_status" && configuration.tools.includes("channel.request_handoff"))) ||
+  if (configuration.tools.some(name => !program.allowedTools.includes(name) && !(["support.get_status","support.request_handoff"].includes(name) && configuration.tools.includes("channel.request_handoff"))) ||
       (configuration.memory.enabled && !program.personalMemory) ||
       (configuration.capabilities.delegation.enabled && !program.delegation) ||
       (configuration.capabilities.sandbox.enabled && !program.sandbox) ||

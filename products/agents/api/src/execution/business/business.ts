@@ -201,7 +201,8 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const modelTools = await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])]).filter(tool => Boolean(task.channel_binding) || !["channel_request_handoff", "support_get_status"].includes(tool.function.name)));
+  })() : [])]).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_get_status"].includes(tool.function.name))
+    && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")));
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {
@@ -569,7 +570,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions) {
             }
             if(result.ok&&!binding&&!productBinding)validateBuiltinResult(name,result.value);
             if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
-            if(result.ok && name==="channel.request_handoff") { outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break; }
+            if(result.ok && (name==="channel.request_handoff" || name==="support.request_handoff")) { outcome={state:"incomplete",errorCode:"CHANNEL_HANDOFF_REQUESTED"};stop=true;break; }
             if (!result.ok && (result.uncertain || ["TASK_CANCELLED", "GRANT_REVOKED", "MEMBERSHIP_INACTIVE", "ROOT_LIMIT", "AUTHORITY_EXPIRED", "PRODUCT_AUTHORITY_INACTIVE", "PRODUCT_MANIFEST_INVALID", "PRODUCT_REVIEW_SCOPE_DENIED", "ADAPTER_RELEASE_UNAVAILABLE", "EVIDENCE_INTEGRITY", "PRODUCT_EFFECT_UNCERTAIN"].includes(result.code))) {
               outcome = failed(result); stop = true; break;
             }

@@ -11,7 +11,7 @@ export type Configuration = {
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
   supportHours?: SupportHours;
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "support.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
   skillIds?: string[];
   capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };

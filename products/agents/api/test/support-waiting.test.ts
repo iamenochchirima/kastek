@@ -74,6 +74,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(notices).toHaveLength(1); expect(notices[0]).toMatchObject({ stage: 2, state: "published" });
     await expect(pool.query("UPDATE agents_platform.support_waiting_notices SET body='Changed claim' WHERE task_id=$1", [f.taskId])).rejects.toMatchObject({ code: "23514" });
     expect((await f.inbox.readVisitor(f.visitor, f.conversation.id)).messages.at(-1)?.body).toContain("still waiting");
+    expect((await f.inbox.list(f.scope, {limit:30})).items.find(item => item.id === f.conversation.id)?.last_message_body).toContain("still waiting");
     const alerts = (await pool.query("SELECT stage FROM agents_platform.support_staff_alerts WHERE task_id=$1 ORDER BY stage", [f.taskId])).rows;
     expect(alerts.map(row => row.stage)).toEqual([0, 2]);
   });
