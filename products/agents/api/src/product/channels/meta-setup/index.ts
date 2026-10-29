@@ -22,7 +22,8 @@ export class MetaChannelSetup {
   }
   /** Safe for customer catalogue/readiness responses. Secrets and private configuration never leave this service. */
   readiness() { return this.profiles.map(({ kind, mode, humanAgentApproved, instagramRefreshReviewed }) => ({ kind, mode, available: true,
-    policy: channelPolicyReadiness(kind, mode, humanAgentApproved, false), refresh: mode === "instagram_login" && instagramRefreshReviewed ? "eligible_long_lived_only" : "reconnect" })); }
+    policy: channelPolicyReadiness(kind, mode, humanAgentApproved, kind === "instagram" && mode === "instagram_login"),
+    refresh: mode === "instagram_login" && instagramRefreshReviewed ? "eligible_long_lived_only" : "reconnect" })); }
   private provider(kind: string, mode: string): MetaSetupProvider {
     const profile = this.profiles.find(item => item.kind === kind && item.mode === mode);
     if (!profile) throw setupFailure("CHANNEL_SETUP_NOT_CONFIGURED", 503);

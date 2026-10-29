@@ -299,7 +299,9 @@ in `AGENTS_CHANNEL_WEBHOOK_ORIGIN`. Meta profiles are private server records in
 ID/secret, verification secret, API version, scopes and subscribed fields. WhatsApp also needs
 its embedded configuration ID. OAuth redirect URI is the application origin followed by
 `/app/connections`. Never put app secrets in browser configuration or commit environment files.
-The catalogue shows setup unavailable when these prerequisites are absent.
+For direct Instagram Login, set `humanAgentApproved` only after Meta has approved the app's
+Human Agent permission. Changing this profile requires reconnecting the affected channel. The
+catalogue shows setup unavailable when these prerequisites are absent.
 
 | Channel | Customer input | Staff output | Important boundary |
 | --- | --- | --- | --- |
@@ -307,13 +309,17 @@ The catalogue shows setup unavailable when these prerequisites are absent.
 | WhatsApp | Text/captions; private media references | Text, supported received-media replies, approved text templates | Standard24h window; out-of-window templates require recorded opt-in and current approval. |
 | Telegram | Text/captions, media, rejected unsupported callbacks | Text and supported received-media replies | Bot/chat identity; acceptance does not prove delivery/read. |
 | Messenger | Text, attachments, native receipts | Text and supported received-media replies | Standard reply window; no inferred human-policy exemption. |
-| Instagram | DMs, attachments, available native receipts | Text and received image/audio/video replies through approved CDN URLs | Direct and Page-linked modes stay distinct; documents/reusable IDs are unsupported. |
+| Instagram | DMs, attachments, available native receipts | Text and received image/audio/video replies through approved CDN URLs | Direct and Page-linked modes stay distinct; an approved direct-Instagram profile permits text-only human replies with `HUMAN_AGENT` up to seven days; documents/reusable IDs are unsupported. |
 
 Media-only inputs request staff assistance; no transcription or image understanding is implied.
 Staff downloads use authenticated, bounded private routes. Replying with an attachment reuses an
 authorized attachment already received in that conversation. New arbitrary file uploads, media
-templates/buttons and out-of-window human-agent tags are not implemented. Direct-Instagram
-refresh is disabled unless the operator explicitly reviews and enables its profile.
+templates/buttons remain unsupported. The direct-Instagram `HUMAN_AGENT` tag is restricted to an
+assigned human replying to the active customer inquiry, with approved permission and a verified
+customer message inside the seven-day provider window. It is never used for automated waiting or
+status messages, Page-linked Instagram or Messenger. WhatsApp still requires an approved opted-in
+template outside its 24-hour window. Direct-Instagram refresh is disabled unless the operator
+explicitly reviews and enables its profile.
 
 Inbox supports assignment, takeover, human reply, resolution and explicit return. Ownership and
 credential checks apply immediately before dispatch. An unknown delivery is never automatically

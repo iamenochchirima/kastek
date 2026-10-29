@@ -110,6 +110,32 @@ for (const route of routes) describe(`${route.name} physical send boundary`, () 
 });
 
 describe("Meta media and cancellation distinctions", () => {
+  it("serializes HUMAN_AGENT only for an authorized text-only direct-Instagram send", async () => {
+    const direct = context({ mode: "instagram_login", messageTag: "HUMAN_AGENT" });
+    await instagramChannelAdapter.send(request, direct.context);
+    const body = JSON.parse(String((direct.fetch.mock.calls[0]! as unknown as [unknown, RequestInit])[1].body));
+    expect(body.tag).toBe("HUMAN_AGENT");
+    expect(body).not.toHaveProperty("messaging_type");
+
+    for (const [adapter, mode, pageId] of [
+      [facebookChannelAdapter, "meta", undefined],
+      [instagramChannelAdapter, "meta", "linked-page"],
+    ] as const) {
+      const f = context({ mode, pageId, messageTag: "HUMAN_AGENT" });
+      await expect(adapter.send(request, f.context)).rejects.toMatchObject({ code: "CHANNEL_MESSAGE_TAG_UNSUPPORTED", outcome: "rejected" });
+      expect(f.fetch).not.toHaveBeenCalled();
+    }
+
+    const attachment = context({ mode: "instagram_login", messageTag: "HUMAN_AGENT" });
+    await expect(instagramChannelAdapter.send({ ...request, text: "", attachments: [{ kind: "image", url: "https://media.example.test/photo.jpg" }] }, attachment.context))
+      .rejects.toMatchObject({ code: "CHANNEL_HUMAN_SUPPORT_TEXT_ONLY", outcome: "rejected" });
+    expect(attachment.fetch).not.toHaveBeenCalled();
+
+    const untrustedRequest = context({ mode: "instagram_login" });
+    await instagramChannelAdapter.send({ ...request, tag: "HUMAN_AGENT" } as typeof request, untrustedRequest.context);
+    const untrustedBody = JSON.parse(String((untrustedRequest.fetch.mock.calls[0]! as unknown as [unknown, RequestInit])[1].body));
+    expect(untrustedBody).not.toHaveProperty("tag");
+  });
   it("supports Messenger files/reusable attachment IDs while rejecting unreviewed Instagram file/reuse variants", async () => {
     const f = context(); await facebookChannelAdapter.send({ ...request, text: "", attachments: [{ kind: "document", providerMediaId: "uploaded-file" }] }, f.context);
     expect(JSON.parse(String((f.fetch.mock.calls[0]! as unknown as [unknown, RequestInit])[1].body)).message.attachment).toEqual({ type: "file", payload: { attachment_id: "uploaded-file" } });

@@ -67,7 +67,7 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
         method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({callback_query_id:event.callbackQueryId,text:outcome==="confirmed"?"Selection received.":"This action is unavailable. Send a message for help.",show_alert:false})});
       if(!response.ok)throw new PlatformError("CHANNEL_CALLBACK_UNAVAILABLE",502,"Channel callback acknowledgement is unavailable");
     },
-    context(connection,credentials,beforeAttempt) {
+    context(connection,credentials,beforeAttempt,policy) {
       const fixture=fixtures?.fixtureProviderContext(connection,beforeAttempt);
       if(fixture)return fixture;
       if(connection.metadata.evaluationFixture)throw new PlatformError("EVALUATION_CHANNEL_SCOPE_DENIED",403,"Isolated channel transport is unavailable");
@@ -78,7 +78,7 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
       const fetch=createBoundedFetch({authorizeUrl:url=>url.hostname===host && (connection.kind!=="telegram"||url.pathname.startsWith(`/bot${credential}/`)),
         headers:connection.kind==="telegram"?{}:{authorization:`Bearer ${credential}`},deadlineAt:Date.now()+15000,maxAttempts:1,maxRequests:1,
         maxRequestBytes:32768,maxResponseBytes:1048576,returnProviderErrorResponses:true,returnAuthenticationResponses:true,beforeAttempt,signal});
-      return {credential,fetch,signal,mode:connection.mode,apiVersion:profile?.apiVersion,
+      return {credential,fetch,signal,mode:connection.mode,apiVersion:profile?.apiVersion,messageTag:policy?.tag,
         pageId:typeof connection.metadata.pageId==="string"?connection.metadata.pageId:undefined};
     },
     async assertPolicy(connection,message,request) {
@@ -97,10 +97,15 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
         conversationId:message.conversation_id,ownershipGeneration:String(message.ownership_generation),messageBody:message.body,request});return;}
       const latest=(await pool.query(`SELECT max(f.provider_occurred_at) occurred_at FROM agents_platform.customer_messages m
         JOIN agents_platform.channel_message_facts f ON f.message_id=m.id WHERE m.conversation_id=$1 AND m.author_kind='visitor'`,[message.conversation_id])).rows[0]?.occurred_at;
-      // Standard service replies only. No HUMAN_AGENT or ad/opt-in exception is inferred from a staff takeover.
-      assertChannelReplyPolicy({kind:connection.kind,mode:connection.mode,now:Date.now(),latestCustomerAt:latest?.getTime()??null,
-        author:message.author_kind,assignedHuman:message.author_kind==="human",relatedInquiryConfirmed:false,
-        humanAgentApproved:false,humanAgentTransportEnabled:false});
+      const directInstagram = connection.kind === "instagram" && connection.mode === "instagram_login";
+      const decision = assertChannelReplyPolicy({kind:connection.kind,mode:connection.mode,now:Date.now(),latestCustomerAt:latest?.getTime()??null,
+        author:message.author_kind,assignedHuman:message.author_kind==="human",relatedInquiryConfirmed:message.author_kind==="human" && latest != null,
+        humanAgentApproved:directInstagram && profile.humanAgentApproved === true,
+        humanAgentTransportEnabled:directInstagram});
+      if (decision.tag && (request.attachments?.length || request.buttons || request.template)) {
+        throw new PlatformError("CHANNEL_HUMAN_SUPPORT_TEXT_ONLY",409,"This provider policy permits text-only human replies");
+      }
+      return decision;
     },
   });
   if(vault)fixtures=new EvaluationChannelFixtures(pool,vault,delivery,inbox);

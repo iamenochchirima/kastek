@@ -12,12 +12,13 @@ import type { ChannelStore } from "./channel-store";
 import {assertChannelToolReviewPrompt,channelToolReviewDecision} from "./channel-tool-reviews";
 import { channelRecipient } from "./channel-recipient";
 import { recordSupportNotificationDelivery } from "../reporting/support-lifecycle";
+import type { ChannelPolicyDecision } from "./channel-policy";
 
 const rank: Record<string, number> = { accepted: 1, sent: 2, delivered: 3, read: 4 };
 type Row = Record<string, any>;
 export interface ChannelDeliveryPorts {
-  context(connection: Row, credentials: Record<string,string>, beforeAttempt: () => Promise<void>): ChannelProviderContext;
-  assertPolicy(connection: Row, message: Row, request: ChannelSendRequest & {templateAuthorization?:unknown;mediaAuthorization?:unknown}): Promise<void>;
+  context(connection: Row, credentials: Record<string,string>, beforeAttempt: () => Promise<void>, policy?: ChannelPolicyDecision | void): ChannelProviderContext;
+  assertPolicy(connection: Row, message: Row, request: ChannelSendRequest & {templateAuthorization?:unknown;mediaAuthorization?:unknown}): Promise<ChannelPolicyDecision | void>;
   acknowledgeInteraction?(connectionId:string,event:ChannelWebhookEvent,outcome?:"confirmed"|"rejected"):Promise<void>;
   handleInteraction?(connectionId:string,deploymentId:string,event:ChannelWebhookEvent):Promise<"confirmed"|"rejected"|null>;
 }
@@ -214,13 +215,18 @@ export class ChannelDelivery {
     try {
       if(requestDigest(row.request)!==row.digest)throw new PlatformError("CHANNEL_DELIVERY_INTEGRITY",409,"The saved delivery request changed");
       const {connection,message} = await this.authority(row);
-      await this.ports.assertPolicy(connection,message,row.request);
+      const policy = await this.ports.assertPolicy(connection,message,row.request);
       const credentials = await this.channels.resolveCredential({organizationId:row.organization_id,connectionId:row.connection_id,
         expectedRevision:row.connection_revision,credentialRevision:row.credential_revision});
       const context = this.ports.context(connection,credentials,async () => {
-        try {const current = await this.authority(row); await this.ports.assertPolicy(current.connection,current.message,row.request); await this.authority(row); physical = true;}
+        try {
+          const current = await this.authority(row);
+          const currentPolicy = await this.ports.assertPolicy(current.connection,current.message,row.request);
+          if (currentPolicy?.tag !== policy?.tag) throw new PlatformError("CHANNEL_POLICY_CHANGED",409,"Channel reply policy changed");
+          await this.authority(row); physical = true;
+        }
         catch(error){if(error instanceof PlatformError)fenceFailure=error;throw error;}
-      });
+      },policy);
       const result = await messagingChannelAdapter(connection.kind).send(row.request,context);
       await this.finish(row,result.status,result.providerMessageId,result.status === "unknown" ? "provider_acknowledgement_unknown" : null);
       // Late receipts may precede the send response; replay facts after attaching the returned provider ID.

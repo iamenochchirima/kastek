@@ -24,13 +24,23 @@ describe("sourced customer reply policy", () => {
       expect(channelReplyPolicy({ ...base, ...denied }).allowed).toBe(false);
     }
     expect(channelReplyPolicy({ ...base, latestCustomerAt: now - 7 * 86400000 }).allowed).toBe(false);
+    expect(channelPolicyReadiness("instagram", "instagram_login", true, true).humanSupport).toBe("approved_staff_confirmation_required");
     expect(channelPolicyReadiness("instagram", "instagram_login", true, false).humanSupport).toBe("standard_window_only");
+    expect(channelPolicyReadiness("facebook", "meta", true, true).humanSupport).toBe("standard_window_only");
   });
   it("uses the verified customer's 24-hour boundary and never treats future or missing evidence as permission", () => {
     expect(channelReplyPolicy({ ...base, kind: "whatsapp", latestCustomerAt: now - 86400000 + 1 }).allowed).toBe(true);
     expect(channelReplyPolicy({ ...base, kind: "whatsapp", latestCustomerAt: now - 86400000 })).toMatchObject({ allowed: false, reason: "approved_template_required" });
     expect(channelReplyPolicy({ ...base, latestCustomerAt: now + 1 }).allowed).toBe(false);
     expect(channelReplyPolicy({ ...base, latestCustomerAt: null }).allowed).toBe(false);
+  });
+  it("reports the direct Instagram permission only when the server profile and adapter transport are both enabled", () => {
+    const direct = new MetaChannelSetup(null as never, null as never,
+      [{ ...profile("instagram", "instagram_login"), humanAgentApproved: true }], fetch);
+    const pageLinked = new MetaChannelSetup(null as never, null as never,
+      [{ ...profile("instagram", "meta"), humanAgentApproved: true }], fetch);
+    expect(direct.readiness()[0]?.policy.humanSupport).toBe("approved_staff_confirmation_required");
+    expect(pageLinked.readiness()[0]?.policy.humanSupport).toBe("standard_window_only");
   });
 });
 

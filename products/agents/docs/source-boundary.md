@@ -646,11 +646,17 @@ Standard Meta replies use the latest verified customer-message time, not receipt
 time. WhatsApp out-of-window replies require a currently approved supported text template and
 recorded customer opt-in. Template payload, exact rendered preview, category/consent revision,
 ownership and credential revisions are revalidated before dispatch. Media/buttons templates are
-explicitly unsupported. Taking over does not grant a human-policy exception. Telegram acceptance
-does not establish delivery/read. Instagram outbound documents and reusable-ID sends remain
-unqualified; the installed protocol supports text and image/audio/video URLs. Staff attachment
-access is authenticated, provider-scoped, bounded and downloaded as an attachment; no public raw
-provider URL is returned. Optional speech/vision backends are not supplied by this block.
+explicitly unsupported. Direct Instagram Login can send a text-only staff reply with Meta's
+`HUMAN_AGENT` tag within seven days only when the server profile records approved permission, the
+replying human owns the active conversation, and a verified customer message exists in that
+conversation. The policy result is rechecked before the physical request; a changed result
+suppresses the send. Customer/tool requests cannot provide the tag. Automated acknowledgements,
+waiting/status notices, Page-linked Instagram and Messenger never use this exception. Taking over
+alone does not grant it. Telegram acceptance does not establish delivery/read. Instagram outbound
+documents and reusable-ID sends remain unsupported; the installed protocol supports text and
+image/audio/video URLs. Staff attachment access is authenticated, provider-scoped, bounded and
+downloaded as an attachment; no public raw provider URL is returned. Optional speech/vision
+backends are not supplied by this block.
 
 Website presentation retains the working parent-origin Shadow DOM transport and canonical
 visitor sessions. Growth's launcher, appearance, mobile and suggested-message presentation are

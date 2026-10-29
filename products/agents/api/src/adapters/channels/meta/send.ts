@@ -15,6 +15,8 @@ export async function sendMetaMessage(kind: "facebook" | "instagram", request: C
   if (!field(request.assetId) || !field(request.recipientId) || request.replyToProviderMessageId !== undefined && !field(request.replyToProviderMessageId)) rejected("CHANNEL_SEND_INVALID");
   if (context.mode !== "meta" && context.mode !== "instagram_login" || kind === "facebook" && context.mode !== "meta") rejected("CHANNEL_AUTH_MODE_INVALID");
   const direct = context.mode === "instagram_login", senderAsset = kind === "instagram" && !direct ? context.pageId : request.assetId;
+  if (context.messageTag && (kind !== "instagram" || !direct || context.messageTag !== "HUMAN_AGENT")) rejected("CHANNEL_MESSAGE_TAG_UNSUPPORTED");
+  if (context.messageTag && (request.attachments?.length || request.buttons || request.template)) rejected("CHANNEL_HUMAN_SUPPORT_TEXT_ONLY");
   if (!field(senderAsset)) rejected("CHANNEL_PAGE_BINDING_REQUIRED");
   if (request.template) rejected("CHANNEL_TEMPLATE_UNSUPPORTED");
   const attachments = request.attachments ?? [], text = request.text;
@@ -34,7 +36,8 @@ export async function sendMetaMessage(kind: "facebook" | "instagram", request: C
       payload: attachment.url ? { url: attachment.url } : { attachment_id: attachment.providerMediaId } };
   } else message.text = text;
   if (request.replyToProviderMessageId) message.reply_to = { mid: request.replyToProviderMessageId };
-  const body = { recipient: { id: request.recipientId }, ...(!direct ? { messaging_type: "RESPONSE" } : {}), message };
+  const body = { recipient: { id: request.recipientId }, ...(!direct ? { messaging_type: "RESPONSE" } : {}), message,
+    ...(context.messageTag ? { tag: context.messageTag } : {}) };
   const destination = `https://${direct ? "graph.instagram.com" : "graph.facebook.com"}/${context.apiVersion}/${encodeURIComponent(senderAsset!)}/messages`;
   if (context.signal?.aborted) throw new ChannelAdapterError("CHANNEL_CANCELLED_BEFORE_DISPATCH", "rejected", 409);
   let response: Response;

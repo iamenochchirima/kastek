@@ -42,6 +42,8 @@ export const channelButtonsSchema=z.array(z.strictObject({title:z.string().min(1
 export interface ChannelProviderContext {
   credential: string; fetch: typeof globalThis.fetch; signal?: AbortSignal;
   mode?: "meta" | "instagram_login"; apiVersion?: string; pageId?: string;
+  /** Server-authorized provider policy effect; never accepted from a customer or Inbox request. */
+  messageTag?: "HUMAN_AGENT";
 }
 export interface ChannelSendResult { providerMessageId: string | null; status: "accepted" | "unknown" }
 export interface ChannelProviderAdapter {
