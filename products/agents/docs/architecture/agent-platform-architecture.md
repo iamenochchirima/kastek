@@ -34,8 +34,12 @@ and must report its unavailability in their own interface.
 The Agents client creates customer-service agents through guided setup. Answering questions,
 handling support, booking appointments and collecting enquiries are selectable responsibilities
 of the same agent, not separate creation types. The wizard collects business details, relevant
-knowledge, intended channels, operating preferences and human handoff instructions. Steps depend
-on the selected responsibilities. Setup metadata, grounded instructions and setup-owned native
+knowledge, intended channels and operating preferences. When human support is selected, the wizard
+collects support days, hours and a timezone. The timezone is prefilled from the browser and can be
+changed; opening times are not inferred. The weekly schedule is saved with the agent setup and
+pinned in its published configuration. An absent schedule means support hours are unknown. Steps
+depend on the selected responsibilities.
+Setup metadata, grounded instructions and setup-owned native
 capabilities are saved through revision-checked configuration snapshots. Enquiries expose a native
 submission tool with configured fields and exact customer confirmation. Calendar actions require
 an explicitly authorized service connection and a pinned booking policy. Channel selection records

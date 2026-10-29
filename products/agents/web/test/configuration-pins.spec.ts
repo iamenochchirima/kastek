@@ -8,7 +8,7 @@ for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     const sources = [{ id: "returns", title: "Returns", state: "active", visibility: "public", revisions: [1, 2].map(revision => ({ id: `revision${revision}`, revision, state: "approved", embeddingRelease: "local-embedding-v1" })) },
       { id: "unindexed", title: "Unindexed", state: "active", visibility: "public", revisions: [{ id: "revision3", revision: 1, state: "approved", embeddingRelease: null }] }];
-    const base = { executionKind: "business", program: { id: "grounded-conversation", version: "1" }, instructions: "Answer from approved knowledge. Offer human support when needed.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: ["revision1"], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: ["knowledge.search", "knowledge.read", "channel.request_handoff"], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+    const base = { executionKind: "business", program: { id: "grounded-conversation", version: "1" }, instructions: "Answer from approved knowledge. Offer human support when needed.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: ["revision1"], connectedToolBindingIds: [], retrievalProfile: { kind: "lexical-v1" }, tools: ["knowledge.search", "knowledge.read", "channel.request_handoff", "support.get_status"], supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "17:00" }] }, memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
     let draft = structuredClone(base), draftRevision = 1;
     const versions: { id: string; number: number; configuration: typeof base }[] = [], unexpected: string[] = [], errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -55,7 +55,8 @@ for (const width of [1440, 768, 390]) {
     await expect(page.getByRole("combobox", { name: "Version", exact: true })).toHaveCount(0);
     await handoff.getByRole("button", { name: "Add Human support", exact: true }).click(); await page.getByRole("button", { name: "Save changes", exact: true }).click();
     await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
-    expect(draft.tools).toContain("channel.request_handoff"); expect(versions[1].configuration.tools).not.toContain("channel.request_handoff");
+    expect(draft.tools).toContain("channel.request_handoff"); expect(draft.tools).toContain("support.get_status"); expect(versions[1].configuration.tools).not.toContain("channel.request_handoff");
+    expect(draft.supportHours).toEqual(base.supportHours); expect(versions[1].configuration.supportHours).toEqual(base.supportHours);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.mouse.move(1, 1);
     await expect(page.getByText("Changes saved", { exact: true }).last()).not.toBeVisible({ timeout: 10_000 });

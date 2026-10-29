@@ -201,7 +201,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const modelTools = await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])]).filter(tool => Boolean(task.channel_binding) || tool.function.name !== "channel_request_handoff"));
+  })() : [])]).filter(tool => Boolean(task.channel_binding) || !["channel_request_handoff", "support_get_status"].includes(tool.function.name)));
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {

@@ -19,7 +19,7 @@ describe("customer setup",()=>{
   expect(config.connectedToolBindingIds).toEqual([]);
   expect(config.capabilities.businessActions.enabled).toBe(false);
   expect(config.capabilities.workflows.enabled).toBe(false);
-  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff","enquiry.submit","enquiry.read","enquiry.amend"]);
+  expect(config.tools).toEqual(["knowledge.search","knowledge.read","channel.request_handoff","support.get_status","enquiry.submit","enquiry.read","enquiry.amend"]);
  });
  it("removes setup-owned booking/intake/support authority without replacing other configuration",()=>{
   const before=sampleSetup(),config=customerConfigurationForSetup(before);

@@ -2,6 +2,7 @@ import type { CapabilityBinding } from "./capability-catalog";
 import { modelGenerationSchema } from "./model-generation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { supportHoursSchema } from "./customer-setup";
 import { programReferenceSchema } from "./programs";
 import { modelSelectionSchema } from "./model-providers";
 const storagePositiveInteger = z.number().int().positive().max(2147483647);
@@ -31,7 +32,7 @@ export const modelSchema = z.strictObject({
 export const calendarOperationsSchema=z.array(z.enum(["calendar.availability","calendar.book"])).min(1).max(2).refine(values=>new Set(values).size===values.length&&values.includes("calendar.availability"),"Availability is required for calendar access").default(["calendar.availability","calendar.book"]);
 const unavailableCapability = z.strictObject({ enabled: z.literal(false) });
 export const baseToolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose"]);
-export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]);
+export const toolNameSchema = z.enum(["knowledge.search", "knowledge.read", "memory.search", "memory.propose", "agents.delegate", "sandbox.analyze", "channel.request_handoff", "support.get_status", "enquiry.submit", "enquiry.read", "enquiry.amend", "records.search", "records.update"]);
 export const delegationBindingSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), versionId: z.uuid(),
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
@@ -68,6 +69,7 @@ export const agentConfigurationSchema = z.strictObject({
   retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: businessCapabilitiesSchema,
+  supportHours: supportHoursSchema.optional(),
   memory: z.strictObject({ enabled: z.boolean() }).default({ enabled: false }),
   context: z.strictObject({ maxInputTokens: storagePositiveInteger,
     compactAtTokens: storagePositiveInteger }).default({ maxInputTokens: 8192, compactAtTokens: 6144 }),

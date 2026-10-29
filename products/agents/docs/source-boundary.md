@@ -94,6 +94,12 @@ projection. Channel actions preselect the agent, preserve authorization return c
 website domains/customization/install snippets or messaging asset selection. Connected, paused,
 unconnected and needs-attention states come from records rather than selected checkboxes.
 Support hands off to the existing unassigned Inbox queue; free text does not create staffing rules.
+Customer-service setup can save weekly support hours and an IANA timezone. The saved schedule is
+pinned to the agent configuration when published. When human support is selected in setup, its
+`support.get_status` tool returns whether the current time falls within that schedule, together
+with the schedule; it reports unknown if no schedule was configured. It does not infer staff
+presence or a response time from those hours. Previously published configurations without the
+tool retain their original capabilities; saving a new setup publishes the new tool and hours.
 
 Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
 the single final assistant message; schema077 adds resumable progress and creation idempotency.

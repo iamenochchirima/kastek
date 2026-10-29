@@ -60,8 +60,9 @@ export function AgentCatalogue({ organizationId, agentId, kind, draftRevision, c
   function select(item: CatalogueItem, add: boolean) {
     if (item.selection?.kind === "capability") { if (!add) onChange({ ...configuration, capabilities: { ...configuration.capabilities, businessActions: { enabled: false } } }); return; }
     const selected = item.configuration;
+    const selectedTools: NonNullable<Configuration["tools"]> = selected.tools.includes("channel.request_handoff") ? [...new Set([...selected.tools, "support.get_status" as const])] : selected.tools;
     onChange({ ...configuration,
-      tools: add ? [...new Set([...(configuration.tools ?? []), ...selected.tools])] : (configuration.tools ?? []).filter(id => !selected.tools.includes(id)),
+      tools: add ? [...new Set([...(configuration.tools ?? []), ...selectedTools])] : (configuration.tools ?? []).filter(id => !selectedTools.includes(id)),
       connectedToolBindingIds: add ? [...new Set([...(configuration.connectedToolBindingIds ?? []), ...selected.connectedToolBindingIds])] : (configuration.connectedToolBindingIds ?? []).filter(id => !selected.connectedToolBindingIds.includes(id)),
       skillIds: add ? [...new Set([...(configuration.skillIds ?? []).filter(id => !item.familyId || !(data?.entries ?? []).some(sibling => sibling.familyId === item.familyId && sibling.id !== item.id && sibling.configuration.skillIds.includes(id))), ...selected.skillIds])] : (configuration.skillIds ?? []).filter(id => !selected.skillIds.includes(id)),
     });

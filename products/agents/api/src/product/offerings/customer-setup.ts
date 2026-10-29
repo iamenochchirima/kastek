@@ -36,11 +36,12 @@ export function applyCustomerSetup(configuration: AgentConfiguration, setup: Cus
   if (selected.has("answer-questions") || selected.has("customer-support")) {
     tools.add("knowledge.search"); tools.add("knowledge.read");
   }
-  if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) tools.add("channel.request_handoff");
-  else tools.delete("channel.request_handoff");
+  if (selected.has("customer-support") || setup.behaviour.handoffInstructions.trim()) { tools.add("channel.request_handoff"); tools.add("support.get_status"); }
+  else { tools.delete("channel.request_handoff"); tools.delete("support.get_status"); }
   const enquiries = selected.has("enquiries") ? { enabled: true as const, fields: setup.intake?.fields ?? ["name", "email", "message"] as Array<"name" | "email" | "message"> } : { enabled: false as const };
   if (enquiries.enabled) { tools.add("enquiry.submit"); tools.add("enquiry.read"); tools.add("enquiry.amend"); } else { tools.delete("enquiry.submit"); tools.delete("enquiry.read"); tools.delete("enquiry.amend"); }
   // Calendar access still requires a separately authorized policy, never just setup intent.
   const businessActions = !selected.has("bookings") && previous?.responsibilities.includes("bookings") ? { enabled: false as const } : configuration.capabilities.businessActions;
-  return { ...configuration, instructions: setupInstructions(setup), tools: [...tools], capabilities: { ...configuration.capabilities, businessActions, enquiries } };
+  const { supportHours: _previousHours, ...rest } = configuration;
+  return { ...rest, ...(setup.supportHours ? { supportHours: setup.supportHours } : {}), instructions: setupInstructions(setup), tools: [...tools], capabilities: { ...configuration.capabilities, businessActions, enquiries } };
 }

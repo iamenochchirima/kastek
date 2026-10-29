@@ -10,7 +10,8 @@ export type Configuration = {
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
+  supportHours?: SupportHours;
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
   skillIds?: string[];
   capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
@@ -30,12 +31,14 @@ export type CatalogueItem = {
 export type Catalogue = { schemaVersion: 1; revision: string; agentId: string | null; entries: CatalogueItem[] };
 export type SkillPackage = { familyId?: string; state?: "enabled" | "disabled" | "removed"; generation?: number; publisher?: { id: string; name: string; verified: boolean }; source?: { kind: "curated" | "private" | "repository"; slug?: string | null; repository?: string; commit?: string; path?: string; tree?: string }; requires?: { connectionProfiles: string[]; permissions: string[]; runtimes: string[] }; id: string; name: string; description: string; revision: number; contentDigest: string; compatibility: string | null; reviewState: "pending" | "reviewed"; createdAt: string; files: { path: string; size: number; contentDigest: string }[] };
 export type CustomerOffering = { id: "faq" | "customer-service" | "booking"; name: string; available: boolean; unavailableCode?: string };
+export type SupportHours = { timeZone: string; intervals: Array<{ day: number; start: string; end: string }> };
 export type CustomerSetup = {
  business: { name: string; website: string; description: string };
  responsibilities: Array<"answer-questions" | "customer-support" | "bookings" | "enquiries">;
  channels: Array<"website" | "whatsapp" | "facebook" | "instagram" | "telegram">;
  booking?: { durationMinutes: number; notes: string };
  intake?: { fields: Array<"name" | "email" | "phone" | "service" | "message"> };
+ supportHours?: SupportHours;
  behaviour: { agentName: string; language: string; tone: "friendly" | "professional" | "concise"; handoffInstructions: string };
 };
 export type Agent = { setup?: CustomerSetup | null; setupStep?: string | null; offering?: "faq" | "customer-service" | "booking" | null; id: string; name: string; draft: Configuration; draftRevision: number; updatedAt: string };

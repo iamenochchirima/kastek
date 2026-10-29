@@ -34,9 +34,17 @@ async function fixture(page: Page) {
 }
 async function start(page: Page) {
   await page.goto("/app/agents");
-  if ((page.viewportSize()?.width ?? 1440) <= 640) await page.getByRole("button", { name: "Agents & history", exact: true }).click();
-  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).click();
+  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).first().click();
   return page.getByRole("dialog", { name: "Create agent", exact: true });
+}
+async function setSupportHours(dialog: ReturnType<Page["getByRole"]>) {
+  await dialog.getByLabel("Timezone", { exact: true }).fill("Africa/Johannesburg");
+  await dialog.getByLabel("Monday", { exact: true }).check();
+  await dialog.getByLabel("Monday opens").fill("09:00");
+  await dialog.getByLabel("Monday closes", { exact: true }).fill("12:00");
+  await dialog.getByRole("button", { name: "Add Monday hours" }).click();
+  await dialog.getByLabel("Monday opens 2").fill("13:00");
+  await dialog.getByLabel("Monday closes 2").fill("17:00");
 }
 for (const width of [1440, 768, 390]) test(`guided setup preserves choices and knowledge at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 }); const requests = await fixture(page); const dialog = await start(page);
@@ -64,6 +72,9 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   await dialog.getByLabel("WhatsApp", { exact: true }).check();
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await dialog.getByLabel("Agent name", { exact: true }).fill("Cycle helper");
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Select support days and enter valid hours and timezone.");
+  await setSupportHours(dialog);
   await dialog.getByLabel("Duration (minutes)").fill("45");
   await dialog.getByLabel("Availability and booking rules").fill("Weekdays, 9–5");
   await dialog.getByLabel("Phone", { exact: true }).check();
@@ -81,7 +92,7 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   const saved = requests.filter(request => request.path.endsWith("/configuration")).at(-1)!.body;
   expect(saved.name).toBe("Cycle helper");
   expect(saved.configuration).toEqual(expect.objectContaining({ sourceRevisionIds: ["existing-source"] }));
-  expect(saved.setup).toEqual(expect.objectContaining({ responsibilities: ["answer-questions", "customer-support", "bookings", "enquiries"], channels: ["website", "whatsapp"], booking: { durationMinutes: 45, notes: "Weekdays, 9–5" }, intake: { fields: ["name", "email", "message", "phone"] } }));
+  expect(saved.setup).toEqual(expect.objectContaining({ responsibilities: ["answer-questions", "customer-support", "bookings", "enquiries"], channels: ["website", "whatsapp"], supportHours: { timeZone: "Africa/Johannesburg", intervals: [{ day: 1, start: "09:00", end: "12:00" }, { day: 1, start: "13:00", end: "17:00" }] }, booking: { durationMinutes: 45, notes: "Weekdays, 9–5" }, intake: { fields: ["name", "email", "message", "phone"] } }));
   expect(requests.some(request => /connections|deployments|booking-policies/.test(request.path))).toBe(false);
 });
 test("booking-only setup skips knowledge and closing preserves the current step", async ({ page }) => {
@@ -93,7 +104,7 @@ test("booking-only setup skips knowledge and closing preserves the current step"
   await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).click();
+  await page.getByRole("button", { name: "Create agent", exact: true }).filter({ visible: true }).first().click();
   dialog = page.getByRole("dialog", { name: "Create agent", exact: true });
   await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   await dialog.getByRole("button", { name: "Back", exact: true }).click();
@@ -109,7 +120,7 @@ test("saved setup resumes after reload through the scoped creation pointer",asyn
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   await expect(dialog.getByRole("heading",{name:"Where will customers use it?"})).toBeVisible();
   await page.reload();
-  await page.getByRole("button",{name:"Create agent",exact:true}).filter({visible:true}).click();dialog=page.getByRole("dialog",{name:"Create agent",exact:true});
+  await page.getByRole("button",{name:"Create agent",exact:true}).filter({visible:true}).first().click();dialog=page.getByRole("dialog",{name:"Create agent",exact:true});
   await expect(dialog.getByRole("heading",{name:"Where will customers use it?"})).toBeVisible();
   await dialog.getByRole("button",{name:"Back",exact:true}).click();await expect(dialog.getByLabel(/Book appointments/)).toBeChecked();
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
@@ -177,6 +188,7 @@ test("tablet conditional setup stays usable in both themes", async ({ page }) =>
     await capture("channels");
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(dialog.getByLabel("Duration (minutes)")).toBeVisible();
+    await setSupportHours(dialog);
     await dialog.getByLabel("Phone", { exact: true }).check();
     await capture("preferences");
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();

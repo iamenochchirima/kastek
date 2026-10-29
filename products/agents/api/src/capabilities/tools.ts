@@ -10,6 +10,7 @@ import { builtinToolEnabled } from "./tool-definitions";
 import { executeRecordTool } from "./enquiries/record-tools";
 import { EnquiryStore } from "./enquiries/enquiries";
 import { executeSkillTool } from "./skills/runtime";
+import { supportStatus } from "./support-status";
 export { BUILTIN_MODEL_ALIASES, builtinToolName, builtinModelAlias, builtinToolEnabled, parseModelDelegationRequest, publishedToolBindings, assertPublishedTools, fitUtf8, toolsFor } from "./tool-definitions";
 
 export async function executeTool(pool: Pool, taskId: string, operationId: string, name: string, rawArguments: string, maxResultBytes?: number): Promise<unknown> {
@@ -21,6 +22,11 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
     if(name==="enquiry.submit"||name==="enquiry.amend")return new EnquiryStore(pool).submit(taskId,operationId,input,name);
     if(name==="enquiry.read")return new EnquiryStore(pool).readOwn(taskId,input);
     if(name==="records.search"||name==="records.update")return executeRecordTool(pool,taskId,operationId,name,input);
+    if(name === "support.get_status") {
+      z.strictObject({}).parse(input);
+      if (!execution.task.channel_binding || execution.task.parent_task_id) throw new PlatformError("CHANNEL_SCOPE_DENIED", 403, "Human support requires a customer conversation");
+      return supportStatus(config.supportHours);
+    }
     if (name === "skills.activate" || name === "skills.read") return executeSkillTool(pool, taskId, name, input, maxResultBytes);
     if (name === "channel.request_handoff") {
       z.strictObject({}).parse(input);
