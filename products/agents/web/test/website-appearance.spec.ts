@@ -5,7 +5,7 @@ const servers: Server[] = [];
 test.use({ launchOptions: { channel: "chromium-headless-shell" } });
 test.afterEach(async()=>{await Promise.all(servers.splice(0).map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))));});
 async function fixture(page: Page, paused=false, appearance: Record<string,unknown> = {}) {
-  const sent: Record<string,unknown>[] = [], errors:string[]=[];let sessions=0,lost=true,refreshes=0;
+  const sent: Record<string,unknown>[] = [], errors:string[]=[];let sessions=0,lost=true,refreshes=0,conversationState="automation_active";
   page.on("pageerror",error=>errors.push(error.message));
   const server=createServer(async(req,res)=>{
     res.setHeader("content-type","application/json");const path=new URL(req.url!,"http://fixture.test").pathname;
@@ -18,14 +18,21 @@ async function fixture(page: Page, paused=false, appearance: Record<string,unkno
       expect(req.headers.authorization).toBe("Bearer private-session");
       if(req.method==="POST"){let body="";for await(const chunk of req)body+=chunk;sent.push(JSON.parse(body));if(lost){lost=false;res.end("lost acknowledgement");return;}}
       else refreshes++;
-      res.end(JSON.stringify({conversation:{id:"one",state:"automation_active"},messages:sent.length?[{authorKind:"visitor",body:sent[0]!.body},{authorKind:"human",body:"We are open."}]:[]}));return;
+      res.end(JSON.stringify({conversation:{id:"one",state:conversationState},messages:sent.length?[{authorKind:"visitor",body:sent[0]!.body},{authorKind:"human",body:"We are open."}]:[]}));return;
     }
     res.statusCode=404;res.end("{}");
   });servers.push(server);await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
   const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;await page.goto(origin);
   await expect(page.getByRole("button",{name:"Ask support",exact:true})).toBeVisible();
-  return {sent,errors,get sessions(){return sessions;},get refreshes(){return refreshes;}};
+  return {sent,errors,setState(value:string){conversationState=value;},get sessions(){return sessions;},get refreshes(){return refreshes;}};
 }
+test("shows waiting and human ownership without claiming a person has replied",async({page})=>{
+  const f=await fixture(page);await page.getByRole("button",{name:"Ask support",exact:true}).click();
+  f.setState("handoff_pending");await expect(page.getByRole("status")).toHaveText("Waiting for support");
+  f.setState("human_owned");await expect(page.getByRole("status")).toHaveText("With support");
+  await expect(page.locator(".eyebrow")).toHaveText("Human support");
+  f.setState("automation_active");await expect(page.locator(".eyebrow")).toHaveText("Powered by AI");
+});
 test("plain-text appearance, suggested messages and lost acknowledgement reload",async({page})=>{
   const f=await fixture(page);expect(f.sessions).toBe(0);await page.getByRole("button",{name:"Ask support",exact:true}).click();
   await expect(page.getByRole("log")).toContainText("Welcome <script>unsafe</script>");expect(await page.locator("img").count()).toBe(0);
