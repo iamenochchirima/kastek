@@ -114,4 +114,30 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     expect((await currentHandoff(pool,f.conversationId,timeline.conversation.state,timeline.conversation.return_watermark))?.firstHumanReplyAt).toBeInstanceOf(Date);
     expect(timeline.handoff?.firstHumanReplyAt).toBeInstanceOf(Date);
   });
+  it.each(["uncertain", "confirmed"] as const)("fences a booking uncertainty receipt when the current outcome is %s",async(state)=>{
+    const f=await fixture();await connectFixtureModel(pool,f.scope.accountId,f.scope.organizationId);
+    const configured=await platform.createConfiguredAgent({...f.scope,name:"Booking support",offering:"faq"});
+    await pool.query("UPDATE agents_platform.channel_deployments SET agent_id=$2,version_id=$3 WHERE id=$1",[f.deploymentId,configured.agent.id,configured.snapshot.id]);
+    await pool.query("DELETE FROM agents_platform.customer_conversations WHERE id=$1",[f.conversationId]);
+    const composed=composeInbox(pool,{publicOrigin:"https://customer.test",assertServices:async()=>{}});
+    const incoming=await composed.ingressChannel({deploymentId:f.deploymentId,externalConversationId:f.thread,senderId:"1234",requestKey:randomUUID(),body:"Please book"});
+    const taskId=incoming.message.task_id!, policyId=randomUUID(), bookingId=randomUUID(), operationId=randomUUID();
+    await pool.query(`INSERT INTO agents_platform.booking_policies(id,organization_id,agent_id,owner_account_id,definition,digest)
+      VALUES($1,$2,$3,$4,'{}',repeat('a',64))`,[policyId,f.scope.organizationId,configured.agent.id,f.scope.accountId]);
+    await pool.query(`INSERT INTO agents_platform.booking_intents(id,organization_id,task_id,operation_id,policy_id,request_digest,principal,starts_at,ends_at,state,expires_at)
+      VALUES($1,$2,$3,$4,$5,repeat('a',64),'{}',now(),now()+interval '1 hour','uncertain',now()+interval '1 hour')`,[bookingId,f.scope.organizationId,taskId,operationId,policyId]);
+    const binding={customerConversationId:incoming.conversation.id,inputMessageId:incoming.message.id,ownershipGeneration:String(incoming.message.ownership_generation)};
+    const brief={reason:"Appointment outcome uncertain",brief:"Check its status."};
+    await transaction(pool,db=>composed.requestHandoff(db,binding,taskId,brief,{bookingOperationId:operationId}));
+    await transaction(pool,db=>composed.requestHandoff(db,binding,taskId,brief,{bookingOperationId:operationId}));
+    expect((await pool.query("SELECT count(*)::int n FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2",[incoming.conversation.id,`handoff:${taskId}`])).rows[0].n).toBe(1);
+    await expect(transaction(pool,db=>composed.requestHandoff(db,binding,taskId,brief,{bookingOperationId:randomUUID()}))).rejects.toMatchObject({code:"INBOX_CONFLICT"});
+    let sends=0;const worker=new ChannelDelivery(pool,channels,composed,{assertPolicy:async()=>undefined,context:(_c,credentials,beforeAttempt)=>({credential:credentials.botToken!,fetch:async()=>{await beforeAttempt();sends++;return Response.json({ok:true,result:{message_id:930}});}})});
+    if(state==="confirmed")await pool.query("UPDATE agents_platform.booking_intents SET state='confirmed' WHERE id=$1",[bookingId]);
+    await pool.query("UPDATE agents_platform.channel_outbound SET state='suppressed' WHERE conversation_id<>$1 AND state='pending'",[incoming.conversation.id]);
+    await worker.drain(2);expect(sends).toBe(state==="uncertain" ? 1 : 0);
+    const history=await composed.readStaff(f.scope,incoming.conversation.id);
+    expect(history.handoffBrief?.reason).toBe("Appointment outcome uncertain");
+    expect(history.messages.at(-1)).toMatchObject({displayKind:"system",body:expect.stringContaining("couldn't confirm")});
+  });
 });

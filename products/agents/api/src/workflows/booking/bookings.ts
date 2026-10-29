@@ -36,7 +36,7 @@ export class BookingService {
         if(!execution.task.channel_binding)return;
         const binding=channelBindingSchema.parse(execution.task.channel_binding),ports=channelPorts(db);
         await ports.assertBinding(db,binding,execution.task);
-        await ports.requestHandoff(db,binding,taskId);
+        await ports.requestHandoff(db,binding,taskId,{reason:"Appointment outcome uncertain",brief:"The calendar provider did not confirm whether the appointment was booked. Check its status before attempting another booking."},{bookingOperationId:operationId});
       });
     }catch(error){
       if(error instanceof PlatformError&&["CHANNEL_OWNERSHIP_CHANGED","CHANNEL_INPUT_DENIED"].includes(error.code))return;

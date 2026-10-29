@@ -13,7 +13,7 @@ export interface VisitorLineage {
 }
 export interface ChannelExecutionPorts {
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
-  requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief): Promise<{ state: "handoff_pending" }>;
+  requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }>;
   requestHandoffV2?(db: PoolClient, binding: ChannelBinding, taskId: string, brief: HandoffBrief, feedback?: HandoffFeedbackRequest): Promise<{ state: "handoff_pending" }>;
   publishAutomated(db: PoolClient, input: { taskId: string; binding: ChannelBinding; output: string }): Promise<void>;
   visitorLineage?(db: Pool | PoolClient, input: VisitorLineage): Promise<boolean>;

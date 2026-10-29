@@ -88,7 +88,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
   registerChannelPorts(pool, {
     ...(options.followupEnabled||options.followupAccessEnabled ? { visitorLineage:verifiedVisitorLineage } : {}),
     assertBinding: (db, binding, task) => inbox.assertBinding(db, binding, task),
-    requestHandoff: (db, binding, taskId, brief) => inbox.requestHandoff(db, binding, taskId, brief),
+    requestHandoff: (db, binding, taskId, brief, cause) => inbox.requestHandoff(db, binding, taskId, brief, cause),
     requestHandoffV2: (db, binding, taskId, brief, feedback) => inbox.requestHandoffV2(db, binding, taskId, brief, HANDOFF_RECEIPT_DEADLINE_MS, feedback),
     publishAutomated: (db, input) => inbox.publishAutomated(db, input),
     publishEnquiryReview:(db,input)=>inbox.publishEnquiryReview(db,input),

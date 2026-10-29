@@ -9,7 +9,7 @@ import { handoffBriefSchema, type ChannelBinding, type HandoffBrief } from "../.
 import type { ChannelKind } from "../../contracts/channel-adapters";
 import { enqueueChannelMessage, type PreparedChannelDelivery } from "../channels/channel-outbound";
 import {channelToolReviewText,channelToolReviewButtons,assertChannelToolReviewPrompt} from "../channels/channel-tool-reviews";
-import { HANDOFF_RECEIPT } from "./handoff-receipt";
+import { BOOKING_UNCERTAIN_RECEIPT, HANDOFF_RECEIPT } from "./handoff-receipt";
 import { currentHandoff, systemMessageIds, transitionMessages } from "./inbox-presentation";
 import { recordHandoffWaiting, recordMessageHandoffWaiting } from "./support-waiting";
 import type { Receipt } from "./handoff-pending-receipt";
@@ -330,19 +330,20 @@ export class InboxStore {
     const message = (await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2 AND author_kind='visitor' AND ownership_generation=$3 AND sequence>$4", [binding.inputMessageId, row.id, binding.ownershipGeneration, row.return_watermark])).rowCount;
     if (!message) throw new PlatformError("CHANNEL_INPUT_DENIED", 403, "Customer message is unavailable");
   }
-  async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief): Promise<{ state: "handoff_pending" }> {
+  async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }> {
     if (brief) brief = handoffBriefSchema.parse(brief);
     const row = await this.conversation(db, binding.customerConversationId, true);
     if (!(await db.query("SELECT 1 FROM agents_platform.customer_task_links WHERE task_id=$1 AND conversation_id=$2 AND input_message_id=$3 AND ownership_generation=$4", [taskId, row.id, binding.inputMessageId, binding.ownershipGeneration])).rowCount) denied();
-    const digest = requestDigest(brief ? {binding,brief} : binding);
+    const digest = requestDigest(cause ? {binding,brief,cause} : brief ? {binding,brief} : binding);
     const existing = (await db.query("SELECT action,request_digest FROM agents_platform.customer_commands WHERE conversation_id=$1 AND command_id=$2", [row.id, taskId])).rows[0];
     if (existing?.action === "request_handoff") { if (existing.request_digest !== digest) conflict(); return { state: "handoff_pending" }; }
     if (row.ownership_generation !== binding.ownershipGeneration || row.state !== "automation_active" || !await this.activeBinding(db,row)) throw new PlatformError("CHANNEL_OWNERSHIP_CHANGED", 403, "Conversation ownership changed");
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id])).rows[0]!;
     Object.assign(row,updated);
     await this.queueCancellation(db, row.id, updated.ownership_generation);
-    const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(HANDOFF_RECEIPT),kind:"assistant",body:HANDOFF_RECEIPT,taskId});
-    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, digest, {...updated,handoffReceiptId:receipt.id,...(brief ? {handoffBrief:brief} : {})}]);
+    const receiptBody = booking ? BOOKING_UNCERTAIN_RECEIPT : HANDOFF_RECEIPT;
+    const receipt = await this.append(db,row,{key:`handoff:${taskId}`,digest:requestDigest(receiptBody),kind:"assistant",body:receiptBody,taskId});
+    await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)", [row.id, taskId, digest, {...updated,handoffReceiptId:receipt.id,...(brief ? {handoffBrief:brief} : {}),...(booking ? {bookingUncertainId:booking.id} : {})}]);
     await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:row.ownership_generation});
     await enqueueChannelMessage(db,row,receipt);
     await recordEvent(db,taskId,`channel:handoff:${taskId}`,"channel.request_handoff",{count:1});
@@ -368,6 +369,8 @@ export class InboxStore {
     const updated = (await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',revision=revision+1,ownership_generation=ownership_generation+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]!;
     await this.queueCancellation(db,row.id,updated.ownership_generation,taskId);
     await db.query("INSERT INTO agents_platform.customer_commands(conversation_id,command_id,action,request_digest,result) VALUES($1,$2,'request_handoff',$3,$4)",
+    const booking = cause ? (await db.query(`SELECT id FROM agents_platform.booking_intents WHERE task_id=$1 AND operation_id=$2 AND state='uncertain' FOR SHARE`,[taskId,cause.bookingOperationId])).rows[0] : null;
+    if (cause && !booking) throw new PlatformError("BOOKING_OUTCOME_UNAVAILABLE",403,"Appointment outcome is unavailable");
       [row.id,taskId,digest,{...updated,pendingReceiptTaskId:taskId,handoffBrief:brief}]);
     await reserveReceipt(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation,delayMs,feedback:parsedFeedback});
     await recordHandoffWaiting(db,{taskId,conversationId:row.id,ownershipGeneration:updated.ownership_generation});
@@ -491,9 +494,10 @@ export class InboxStore {
       JOIN agents_platform.support_waiting w ON w.task_id=n.task_id WHERE n.message_id=$1 AND w.conversation_id=$2
       AND n.state='published' AND n.body=$3 AND n.ownership_generation=$4`,[message.id,message.conversation_id,message.body,message.ownership_generation])).rowCount) return message.body;
     if(!message.task_id)return null;
-    if(message.body===HANDOFF_RECEIPT && (await db.query(`SELECT 1 FROM agents_platform.customer_commands
-      WHERE conversation_id=$1 AND command_id=$2 AND action='request_handoff' AND result->>'handoffReceiptId'=$3`,
-    [message.conversation_id,message.task_id,message.id])).rowCount) return HANDOFF_RECEIPT;
+    if ((message.body===HANDOFF_RECEIPT || message.body===BOOKING_UNCERTAIN_RECEIPT) && (await db.query(`SELECT 1 FROM agents_platform.customer_commands c
+      WHERE c.conversation_id=$1 AND c.command_id=$2 AND c.action='request_handoff' AND c.result->>'handoffReceiptId'=$3
+        AND ($4=$5 OR ($4=$6 AND EXISTS(SELECT 1 FROM agents_platform.booking_intents b WHERE b.id::text=c.result->>'bookingUncertainId' AND b.task_id=c.command_id)))`,
+    [message.conversation_id,message.task_id,message.id,message.body,HANDOFF_RECEIPT,BOOKING_UNCERTAIN_RECEIPT])).rowCount) return message.body;
     const enquiry=(await db.query(`SELECT e.fields,e.request_digest,o.request FROM agents_platform.channel_outbound o JOIN agents_platform.enquiries e ON e.id::text=o.request#>>'{enquiryReview,id}' WHERE o.message_id=$1 AND e.task_id=$2 LIMIT 1`,[message.id,message.task_id])).rows[0];
     if(enquiry){const text=enquiryReviewText(enquiry.fields);return message.body===text&&enquiry.request.enquiryReview?.requestDigest===enquiry.request_digest?text:null;}
     const prompt=(await db.query(`SELECT r.arguments,r.request_digest,r.binding_digest,o.request FROM agents_platform.channel_outbound o
