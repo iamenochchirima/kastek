@@ -56,7 +56,7 @@ export class AdmissionStore extends AuthorityStore {
     return this.admitForPurpose(db,input);
   }
   async admitPendingSupportStatusInTransaction(db:PoolClient,input:AdmitTaskInput & {episodeCommandId:string}):Promise<{task:TaskRecord;replayed:boolean}> {
-    if (!input.channelBinding || !input.conversationId || input.evaluationTrialId || input.authority.product!=="agents" ||
+    if (!input.channelBinding || (!input.conversationId && input.authority.principal.kind!=="channel_customer") || input.evaluationTrialId || input.authority.product!=="agents" ||
         !["visitor","channel_customer"].includes(input.authority.principal.kind)) denied();
     return this.admitForPurpose(db,input,input.episodeCommandId);
   }
@@ -144,6 +144,18 @@ export class AdmissionStore extends AuthorityStore {
       maxCostMicros: models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros) });
     if(episodeCommandId) {
       const binding=channelBindingSchema.parse(input.channelBinding);
+      if (!input.conversationId) {
+        // Only an attachment-origin episode may create a conversation during a status turn.
+        const linked=await db.query(`UPDATE agents_platform.customer_conversations c SET execution_conversation_id=$1
+          FROM agents_platform.support_waiting w, agents_platform.customer_commands cmd, agents_platform.customer_messages origin
+          WHERE c.id=$2 AND c.organization_id=$3 AND c.execution_conversation_id IS NULL AND c.state='handoff_pending'
+            AND c.ownership_generation=$4 AND c.channel_deployment_id=$5
+            AND w.conversation_id=c.id AND w.task_id=$6 AND w.source_message_id=w.task_id
+            AND cmd.conversation_id=c.id AND cmd.command_id=w.task_id AND cmd.action='message_handoff'
+            AND origin.id=w.source_message_id AND origin.conversation_id=c.id AND origin.author_kind='visitor'
+          RETURNING c.id`,[conversationId,binding.customerConversationId,task.organization_id,binding.ownershipGeneration,input.authority.resourceId,episodeCommandId]);
+        if(!linked.rowCount)denied();
+      }
       await db.query(`INSERT INTO agents_platform.support_status_executions(task_id,organization_id,conversation_id,input_message_id,episode_command_id,ownership_generation)
         VALUES($1,$2,$3,$4,$5,$6)`,[task.id,task.organization_id,binding.customerConversationId,binding.inputMessageId,episodeCommandId,binding.ownershipGeneration]);
       await db.query("INSERT INTO agents_platform.customer_task_links(task_id,conversation_id,input_message_id,ownership_generation) VALUES($1,$2,$3,$4)",[task.id,binding.customerConversationId,binding.inputMessageId,binding.ownershipGeneration]);

@@ -339,8 +339,9 @@ and the next configured opening; unknown availability is not a promise of a resp
 While a conversation is waiting for a person, the agent may answer a question about the request
 using current support facts. It cannot use business tools in this turn and is instructed not to reply
 to ordinary additional details. The platform permits one active status turn per episode and at most
-three in five minutes. Further messages still reach Inbox staff. Attachment-only first contacts
-without an execution conversation do not support these status turns.
+three in five minutes. Further messages still reach Inbox staff. For a first-contact attachment
+handoff, the first eligible status turn creates an execution conversation scoped to that customer and
+channel. It uses the same bounded status-only authority; it does not grant business tools.
 
 An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
 authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads

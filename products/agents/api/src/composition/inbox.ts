@@ -69,7 +69,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
         return (await store.admitPendingSupportStatusInTransaction(db,{versionId:input.versionId,grantId:grant.id,
           authority:{product:'agents',organizationId:deployment.organization_id,resourceId:deployment.id,callerClientId:'agents-website',
             principal:{kind:'visitor',deploymentId:deployment.id,sessionId:input.sessionId}},input:input.input,requestKey:input.requestKey,
-          conversationId:input.executionConversationId,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
+          conversationId:input.executionConversationId ?? undefined,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
       }
       const deployment=(await db.query(`SELECT d.* FROM agents_platform.channel_deployments d JOIN agents_platform.channel_connections c
         ON c.id=d.connection_id AND c.organization_id=d.organization_id WHERE d.id=$1 AND d.state='active' AND c.state='active' FOR SHARE OF d,c`,[input.deploymentId])).rows[0];
@@ -78,7 +78,7 @@ export function composeInbox(pool: Pool, options: { publicOrigin: string; cursor
       return (await store.admitPendingSupportStatusInTransaction(db,{versionId:input.versionId,grantId:grant.id,
         authority:{product:'agents',organizationId:deployment.organization_id,resourceId:deployment.id,callerClientId:'agents-channel',
           principal:{kind:'channel_customer',deploymentId:deployment.id,participantId:input.participantId}},input:input.input,requestKey:input.requestKey,
-        conversationId:input.executionConversationId,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
+        conversationId:input.executionConversationId ?? undefined,channelBinding:binding,configurationMode:'current',episodeCommandId:input.episodeCommandId})).task;
     }} : {}),
     async readableOutput(db: Pool | PoolClient, taskId: string, body: string) {
       const task = (await db.query("SELECT output,state FROM agents_platform.tasks WHERE id=$1", [taskId])).rows[0];

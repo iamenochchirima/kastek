@@ -64,7 +64,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     }
     if(task.execution_purpose === "support_status_v1") {
       const facts=await (await import("../../capabilities/support-status-v2")).supportStatusV2(db,task.organization_id,execution.configuration.supportHours);
-      const request=(await import("../business/support-status-request")).supportStatusRequest(execution,facts);
+      const request=await (await import("../business/support-status-request")).supportStatusRequestForEpisode(db,execution,facts);
       if(requestDigest(input.request)!==requestDigest({modelRequest:request,supportFacts:facts}) || input.evidenceManifest || input.memoryFence) {
         throw new PlatformError("SUPPORT_STATUS_DENIED",403,"Support status is unavailable");
       }

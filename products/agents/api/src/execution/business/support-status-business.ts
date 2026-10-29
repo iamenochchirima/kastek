@@ -10,7 +10,7 @@ import { loadExecution,settleTask } from '../lifecycle/execution';
 import { invokeObservedTaskModel } from '../models/observed-invocation';
 import { accountedModelTokens,operation,type BusinessOptions } from './business';
 import { estimateRequestTokens,type ModelResponse } from './model';
-import { supportStatusRequest } from './support-status-request';
+import { supportStatusRequestForEpisode } from './support-status-request';
 
 export const SUPPORT_STATUS_WORKFLOW = 'AgentsSupportStatusV23';
 const statusAnswer = z.strictObject({reply:z.string().trim().min(1).max(1000).nullable()});
@@ -31,10 +31,9 @@ export function createSupportStatusWorkflow(pool:Pool,options:BusinessOptions & 
         const execution=await loadExecution(db,taskId,true);
         await assertPendingSupportStatusAuthority(db,execution);
         const facts=await supportStatusV2(db,execution.task.organization_id,execution.configuration.supportHours);
-        return {execution,facts};
+        return {execution,facts,request:await supportStatusRequestForEpisode(db,execution,facts)};
       }));
-      const {execution,facts}=snapshot,policy=execution.models.primary.policy;
-      const request=supportStatusRequest(execution,facts);
+      const {execution,facts,request}=snapshot,policy=execution.models.primary.policy;
       const estimated=estimateRequestTokens(request),reservedTokens=estimated+policy.safetyTokens+policy.maxOutputTokens;
       if(estimated+policy.safetyTokens>policy.maxInputTokens)throw new PlatformError('CONTEXT_LIMIT',413,'Support status is unavailable');
       const id=`support-status:${taskId}`;

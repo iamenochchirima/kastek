@@ -52,7 +52,7 @@ export interface InboxPorts {
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
   admitChannel?(db: PoolClient, input: { deploymentId: string; participantId: string; versionId: string; executionConversationId: string | null;
     input: string; requestKey: string; channelBinding: ChannelBinding }): Promise<{ id: string; conversation_id: string }>;
-  admitSupportStatus?(db:PoolClient,input:{deploymentId:string;sessionId?:string;participantId?:string;versionId:string;executionConversationId:string;
+  admitSupportStatus?(db:PoolClient,input:{deploymentId:string;sessionId?:string;participantId?:string;versionId:string;executionConversationId:string|null;
     input:string;requestKey:string;channelBinding:ChannelBinding;episodeCommandId:string}):Promise<{id:string;conversation_id:string}>;
   readableOutput(db: Db, taskId: string, body: string): Promise<string | null>;
   // Must revalidate input evidence and, for model output, its operation receipt and grounding.
@@ -118,12 +118,12 @@ export class InboxStore {
     Object.assign(row, next); return message;
   }
   private async admitWaitingStatus(db:PoolClient,row:CustomerConversation,message:CustomerMessage,sessionId?:string):Promise<void> {
-    if(row.state!=="handoff_pending" || !this.ports.admitSupportStatus || !row.execution_conversation_id)return;
-    const episode=(await db.query(`SELECT w.task_id FROM agents_platform.support_waiting w
+    if(row.state!=="handoff_pending" || !this.ports.admitSupportStatus)return;
+    const episode=(await db.query(`SELECT w.task_id,w.source_message_id,c.action FROM agents_platform.support_waiting w
       JOIN agents_platform.customer_commands c ON c.conversation_id=w.conversation_id AND c.command_id=w.task_id
       WHERE w.conversation_id=$1 AND w.ownership_generation<=$2 AND c.action IN ('request_handoff','message_handoff')
       ORDER BY w.requested_at DESC LIMIT 1`,[row.id,row.ownership_generation])).rows[0];
-    if(!episode)return;
+    if(!episode || (!row.execution_conversation_id && (row.channel_kind==='website' || episode.action!=='message_handoff' || episode.source_message_id!==episode.task_id)))return;
     // Keep the cost of classifying waiting messages bounded without hiding those messages from staff.
     const usage=(await db.query(`SELECT count(*) FILTER (WHERE t.created_at>now()-interval '5 minutes')::int recent,
       count(*) FILTER (WHERE t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain'))::int active
@@ -136,6 +136,7 @@ export class InboxStore {
         ...(row.channel_kind==='website'?{sessionId}:{participantId:row.id}),versionId:row.version_id,executionConversationId:row.execution_conversation_id,
         input:message.body,requestKey:`support-status:${message.id}`,episodeCommandId:episode.task_id,
         channelBinding:{customerConversationId:row.id,ownershipGeneration:row.ownership_generation,inputMessageId:message.id}});
+      if(!row.execution_conversation_id)row.execution_conversation_id=task.conversation_id;
       await db.query('UPDATE agents_platform.customer_messages SET task_id=$2 WHERE id=$1',[message.id,task.id]);message.task_id=task.id;
       await db.query('RELEASE SAVEPOINT support_status_admission');
     } catch(error) {

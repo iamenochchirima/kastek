@@ -21,8 +21,11 @@ async function authorized(db: PoolClient, binding: StatusNoticeBinding, body: st
     JOIN agents_platform.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
     JOIN agents_platform.operations op ON op.task_id=s.task_id AND op.id='support-status:'||s.task_id::text
     JOIN agents_platform.customer_conversations c ON c.id=s.conversation_id AND c.organization_id=s.organization_id
+    JOIN agents_platform.agents a ON a.id=c.agent_id AND a.organization_id=c.organization_id
+    JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=c.organization_id AND v.agent_id=c.agent_id
     JOIN agents_platform.customer_messages m ON m.id=s.input_message_id AND m.conversation_id=c.id
     JOIN agents_platform.support_waiting w ON w.task_id=s.episode_command_id AND w.conversation_id=c.id
+    JOIN agents_platform.customer_commands command ON command.conversation_id=c.id AND command.command_id=w.task_id
     JOIN agents_platform.execution_grants g ON g.id=t.grant_id AND g.organization_id=t.organization_id
     WHERE s.task_id=$1 AND s.organization_id=$2 AND s.conversation_id=$3 AND s.input_message_id=$4
       AND s.episode_command_id=$5 AND s.ownership_generation=$6
@@ -32,8 +35,15 @@ async function authorized(db: PoolClient, binding: StatusNoticeBinding, body: st
       AND g.principal=t.principal AND g.product=t.product AND g.resource_id=t.resource_id AND g.version_id=t.version_id AND g.caller_client_id=t.caller_client_id
       AND op.kind='model' AND op.name='model.support_status' AND op.state='completed'
       ${historical ? "" : "AND c.state='handoff_pending' AND c.ownership_generation=s.ownership_generation"}
-      AND m.author_kind='visitor' AND m.ownership_generation=s.ownership_generation
+      AND c.execution_conversation_id=t.conversation_id AND m.author_kind='visitor' AND m.ownership_generation=s.ownership_generation
       AND w.ownership_generation<=s.ownership_generation
+      AND command.result->>'ownership_generation'=w.ownership_generation::text
+      AND ((w.source_task_id=w.task_id AND w.source_message_id IS NULL AND command.action='request_handoff'
+        ${historical ? "" : "AND (v.configuration->'tools') ? 'channel.request_handoff'"})
+        OR (w.source_message_id=w.task_id AND w.source_task_id IS NULL AND command.action='message_handoff'
+          AND EXISTS (SELECT 1 FROM agents_platform.customer_messages origin WHERE origin.id=w.source_message_id
+            AND origin.conversation_id=c.id AND origin.author_kind='visitor' AND origin.ownership_generation+1=w.ownership_generation)))
+      ${historical ? "" : "AND a.deleted_at IS NULL"}
       ${historical ? "" : `AND NOT EXISTS (SELECT 1 FROM agents_platform.support_waiting newer_episode WHERE newer_episode.conversation_id=c.id
         AND newer_episode.ownership_generation>w.ownership_generation)
       AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_messages human WHERE human.conversation_id=c.id
@@ -42,15 +52,15 @@ async function authorized(db: PoolClient, binding: StatusNoticeBinding, body: st
         AND newer.author_kind='visitor' AND newer.sequence>m.sequence)`}
       AND ((c.channel_kind='website' AND EXISTS (SELECT 1 FROM agents_platform.website_deployments d
         JOIN agents_platform.website_sessions session ON session.id::text=t.principal->>'sessionId' AND session.deployment_id=d.id
-        WHERE d.id=c.deployment_id AND d.organization_id=c.organization_id ${historical ? "" : "AND d.revoked_at IS NULL AND d.paused=false AND session.expires_at>clock_timestamp()"}
+        WHERE d.id=c.deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id ${historical ? "" : "AND d.version_id=t.version_id AND d.revoked_at IS NULL AND d.paused=false AND session.expires_at>clock_timestamp()"}
           AND t.principal->>'kind'='visitor' AND t.principal->>'deploymentId'=d.id::text AND t.principal->>'sessionId'=session.id::text
           AND t.resource_id=d.id::text FOR SHARE OF d,session))
         OR (c.channel_kind<>'website' AND EXISTS (SELECT 1 FROM agents_platform.channel_deployments d
           JOIN agents_platform.channel_connections conn ON conn.id=d.connection_id AND conn.organization_id=d.organization_id
-          WHERE d.id=c.channel_deployment_id AND d.organization_id=c.organization_id ${historical ? "" : "AND d.state='active' AND conn.state='active'"}
+          WHERE d.id=c.channel_deployment_id AND d.organization_id=c.organization_id AND d.agent_id=c.agent_id ${historical ? "" : "AND d.version_id=t.version_id AND d.state='active' AND conn.state='active'"}
           AND t.principal->>'kind'='channel_customer' AND t.principal->>'deploymentId'=d.id::text AND t.principal->>'participantId'=c.id::text
           AND t.resource_id=d.id::text FOR SHARE OF d,conn)))
-    FOR SHARE OF s,t,op,c,m,w,g`,[binding.taskId,binding.organizationId,binding.conversationId,binding.inputMessageId,binding.episodeCommandId,binding.ownershipGeneration]);
+    FOR SHARE OF s,t,op,c,m,w,g,a,v,command`,[binding.taskId,binding.organizationId,binding.conversationId,binding.inputMessageId,binding.episodeCommandId,binding.ownershipGeneration]);
   const output=rows.rows[0]?.output;
   if (!output || output.finishReason !== "stop" || output.message?.role !== "assistant" || output.message?.tool_calls?.length || typeof output.message?.content !== "string") return false;
   let parsed: unknown;

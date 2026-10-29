@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { supportStatusV2 } from "../../capabilities/support-status-v2";
 import { PlatformError, requestDigest } from "../../contracts/contracts";
 import { assertCurrentEvidence, taskEvidenceManifest } from "../../execution/context/evidence-policy";
-import { supportStatusRequest } from "../../execution/business/support-status-request";
+import { supportStatusRequestForEpisode } from "../../execution/business/support-status-request";
 import { inspectInboxOutput, loadExecution } from "../../execution/lifecycle/state";
 import type { StatusNoticeBinding } from "./support-status-notice";
 
@@ -26,7 +26,7 @@ async function verify(db: PoolClient, binding: StatusNoticeBinding, historical: 
     if (!row || !row.request?.supportFacts || !row.request?.modelRequest || execution.task.input!==row.body || requestDigest(row.request)!==row.request_digest) return false;
     const facts=historical ? row.request.supportFacts : await supportStatusV2(db,binding.organizationId,execution.configuration.supportHours);
     if (requestDigest(row.request?.supportFacts)!==requestDigest(facts)
-      || requestDigest(row.request?.modelRequest)!==requestDigest(supportStatusRequest(execution,facts))) return false;
+      || requestDigest(row.request?.modelRequest)!==requestDigest(await supportStatusRequestForEpisode(db,execution,facts))) return false;
     await assertCurrentEvidence(db,binding.taskId,await taskEvidenceManifest(db,binding.taskId),{requireActiveTask:false});
     return true;
   } catch (error) {

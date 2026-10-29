@@ -130,16 +130,19 @@ conversation is `handoff_pending`, an eligible customer message can start `Agent
 The controller receives the message and current support facts, uses no tools, and returns either a
 status reply or no reply. It allows one model call, at most 512 output tokens and 10 seconds, subject
 to lower configured limits. Admission permits one active turn and three turns per episode in five
-minutes; other messages remain visible to staff. First-contact attachment episodes without an
-execution conversation cannot start this purpose. Human takeover, later visitor messages, channel
-revocation or changed support facts fence publication and delivery. A previously published reply
+minutes; other messages remain visible to staff. A first-contact attachment episode can create a
+customer- and deployment-scoped execution conversation for its first eligible status turn. Its
+message-origin authority is checked against the committed handoff event and current channel policy;
+it does not grant business tools. Human takeover, later visitor messages, channel revocation or
+changed support facts fence publication and delivery. A previously published reply
 remains readable after takeover or later messages while its source authority remains valid.
 
 The release affects the Agents API, worker, Inbox and customer channels. Apply schema089 after
 088, register `AgentsSupportStatusV23` with Restate, and start matching API and worker artifacts.
 Existing model-operation telemetry records outcomes without message bodies; no new analytics or
 Collector changes are introduced. Controlled PostgreSQL, Restate and provider fixtures cover the
-website and Telegram paths. Live-provider acceptance and model-behavior evaluation remain owner-run.
+website, Telegram and first-contact attachment paths. This extension requires no new schema or
+analytics. Live-provider acceptance and model-behavior evaluation remain owner-run.
 To roll back, stop new status admissions, drain or cancel outstanding status tasks, then remove the
 V23 worker route while retaining the additive schema and receipts. A production release ID, rollout
 and post-release review date are not applicable until deployment is authorized.

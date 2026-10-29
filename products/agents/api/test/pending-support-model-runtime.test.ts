@@ -98,4 +98,29 @@ const enabled=process.env.AGENTS_TEST_DATABASE_URL && process.env.AGENTS_STATUS_
   expect(sent.some(value=>value.includes('Your request is still waiting for a human response.'))).toBe(true);
   expect(sent.every(value=>value.includes('1234'))).toBe(true);
  },60000);
+ it('admits a status-only reply after a first-contact attachment handoff without a handoff tool',async()=>{
+  statusReply='Your request is still waiting for a human response.';
+  const store=new PlatformStore(pool),account=await store.ensureAccount({issuer:'https://fixture.test',subject:randomUUID(),email:'attachment@example.test',displayName:'Fixture'}),org=await store.createOrganization(account.id,'Attachment');await connectFixtureModel(pool,account.id,org.id);
+  const configuration=defaultBusinessConfiguration();configuration.program={id:'grounded-conversation',version:'1'};configuration.tools=[];
+  const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Support',configuration}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
+  const channels=new ChannelStore(pool,new ConnectionVault('fixture',{fixture:randomBytes(32).toString('base64')}));const scope={accountId:account.id,organizationId:org.id},asset=String(Math.floor(Math.random()*1e9));
+  const connection=await channels.create(scope,{kind:'telegram',mode:'bot',name:'Fixture',assetId:asset,state:'active',credentials:{botToken:`${asset}:fixture`}}),deployment=randomUUID();
+  await pool.query('INSERT INTO agents_platform.channel_deployments(id,organization_id,connection_id,agent_id,version_id,created_by) VALUES($1,$2,$3,$4,$5,$6)',[deployment,org.id,connection.id,agent.id,version.id,account.id]);
+  const inbox=composeInbox(pool,{publicOrigin:'https://customer.test',followupAccessEnabled:true,supportStatusEnabled:true,assertServices:async()=>{}});
+  const first=await inbox.ingressChannel({deploymentId:deployment,externalConversationId:'5678',senderId:'5678',requestKey:randomUUID(),body:'[Attachment received. Staff assistance required.]',requireHandoff:true});
+  expect(first.message.task_id).toBeNull();
+  await pool.query(`INSERT INTO agents_platform.channel_message_facts(message_id,connection_id,external_conversation_id,provider_message_id,provider_occurred_at,attachments) VALUES($1,$2,'5678','attachment-fixture',now(),'[]')`,[first.message.id,connection.id]);
+  const waiting=await inbox.ingressChannel({deploymentId:deployment,externalConversationId:'5678',senderId:'5678',requestKey:randomUUID(),body:'Is someone available?'});expect(waiting.message.task_id).toBeTruthy();
+  const taskId=waiting.message.task_id!;
+  const linked=(await pool.query(`SELECT c.execution_conversation_id,t.conversation_id,t.principal FROM agents_platform.customer_conversations c JOIN agents_platform.tasks t ON t.id=$2 WHERE c.id=$1`,[first.conversation.id,taskId])).rows[0];
+  expect(linked.execution_conversation_id).toBe(linked.conversation_id);expect(linked.principal).toMatchObject({kind:'channel_customer',deploymentId:deployment,participantId:first.conversation.id});
+  await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin,runtimeRoutes:{[HANDOFF_HARNESS_RELEASE]:{ingressUrl:ingress,adminUrl:runtimeAdmin,workflowName:HANDOFF_WORKFLOW_NAME},'product-capabilities-v11':{ingressUrl:ingress,adminUrl:runtimeAdmin,workflowName:'AgentsBusinessRunV21'}},supportStatusRoute:{ingressUrl:ingress,adminUrl:runtimeAdmin,workflowName:SUPPORT_STATUS_WORKFLOW}});
+  await eventually(async()=>Boolean((await pool.query('SELECT 1 FROM agents_platform.support_status_notices WHERE task_id=$1',[taskId])).rowCount));
+  const operation=(await pool.query('SELECT request FROM agents_platform.operations WHERE task_id=$1 AND name=$2',[taskId,'model.support_status'])).rows[0];
+  expect(operation.request.modelRequest.messages[0].content).toContain('The conversation has been passed to human support');
+  expect(operation.request.modelRequest.messages[0].content).not.toContain('The customer has requested human support');
+  const sent:string[]=[];const delivery=new ChannelDelivery(pool,channels,inbox,{assertPolicy:async()=>undefined,context:(_connection,credentials,beforeAttempt)=>({credential:credentials.botToken!,fetch:async(_input,init)=>{await beforeAttempt();sent.push(String(init?.body));return new Response(JSON.stringify({ok:true,result:{message_id:sent.length}}),{status:200,headers:{'content-type':'application/json'}});}})});
+  await delivery.drain();await delivery.drain();const outbound=(await pool.query('SELECT state,reason FROM agents_platform.channel_outbound WHERE conversation_id=$1 ORDER BY created_at',[first.conversation.id])).rows;expect(sent.some(value=>value.includes('Your request is still waiting for a human response.')),JSON.stringify({sent,outbound})).toBe(true);expect(sent.every(value=>value.includes('5678'))).toBe(true);
+ },60000);
+
 });
