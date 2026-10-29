@@ -61,6 +61,22 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     await transaction(pool,db=>f.inbox.requestHandoffV2(db,f.binding,f.taskId,f.brief,60000,f.feedback));
     await expect(transaction(pool,db=>f.inbox.requestHandoffV2(db,f.binding,f.taskId,f.brief,60000))).rejects.toThrow();
   });
+  it("reuses an existing handoff for uncertain connected recovery without duplicating its receipt",async()=>{
+    const f=await fixture(false);
+    await transaction(pool,db=>f.inbox.requestHandoff(db,f.binding,f.taskId));
+    const input={operationId:'fixture-operation',taskId:f.taskId,organizationId:f.org.id,conversationId:f.conversation.id,inputMessageId:f.binding.inputMessageId,ownershipGeneration:f.binding.ownershipGeneration};
+    expect(await transaction(pool,db=>f.inbox.recoverUncertainConnectedHandoff(db,input))).toEqual({outcome:'recorded',commandId:f.taskId});
+    expect(await transaction(pool,db=>f.inbox.recoverUncertainConnectedHandoff(db,input))).toEqual({outcome:'recorded',commandId:f.taskId});
+    expect((await pool.query("SELECT count(*) n FROM agents_platform.customer_commands WHERE conversation_id=$1 AND action='request_handoff'",[f.conversation.id])).rows[0].n).toBe('1');
+    expect((await pool.query("SELECT count(*) n FROM agents_platform.customer_messages WHERE conversation_id=$1 AND request_key=$2",[f.conversation.id,`handoff:${f.taskId}`])).rows[0].n).toBe('1');
+  });
+  it("creates the existing receipt once and rejects a stale recovery episode",async()=>{
+    const f=await fixture(false);
+    const input={operationId:'fixture-operation',taskId:f.taskId,organizationId:f.org.id,conversationId:f.conversation.id,inputMessageId:f.binding.inputMessageId,ownershipGeneration:f.binding.ownershipGeneration};
+    expect(await transaction(pool,db=>f.inbox.recoverUncertainConnectedHandoff(db,input))).toEqual({outcome:'recorded',commandId:f.taskId});
+    await pool.query("UPDATE agents_platform.customer_conversations SET state='automation_active',return_watermark=next_sequence-1,ownership_generation=ownership_generation+1 WHERE id=$1",[f.conversation.id]);
+    expect(await transaction(pool,db=>f.inbox.recoverUncertainConnectedHandoff(db,input))).toEqual({outcome:'ownership_changed'});
+  });
   it("commits one handoff, brief, pending deadline and alert without an immediate message",async()=>{
     const f=await fixture();
     await transaction(pool,db=>f.inbox.requestHandoffV2(db,f.binding,f.taskId,f.brief,60000));

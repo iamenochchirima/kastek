@@ -33,6 +33,7 @@ import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
 import { AutomationService } from "../product/automations/automations";
 import { SupportWaitingService } from "../product/inbox/support-waiting";
+import { captureConnectedUncertainBatch,processConnectedUncertainBatch } from "../product/inbox/connected-uncertain-recovery";
 import { createSupportWaitingWorkflow,startSupportWaitingDispatcher } from "../product/inbox/support-waiting-runtime";
 import { settleReceipt } from "../product/inbox/handoff-pending-receipt";
 import { HANDOFF_RECEIPT } from "../product/inbox/handoff-receipt";
@@ -117,6 +118,17 @@ async function main(): Promise<void> {
       .catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:"channel_maintenance_failed",code:"CHANNEL_MAINTENANCE_UNAVAILABLE"})))
       .finally(()=>{cancellationPending=undefined;});
   },1000); cancellationTimer.unref();
+  let uncertainPending: Promise<unknown> | undefined;
+  const uncertainTimer=setInterval(()=>{
+    if(process.env.AGENTS_CONNECTED_UNCERTAIN_RECOVERY!=='false' && !uncertainPending)uncertainPending=(async()=>{
+      await captureConnectedUncertainBatch(pool);
+      await processConnectedUncertainBatch(pool,async(db,intent)=>{
+        const result=await inbox.recoverUncertainConnectedHandoff(db,intent);
+        return result.outcome==='recorded' ? {outcome:'recorded' as const,commandId:result.commandId!} : {outcome:result.outcome};
+      },20,code=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_recovery_failed',code})));
+    })().catch(()=>console.error(JSON.stringify({...diagnosticIdentity,event:'connected_uncertain_recovery_failed',code:'CONNECTED_UNCERTAIN_RECOVERY_UNAVAILABLE'})))
+      .finally(()=>{uncertainPending=undefined;});
+  },1000);uncertainTimer.unref();
   const modelVault = connectionVaultFromEnvironment();
   const modelProvider = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined);
   const growthActions=growthActionClientFromEnvironment();
@@ -170,7 +182,7 @@ async function main(): Promise<void> {
     if (closing) return;
     closing = true;
     abort.abort();
-    clearInterval(cancellationTimer); await cancellationPending;
+    clearInterval(cancellationTimer);clearInterval(uncertainTimer); await Promise.all([cancellationPending,uncertainPending]);
     await Promise.all([dispatcher.stop(),automationDispatcher.stop(),supportDispatcher.stop(),receiptDispatcher.stop(),followupDispatcher?.stop(),ingestionDispatcher?.stop(),documentCleanup,sourceCleanup]);
     await new Promise<void>(resolve => {
       const deadline = setTimeout(() => { for (const session of sessions) session.destroy(); }, 10_000);

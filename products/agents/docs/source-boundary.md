@@ -147,6 +147,22 @@ To roll back, stop new status admissions, drain or cancel outstanding status tas
 V23 worker route while retaining the additive schema and receipts. A production release ID, rollout
 and post-release review date are not applicable until deployment is authorized.
 
+Schema090 adds operation-keyed recovery for uncertain reviewed customer HubSpot contact writes.
+The worker scans uncertain or expired claimed receipts without calling the provider again. It
+preserves an existing handoff receipt, or creates one only under current channel ownership and
+authority. Inbox staff can see a redacted uncertainty notice even when customer delivery is not
+authorized. There is no in-product reconciliation or dismissal action for this notice yet.
+
+Apply schema090 before starting the matching API and worker. The `connected_uncertain_recovery_failed`
+log records bounded retry codes without customer content; analytics and Collector changes are not
+applicable. PostgreSQL, controlled provider and browser fixtures validate recovery and visibility;
+live-provider acceptance and model evaluations remain owner-run. To stop new recovery, set
+`AGENTS_CONNECTED_UNCERTAIN_RECOVERY=false` on the worker and retain schema and receipts. Existing
+v1 adapter files and pinned identities are unchanged. A separately versioned adapter with its own
+customer-facing uncertainty receipt remains unimplemented; historical built v1 artifacts are not
+available here to verify old deployed bindings. Production release identity, rollout and review date
+are not applicable until deployment is authorized.
+
 Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
 the single final assistant message; schema077 adds resumable progress and creation idempotency.
 Removing booking or enquiry responsibilities removes setup-owned authority using existing grant

@@ -237,7 +237,16 @@ export class InboxStore {
       const parsed = handoffBriefSchema.safeParse(receipt?.brief);
       const followupFailures = await this.ports.followupFailures?.(db, id) ?? [];
       const handoff = await currentHandoff(db,id,conversation.state,conversation.return_watermark);
-      return { conversation, handoff, handoffBrief: parsed.success ? parsed.data : null, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
+      const uncertainEffects = (await db.query(`SELECT e.operation_id FROM agents_platform.connected_uncertain_escalations e
+        LEFT JOIN agents_platform.customer_commands c ON c.conversation_id=e.conversation_id AND c.command_id=e.command_id AND c.action='request_handoff'
+        LEFT JOIN agents_platform.support_waiting w ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id
+        JOIN agents_platform.customer_task_links l ON l.task_id=e.task_id AND l.conversation_id=e.conversation_id AND l.input_message_id=e.input_message_id AND l.ownership_generation=e.ownership_generation
+        JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=l.conversation_id
+        WHERE e.organization_id=$1 AND e.conversation_id=$2
+          AND ((e.state='recorded' AND w.task_id IS NOT NULL) OR e.state='ownership_changed'
+            OR (e.state='pending' AND e.last_error_code='authority_unavailable'))
+        ORDER BY e.operation_id`,[scope.organizationId,id])).rows.map(row=>({operationId:row.operation_id,kind:'contact_save_uncertain' as const}));
+      return { conversation, handoff, handoffBrief: parsed.success ? parsed.data : null, uncertainEffects, followupFailures, channelAvailable: await this.activeBinding(db, conversation), messages: await this.messages(db, id, after, limit, before) }; });
   }
   async list(scope: InboxScope, filters: { state?: string; agentId?: string; channel?: ChannelKind; connectionId?: string; assigned?: string; search?: string; sort?: "newest" | "oldest"; cursor?: string; limit: number }) {
     return transaction(this.pool, async db => { await this.membership(db, scope);
@@ -361,6 +370,24 @@ export class InboxStore {
     }
     const message = (await db.query("SELECT 1 FROM agents_platform.customer_messages WHERE id=$1 AND conversation_id=$2 AND author_kind='visitor' AND ownership_generation=$3 AND sequence>$4", [binding.inputMessageId, row.id, binding.ownershipGeneration, row.return_watermark])).rowCount;
     if (!message) throw new PlatformError("CHANNEL_INPUT_DENIED", 403, "Customer message is unavailable");
+  }
+  async recoverUncertainConnectedHandoff(db: PoolClient, input: { operationId:string; taskId:string; organizationId:string; conversationId:string; inputMessageId:string; ownershipGeneration:string }): Promise<{outcome:'recorded'|'ownership_changed'|'authority_unavailable';commandId?:string}> {
+    const row = await this.conversation(db,input.conversationId,true);
+    if (row.organization_id !== input.organizationId) return {outcome:'authority_unavailable'};
+    const binding:ChannelBinding = {customerConversationId:input.conversationId,inputMessageId:input.inputMessageId,ownershipGeneration:input.ownershipGeneration};
+    const lineage = (await db.query(`SELECT 1 FROM agents_platform.customer_task_links l JOIN agents_platform.customer_messages m
+      ON m.id=l.input_message_id AND m.conversation_id=l.conversation_id
+      WHERE l.task_id=$1 AND l.conversation_id=$2 AND l.input_message_id=$3 AND l.ownership_generation=$4
+        AND m.author_kind='visitor' AND m.sequence>$5::bigint`,[input.taskId,row.id,input.inputMessageId,input.ownershipGeneration,row.return_watermark])).rowCount;
+    if (!lineage) return {outcome:'ownership_changed'};
+    const existing = (await db.query(`SELECT 1 FROM agents_platform.customer_commands c JOIN agents_platform.support_waiting w
+      ON w.task_id=c.command_id AND w.conversation_id=c.conversation_id
+      WHERE c.conversation_id=$1 AND c.command_id=$2 AND c.action='request_handoff' AND w.ownership_generation=$3::bigint+1`,[row.id,input.taskId,input.ownershipGeneration])).rowCount;
+    if (existing && ['handoff_pending','human_owned'].includes(row.state)) return {outcome:'recorded',commandId:input.taskId};
+    if (row.state!=='automation_active' || row.ownership_generation!==input.ownershipGeneration) return {outcome:'ownership_changed'};
+    if (!await this.activeBinding(db,row)) return {outcome:'authority_unavailable'};
+    await this.requestHandoff(db,binding,input.taskId);
+    return {outcome:'recorded',commandId:input.taskId};
   }
   async requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }> {
     if (brief) brief = handoffBriefSchema.parse(brief);

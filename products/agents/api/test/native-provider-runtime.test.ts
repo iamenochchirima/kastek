@@ -24,6 +24,8 @@ import {ChannelToolReviews,channelToolReviewButtons} from "../src/product/channe
 import type {ChannelWebhookEvent} from "../src/contracts/channel-adapters";
 import {exportProviderEffects} from "../src/product/evaluation/history-provider-effects";
 import {transaction} from "../src/infrastructure/database";
+import {captureConnectedUncertain,processConnectedUncertain} from "../src/product/inbox/connected-uncertain-recovery";
+import {clearChannelPorts} from "../src/infrastructure/channel-ports";
 
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("managed provider through published agent admission and durable reviews",()=>{
@@ -147,6 +149,48 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
   await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toMatchObject({code:"CONNECTED_OPERATION_UNCERTAIN"});expect(writes).toBe(1);
   expect((await f.inbox.readStaff(f.scope,f.conversation.id)).conversation.state).toBe("handoff_pending");
+  const before=await f.inbox.readStaff(f.scope,f.conversation.id);
+  expect(await transaction(pool,db=>captureConnectedUncertain(db,op.operationId))).toBe(true);
+  const publish=async(db:import('pg').PoolClient,intent:Parameters<typeof f.inbox.recoverUncertainConnectedHandoff>[1])=>{
+   const result=await f.inbox.recoverUncertainConnectedHandoff(db,intent);
+   return result.outcome==='recorded'?{outcome:'recorded' as const,commandId:result.commandId!}:{outcome:result.outcome};
+  };
+  expect(await processConnectedUncertain(pool,op.operationId,publish)).toBe('recorded');
+  expect(await processConnectedUncertain(pool,op.operationId,publish)).toBe('recorded');
+  const after=await f.inbox.readStaff(f.scope,f.conversation.id);
+  expect(after.messages).toHaveLength(before.messages.length);expect(after.uncertainEffects).toEqual([{operationId:op.operationId,kind:'contact_save_uncertain'}]);expect(writes).toBe(1);
+ },20000);
+ it("recovers a lost handoff after an uncertain reviewed write without repeating the provider effect",async()=>{
+  const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
+  beforeCreateResult=async()=>clearChannelPorts(pool);
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toThrow();expect(writes).toBe(1);
+  const inbox=composeInbox(pool,{publicOrigin:"http://localhost:3100",assertServices:async()=>{}});
+  expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.state).toBe("automation_active");
+  expect(await transaction(pool,db=>captureConnectedUncertain(db,op.operationId))).toBe(true);
+  const publish=async(db:import('pg').PoolClient,intent:Parameters<typeof inbox.recoverUncertainConnectedHandoff>[1])=>{
+   const result=await inbox.recoverUncertainConnectedHandoff(db,intent);
+   return result.outcome==='recorded'?{outcome:'recorded' as const,commandId:result.commandId!}:{outcome:result.outcome};
+  };
+  expect(await processConnectedUncertain(pool,op.operationId,publish)).toBe('recorded');
+  expect(await processConnectedUncertain(pool,op.operationId,publish)).toBe('recorded');
+  const recovered=await inbox.readStaff(f.scope,f.conversation.id);
+  expect(recovered.conversation.state).toBe('handoff_pending');expect(recovered.uncertainEffects).toEqual([{operationId:op.operationId,kind:'contact_save_uncertain'}]);
+  expect(recovered.messages.filter(message=>message.body.includes('passed to the support team'))).toHaveLength(1);
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toThrow();expect(writes).toBe(1);
+ },20000);
+ it("retains staff-only uncertainty when the grant is revoked during a CRM send",async()=>{
+  const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);
+  await reviews.decideForPrincipal(f.task.id,f.principal,review.id,{decision:"approve",requestDigest:review.requestDigest});mode="lost";
+  beforeCreateResult=async()=>{await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=(SELECT grant_id FROM agents_platform.tasks WHERE id=$1)",[f.task.id]);};
+  await expect(executor.execute(f.task.id,op.operationId,op.binding,op.args)).rejects.toMatchObject({code:"CONNECTED_OPERATION_UNCERTAIN"});
+  expect(await transaction(pool,db=>captureConnectedUncertain(db,op.operationId))).toBe(true);
+  expect(await processConnectedUncertain(pool,op.operationId,f.inbox.recoverUncertainConnectedHandoff.bind(f.inbox))).toBe('authority_unavailable');
+  const staff=await f.inbox.readStaff(f.scope,f.conversation.id);
+  expect(staff.conversation.state).toBe('automation_active');
+  expect(staff.uncertainEffects).toEqual([{operationId:op.operationId,kind:'contact_save_uncertain'}]);
+  const visitor=await f.inbox.readVisitor({deploymentId:f.principal.deploymentId,sessionId:f.principal.sessionId},f.conversation.id);
+  expect(JSON.stringify(visitor)).not.toContain(op.operationId);expect(writes).toBe(1);
  },20000);
  it("preserves human takeover when ownership changes during an uncertain CRM send",async()=>{
   const f=await customerFixture(),op=await operation(f,"contacts.create",{email:"customer@example.test"}),review=await reviews.prepare(f.task.id,op.operationId,op.binding,op.args);

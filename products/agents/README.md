@@ -354,6 +354,10 @@ An uncertain appointment outcome can also request support. The customer receives
 uncertainty notice and Inbox staff see a booking-specific brief. Recovery checks the existing
 provider operation; it does not create another appointment.
 
+For an uncertain reviewed HubSpot contact save, the worker recovers the original operation and
+adds a staff-only Inbox notice. It never repeats the provider write or adds a second handoff receipt.
+Staff must check HubSpot before retrying; there is currently no in-product action to clear the notice.
+
 The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
 outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders
 after 10 and 30 minutes. Each kind is limited to two stages. These thresholds are reminder policy,
