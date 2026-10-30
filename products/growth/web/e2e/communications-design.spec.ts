@@ -56,7 +56,7 @@ async function controlledVoice(page:Page,mode:string){
 }
 test("microphone denial is recoverable without contacting token endpoint",async({page,request})=>{await controlledVoice(page,"denied");await expect(page.getByRole("alert")).toContainText(/microphone|Denied/i);expect((await(await request.get(stateURL)).json()).mutations).toHaveLength(0);});
 test("pending connect cancellation disposes late SDK completion",async({page})=>{
- page.on("pageerror",error=>console.log("Browser error:",error.message));await controlledVoice(page,"pending");await expect.poll(()=>page.evaluate(()=>Boolean((window as unknown as {__voice:{resolve?:unknown}}).__voice.resolve))).toBe(true);
+ await controlledVoice(page,"pending");await expect.poll(()=>page.evaluate(()=>Boolean((window as unknown as {__voice:{resolve?:unknown}}).__voice.resolve))).toBe(true);
  await page.getByRole("button",{name:"Cancel call",exact:true}).filter({visible:true}).last().click();
  await expect(page.getByRole("status").filter({hasText:"Call ended"})).toBeVisible();
  await page.evaluate(()=>{(window as unknown as {__voice:{resolve:()=>void}}).__voice.resolve();});
@@ -110,4 +110,17 @@ test("leaving an active call requires an explicit disconnect choice", async ({ p
   await confirmation.getByRole("button", { name: "End call", exact: true }).click();
   await expect(page).toHaveURL(/\/inbox$/);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __voice: { disconnected: number } }).__voice.disconnected)).toBeGreaterThan(0);
+});
+
+test("starter link preserves configured content and dismisses cleanly",async({page})=>{
+ await page.goto("/templates?starter=marketing-launch&create=1");const dialog=page.getByRole("dialog",{name:"Create template",exact:true});await expect(dialog.getByRole("textbox",{name:"Template name",exact:true})).toHaveValue("product_launch");await expect(dialog.getByRole("textbox",{name:"Body",exact:true})).toHaveValue("Hi {{1}}, our new launch is live. Tap into the offer before it ends.");await dialog.getByRole("button",{name:"Cancel",exact:true}).click();await expect(page).toHaveURL(/\/templates$/);
+});
+test("newly registered number is selected for browser calling",async({page,request})=>{
+ await page.goto("/calls");await page.getByRole("button",{name:"New call",exact:true}).click();await page.getByRole("button",{name:"Connect business number",exact:true}).click();
+ await page.getByRole("textbox",{name:"Business number",exact:true}).fill("+27215550199");await page.getByRole("textbox",{name:"Label (optional)",exact:true}).fill("Sales phone");await page.getByRole("button",{name:"Register number",exact:true}).click();await page.getByRole("button",{name:/^Business phone/}).filter({visible:true}).last().click();await expect(page.getByRole("combobox",{name:"Business number",exact:true})).toContainText("Sales phone");
+ expect((await(await request.get(stateURL)).json()).voice.some((c:{displayName:string})=>c.displayName==="Sales phone")).toBe(true);
+});
+test("failed sync preserves selected template and loaded records",async({page})=>{
+ await page.goto("/templates");await page.getByRole("button",{name:"Preview spring_offer",exact:true}).filter({visible:true}).click();
+ await page.route("**/templates/sync",r=>r.fulfill({status:503,json:{error:"Controlled sync failure"}}));await page.getByRole("button",{name:"Sync templates",exact:true}).click();await expect(page.getByRole("alert")).toContainText("Controlled sync failure");await expect(page.getByRole("button",{name:"Preview spring_offer",exact:true}).filter({visible:true})).toBeVisible();await expect(page.getByRole("heading",{name:"spring_offer",exact:true})).toBeVisible();
 });

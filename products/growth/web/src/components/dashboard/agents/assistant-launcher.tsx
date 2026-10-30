@@ -149,7 +149,7 @@ export function GrowthAssistantLauncher({
     <div
       ref={launcherRef}
       className={cn(
-        "fixed z-[var(--z-floating)] h-14 w-14",
+        "fixed z-[calc(var(--z-overlay)-1)] h-14 w-14",
         !position && "bottom-5 right-5 sm:bottom-6 sm:right-6",
       )}
       style={style}

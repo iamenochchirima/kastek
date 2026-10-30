@@ -1,4 +1,5 @@
 import http from "node:http";
+import { communicationsFixture } from "./communications-api.mjs";
 import { campaignFixture } from "./campaigns-api.mjs";
 import { randomUUID } from "node:crypto";
 import { analyticsCatalogFixture, analyticsReportFixture } from "../analytics-fixtures.ts";
@@ -46,12 +47,15 @@ const migrationInbox = { id: "fixture-inbox", channel: "whatsapp", customerName:
 
 const handleCampaignFixture = process.env.GROWTH_CAMPAIGNS_FIXTURE === "1" ? campaignFixture({ json, payload, now, contacts: migrationContacts, templates: migrationTemplates }) : null;
 
+const handleCommunicationsFixture = process.env.GROWTH_COMMUNICATIONS_FIXTURE === "1" ? communicationsFixture({json,payload,now}) : null;
+
 const fixturePlan = { key: "fixture-plan", productKey: "growth", name: "Fixture plan", interval: "MONTHLY", currency: "ZAR", amountMinor: 10000, creditsPerPeriod: 100, checkoutReady: true, entitlements: [] };
 const developerConfig = { restBaseUrl: "https://growth.example/v1", mcpAvailable: false, mcpEndpoint: null, mcpPackage: null, clients: [] };
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://127.0.0.1"); const path = url.pathname; const businessId = scope(request);
     if (migration) migrationRequests.push({ path, method: request.method });
+    if (handleCommunicationsFixture && await handleCommunicationsFixture(request, response, url)) return;
     if (handleCampaignFixture && await handleCampaignFixture(request, response, url)) return;
     if (path === "/__fixture/migration") return json(response, 200, { requests: migrationRequests, profile, developerKeys, bookingServices, contacts: migrationContacts, campaigns: migrationCampaigns, templates: migrationTemplates, posts: migrationPosts, inboxMessages: migrationMessages });
     if (migration && path === "/api/auth/account") { response.writeHead(200, { "content-type": "text/html" }); response.end("<html><head><meta name='robots' content='noindex'></head><body><h1>Account settings fixture</h1></body></html>"); return; }

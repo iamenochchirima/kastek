@@ -258,3 +258,36 @@ Record the actual platform release ID and artifact versions at deployment, then 
 owner's post-release review. Model evaluations, consenting live-provider acceptance, push, merge
 and deployment are separate owner decisions. Roll back to the prior tested web/API pair if the
 new UI or scheduling contract causes regressions; never replay campaigns during rollback.
+
+## Templates and Calls redesign candidate — 30 October 2026
+
+- Change/owner: approved Templates and Calls layouts and recoverable provider actions; engineering,
+  with final visual and live-provider acceptance assigned to Enock. Linear KAS-219–KAS-223.
+- Risk: standard. Growth web and existing Templates/Calls endpoints are affected. Other products
+  and their independent authentication/deployment lifecycles are unchanged.
+- Release identity: local candidate commits `bd14eca2`, `50c51cdd`, `8fa3b37e`, `f81ceeb3` plus
+  the subsequent verification commit. A deployed platform release/tag is not applicable yet;
+  retain the exact source SHA and built artifact when separately approved for release.
+- API/schema/migrations: no production API or schema change. Source-account identity and
+  browser-only Twilio readiness were already exposed and now have regression coverage.
+- Rollout: normal Growth frontend artifact replacement after owner acceptance. No new feature
+  flag, worker, credential, provider permission or configuration variable.
+- Analytics: no new event contract; existing authenticated provider actions remain the outcome
+  boundary. New dashboards/adoption metrics are not applicable to this styling change.
+- Logging: raw template content and request payload browser logging removed. New telemetry
+  exporters, Collector changes and alerts are not applicable. Existing server logging remains
+  authoritative for provider failures.
+- Documentation: feature map and `architecture/growth-communications-ui.md` describe actual
+  behavior, storage constraints and the owner-run live checklist. Public provider capability
+  contracts do not change.
+- Validation: focused API readiness/source-account checks and controlled browser journeys cover
+  responsive themes, account selection, persisted review status, partial-read errors and calling
+  lifecycle cleanup. Exact commands/results and screenshots are recorded on the linked issues.
+  Controlled SDK/media fixtures never contact Twilio or Meta. Database-dependent API cases require
+  their owned test database and remain explicitly skipped when absent.
+- Rollback: redeploy the previous tested Growth web artifact and retain hashed assets for open
+  tabs. No data rollback is needed. Review browser call errors and template submission/sync after
+  release; post-release date is assigned by the owner with deployment approval.
+
+Live template submission/sync, consenting calls and WhatsApp Inbox calling remain owner-run.
+No production release or model eval is implied by local engineering verification.
