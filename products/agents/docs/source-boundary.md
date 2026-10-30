@@ -174,6 +174,8 @@ are not applicable until deployment is authorized.
 
 Schema075 stores setup; schema076 adds native enquiries and permits exact review prompts before
 the single final assistant message; schema077 adds resumable progress and creation idempotency.
+New guided setups start with no responsibilities selected and create a draft after at least one
+responsibility is chosen. Saved drafts restore their existing choices.
 Removing booking or enquiry responsibilities removes setup-owned authority using existing grant
 revocation. Manually authorized source/tool bindings remain separate. For rollback, disable the
 affected capability or deployment, revert application code and retain additive schemas/checksum

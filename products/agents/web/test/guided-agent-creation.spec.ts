@@ -60,6 +60,12 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await dialog.getByLabel("Website (optional)").fill("bicycles.example");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  for (const name of [/Answer questions/, /Handle support/, /Book appointments/, /Collect enquiries/]) await expect(dialog.getByLabel(name)).not.toBeChecked();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Choose at least one responsibility.");
+  expect(requests.filter(request => request.path === `${base}/agents`)).toHaveLength(0);
+  await dialog.getByLabel(/Answer questions/).check();
+  await dialog.getByLabel(/Handle support/).check();
   await dialog.getByLabel(/Book appointments/).check();
   await dialog.getByLabel(/Collect enquiries/).check();
   await page.screenshot({ path: test.info().outputPath(`responsibilities-${width}.png`), fullPage: true });
@@ -100,7 +106,7 @@ test("booking-only setup skips knowledge and closing preserves the current step"
   const requests = await fixture(page); let dialog = await start(page);
   await dialog.getByLabel("Business name", { exact: true }).fill("Salon");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await dialog.getByLabel(/Answer questions/).uncheck(); await dialog.getByLabel(/Handle support/).uncheck(); await dialog.getByLabel(/Book appointments/).check();
+  await dialog.getByLabel(/Book appointments/).check();
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Where will customers use it?" })).toBeVisible();
   expect(requests.filter(request=>request.path===`${base}/agents`)).toHaveLength(1);
@@ -117,7 +123,7 @@ test("saved setup resumes after reload through the scoped creation pointer",asyn
   const requests=await fixture(page);let dialog=await start(page);
   await dialog.getByLabel("Business name",{exact:true}).fill("Salon");
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();
-  await dialog.getByLabel(/Answer questions/).uncheck();await dialog.getByLabel(/Handle support/).uncheck();await dialog.getByLabel(/Book appointments/).check();
+  await dialog.getByLabel(/Book appointments/).check();
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   await expect(dialog.getByRole("heading",{name:"Where will customers use it?"})).toBeVisible();
   await page.reload();
@@ -131,7 +137,7 @@ test("saved setup resumes after reload through the scoped creation pointer",asyn
 test("booking policy is selected in guided setup and saved before review and direct resume",async({page})=>{
   const requests=await fixture(page);let dialog=await start(page);
   await dialog.getByLabel("Business name",{exact:true}).fill("Salon");await dialog.getByRole("button",{name:"Continue",exact:true}).click();
-  await dialog.getByLabel(/Answer questions/).uncheck();await dialog.getByLabel(/Handle support/).uncheck();await dialog.getByLabel(/Book appointments/).check();await dialog.getByRole("button",{name:"Continue",exact:true}).click();
+  await dialog.getByLabel(/Book appointments/).check();await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   await dialog.getByRole("button",{name:"Continue",exact:true}).click();await dialog.getByLabel("Duration (minutes)").fill("45");await dialog.getByRole("button",{name:"Continue",exact:true}).click();
   await dialog.getByRole("button",{name:"New booking policy",exact:true}).click();
   const policyDialog=page.getByRole("dialog",{name:"New booking policy",exact:true});
@@ -178,6 +184,8 @@ test("tablet conditional setup stays usable in both themes", async ({ page }) =>
     };
     await dialog.getByLabel("Business name", { exact: true }).fill("Bicycle shop");
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await dialog.getByLabel(/Answer questions/).check();
+    await dialog.getByLabel(/Handle support/).check();
     await dialog.getByLabel(/Book appointments/).check();
     await dialog.getByLabel(/Collect enquiries/).check();
     await capture("responsibilities");

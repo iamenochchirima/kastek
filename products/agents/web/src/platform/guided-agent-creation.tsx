@@ -33,7 +33,7 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
   const storageKey = `agent-setup:${session.account.id}:${organizationId}`;
   const [restoring, setRestoring] = useState(false), [conflict,setConflict] = useState(false);
   const [business, setBusiness] = useState({ name: "", website: "", description: "" });
-  const [selected, setSelected] = useState<Responsibility[]>(["answer-questions", "customer-support"]);
+  const [selected, setSelected] = useState<Responsibility[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<Array<typeof channels[number]>>(["website"]);
   const [intakeFields, setIntakeFields] = useState<Array<typeof fields[number]>>(["name", "email", "message"]);
   const [booking, setBooking] = useState({ durationMinutes: 30, notes: "" });
@@ -117,7 +117,8 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
     const invalid = validate(); if (invalid) { setError(""); setValidationError(invalid); return; }
     setValidationError(null); setBusy(true); setError("");
     try {
-      await persist(steps[step + 1] ?? "Review");
+      // A new draft requires at least one responsibility, which is chosen on the next step.
+      if (current !== "Business" || (agent && selected.length > 0)) await persist(steps[step + 1] ?? "Review");
       setStep(value => value + 1);
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
@@ -127,7 +128,7 @@ export function GuidedAgentCreation({ open, onOpenChange, organizationId, onCrea
       const draft = await persist("complete");
       sessionStorage.removeItem(storageKey);
       onCreated(draft.id);
-      setAgent(null); createRequest.current = null; setStep(0); setBusiness({ name: "", website: "", description: "" }); setBehaviour({ agentName: "", language: "English", tone: "friendly", handoffInstructions: "" }); setSupportHours(defaultSupportHours()); setKnowledgeAdded(false); setSelected(["answer-questions", "customer-support"]); setSelectedChannels(["website"]); setIntakeFields(["name", "email", "message"]); setBooking({ durationMinutes: 30, notes: "" });
+      setAgent(null); createRequest.current = null; setStep(0); setBusiness({ name: "", website: "", description: "" }); setBehaviour({ agentName: "", language: "English", tone: "friendly", handoffInstructions: "" }); setSupportHours(defaultSupportHours()); setKnowledgeAdded(false); setSelected([]); setSelectedChannels(["website"]); setIntakeFields(["name", "email", "message"]); setBooking({ durationMinutes: 30, notes: "" });
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
   return <Dialog open={open} onOpenChange={value => { if (!busy && !importBusy) onOpenChange(value); }}><DialogContent ref={dialogContent} className="sm:max-w-[min(48rem,calc(100vw-2rem))]" showCloseButton={!busy && !importBusy} onInteractOutside={event => { if (busy || importBusy) event.preventDefault(); }} onEscapeKeyDown={event => { if (busy || importBusy) event.preventDefault(); }}>
