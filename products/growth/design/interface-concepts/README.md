@@ -35,6 +35,6 @@ The [additional prompt set](growth-expansion-prompts.json) records the built-in 
 
 ## Campaigns
 
-- [Campaigns board](campaigns-board-v1.png): list, creation review, campaign detail and neutral dark treatment. Generated on 30 October 2026 against the approved Posts reference. Campaigns-specific owner visual approval is pending.
+- [Campaigns board](campaigns-board-v1.png): list, creation review, campaign detail and neutral dark treatment. Generated on 30 October 2026 against the approved Posts reference. The owner approved this Campaigns board on 30 October 2026 before styling began.
 
 The [Campaigns specification](https://linear.app/kasitek/document/growth-campaigns-redesign-implementation-plan-and-acceptance-afb194879acb) records the implementation and acceptance scope. The board is a composition reference, not a data contract: campaign thumbnails, author attribution and illustrative ratios must not be invented. Use actual connection/template/audience data. Status labels and counts must agree with records. No inert checkbox or menu affordances should be copied from the generated image. Draft creation is separate from explicit queueing; scheduled delivery must show the resolved time zone and instant.

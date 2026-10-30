@@ -240,3 +240,21 @@ Release identity consists of the source SHA, built artifact, runtime configurati
 existing platform release process. Record those values at promotion rather than treating the
 package's default version as a release. Production deployment, DNS changes, production performance
 claims, and a post-release review date remain unset until the owner authorizes a release.
+
+## Campaigns release candidate
+
+The 30 October 2026 local Campaigns change uses the existing Growth release path. The
+[Campaigns behavior reference](../architecture/campaigns.md) records draft creation, authoritative
+recipient preflight, explicit launch/scheduling and preserved recovery controls. This is a
+compatible UI/API change without a schema migration. Release the tested web/API artifact pair.
+
+User-visible changes include a compact campaign list and status filters, four-step creation,
+reviewed Send now and Schedule actions, truthful draft feedback, recipient/template details and
+confirmed cancel/delete controls. Existing campaign records and registered delivery analytics
+remain in use. Contact exclusions use canonical contact IDs, not list-membership IDs.
+
+The local engineering handoff records commit/check evidence in KAS-212 through KAS-217.
+Record the actual platform release ID and artifact versions at deployment, then schedule the
+owner's post-release review. Model evaluations, consenting live-provider acceptance, push, merge
+and deployment are separate owner decisions. Roll back to the prior tested web/API pair if the
+new UI or scheduling contract causes regressions; never replay campaigns during rollback.
