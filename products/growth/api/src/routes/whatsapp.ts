@@ -96,6 +96,11 @@ export function contactListQuery(query: unknown): WhatsappContactListQuery {
     cursor: queryU64(row.cursor, "cursor") ?? null,
   };
 }
+export function campaignActionCapability(action: string | null): string {
+  return ["resume", "retry_failed", "send_more"].includes(action ?? "")
+    ? "feature.campaigns.send"
+    : "feature.campaigns.manage";
+}
 export function campaignCreateInput(body: unknown) {
   const row = object(body),
     audience = row.audience == null ? null : object(row.audience);
@@ -135,6 +140,7 @@ export const WHATSAPP_MARKETING_ROUTES = [
   ["POST", "/api/whatsapp/connections/:id/templates/sync"],
   ["GET", "/api/whatsapp/campaigns"],
   ["POST", "/api/whatsapp/campaigns"],
+  ["POST", "/api/whatsapp/campaigns/preflight"],
   ["GET", "/api/whatsapp/campaigns/:id"],
   ["GET", "/api/whatsapp/campaigns/:id/summary"],
   ["POST", "/api/whatsapp/campaigns/:id/launch"],
@@ -300,6 +306,15 @@ export function registerWhatsappMarketingRoutes(
     const ctx = await scope(request, "feature.campaigns.manage");
     return campaigns.listCampaigns(core.pool, ctx.orgId);
   });
+  app.post("/api/whatsapp/campaigns/preflight", async (request) => {
+    const ctx = await scope(request, "feature.campaigns.manage");
+    return campaigns.preflightCampaign(
+      core.pool,
+      ctx.orgId,
+      campaignCreateInput(request.body),
+      options,
+    );
+  });
   app.post("/api/whatsapp/campaigns", async (request, reply) => {
     const ctx = await scope(request, "feature.campaigns.manage");
     return reply
@@ -336,9 +351,9 @@ export function registerWhatsappMarketingRoutes(
     );
   });
   app.patch("/api/whatsapp/campaigns/:id", async (request) => {
-    const ctx = await scope(request, "feature.campaigns.manage"),
-      body = object(request.body),
+    const body = object(request.body),
       action = text(body.action);
+    const ctx = await scope(request, campaignActionCapability(action));
     if (action === null) throw bad("Action is required");
     switch (action) {
       case "pause":

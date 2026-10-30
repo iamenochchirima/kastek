@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 343,
+  "routeCount": 344,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -328,6 +328,7 @@
     "POST /api/whatsapp/calls/:id/signals",
     "POST /api/whatsapp/campaigns",
     "POST /api/whatsapp/campaigns/:id/launch",
+    "POST /api/whatsapp/campaigns/preflight",
     "POST /api/whatsapp/connections",
     "POST /api/whatsapp/connections/:id/refresh",
     "POST /api/whatsapp/connections/:id/templates/sync",

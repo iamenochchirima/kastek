@@ -1438,6 +1438,42 @@ export const GENERATED_SERDE_BODY_SCHEMAS: Record<string, unknown> = {
       "scheduledAt": {}
     }
   },
+  "POST /api/whatsapp/campaigns/preflight": {
+    "type": "object",
+    "properties": {
+      "name": {},
+      "description": {},
+      "connectionId": {},
+      "templateId": {},
+      "recipientIds": {
+        "type": "array",
+        "items": {}
+      },
+      "excludedContactIds": {
+        "type": "array",
+        "items": {}
+      },
+      "listLabel": {},
+      "batchSize": {},
+      "scheduledAt": {},
+      "variableMappings": {},
+      "audience": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {}
+          },
+          "location": {},
+          "search": {},
+          "listLabel": {},
+          "optInStatus": {},
+          "excludedStatus": {},
+          "cooldownStatus": {}
+        }
+      }
+    }
+  },
   "POST /api/whatsapp/connections": {
     "type": "object",
     "properties": {

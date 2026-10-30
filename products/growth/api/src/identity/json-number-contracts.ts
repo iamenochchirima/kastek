@@ -165,6 +165,14 @@ export const RUST_JSON_NUMERIC_FIELDS: Record<string, readonly (readonly [readon
       "i32"
     ]
   ],
+  "POST /api/whatsapp/campaigns/preflight": [
+    [
+      [
+        "batchSize"
+      ],
+      "i32"
+    ]
+  ],
   "POST /v1/content/posts": [
     [
       [
@@ -408,6 +416,11 @@ export const RUST_JSON_VALUE_FIELDS: Record<string, readonly (readonly string[])
     ]
   ],
   "POST /api/whatsapp/campaigns": [
+    [
+      "variableMappings"
+    ]
+  ],
+  "POST /api/whatsapp/campaigns/preflight": [
     [
       "variableMappings"
     ]
