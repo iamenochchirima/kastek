@@ -40,3 +40,12 @@ The [additional prompt set](growth-expansion-prompts.json) records the built-in 
 The [Campaigns specification](https://linear.app/kasitek/document/growth-campaigns-redesign-implementation-plan-and-acceptance-afb194879acb) records the implementation and acceptance scope. The board is a composition reference, not a data contract: campaign thumbnails, author attribution and illustrative ratios must not be invented. Use actual connection/template/audience data. Status labels and counts must agree with records. No inert checkbox or menu affordances should be copied from the generated image. Draft creation is separate from explicit queueing; scheduled delivery must show the resolved time zone and instant.
 
 - [Campaigns component states](campaigns-states-v1.png): supplementary launch, cancel, next-batch, recipient, failure and retry design sheet, generated on 30 October 2026. It extends the approved board's visual direction; implementation uses existing shared dialogs and actual available facts. Illustrative thumbnails/avatars, fixed recipient counts and decorative framing are not additional product requirements. Final rendered-state acceptance remains with the owner.
+
+## Templates and Calls proposals
+
+Generated on 30 October 2026 from the approved Posts reference. These are design proposals, not implemented pages.
+
+- [Templates](templates-board-v1.png): compact status/category/language/account table, selected message preview, sync and creation form; light and dark variants.
+- [Calls](calls-board-v1.png): direction/status-filtered history, call details, linked Inbox conversation, business-phone dialer and active-call controls; light and dark variants.
+
+Use existing records and provider availability. Calls has no recording/transcript contract in the audited UI. WhatsApp calling stays in Inbox; the browser dialer uses the registered business-phone provider. Do not turn illustrative thumbnails, checkbox/bulk controls, language flags, timestamps or presence dots into unsupported product claims. Language labels need no country flags. Use the existing neutral charcoal tokens when translating the dark proposals; generated gradients are not new theme requirements. Owner design approval and a scoped implementation plan remain separate steps.
