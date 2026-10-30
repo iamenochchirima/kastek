@@ -143,7 +143,7 @@ test("creates a campaign through its setup and confirmation screens", async ({ p
 test("submits a template and reloads its pending provider-review state", async ({ page, request }) => {
   await page.setViewportSize({ width: 768, height: 1000 });
   await page.goto("/templates");
-  await page.getByRole("button", { name: "Create new template", exact: true }).click();
+  await page.getByRole("button", { name: "New template", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: /Template name/ }).fill("migration_template");
   await dialog.getByRole("textbox", { name: /Body/ }).fill("Migration offer. Reply STOP to opt out.");
