@@ -36,3 +36,11 @@ export default function ReachTemplatesPage() {
 function unavailableMessage(error: unknown, resource: string) {
   return error instanceof ApiError && error.status === 403 ? `${resource}: access denied` : `${resource} unavailable`;
 }
+
+export function HydrateFallback() {
+  return <section className="templates-workspace" aria-label="Loading templates" aria-busy="true">
+    <div className="templates-header"><div className="h-8 w-40 animate-pulse rounded bg-muted" /></div>
+    <div className="templates-toolbar"><div className="h-9 w-64 animate-pulse rounded bg-muted" /><div className="h-9 w-36 animate-pulse rounded bg-muted" /></div>
+    <div className="space-y-3 px-4 lg:px-7" aria-hidden="true">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-16 animate-pulse rounded bg-muted" />)}</div>
+  </section>;
+}
