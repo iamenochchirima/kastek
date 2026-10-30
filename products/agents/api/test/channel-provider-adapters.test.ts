@@ -18,6 +18,36 @@ it.each(["telegram", "whatsapp"] as const)("does not dispatch a pre-cancelled %s
   expect(fetch).not.toHaveBeenCalled();
 });
 
+describe.each(["telegram", "whatsapp"] as const)("%s transport boundaries", kind => {
+  const adapter = kind === "telegram" ? telegramAdapter : whatsappAdapter;
+  const request = kind === "telegram" ? tgRequest : waRequest;
+  const context = kind === "telegram" ? telegram : whatsapp;
+  const success = () => kind === "telegram" ? Response.json({ ok: true, result: { message_id: 55 } }) : Response.json({ messages: [{ id: "wamid.sent" }] });
+
+  it("forbids redirects on credential-bearing requests", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(success());
+    await adapter.send(request, context(fetch));
+    expect(fetch.mock.calls[0]![1]?.redirect).toBe("error");
+  });
+
+  it("does not accept a redirected response or retry an uncertain effect", async () => {
+    const response = success();
+    Object.defineProperty(response, "redirected", { value: true });
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response);
+    await expect(adapter.send(request, context(fetch))).rejects.toMatchObject({ outcome: "unknown" });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(response.bodyUsed).toBe(true);
+  });
+
+  it("requires exactly one attachment locator before dispatch", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    for (const attachment of [{ kind: "image" as const }, { kind: "image" as const, providerMediaId: "media", url: "https://media.example/image.jpg" }]) {
+      await expect(adapter.send({ ...request, attachments: [attachment] }, context(fetch))).rejects.toMatchObject({ outcome: "rejected" });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("Telegram native adapter", () => {
   it("requires the configured secret header, including case-insensitive names", () => {
     telegramAdapter.verifyWebhook({ rawBody: new Uint8Array(), headers: { "X-Telegram-Bot-Api-Secret-Token": "secret" }, secrets: { webhookSecret: "secret" } });
@@ -35,11 +65,24 @@ describe("Telegram native adapter", () => {
     expect(telegramAdapter.normalize({ update_id: 18, callback_query: { id: "callback", from: { id: 7 }, data: "approve", message: tgMessage.message } }, { assetId: "123" })[0]).toMatchObject({ kind: "interaction", interaction: "approve" });
     expect(telegramAdapter.normalize({ update_id: 19, message: { ...tgMessage.message, text: undefined, from: { id: 123, is_bot: true }, photo: [{ file_id: "small" }, { file_id: "large" }] } }, { assetId: "123" })[0]).toMatchObject({ echo: true, attachments: [{ kind: "image", providerMediaId: "large" }] });
   });
+  it("marks only private chats with matching provider actor identity as private", () => {
+    const message = { ...tgMessage.message, chat: { id: 7, type: "private" } };
+    expect(telegramAdapter.normalize({ ...tgMessage, message }, { assetId: "123" })[0]).toMatchObject({ privateChat: true, senderLabel: "7" });
+    for (const chat of [{ id: -42, type: "group" }, { id: 8, type: "private" }, { id: 7 }]) {
+      expect(telegramAdapter.normalize({ ...tgMessage, message: { ...message, chat } }, { assetId: "123" })[0]).toMatchObject({ privateChat: false });
+    }
+    expect(telegramAdapter.normalize({ update_id: 18, callback_query: { id: "callback", from: { id: 8 }, data: "approve", message } }, { assetId: "123" })[0]).toMatchObject({ privateChat: false });
+  });
   it("sends one plain text effect with reply identity and no hidden fallback", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ ok: true, result: { message_id: 55 } }));
     await expect(telegramAdapter.send(tgRequest, telegram(fetch))).resolves.toEqual({ providerMessageId: "55", status: "accepted" });
     expect(fetch).toHaveBeenCalledOnce(); expect(fetch.mock.calls[0]![0]).toBe("https://api.telegram.org/bot123:synthetic_secret/sendMessage");
     expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({ chat_id: "-42", text: "Hello", reply_parameters: { message_id: 22, allow_sending_without_reply: false } });
+  });
+  it("retains uncertainty when an acceptance receipt names another chat", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ ok: true, result: { message_id: 55, chat: { id: 99 } } }));
+    await expect(telegramAdapter.send(tgRequest, telegram(fetch))).rejects.toMatchObject({ code: "TELEGRAM_RESPONSE_SCOPE_MISMATCH", outcome: "unknown" });
+    expect(fetch).toHaveBeenCalledOnce();
   });
   it.each([["image", "sendPhoto", "photo"], ["audio", "sendAudio", "audio"], ["video", "sendVideo", "video"], ["document", "sendDocument", "document"]] as const)("sends one %s using its native method", async (kind, method, field) => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ ok: true, result: { message_id: 56 } }));
@@ -88,6 +131,12 @@ describe("WhatsApp native adapter", () => {
     expect(() => whatsappAdapter.normalize(waPayload({ messages: [{ from: "2782", type: "text", text: { body: "No id" } }] }))).toThrow(ChannelAdapterError);
     expect(() => whatsappAdapter.normalize(waPayload({ messages: [] }), { assetId: "foreign" })).toThrowError("WHATSAPP_ASSET_MISMATCH");
     expect(whatsappAdapter.normalize(null)).toEqual([]);
+  });
+  it("marks direct numeric sender messages private but never provider echoes", () => {
+    const message = { id: "wamid.direct", from: "2782", type: "text", text: { body: "Hello" } };
+    expect(whatsappAdapter.normalize(waPayload({ messages: [message] }))[0]).toMatchObject({ privateChat: true, senderLabel: "2782" });
+    expect(whatsappAdapter.normalize(waPayload({ messages: [{ ...message, to: "2783", echo: true }] }))[0]).toMatchObject({ privateChat: false });
+    expect(whatsappAdapter.normalize(waPayload({ messages: [{ ...message, from: "group@example" }] }))[0]).toMatchObject({ privateChat: false });
   });
   it("sends text, reply identity and only the explicitly configured API version", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ messages: [{ id: "wamid.sent" }] }));

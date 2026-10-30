@@ -15,6 +15,7 @@ import { ErrorMessage, Loading, useWorkspace } from "./shell";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { useAgentDirectory } from "./agent-directory";
 import { Chat } from "./chat";
+import { SpecialistConfiguration } from "./specialist-configuration";
 import { SourceConfiguration } from "./source-configuration";
 import { AgentCatalogue } from "./catalogue";
 import { AnalysisConfiguration } from "./analysis-configuration";
@@ -133,6 +134,7 @@ export function AgentEditor() {
       <section className="agent-config-panel agent-config-model">
       <AgentModel key={`${organizationId}:${agent.id}`} organizationId={organizationId} agentId={agent.id} configuration={configuration} onChange={setConfiguration} />
       </section>
+      {configuration.executionKind === "business" && !agent.offering ? <SpecialistConfiguration key={agent.id} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} configuration={configuration} onChange={setConfiguration} /> : null}
       <details className="agent-config-history rounded-md border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Configuration history</summary><div className="mt-3 space-y-3">{versions.map((snapshot, index) => <div key={snapshot.id} className="flex flex-wrap items-center justify-between gap-2"><span>{snapshot.createdAt ? new Date(snapshot.createdAt).toLocaleString() : index === 0 ? "Current configuration" : "Previous configuration"}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => { if (dirty && !await confirm({ title: "Replace unsaved changes?", description: "Load this saved configuration into the editor. Apply it with Save changes.", confirmLabel: "Load configuration" })) return; setConfiguration(structuredClone(snapshot.configuration)); toast.success("Configuration loaded. Save changes to apply it."); }}>Load configuration</Button></div>)}</div></details>
       <section className="agent-config-panel"><h2>Delete agent</h2><Button type="button" variant="destructive" disabled={busy} onClick={() => { setDeleteError(""); setDeleteOpen(true); }}>Delete agent</Button></section>
     </form></div> : section === "tools" || section === "skills" ? <><AgentCatalogue key={`${agent.id}.${section}`} organizationId={organizationId} agentId={agent.id} draftRevision={agent.draftRevision} kind={section} configuration={configuration} onChange={setConfiguration} onBeforeConnect={beforeConnect} />{section === "tools" ? <CustomerRecordTools configuration={configuration} onChange={setConfiguration} /> : null}<form className="catalogue-save" onSubmit={event => void save(event)}><Button type="submit" disabled={!needsApply || busy}>{busy ? "Saving…" : "Save changes"}</Button></form></> : <section className="max-w-2xl space-y-5" aria-label="Website deployment">

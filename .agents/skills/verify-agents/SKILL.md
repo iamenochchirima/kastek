@@ -110,3 +110,36 @@ database from the run before removing anything. Preserve the evidence files.
 
 This skill adds no helper scripts. Its launchers and assertions are the existing API test files
 named above. Keep those commands and the canonical feature map aligned when behavior changes.
+
+## Private organization assistant
+
+For schema094/095 lifecycle, verified member identity, reviews and shared delivery, run controlled
+checks against an owned PostgreSQL fixture with exact pgvector0.8.7. No inference or live channel
+account is used by these tests:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/organization-assistant.test.ts test/member-channels.test.ts
+```
+
+For actual coordinator → Content specialist execution, set `AGENTS_TEST_RESTATE_BINARY` to an
+owned native Restate1.7.13 executable. The test creates its own loopback runtime, worker, temporary
+data and disposable database, then tears them down. This path does not require Docker:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run test/organization-assistant-runtime.test.ts
+```
+
+The deterministic model boundary verifies app/Telegram/WhatsApp delegation, app continuation,
+revocation during child work, cancellation, duplicate requests, handler restart replay and child
+failure. It is not a model evaluation or live provider trial. API runtime fixtures must never use
+the owner's shared application database or credentials. Without both database and executable,
+the runtime suite skips; report that explicitly.
+
+`AGENTS_ASSISTANT_BROWSER=1` also drives the actual Vite/API/PostgreSQL/Restate path with Playwright
+and fixture authentication. Keep one browser fixture at a time, inspect its ignored screenshot
+artifacts and report actual browser execution separately from route-mocked web scenarios.
+The web `test/assistant.spec.ts` suite covers responsive light/dark linking, lifecycle, delivery
+states and specialist controls with mocked HTTP. Preserve and inspect its screenshots under
+`.artifacts/assistant-browser/` or the explicitly selected output directory. The private assistant
+[reference](../../../products/agents/docs/operations/private-assistant.md) records rollout and owner
+acceptance limits. Passing controlled checks does not enable private phone access automatically.

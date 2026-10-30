@@ -25,10 +25,10 @@ for (const width of [1440, 768, 390]) {
       else if (path.endsWith("/catalogue/tools")) data = toolCatalogue;
       else if (path.endsWith("/agents/root")) {
         if (request.method() === "PUT") { const body = request.postDataJSON(); expect(body.expectedRevision).toBe(draftRevision); draft = body.configuration; draftRevision++; }
-        data = { agent: { id: "root", name: "Customer support", draft, draftRevision }, versions, deployments: [] };
+        data = { agent: { id: "root", name: "Customer support", offering: "customer-service", setup: { business: { name: "Support", website: "", description: "" }, responsibilities: ["answer-questions", "customer-support"], channels: [], behaviour: { agentName: "Customer support", language: "English", tone: "professional", handoffInstructions: "" } }, draft, draftRevision }, versions, deployments: [] };
       } else if (path.endsWith("/agents/root/configuration")) {
         const body = request.postDataJSON(); expect(body.expectedRevision).toBe(draftRevision); draft = body.configuration; draftRevision++;
-        const snapshot = { id: `version-${versions.length + 1}`, number: versions.length + 1, configuration: structuredClone(draft) }; versions.unshift(snapshot); data = { agent: { id: "root", name: "Customer support", draft, draftRevision }, snapshot, deployments: [] };
+        const snapshot = { id: `version-${versions.length + 1}`, number: versions.length + 1, configuration: structuredClone(draft) }; versions.unshift(snapshot); data = { agent: { id: "root", name: "Customer support", offering: "customer-service", setup: { business: { name: "Support", website: "", description: "" }, responsibilities: ["answer-questions", "customer-support"], channels: [], behaviour: { agentName: "Customer support", language: "English", tone: "professional", handoffInstructions: "" } }, draft, draftRevision }, snapshot, deployments: [] };
       } else if (path.endsWith("/agents/summaries")) data = { agents: [agentSummary({ id: "root", name: "Customer support" }, versions[0])], nextCursor: null };
       else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
       else { unexpected.push(path); await route.fulfill({ status: 404, json: { error: { message: "Unexpected customer editor dependency" } } }); return; }

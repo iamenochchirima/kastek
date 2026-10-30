@@ -15,6 +15,7 @@ export const channelWebhookEventSchema = z.strictObject({
   kind: z.enum(["message", "receipt", "interaction"]),
   assetId: externalId, eventId: externalId,
   externalConversationId: externalId, senderId: externalId,
+  privateChat: z.boolean().optional(), senderLabel: externalId.optional(),
   occurredAt: z.iso.datetime().nullable(), providerMessageId: externalId.nullable(),
   text: z.string().max(32768).optional(), attachments: z.array(channelAttachmentSchema).max(16).default([]),
   replyToProviderMessageId: externalId.optional(), echo: z.boolean().default(false),

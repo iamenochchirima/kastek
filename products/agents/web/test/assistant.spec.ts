@@ -1,0 +1,192 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const org = "11111111-1111-4111-8111-111111111111";
+const account = { id: "member", email: "member@example.test", displayName: "Member" };
+const assistant = { state: "configured", agent: { id: "assistant-1", name: "Business assistant" }, version: { id: "version-1", number: 1 } };
+const connection = { id: "bot-1", kind: "telegram", label: "Office bot" };
+type Link = { id: string; connectionId: string; kind: string; state: string; senderLabel: string; expiresAt: string | null; conversationId: string | null };
+async function workspace(page: Page, options: { role?: string; state?: string; enabled?: boolean; kind?: string; deliveryState?: string } = {}) {
+  const selectedConnection = { ...connection, kind: options.kind ?? connection.kind };
+  const links: Link[] = [];
+  if (options.deliveryState) links.push({ id: "link-1", connectionId: selectedConnection.id, kind: selectedConnection.kind, state: "active", senderLabel: "@office-member", expiresAt: null, conversationId: "conversation-1" });
+  const calls: string[] = [];
+  let paired = false, channelReads = 0;
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (path === "/api/session") return route.fulfill({ json: { account, organizations: [{ id: org, name: "Office", role: options.role ?? "member" }] } });
+    if (path.endsWith("/assistant/repair")) { calls.push("repair"); return route.fulfill({ json: { ...assistant, state: "draft" } }); }
+    if (path.endsWith("/assistant")) return route.fulfill({ json: options.state === "absent" || options.state === "deleted" ? { state: options.state, agent: null, version: null } : assistant });
+    if (path.endsWith("/member-channels/challenges")) { calls.push("challenge"); links.push({ id: "challenge-1", connectionId: selectedConnection.id, kind: selectedConnection.kind, state: "challenge", senderLabel: "", expiresAt: new Date(Date.now() + 300_000).toISOString(), conversationId: null }); return route.fulfill({ json: { id: "challenge-1", token: "private-code", expiresAt: new Date(Date.now() + 300_000).toISOString() } }); }
+    if (path.endsWith("/member-channels/link-1/confirm")) { calls.push("confirm"); links[0].state = "active"; links[0].conversationId = "conversation-1"; return route.fulfill({ json: {} }); }
+    if (path.endsWith("/member-channels/link-1") && method === "DELETE") { calls.push("revoke"); links[0].state = "revoked"; return route.fulfill({ json: {} }); }
+    if (path.endsWith("/member-channels")) {
+      channelReads++;
+      if (paired && !links.some(link => link.state === "pending" || link.state === "active")) { links.splice(0, links.length, { id: "link-1", connectionId: selectedConnection.id, kind: selectedConnection.kind, state: "pending", senderLabel: "@office-member", expiresAt: new Date(Date.now() + 300_000).toISOString(), conversationId: null }); paired = false; }
+      return route.fulfill({ json: { enabled: options.enabled ?? true, links, connections: [selectedConnection], deliveries: options.deliveryState ? [{ id: "delivery-1", linkId: "link-1", taskId: "task-1", state: options.deliveryState, reason: null, segment: 1, updatedAt: new Date().toISOString() }] : [] } });
+    }
+    return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+  });
+  return { calls, channelReads: () => channelReads, pair: () => { paired = true; } };
+}
+
+test("member pairs, verifies sender, continues the private conversation and unlinks", async ({ page }) => {
+  const fixture = await workspace(page);
+  await page.goto("/app/assistant");
+  await expect(page.getByRole("link", { name: "Open chat", exact: true })).toHaveAttribute("href", "/app/agents/assistant-1");
+  await expect(page.getByRole("link", { name: "Configure", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Link Office bot" }).click();
+  await expect(page.getByText("/pair private-code", { exact: true })).toBeVisible();
+  const readsBeforePoll = fixture.channelReads();
+  await expect.poll(fixture.channelReads).toBeGreaterThan(readsBeforePoll);
+  await expect(page.getByText("/pair private-code", { exact: true })).toBeVisible();
+  fixture.pair();
+  await expect(page.getByText("@office-member", { exact: true })).toBeVisible();
+  await expect(page.getByText("/pair private-code", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Confirm account", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("@office-member on Telegram will access your assistant in Office.");
+  expect(fixture.calls).toEqual(["challenge"]);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirm account", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open conversation" })).toHaveAttribute("href", "/app/agents/assistant-1/conversations/conversation-1");
+  await page.getByRole("button", { name: "Unlink", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+  expect(fixture.calls).toEqual(["challenge", "confirm"]);
+  await page.getByRole("button", { name: "Unlink", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Unlink", exact: true }).click();
+  await expect(page.getByText("@office-member", { exact: true })).toHaveCount(0);
+  expect(fixture.calls).toEqual(["challenge", "confirm", "revoke"]);
+});
+
+test("owner explicitly restores an intentionally removed assistant", async ({ page }) => {
+  const fixture = await workspace(page, { role: "owner", state: "deleted" });
+  await page.goto("/app/assistant");
+  await expect(page.getByRole("heading", { name: "Assistant removed" })).toBeVisible();
+  expect(fixture.calls).toEqual([]);
+  await page.getByRole("button", { name: "Restore assistant" }).click();
+  await expect(page.getByRole("link", { name: "Configure", exact: true })).toHaveAttribute("href", "/app/agents/assistant-1?section=configuration");
+  await expect(page.getByRole("button", { name: "Link Office bot" })).toBeDisabled();
+  expect(fixture.calls).toEqual(["repair"]);
+});
+
+test("member sees unavailable setup without an owner repair action", async ({ page }) => {
+  await workspace(page, { state: "absent" });
+  await page.goto("/app/assistant");
+  await expect(page.getByText("Ask an owner to set up the assistant.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Set up assistant" })).toHaveCount(0);
+});
+
+test("private account layout fits desktop, tablet and mobile in both themes", async ({ page }) => {
+  await workspace(page);
+  for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/assistant");
+    await expect(page.getByRole("heading", { name: "Your messaging accounts" })).toBeVisible();
+    await page.getByRole("button", { name: "Link Office bot" }).click();
+    await expect(page.getByText("/pair private-code", { exact: true })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`assistant-${theme}-${width}.png`), fullPage: true, animations: "disabled" });
+  }
+});
+
+async function specialistWorkspace(page: Page) {
+  const configuration = { executionKind: "business", program: { id: "tool-directed", version: "1" }, instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+  const specialist = { agentId: "content", name: "Content", description: "Write private drafts from the supplied brief.", versionId: "content-v1", versionNumber: 1, ready: true, reasons: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [] };
+  const agent = { id: "assistant-1", name: "Business assistant", draft: configuration, draftRevision: 1 };
+  const saved: unknown[] = [], created: unknown[] = [];
+  await page.route("**/api/**", async route => {
+    const request = route.request(), path = new URL(request.url()).pathname;
+    let data: unknown;
+    if (path === "/api/session") data = { account, organizations: [{ id: org, name: "Office", role: "owner" }] };
+    else if (path.endsWith("/inbox-alerts")) data = { unread: 0, alerts: [] };
+    else if (path.endsWith("/model-providers")) data = { connections: [] };
+    else if (path.endsWith("/model-providers/default")) data = { selection: null, revision: 1 };
+    else if (path.endsWith("/model-policy")) data = { modelId: null, modelRevision: null, limits: { contextTokens: null, maxInputTokens: null, maxOutputTokens: null, maxCallDurationMs: null, maxRootTokens: null, safetyTokens: null }, effectivePolicy: null, errors: [], controls: { temperature: null, reasoning: null } };
+    else if (path.endsWith("/setup-readiness")) data = { readiness: { readyToTest: false, setupStep: null, requirements: {}, channels: [] } };
+    else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
+    else if (path.endsWith("/agents/summaries")) data = { agents: [{ ...agent, latestVersion: { id: "version-1", number: 1, executionKind: "business" } }], nextCursor: null };
+    else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
+    else if (path.endsWith("/specialists")) data = { specialists: [specialist, { ...specialist, agentId: "analyst", name: "Analyst", versionId: "analyst-v2", versionNumber: 2, ready: false, reasons: ["Model unavailable"] }, { ...specialist, agentId: "editor", name: "Editor", versionId: "editor-v1" }, { ...specialist, agentId: "reviewer", name: "Reviewer", versionId: "reviewer-v1" }] };
+    else if (path.endsWith("/agents/assistant-1/configuration")) { saved.push(request.postDataJSON()); data = { agent, snapshot: { id: "version-2", number: 2, configuration: request.postDataJSON().configuration }, deployments: [] }; }
+    else if (path.endsWith("/agents") && request.method() === "POST") { created.push(request.postDataJSON()); data = { agent: { ...agent, id: "new-content" } }; }
+    else if (path.endsWith("/agents/assistant-1") || path.endsWith("/agents/new-content")) data = { agent, versions: [{ id: "version-1", number: 1, configuration }], deployments: [] };
+    else return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
+    return route.fulfill({ json: data });
+  });
+  return { saved, created };
+}
+
+test("normal configuration pins only ready specialists, enforces two bindings and saves delegation", async ({ page }) => {
+  const fixture = await specialistWorkspace(page);
+  await page.goto("/app/agents/assistant-1?section=configuration");
+  const section = page.getByRole("region", { name: "Specialists", exact: true });
+  await expect(section.getByText("Model unavailable", { exact: true })).toBeVisible();
+  const analyst = section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Analyst · v2" }) });
+  await expect(analyst.getByRole("button", { name: "Add specialist" })).toBeDisabled();
+  for (const name of ["Content · v1", "Editor · v1"]) await section.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
+  await expect(section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Reviewer · v1" }) }).getByRole("button", { name: "Add specialist" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  expect(fixture.saved[0]).toMatchObject({ configuration: { tools: ["agents.delegate"], capabilities: { delegation: { enabled: true, maxChildren: 2, maxDepth: 1, bindings: [{ versionId: "content-v1", label: "Content", maxTokens: 8000 }, { versionId: "editor-v1", label: "Editor", maxActiveMs: 120000 }] } } } });
+});
+
+test("content specialist creation uses normal business configuration and private drafting instructions", async ({ page }) => {
+  const fixture = await specialistWorkspace(page);
+  await page.goto("/app/agents/assistant-1?section=configuration");
+  await page.getByRole("button", { name: "Create specialist", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Create specialist", exact: true });
+  await expect(dialog.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Content");
+  await dialog.getByRole("button", { name: "Create specialist", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/agents\/new-content\?section=configuration/);
+  expect(fixture.created[0]).toMatchObject({ name: "Content", operationId: expect.any(String), configuration: { executionKind: "business", tools: [], sourceRevisionIds: [], capabilities: { delegation: { enabled: false }, businessActions: { enabled: false } }, instructions: expect.stringContaining("Do not publish") } });
+});
+
+test("disabled private messaging blocks new links", async ({ page }) => {
+  await workspace(page, { enabled: false });
+  await page.goto("/app/assistant");
+  await expect(page.getByText("Private messaging unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Link Office bot" })).toBeDisabled();
+});
+
+test("WhatsApp pairing requires confirming the displayed private sender", async ({ page }) => {
+  const fixture = await workspace(page, { kind: "whatsapp" });
+  await page.goto("/app/assistant");
+  await page.getByRole("button", { name: "Link Office bot" }).click();
+  fixture.pair();
+  await expect(page.getByText("@office-member", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm account", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("@office-member on WhatsApp will access your assistant in Office.");
+  expect(fixture.calls).toEqual(["challenge"]);
+});
+
+for (const [state, label] of [["unknown", "Delivery unknown"], ["suppressed", "Available in app"], ["failed", "Delivery failed"], ["pending", "Delivery pending"]]) {
+  test(`private ${state} delivery retains the app result without a resend action`, async ({ page }) => {
+    await workspace(page, { deliveryState: state });
+    await page.goto("/app/assistant");
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open conversation" })).toHaveAttribute("href", "/app/agents/assistant-1/conversations/conversation-1");
+    await expect(page.getByRole("button", { name: /resend/i })).toHaveCount(0);
+  });
+}
+
+test("specialist configuration and creation dialog fit supported widths and themes", async ({ page }) => {
+  await specialistWorkspace(page);
+  for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/agents/assistant-1?section=configuration");
+    const section = page.getByRole("region", { name: "Specialists", exact: true });
+    await expect(section.getByText("Model unavailable", { exact: true })).toBeVisible();
+    await section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Content · v1", exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await section.screenshot({ path: test.info().outputPath(`specialists-${theme}-${width}.png`), animations: "disabled" });
+    await section.getByRole("button", { name: "Create specialist" }).click();
+    const dialog = page.getByRole("dialog", { name: "Create specialist", exact: true });
+    await expect(dialog.getByRole("textbox", { name: "Instructions", exact: true })).toBeVisible();
+    await dialog.screenshot({ path: test.info().outputPath(`create-specialist-${theme}-${width}.png`), animations: "disabled" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  }
+});

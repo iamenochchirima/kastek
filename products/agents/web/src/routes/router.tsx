@@ -16,6 +16,7 @@ import { ConnectionsPage } from "@/platform/connections";
 import { CustomersPage } from "@/platform/customer-records";
 import { InboxPage } from "@/platform/inbox";
 import { OverviewPage } from "@/platform/overview";
+import { AssistantPage } from "@/platform/assistant";
 import { CustomerReturn } from "@/platform/customer-return";
 
 const LandingV2 = lazy(() => import("@/platform/landing-v2").then(module => ({ default: module.LandingV2 })));
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
   { path: "/app", Component: WorkspaceShell, children: [
     { index: true, element: <Navigate to="overview" replace /> },
     { path: "overview", Component: OverviewPage },
+    { path: "assistant", Component: AssistantPage },
     { path: "agents", Component: AgentDirectory, children: [
       { index: true, Component: AgentWelcome },
       { path: ":agentId", Component: AgentEditor },

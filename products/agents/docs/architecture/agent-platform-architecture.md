@@ -130,6 +130,26 @@ Evaluation-owned website routes and separately authorized existing schedules sta
 Knowledge imports remain separate reviewed-source operations. Product setup exposes capabilities
 needed for its customer outcome rather than every shared-runtime configuration control.
 
+### Private organization assistant
+
+The standalone product includes one ordinary business assistant definition per organization.
+Its lifecycle marker is used for provisioning and explicit restoration only; names and markers
+confer no authority. Members use normal private human-principal conversations and configure
+same-organization pinned specialists under the existing depth/concurrency/root-budget limits.
+Content delegation produces a private text draft. Customer channel grants and Inbox ownership
+remain separate from this member journey.
+
+Organization-owned Telegram/WhatsApp connections retain one verified webhook owner. App-issued,
+hashed expiring challenges, provider-observed sender/private-chat identity and explicit signed-in
+confirmation establish member links. Purpose routing happens before task admission; revoked private
+routes keep tombstones and never become customer conversations. Shared durable queues have explicit
+member-purpose records and scoped foreign keys. Root/child operations, review and physical sends
+recheck current member/link/connection generations. The linked conversation is visible in the app
+only to its human principal; pairing never imports arbitrary app history.
+
+The [private assistant reference](../operations/private-assistant.md) records supported APIs,
+provider-window behavior, staged enablement, recovery and current verification limits.
+
 ### Shared channel inbox and human support
 
 Inbox brings customer conversations from connected channels into the Agents product. Authorized

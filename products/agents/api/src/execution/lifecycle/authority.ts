@@ -69,6 +69,16 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
       WHERE m.organization_id=$1 AND a.issuer=$2 AND a.subject=$3 AND m.revoked_at IS NULL FOR SHARE OF m`,
     [task.organization_id, task.principal.issuer, task.principal.subject]);
     if (!allowed.rowCount) throw new PlatformError("MEMBERSHIP_INACTIVE", 403, "Workspace access is unavailable");
+    const privateRoot=(await db.query(`SELECT l.state,l.generation,m.link_generation,c.state connection_state,c.revision,c.credential_revision,
+      l.connection_revision,l.credential_revision link_credential_revision FROM agents_platform.member_channel_tasks m
+      JOIN agents_platform.member_channel_links l ON l.id=m.link_id JOIN agents_platform.channel_connections c ON c.id=l.connection_id
+      WHERE m.task_id=$1 FOR SHARE OF l,c`,[task.root_task_id])).rows[0];
+    if(privateRoot) {
+      const allowed=(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim());
+      if(!allowed.includes('*')&&!allowed.includes(task.organization_id)||privateRoot.state!=='active'||privateRoot.generation!==privateRoot.link_generation||privateRoot.connection_state!=='active'||privateRoot.revision!==privateRoot.connection_revision||privateRoot.credential_revision!==privateRoot.link_credential_revision)
+        throw new PlatformError("MEMBER_CHANNEL_REVOKED",403,"Private messaging access was revoked");
+    }
+
   } else if (task.principal.kind === "visitor") {
     if (!await currentVisitorLineageAllowed(db,execution)) throw new PlatformError("DEPLOYMENT_SCOPE_DENIED",403,"Website return access is unavailable");
     const allowed = await db.query(`SELECT 1 FROM agents_platform.website_deployments d JOIN agents_platform.website_sessions s ON s.deployment_id=d.id

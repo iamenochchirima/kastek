@@ -119,6 +119,11 @@ lexical/local semantic retrieval and citation/dependency records. Private S3 sto
 holds source bodies, evidence from connected reads and reports. Memory bodies and bounded memory
 citation snapshots remain in private PostgreSQL. Selected native/MCP public-repository
 read adapters share the controller; authenticated GitHub acceptance remains pending.
+The standalone organization assistant uses ordinary human-principal tasks and pinned business
+specialists, with verified private member links over Telegram/WhatsApp behind organization allowlists.
+Its lifecycle and purpose-routing records do not grant cross-product authority. Knowledge source
+bodies and temporary extraction receipts now live in PostgreSQL; unrelated connected evidence and
+artifacts continue to use private object storage. See the [private assistant reference](products/agents/docs/operations/private-assistant.md).
 Growth and Agencies integration and product delegation policy remain later work. Workspace execution
 is explicitly unavailable until the Lina adapter is implemented. No existing database or
 production deployment is changed by this source reset.

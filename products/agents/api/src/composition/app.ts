@@ -1,3 +1,6 @@
+import { specialistCatalogue } from "../product/assistant/specialists";
+import { OrganizationAssistantStore } from "../product/agents/organization-assistant";
+import { MemberChannels } from "../product/assistant/member-channels";
 import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
 import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
 import { registerOverviewRoutes } from "../product/overview/routes";
@@ -278,6 +281,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
+  const organizationAssistant=new OrganizationAssistantStore(pool),memberChannels=new MemberChannels(pool);
+  const assistantBase="/api/organizations/:organizationId";
+  app.get(`${assistantBase}/assistant`,async request=>{const scope=await resolveScope(request);return organizationAssistant.getOrganizationAssistant(scope.accountId,scope.organizationId);});
+  app.post(`${assistantBase}/assistant/repair`,async request=>{z.strictObject({}).parse(request.body??{});const scope=await resolveScope(request);return organizationAssistant.repairOrganizationAssistant(scope.accountId,scope.organizationId);});
+  app.get(`${assistantBase}/member-channels`,async request=>memberChannels.list(await resolveScope(request)));
+  app.post(`${assistantBase}/member-channels/challenges`,async request=>memberChannels.challenge(await resolveScope(request),request.body));
+  app.post(`${assistantBase}/member-channels/:linkId/confirm`,async request=>{z.strictObject({}).parse(request.body??{});return memberChannels.confirm(await resolveScope(request),uuid.parse(parameters(request).linkId));});
+  app.delete(`${assistantBase}/member-channels/:linkId`,async request=>memberChannels.revoke(await resolveScope(request),uuid.parse(parameters(request).linkId)));
+  app.get(`${assistantBase}/agents/:agentId/specialists`,async request=>specialistCatalogue(pool,await resolveScope(request),uuid.parse(parameters(request).agentId)));
   registerChannelRoutes(app,{store:channelServices.channels,telegram:channelServices.telegram,meta:channelServices.meta,resolveScope,
     resolveSessionId:async request=>{await account(request);return hash(request.cookies[sessionCookie]!);}});
   registerWebsiteAppearanceRoutes(app,{pool,resolveScope});
@@ -390,8 +402,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/agents`, async (request) => ({ agents: (await store.listAgents((await account(request)).id, organizationId(request))).map(dto) }));
   app.post(`${base}/agents`, async (request, reply) => {
-    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").default("customer-service"), setup: customerSetupSchema.optional(), operationId:z.uuid().optional() }).parse(request.body);
-    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering, setup: input.setup, operationId:input.operationId });
+    const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120), offering: z.literal("customer-service").optional(), configuration: agentConfigurationSchema.optional(), setup: customerSetupSchema.optional(), operationId:z.uuid().optional() }).parse(request.body);
+    const created = await store.createConfiguredAgent({ accountId: user.id, organizationId: organizationId(request), name: input.name, offering: input.offering??(input.configuration?undefined:"customer-service"), configuration:input.configuration, setup: input.setup, operationId:input.operationId });
     return reply.code(201).send({ agent: dto(created.agent), snapshot: dto(created.snapshot) });
   });
   app.get(`${base}/agents/:agentId`, async (request) => {

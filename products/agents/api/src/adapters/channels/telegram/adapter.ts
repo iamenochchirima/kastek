@@ -37,6 +37,7 @@ export function normalizeTelegram(payload: unknown, context?: { assetId: string 
   if (text === undefined && !attachments.length && interaction === undefined) return [];
   const parsed = channelWebhookEventSchema.safeParse({ kind: interaction === undefined ? "message" : "interaction",
     assetId: context.assetId, eventId, externalConversationId: chatId, senderId, providerMessageId: messageId,
+    privateChat: chat.type === "private" && senderId === chatId, senderLabel: senderId,
     occurredAt: timestamp(message.date), ...(text === undefined ? {} : { text }), attachments,
     ...(interaction === undefined ? {} : { interaction, ...(typeof callback.id==="string"&&callback.id?{callbackQueryId:callback.id}:{}) }), echo: sender.is_bot === true,
     ...(id(object(message.reply_to_message).message_id) ? { replyToProviderMessageId: id(object(message.reply_to_message).message_id) } : {}) });
@@ -52,8 +53,12 @@ async function call(context: ChannelProviderContext, method: string, body: Recor
   if (context.signal?.aborted) throw new ChannelAdapterError("TELEGRAM_CANCELLED", "rejected", 409);
   let response: Response;
   try { response = await context.fetch(`https://api.telegram.org/bot${context.credential}/${method}`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: context.signal,
+    method: "POST", redirect: "error", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: context.signal,
   }); } catch { throw new ChannelAdapterError("TELEGRAM_OUTCOME_UNKNOWN", "unknown"); }
+  if (response.redirected) {
+    try { await response.body?.cancel(); } catch {}
+    throw new ChannelAdapterError("TELEGRAM_RESPONSE_INVALID", "unknown");
+  }
   let decoded: unknown;
   try { decoded = await response.json(); } catch {
     throw new ChannelAdapterError("TELEGRAM_RESPONSE_INVALID", response.status >= 400 && response.status < 500 && response.status !== 408 ? "rejected" : "unknown", response.status || 502);
@@ -68,6 +73,7 @@ async function call(context: ChannelProviderContext, method: string, body: Recor
   return value.result;
 }
 function mediaReference(attachment: ChannelAttachment): string {
+  if (Boolean(attachment.providerMediaId) === Boolean(attachment.url)) throw invalid();
   if (attachment.providerMediaId && !/[\u0000-\u001f\u007f]/.test(attachment.providerMediaId)) return attachment.providerMediaId;
   try { const url = new URL(attachment.url!); if (url.protocol === "https:" && !url.username && !url.password && !url.hash) return url.href; } catch {}
   throw invalid();
@@ -89,6 +95,9 @@ export async function sendTelegram(request: ChannelSendRequest, context: Channel
   } else { if (!request.text.trim() || [...request.text].length > 4096) throw invalid(); body.text = request.text; }
   const result = object(await call(context, method, body)), messageId = id(result.message_id);
   if (!messageId || Number(messageId) <= 0) throw new ChannelAdapterError("TELEGRAM_RESPONSE_INVALID", "unknown");
+  if (result.chat !== undefined && id(object(result.chat).id) !== request.recipientId) {
+    throw new ChannelAdapterError("TELEGRAM_RESPONSE_SCOPE_MISMATCH", "unknown");
+  }
   return { providerMessageId: messageId, status: "accepted" };
 }
 export const telegramAdapter: ChannelProviderAdapter = Object.freeze({ kind: "telegram", normalize: normalizeTelegram, send: sendTelegram,

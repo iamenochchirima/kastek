@@ -8,6 +8,40 @@ Agents is a fresh standalone product. Its API and business worker use the dedica
 startup. Explicit setup accepts only recognized preceding digests for supported additive upgrades.
 It rejects unknown schemas and does not import Growth state.
 
+## Private organization assistant
+
+`/app/assistant` opens an ordinary organization business agent and its current member's private
+phone links. Schema094 provisions one customizable draft for new workspaces, preserves deletion
+tombstones and offers explicit owner restore. Existing organizations opt in through setup.
+The normal editor can create a Content specialist and bind up to two permitted pinned business
+versions. The existing Restate harness chooses delegation through its model tool, maintains root
+budgets and returns a text draft without publishing into another product.
+
+Schema095 extends the shared ingress/outbound queues with explicit member-purpose rows. Hashed,
+ten-minute, single-use pairing challenges require a provider-observed private identity and separate
+signed-in app confirmation. Member, organization, sender/chat, asset and connection generations
+remain separate authority checks. Revoked routes never fall through to customer Inbox. The app can
+continue the link's private conversation as the same human principal. Phone `/status` and `/cancel`
+use the same task lifecycle. Results and connected-tool reviews recheck current evidence, permissions
+and link generation immediately before sending. Unknown sends are retained without blind retry;
+WhatsApp results outside the permitted window remain in the app.
+
+Private phone admissions are disabled by default and require
+`AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS` on API and worker. The
+[private assistant reference](operations/private-assistant.md) documents APIs, pairing, review,
+recovery, threat model, rollout, analytics and rollback. The
+[adapter conformance matrix](operations/channel-adapter-conformance.md) separates deterministic
+transport evidence from provider acceptance.
+
+Controlled evidence: API `organization-assistant`, `member-channels` and
+`organization-assistant-runtime` tests cover PostgreSQL provisioning/identity, shared delivery,
+actual native Restate specialist execution, phone/app continuation and revocation during child work.
+Web `assistant.spec.ts` covers pairing, lifecycle, delivery states, specialist selection and responsive
+light/dark layouts. Deterministic model/provider fixtures establish mechanics, not live-provider
+conformance or model quality. Meta documentation verification, owner live acceptance and hosted
+telemetry remain release prerequisites. No Growth integration or implicit protected KasiAI identity
+is added.
+
 ## Native customer records
 
 `/app/customers` exposes Enquiries and Contacts. Real confirmed channel submissions project

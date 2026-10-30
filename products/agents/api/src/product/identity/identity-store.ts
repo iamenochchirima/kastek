@@ -9,6 +9,7 @@ type ExecutionGrant
 
 import type { Account,Organization,Session } from "../../contracts/records";
 import { AuthorityStore } from "../../execution/admission/authority-store";
+import { ensureOrganizationAssistantInTransaction } from "../agents/organization-assistant";
 
 type Db=Pool|PoolClient;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -44,6 +45,7 @@ export class IdentityStore extends AuthorityStore {
       if (!(await db.query("SELECT id FROM agents_platform.accounts WHERE id=$1 FOR SHARE", [accountId])).rows[0]) denied();
       const row = (await db.query<{ id: string; name: string }>("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2) RETURNING id,name", [randomUUID(), text(name, 120)])).rows[0]!;
       await db.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')", [row.id, accountId]);
+      await ensureOrganizationAssistantInTransaction(db, { accountId, organizationId: row.id });
       return { ...row, role: "owner" };
     });
   }
@@ -59,6 +61,7 @@ export class IdentityStore extends AuthorityStore {
       const organizationId = randomUUID();
       await db.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,$2)", [organizationId, "My workspace"]);
       await db.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'owner')", [organizationId, accountId]);
+      await ensureOrganizationAssistantInTransaction(db, { accountId, organizationId });
     });
   }
   async createSession(input: { accountId: string; providerSessionId: string; expiresAt: Date }): Promise<{ token: string; expiresAt: Date }> {

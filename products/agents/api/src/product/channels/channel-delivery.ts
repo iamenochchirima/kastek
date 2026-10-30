@@ -1,3 +1,4 @@
+import { MemberChannels } from "../assistant/member-channels";
 import {assertEnquiryReviewPrompt,enquiryReviewDecision} from "./channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
 import { BOOKING_UNCERTAIN_RECEIPT, HANDOFF_RECEIPT } from "../inbox/handoff-receipt";
@@ -23,7 +24,8 @@ export interface ChannelDeliveryPorts {
   handleInteraction?(connectionId:string,deploymentId:string,event:ChannelWebhookEvent):Promise<"confirmed"|"rejected"|null>;
 }
 export class ChannelDelivery {
-  constructor(readonly pool: Pool, readonly channels: ChannelStore, readonly inbox: InboxStore, readonly ports: ChannelDeliveryPorts) {}
+  readonly members: MemberChannels;
+  constructor(readonly pool: Pool, readonly channels: ChannelStore, readonly inbox: InboxStore, readonly ports: ChannelDeliveryPorts) {this.members=new MemberChannels(pool);}
   /** Only verified/normalized provider events reach this port. Receipt and processing intent commit before webhook ACK. */
   async persist(kind: MessagingChannelKind, raw: ChannelWebhookEvent[], verifiedMode?:string,verifiedProfileDigest?:string,fixtureTrialId?:string): Promise<number> {
     if (raw.length > 100) throw new PlatformError("CHANNEL_WEBHOOK_LIMIT",413,"Too many channel events");
@@ -31,6 +33,22 @@ export class ChannelDelivery {
     return transaction(this.pool, async db => {
       let count = 0;
       for (const event of events) {
+        const connections=(await db.query(`SELECT * FROM agents_platform.channel_connections WHERE kind=$1 AND asset_id=$2 AND state='active'
+          AND ($3::text IS NULL OR mode=$3) AND ($4::text IS NULL OR metadata->>'setupProfileDigest'=$4) FOR SHARE`,[kind,event.assetId,verifiedMode??null,verifiedProfileDigest??null])).rows;
+        if(connections.length!==1)throw new PlatformError("CHANNEL_DESTINATION_UNAVAILABLE",409,"Channel destination is unavailable");
+        const privateRoute=await this.members.route(db,connections[0],event);
+        if(privateRoute.consumed)continue;
+        if(privateRoute.linkId) {
+          const digest=requestDigest(event);
+          const inserted=await db.query(`INSERT INTO agents_platform.channel_ingress(id,organization_id,connection_id,member_link_id,event_id,digest,event)
+            VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(connection_id,event_id) DO NOTHING RETURNING id`,
+            [randomUUID(),connections[0].organization_id,connections[0].id,privateRoute.linkId,event.eventId,digest,event]);
+          if(!inserted.rowCount) {
+            const prior=(await db.query("SELECT digest,member_link_id FROM agents_platform.channel_ingress WHERE connection_id=$1 AND event_id=$2",[connections[0].id,event.eventId])).rows[0];
+            if(prior.digest!==digest||prior.member_link_id!==privateRoute.linkId)throw new PlatformError("CHANNEL_EVENT_CONFLICT",409,"Conflicting provider event identity");
+          } else count++;
+          continue;
+        }
         const bindings = (await db.query(`SELECT c.id connection_id,c.organization_id,d.id deployment_id FROM agents_platform.channel_connections c
           JOIN agents_platform.channel_deployments d ON d.connection_id=c.id AND d.organization_id=c.organization_id
           WHERE c.kind=$1 AND c.asset_id=$2 AND c.state='active' AND d.state='active'
@@ -67,6 +85,20 @@ export class ChannelDelivery {
   }
   private async processIngress(row: Row): Promise<void> {
     const event = channelWebhookEventSchema.parse(row.event);
+    if(row.member_link_id) {
+      if(event.kind==='receipt')await this.receipt(row.connection_id,event);
+      else {
+        try {
+          await this.members.process(row,event);
+          if(event.callbackQueryId)await this.ports.acknowledgeInteraction?.(row.connection_id,event,'confirmed');
+        } catch(error) {
+          if(!event.callbackQueryId||!(error instanceof PlatformError)||error.statusCode>=500)throw error;
+          await this.ports.acknowledgeInteraction?.(row.connection_id,event,'rejected');
+        }
+      }
+      await this.pool.query("UPDATE agents_platform.channel_ingress SET state='completed',completed_at=now(),lease_until=NULL WHERE id=$1 AND claim_id=$2 AND state='processing'",[row.id,row.claim_id]);
+      return;
+    }
     let messageId: string | null = null;
     const recognized=channelToolReviewDecision(event)??enquiryReviewDecision(event);
     const interaction=recognized?(await this.ports.handleInteraction?.(row.connection_id,row.deployment_id,event)??"rejected"):null;
@@ -101,8 +133,9 @@ export class ChannelDelivery {
       await db.query(`INSERT INTO agents_platform.channel_receipts(connection_id,event_id,provider_message_id,external_conversation_id,status,
         provider_occurred_at,watermark,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
       [connectionId,event.eventId,event.providerMessageId,event.externalConversationId,status,event.occurredAt,watermark,event.errorCode ?? null]);
-      const rows = (await db.query(`SELECT o.* FROM agents_platform.channel_outbound o JOIN agents_platform.customer_conversations c ON c.id=o.conversation_id
-        WHERE o.connection_id=$1 AND c.external_conversation_id=$4 AND (($2::text IS NOT NULL AND o.provider_message_id=$2) OR ($3::timestamptz IS NOT NULL
+      const rows = (await db.query(`SELECT o.* FROM agents_platform.channel_outbound o LEFT JOIN agents_platform.customer_conversations c ON c.id=o.conversation_id
+        LEFT JOIN agents_platform.member_channel_links l ON l.id=o.member_link_id
+        WHERE o.connection_id=$1 AND coalesce(c.external_conversation_id,l.chat_id)=$4 AND (($2::text IS NOT NULL AND o.provider_message_id=$2) OR ($3::timestamptz IS NOT NULL
         AND o.provider_message_id IS NOT NULL AND EXISTS(SELECT 1 FROM agents_platform.channel_ingress native
           WHERE native.connection_id=o.connection_id AND native.event->>'providerMessageId'=o.provider_message_id
             AND native.event->>'echo'='true' AND (native.event->>'occurredAt')::timestamptz<=$3))) FOR UPDATE OF o`,
@@ -111,7 +144,7 @@ export class ChannelDelivery {
         const changed=await db.query("UPDATE agents_platform.channel_outbound SET state=$2,reason=$3,updated_at=now() WHERE id=$1 RETURNING id",[row.id,status,event.errorCode ?? null]);
         if(changed.rowCount)await recordSupportNotificationDelivery(db,{deliveryId:row.id,state:status,occurredAt:event.occurredAt?new Date(event.occurredAt):new Date()});
         if(status==="failed"){
-          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment]);
+          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE ((message_id=$1 AND $1::uuid IS NOT NULL) OR (member_link_id=$3 AND member_notice_key=$4)) AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment,row.member_link_id??null,row.member_notice_key??null]);
           for(const delivery of suppressed.rows)await recordSupportNotificationDelivery(db,{deliveryId:delivery.id,state:"suppressed",occurredAt:event.occurredAt?new Date(event.occurredAt):new Date()});
         }
       }
@@ -129,10 +162,14 @@ export class ChannelDelivery {
             AND receipt.result->>'handoffReceiptId'=o.message_id::text AND facts.message_id IS NULL)
         AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_send_limits quota WHERE quota.connection_id=o.connection_id AND quota.next_send_at>now())
         AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound p JOIN agents_platform.customer_messages pm ON pm.id=p.message_id
-          JOIN agents_platform.customer_messages om ON om.id=o.message_id WHERE p.conversation_id=o.conversation_id
+          JOIN agents_platform.customer_messages om ON om.id=o.message_id WHERE ((p.conversation_id=o.conversation_id AND o.conversation_id IS NOT NULL) OR (p.member_link_id=o.member_link_id AND o.member_link_id IS NOT NULL))
           AND (pm.sequence,p.segment)<(om.sequence,o.segment) AND p.state NOT IN ('accepted','sent','delivered','read','suppressed')
           AND NOT(p.state='failed' AND p.message_id<>o.message_id)
           AND NOT(p.state='unknown' AND EXISTS(SELECT 1 FROM agents_platform.channel_delivery_recovery recovery WHERE recovery.delivery_id=p.id)))
+        AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound prior WHERE o.member_link_id IS NOT NULL AND prior.member_link_id=o.member_link_id
+          AND (prior.created_at,prior.member_notice_key,prior.segment,prior.id)<(o.created_at,o.member_notice_key,o.segment,o.id)
+          AND prior.state NOT IN ('accepted','sent','delivered','read','suppressed')
+          AND NOT(prior.state='failed' AND prior.member_notice_key<>o.member_notice_key))
         AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound busy WHERE busy.connection_id=o.connection_id AND busy.state='sending')
         ORDER BY o.available_at,o.id LIMIT 1 FOR UPDATE SKIP LOCKED`)).rows[0];
       if (!row) return null;
@@ -144,6 +181,10 @@ export class ChannelDelivery {
   }
   private async authority(row: Row): Promise<{connection: Row; message: Row}> {
     return transaction(this.pool, async db => {
+      if(row.member_link_id) {
+        if(!(await db.query("SELECT 1 FROM agents_platform.channel_outbound WHERE id=$1 AND claim_id=$2 AND state='sending' AND lease_until>now() FOR SHARE",[row.id,row.claim_id])).rowCount)throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
+        return this.members.outboundAuthority(db,row);
+      }
       const pendingReceipt=Boolean((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.customer_messages m ON m.id=o.message_id
         WHERE o.id=$1 AND m.task_id IS NOT NULL AND m.request_key='handoff-receipt:'||m.task_id::text`,[row.id])).rowCount);
       const supportStatus=Boolean((await db.query(`SELECT 1 FROM agents_platform.channel_outbound o JOIN agents_platform.customer_messages m ON m.id=o.message_id
@@ -264,7 +305,7 @@ export class ChannelDelivery {
       if (changed.rowCount) {
         await recordSupportNotificationDelivery(db,{deliveryId:row.id,state,occurredAt:new Date()});
         if(state==="failed"){
-          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE message_id=$1 AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment]);
+          const suppressed=await db.query("UPDATE agents_platform.channel_outbound SET state='suppressed',reason='earlier_segment_failed',updated_at=now() WHERE ((message_id=$1 AND $1::uuid IS NOT NULL) OR (member_link_id=$3 AND member_notice_key=$4)) AND segment>$2 AND state='pending' RETURNING id",[row.message_id,row.segment,row.member_link_id??null,row.member_notice_key??null]);
           for(const delivery of suppressed.rows)await recordSupportNotificationDelivery(db,{deliveryId:delivery.id,state:"suppressed",occurredAt:new Date()});
         }
         const message = (await db.query("SELECT task_id FROM agents_platform.customer_messages WHERE id=$1",[row.message_id])).rows[0];
@@ -275,6 +316,7 @@ export class ChannelDelivery {
   }
   /** Bounded maintenance invoked by the existing worker lifecycle, never a provider-specific scheduler. */
   async drain(limit = 8): Promise<void> {
+    await this.members.collect();
     for (let index=0;index<Math.min(limit,32);index++) {
       const ingress = await this.claimIngress();
       if (ingress) try { await this.processIngress(ingress); } catch (error) {

@@ -27,6 +27,7 @@ function normalizeMessage(raw: unknown, assetId: string, echo: boolean): Channel
   } else if (message.type === "button") { interaction = string(object(message.button).payload); text = string(object(message.button).text); }
   if (!text && !attachments.length && !interaction) return undefined;
   return { kind: interaction ? "interaction" : "message", assetId, eventId: providerMessageId, externalConversationId: recipient,
+    privateChat: !echo && /^\d{1,32}$/.test(senderId), senderLabel: senderId,
     senderId, providerMessageId, occurredAt: timestamp(message.timestamp), ...(text ? { text } : {}), attachments, echo,
     ...(interaction ? { interaction } : {}), ...(string(object(message.context).id) ? { replyToProviderMessageId: message.context.id } : {}) };
 }
@@ -54,6 +55,7 @@ export function normalizeWhatsapp(payload: unknown, context?: { assetId: string 
   return events.map(event => { const parsed = channelWebhookEventSchema.safeParse(event); if (!parsed.success) throw invalid(); return parsed.data; });
 }
 function mediaPayload(attachment: ChannelAttachment): Record<string, string> {
+  if (Boolean(attachment.providerMediaId) === Boolean(attachment.url)) throw invalid();
   let value: Record<string, string>;
   if (attachment.providerMediaId && !/[\u0000-\u001f\u007f]/.test(attachment.providerMediaId)) value = { id: attachment.providerMediaId };
   else { try { const url = new URL(attachment.url!); if (url.protocol !== "https:" || url.username || url.password || url.hash) throw invalid(); value = { link: url.href }; } catch { throw invalid(); } }
@@ -84,9 +86,13 @@ export async function sendWhatsapp(request: ChannelSendRequest, context: Channel
   let serialized: string; try { serialized = JSON.stringify(body); } catch { throw invalid(); }
   if (context.signal?.aborted) throw new ChannelAdapterError("WHATSAPP_CANCELLED", "rejected", 409);
   let response: Response;
-  try { response = await context.fetch(`https://graph.facebook.com/${context.apiVersion}/${request.assetId}/messages`, { method: "POST",
+  try { response = await context.fetch(`https://graph.facebook.com/${context.apiVersion}/${request.assetId}/messages`, { method: "POST", redirect: "error",
     headers: { authorization: `Bearer ${context.credential}`, "content-type": "application/json" }, body: serialized, signal: context.signal }); }
   catch { throw new ChannelAdapterError("WHATSAPP_OUTCOME_UNKNOWN", "unknown"); }
+  if (response.redirected) {
+    try { await response.body?.cancel(); } catch {}
+    throw new ChannelAdapterError("WHATSAPP_RESPONSE_INVALID", "unknown");
+  }
   if (!response.ok) {
     try { await response.body?.cancel(); } catch {}
     const retry = response.headers.get("retry-after"), retryMs = retry && /^\d{1,5}$/.test(retry) ? Number(retry) * 1000 : undefined;

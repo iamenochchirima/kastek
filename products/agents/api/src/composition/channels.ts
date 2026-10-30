@@ -54,8 +54,9 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
     handleInteraction:async(connectionId,deploymentId,event)=>await enquiryReviews.handle(connectionId,deploymentId,event)??await contactReviews.handle(connectionId,deploymentId,event),
     async acknowledgeInteraction(connectionId,event,outcome) {
       if(!event.callbackQueryId)return;
-      const binding=await channels.resolveDeployment("telegram",event.assetId);
-      if(!binding||binding.connection.id!==connectionId)throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Channel authority changed");
+      const row=(await pool.query("SELECT * FROM agents_platform.channel_connections WHERE id=$1 AND kind='telegram' AND asset_id=$2 AND state='active'",[connectionId,event.assetId])).rows[0];
+      const binding=row?{connection:{id:row.id,organizationId:row.organization_id,revision:row.revision,credentialRevision:row.credential_revision,metadata:row.metadata}}:null;
+      if(!binding)throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Channel authority changed");
       if(binding.connection.metadata.evaluationFixture||binding.connection.metadata.evaluationTrialId){
         if(outcome&&fixtures){await fixtures.acknowledgeContactReview(connectionId,event);return;}
         throw new PlatformError("EVALUATION_CHANNEL_CALLBACK_UNSUPPORTED",403,"Interactive callbacks are unavailable in this fixture");
@@ -86,6 +87,10 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
       if(await fixtures?.assertFixturePolicy(connection,message,request))return;
       if(connection.metadata.evaluationFixture)throw new PlatformError("EVALUATION_CHANNEL_SCOPE_DENIED",403,"Isolated channel transport is unavailable");
       if(connection.metadata.expiresAt&&Date.parse(connection.metadata.expiresAt)<=Date.now())throw new PlatformError("CHANNEL_RECONNECT_REQUIRED",409,"Reconnect this channel");
+      if(message.member_link_id) {
+        // MemberChannels rechecks member/link/connection and the WhatsApp reply window at every physical send.
+        return;
+      }
       if(request.attachments?.length)await media.assertDispatch({organizationId:connection.organization_id,connectionId:connection.id,
         conversationId:message.conversation_id,ownershipGeneration:String(message.ownership_generation),actorAccountId:message.author_account_id,
         messageBody:message.body,request});

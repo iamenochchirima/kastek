@@ -466,6 +466,16 @@
       "owner": "agent-platform",
       "category": "scope_definition",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.assistant.lifecycle@1",
+      "schema": "events/agent/assistant_lifecycle/v1.schema.json",
+      "examples": [
+        "examples/agent/assistant_lifecycle.json"
+      ],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }
