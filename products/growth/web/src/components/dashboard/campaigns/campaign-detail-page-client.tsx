@@ -361,6 +361,8 @@ export default function CampaignDetailPageClient({
   const configuredCampaignIdRef = useRef(campaign.id);
   const refreshControllersRef = useRef(new Map<string, AbortController>());
   const sendMoreControllerRef = useRef<AbortController | null>(null);
+  const menuActionRef = useRef<(() => void) | null>(null);
+  const menuActionFrameRef = useRef<number | null>(null);
   const [sendMoreContacts, setSendMoreContacts] = useState<SendMoreContact[]>([]);
   const [pendingRecipientContactIds, setPendingRecipientContactIds] = useState<string[]>([]);
   const [sendMoreSearch, setSendMoreSearch] = useState("");
@@ -416,6 +418,8 @@ export default function CampaignDetailPageClient({
       controllers.clear();
       sendMoreControllerRef.current?.abort();
       sendMoreControllerRef.current = null;
+      menuActionRef.current = null;
+      if (menuActionFrameRef.current !== null) window.cancelAnimationFrame(menuActionFrameRef.current);
       if (detailRefreshTimeoutRef.current !== null) window.clearTimeout(detailRefreshTimeoutRef.current);
     };
   }, [campaign.id]);
@@ -823,6 +827,18 @@ export default function CampaignDetailPageClient({
     liveCampaign.status === "SCHEDULED" ||
     liveCampaign.status === "FAILED";
 
+  function finishMenuAction(event: Event) {
+    const action = menuActionRef.current;
+    if (!action) return;
+    event.preventDefault();
+    menuActionRef.current = null;
+    // Open the next focus trap after the menu releases its focus and pointer locks.
+    menuActionFrameRef.current = window.requestAnimationFrame(() => {
+      menuActionFrameRef.current = null;
+      if (activeCampaignIdRef.current === liveCampaign.id) action();
+    });
+  }
+
   const busy = Boolean(loadingAction) || loadingSendMore;
   const retryable = effectiveCampaign.failedCount > 0 && !["SENDING", "SCHEDULED"].includes(liveCampaign.status);
   const progress = effectiveCampaign.totalRecipients > 0 ? Math.round((processedCount / effectiveCampaign.totalRecipients) * 100) : 0;
@@ -860,13 +876,13 @@ export default function CampaignDetailPageClient({
           {pausable && <Button variant="outline" disabled={busy} onClick={() => void runAction("pause")}>{loadingAction === "pause" ? "Pausing..." : "Pause"}</Button>}
           {resumable && <Button disabled={busy} onClick={() => void runAction("resume")}>{loadingAction === "resume" ? "Resuming..." : "Resume"}</Button>}
           {sendMoreable && pendingCount > 0 && <Button variant="outline" disabled={busy} onClick={() => void openSendMoreModal()}>{loadingSendMore ? "Loading..." : "Send more"}</Button>}
-          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" disabled={busy}>More<ChevronDown size={15} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
-            {retryable && <DropdownMenuItem onSelect={() => setConfirmAction("retry_failed")}>Retry failed</DropdownMenuItem>}
+          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" disabled={busy}>More<ChevronDown size={15} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" onCloseAutoFocus={finishMenuAction}>
+            {retryable && <DropdownMenuItem onSelect={() => { menuActionRef.current = () => setConfirmAction("retry_failed"); }}>Retry failed</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => void refreshCampaignDetails(liveCampaign.id)} disabled={isRefreshingLive}>Refresh results</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void runAction("repair_status")}>Repair status</DropdownMenuItem>
             {(cancellable || deletable) && <DropdownMenuSeparator />}
-            {cancellable && <DropdownMenuItem variant="destructive" onSelect={() => setConfirmAction("cancel")}>Cancel campaign</DropdownMenuItem>}
-            {deletable && <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>Delete campaign</DropdownMenuItem>}
+            {cancellable && <DropdownMenuItem variant="destructive" onSelect={() => { menuActionRef.current = () => setConfirmAction("cancel"); }}>Cancel campaign</DropdownMenuItem>}
+            {deletable && <DropdownMenuItem variant="destructive" onSelect={() => { menuActionRef.current = () => setConfirmDelete(true); }}>Delete campaign</DropdownMenuItem>}
           </DropdownMenuContent></DropdownMenu>
           <AskGrowthAgent featureId="campaigns" context={{ kind: "whatsapp_campaign", resourceId: liveCampaign.id }}>Ask agent</AskGrowthAgent>
         </div>
@@ -895,7 +911,7 @@ export default function CampaignDetailPageClient({
               <td><a href={whatsappLink(recipient.contactPhone)} target="_blank" rel="noreferrer">{recipient.contactPhone}</a></td>
               <td><Badge className={recipientTone(recipient.status)}>{displayStatus(recipient.status)}</Badge></td>
               <td>{formatDate(recipient.sentAt)}</td><td>{formatDate(recipient.deliveredAt)}</td>
-              <td><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${recipient.contactFullName || recipient.contactPhone}`}><MoreHorizontal size={17} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setSelectedRecipientId(recipient.id)}>View contact</DropdownMenuItem><DropdownMenuItem onSelect={() => setPreviewRecipient(recipient)}>View message</DropdownMenuItem>{recipientErrorText(recipient) && <DropdownMenuItem onSelect={() => setErrorPreviewRecipient(recipient)}>View error</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></td>
+              <td><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${recipient.contactFullName || recipient.contactPhone}`}><MoreHorizontal size={17} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" onCloseAutoFocus={finishMenuAction}><DropdownMenuItem onSelect={() => { menuActionRef.current = () => setSelectedRecipientId(recipient.id); }}>View contact</DropdownMenuItem><DropdownMenuItem onSelect={() => { menuActionRef.current = () => setPreviewRecipient(recipient); }}>View message</DropdownMenuItem>{recipientErrorText(recipient) && <DropdownMenuItem onSelect={() => { menuActionRef.current = () => setErrorPreviewRecipient(recipient); }}>View error</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></td>
             </tr>)}
           </tbody></table></div>
           <div className="campaign-detail__mobile-recipients">{filteredRecipients.map((recipient) => <button type="button" key={recipient.id} onClick={() => setSelectedRecipientId(recipient.id)}><div><strong>{recipient.contactFullName || recipient.contactPhone}</strong><span>{recipient.contactPhone}</span></div><Badge className={recipientTone(recipient.status)}>{displayStatus(recipient.status)}</Badge></button>)}</div>
@@ -948,7 +964,7 @@ export default function CampaignDetailPageClient({
         </Dialog>
         <Dialog open={sendMoreOpen} onOpenChange={(open) => { if (!loadingAction) setSendMoreOpen(open); }}>
           {sendMoreOpen ? (
-            <DialogContent className="campaign-detail__dialog max-h-[calc(100svh-2rem)] max-w-5xl overflow-auto p-6">
+            <DialogContent className="campaign-detail__dialog campaign-detail__sendmore max-h-[calc(100svh-2rem)] overflow-auto p-6">
               <div className="flex items-start justify-between gap-4">
                 <DialogHeader>
                   <DialogTitle>Send more: {liveCampaign.name}</DialogTitle>
@@ -978,9 +994,9 @@ export default function CampaignDetailPageClient({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="campaign-detail__sendmore-columns">
                 <div className="space-y-3">
-                  <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+                  <div className="campaign-detail__sendmore-controls">
                     <Input disabled={Boolean(loadingAction)}
                       aria-label="Search remaining contacts" placeholder="Search remaining contacts..."
                       value={sendMoreSearch}
@@ -995,17 +1011,17 @@ export default function CampaignDetailPageClient({
                     />
                   </div>
 
-                  <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border p-3">
+                  <div className="campaign-detail__sendmore-list">
                     {sendMoreAvailableContacts.map((contact) => {
                       const excluded = excludedContactIds.includes(contact.contactId);
                       return (
                         <div
                           key={contact.id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-3"
+                          className="campaign-detail__sendmore-row"
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-foreground">{contact.fullName || contact.phone}</div>
-                            <div className="truncate text-sm text-muted-foreground">
+                            <div className="campaign-detail__sendmore-secondary">
                               {contact.phone}
                               {contact.location ? ` · ${contact.location}` : ""}
                             </div>
@@ -1030,7 +1046,7 @@ export default function CampaignDetailPageClient({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border p-4">
+                <div className="campaign-detail__sendmore-exclusions">
                   <h3 className="text-sm font-semibold text-foreground">Excluded from campaign</h3>
                   <div className="mt-3 space-y-2">
                     {excludedContactIds.length === 0 ? (
@@ -1039,13 +1055,13 @@ export default function CampaignDetailPageClient({
                       excludedSendMoreContacts.map((contact) => (
                           <div
                             key={contact.id}
-                            className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                            className="campaign-detail__sendmore-row"
                           >
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-foreground">
+                              <div className="text-sm font-medium text-foreground">
                                 {contact.fullName || contact.phone}
                               </div>
-                              <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
+                              <div className="campaign-detail__sendmore-secondary">{contact.phone}</div>
                             </div>
                             <Button
                               type="button" disabled={Boolean(loadingAction)}

@@ -106,3 +106,29 @@
 .campaign-detail__error-message p { font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .campaign-detail__batch-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--border); margin-top: 20px; padding-block: 14px; gap: 12px; }
 @media (max-width: 767px) { .campaign-detail__template-columns { grid-template-columns: minmax(0, 1fr); }.campaign-detail__batch-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.campaign-detail__header { min-width: 0; }
+.campaign-detail__identity > div { min-width: 0; }
+.campaign-detail__actions { flex-shrink: 1; min-width: 0; max-width: 100%; }
+.campaign-detail__sendmore[data-slot="dialog-content"] { width: min(920px, calc(100vw - 32px)); max-width: min(920px, calc(100vw - 32px)); }
+.campaign-detail__sendmore-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); align-items: start; gap: 24px; margin-top: 20px; }
+.campaign-detail__sendmore-columns > * { min-width: 0; }
+.campaign-detail__sendmore-controls { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; }
+.campaign-detail__sendmore-controls input { min-width: 0; }
+.campaign-detail__sendmore-list { max-height: 420px; overflow-y: auto; border-top: 1px solid var(--border); margin-top: 12px; }
+.campaign-detail__sendmore-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.campaign-detail__sendmore-row > div { min-width: 0; overflow-wrap: anywhere; }
+.campaign-detail__sendmore-row > button { flex-shrink: 0; }
+.campaign-detail__sendmore-secondary { color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.campaign-detail__sendmore-exclusions { padding-left: 20px; border-left: 1px solid var(--border); }
+@media (max-width: 1000px) {
+  .campaign-detail__sendmore-columns { grid-template-columns: minmax(0, 1fr); }
+  .campaign-detail__sendmore-exclusions { border-left: 0; border-top: 1px solid var(--border); padding: 16px 0 0; }
+}
+@media (max-width: 767px) {
+  .campaign-detail__actions { width: 100%; flex-wrap: wrap; }
+  .campaign-detail__actions button, .campaign-detail__back { min-height: 44px; }
+  .campaign-detail__back { min-width: 44px; }
+  .campaign-detail__sendmore[data-slot="dialog-content"] { padding: 20px 16px; }
+  .campaign-detail__sendmore-controls { grid-template-columns: minmax(0, 1fr) 90px; }
+  .campaign-detail__sendmore-controls input, .campaign-detail__sendmore-row button { min-height: 44px; }
+}
