@@ -21,6 +21,7 @@ test("sort changes the server queue and keeps pagination and selected conversati
   await page.goto("/app/inbox");
   await page.getByRole("button", { name: /Newest/ }).click();
   await expect(page.getByRole("heading", { name: "Newest" })).toBeVisible();
+  await page.getByText("Filters", { exact: true }).click();
   await page.getByLabel("Sort conversations").selectOption("oldest");
   await expect(page.getByRole("button", { name: /Oldest/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Newest" })).toBeVisible();

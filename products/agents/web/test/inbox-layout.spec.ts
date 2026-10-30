@@ -22,10 +22,17 @@ for (const { theme, width } of [{ theme: "light", width: 1440 }, { theme: "dark"
     await page.goto("/app/inbox");
     const item = page.getByRole("button", { name: /^Customer Agent Support agent/ });
     await expect(item).toBeVisible();
+    await expect(page.getByLabel("Filter Inbox status")).toBeHidden();
+    await page.getByText("Filters", { exact: true }).click();
     await page.getByLabel("Filter Inbox status").selectOption("resolved");
     await expect(page.getByText("No matching conversations")).toBeVisible();
+    await expect(page.getByLabel("1 active filter")).toBeVisible();
     expect(requests.some(query => new URLSearchParams(query).get("state") === "resolved")).toBe(true);
-    await page.getByLabel("Filter Inbox status").selectOption("");
+    await page.getByText("Filters", { exact: true }).click();
+    await expect(page.getByLabel("Filter Inbox status")).toBeHidden();
+    await expect(page.getByLabel("1 active filter")).toBeVisible();
+    await page.getByText("Filters", { exact: true }).click();
+    await page.getByRole("button", { name: "Clear filters" }).click();
     await item.click();
     await expect(page.getByText("Customer question")).toBeVisible();
     const details = page.getByRole("button", { name: "Details", exact: true });

@@ -34,6 +34,7 @@ test("selection URL and refresh preserve loaded pages and show external changes"
   await page.getByRole("button", { name: "Conversations", exact: true }).click();
   await expect(page).not.toHaveURL(/conversation=/);
   expect(new URL(page.url()).searchParams.get("source")).toBe("overview");
+  await page.getByText("Filters", { exact: true }).click();
   await page.getByLabel("Filter Inbox status").selectOption("resolved");
   await expect(page.getByText("No matching conversations")).toBeVisible();
 });
