@@ -317,6 +317,7 @@ test(
       const template = (await listTemplates(pool, "org", "APPROVED"))
         .templates[0];
       assert.equal(template.variablesCount, 1);
+      assert.equal(template.connectionId, "connection");
       const createdTemplate = await createTemplate(
         pool,
         "user",

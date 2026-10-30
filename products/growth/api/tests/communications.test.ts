@@ -90,6 +90,32 @@ test("Twilio JWT grants, strict signature, browser scopes and exact TwiML contra
   );
   assert.equal(calls.providerStatus(c).providers[0]!.configured, true);
 });
+test("Twilio readiness separates inbound handling from browser calling", () => {
+  const browserOnly = config();
+  delete browserOnly.env.TWILIO_VOICE_WEBHOOK_URL;
+  const browserStatus = calls.providerStatus(browserOnly).providers[0]!;
+  assert.equal(browserStatus.configured, false);
+  assert.equal(browserStatus.inboundConfigured, false);
+  assert.equal(browserStatus.browserConfigured, true);
+  assert.ok(calls.createTwilioBrowserToken(browserOnly, "org", "user").token);
+
+  const inboundOnly = config();
+  delete inboundOnly.env.TWILIO_API_KEY_SECRET;
+  const inboundStatus = calls.providerStatus(inboundOnly).providers[0]!;
+  assert.equal(inboundStatus.inboundConfigured, true);
+  assert.equal(inboundStatus.browserConfigured, false);
+  assert.equal(inboundStatus.configured, false);
+  assert.throws(
+    () => calls.createTwilioBrowserToken(inboundOnly, "org", "user"),
+    /TWILIO_API_KEY_SECRET is not configured/,
+  );
+
+  const unavailable = readConfig({ DATABASE_URL: "postgresql://fixture" });
+  const unavailableStatus = calls.providerStatus(unavailable).providers[0]!;
+  assert.equal(unavailableStatus.configured, false);
+  assert.equal(unavailableStatus.inboundConfigured, false);
+  assert.equal(unavailableStatus.browserConfigured, false);
+});
 test(
   "Twilio persisted lifecycle, call status idempotency and org scope; retired Telegram callback is unavailable",
   { skip: !process.env.CORE_COMMUNICATIONS_TEST_DATABASE_URL },
