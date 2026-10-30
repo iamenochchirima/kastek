@@ -16,7 +16,7 @@ import {
   MessageCircle,
 } from "@/components/ui/interface-icons";
 import { apiUrl } from "@/lib/server-api";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useRevalidator } from "react-router";
 import { scheduledInstants, timeZoneOptions } from "./campaign-create-utils";
 import "./campaign-create.css";
@@ -118,10 +118,11 @@ export default function CampaignCreateForm({
   );
   const [occurrence, setOccurrence] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{
     id: string;
-    recipients: number;
+    recipients: number | null;
   } | null>(null);
   const [attempted, setAttempted] = useState(false);
   const availableTemplates = templates.filter(
@@ -248,6 +249,15 @@ export default function CampaignCreateForm({
         const body = await response.json();
         if (!response.ok)
           throw new Error(body.error || "Could not check recipients");
+        const counts = [
+          body.totalContacts,
+          body.eligibleRecipients,
+          body.skipped?.notOptedIn,
+          body.skipped?.excluded,
+          body.skipped?.cooldown,
+        ];
+        if (counts.some((count) => !Number.isInteger(count) || count < 0))
+          throw new Error("Recipient counts are unavailable. Retry the check.");
         if (!controller.signal.aborted) setPreflight(body);
       } catch (cause) {
         if (!controller.signal.aborted)
@@ -340,6 +350,7 @@ export default function CampaignCreateForm({
     setStep(step + 1);
   }
   async function submit(launch: boolean) {
+    if (submissionInFlight.current) return;
     setAttempted(true);
     setError("");
     const problem =
@@ -356,6 +367,7 @@ export default function CampaignCreateForm({
       setError("No eligible recipients");
       return;
     }
+    submissionInFlight.current = true;
     setSubmitting(true);
     try {
       let record = created;
@@ -373,7 +385,11 @@ export default function CampaignCreateForm({
           throw new Error("Campaign response is missing its ID");
         record = {
           id: body.campaign.id,
-          recipients: body.createdRecipients ?? 0,
+          recipients:
+            Number.isInteger(body.createdRecipients) &&
+            body.createdRecipients >= 0
+              ? body.createdRecipients
+              : null,
         };
         setCreated(record);
       }
@@ -397,7 +413,7 @@ export default function CampaignCreateForm({
           );
       }
       navigate(
-        `/campaigns/${record.id}?notice=${encodeURIComponent(launch ? (delivery === "schedule" ? "Campaign scheduled" : "Campaign launched") : `Draft saved · ${record.recipients} recipients`)}`,
+        `/campaigns/${record.id}?notice=${encodeURIComponent(launch ? (delivery === "schedule" ? "Campaign scheduled" : "Campaign launched") : record.recipients === null ? "Draft saved" : `Draft saved · ${record.recipients} recipients`)}`,
       );
       void revalidator.revalidate();
     } catch (cause) {
@@ -405,6 +421,7 @@ export default function CampaignCreateForm({
         cause instanceof Error ? cause.message : "Could not save campaign",
       );
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -436,8 +453,11 @@ export default function CampaignCreateForm({
       )}
       {created && (
         <div role="status" className="campaign-create-saved">
-          Draft saved · {created.recipients} recipients.{" "}
-          <Link to={`/campaigns/${created.id}`}>View draft</Link>
+          Draft saved
+          {created.recipients === null
+            ? ""
+            : ` · ${created.recipients} recipients`}
+          . <Link to={`/campaigns/${created.id}`}>View draft</Link>
         </div>
       )}
       <div className="campaign-create-layout">
