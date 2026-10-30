@@ -42,6 +42,7 @@ type Template = {
 };
 type Contact = {
   id: string;
+  contactId: string;
   fullName?: string | null;
   phone: string;
   tags: string[];
@@ -294,7 +295,7 @@ export default function CampaignCreateForm({
       )
     : [];
   const sample =
-    contacts.find((contact) => !excludedContactIds.includes(contact.id)) ||
+    contacts.find((contact) => !excludedContactIds.includes(contact.contactId)) ||
     null;
   let preview = template?.body || "Select a template";
   variableMappings.forEach((mapping, index) => {
@@ -305,7 +306,7 @@ export default function CampaignCreateForm({
   });
   const missing = contacts.filter(
     (contact) =>
-      !excludedContactIds.includes(contact.id) &&
+      !excludedContactIds.includes(contact.contactId) &&
       variableMappings.some(
         (mapping) => !resolveValue(contact, mapping).trim(),
       ),
@@ -613,7 +614,7 @@ export default function CampaignCreateForm({
                 ) : (
                   <div className="campaign-create-contact-list">
                     {searched.map((contact) => {
-                      const excluded = excludedContactIds.includes(contact.id);
+                      const excluded = excludedContactIds.includes(contact.contactId);
                       return (
                         <label key={contact.id}>
                           <input
@@ -622,8 +623,8 @@ export default function CampaignCreateForm({
                             onChange={() =>
                               setExcludedContactIds((current) =>
                                 excluded
-                                  ? current.filter((id) => id !== contact.id)
-                                  : [...current, contact.id],
+                                  ? current.filter((id) => id !== contact.contactId)
+                                  : [...current, contact.contactId],
                               )
                             }
                             aria-label={`Exclude ${contact.fullName || contact.phone}`}
