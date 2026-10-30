@@ -1440,7 +1440,7 @@ confirmed destroyed; neither storage failure nor cancellation releases a physica
 
 Evidence policy metadata stays available without S3. Bounded personal-memory citation
 bodies stay in private PostgreSQL, so memory-only execution and withdrawal checks do
-not depend on object storage. Source and connected bodies still require private S3.
+not depend on object storage. Knowledge source bodies and query-embedding receipts use PostgreSQL; connected bodies still require private S3.
 
 PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scoped
 384-dimensional vectors. `lexical-v1` returns only text matches. `hybrid-v1` uses
@@ -2083,3 +2083,33 @@ authorized deployment.
 | Validation | Focused deterministic composition/model-loop checks, signed destination/API and real PostgreSQL tests, shared Agency HTTP/runtime/evidence checks, affected builds and import boundaries. The controlled Agency test uses explicit origin fixture authority and actual destination migrations/roles/grants. No evaluations, graders or live model acceptance runs are included. |
 | Rollback | Stop new admissions and select an installed compatible configuration for future turns. Disable service trust or revoke destination grants to stop more access. Keep accepted releases, immutable snapshots, exact receipts and uncertain outcomes. Do not rewrite old task releases, replay V20 journals through V21, or reverse tables used by accepted work. |
 | Production follow-up | Production release date, deployment, customer communications and post-release review date are not applicable to this local implementation. |
+
+
+### Knowledge storage cutover
+
+Schema 093 stores knowledge source bytes and query-embedding receipts in PostgreSQL.
+Extracted text and chunks remain available for active sources. Raw inputs and stage
+receipts are retained for the seven-day durable replay window plus 15 minutes, then
+removed by the cleanup worker. The document runtime is still required for parsing
+and embeddings. Other private artifacts and connected-tool bodies still use S3.
+
+For an existing installation, stop all API instances, workers, dispatchers and
+source-object reapers, then apply the schema and run `pnpm --filter @kasitek/agents
+backfill:knowledge` with the existing database and S3 settings. The command verifies
+content sizes and digests, leaves S3 objects untouched and is safe to rerun. Do not
+run old and new writers together during or after cutover. API, worker and cleanup
+startup fail if available knowledge objects are missing from PostgreSQL. Keep a
+database backup and the old bucket until cutover is verified.
+
+Rollback to the old application requires restoring the pre-cutover database and
+bucket together. Once the new application has written knowledge to PostgreSQL,
+restoring the old application alone would lose those new writes; stop writers and
+recover forward or perform a separately verified reverse export before rollback.
+No S3 objects are deleted by the backfill.
+
+Release impact: this is an additive schema and storage cutover, with the existing
+release identity and cleanup logging. No new analytics or metrics are added. Run
+schema setup and the verified backfill while writers are stopped, deploy the API
+and worker together, then check import, preview, retrieval and cleanup before
+removing any legacy copies. Model evaluations remain owner-run. The database and
+bucket backup and reverse-export limitation above define rollback.

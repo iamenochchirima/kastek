@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { createHash,createHmac } from "node:crypto";
 import { PlatformError } from "../contracts/contracts";
 
@@ -6,7 +7,7 @@ const sha = (input: string | Uint8Array) => createHash("sha256").update(input).d
 const hmac = (key: string | Uint8Array, value: string) => createHmac("sha256", key).update(value).digest();
 const encode = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 export interface S3PrivateConfig { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; maxBytes?: number }
-export interface PrivateObjectStore { put(key: string, content: Uint8Array, contentType: string): Promise<void>; get(key: string): Promise<Uint8Array>; delete(key: string): Promise<void> }
+export interface PrivateObjectStore { put(key: string, content: Uint8Array, contentType: string, client?: PoolClient): Promise<void>; get(key: string, client?: PoolClient): Promise<Uint8Array>; delete(key: string, client?: PoolClient): Promise<void> }
 export function privateStoreFromEnvironment(env: NodeJS.ProcessEnv = process.env, maxBytes = 1_048_576): S3PrivateStore | undefined {
   const keys = ["AGENTS_S3_ENDPOINT", "AGENTS_S3_REGION", "AGENTS_S3_BUCKET", "AGENTS_S3_ACCESS_KEY_ID", "AGENTS_S3_SECRET_ACCESS_KEY"] as const;
   if (keys.every(key => !env[key])) return;

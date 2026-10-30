@@ -50,11 +50,11 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const row=(await pool.query("SELECT state,next_cleanup_at FROM agents_platform.source_objects WHERE object_key=$1",[input.key])).rows[0];expect(row.state).toBe("deleted");expect(row.next_cleanup_at).toBeTruthy();
   bodies.set(input.key,input.bytes);await reapSourceObjects(pool,storage,{now:new Date(Date.now()+61000)});expect(bodies.has(input.key)).toBe(false);
  });
- it("preserves published bodies and seven-day stage receipts, then honors withdrawal",async()=>{
+ it("retains raw bodies and stage receipts for replay, then removes them and honors withdrawal",async()=>{
   const f=await fixture(),input=stage(f);await writeSourceObject(pool,storage,input);const text="Published source fixture";
   await pool.query("UPDATE agents_platform.ingestion_jobs SET state='extracting' WHERE id=$1",[f.job.id]);await knowledge.publishExtraction(f.job.id,{text,normalizerRelease:"fixture-v1",acquiredAt:new Date().toISOString(),chunks:[{id:randomUUID(),revisionId:f.job.revisionId,ordinal:0,start:0,end:text.length,page:1,section:null,text,digest:textDigest(text),tokens:8}]});
   const revision=(await pool.query("SELECT raw_key,text_key FROM agents_platform.source_revisions WHERE id=$1",[f.job.revisionId])).rows[0];await reapSourceObjects(pool,storage);expect(bodies.has(input.key)).toBe(true);expect(bodies.has(revision.raw_key)).toBe(true);expect(bodies.has(revision.text_key)).toBe(true);
-  await reapSourceObjects(pool,storage,{now:new Date(Date.now()+8*86400000)});expect(bodies.has(input.key)).toBe(false);expect(bodies.has(revision.raw_key)).toBe(true);expect(bodies.has(revision.text_key)).toBe(true);
+  await reapSourceObjects(pool,storage,{now:new Date(Date.now()+8*86400000)});expect(bodies.has(input.key)).toBe(false);expect(bodies.has(revision.raw_key)).toBe(false);expect(bodies.has(revision.text_key)).toBe(true);
   await knowledge.setPolicy(f.scope,f.job.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});await reapSourceObjects(pool,storage);expect(bodies.has(revision.raw_key)).toBe(false);expect(bodies.has(revision.text_key)).toBe(false);
  });
  it("cleans unsealed text and retries failed DELETE without discarding ownership",async()=>{

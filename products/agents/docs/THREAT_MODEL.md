@@ -234,7 +234,7 @@ lock. Partial indexes are never published.
 
 Parsing, tokenization and embedding run in a pinned no-network gVisor profile.
 Host credentials and writable host mounts are absent. Raw/text/stage bodies stay
-private; persisted write intents and cleanup tombstones cover interrupted PUTs.
+private in PostgreSQL; persisted write intents and cleanup tombstones cover interrupted writes. Raw inputs and stage receipts are deleted after the durable replay window.
 Physical cleanup is independent of S3 availability. Object cleanup has a separate
 lane so a storage outage cannot hold physical allocation capacity indefinitely.
 

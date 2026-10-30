@@ -1,3 +1,4 @@
+import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
 import { randomUUID } from "node:crypto";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 import { Pool } from "pg";
@@ -20,12 +21,12 @@ describe("website crawl URL admission",()=>{
 });
 (databaseUrl?describe:describe.skip)("durable tenant-scoped website crawl review",()=>{
  let admin:Pool,pool:Pool,platform:PlatformStore,knowledge:KnowledgeStore,store:WebsiteCrawlStore;
- const database=`agents_crawl_${randomUUID().replaceAll("-","")}`,objects=new Map<string,Uint8Array>();
+ const database=`agents_crawl_${randomUUID().replaceAll("-","")}`;
  const config={url:"https://crawler.example",timeoutMs:1000};
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);
   const target=new URL(databaseUrl!);target.pathname=`/${database}`;pool=new Pool({connectionString:target.href});await setupPlatformSchema(pool);
-  platform=new PlatformStore(pool);knowledge=new KnowledgeStore(pool,{async get(key){return objects.get(key)!;},async put(key,bytes){objects.set(key,Buffer.from(bytes));},async delete(key){objects.delete(key);}});
+  platform=new PlatformStore(pool);knowledge=new KnowledgeStore(pool,new PostgresKnowledgeObjectStore(pool));
   store=new WebsiteCrawlStore(pool,knowledge,config);
  });
  afterAll(async()=>{vi.restoreAllMocks();await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
@@ -59,7 +60,7 @@ describe("website crawl URL admission",()=>{
   const imported=await store.import(scope,agentId,crawl.id,selected,"document-test-v1");
   expect((await store.import(scope,agentId,crawl.id,selected,"document-test-v1")).job.id).toBe(imported.job.id);
   const sources=await knowledge.list(scope);expect(sources).toHaveLength(1);expect(sources[0].visibility).toBe("private");expect(sources[0].revisions).toHaveLength(0);
-  expect([...objects.values()].map(value=>Buffer.from(value).toString()).join()).toContain("Source: https://example.com/services");
+  expect((await pool.query("SELECT convert_from(k.content, 'UTF8') AS content FROM agents_platform.knowledge_object_contents k JOIN agents_platform.ingestion_jobs j ON j.raw_key=k.object_key WHERE j.id=$1",[imported.job.id])).rows[0].content).toContain("Source: https://example.com/services");
   expect((await pool.query("SELECT count(*) FROM agents_platform.ingestion_outbox WHERE job_id=$1",[imported.job.id])).rows[0].count).toBe("1");
  });
  it("seals reviewed website evidence, binds only approved revisions, and fences private or withdrawn customer retrieval",async()=>{

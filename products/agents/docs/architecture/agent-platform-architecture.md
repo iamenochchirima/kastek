@@ -813,8 +813,7 @@ source revisions and chunks. Imports start private and unapproved. Current organ
 approve candidates, change visibility and withdraw sources; each revision's importer can inspect
 that candidate and cancel their pending work. Refreshing a source does not give its original
 importer access to another account's candidate. Publication checks the accepted source generation and job deadline under the
-organization lock. A cancelled or withdrawn import cannot seal a late result. Revision bodies use
-private, content-addressed object keys; chunk offsets count UTF-16 text units and bind a text hash.
+organization lock. A cancelled or withdrawn import cannot seal a late result. Revision bodies and ingestion receipts use private, content-addressed keys backed by PostgreSQL; chunk offsets count UTF-16 text units and bind a text hash. Other execution artifacts continue to use private object storage.
 The authenticated Knowledge API admits uploads and exact public HTTPS URLs. AgentsKnowledgeImportV1
 runs acquisition, isolated parsing, token-aware chunking, local embedding and atomic index publication.
 Text, Markdown, static HTML and text PDFs are supported. Website crawl admission now wraps the
@@ -831,9 +830,7 @@ hashed release manifests. The runtime checks installed package bytes, helper/mod
 gVisor bundle hashes before launch, with stat-sensitive digest caching. Older profiles without a
 package manifest remain inspectable for cleanup but cannot launch new inference. Private stage receipts survive worker loss and physical resource
 destruction. A resource reaper runs independently of storage credentials; a separate object reaper
-tracks write intents and repeated deletion tombstones for interrupted uploads. Active sealed
-raw/text objects remain private. Replay stage objects remain available for seven days plus a
-15-minute cleanup allowance.
+tracks write intents and repeated deletion tombstones for interrupted uploads. Extracted text remains available while the source is active. Raw uploads and replay stage receipts remain available for seven days after settlement plus a 15-minute cleanup allowance, then are removed by the reaper.
 
 Capability catalogs pin explicit model aliases, schema digests, resource handles and executable
 adapter releases. Recorded receipts resolve before the live adapter registry, so a catalog change

@@ -1,3 +1,4 @@
+import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
 import { registerCustomerRecordRoutes } from "../product/customer-records/routes";
 import { registerOverviewRoutes } from "../product/overview/routes";
 import { CustomerRecordStore } from "../product/customer-records/store";
@@ -133,7 +134,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const summary = ({position: _position,...row}: Record<string,unknown>) => row;
   const objects = privateStoreFromEnvironment();
   const sourceObjects = privateStoreFromEnvironment(process.env, 10_485_760);
-  const knowledge = new KnowledgeStore(pool, sourceObjects);
+  const knowledge = new KnowledgeStore(pool, new PostgresKnowledgeObjectStore(pool));
   const {documents:documentRuntime,sandbox}=resourceBackends(pool);
   const taskArtifacts = new TaskArtifactStore(pool, objects);
   const actionServices=actionsFromEnvironment(pool,taskArtifacts);
@@ -162,7 +163,6 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   const apiConnections:ApiConnectionStore|undefined=actionServices?new ApiConnectionStore(pool,actionServices.connections.vault,{registry:apiRegistry,createCatalog:createNativeApiCapabilityCatalog,testLoopback:options.testConnectionLoopback}):undefined;
   const grantOperations=(configuration:AgentConfiguration)=>operationsForConfiguration(configuration,true);
   async function assertBindings(configuration: AgentConfiguration): Promise<void> {
-    if (configuration.sourceRevisionIds.length && !sourceObjects) throw new PlatformError("OBJECT_STORE_UNAVAILABLE", 503, "Private storage is unavailable");
     if (configuration.retrievalProfile.kind === "hybrid-v1" && (!documentRuntime || !await documentRuntime.available(configuration.retrievalProfile.embeddingRelease))) {
       throw new PlatformError("RETRIEVAL_BACKEND_UNAVAILABLE", 503, "The selected semantic search profile is unavailable");
     }

@@ -1,3 +1,4 @@
+import { PostgresKnowledgeObjectStore } from "../src/capabilities/knowledge/postgres-object-store";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -43,6 +44,18 @@ const dbUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return { accountId: account.id, organizationId: (await platform.createOrganization(account.id, "Import")).id };
   }
   const input = () => ({ operationId: randomUUID(), title: "Evidence", contentType: "text/plain", content: Buffer.from("Evidence"), parserRelease: "document-test-v1" });
+
+  it("imports and previews extracted knowledge using PostgreSQL without object storage", async () => {
+    const scope = await fixture(), objects = new PostgresKnowledgeObjectStore(pool), knowledge = new KnowledgeStore(pool, objects);
+    const ingestion = new IngestionService(pool, objects, runtime, knowledge);
+    const job = await knowledge.admitUpload(scope, input());
+    await ingestion.begin(job.id);
+    const receipt = await ingestion.stage(job.id, "parse", { kind: "parse", format: "text", content: Buffer.from("Evidence") }, "document-test-v1");
+    expect((await ingestion.read(receipt)).kind).toBe("parse");
+    await knowledge.publishExtraction(job.id, { text: "Evidence", normalizerRelease: "fixture-v1", acquiredAt: new Date().toISOString(),
+      chunks: [{ id: randomUUID(), revisionId: job.revisionId, ordinal: 0, start: 0, end: 8, page: 1, section: null, text: "Evidence", digest: textDigest("Evidence"), tokens: 3 }] });
+    expect((await knowledge.preview(scope, job.sourceId, job.revisionId)).text).toBe("Evidence");
+  });
 
   it("recovers a completed stage from its private receipt after resource destruction without repeating execution", async () => {
     const scope = await fixture(), job = await store.admitUpload(scope, input()); await service.begin(job.id);

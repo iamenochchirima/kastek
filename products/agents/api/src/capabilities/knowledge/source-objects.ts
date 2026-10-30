@@ -53,7 +53,7 @@ export async function writeSourceObject(pool:Pool,objects:PrivateObjectStore,inp
   if(row.write_token!==token||row.state!=="writing"||new Date(row.write_lease_until).getTime()<=Date.now())throw fail("SOURCE_WRITE_UNCERTAIN");
   if(row.put_ack_at)return;
   const job=await current(db,input.jobId);if(!eligible(job)){await db.query("UPDATE agents_platform.source_objects SET state='delete_pending',next_cleanup_at=now(),updated_at=now() WHERE id=$1",[row.id]);writeError=fail("INGESTION_INVALIDATED");return;}
-  try{await objects.put(input.key,input.bytes,input.contentType);await db.query("UPDATE agents_platform.source_objects SET put_ack_at=now(),updated_at=now() WHERE id=$1",[row.id]);}
+  try{await objects.put(input.key,input.bytes,input.contentType,db);await db.query("UPDATE agents_platform.source_objects SET put_ack_at=now(),updated_at=now() WHERE id=$1",[row.id]);}
   catch(error){writeError=error;await db.query("UPDATE agents_platform.source_objects SET write_error_at=now(),updated_at=now() WHERE id=$1",[row.id]);}
  });
  if(writeError)throw writeError;
@@ -78,6 +78,7 @@ export async function reapSourceObjects(pool:Pool,objects:PrivateObjectStore,opt
    (o.state='available' AND (s.state='withdrawn' OR j.state IN ('failed','cancelled') OR
     (j.state='ready' AND o.kind<>'stage' AND NOT EXISTS(SELECT 1 FROM agents_platform.source_revisions r WHERE r.id=j.revision_id AND (r.raw_key=o.object_key OR r.text_key=o.object_key))) OR
     (o.kind='stage' AND greatest(o.created_at,j.updated_at)<=$1::timestamptz-interval '7 days 15 minutes') OR
+    (j.state='ready' AND o.kind='raw' AND greatest(o.created_at,j.updated_at)<=$1::timestamptz-interval '7 days 15 minutes') OR
     (j.state<>'ready' AND (j.deadline<=$1 OR j.accepted_generation<>s.generation OR NOT EXISTS(SELECT 1 FROM agents_platform.memberships m WHERE m.organization_id=j.organization_id AND m.account_id=j.importer_account_id AND m.revoked_at IS NULL))))))
   ORDER BY coalesce(o.next_cleanup_at,o.created_at),o.id LIMIT $2`,[now,limit])).rows;
  for(const candidate of rows)await transaction(pool,async db=>{
@@ -85,11 +86,11 @@ export async function reapSourceObjects(pool:Pool,objects:PrivateObjectStore,opt
   if(!row.put_ack_at&&new Date(row.write_lease_until).getTime()>now.getTime())return;
   const job=await current(db,row.job_id);
   const sealed=(await db.query("SELECT 1 FROM agents_platform.source_revisions WHERE source_id=$1 AND id=$2 AND (raw_key=$3 OR text_key=$3)",[job.source_id,job.revision_id,row.object_key])).rowCount;
-  if(row.state==="available"&&row.kind!=="stage"&&job.source_state==="active"&&sealed)return;
+  if(row.state==="available"&&row.kind==="text"&&job.source_state==="active"&&sealed)return;
   // Keep seven days after job settlement plus its wall-time/acknowledgment margin.
-  if(row.state==="available"&&row.kind==="stage"&&eligible(job)&&Math.max(new Date(row.created_at).getTime(),new Date(job.updated_at).getTime())+replayMs>now.getTime())return;
+  if(row.state==="available"&&(row.kind==="stage"||row.kind==="raw"&&job.state==="ready")&&eligible(job)&&Math.max(new Date(row.created_at).getTime(),new Date(job.updated_at).getTime())+replayMs>now.getTime())return;
   await db.query("UPDATE agents_platform.source_objects SET state='delete_pending',updated_at=now() WHERE id=$1",[row.id]);
-  await objects.delete(row.object_key);
+  await objects.delete(row.object_key,db);
   await db.query("UPDATE agents_platform.source_objects SET state='deleted',delete_ack_at=$2,next_cleanup_at=$3,updated_at=now() WHERE id=$1",[row.id,now,new Date(now.getTime()+60000)]);
  });
 }

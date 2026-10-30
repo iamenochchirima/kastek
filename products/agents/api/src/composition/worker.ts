@@ -1,3 +1,5 @@
+import { assertKnowledgeBackfilled } from "../capabilities/knowledge/cutover";
+import { PostgresKnowledgeObjectStore } from "../capabilities/knowledge/postgres-object-store";
 import { remoteAuthOptionsFromEnvironment } from "../product/connections/remote-auth";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { createServer,type ServerHttp2Session } from "node:http2";
@@ -67,14 +69,16 @@ async function main(): Promise<void> {
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("Invalid RESTATE_WORKER_PORT");
   const pool = new Pool({ connectionString: process.env.AGENTS_DATABASE_URL, ...databasePoolOptions("worker"),
     connectionTimeoutMillis: 5000, statement_timeout: 15000, query_timeout: 20000 });
+  await assertKnowledgeBackfilled(pool);
   const abort = new AbortController();
   const {sandbox,documents}=resourceBackends(pool);
   const objects=privateStoreFromEnvironment(),artifacts=new TaskArtifactStore(pool,objects),actionServices=actionsFromEnvironment(pool,artifacts);
   const sourceObjects=privateStoreFromEnvironment(process.env,10_485_760);
-  const ingestion=documents&&sourceObjects?new IngestionService(pool,sourceObjects,documents,new KnowledgeStore(pool,sourceObjects)):undefined;
+  const knowledgeObjects=new PostgresKnowledgeObjectStore(pool);
+  const ingestion=documents?new IngestionService(pool,knowledgeObjects,documents,new KnowledgeStore(pool,knowledgeObjects)):undefined;
   const evidence=new EvidenceStore(pool,sourceObjects);
-  const embeddings=documents&&sourceObjects?new QueryEmbeddingService(pool,sourceObjects,documents):undefined;
-  const knowledgeRuntime=sourceObjects?new KnowledgeRuntime(pool,evidence,embeddings):undefined;
+  const embeddings=documents?new QueryEmbeddingService(pool,knowledgeObjects,documents):undefined;
+  const knowledgeRuntime=new KnowledgeRuntime(pool,evidence,embeddings);
   const toolReviews=new ToolReviewStore(pool);
   const providers=new ProviderServices(pool,actionServices?.connections.vault,{appUrl:process.env.AGENTS_PUBLIC_URL??"http://localhost:3100"});
   const bookings=new BookingService(pool,{resolveCalendar:(...args)=>providers.resolveCalendar(...args),ensureFresh:(scope,id)=>providers.ensureFresh(scope,id)});
@@ -177,7 +181,7 @@ async function main(): Promise<void> {
     code=>console.error(JSON.stringify({...diagnosticIdentity,event:"ingestion_publisher_error",code}))):undefined;
   // Object deletion is independent of physical resource cleanup; either backend may be temporarily unavailable.
   const documentCleanup=documents?runDocumentReaper(pool,abort.signal):undefined;
-  const sourceCleanup=sourceObjects?runSourceObjectReaper(pool,abort.signal):undefined;
+  const sourceCleanup=runSourceObjectReaper(pool,abort.signal);
   const telemetry = startObservationPublisher(pool, telemetryTransport);
   let closing = false;
   const close = async (): Promise<void> => {
