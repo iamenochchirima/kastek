@@ -2,17 +2,22 @@ import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, ChevronDown, Search, RotateCcw, MoreHorizontal, Send, Users, Phone, X } from "@/components/ui/interface-icons";
+import "./campaign-detail.css";
 import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/server-api";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
 import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
 import { Link } from "react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { MotionReveal } from "@/components/ui/motion-reveal";
+import { toast } from "sonner";
+import { scheduledInstants, timeZoneOptions } from "./campaign-create-utils";
 
 type Campaign = {
   id: string;
@@ -214,14 +219,10 @@ function formatDate(value: string | null) {
   });
 }
 
-function campaignProgress(campaign: Campaign) {
-  if (campaign.totalRecipients <= 0) return 0;
-  const processed =
-    campaign.sentCount +
-    campaign.failedCount +
-    campaign.blockedCount +
-    campaign.unsubscribedCount;
-  return Math.max(0, Math.min(100, Math.round((processed / campaign.totalRecipients) * 100)));
+function localDateInput(value: string | null, timeZone: string) {
+  if (!value || Number.isNaN(Date.parse(value))) return "";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 function normalizeCampaign(raw: NonNullable<CampaignDetailPayload["campaign"]>["campaign"]): Campaign {
@@ -340,7 +341,25 @@ export default function CampaignDetailPageClient({
   const [launchBatchSize, setLaunchBatchSize] = useState(
     String(campaign.defaultBatchSize || Math.max((recipients.length || campaign.totalRecipients) - campaign.sentCount, 1)),
   );
+  const [recipientSearch, setRecipientSearch] = useState("");
+  const [recipientFilter, setRecipientFilter] = useState("ALL");
+  const [recipientTab, setRecipientTab] = useState("all");
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null);
+  const [wideInspector, setWideInspector] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1200px)").matches);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"launch" | "retry_failed" | "cancel" | null>(null);
+  const [refreshError, setRefreshError] = useState("");
+  const [launchTiming, setLaunchTiming] = useState<"now" | "later">(campaign.scheduledAt ? "later" : "now");
+  const [launchTimeZone, setLaunchTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [launchDate, setLaunchDate] = useState(() => localDateInput(campaign.scheduledAt, Intl.DateTimeFormat().resolvedOptions().timeZone));
+  const [launchOccurrence, setLaunchOccurrence] = useState("");
+  const launchInstants = useMemo(() => scheduledInstants(launchDate, launchTimeZone), [launchDate, launchTimeZone]);
+  const selectedLaunchInstant = launchInstants.length === 1 ? launchInstants[0] : launchInstants.includes(launchOccurrence) ? launchOccurrence : "";
+  const launchScheduleValid = launchTiming === "now" || Boolean(selectedLaunchInstant && Date.parse(selectedLaunchInstant) > Date.now());
+  const mutationRef = useRef(false);
+  const activeCampaignIdRef = useRef(campaign.id);
+  const configuredCampaignIdRef = useRef(campaign.id);
+  const refreshControllersRef = useRef(new Map<string, AbortController>());
   const [sendMoreContacts, setSendMoreContacts] = useState<SendMoreContact[]>([]);
   const [pendingRecipientContactIds, setPendingRecipientContactIds] = useState<string[]>([]);
   const [sendMoreSearch, setSendMoreSearch] = useState("");
@@ -353,10 +372,49 @@ export default function CampaignDetailPageClient({
   const detailRefreshTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const media = window.matchMedia("(min-width: 1200px)");
+    const update = () => setWideInspector(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (configuredCampaignIdRef.current !== campaign.id) {
+      configuredCampaignIdRef.current = campaign.id;
+      setLaunchTiming(campaign.scheduledAt ? "later" : "now");
+      setLaunchDate(localDateInput(campaign.scheduledAt, Intl.DateTimeFormat().resolvedOptions().timeZone));
+      setLaunchTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+      setLaunchOccurrence("");
+      setLaunchBatchSize(String(campaign.defaultBatchSize || Math.max(campaign.totalRecipients - campaign.sentCount, 1)));
+      setConfirmAction(null);
+      setConfirmDelete(false);
+      setSendMoreOpen(false);
+      setPreviewRecipient(null);
+      setErrorPreviewRecipient(null);
+      setSelectedRecipientId(null);
+      setRecipientSearch("");
+      setRecipientFilter("ALL");
+      setRecipientTab("all");
+      setError("");
+      setNotice("");
+    }
     setLiveCampaign(campaign);
     setLiveRecipients(recipients.map((recipient) => normalizeRecipient(recipient)));
     setLastSyncedAt(new Date().toISOString());
+    setRefreshError("");
   }, [campaign, recipients]);
+
+  useEffect(() => {
+    activeCampaignIdRef.current = campaign.id;
+    setIsRefreshingLive(false);
+    const controllers = refreshControllersRef.current;
+    return () => {
+      activeCampaignIdRef.current = "";
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
+      if (detailRefreshTimeoutRef.current !== null) window.clearTimeout(detailRefreshTimeoutRef.current);
+    };
+  }, [campaign.id]);
 
   const effectiveTotalRecipients = useMemo(() => {
     return liveRecipients.length > 0 ? liveRecipients.length : liveCampaign.totalRecipients;
@@ -367,52 +425,51 @@ export default function CampaignDetailPageClient({
     [effectiveTotalRecipients, liveCampaign],
   );
 
-  async function refreshCampaignDetails(campaignId: string) {
+  const refreshCampaign = useCallback(async (campaignId: string, summary = false) => {
+    const requestKey = "campaign";
+    if (activeCampaignIdRef.current !== campaignId || refreshControllersRef.current.has(requestKey)) return;
+    const controller = new AbortController();
+    refreshControllersRef.current.set(requestKey, controller);
+    setIsRefreshingLive(true);
     try {
-      setIsRefreshingLive(true);
-      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}`), {
-        credentials: "include",
-        cache: "no-store",
+      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}${summary ? "/summary" : ""}`), {
+        credentials: "include", cache: "no-store", signal: controller.signal,
       });
-      const payload = (await response.json().catch(() => ({}))) as CampaignDetailPayload;
-      if (!response.ok || !payload.campaign?.campaign) return;
-      setLiveCampaign(normalizeCampaign(payload.campaign.campaign));
-      setLiveRecipients((payload.campaign.recipients ?? []).map((recipient) => normalizeRecipient(recipient)));
+      const payload = await response.json().catch(() => ({})) as CampaignDetailPayload | CampaignSummaryPayload;
+      if (!response.ok || !payload.campaign) throw new Error("Campaign updates are unavailable. Displayed results may be out of date.");
+      if (controller.signal.aborted || activeCampaignIdRef.current !== campaignId) return;
+      if (summary) {
+        const next = normalizeCampaign((payload as CampaignSummaryPayload).campaign!);
+        setLiveCampaign((current) => ({ ...current, status: next.status, totalRecipients: next.totalRecipients,
+          sentCount: next.sentCount, deliveredCount: next.deliveredCount, readCount: next.readCount,
+          failedCount: next.failedCount, blockedCount: next.blockedCount, unsubscribedCount: next.unsubscribedCount,
+          scheduledAt: next.scheduledAt, launchedAt: next.launchedAt, completedAt: next.completedAt, updatedAt: next.updatedAt }));
+      } else {
+        const detail = (payload as CampaignDetailPayload).campaign;
+        if (!detail?.campaign) throw new Error("Campaign updates are unavailable. Displayed results may be out of date.");
+        setLiveCampaign(normalizeCampaign(detail.campaign));
+        setLiveRecipients((detail.recipients ?? []).map((recipient) => normalizeRecipient(recipient)));
+        setRefreshError("");
+      }
       setLastSyncedAt(new Date().toISOString());
-    } catch {
-      // Ignore transient refresh failures.
+    } catch (refreshFailure) {
+      if (!controller.signal.aborted && activeCampaignIdRef.current === campaignId) {
+        setRefreshError(refreshFailure instanceof Error ? refreshFailure.message : "Unable to refresh campaign");
+      }
     } finally {
-      setIsRefreshingLive(false);
+      if (refreshControllersRef.current.get(requestKey) === controller) refreshControllersRef.current.delete(requestKey);
+      if (activeCampaignIdRef.current === campaignId) setIsRefreshingLive(refreshControllersRef.current.size > 0);
     }
-  }
+  }, []);
+
+  const refreshCampaignDetails = useCallback((campaignId: string) => refreshCampaign(campaignId), [refreshCampaign]);
 
   function scheduleRecipientRefresh(campaignId: string, delayMs = 1200) {
-    if (detailRefreshTimeoutRef.current !== null) {
-      window.clearTimeout(detailRefreshTimeoutRef.current);
-    }
-
+    if (detailRefreshTimeoutRef.current !== null) window.clearTimeout(detailRefreshTimeoutRef.current);
     detailRefreshTimeoutRef.current = window.setTimeout(() => {
       detailRefreshTimeoutRef.current = null;
       void refreshCampaignDetails(campaignId);
     }, delayMs);
-  }
-
-  async function refreshCampaignSummary(campaignId: string) {
-    try {
-      setIsRefreshingLive(true);
-      const response = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}/summary`), {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => ({}))) as CampaignSummaryPayload;
-      if (!response.ok || !payload.campaign) return;
-      setLiveCampaign((current) => ({ ...current, ...normalizeCampaign(payload.campaign!) }));
-      setLastSyncedAt(new Date().toISOString());
-    } catch {
-      // Ignore transient summary refresh failures.
-    } finally {
-      setIsRefreshingLive(false);
-    }
   }
 
   useEffect(() => {
@@ -423,13 +480,13 @@ export default function CampaignDetailPageClient({
     if (!shouldPoll) return;
 
     const intervalId = window.setInterval(() => {
-      void refreshCampaignSummary(liveCampaign.id);
+      void refreshCampaign(liveCampaign.id, true);
     }, 8000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [liveCampaign.id, liveCampaign.status]);
+  }, [liveCampaign.id, liveCampaign.status, refreshCampaign]);
 
   useEffect(() => {
     const shouldReconcileRecipients =
@@ -445,7 +502,7 @@ export default function CampaignDetailPageClient({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [liveCampaign.id, liveCampaign.status]);
+  }, [liveCampaign.id, liveCampaign.status, refreshCampaignDetails]);
 
   useWhatsappRealtimeSubscription((payload) => {
     if (payload.type !== "campaign.updated" || payload.campaignId !== liveCampaign.id) {
@@ -491,8 +548,6 @@ export default function CampaignDetailPageClient({
   const activeQueueCount = queuedCount + processingCount;
   const pendingCount = recipientCounts.PENDING || 0;
   const processedCount = Math.max(effectiveCampaign.totalRecipients - activeQueueCount - pendingCount, 0);
-  const activeSendPosition = Math.min(processedCount + activeQueueCount, effectiveCampaign.totalRecipients);
-  const isLiveSending = effectiveCampaign.status === "SENDING";
   const hasProcessedRecipients = processedCount > 0;
   const sendMoreAvailableContacts = useMemo(() => {
     const base = sendMoreContacts.filter((contact) => pendingRecipientContactIds.includes(contact.contactId));
@@ -510,7 +565,7 @@ export default function CampaignDetailPageClient({
       (contact) => pendingRecipientContactIds.includes(contact.contactId) && excludedContactIds.includes(contact.contactId),
     );
   }, [excludedContactIds, pendingRecipientContactIds, sendMoreContacts]);
-  const selectableSendMoreCount = Math.max(sendMoreAvailableContacts.length - excludedContactIds.length, 0);
+  const selectableSendMoreCount = sendMoreContacts.filter((contact) => pendingRecipientContactIds.includes(contact.contactId) && !excludedContactIds.includes(contact.contactId)).length;
   const currentSendMoreBatchSize = Math.min(
     Math.max(Number.parseInt(sendMoreBatchSize || "0", 10) || 0, 0),
     selectableSendMoreCount,
@@ -519,12 +574,15 @@ export default function CampaignDetailPageClient({
     () => (previewRecipient ? resolveBodyParameters(previewRecipient, liveCampaign.variableMappings) : []),
     [liveCampaign.variableMappings, previewRecipient],
   );
-  const previewBodyText = useMemo(
-    () => renderTemplateBody(liveCampaign.templateBody, previewBodyParameters),
-    [liveCampaign.templateBody, previewBodyParameters],
-  );
-
   async function runAction(kind: "launch" | "pause" | "resume" | "cancel" | "retry_failed" | "repair_status") {
+    if (mutationRef.current) return;
+    if (kind === "launch" && (!launchScheduleValid || currentLaunchBatchSize <= 0)) {
+      setError("Choose a valid future date and a batch of at least one recipient.");
+      return;
+    }
+    mutationRef.current = true;
+    refreshControllersRef.current.forEach((controller) => controller.abort());
+    refreshControllersRef.current.clear();
     setLoadingAction(kind);
     setError("");
     setNotice("");
@@ -540,17 +598,18 @@ export default function CampaignDetailPageClient({
         headers: { "Content-Type": "application/json" },
         body:
           kind === "launch"
-            ? JSON.stringify({ batchSize: currentLaunchBatchSize })
+            ? JSON.stringify({ batchSize: currentLaunchBatchSize, scheduledAt: launchTiming === "later" ? selectedLaunchInstant : null })
             : JSON.stringify({ action: kind }),
       });
       const body = await response.json().catch(() => ({}));
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       if (!response.ok) {
         throw new Error(body.error || `Failed to ${kind.replace("_", " ")} campaign`);
       }
 
       const nextNotice =
         kind === "launch"
-          ? `Queued ${body.queuedRecipients || currentLaunchBatchSize} recipients for sending.`
+          ? `${launchTiming === "later" ? "Scheduled" : "Queued"} ${body.queuedRecipients ?? currentLaunchBatchSize} recipients.`
           : kind === "pause"
             ? "Campaign paused."
             : kind === "resume"
@@ -561,16 +620,20 @@ export default function CampaignDetailPageClient({
                   ? "Failed recipients queued again."
                   : "Campaign status repaired.";
 
-      setNotice(nextNotice);
+      toast.success(nextNotice);
+      setConfirmAction(null);
       await refreshCampaignDetails(liveCampaign.id);
     } catch (actionError) {
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       setError(actionError instanceof Error ? actionError.message : "Campaign action failed");
     } finally {
+      mutationRef.current = false;
       setLoadingAction(null);
     }
   }
 
   async function openSendMoreModal() {
+    if (loadingAction || loadingSendMore) return;
     if (!liveCampaign.listLabel) {
       setError("This campaign has no locked contact list.");
       return;
@@ -606,6 +669,7 @@ export default function CampaignDetailPageClient({
       setSendMoreBatchSize(String(Math.min(liveCampaign.defaultBatchSize || 200, availableCount)));
       setSendMoreOpen(true);
     } catch (actionError) {
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       setError(actionError instanceof Error ? actionError.message : "Failed to load send more details");
     } finally {
       setLoadingSendMore(false);
@@ -618,6 +682,10 @@ export default function CampaignDetailPageClient({
       return;
     }
 
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    refreshControllersRef.current.forEach((controller) => controller.abort());
+    refreshControllersRef.current.clear();
     setLoadingAction("send_more");
     setError("");
     setNotice("");
@@ -634,20 +702,27 @@ export default function CampaignDetailPageClient({
         }),
       });
       const body = await response.json().catch(() => ({}));
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       if (!response.ok) {
         throw new Error(body.error || "Failed to send next batch");
       }
-      setNotice(`Queued ${body.queuedRecipients || currentSendMoreBatchSize} more recipients.`);
+      toast.success(`Queued ${body.queuedRecipients ?? currentSendMoreBatchSize} more recipients`);
       setSendMoreOpen(false);
       await refreshCampaignDetails(liveCampaign.id);
     } catch (actionError) {
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       setError(actionError instanceof Error ? actionError.message : "Send more failed");
     } finally {
+      mutationRef.current = false;
       setLoadingAction(null);
     }
   }
 
   async function deleteCampaign() {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
+    refreshControllersRef.current.forEach((controller) => controller.abort());
+    refreshControllersRef.current.clear();
     setLoadingAction("delete");
     setError("");
     setNotice("");
@@ -657,17 +732,31 @@ export default function CampaignDetailPageClient({
         credentials: "include",
       });
       const body = await response.json().catch(() => ({}));
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       if (!response.ok) {
         throw new Error(body.error || "Failed to delete campaign");
       }
+      toast.success("Campaign deleted");
       navigate("/campaigns");
     } catch (actionError) {
+      if (activeCampaignIdRef.current !== liveCampaign.id) return;
       setError(actionError instanceof Error ? actionError.message : "Failed to delete campaign");
     } finally {
+      mutationRef.current = false;
       setLoadingAction(null);
-      setConfirmDelete(false);
     }
   }
+
+  const selectedRecipient = liveRecipients.find((recipient) => recipient.id === selectedRecipientId) ?? null;
+  const failedRecipientsCount = (recipientCounts.FAILED || 0) + (recipientCounts.BLOCKED || 0);
+  const skippedRecipientsCount = (recipientCounts.SKIPPED || 0) + (recipientCounts.UNSUBSCRIBED || 0);
+  const filteredRecipients = liveRecipients.filter((recipient) => {
+    if (recipientTab === "failed" && !["FAILED", "BLOCKED"].includes(recipient.status)) return false;
+    if (recipientTab === "skipped" && !["SKIPPED", "UNSUBSCRIBED"].includes(recipient.status)) return false;
+    if (recipientFilter !== "ALL" && recipient.status !== recipientFilter) return false;
+    const needle = recipientSearch.trim().toLowerCase();
+    return !needle || [recipient.contactFullName, recipient.contactPhone, recipient.contactLocation, recipient.contactListLabel].filter(Boolean).join(" ").toLowerCase().includes(needle);
+  });
 
   const launchable =
     (liveCampaign.status === "DRAFT" && pendingCount > 0) ||
@@ -697,491 +786,132 @@ export default function CampaignDetailPageClient({
     liveCampaign.status === "SCHEDULED" ||
     liveCampaign.status === "FAILED";
 
+  const busy = Boolean(loadingAction) || loadingSendMore;
+  const retryable = effectiveCampaign.failedCount > 0 && !["SENDING", "SCHEDULED"].includes(liveCampaign.status);
+  const progress = effectiveCampaign.totalRecipients > 0 ? Math.round((processedCount / effectiveCampaign.totalRecipients) * 100) : 0;
+  const recipientInspector = selectedRecipient ? (
+    <div className="campaign-detail__contact">
+      <div className="campaign-detail__section-heading"><h3>Selected contact</h3><Button variant="ghost" size="icon-sm" aria-label="Clear selected contact" onClick={() => setSelectedRecipientId(null)}><X size={16} /></Button></div>
+      <strong>{selectedRecipient.contactFullName || selectedRecipient.contactPhone}</strong>
+      <a href={whatsappLink(selectedRecipient.contactPhone)} target="_blank" rel="noreferrer"><Phone size={15} />{selectedRecipient.contactPhone}</a>
+      <Badge className={recipientTone(selectedRecipient.status)}>{displayStatus(selectedRecipient.status)}</Badge>
+      <dl className="campaign-detail__details">
+        <InfoRow label="List" value={selectedRecipient.contactListLabel} />
+        <InfoRow label="Location" value={selectedRecipient.contactLocation || "—"} />
+        <InfoRow label="Sent" value={formatDate(selectedRecipient.sentAt)} />
+        <InfoRow label="Delivered" value={formatDate(selectedRecipient.deliveredAt)} />
+        <InfoRow label="Read" value={formatDate(selectedRecipient.readAt)} />
+        <InfoRow label="Failed" value={formatDate(selectedRecipient.failedAt)} />
+        {Object.entries(selectedRecipient.contactMetadata ?? {}).map(([key, value]) => <InfoRow key={key} label={key} value={value} />)}
+      </dl>
+      {recipientErrorText(selectedRecipient) && <button className="campaign-detail__failure" onClick={() => setErrorPreviewRecipient(selectedRecipient)}>{recipientErrorText(selectedRecipient)}<span>View error</span></button>}
+      <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(selectedRecipient)}>View message</Button>
+    </div>
+  ) : null;
+
   return (
-    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <Link to="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-              Back to campaigns
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{liveCampaign.name}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Template: {liveCampaign.templateName} · {liveCampaign.templateLanguage} · {liveCampaign.connectionLabel || "No connection"}
-            </p>
-            {liveCampaign.description ? (
-              <p className="mt-3 max-w-3xl text-sm text-muted-foreground">{liveCampaign.description}</p>
-            ) : null}
+    <MotionReveal className="campaign-detail">
+      <header className="campaign-detail__header">
+        <div className="campaign-detail__identity">
+          <Link to="/campaigns" className="campaign-detail__back" aria-label="Back to campaigns"><ArrowLeft size={18} /></Link>
+          <div><div className="campaign-detail__title"><h1>{liveCampaign.name}</h1><Badge className={statusTone(liveCampaign.status)}>{displayStatus(liveCampaign.status)}</Badge></div>
+            <p>{liveCampaign.description || liveCampaign.templateName}<span>·</span>Created {formatDate(liveCampaign.createdAt)}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2"><AskGrowthAgent featureId="campaigns" context={{ kind: "whatsapp_campaign", resourceId: liveCampaign.id }}>Ask agent</AskGrowthAgent><Badge className={statusTone(liveCampaign.status)}>{liveCampaign.status}</Badge></div>
         </div>
-
-        {(error || notice) && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              error
-                ? "border-destructive/30 bg-status-danger-soft text-destructive"
-                : "border-status-success/30 bg-status-success-soft text-status-success"
-            }`}
-          >
-            {error || notice}
-          </div>
-        )}
-
-        <section className="grid gap-4 grid-cols-2 xl:grid-cols-6">
-          <MetricCard label="Recipients" value={effectiveCampaign.totalRecipients} />
-          <MetricCard label="Sent" value={effectiveCampaign.sentCount} />
-          <MetricCard label="Delivered" value={effectiveCampaign.deliveredCount} />
-          <MetricCard label="Read" value={effectiveCampaign.readCount} />
-          <MetricCard label="Failed" value={effectiveCampaign.failedCount + effectiveCampaign.blockedCount} />
-          <MetricCard label="Remaining" value={remaining} />
-        </section>
-
-        <Card>
-          <CardContent className="space-y-5 p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Live sending status</h2>
-                <p className="text-sm text-muted-foreground">
-                  Uses realtime summaries and only re-syncs the full recipient table periodically while active.
-                </p>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {isRefreshingLive ? "Refreshing now..." : `Last synced ${formatDate(lastSyncedAt)}`}
-              </div>
-            </div>
-
-            <div className="grid gap-4 grid-cols-2 xl:grid-cols-5">
-              <MetricCard label="Processed" value={processedCount} />
-              <MetricCard label="Active queue" value={activeQueueCount} />
-              <MetricCard label="Still pending" value={pendingCount} />
-              <MetricCard label="Current position" value={activeSendPosition} />
-              <MetricCard label="Batch accepted" value={effectiveCampaign.sentCount} />
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Campaign completion</span>
-                  <span className="font-medium text-foreground">
-                    {processedCount.toLocaleString("en-ZA")} / {effectiveCampaign.totalRecipients.toLocaleString("en-ZA")}
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <Progress
-                    value={
-                      effectiveCampaign.totalRecipients > 0
-                        ? (processedCount / effectiveCampaign.totalRecipients) * 100
-                        : 0
-                    }
-                  />
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {isLiveSending
-                    ? `The backend worker is actively sending. ${activeQueueCount.toLocaleString("en-ZA")} recipients are currently queued or in-flight.`
-                    : liveCampaign.status === "SCHEDULED"
-                      ? "The campaign is queued to start later."
-                      : liveCampaign.status === "PAUSED"
-                        ? "The campaign is paused. Pending recipients are waiting for resume."
-                        : "The campaign is not actively sending right now."}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <div className="text-sm font-semibold text-foreground">Recipient state breakdown</div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-2">
-                  <MiniStat label="Pending" value={pendingCount} />
-                  <MiniStat label="Queued" value={queuedCount} />
-                  <MiniStat label="Processing" value={processingCount} />
-                  <MiniStat label="Sent" value={effectiveCampaign.sentCount} />
-                  <MiniStat label="Delivered" value={effectiveCampaign.deliveredCount} />
-                  <MiniStat label="Read" value={effectiveCampaign.readCount} />
-                  <MiniStat label="Failed" value={effectiveCampaign.failedCount + effectiveCampaign.blockedCount} />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-5 p-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium text-foreground">{campaignProgress(effectiveCampaign)}%</span>
-              </div>
-              <Progress value={campaignProgress(effectiveCampaign)} />
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <InfoCard label="List label" value={liveCampaign.listLabel || "default"} />
-                <InfoCard label="Scheduled" value={formatDate(liveCampaign.scheduledAt)} />
-                <InfoCard label="Launched" value={formatDate(liveCampaign.launchedAt)} />
-                <InfoCard label="Completed" value={formatDate(liveCampaign.completedAt)} />
-              </div>
-
-              <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <div className="text-sm font-semibold text-foreground">Actions</div>
-                <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
-                  {launchable ? (
-                    <>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={remaining || 1}
-                        value={launchBatchSize}
-                        onChange={(event) => setLaunchBatchSize(event.target.value)}
-                        className="w-32"
-                      />
-                      <Button
-                        disabled={loadingAction === "launch" || currentLaunchBatchSize <= 0}
-                        onClick={() => void runAction("launch")}
-                      >
-                        {loadingAction === "launch" ? "Queueing..." : "Launch batch"}
-                      </Button>
-                    </>
-                  ) : null}
-                  {pausable ? (
-                    <Button
-                      variant="secondary"
-                      disabled={loadingAction === "pause"}
-                      onClick={() => void runAction("pause")}
-                    >
-                      Pause
-                    </Button>
-                  ) : null}
-                  {resumable ? (
-                    <Button
-                      variant="secondary"
-                      disabled={loadingAction === "resume"}
-                      onClick={() => void runAction("resume")}
-                    >
-                      Resume
-                    </Button>
-                  ) : null}
-                  {sendMoreable ? (
-                    <Button
-                      variant="secondary"
-                      disabled={loadingAction === "send_more" || loadingSendMore}
-                      onClick={() => void openSendMoreModal()}
-                    >
-                      Send More
-                    </Button>
-                  ) : null}
-                  {cancellable ? (
-                    <Button
-                      variant="outline"
-                      disabled={loadingAction === "cancel"}
-                      onClick={() => void runAction("cancel")}
-                    >
-                      Cancel
-                    </Button>
-                  ) : null}
-                  <Button
-                    variant="outline"
-                    disabled={loadingAction === "repair_status"}
-                    onClick={() => void runAction("repair_status")}
-                  >
-                    Repair status
-                  </Button>
-                  {deletable ? (
-                    confirmDelete ? (
-                      <>
-                        <Button
-                          variant="destructive"
-                          disabled={loadingAction === "delete"}
-                          onClick={() => void deleteCampaign()}
-                        >
-                          Confirm Delete
-                        </Button>
-                        <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button variant="outline" onClick={() => setConfirmDelete(true)}>
-                        Delete
-                      </Button>
-                    )
-                  ) : null}
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Use repair status if replies or webhook updates landed but the counts on this campaign look wrong.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-0">
-            <div className="border-b border-border px-5 py-4">
-              <h2 className="text-lg font-semibold text-foreground">Recipients</h2>
-              <p className="text-sm text-muted-foreground">
-                Per-recipient delivery state for this campaign.
-              </p>
-            </div>
-            <div className="space-y-3 p-4 md:hidden">
-              {liveRecipients.map((recipient, index) => (
-                <div key={recipient.id} className="rounded-xl border border-border bg-secondary/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-foreground">
-                        {index + 1}. {recipient.contactFullName || recipient.contactPhone}
-                      </div>
-                      <div className="mt-1 text-sm text-foreground">{recipient.contactPhone}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {recipient.contactListLabel} · {recipient.contactLocation || "-"}
-                      </div>
-                    </div>
-                    <Badge className={recipientTone(recipient.status)}>{recipient.status}</Badge>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <div>Sent: {formatDate(recipient.sentAt)}</div>
-                    <div>Delivered: {formatDate(recipient.deliveredAt)}</div>
-                    <div>Read: {formatDate(recipient.readAt)}</div>
-                    <div>Error: {recipientErrorText(recipient) || "-"}</div>
-                  </div>
-
-                  {recipient.contactMetadata && Object.keys(recipient.contactMetadata).length > 0 ? (
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      {Object.entries(recipient.contactMetadata)
-                        .slice(0, 4)
-                        .map(([key, value]) => `${key}: ${value}`)
-                        .join(" · ")}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(recipient)}>
-                      View message
-                    </Button>
-                    {recipientErrorText(recipient) ? (
-                      <Button variant="outline" size="sm" onClick={() => setErrorPreviewRecipient(recipient)}>
-                        View error
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="hidden overflow-auto md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/40 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Contact</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="px-4 py-3">Location</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Sent</th>
-                    <th className="px-4 py-3">Delivered</th>
-                    <th className="px-4 py-3">Read</th>
-                    <th className="px-4 py-3">Error</th>
-                    <th className="px-4 py-3">Message</th>
-                    <th className="px-4 py-3">Metadata</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {liveRecipients.map((recipient, index) => (
-                    <tr key={recipient.id} className="border-t border-border align-top">
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{index + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">
-                          {recipient.contactFullName || recipient.contactPhone}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{recipient.contactListLabel}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <a
-                          href={whatsappLink(recipient.contactPhone)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-foreground underline-offset-4 hover:text-primary hover:underline"
-                        >
-                          {recipient.contactPhone}
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{recipient.contactLocation || "-"}</td>
-                      <td className="px-4 py-3">
-                        <Badge className={recipientTone(recipient.status)}>{recipient.status}</Badge>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                        {formatDate(recipient.sentAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                        {formatDate(recipient.deliveredAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                        {formatDate(recipient.readAt)}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {recipientErrorText(recipient) ? (
-                          <div className="flex max-w-[260px] items-center gap-2">
-                            <span className="min-w-0 flex-1 truncate whitespace-nowrap">
-                              {recipientErrorText(recipient)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setErrorPreviewRecipient(recipient)}
-                              className="shrink-0 text-[11px] font-medium text-primary underline-offset-4 hover:underline"
-                            >
-                              View more
-                            </button>
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Button variant="outline" size="sm" onClick={() => setPreviewRecipient(recipient)}>
-                          View message
-                        </Button>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {recipient.contactMetadata && Object.keys(recipient.contactMetadata).length > 0
-                          ? Object.entries(recipient.contactMetadata)
-                              .slice(0, 4)
-                              .map(([key, value]) => `${key}: ${value}`)
-                              .join(" · ")
-                          : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="campaign-detail__actions">
+          {launchable && <Button disabled={busy || currentLaunchBatchSize <= 0} onClick={() => setConfirmAction("launch")}><Send size={16} />Launch batch</Button>}
+          {pausable && <Button variant="outline" disabled={busy} onClick={() => void runAction("pause")}>{loadingAction === "pause" ? "Pausing..." : "Pause"}</Button>}
+          {resumable && <Button disabled={busy} onClick={() => void runAction("resume")}>{loadingAction === "resume" ? "Resuming..." : "Resume"}</Button>}
+          {sendMoreable && pendingCount > 0 && <Button variant="outline" disabled={busy} onClick={() => void openSendMoreModal()}>{loadingSendMore ? "Loading..." : "Send more"}</Button>}
+          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" disabled={busy}>More<ChevronDown size={15} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+            {retryable && <DropdownMenuItem onSelect={() => setConfirmAction("retry_failed")}>Retry failed</DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => void refreshCampaignDetails(liveCampaign.id)} disabled={isRefreshingLive}>Refresh results</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void runAction("repair_status")}>Repair status</DropdownMenuItem>
+            {(cancellable || deletable) && <DropdownMenuSeparator />}
+            {cancellable && <DropdownMenuItem variant="destructive" onSelect={() => setConfirmAction("cancel")}>Cancel campaign</DropdownMenuItem>}
+            {deletable && <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>Delete campaign</DropdownMenuItem>}
+          </DropdownMenuContent></DropdownMenu>
+          <AskGrowthAgent featureId="campaigns" context={{ kind: "whatsapp_campaign", resourceId: liveCampaign.id }}>Ask agent</AskGrowthAgent>
+        </div>
+      </header>
+      {error && !confirmAction && !confirmDelete && !sendMoreOpen && <div role="alert" className="campaign-detail__alert">{error}</div>}
+      {notice && <div role="status" className="campaign-detail__notice">{notice}</div>}
+      {refreshError && <div role="status" className="campaign-detail__stale"><span>{refreshError}</span><Button variant="outline" size="sm" disabled={isRefreshingLive} onClick={() => void refreshCampaignDetails(liveCampaign.id)}><RotateCcw size={14} />Retry refresh</Button></div>}
+      <div className="campaign-detail__workspace">
+        <main className="campaign-detail__main">
+          <section className="campaign-detail__metrics" aria-label="Delivery summary">
+            <MetricCard label="Recipients" value={effectiveCampaign.totalRecipients} />
+            <MetricCard label="Sent" value={effectiveCampaign.sentCount} />
+            <MetricCard label="Delivered" value={effectiveCampaign.deliveredCount} />
+            <MetricCard label="Read" value={effectiveCampaign.readCount} />
+            <MetricCard label="Failed" value={effectiveCampaign.failedCount + effectiveCampaign.blockedCount} />
+            <MetricCard label="Remaining" value={remaining} />
+          </section>
+          <div className="campaign-detail__progress"><div><span>{processedCount.toLocaleString("en-ZA")} of {effectiveCampaign.totalRecipients.toLocaleString("en-ZA")} processed</span><span>{progress}%</span></div><Progress value={progress} /><div><span>{activeQueueCount} queued or processing · {pendingCount} pending</span><span>{isRefreshingLive ? "Refreshing..." : `Synced ${formatDate(lastSyncedAt)}`}</span></div></div>
+          <nav className="campaign-detail__tabs" aria-label="Recipient groups">
+            {[{ id: "all", label: "Recipients", count: liveRecipients.length }, { id: "failed", label: "Failed", count: failedRecipientsCount }, { id: "skipped", label: "Skipped", count: skippedRecipientsCount }].map((tab) => <button type="button" key={tab.id} aria-current={recipientTab === tab.id ? "page" : undefined} onClick={() => { setRecipientTab(tab.id); setRecipientFilter("ALL"); }}>{tab.label}<span>{tab.count}</span></button>)}
+          </nav>
+          <div className="campaign-detail__toolbar"><label className="campaign-detail__search"><Search size={16} /><Input aria-label="Search recipients" placeholder="Search recipients..." value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} /></label><select aria-label="Recipient status" value={recipientFilter} onChange={(event) => setRecipientFilter(event.target.value)}><option value="ALL">All statuses</option>{["PENDING", "QUEUED", "PROCESSING", "SENT", "DELIVERED", "READ", "FAILED", "BLOCKED", "SKIPPED", "UNSUBSCRIBED"].map((status) => <option key={status} value={status}>{displayStatus(status)}</option>)}</select></div>
+          <div className="campaign-detail__table-scroll"><table className="campaign-detail__table"><thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Sent</th><th>Delivered</th><th><span className="sr-only">Recipient actions</span><MoreHorizontal size={17} /></th></tr></thead><tbody>
+            {filteredRecipients.map((recipient) => <tr key={recipient.id} data-selected={selectedRecipientId === recipient.id}>
+              <td><button className="campaign-detail__contact-button" onClick={() => setSelectedRecipientId(recipient.id)}>{recipient.contactFullName || recipient.contactPhone}<span>{recipient.contactListLabel}</span></button></td>
+              <td><a href={whatsappLink(recipient.contactPhone)} target="_blank" rel="noreferrer">{recipient.contactPhone}</a></td>
+              <td><Badge className={recipientTone(recipient.status)}>{displayStatus(recipient.status)}</Badge></td>
+              <td>{formatDate(recipient.sentAt)}</td><td>{formatDate(recipient.deliveredAt)}</td>
+              <td><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Actions for ${recipient.contactFullName || recipient.contactPhone}`}><MoreHorizontal size={17} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setSelectedRecipientId(recipient.id)}>View contact</DropdownMenuItem><DropdownMenuItem onSelect={() => setPreviewRecipient(recipient)}>View message</DropdownMenuItem>{recipientErrorText(recipient) && <DropdownMenuItem onSelect={() => setErrorPreviewRecipient(recipient)}>View error</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></td>
+            </tr>)}
+          </tbody></table></div>
+          <div className="campaign-detail__mobile-recipients">{filteredRecipients.map((recipient) => <button type="button" key={recipient.id} onClick={() => setSelectedRecipientId(recipient.id)}><div><strong>{recipient.contactFullName || recipient.contactPhone}</strong><span>{recipient.contactPhone}</span></div><Badge className={recipientTone(recipient.status)}>{displayStatus(recipient.status)}</Badge></button>)}</div>
+          {filteredRecipients.length === 0 && <div className="campaign-detail__empty"><Users size={24} /><h2>{liveRecipients.length ? "No matching recipients" : "No recipients"}</h2>{liveRecipients.length > 0 && <Button variant="outline" size="sm" onClick={() => { setRecipientSearch(""); setRecipientFilter("ALL"); setRecipientTab("all"); }}>Clear filters</Button>}</div>}
+          <footer className="campaign-detail__table-footer">{filteredRecipients.length.toLocaleString("en-ZA")} of {liveRecipients.length.toLocaleString("en-ZA")} recipients</footer>
+        </main>
+        <aside className="campaign-detail__inspector" aria-label="Campaign details">
+          <h2>Template preview</h2>
+          <TemplateMessage campaign={liveCampaign} recipient={selectedRecipient} />
+          {recipientInspector}
+          <section className="campaign-detail__campaign-info"><h3>Campaign details</h3><dl className="campaign-detail__details"><InfoRow label="Connection" value={liveCampaign.connectionLabel || "No connection"} /><InfoRow label="Template" value={liveCampaign.templateName} /><InfoRow label="Language" value={liveCampaign.templateLanguage} /><InfoRow label="Template status" value={liveCampaign.templateStatus || "—"} /><InfoRow label="List" value={liveCampaign.listLabel || "default"} /><InfoRow label="Scheduled" value={formatDate(liveCampaign.scheduledAt)} /><InfoRow label="Launched" value={formatDate(liveCampaign.launchedAt)} /><InfoRow label="Completed" value={formatDate(liveCampaign.completedAt)} /><InfoRow label="Updated" value={formatDate(liveCampaign.updatedAt)} /></dl></section>
+        </aside>
+      </div>
+      <Sheet open={Boolean(selectedRecipient) && !wideInspector} onOpenChange={(open) => { if (!open) setSelectedRecipientId(null); }}><SheetContent className="campaign-detail__recipient-sheet"><SheetHeader><SheetTitle>Recipient details</SheetTitle><SheetDescription>{selectedRecipient?.contactFullName || selectedRecipient?.contactPhone}</SheetDescription></SheetHeader>{recipientInspector}{selectedRecipient && <TemplateMessage campaign={liveCampaign} recipient={selectedRecipient} />}</SheetContent></Sheet>
+        <Dialog open={confirmDelete} onOpenChange={(open) => { if (!loadingAction) setConfirmDelete(open); }}>
+          <DialogContent><DialogHeader><DialogTitle>Delete campaign?</DialogTitle><DialogDescription>Delete {liveCampaign.name} and its campaign history. This cannot be undone.</DialogDescription></DialogHeader>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-2"><Button variant="outline" disabled={Boolean(loadingAction)} onClick={() => setConfirmDelete(false)}>Cancel</Button><Button variant="destructive" disabled={Boolean(loadingAction)} onClick={() => void deleteCampaign()}>{loadingAction ? "Deleting..." : "Delete campaign"}</Button></div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open && !loadingAction) { setConfirmAction(null); setError(""); } }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{confirmAction === "launch" ? "Review launch" : confirmAction === "retry_failed" ? "Retry failed recipients?" : "Cancel campaign?"}</DialogTitle><DialogDescription>{confirmAction === "launch" ? `${currentLaunchBatchSize} recipients · ${liveCampaign.templateName} · ${liveCampaign.connectionLabel || "No connection"}` : confirmAction === "retry_failed" ? `${effectiveCampaign.failedCount} failed recipients will be queued again. Delivered recipients are excluded.` : "Pending and queued messages will be cancelled. Messages already sent cannot be recalled."}</DialogDescription></DialogHeader>
+            {confirmAction === "launch" && <div className="space-y-4">
+              <label className="grid gap-2 text-sm">Batch size<Input type="number" min={1} max={remaining || 1} value={launchBatchSize} onChange={(event) => setLaunchBatchSize(event.target.value)} /></label>
+              <label className="grid gap-2 text-sm">Send time<select className="h-10 rounded-md border border-input bg-background px-3" value={launchTiming} onChange={(event) => setLaunchTiming(event.target.value as "now" | "later")}><option value="now">Send now</option><option value="later">Schedule</option></select></label>
+              {launchTiming === "later" && <>
+                <label className="grid gap-2 text-sm">Date and time<Input type="datetime-local" value={launchDate} onChange={(event) => { setLaunchDate(event.target.value); setLaunchOccurrence(""); }} /></label>
+                <label className="grid gap-2 text-sm">Timezone<select className="h-10 min-w-0 rounded-md border border-input bg-background px-3" value={launchTimeZone} onChange={(event) => { setLaunchTimeZone(event.target.value); setLaunchOccurrence(""); }}>{timeZoneOptions(launchTimeZone).map((zone) => <option key={zone}>{zone}</option>)}</select></label>
+                {launchInstants.length > 1 && <label className="grid gap-2 text-sm">Clock change<select className="h-10 rounded-md border border-input bg-background px-3" value={launchOccurrence} onChange={(event) => setLaunchOccurrence(event.target.value)}><option value="">Choose occurrence</option>{launchInstants.map((instant) => <option key={instant} value={instant}>{new Intl.DateTimeFormat("en-ZA", { timeZone: launchTimeZone, dateStyle: "medium", timeStyle: "long" }).format(new Date(instant))}</option>)}</select></label>}
+                {!launchScheduleValid && launchDate && <p className="text-sm text-destructive">Choose a future time that exists in this timezone.</p>}
+                {selectedLaunchInstant && <p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("en-ZA", { timeZone: launchTimeZone, dateStyle: "full", timeStyle: "long" }).format(new Date(selectedLaunchInstant))}</p>}
+              </>}
+            </div>}
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-2"><Button variant="outline" disabled={Boolean(loadingAction)} onClick={() => { setConfirmAction(null); setError(""); }}>Back</Button><Button variant={confirmAction === "cancel" ? "destructive" : "default"} disabled={Boolean(loadingAction) || (confirmAction === "launch" && (!launchScheduleValid || currentLaunchBatchSize <= 0))} onClick={() => { if (confirmAction) void runAction(confirmAction); }}>{loadingAction ? "Saving..." : confirmAction === "launch" ? launchTiming === "later" ? "Schedule campaign" : "Queue campaign" : confirmAction === "retry_failed" ? "Retry failed" : "Cancel campaign"}</Button></div>
+          </DialogContent>
+        </Dialog>
         <Dialog open={Boolean(previewRecipient)} onOpenChange={(open) => { if (!open) setPreviewRecipient(null); }}>
-          {previewRecipient ? (
-            <DialogContent className="max-h-[calc(100svh-2rem)] max-w-4xl overflow-auto p-0">
-              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <DialogHeader>
-                  <DialogTitle>Template preview</DialogTitle>
-                  <DialogDescription>
-                    {previewRecipient.contactFullName || previewRecipient.contactPhone} · {liveCampaign.templateName} ·{" "}
-                    {liveCampaign.templateLanguage}
-                  </DialogDescription>
-                </DialogHeader>
-              </div>
-
-              <div className="space-y-6 px-6 py-5">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <div className="rounded-xl border border-border bg-secondary/20 p-5">
-                    <div className="text-sm font-semibold text-foreground">Rendered message</div>
-                    {liveCampaign.templateHeader ? (
-                      <div className="mt-4 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                        <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Header</div>
-                        <div className="whitespace-pre-wrap text-foreground">{liveCampaign.templateHeader}</div>
-                      </div>
-                    ) : null}
-                    <div className="mt-4 rounded-lg border border-border bg-background px-4 py-4">
-                      <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Body</div>
-                      <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-                        {previewBodyText || liveCampaign.templateBody || "No template body available."}
-                      </div>
-                    </div>
-                    {liveCampaign.templateFooter ? (
-                      <div className="mt-4 rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                        <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Footer</div>
-                        <div className="whitespace-pre-wrap text-foreground">{liveCampaign.templateFooter}</div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                      <div className="text-sm font-semibold text-foreground">Resolved parameters</div>
-                      <div className="mt-4 space-y-3">
-                        {previewBodyParameters.length > 0 ? (
-                          previewBodyParameters.map((value, index) => {
-                            const mapping = liveCampaign.variableMappings?.[index];
-                            const mappingLabel =
-                              mapping?.source === "static"
-                                ? `Static text`
-                                : mapping?.key || `Variable ${index + 1}`;
-                            return (
-                              <div key={`${mappingLabel}-${index}`} className="rounded-lg border border-border bg-background px-3 py-3">
-                                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                                  {`{{${index + 1}}}`} · {mappingLabel}
-                                </div>
-                                <div className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                                  {value || <span className="text-destructive">Empty value</span>}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
-                            This template does not use mapped body variables.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                      <div className="text-sm font-semibold text-foreground">Recipient context</div>
-                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                        <div>Phone: <span className="text-foreground">{previewRecipient.contactPhone}</span></div>
-                        <div>Name: <span className="text-foreground">{previewRecipient.contactFullName || "-"}</span></div>
-                        <div>Location: <span className="text-foreground">{previewRecipient.contactLocation || "-"}</span></div>
-                        <div>Status: <span className="text-foreground">{previewRecipient.status}</span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </DialogContent>
-          ) : null}
+          {previewRecipient && <DialogContent className="campaign-detail__dialog campaign-detail__template-dialog max-h-[calc(100svh-2rem)] max-w-3xl overflow-auto">
+            <DialogHeader><DialogTitle>Template preview</DialogTitle><DialogDescription>{previewRecipient.contactFullName || previewRecipient.contactPhone} · {liveCampaign.templateName} · {liveCampaign.templateLanguage}</DialogDescription></DialogHeader>
+            <div className="campaign-detail__template-columns"><TemplateMessage campaign={liveCampaign} recipient={previewRecipient} /><section><h3>Resolved parameters</h3><dl className="campaign-detail__details">{previewBodyParameters.length ? previewBodyParameters.map((value, index) => <InfoRow key={index} label={`{{${index + 1}}} · ${liveCampaign.variableMappings?.[index]?.source === "static" ? "Static text" : liveCampaign.variableMappings?.[index]?.key || "Variable"}`} value={value || "Empty value"} />) : <p className="text-xs text-muted-foreground">No body variables</p>}</dl><h3>Recipient context</h3><dl className="campaign-detail__details"><InfoRow label="Phone" value={previewRecipient.contactPhone} /><InfoRow label="Name" value={previewRecipient.contactFullName || "—"} /><InfoRow label="Location" value={previewRecipient.contactLocation || "—"} /><InfoRow label="Status" value={displayStatus(previewRecipient.status)} /></dl></section></div>
+          </DialogContent>}
         </Dialog>
         <Dialog open={Boolean(errorPreviewRecipient)} onOpenChange={(open) => { if (!open) setErrorPreviewRecipient(null); }}>
-          {errorPreviewRecipient ? (
-            <DialogContent className="max-w-2xl p-0">
-              <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <DialogHeader>
-                  <DialogTitle>Delivery failure</DialogTitle>
-                  <DialogDescription>
-                    {errorPreviewRecipient.contactFullName || errorPreviewRecipient.contactPhone} ·{" "}
-                    {errorPreviewRecipient.contactPhone}
-                  </DialogDescription>
-                </DialogHeader>
-              </div>
-
-              <div className="space-y-4 px-6 py-5">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
-                    <div className="mt-2">
-                      <Badge className={recipientTone(errorPreviewRecipient.status)}>{errorPreviewRecipient.status}</Badge>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Failed at</div>
-                    <div className="mt-2 text-sm text-foreground">{formatDate(errorPreviewRecipient.failedAt)}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Error code</div>
-                  <div className="mt-2 text-sm text-foreground">{errorPreviewRecipient.errorCode || "-"}</div>
-                </div>
-
-                <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Full error</div>
-                  <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-                    {recipientErrorText(errorPreviewRecipient) || "-"}
-                  </div>
-                </div>
-              </div>
-            </DialogContent>
-          ) : null}
+          {errorPreviewRecipient && <DialogContent className="campaign-detail__dialog max-h-[calc(100svh-2rem)] max-w-xl overflow-auto">
+            <DialogHeader><DialogTitle>Delivery failure</DialogTitle><DialogDescription>{errorPreviewRecipient.contactFullName || errorPreviewRecipient.contactPhone} · {errorPreviewRecipient.contactPhone}</DialogDescription></DialogHeader>
+            <dl className="campaign-detail__details"><InfoRow label="Status" value={displayStatus(errorPreviewRecipient.status)} /><InfoRow label="Failed at" value={formatDate(errorPreviewRecipient.failedAt)} /><InfoRow label="Error code" value={errorPreviewRecipient.errorCode || "—"} /></dl><section className="campaign-detail__error-message"><h3>Full error</h3><p>{recipientErrorText(errorPreviewRecipient) || "—"}</p></section>
+          </DialogContent>}
         </Dialog>
-        <Dialog open={sendMoreOpen} onOpenChange={setSendMoreOpen}>
+        <Dialog open={sendMoreOpen} onOpenChange={(open) => { if (!loadingAction) setSendMoreOpen(open); }}>
           {sendMoreOpen ? (
-            <DialogContent className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-auto p-6">
+            <DialogContent className="campaign-detail__dialog max-h-[calc(100svh-2rem)] max-w-5xl overflow-auto p-6">
               <div className="flex items-start justify-between gap-4">
                 <DialogHeader>
                   <DialogTitle>Send more: {liveCampaign.name}</DialogTitle>
@@ -1192,20 +922,20 @@ export default function CampaignDetailPageClient({
                 </DialogHeader>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-4">
-                <div className="rounded-lg bg-secondary/40 p-4">
+              <div className="campaign-detail__batch-metrics">
+                <div>
                   <div className="text-xs text-muted-foreground">Original recipients</div>
                   <div className="mt-1 text-xl font-semibold">{effectiveCampaign.totalRecipients}</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 p-4">
+                <div>
                   <div className="text-xs text-muted-foreground">Pending in campaign</div>
                   <div className="mt-1 text-xl font-semibold">{pendingRecipientContactIds.length}</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 p-4">
+                <div>
                   <div className="text-xs text-muted-foreground">Remaining available</div>
                   <div className="mt-1 text-xl font-semibold">{sendMoreAvailableContacts.length}</div>
                 </div>
-                <div className="rounded-lg bg-secondary/40 p-4">
+                <div>
                   <div className="text-xs text-muted-foreground">This next batch</div>
                   <div className="mt-1 text-xl font-semibold">{currentSendMoreBatchSize}</div>
                 </div>
@@ -1215,14 +945,14 @@ export default function CampaignDetailPageClient({
                 <div className="space-y-3">
                   <div className="grid gap-3 md:grid-cols-[1fr_180px]">
                     <Input
-                      placeholder="Search remaining contacts..."
+                      aria-label="Search remaining contacts" placeholder="Search remaining contacts..."
                       value={sendMoreSearch}
                       onChange={(event) => setSendMoreSearch(event.target.value)}
                     />
                     <Input
                       type="number"
                       min={1}
-                      max={selectableSendMoreCount || 1}
+                      aria-label="Next batch size" max={selectableSendMoreCount || 1}
                       value={sendMoreBatchSize}
                       onChange={(event) => setSendMoreBatchSize(event.target.value)}
                     />
@@ -1230,7 +960,7 @@ export default function CampaignDetailPageClient({
 
                   <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border p-3">
                     {sendMoreAvailableContacts.map((contact) => {
-                      const excluded = excludedContactIds.includes(contact.id);
+                      const excluded = excludedContactIds.includes(contact.contactId);
                       return (
                         <div
                           key={contact.id}
@@ -1245,7 +975,7 @@ export default function CampaignDetailPageClient({
                           </div>
                           <Button
                             type="button"
-                            variant={excluded ? "destructive" : "outline"}
+                            aria-pressed={excluded} variant={excluded ? "secondary" : "outline"}
                             size="sm"
                             onClick={() =>
                               setExcludedContactIds((current) =>
@@ -1255,7 +985,7 @@ export default function CampaignDetailPageClient({
                               )
                             }
                           >
-                            {excluded ? "Excluded" : "Exclude"}
+                            {excluded ? "Include" : "Exclude"}
                           </Button>
                         </div>
                       );
@@ -1285,10 +1015,10 @@ export default function CampaignDetailPageClient({
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                setExcludedContactIds((current) => current.filter((value) => value !== contact.id))
+                                setExcludedContactIds((current) => current.filter((value) => value !== contact.contactId))
                               }
                             >
-                              Remove
+                              Include
                             </Button>
                           </div>
                         ))
@@ -1297,52 +1027,48 @@ export default function CampaignDetailPageClient({
                 </div>
               </div>
 
+              {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
               <div className="mt-6 flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setSendMoreOpen(false)}>
+                <Button variant="outline" disabled={Boolean(loadingAction)} onClick={() => setSendMoreOpen(false)}>
                   Cancel
                 </Button>
                 <Button
-                  disabled={loadingAction === "send_more" || loadingSendMore || currentSendMoreBatchSize <= 0}
+                  disabled={Boolean(loadingAction) || loadingSendMore || currentSendMoreBatchSize <= 0}
                   onClick={() => void confirmSendMore()}
                 >
-                  {loadingAction === "send_more" ? "Queueing..." : "Send next batch"}
+                  {loadingAction ? "Queueing..." : "Send next batch"}
                 </Button>
               </div>
             </DialogContent>
           ) : null}
         </Dialog>
-      </div>
     </MotionReveal>
   );
 }
 
+function displayStatus(status: string) {
+  return status.charAt(0) + status.slice(1).toLowerCase().replaceAll("_", " ");
+}
+
 function MetricCard({ label, value }: { label: string; value: number | null | undefined }) {
-  const displayValue = Number(value ?? 0);
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-foreground">
-        {displayValue.toLocaleString("en-ZA")}
-      </div>
-    </div>
-  );
+  return <div className="campaign-detail__metric"><span>{label}</span><strong>{Number(value ?? 0).toLocaleString("en-ZA")}</strong></div>;
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-secondary/20 p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-2 font-medium text-foreground">{value}</div>
-    </div>
-  );
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold text-foreground">{value.toLocaleString("en-ZA")}</div>
-    </div>
-  );
+function TemplateMessage({ campaign, recipient }: { campaign: Campaign; recipient: CampaignRecipient | null }) {
+  const body = recipient ? renderTemplateBody(campaign.templateBody, resolveBodyParameters(recipient, campaign.variableMappings)) : campaign.templateBody;
+  const buttons = (campaign.templateButtons ?? []).flatMap((button) => {
+    if (!button || typeof button !== "object") return [];
+    const text = (button as { text?: unknown }).text;
+    return typeof text === "string" ? [text] : [];
+  });
+  return <div className="campaign-detail__message-stage"><div className="campaign-detail__message">
+    {campaign.templateHeader && <strong>{campaign.templateHeader}</strong>}
+    <p>{body || "No template body available"}</p>
+    {campaign.templateFooter && <small>{campaign.templateFooter}</small>}
+    {buttons.map((text, index) => <div key={`${text}-${index}`} className="campaign-detail__message-button">{text}</div>)}
+  </div></div>;
 }
