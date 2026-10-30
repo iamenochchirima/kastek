@@ -875,7 +875,7 @@ export function CallsWorkspace({
                       : "Cancel call"}
                   </Button>
                 ) : (
-                  <Button disabled={!ready}>
+                  <Button type="button" disabled={!ready} onClick={start}>
                     <Phone className="size-4" />
                     Call
                   </Button>
