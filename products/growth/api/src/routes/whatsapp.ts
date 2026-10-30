@@ -345,7 +345,7 @@ export function registerWhatsappMarketingRoutes(
       ctx.userId,
       ctx.orgId,
       id(request),
-      text(body.scheduledAt),
+      Object.hasOwn(body, "scheduledAt") ? text(body.scheduledAt) : undefined,
       integer(body.batchSize),
       options,
     );
@@ -370,7 +370,7 @@ export function registerWhatsappMarketingRoutes(
           ctx.userId,
           ctx.orgId,
           id(request),
-          text(body.scheduledAt),
+          Object.hasOwn(body, "scheduledAt") ? text(body.scheduledAt) : undefined,
           options,
         );
       case "cancel":

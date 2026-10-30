@@ -418,9 +418,46 @@ test(
         launchCampaign(pool, "user", "org", id, "invalid", 2, options),
         /invalid/,
       );
+      const instantDraft = await createCampaign(
+        pool,
+        "user",
+        "org",
+        {
+          name: "Immediate override",
+          connection_id: "connection",
+          template_id: template.id,
+          list_label: "vip",
+          scheduled_at: future,
+        },
+        options,
+      );
+      const immediate = await launchCampaign(
+        pool,
+        "user",
+        "org",
+        instantDraft.campaign.id,
+        null,
+        2,
+        options,
+      );
+      assert.equal(immediate.status, "SENDING");
+      assert.equal(immediate.scheduledAt, null);
+      assert.equal(
+        (await getCampaignSummary(pool, "org", instantDraft.campaign.id))
+          .campaign.scheduled_at,
+        null,
+      );
+      await cancelCampaign(
+        pool,
+        "user",
+        "org",
+        instantDraft.campaign.id,
+        options,
+      );
+      await deleteCampaign(pool, "org", instantDraft.campaign.id);
       const launches = await Promise.allSettled([
-        launchCampaign(pool, "user", "org", id, future, 2, options),
-        launchCampaign(pool, "user", "org", id, future, 2, options),
+        launchCampaign(pool, "user", "org", id, undefined, 2, options),
+        launchCampaign(pool, "user", "org", id, undefined, 2, options),
       ]);
       assert.equal(
         launches.filter((result) => result.status === "fulfilled").length,
@@ -431,16 +468,21 @@ test(
         "SCHEDULED",
       );
       assert.equal(await processQueuedCampaignRecipients(pool, 10, options), 0);
-      await pool.query(
-        `UPDATE "WhatsappCampaign" SET "scheduledAt"=NULL WHERE id=$1`,
-        [id],
-      );
       await pauseCampaign(pool, "user", "org", id, options);
       assert.equal(
         (await getCampaignSummary(pool, "org", id)).campaign.status,
         "PAUSED",
       );
+      await resumeCampaign(pool, "user", "org", id, undefined, options);
+      assert.equal(
+        (await getCampaignSummary(pool, "org", id)).campaign.status,
+        "SCHEDULED",
+      );
+      await pauseCampaign(pool, "user", "org", id, options);
       await resumeCampaign(pool, "user", "org", id, null, options);
+      const resumed = (await getCampaignSummary(pool, "org", id)).campaign;
+      assert.equal(resumed.status, "SENDING");
+      assert.equal(resumed.scheduled_at, null);
       await pool.query(
         `UPDATE "WhatsappCampaignRecipient" SET status='PROCESSING',"updatedAt"=NOW()-INTERVAL '5 minutes' WHERE id=(SELECT id FROM "WhatsappCampaignRecipient" WHERE "campaignId"=$1 ORDER BY "createdAt" LIMIT 1)`,
         [id],

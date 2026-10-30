@@ -378,7 +378,7 @@ export async function launchCampaign(
       throw conflict(
         `Launch batch size (${recipients.length}) exceeds estimated daily portfolio limit (${limit})`,
       );
-    const when = requestedTime ?? campaign.scheduled_at,
+    const when = scheduledAt === undefined ? campaign.scheduled_at : requestedTime,
       scheduled = when !== null && when > new Date();
     if (!(await tx.query(SQL.launch_campaign[1], [recipients])).rowCount)
       throw bad("No recipients were queued for launch");
@@ -438,7 +438,7 @@ export async function resumeCampaign(
   );
   if (!recipients.length)
     throw bad("Campaign has no paused recipients to resume");
-  const when = requestedTime ?? campaign.scheduled_at,
+  const when = scheduledAt === undefined ? campaign.scheduled_at : requestedTime,
     scheduled = when !== null && when > new Date();
   if (!(await pool.query(SQL.resume_campaign[1], [recipients])).rowCount)
     throw bad("No paused recipients were queued for resume");
