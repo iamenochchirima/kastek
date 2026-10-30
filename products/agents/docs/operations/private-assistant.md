@@ -84,7 +84,9 @@ Each text segment has a durable send claim and outcome. A lost acknowledgment is
 blind retry. Known 429 rejections use existing bounded cooldown retries. Accepted segments survive later
 failure. Receipts match connection, provider message and recipient and advance monotonically. Provider
 acceptance is distinct from sent/delivered/read. Authenticated late receipts continue to update
-existing delivery facts after unlink or private-feature disablement; they never restore task access. Native task completion does not prove phone delivery.
+existing delivery facts after unlink or private-feature disablement; they never restore task access. Native task completion does not prove phone delivery. Incomplete drafts carry an explicit incomplete
+status. Failed or uncertain work never forwards an optimistic model completion claim, and pending
+approval prompts are suppressed after the task becomes terminal.
 
 Connected-tool reviews identify the operation, connection, destination and exact arguments. Buttons
 are accepted only for the current member/chat, root, link generation, pending digest and expiry, after
@@ -148,7 +150,8 @@ source fences, current tool permissions and one-level delegation are enforced by
 The implementation checkpoint passed 237 joined API, database, protocol and runtime assertions
 across 18 files. Final review corrections passed 56 focused assertions, all 13 real
 PostgreSQL/Restate runtime cases including actual browser operation, and 19 responsive browser
-scenarios. These runs overlap; the counts are not an additive total. API/web production builds,
+scenarios. Terminal-result and stale-review fencing additionally passed 38 member-channel checks. These runs
+overlap; the counts are not an additive total. API/web production builds,
 focused web lint, Analytics registry validation, product import boundaries and platform version
 validation passed. Screenshots and command output remain ignored under `.audit/` and web
 `.artifacts/`, including `private-assistant-final-runtime.log`, `private-assistant-final-ui.log` and

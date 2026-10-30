@@ -1,3 +1,4 @@
+import { settleTask } from "../src/execution/lifecycle/execution";
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -109,6 +110,20 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const reviews = new ToolReviewStore(pool), review = await reviews.prepare(task.id, `review:${randomUUID()}`, binding!, { value });
     return { ...f, challenge, task, review, reviews, delivery, endpoint };
   }
+
+  for(const state of ["incomplete","failed","uncertain"] as const)it(`preserves ${state} status and suppresses stale approvals after terminal work`,async()=>{
+    const f=await reviewFixture();
+    await members.collect();
+    await settleTask(pool,f.task.id,{state,output:"Partial draft; do not claim completion."});
+    await f.delivery.drain(8);
+    const rows=(await pool.query("SELECT request,state FROM agents_platform.channel_outbound WHERE member_link_id=$1 ORDER BY created_at,segment",[f.challenge.id])).rows;
+    expect(rows.find(row=>row.request.memberReview)).toMatchObject({state:"suppressed"});
+    const result=rows.find(row=>!row.request.memberReview);
+    expect(result).toMatchObject({state:"accepted"});
+    expect(result.request.text).toContain(`Request ${state}.`);
+    expect(result.request.buttons).toBeUndefined();
+    if(state!=="incomplete")expect(result.request.text).not.toContain("Partial draft");
+  });
 
   it("stores only a challenge hash, consumes it once, and requires app confirmation", async () => {
     const f = await fixture(), challenge = await members.challenge(f.scope, { connectionId: f.connection.id });

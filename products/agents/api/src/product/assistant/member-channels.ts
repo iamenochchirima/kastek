@@ -1,6 +1,6 @@
 import { memberAssistantEnabled, memberAssistantPolicy } from "../../infrastructure/member-assistant-policy";
 export { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
-import { requestTreeCancellationInTransaction } from "../../execution/lifecycle/execution";
+import { assertCurrentAuthority, loadExecution, requestTreeCancellationInTransaction } from "../../execution/lifecycle/execution";
 import { recordAssistantLifecycle } from "../reporting/assistant-lifecycle";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -213,6 +213,7 @@ export class MemberChannels {
       const review=(await db.query(`SELECT * FROM agents_platform.tool_invocation_reviews WHERE id=$1 AND root_task_id=$2
         AND reviewer_account_id=$3 AND state='pending' AND expires_at>now()`,[row.request.memberReview.id,row.member_task_id,link.account_id])).rows[0];
       if(!review||review.request_digest!==row.request.memberReview.digest)throw deny();
+      await assertCurrentAuthority(db,await loadExecution(db,review.task_id));
     }
     if(row.member_task_id) {
       const task=(await db.query(`SELECT t.*,c.deleted_at FROM agents_platform.tasks t JOIN agents_platform.member_channel_tasks m ON m.task_id=t.id
@@ -256,7 +257,7 @@ export class MemberChannels {
       JOIN agents_platform.member_channel_tasks m ON m.task_id=r.root_task_id JOIN agents_platform.member_channel_links l ON l.id=m.link_id
       JOIN agents_platform.channel_connections cc ON cc.id=l.connection_id AND cc.state='active' AND cc.revision=l.connection_revision AND cc.credential_revision=l.credential_revision
       JOIN agents_platform.memberships mem ON mem.organization_id=l.organization_id AND mem.account_id=l.account_id AND mem.revoked_at IS NULL
-      WHERE r.state='pending' AND r.expires_at>now() AND r.reviewer_account_id=l.account_id AND l.state='active' AND l.generation=m.link_generation
+      WHERE r.state='pending' AND r.expires_at>now() AND EXISTS(SELECT 1 FROM agents_platform.tasks rt WHERE rt.id=r.root_task_id AND rt.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested')) AND r.reviewer_account_id=l.account_id AND l.state='active' AND l.generation=m.link_generation
       AND ($2::boolean OR l.organization_id::text=ANY($3::text[]))
       AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound o WHERE o.member_link_id=m.link_id AND o.member_notice_key='review:'||r.id::text)
       ORDER BY r.created_at LIMIT $1`,[limit,rollout.all,rollout.organizationIds])).rows;
@@ -279,7 +280,10 @@ export class MemberChannels {
       try {
         const link=await this.authorizedLink(db,row.link_id);
         if(link.generation===row.link_generation) {
-          await this.enqueue(db,link,row.task_id,`result:${row.task_id}`,row.output?.trim()||`Request ${row.state}. Open the app for details.`);
+          const output=row.output?.trim();
+          const body=row.state==='completed'?(output||'Request completed. Open the app for details.')
+            :row.state==='incomplete'&&output?`Request incomplete.\n${output}`:`Request ${row.state}. Open the app for details.`;
+          await this.enqueue(db,link,row.task_id,`result:${row.task_id}`,body);
           if(row.state==='completed')await recordAssistantLifecycle(db,{organizationId:link.organization_id,key:row.task_id,action:'task_completed',channel:link.kind});
         }
       }catch(error){if(!(error instanceof PlatformError)||error.statusCode>=500)throw error;}
