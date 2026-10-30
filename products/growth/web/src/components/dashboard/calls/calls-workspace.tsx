@@ -1,34 +1,37 @@
-import { Link } from "react-router";
+import { Link, useBlocker, useRevalidator } from "react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Call, Device } from "@twilio/voice-sdk";
+import { toast } from "sonner";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  CheckCircle2,
-  Clock3,
-  ExternalLink,
-  MessageCircle,
-  type LucideIcon,
   PhoneCall,
-  PhoneMissed,
+  Phone,
   Search,
-  XCircle,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+  Plus,
+  ArrowUpRight,
+  X,
+  MessageCircle,
+} from "@/components/ui/interface-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiUrl } from "@/lib/server-api";
-import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
+import { getPlatformBrandIcon } from "@/lib/platform-icons";
 import { cn } from "@/lib/utils";
-import { useRevalidator } from "react-router";
-import type { IconType } from "react-icons";
-import { MotionReveal } from "@/components/ui/motion-reveal";
+import { useBrowserCall } from "./use-browser-call";
 
-const WhatsAppBrandIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
-
+const WhatsAppIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
 export type CallRecord = {
   id: string;
   provider: string;
@@ -91,586 +94,890 @@ export type CallSummary = {
 };
 
 type CallFilter = "all" | "live" | "missed" | "completed";
-
-function isLiveCall(call: CallRecord) {
-  return ["RINGING", "CONNECTING", "ACTIVE"].includes(call.status);
+type LoadErrors = Partial<
+  Record<"calls" | "summary" | "providers" | "connections", string>
+>;
+const live = (call: CallRecord) =>
+  ["RINGING", "CONNECTING", "ACTIVE"].includes(call.status);
+const contact = (call: CallRecord) =>
+  call.conversationCustomerName ||
+  (call.direction === "INBOUND" ? call.fromPhone : call.toPhone);
+const label = (value: string) => value.toLowerCase().replace(/_/g, " ");
+const providerLabel = (value: string) =>
+  value === "TWILIO"
+    ? "Business phone"
+    : value === "WHATSAPP"
+      ? "WhatsApp"
+      : label(value);
+const duration = (seconds: number | null) =>
+  seconds === null ? "—" : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+function time(value: string | null, full = false) {
+  if (!value || Number.isNaN(Date.parse(value))) return "—";
+  return new Date(value).toLocaleString(
+    "en-ZA",
+    full
+      ? {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZoneName: "short",
+        }
+      : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" },
+  );
 }
-
-function formatStatus(status: string) {
-  return status.toLowerCase().replace(/_/g, " ");
-}
-
-function formatDuration(seconds: number | null) {
-  if (!seconds || seconds <= 0) return "-";
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`;
-}
-
-function formatCallTime(value: string | null) {
-  if (!value) return "Unknown time";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown time";
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  return sameDay
-    ? date.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })
-    : date.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function callContact(call: CallRecord) {
-  return call.conversationCustomerName || (call.direction === "INBOUND" ? call.fromPhone : call.toPhone);
-}
-
-function statusClass(status: string) {
-  if (status === "ACTIVE" || status === "COMPLETED") return "bg-status-success-soft text-status-success";
-  if (status === "RINGING" || status === "CONNECTING") return "bg-status-attention-soft text-status-attention";
-  if (["MISSED", "FAILED", "REJECTED"].includes(status)) return "bg-status-danger-soft text-destructive";
-  return "bg-secondary text-muted-foreground";
+function Status({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded px-1.5 py-0.5 text-[11px] capitalize",
+        status === "COMPLETED" || status === "ACTIVE"
+          ? "bg-status-success-soft text-status-success"
+          : ["FAILED", "MISSED", "REJECTED"].includes(status)
+            ? "bg-status-danger-soft text-destructive"
+            : "bg-secondary text-muted-foreground",
+      )}
+    >
+      {label(status)}
+    </span>
+  );
 }
 
 export function CallsWorkspace({
-  initialCalls,
+  initialCalls: loadedCalls,
   summary,
   providers,
   voiceConnections,
+  errors = {},
 }: {
   initialCalls: CallRecord[];
   summary: CallSummary | null;
   providers: CallProviderStatus | null;
   voiceConnections: VoiceConnection[];
+  errors?: LoadErrors;
 }) {
+  const [previousCalls, setPreviousCalls] = useState(loadedCalls);
+  useEffect(() => {
+    if (!errors.calls) setPreviousCalls(loadedCalls);
+  }, [loadedCalls, errors.calls]);
+  const initialCalls = errors.calls ? previousCalls : loadedCalls;
+  const revalidator = useRevalidator();
+  const browserCall = useBrowserCall(() => {
+    void revalidator.revalidate();
+  });
+  const blocker = useBlocker(browserCall.busy);
   const [filter, setFilter] = useState<CallFilter>("all");
   const [query, setQuery] = useState("");
-  const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
-  const [showVoiceSetup, setShowVoiceSetup] = useState(false);
+  const [direction, setDirection] = useState("all");
+  const [number, setNumber] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [smallScreen, setSmallScreen] = useState(false);
+  const [dialog, setDialog] = useState<"options" | "register" | "dial" | null>(
+    null,
+  );
   const [voiceNumber, setVoiceNumber] = useState("");
   const [voiceLabel, setVoiceLabel] = useState("");
-  const [setupError, setSetupError] = useState("");
   const [setupPending, setSetupPending] = useState(false);
-  const [showCallOptions, setShowCallOptions] = useState(false);
-  const [showDialer, setShowDialer] = useState(false);
-  const [dialConnectionId, setDialConnectionId] = useState(voiceConnections[0]?.id || "");
-  const [dialDestination, setDialDestination] = useState("");
+  const [setupError, setSetupError] = useState("");
+  const [dialConnection, setDialConnection] = useState(
+    voiceConnections[0]?.id || "",
+  );
+  const [destination, setDestination] = useState("");
   const [dialError, setDialError] = useState("");
-  const [callState, setCallState] = useState<"idle" | "connecting" | "active">("idle");
-  const deviceRef = useRef<Device | null>(null);
-  const activeCallRef = useRef<Call | null>(null);
-  const revalidator = useRevalidator();
-
-  const filteredCalls = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return initialCalls.filter((call) => {
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "live" && isLiveCall(call)) ||
-        (filter === "missed" && call.status === "MISSED") ||
-        (filter === "completed" && call.status === "COMPLETED");
-      if (!matchesFilter) return false;
-      if (!needle) return true;
-      return [callContact(call), call.fromPhone, call.toPhone, call.connectionLabel || "", call.agentLabel || ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [filter, initialCalls, query]);
-
-  const selectedCall = filteredCalls.find((call) => call.id === selectedCallId) ?? null;
-  const activeCallCount = initialCalls.filter(isLiveCall).length;
-  const missedCallCount = summary?.summary.missedCalls ?? initialCalls.filter((call) => call.status === "MISSED").length;
-  const twilioConfigured = providers?.providers.some((provider) => provider.provider === "TWILIO" && provider.configured) ?? false;
-  const browserCallingAvailable = twilioConfigured && voiceConnections.length > 0;
-
+  const [localConnection, setLocalConnection] =
+    useState<VoiceConnection | null>(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const rowOpener = useRef<HTMLElement | null>(null);
+  const pendingRegistration = useRef(false);
+  const connections = useMemo(
+    () =>
+      localConnection &&
+      !voiceConnections.some((item) => item.id === localConnection.id)
+        ? [...voiceConnections, localConnection]
+        : voiceConnections,
+    [voiceConnections, localConnection],
+  );
+  const twilio = providers?.providers.find(
+    (item) => item.provider === "TWILIO",
+  );
+  const ready = Boolean(
+    twilio?.browserConfigured &&
+    connections.length &&
+    !errors.connections &&
+    !errors.providers,
+  );
+  const readiness =
+    errors.providers || errors.connections
+      ? "Status unavailable"
+      : ready
+        ? "Connected"
+        : connections.length
+          ? "Browser setup needed"
+          : "Not connected";
   useEffect(() => {
-    return () => {
-      activeCallRef.current?.disconnect();
-      deviceRef.current?.destroy();
-    };
+    const media = window.matchMedia("(max-width: 1279px)");
+    const update = () => setSmallScreen(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
   }, []);
-
-  async function registerVoiceNumber() {
+  useEffect(() => {
+    if (!connections.some((item) => item.id === dialConnection))
+      setDialConnection(connections[0]?.id || "");
+  }, [connections, dialConnection]);
+  useEffect(() => {
+    if (selectedId && !initialCalls.some((item) => item.id === selectedId))
+      setSelectedId(null);
+  }, [initialCalls, selectedId]);
+  const scope = useMemo(
+    () =>
+      initialCalls.filter(
+        (item) =>
+          (direction === "all" || item.direction === direction) &&
+          (number === "all" || item.connectionId === number) &&
+          [
+            contact(item),
+            item.fromPhone,
+            item.toPhone,
+            item.connectionLabel,
+            item.agentLabel,
+            item.provider,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.trim().toLowerCase()),
+      ),
+    [initialCalls, direction, number, query],
+  );
+  const tabs: { id: CallFilter; title: string; count: number }[] = [
+    { id: "all", title: "All calls", count: scope.length },
+    { id: "live", title: "Live", count: scope.filter(live).length },
+    {
+      id: "missed",
+      title: "Missed",
+      count: scope.filter((item) => item.status === "MISSED").length,
+    },
+    {
+      id: "completed",
+      title: "Completed",
+      count: scope.filter((item) => item.status === "COMPLETED").length,
+    },
+  ];
+  const calls = scope.filter(
+    (item) =>
+      filter === "all" ||
+      (filter === "live" && live(item)) ||
+      item.status === filter.toUpperCase(),
+  );
+  const selected = initialCalls.find((item) => item.id === selectedId);
+  const numbers = Array.from(
+    new Map(
+      initialCalls.map((item) => [
+        item.connectionId,
+        item.connectionLabel || item.connectionId,
+      ]),
+    ).entries(),
+  );
+  function open(value: "options" | "register" | "dial", element?: HTMLElement) {
+    if (element) opener.current = element;
+    setDialog(value);
+  }
+  async function register() {
+    if (pendingRegistration.current) return;
     setSetupError("");
-    if (!voiceNumber.trim()) {
-      setSetupError("Enter the Twilio number in international format, for example +27115550123.");
+    if (!/^\+[1-9]\d{7,14}$/.test(voiceNumber.trim())) {
+      setSetupError("Enter an international number, for example +27115550123.");
       return;
     }
-
+    pendingRegistration.current = true;
     setSetupPending(true);
     try {
-      const response = await fetch(apiUrl("/api/calls/providers/twilio/connections"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: voiceNumber, displayName: voiceLabel || undefined }),
-      });
+      const response = await fetch(
+        apiUrl("/api/calls/providers/twilio/connections"),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phoneNumber: voiceNumber.trim(),
+            displayName: voiceLabel.trim() || undefined,
+          }),
+        },
+      );
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not register the business number");
-      setShowVoiceSetup(false);
+      if (!response.ok)
+        throw new Error(payload.error || "Could not register number");
+      const connection = payload.connection ?? payload;
+      if (connection.id) {
+        setLocalConnection({
+          id: connection.id,
+          provider: "TWILIO",
+          displayName: connection.displayName || voiceLabel || voiceNumber,
+          externalAccountId: connection.phoneNumber || voiceNumber,
+        });
+        setDialConnection(connection.id);
+      }
+      toast.success("Number registered");
       setVoiceNumber("");
       setVoiceLabel("");
-      revalidator.revalidate();
+      setDialog("options");
+      void revalidator.revalidate();
     } catch (error) {
-      setSetupError(error instanceof Error ? error.message : "Could not register the business number");
+      setSetupError(
+        error instanceof Error ? error.message : "Could not register number",
+      );
     } finally {
+      pendingRegistration.current = false;
       setSetupPending(false);
     }
   }
-
-  async function startBrowserCall() {
+  function start() {
     setDialError("");
-    if (!twilioConfigured) {
-      setDialError("Browser calling is not configured for this workspace yet.");
+    if (!ready) {
+      setDialError("Browser calling is unavailable.");
       return;
     }
-    if (!dialConnectionId) {
-      setDialError("Select the business number to call from.");
+    if (!dialConnection) {
+      setDialError("Select a business number.");
       return;
     }
-    if (!/^\+[1-9]\d{7,14}$/.test(dialDestination.trim())) {
-      setDialError("Enter the destination in international format, for example +27115550123.");
+    if (!/^\+[1-9]\d{7,14}$/.test(destination.trim())) {
+      setDialError("Enter an international number, for example +27115550123.");
       return;
     }
-
-    setCallState("connecting");
-    try {
-      const tokenResponse = await fetch(apiUrl("/api/calls/twilio/browser-token"), {
-        method: "POST",
-        credentials: "include",
-      });
-      const tokenPayload = await tokenResponse.json();
-      if (!tokenResponse.ok) throw new Error(tokenPayload.error || "Could not start browser calling");
-
-      deviceRef.current?.destroy();
-      const { Device: TwilioDevice } = await import("@twilio/voice-sdk");
-      const device = new TwilioDevice(tokenPayload.token);
-      deviceRef.current = device;
-      device.on("error", (error) => {
-        setDialError(error.message || "The browser call failed");
-        setCallState("idle");
-      });
-
-      const call = await device.connect({
-        params: { To: dialDestination.trim(), ConnectionId: dialConnectionId },
-      });
-      activeCallRef.current = call;
-      call.on("accept", () => {
-        setCallState("active");
-        revalidator.revalidate();
-      });
-      call.on("disconnect", () => {
-        activeCallRef.current = null;
-        device.destroy();
-        deviceRef.current = null;
-        setCallState("idle");
-        revalidator.revalidate();
-      });
-      call.on("cancel", () => {
-        activeCallRef.current = null;
-        device.destroy();
-        deviceRef.current = null;
-        setCallState("idle");
-        revalidator.revalidate();
-      });
-    } catch (error) {
-      setDialError(error instanceof Error ? error.message : "Could not start browser calling");
-      setCallState("idle");
-    }
+    void browserCall.start(dialConnection, destination.trim());
   }
-
-  function endBrowserCall() {
-    activeCallRef.current?.disconnect();
-  }
-
-  const filters: Array<{ id: CallFilter; label: string; count: number }> = [
-    { id: "all", label: "All calls", count: initialCalls.length },
-    { id: "live", label: "Live", count: activeCallCount },
-    { id: "missed", label: "Missed", count: missedCallCount },
-    {
-      id: "completed",
-      label: "Completed",
-      count: summary?.summary.completedCalls ?? initialCalls.filter((call) => call.status === "COMPLETED").length,
-    },
-  ];
-
+  const callStateLabel = {
+    idle: "Ready",
+    microphone: "Requesting microphone",
+    connecting: "Connecting",
+    active: "Active call",
+    ended: "Call ended",
+    failed: "Call failed",
+  }[browserCall.state];
+  const retry = (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={revalidator.state !== "idle"}
+      onClick={() => {
+        void revalidator.revalidate();
+      }}
+    >
+      {revalidator.state !== "idle" ? "Retrying…" : "Retry"}
+    </Button>
+  );
   return (
-    <div className="min-h-[100dvh] bg-background px-4 py-6 lg:px-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <PageHeader>
-          <PageHeaderContent><PageHeaderDescription>Customer</PageHeaderDescription><PageHeaderTitle>Calls</PageHeaderTitle></PageHeaderContent>
-          <PageHeaderActions>
-          <Button
-            onClick={() => {
-              setShowCallOptions((visible) => !visible);
-              setShowDialer(false);
-              setShowVoiceSetup(false);
-            }}
-          >
-            {showCallOptions ? "Close" : "New call"}
-          </Button>
-          </PageHeaderActions>
-        </PageHeader>
-
-        <section className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2">
-          <CallSupport
-            icon={WhatsAppBrandIcon}
-            iconClass={getPlatformBrandColor("WHATSAPP")}
-            title="WhatsApp calls"
-            detail="Receive and answer customer calls from Inbox."
-            state="Available"
-            stateClass="text-status-success"
-          />
-          <CallSupport
-            icon={PhoneCall}
-            title="Business phone"
-            detail={browserCallingAvailable ? "Place browser calls from a registered business number." : "Connect a business number to place browser calls."}
-            state={browserCallingAvailable ? "Available" : "Setup needed"}
-            stateClass={browserCallingAvailable ? "text-status-success" : "text-muted-foreground"}
-          />
-        </section>
-
-        <Dialog open={showCallOptions} onOpenChange={(open) => { if (open || callState === "idle") { setShowCallOptions(open); if (!open) { setShowDialer(false); setShowVoiceSetup(false); } } }}>
-          <DialogContent showCloseButton={false} className="max-w-2xl p-0">
-            {showCallOptions ? (
-              <>
-              <header className="flex items-start justify-between border-b border-border px-5 py-4">
-                <div>
-                  <DialogTitle>
-                    {showDialer ? "Business phone call" : showVoiceSetup ? "Connect business number" : "Start a call"}
-                  </DialogTitle>
-                </div>
+    <div className="min-h-full bg-background">
+      <div
+        className={cn(
+          "grid min-h-[calc(100dvh-56px)]",
+          selected && "xl:grid-cols-[minmax(0,1fr)_320px]",
+        )}
+      >
+        <main className="min-w-0 px-4 py-5 md:px-6">
+          <header className="flex items-center justify-between gap-3">
+            <h1 className="text-[26px] font-semibold tracking-tight">Calls</h1>
+            <Button
+              onClick={(event) =>
+                open(browserCall.busy ? "dial" : "options", event.currentTarget)
+              }
+            >
+              <Plus className="size-4" />
+              New call
+            </Button>
+          </header>
+          <div className="my-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-muted-foreground">
+            <Link
+              to="/inbox"
+              className="flex min-h-8 items-center gap-2 hover:text-foreground"
+            >
+              <WhatsAppIcon className="size-4 text-emerald-600" />
+              WhatsApp · Inbox calling
+            </Link>
+            <button
+              className="flex min-h-8 items-center gap-2 hover:text-foreground"
+              onClick={(event) => open("options", event.currentTarget)}
+            >
+              <Phone className="size-4 text-primary" />
+              Business phone · {readiness}
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  ready ? "bg-status-success" : "bg-muted-foreground",
+                )}
+              />
+            </button>
+          </div>
+          {browserCall.busy && (
+            <div
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-secondary/50 p-3"
+              role="status"
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <PhoneCall className="size-4 text-primary" />
+                {callStateLabel} · {destination}
+                {browserCall.state === "active" && (
+                  <span className="tabular-nums">
+                    {duration(browserCall.seconds)}
+                  </span>
+                )}
+              </span>
+              <div className="flex gap-2">
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Close new call dialog"
-                  disabled={callState !== "idle"}
-                  onClick={() => {
-                    setShowCallOptions(false);
-                    setShowDialer(false);
-                    setShowVoiceSetup(false);
-                  }}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDialog("dial")}
                 >
-                  <XCircle className="h-4 w-4" />
+                  Show call
                 </Button>
-              </header>
-
-              <div className="p-5">
-                {!showVoiceSetup && !showDialer ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">Choose an available calling method for this workspace.</p>
-                    <button
-                      type="button"
-                      disabled={!browserCallingAvailable}
-                      onClick={() => setShowDialer(true)}
-                      className="flex w-full items-center gap-4 rounded-lg border border-border p-4 text-left transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-secondary text-foreground"><PhoneCall className="h-5 w-5" /></div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">Business phone</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Place a browser call using a registered business number.</p>
-                      </div>
-                      <span className={cn("text-xs font-medium", browserCallingAvailable ? "text-status-success" : "text-muted-foreground")}>
-                        {browserCallingAvailable ? "Available" : "Setup needed"}
-                      </span>
-                    </button>
-                    {!browserCallingAvailable ? (
-                      <Button variant="outline" className="w-full" onClick={() => setShowVoiceSetup(true)}>
-                        Connect a business number
-                      </Button>
-                    ) : null}
-                    <Button asChild variant="outline" className="w-full">
-                      <Link to="/inbox">
-                        <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />
-                        Open WhatsApp calls in Inbox
-                      </Link>
-                    </Button>
-                    {!browserCallingAvailable && voiceConnections.length > 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        The business number is registered, but browser calling still needs provider configuration. <Link className="text-foreground underline underline-offset-4" to="/connections">Manage calling</Link>.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {showVoiceSetup ? (
-                  <div className="space-y-4">
-                    <p className="text-sm leading-6 text-muted-foreground">Register the Twilio number that belongs to this workspace. It can be activated after the provider configuration is complete.</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Input value={voiceNumber} onChange={(event) => setVoiceNumber(event.target.value)} placeholder="+27115550123" />
-                      <Input value={voiceLabel} onChange={(event) => setVoiceLabel(event.target.value)} placeholder="Support line (optional)" />
-                    </div>
-                    {setupError ? <p className="text-sm text-destructive">{setupError}</p> : null}
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowVoiceSetup(false)} disabled={setupPending}>Back</Button>
-                      <Button onClick={registerVoiceNumber} disabled={setupPending}>{setupPending ? "Saving..." : "Register number"}</Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {showDialer ? (
-                  <div className="space-y-4">
-                    <p className="text-sm leading-6 text-muted-foreground">Your browser will ask for microphone access before it connects the selected business number to the customer.</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Select value={dialConnectionId} onValueChange={setDialConnectionId} disabled={callState !== "idle"}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                        {voiceConnections.map((connection) => (
-                          <SelectItem key={connection.id} value={connection.id}>
-                            {connection.displayName}{connection.externalAccountId ? ` (${connection.externalAccountId})` : ""}
-                          </SelectItem>
-                        ))}
-                        </SelectContent>
-                      </Select>
-                      <Input value={dialDestination} onChange={(event) => setDialDestination(event.target.value)} placeholder="Customer number, e.g. +27115550123" disabled={callState !== "idle"} />
-                    </div>
-                    {dialError ? <p className="text-sm text-destructive">{dialError}</p> : null}
-                    <div className="flex justify-end gap-2">
-                      {callState === "idle" ? <Button variant="outline" onClick={() => setShowDialer(false)}>Back</Button> : null}
-                      {callState === "idle" ? (
-                        <Button onClick={startBrowserCall}>Call</Button>
-                      ) : (
-                        <Button variant="destructive" onClick={endBrowserCall}>{callState === "connecting" ? "Cancel call" : "End call"}</Button>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              </>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <CallMetric label="All calls" value={summary?.summary.totalCalls ?? initialCalls.length} icon={PhoneCall} />
-          <CallMetric label="Live now" value={activeCallCount} icon={Clock3} tone="attention" />
-          <CallMetric label="Missed" value={missedCallCount} icon={PhoneMissed} tone="danger" />
-          <CallMetric label="Completed" value={summary?.summary.completedCalls ?? 0} icon={CheckCircle2} tone="success" />
-        </div>
-
-        <section className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {filters.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setFilter(item.id);
-                    setSelectedCallId(null);
-                  }}
-                  className={cn(
-                    "shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    filter === item.id
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() =>
+                    browserCall.state === "active"
+                      ? setConfirmEnd(true)
+                      : browserCall.end()
+                  }
                 >
-                  {item.label} <span className="ml-1 text-xs tabular-nums text-muted-foreground">{item.count}</span>
-                </button>
-              ))}
+                  {browserCall.state === "active" ? "End call" : "Cancel call"}
+                </Button>
+              </div>
             </div>
-            <div className="relative w-full lg:max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          )}
+          {Object.entries(errors)
+            .filter(([, value]) => value)
+            .map(([key, value]) => (
+              <div
+                key={key}
+                role="alert"
+                className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+              >
+                <span>
+                  {key === "calls"
+                    ? "Call history"
+                    : key === "summary"
+                      ? "Call summary"
+                      : key === "providers"
+                        ? "Calling status"
+                        : "Business numbers"}
+                  : {value}
+                </span>
+                {retry}
+              </div>
+            ))}
+          <div
+            className="flex gap-5 overflow-x-auto border-b border-border"
+            aria-label="Call status"
+          >
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                aria-pressed={filter === tab.id}
+                onClick={() => setFilter(tab.id)}
+                className={cn(
+                  "min-h-11 shrink-0 border-b-2 px-0.5 text-sm",
+                  filter === tab.id
+                    ? "border-primary font-medium text-primary"
+                    : "border-transparent text-muted-foreground",
+                )}
+              >
+                {tab.title}
+                <span className="ml-2 rounded bg-secondary px-1.5 text-[11px] tabular-nums text-muted-foreground">
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 py-3">
+            <div className="relative min-w-0 basis-full sm:basis-auto sm:w-56">
+              <Search className="absolute left-2.5 top-3 size-4 text-muted-foreground" />
               <Input
+                aria-label="Search calls"
+                placeholder="Search calls…"
+                className="pl-9"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search calls"
-                className="bg-background pl-9"
               />
             </div>
+            <Select value={direction} onValueChange={setDirection}>
+              <SelectTrigger
+                aria-label="Call direction"
+                className="min-w-0 flex-1 sm:w-40 sm:flex-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All directions</SelectItem>
+                <SelectItem value="INBOUND">Inbound</SelectItem>
+                <SelectItem value="OUTBOUND">Outbound</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={number} onValueChange={setNumber}>
+              <SelectTrigger
+                aria-label="Connected number"
+                className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All numbers</SelectItem>
+                {numbers.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          <div className="grid min-h-[540px] lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0 divide-y divide-border">
-              {filteredCalls.length === 0 ? (
-                <div className="flex min-h-[360px] flex-col items-center justify-center px-6 text-center">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-                    <PhoneCall className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">No calls found</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Try another filter or wait for a connected provider to receive a call.</p>
-                </div>
-              ) : (
-                filteredCalls.map((call) => {
-                  const inbound = call.direction === "INBOUND";
-                  const DirectionIcon = inbound ? ArrowDownLeft : ArrowUpRight;
-                  return (
-                    <button
-                      key={call.id}
-                      type="button"
-                      onClick={() => setSelectedCallId(call.id)}
+          {calls.length ? (
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="h-9 bg-secondary/50 text-muted-foreground">
+                  <tr>
+                    {[
+                      "Contact",
+                      "Direction",
+                      "Number",
+                      "Status",
+                      "Duration",
+                      "Started",
+                      "Handled by",
+                    ].map((name) => (
+                      <th key={name} className="px-3 font-medium">
+                        {name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {calls.map((item) => (
+                    <tr
+                      key={item.id}
                       className={cn(
-                        "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-secondary/60",
-                        selectedCallId === call.id && "bg-secondary",
+                        "h-14 border-t border-border hover:bg-secondary/40",
+                        selectedId === item.id && "bg-primary/8",
                       )}
                     >
-                      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", inbound ? "bg-status-success-soft text-status-success" : "bg-secondary text-muted-foreground")}>
-                        <DirectionIcon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">{callContact(call)}</p>
-                          <Badge className={cn("border-0 px-1.5 py-0 text-[10px] capitalize", statusClass(call.status))}>
-                            {formatStatus(call.status)}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {inbound ? "Inbound" : "Outbound"} {formatProvider(call.provider)} via {call.connectionLabel || "connected number"}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs text-muted-foreground">{formatCallTime(call.startedAt || call.createdAt)}</p>
-                        <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatDuration(call.durationSeconds)}</p>
-                      </div>
-                    </button>
-                  );
-                })
+                      <td className="max-w-48 px-3">
+                        <button
+                          onClick={(event) => {
+                            rowOpener.current = event.currentTarget;
+                            setSelectedId(item.id);
+                          }}
+                          className="min-h-11 max-w-full truncate text-left font-medium hover:text-primary"
+                        >
+                          {contact(item)}
+                        </button>
+                      </td>
+                      <td className="px-3">
+                        <span className="flex items-center gap-1.5 capitalize">
+                          <ArrowUpRight
+                            className={cn(
+                              "size-3.5",
+                              item.direction === "INBOUND" &&
+                                "rotate-180 text-primary",
+                            )}
+                          />
+                          {label(item.direction)}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3">
+                        <span className="flex items-center gap-1.5">
+                          {item.provider === "WHATSAPP" ? (
+                            <WhatsAppIcon className="size-3.5 text-emerald-600" />
+                          ) : (
+                            <Phone className="size-3.5 text-primary" />
+                          )}
+                          {item.direction === "INBOUND"
+                            ? item.fromPhone
+                            : item.toPhone}
+                        </span>
+                      </td>
+                      <td className="px-3">
+                        <Status status={item.status} />
+                      </td>
+                      <td className="whitespace-nowrap px-3 tabular-nums">
+                        {duration(item.durationSeconds)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 text-muted-foreground">
+                        {time(item.startedAt || item.createdAt)}
+                      </td>
+                      <td className="max-w-32 truncate px-3 text-muted-foreground">
+                        {item.agentLabel || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            !errors.calls && (
+              <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-sm">
+                <PhoneCall className="size-6 text-muted-foreground" />
+                <p>
+                  {initialCalls.length ? "No matching calls" : "No calls yet"}
+                </p>
+                {initialCalls.length ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFilter("all");
+                      setQuery("");
+                      setDirection("all");
+                      setNumber("all");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={(event) => open("options", event.currentTarget)}
+                  >
+                    New call
+                  </Button>
+                )}
+              </div>
+            )
+          )}
+          {summary && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {summary.summary.totalCalls} calls in the last {summary.days} days
+              · History shown: {initialCalls.length}
+            </p>
+          )}
+        </main>
+        {selected && !smallScreen && (
+          <aside className="border-l border-border p-5">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Call details</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close call details"
+                onClick={() => {
+                  setSelectedId(null);
+                  rowOpener.current?.focus();
+                }}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <CallDetails call={selected} />
+          </aside>
+        )}
+      </div>
+      <Sheet
+        open={Boolean(selected && smallScreen)}
+        onOpenChange={(value) => {
+          if (!value) setSelectedId(null);
+        }}
+      >
+        <SheetContent
+          className="w-full max-w-[360px] p-5"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            rowOpener.current?.focus();
+          }}
+        >
+          <SheetTitle>Call details</SheetTitle>
+          {selected && <CallDetails call={selected} />}
+        </SheetContent>
+      </Sheet>
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={(value) => {
+          if (!value && !setupPending) setDialog(null);
+        }}
+      >
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            opener.current?.focus();
+          }}
+        >
+          <DialogTitle>
+            {dialog === "register"
+              ? "Connect business number"
+              : dialog === "dial"
+                ? "Business phone call"
+                : "New call"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose a calling method or register a business number.
+          </DialogDescription>
+          {dialog === "options" && (
+            <div className="space-y-3">
+              <button
+                className="flex w-full items-center gap-3 rounded-md border border-border p-3 text-left"
+                disabled={!ready}
+                onClick={() => setDialog("dial")}
+              >
+                <Phone className="size-5 text-primary" />
+                <span className="flex-1 text-sm font-medium">
+                  Business phone
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {readiness}
+                </span>
+              </button>
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/inbox">
+                  <WhatsAppIcon className="size-4 text-emerald-600" />
+                  WhatsApp calls in Inbox
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setDialog("register")}
+              >
+                Connect business number
+              </Button>
+              {!ready && (
+                <p className="text-xs text-muted-foreground">
+                  {connections.length
+                    ? "The number is registered. Browser calling needs provider configuration."
+                    : "Register a Twilio number to use business calling."}{" "}
+                  <Link className="underline" to="/connections">
+                    Manage connections
+                  </Link>
+                </p>
               )}
             </div>
-
-            <aside className="border-t border-border bg-secondary/20 p-5 lg:border-l lg:border-t-0">
-              {selectedCall ? <CallDetails call={selectedCall} /> : <CallsUnopenedState />}
-            </aside>
+          )}
+          {dialog === "register" && (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void register();
+              }}
+            >
+              <label className="block space-y-2 text-sm">
+                <span>Business number</span>
+                <Input
+                  value={voiceNumber}
+                  onChange={(event) => setVoiceNumber(event.target.value)}
+                  placeholder="+27115550123"
+                  type="tel"
+                  autoComplete="tel"
+                  disabled={setupPending}
+                  aria-invalid={Boolean(setupError)}
+                />
+              </label>
+              <label className="block space-y-2 text-sm">
+                <span>Label (optional)</span>
+                <Input
+                  value={voiceLabel}
+                  onChange={(event) => setVoiceLabel(event.target.value)}
+                  disabled={setupPending}
+                />
+              </label>
+              {setupError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {setupError}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={setupPending}
+                  onClick={() => setDialog("options")}
+                >
+                  Back
+                </Button>
+                <Button disabled={setupPending}>
+                  {setupPending ? "Registering…" : "Register number"}
+                </Button>
+              </div>
+            </form>
+          )}
+          {dialog === "dial" && (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                start();
+              }}
+            >
+              <div className="space-y-2">
+                <label htmlFor="call-account" className="text-sm">
+                  Business number
+                </label>
+                <Select
+                  value={dialConnection}
+                  onValueChange={setDialConnection}
+                  disabled={browserCall.busy}
+                >
+                  <SelectTrigger id="call-account" className="w-full">
+                    <SelectValue placeholder="Select number" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.displayName}
+                        {item.externalAccountId
+                          ? ` (${item.externalAccountId})`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="block space-y-2 text-sm">
+                <span>Phone number</span>
+                <Input
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="+27115550123"
+                  value={destination}
+                  onChange={(event) => setDestination(event.target.value)}
+                  disabled={browserCall.busy}
+                />
+              </label>
+              <p role="status" className="text-sm text-muted-foreground">
+                {callStateLabel}
+                {browserCall.state === "active"
+                  ? ` · ${duration(browserCall.seconds)}`
+                  : ""}
+              </p>
+              {(dialError || browserCall.error) && (
+                <p role="alert" className="text-sm text-destructive">
+                  {dialError || browserCall.error}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDialog(null)}
+                >
+                  {browserCall.busy ? "Minimize" : "Cancel"}
+                </Button>
+                {browserCall.busy ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() =>
+                      browserCall.state === "active"
+                        ? setConfirmEnd(true)
+                        : browserCall.end()
+                    }
+                  >
+                    {browserCall.state === "active"
+                      ? "End call"
+                      : "Cancel call"}
+                  </Button>
+                ) : (
+                  <Button disabled={!ready}>
+                    <Phone className="size-4" />
+                    Call
+                  </Button>
+                )}
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={confirmEnd || blocker.state === "blocked"}
+        onOpenChange={(value) => {
+          if (!value) {
+            setConfirmEnd(false);
+            if (blocker.state === "blocked") blocker.reset();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogTitle>
+            {blocker.state === "blocked" ? "Leave this call?" : "End call?"}
+          </DialogTitle>
+          <DialogDescription>
+            The current call will be disconnected.
+          </DialogDescription>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmEnd(false);
+                if (blocker.state === "blocked") blocker.reset();
+              }}
+            >
+              Keep call
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                browserCall.end();
+                setConfirmEnd(false);
+                if (blocker.state === "blocked") blocker.proceed();
+              }}
+            >
+              End call
+            </Button>
           </div>
-        </section>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-function CallMetric({
-  label,
-  value,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: number;
-  icon: typeof PhoneCall;
-  tone?: "default" | "success" | "attention" | "danger";
-}) {
-  const toneClass = {
-    default: "bg-secondary text-muted-foreground",
-    success: "bg-status-success-soft text-status-success",
-    attention: "bg-status-attention-soft text-status-attention",
-    danger: "bg-status-danger-soft text-destructive",
-  }[tone];
-
-  return (
-    <MotionReveal hoverLift className="h-full">
-    <div className="h-full rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className={cn("flex h-8 w-8 items-center justify-center rounded-md", toneClass)}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-      <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
-    </div>
-    </MotionReveal>
-  );
-}
-
-function CallSupport({
-  icon: Icon,
-  iconClass,
-  title,
-  detail,
-  state,
-  stateClass,
-}: {
-  icon: LucideIcon | IconType;
-  iconClass?: string;
-  title: string;
-  detail: string;
-  state: string;
-  stateClass: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 p-4 first:border-b first:border-border sm:first:border-b-0 sm:first:border-r">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-        <Icon className={cn("h-4 w-4", iconClass)} />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-foreground">{title}</p>
-          <span className={cn("text-xs font-medium", stateClass)}>{state}</span>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  );
-}
-
-function CallsUnopenedState() {
-  return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card">
-        <PhoneCall className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <p className="text-sm font-medium text-foreground">Select a call</p>
-      <p className="mt-1 max-w-xs text-sm leading-6 text-muted-foreground">
-        View call details and open its related conversation.
-      </p>
-    </div>
-  );
-}
-
 function CallDetails({ call }: { call: CallRecord }) {
-  const inbound = call.direction === "INBOUND";
-  const DirectionIcon = inbound ? ArrowDownLeft : ArrowUpRight;
-
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <div className={cn("flex h-9 w-9 items-center justify-center rounded-full", inbound ? "bg-status-success-soft text-status-success" : "bg-card text-muted-foreground")}>
-            <DirectionIcon className="h-4 w-4" />
-          </div>
-          <Badge className={cn("border-0 capitalize", statusClass(call.status))}>{formatStatus(call.status)}</Badge>
+    <div className="space-y-6">
+      <div className="border-b border-border pb-5">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 break-words text-sm font-semibold">
+            {contact(call)}
+          </h3>
+          <Status status={call.status} />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-foreground">{callContact(call)}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {inbound ? "Inbound" : "Outbound"} {formatProvider(call.provider)} call
+        <p className="mt-1 text-xs text-muted-foreground">
+          {call.direction === "INBOUND" ? call.fromPhone : call.toPhone}
         </p>
       </div>
-
-      <dl className="space-y-3 text-sm">
-        <CallDetail label="Connected number" value={call.connectionLabel || "Unknown number"} />
-        <CallDetail label="Started" value={formatCallTime(call.startedAt || call.createdAt)} />
-        <CallDetail label="Duration" value={formatDuration(call.durationSeconds)} />
-        <CallDetail label="Handled by" value={call.agentLabel || "Unassigned"} />
-        {call.errorMessage ? <CallDetail label="Issue" value={call.errorMessage} danger /> : null}
+      <dl className="space-y-4 text-xs">
+        {[
+          ["Direction", label(call.direction)],
+          ["Provider", providerLabel(call.provider)],
+          ["Connected number", call.connectionLabel || "—"],
+          ["From", call.fromPhone],
+          ["To", call.toPhone],
+          ["Started", time(call.startedAt || call.createdAt, true)],
+          ["Answered", time(call.answeredAt, true)],
+          ["Ended", time(call.endedAt, true)],
+          ["Duration", duration(call.durationSeconds)],
+          ["Handled by", call.agentLabel || "Unassigned"],
+        ].map(([title, value]) => (
+          <div
+            className="grid grid-cols-[110px_minmax(0,1fr)] gap-3"
+            key={title}
+          >
+            <dt className="text-muted-foreground">{title}</dt>
+            <dd className="break-words capitalize">{value}</dd>
+          </div>
+        ))}
       </dl>
-
-      {call.conversationId ? (
-        <Link
-          to={`/inbox?conversation=${encodeURIComponent(call.conversationId)}`}
-          className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />
-          Open conversation
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
-      ) : (
-        <div className="rounded-md border border-border bg-card px-3 py-2.5 text-sm text-muted-foreground">
-          This call is not linked to a conversation yet.
-        </div>
+      {(call.errorCode || call.errorMessage) && (
+        <p className="break-words rounded-md bg-status-danger-soft p-3 text-xs text-destructive">
+          {[call.errorCode, call.errorMessage].filter(Boolean).join(" · ")}
+        </p>
       )}
-    </div>
-  );
-}
-
-function formatProvider(provider: string) {
-  if (provider === "WHATSAPP") return "WhatsApp";
-  if (provider === "TWILIO") return "business phone";
-  return provider.toLowerCase().replace(/_/g, " ");
-}
-
-function CallDetail({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={cn("mt-1 break-words text-sm", danger ? "text-destructive" : "text-foreground")}>{value}</dd>
+      {call.conversationId && (
+        <Button asChild variant="outline" className="w-full">
+          <Link
+            to={`/inbox?conversation=${encodeURIComponent(call.conversationId)}`}
+          >
+            <MessageCircle className="size-4" />
+            Open conversation
+          </Link>
+        </Button>
+      )}
     </div>
   );
 }
