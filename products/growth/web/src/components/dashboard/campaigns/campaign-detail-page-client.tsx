@@ -360,6 +360,7 @@ export default function CampaignDetailPageClient({
   const activeCampaignIdRef = useRef(campaign.id);
   const configuredCampaignIdRef = useRef(campaign.id);
   const refreshControllersRef = useRef(new Map<string, AbortController>());
+  const sendMoreControllerRef = useRef<AbortController | null>(null);
   const [sendMoreContacts, setSendMoreContacts] = useState<SendMoreContact[]>([]);
   const [pendingRecipientContactIds, setPendingRecipientContactIds] = useState<string[]>([]);
   const [sendMoreSearch, setSendMoreSearch] = useState("");
@@ -389,6 +390,7 @@ export default function CampaignDetailPageClient({
       setConfirmAction(null);
       setConfirmDelete(false);
       setSendMoreOpen(false);
+      setLoadingSendMore(false);
       setPreviewRecipient(null);
       setErrorPreviewRecipient(null);
       setSelectedRecipientId(null);
@@ -412,6 +414,8 @@ export default function CampaignDetailPageClient({
       activeCampaignIdRef.current = "";
       controllers.forEach((controller) => controller.abort());
       controllers.clear();
+      sendMoreControllerRef.current?.abort();
+      sendMoreControllerRef.current = null;
       if (detailRefreshTimeoutRef.current !== null) window.clearTimeout(detailRefreshTimeoutRef.current);
     };
   }, [campaign.id]);
@@ -444,6 +448,17 @@ export default function CampaignDetailPageClient({
           sentCount: next.sentCount, deliveredCount: next.deliveredCount, readCount: next.readCount,
           failedCount: next.failedCount, blockedCount: next.blockedCount, unsubscribedCount: next.unsubscribedCount,
           scheduledAt: next.scheduledAt, launchedAt: next.launchedAt, completedAt: next.completedAt, updatedAt: next.updatedAt }));
+        if (!["SENDING", "SCHEDULED", "PAUSED"].includes(next.status)) {
+          const detailResponse = await fetch(apiUrl(`/api/whatsapp/campaigns/${campaignId}`), {
+            credentials: "include", cache: "no-store", signal: controller.signal,
+          });
+          const detailPayload = await detailResponse.json().catch(() => ({})) as CampaignDetailPayload;
+          if (!detailResponse.ok || !detailPayload.campaign?.campaign) throw new Error("Final recipient results could not be refreshed. Displayed results may be out of date.");
+          if (controller.signal.aborted || activeCampaignIdRef.current !== campaignId) return;
+          setLiveCampaign(normalizeCampaign(detailPayload.campaign.campaign));
+          setLiveRecipients((detailPayload.campaign.recipients ?? []).map((recipient) => normalizeRecipient(recipient)));
+          setRefreshError("");
+        }
       } else {
         const detail = (payload as CampaignDetailPayload).campaign;
         if (!detail?.campaign) throw new Error("Campaign updates are unavailable. Displayed results may be out of date.");
@@ -633,46 +648,68 @@ export default function CampaignDetailPageClient({
   }
 
   async function openSendMoreModal() {
-    if (loadingAction || loadingSendMore) return;
+    if (loadingAction || loadingSendMore || sendMoreControllerRef.current) return;
     if (!liveCampaign.listLabel) {
       setError("This campaign has no locked contact list.");
       return;
     }
 
+    const controller = new AbortController();
+    sendMoreControllerRef.current = controller;
     setLoadingSendMore(true);
     setError("");
     setNotice("");
 
     try {
-      const contactsPayload = await fetch(
-        apiUrl(`/api/whatsapp/contacts?listLabel=${encodeURIComponent(liveCampaign.listLabel)}&limit=10000`),
-        {
-          credentials: "include",
-          cache: "no-store",
-        },
-      ).then(async (response) => {
-        const body = await response.json().catch(() => ({}));
+      const contacts: SendMoreContact[] = [];
+      let total = Infinity;
+      while (contacts.length < total) {
+        const query = new URLSearchParams({ listLabel: liveCampaign.listLabel, limit: "500", cursor: String(contacts.length) });
+        const response = await fetch(apiUrl(`/api/whatsapp/contacts?${query}`), {
+          credentials: "include", cache: "no-store", signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({})) as {
+          contacts?: Array<Partial<SendMoreContact> & Record<string, unknown>>;
+          stats?: { filteredTotal?: number };
+          error?: string;
+        };
         if (!response.ok) throw new Error(body.error || "Failed to load contacts");
-        return body as { contacts: SendMoreContact[] };
-      });
-
+        if (controller.signal.aborted || activeCampaignIdRef.current !== liveCampaign.id) return;
+        const page = (body.contacts ?? []).map((contact) => ({
+          id: String(contact.id ?? ""),
+          contactId: String(contact.contactId ?? contact.contact_id ?? ""),
+          phone: String(contact.phone ?? ""),
+          fullName: (contact.fullName ?? contact.full_name ?? null) as string | null,
+          location: contact.location ?? null,
+          listLabel: String(contact.listLabel ?? contact.list_label ?? liveCampaign.listLabel),
+          metadata: contact.metadata ?? null,
+        }));
+        total = Number(body.stats?.filteredTotal ?? contacts.length + page.length);
+        if (page.some((contact) => !contact.id || !contact.contactId) || (!page.length && contacts.length < total)) {
+          throw new Error("Contact list changed or is incomplete. Close and try again.");
+        }
+        contacts.push(...page);
+      }
+      if (new Set(contacts.map((contact) => contact.id)).size !== contacts.length) throw new Error("Contact list changed. Close and try again.");
+      if (controller.signal.aborted || activeCampaignIdRef.current !== liveCampaign.id) return;
       const recipientIds = liveRecipients
         .filter((recipient) => recipient.status === "PENDING")
         .map((recipient) => recipient.contactId)
         .filter(Boolean);
-      const availableCount = contactsPayload.contacts.filter((contact) => recipientIds.includes(contact.contactId)).length;
+      const availableCount = contacts.filter((contact) => recipientIds.includes(contact.contactId)).length;
 
-      setSendMoreContacts(contactsPayload.contacts);
+      setSendMoreContacts(contacts);
       setPendingRecipientContactIds(recipientIds);
       setExcludedContactIds([]);
       setSendMoreSearch("");
       setSendMoreBatchSize(String(Math.min(liveCampaign.defaultBatchSize || 200, availableCount)));
       setSendMoreOpen(true);
     } catch (actionError) {
-      if (activeCampaignIdRef.current !== liveCampaign.id) return;
+      if (controller.signal.aborted || activeCampaignIdRef.current !== liveCampaign.id) return;
       setError(actionError instanceof Error ? actionError.message : "Failed to load send more details");
     } finally {
-      setLoadingSendMore(false);
+      if (sendMoreControllerRef.current === controller) sendMoreControllerRef.current = null;
+      if (activeCampaignIdRef.current === liveCampaign.id) setLoadingSendMore(false);
     }
   }
 
@@ -917,7 +954,7 @@ export default function CampaignDetailPageClient({
                   <DialogTitle>Send more: {liveCampaign.name}</DialogTitle>
                   <DialogDescription>
                     Locked list: {liveCampaign.listLabel || "default"} · Already sent: {effectiveCampaign.sentCount} · Delivered:{" "}
-                    {effectiveCampaign.deliveredCount} · Read: {effectiveCampaign.readCount}
+                    {effectiveCampaign.deliveredCount} · Read: {effectiveCampaign.readCount}. Exclusions permanently skip recipients in this campaign.
                   </DialogDescription>
                 </DialogHeader>
               </div>
@@ -933,7 +970,7 @@ export default function CampaignDetailPageClient({
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Remaining available</div>
-                  <div className="mt-1 text-xl font-semibold">{sendMoreAvailableContacts.length}</div>
+                  <div className="mt-1 text-xl font-semibold">{selectableSendMoreCount}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">This next batch</div>
@@ -944,12 +981,12 @@ export default function CampaignDetailPageClient({
               <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="space-y-3">
                   <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-                    <Input
+                    <Input disabled={Boolean(loadingAction)}
                       aria-label="Search remaining contacts" placeholder="Search remaining contacts..."
                       value={sendMoreSearch}
                       onChange={(event) => setSendMoreSearch(event.target.value)}
                     />
-                    <Input
+                    <Input disabled={Boolean(loadingAction)}
                       type="number"
                       min={1}
                       aria-label="Next batch size" max={selectableSendMoreCount || 1}
@@ -975,7 +1012,7 @@ export default function CampaignDetailPageClient({
                           </div>
                           <Button
                             type="button"
-                            aria-pressed={excluded} variant={excluded ? "secondary" : "outline"}
+                            disabled={Boolean(loadingAction)} aria-pressed={excluded} variant={excluded ? "secondary" : "outline"}
                             size="sm"
                             onClick={() =>
                               setExcludedContactIds((current) =>
@@ -994,7 +1031,7 @@ export default function CampaignDetailPageClient({
                 </div>
 
                 <div className="rounded-xl border border-border p-4">
-                  <h3 className="text-sm font-semibold text-foreground">Excluded from this batch</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Excluded from campaign</h3>
                   <div className="mt-3 space-y-2">
                     {excludedContactIds.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No contacts excluded.</p>
@@ -1011,7 +1048,7 @@ export default function CampaignDetailPageClient({
                               <div className="truncate text-xs text-muted-foreground">{contact.phone}</div>
                             </div>
                             <Button
-                              type="button"
+                              type="button" disabled={Boolean(loadingAction)}
                               variant="outline"
                               size="sm"
                               onClick={() =>
@@ -1027,6 +1064,7 @@ export default function CampaignDetailPageClient({
                 </div>
               </div>
 
+              {excludedContactIds.length > 0 && <p className="mt-4 text-sm text-muted-foreground">{excludedContactIds.length} recipients will be permanently skipped in this campaign.</p>}
               {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
               <div className="mt-6 flex justify-end gap-3">
                 <Button variant="outline" disabled={Boolean(loadingAction)} onClick={() => setSendMoreOpen(false)}>
