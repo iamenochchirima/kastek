@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router";
 import CampaignsPageClient from "@/components/dashboard/campaigns/campaigns-page-client";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { fetchCoreJson } from "@/lib/core-server-api";
+import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
 import { redirect } from "react-router";
 
 export function meta() { return [{ title: "Campaigns | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
@@ -10,6 +10,7 @@ export async function clientLoader({ request }: { request: Request }) {
   const session = await getWorkspaceSession(request);
   if (!session?.user?.id) throw redirect("/login");
 
+  let loadError: string | null = null;
   const campaignResponse = await fetchCoreJson<{
     campaigns: Array<{
       id: string;
@@ -34,12 +35,17 @@ export async function clientLoader({ request }: { request: Request }) {
       listLabel: string | null;
       defaultBatchSize: number | null;
     }>;
-  }>("/api/whatsapp/campaigns").catch(() => ({ campaigns: [] }));
+  }>("/api/whatsapp/campaigns").catch((error: unknown) => {
+    loadError = error instanceof ApiError && error.status === 403
+      ? "You don't have access to campaigns."
+      : "Campaigns couldn't be loaded.";
+    return { campaigns: [] };
+  });
 
-  return { campaignResponse };
+  return { campaignResponse, loadError };
 }
 
 export default function ReachCampaignsPage() {
-  const { campaignResponse } = useLoaderData<typeof clientLoader>();
-  return <CampaignsPageClient campaigns={campaignResponse.campaigns} />;
+  const { campaignResponse, loadError } = useLoaderData<typeof clientLoader>();
+  return <CampaignsPageClient campaigns={campaignResponse.campaigns} loadError={loadError} />;
 }
