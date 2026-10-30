@@ -40,7 +40,8 @@
 @media (max-width: 767px) {
  .campaigns-header { padding: 20px 16px 12px; gap: 10px; }
  .campaigns-header h1 { font-size: 22px; }
- .campaigns-header a { font-size: 12px; }
+ .campaigns-header a { font-size: 12px; min-height: 44px; }
+ .campaigns-search input, .campaigns-toolbar > [data-slot="select-trigger"], .campaigns-toolbar button { min-height: 44px; }
  .campaigns-tabs { padding-inline: 16px; gap: 12px; }
  .campaigns-toolbar { padding: 16px; }
  .campaigns-search { width: 100%; }

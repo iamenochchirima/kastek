@@ -122,17 +122,22 @@ test("updates contact fields through the form and reloads the saved record", asy
 
 test("creates a campaign through its setup and confirmation screens", async ({ page, request }) => {
   await page.goto("/campaigns/create");
-  await page.getByRole("textbox", { name: /Campaign base name/ }).fill("migration-campaign");
-  await page.getByRole("combobox", { name: "Template", exact: true }).click();
+  await page.getByRole("textbox", { name: "Campaign name", exact: true }).fill("migration-campaign");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("spinbutton", { name: "Batch size", exact: true }).fill("1");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("combobox", { name: "Marketing template", exact: true }).click();
   await page.getByRole("option", { name: /fixture_offer/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Confirm campaign", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Create campaign", exact: true }).click();
-  await expect(page).toHaveURL(/\/campaigns\?notice=/);
+  await expect(page.getByRole("heading", { name: "Review campaign", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page).toHaveURL(/\/campaigns\/[^/]+\?notice=/);
+  await page.goto("/campaigns");
   await page.reload();
-  await expect(page.getByRole("cell", { name: /^migration-campaign/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "migration-campaign", exact: true })).toBeVisible();
   const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
-  expect(state.campaigns.some((campaign: { name: string; batchSize: number }) => campaign.name === "migration-campaign" && campaign.batchSize === 1)).toBe(true);
+  expect(state.campaigns.some((campaign: { name: string; batchSize: number; status: string }) => campaign.name === "migration-campaign" && campaign.batchSize === 1 && campaign.status === "DRAFT")).toBe(true);
+  expect(state.requests.some((request: { path: string }) => request.path.endsWith("/launch"))).toBe(false);
 });
 
 test("submits a template and reloads its pending provider-review state", async ({ page, request }) => {

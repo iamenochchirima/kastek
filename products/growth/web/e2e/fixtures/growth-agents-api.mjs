@@ -1,4 +1,5 @@
 import http from "node:http";
+import { campaignFixture } from "./campaigns-api.mjs";
 import { randomUUID } from "node:crypto";
 import { analyticsCatalogFixture, analyticsReportFixture } from "../analytics-fixtures.ts";
 
@@ -43,12 +44,15 @@ const migrationMessages = [{ id: "fixture-inbound", sender: "customer", content:
 const fixtureWhatsapp = { id: "fixture-whatsapp", phoneNumberId: "fixture-number", phoneDisplayNumber: "+27 72 000 1111", wabaId: "fixture-waba", currentQualityRating: "GREEN", dailyLimitEstimate: 1000, verified: true, createdAt: now() };
 const migrationInbox = { id: "fixture-inbox", channel: "whatsapp", customerName: "Fixture customer", phone: "+27720001111", lastMessageAt: now(), unreadCount: 0, starred: false, connectionId: fixtureWhatsapp.id, connectionLabel: "Fixture WhatsApp", lastMessage: "Hello from the fixture", status: "OPEN" };
 
+const handleCampaignFixture = process.env.GROWTH_CAMPAIGNS_FIXTURE === "1" ? campaignFixture({ json, payload, now, contacts: migrationContacts, templates: migrationTemplates }) : null;
+
 const fixturePlan = { key: "fixture-plan", productKey: "growth", name: "Fixture plan", interval: "MONTHLY", currency: "ZAR", amountMinor: 10000, creditsPerPeriod: 100, checkoutReady: true, entitlements: [] };
 const developerConfig = { restBaseUrl: "https://growth.example/v1", mcpAvailable: false, mcpEndpoint: null, mcpPackage: null, clients: [] };
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://127.0.0.1"); const path = url.pathname; const businessId = scope(request);
     if (migration) migrationRequests.push({ path, method: request.method });
+    if (handleCampaignFixture && await handleCampaignFixture(request, response, url)) return;
     if (path === "/__fixture/migration") return json(response, 200, { requests: migrationRequests, profile, developerKeys, bookingServices, contacts: migrationContacts, campaigns: migrationCampaigns, templates: migrationTemplates, posts: migrationPosts, inboxMessages: migrationMessages });
     if (migration && path === "/api/auth/account") { response.writeHead(200, { "content-type": "text/html" }); response.end("<html><head><meta name='robots' content='noindex'></head><body><h1>Account settings fixture</h1></body></html>"); return; }
     if (migration && path === "/api/profile") { if (request.method === "PATCH") Object.assign(profile, await payload(request)); return json(response, 200, { user: profile }); }
@@ -64,7 +68,12 @@ const server = http.createServer(async (request, response) => {
     if (migration && path === "/api/whatsapp/contacts/fixture-contact" && request.method === "PATCH") { Object.assign(migrationContacts[0], await payload(request), { updatedAt: now() }); return json(response, 200, { contact: migrationContacts[0] }); }
 
     if (migration && path === "/api/customers/fixture-customer") return json(response, 200, { customer: { id: "fixture-customer", displayName: "Fixture customer", createdAt: now() }, identities: [], contacts: [], conversations: [], campaigns: [], bookings: [], agentEvents: [] });
+    if (migration && path === "/api/whatsapp/campaigns/preflight") { const input = await payload(request); const excluded = new Set(input.excludedContactIds || []); const eligible = migrationContacts.filter(c => c.optIn && !c.excluded && !excluded.has(c.id)); return json(response, 200, { totalContacts: migrationContacts.length, eligibleRecipients: eligible.length, skipped: { notOptedIn: 0, excluded: migrationContacts.length - eligible.length, cooldown: 0 } }); }
     if (migration && path === "/api/whatsapp/campaigns") { if (request.method === "POST") { const input = await payload(request); const campaign = { ...input, id: randomUUID(), status: "DRAFT", templateName: "fixture_offer", templateLanguage: "en", createdAt: now(), updatedAt: now(), totalRecipients: input.batchSize, sentCount: 0, deliveredCount: 0, readCount: 0, failedCount: 0, blockedCount: 0, unsubscribedCount: 0, connectionLabel: "Fixture WhatsApp", listLabel: "Migration list", templateStatus: "APPROVED" }; migrationCampaigns.push(campaign); return json(response, 201, { campaign, createdRecipients: input.batchSize }); } return json(response, 200, { campaigns: migrationCampaigns }); }
+    if (migration && request.method === "GET" && /^\/api\/whatsapp\/campaigns\/[^/]+$/.test(path)) {
+      const campaign = migrationCampaigns.find(c => c.id === path.split("/").at(-1));
+      if (campaign) return json(response, 200, { campaign: { campaign, recipients: migrationContacts.map(c => ({ id: `${campaign.id}-${c.id}`, contactId: c.id, contactFullName: c.fullName, contactPhone: c.phone, contactListLabel: c.listLabel, status: "PENDING", createdAt: now(), updatedAt: now() })) } });
+    }
     if (migration && path === "/api/whatsapp/templates") { if (request.method === "POST") { const input = await payload(request); const template = { ...input, id: randomUUID(), status: "PENDING", variablesCount: 0, buttons: [], lastSynced: now(), connectionLabel: "Fixture WhatsApp" }; migrationTemplates.push(template); return json(response, 201, template); } return json(response, 200, { templates: migrationTemplates }); }
     if (migration && path === "/api/whatsapp/connections") return json(response, 200, { connections: [fixtureWhatsapp] });
     if (migration && path === "/api/connections") return json(response, 200, { connections: [{ id: fixtureWhatsapp.id, provider: "WHATSAPP", externalAccountId: "fixture-number", displayName: "Fixture WhatsApp", handle: null, status: "CONNECTED", credentialStatus: "VALID", healthStatus: "HEALTHY", webhookStatus: "VERIFIED", metadata: {}, capabilities: [], permissions: [], consumers: ["inbox", "campaigns"], createdAt: now(), updatedAt: now() }] });
