@@ -828,10 +828,9 @@ export default function CampaignDetailPageClient({
     liveCampaign.status === "SCHEDULED" ||
     liveCampaign.status === "FAILED";
 
-  function finishMenuAction(event: Event) {
+  function finishMenuAction() {
     const action = menuActionRef.current;
     if (!action) return;
-    event.preventDefault();
     menuActionRef.current = null;
     // Open the next focus trap after the menu releases its focus and pointer locks.
     menuActionFrameRef.current = window.requestAnimationFrame(() => {
