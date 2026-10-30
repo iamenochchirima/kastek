@@ -42,7 +42,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   let browserPort = 0;
   const sessions = new Set<ServerHttp2Session>();
   const requests: any[] = [];
-  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" = "draft";
+  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" = "draft";
+  let controlTarget = "";
   let childBarrier: Promise<void> | null = null;
   const previousEnabled = process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
 
@@ -73,6 +74,13 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     if (worker) await new Promise<void>(resolve => worker.close(() => resolve()));
   }
   function fixtureResponse(body: any) {
+    if (fixtureMode === "control") {
+      const steps = body.messages.filter((message: any) => message.role === "tool").length;
+      const call = steps === 0 ? { name: "tasks_inspect", arguments: "{}" } : { name: "tasks_cancel", arguments: JSON.stringify({ taskId: controlTarget }) };
+      const delta = steps < 2 ? { role: "assistant", content: null, tool_calls: [{ index: 0, id: `control-${steps}`, type: "function", function: call }] }
+        : { role: "assistant", content: "Cancellation requested." };
+      return new Response(`data: ${JSON.stringify({ id: "controlled-task-tools", model: body.model, choices: [{ index: 0, delta, finish_reason: steps < 2 ? "tool_calls" : "stop" }], usage: { prompt_tokens: 50, completion_tokens: 10 } })}\n\ndata: [DONE]\n\n`, { headers: { "content-type": "text/event-stream" } });
+    }
     const coordinator = body.messages[0].content.startsWith("COORDINATOR_FIXTURE");
     let content = "DRAFT: A concise launch post.";
     if (fixtureMode === "direct") content = "The fixture request is complete.";
@@ -153,7 +161,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       ...defaultBusinessConfiguration(), instructions: "CONTENT_FIXTURE: Return a concise text draft from the supplied brief only.",
     } });
     const specialist = await store.createVersion({ accountId: owner.id, organizationId: organization.id, agentId: content.id, expectedRevision: content.draft_revision });
-    const configuration: AgentConfiguration = { ...assistant.draft, instructions: "COORDINATOR_FIXTURE: Ask Content to draft the requested post and return its confirmed result.", tools: ["agents.delegate"],
+    const configuration: AgentConfiguration = { ...assistant.draft, instructions: "COORDINATOR_FIXTURE: Ask Content to draft the requested post and return its confirmed result.", tools: [...assistant.draft.tools, "agents.delegate"],
       capabilities: { ...assistant.draft.capabilities, delegation: { enabled: true, maxChildren: 2, maxDepth: 1,
         bindings: [{ id: "content", versionId: specialist.id, sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], maxTokens: 8000, maxActiveMs: 240000 }] } } };
     const configured = await app.inject({ method: "POST", url: `${base}/agents/${assistant.id}/configuration`, headers: { cookie, origin }, payload: { expectedRevision: assistant.draft_revision, configuration, confirmImpact: true } });
@@ -416,5 +424,20 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE parent_task_id=$1", [f.taskId])).rows).toEqual([]);
     await f.delivery.members.collect(); await f.delivery.drain(8);
     expect((await pool.query("SELECT id FROM agents_platform.customer_conversations WHERE organization_id=$1", [f.organization.id])).rows).toEqual([]);
+  }, 45_000);
+  it("lets the model inspect and cancel an earlier authorized task through native tools", async () => {
+    const f = await fixture(); fixtureMode = "control";
+    const earlier = await admit(f); controlTarget = earlier.id;
+    await pool.query("UPDATE agents_platform.task_outbox SET available_at=now()+interval '1 hour' WHERE task_id=$1", [earlier.id]);
+    const controller = await admit(f);
+    expect(await finish(f, controller.id)).toMatchObject({ state: "completed", output: "Cancellation requested." });
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [earlier.id])).rows[0].state).toBe("cancel_requested");
+    expect(requests).toHaveLength(3);
+    const inspected = requests[1].messages.find((message: any) => message.role === "tool");
+    const result = JSON.parse(inspected.content);
+    expect(result.tasks).toEqual([expect.objectContaining({ id: earlier.id, state: "accepted" })]);
+    expect(Object.keys(result.tasks[0]).sort()).toEqual(["createdAt", "id", "state", "updatedAt"]);
+    expect(requests[0].tools.map((tool: any) => tool.function.name)).toEqual(expect.arrayContaining(["tasks_inspect", "tasks_cancel"]));
+    expect((await pool.query("SELECT sequence FROM agents_platform.task_events WHERE task_id=$1 AND kind='cancel_requested'", [earlier.id])).rows).toHaveLength(1);
   }, 45_000);
 });

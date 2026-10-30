@@ -1,3 +1,4 @@
+import { visibleTaskControlTools } from "../../capabilities/task-control";
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
 import type {CapacityDecision} from "../scheduling/capacity";
 import {persistOperationReceipt} from "../scheduling/receipt-persistence";
@@ -205,12 +206,12 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
-  const modelTools = await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
+  const modelTools = await visibleTaskControlTools(pool,execution,await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
   })() : [])]).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2"].includes(tool.function.name))
     && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")
-    && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff")));
+    && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff"))));
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
   if (config.memory.enabled) {

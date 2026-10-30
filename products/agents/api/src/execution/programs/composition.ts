@@ -28,6 +28,8 @@ const programs: Readonly<Record<ProgramReference["id"], ProgramDescriptor>> = Ob
 export function resolveProgram(reference: ProgramReference) {
   const parsed = programReferenceSchema.safeParse(reference);
   if (!parsed.success) throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE", 503, "The trusted program release is unavailable");
+  if(parsed.data.id==='tool-directed'&&parsed.data.version==='2')return {...programs['tool-directed'],version:'2' as const,
+    allowedTools:[...programs['tool-directed'].allowedTools,'tasks.inspect','tasks.cancel']};
   if (parsed.data.version !== "1") {
     if(parsed.data.id!=="tool-directed"||parsed.data.version!=="3")throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE",503,"The trusted program release is unavailable");
     return {...programs["tool-directed"],version:"3" as const};

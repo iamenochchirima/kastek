@@ -1,3 +1,5 @@
+import { memberAssistantEnabled, memberAssistantPolicy } from "../../infrastructure/member-assistant-policy";
+export { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
 import { requestTreeCancellationInTransaction } from "../../execution/lifecycle/execution";
 import { recordAssistantLifecycle } from "../reporting/assistant-lifecycle";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
@@ -18,10 +20,6 @@ type Scope = {accountId:string; organizationId:string};
 type Row = Record<string, any>;
 const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
 const deny=()=>new PlatformError("MEMBER_CHANNEL_DENIED",403,"Private messaging access is unavailable");
-export function memberAssistantEnabled(organizationId:string):boolean {
-  const allowed=(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??"").split(",").map(value=>value.trim());
-  return allowed.includes(organizationId)||allowed.includes("*");
-}
 async function member(db:PoolClient,scope:Scope) {
   if(!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE",[scope.organizationId,scope.accountId])).rowCount)throw deny();
 }
@@ -115,8 +113,26 @@ export class MemberChannels {
     const links=(await db.query(`SELECT * FROM agents_platform.member_channel_links WHERE connection_id=$1
       AND (sender_id=$2 OR chat_id=$3) ORDER BY created_at DESC,id LIMIT 100 FOR SHARE`,[connection.id,event.senderId,event.externalConversationId])).rows;
     if(!links.length)return {consumed:false};
+    if(event.kind==='receipt') {
+      const original=(await db.query("SELECT member_link_id FROM agents_platform.channel_ingress WHERE connection_id=$1 AND event_id=$2",[connection.id,event.eventId])).rows[0];
+      if(original)return original.member_link_id?{consumed:false,linkId:original.member_link_id}:{consumed:false};
+      const delivered=(await db.query(`SELECT o.member_link_id FROM agents_platform.channel_outbound o
+        JOIN agents_platform.member_channel_links l ON l.id=o.member_link_id
+        WHERE o.connection_id=$1 AND l.chat_id=$2 AND l.sender_id=$3 AND o.provider_message_id=$4
+        ORDER BY o.created_at,o.id LIMIT 1`,[connection.id,event.externalConversationId,event.senderId,event.providerMessageId])).rows[0];
+      if(delivered)return {consumed:false,linkId:delivered.member_link_id};
+      const sending=(await db.query(`SELECT o.member_link_id FROM agents_platform.channel_outbound o
+        JOIN agents_platform.member_channel_links l ON l.id=o.member_link_id
+        WHERE o.connection_id=$1 AND l.chat_id=$2 AND l.sender_id=$3 AND o.state='sending' AND o.provider_message_id IS NULL
+        ORDER BY o.created_at,o.id LIMIT 1`,[connection.id,event.externalConversationId,event.senderId])).rows[0];
+      // Receipt facts retain their delivery identity across re-pairing; they never renew member authority.
+      if(sending)return {consumed:false,linkId:sending.member_link_id};
+      const recipient=[...links].reverse().find(link=>link.chat_id===event.externalConversationId&&link.sender_id===event.senderId);
+      if(recipient)return {consumed:false,linkId:recipient.id};
+      return {consumed:true};
+    }
     const active=links.filter(l=>l.state==='active'&&l.sender_id===event.senderId&&l.chat_id===event.externalConversationId&&l.connection_revision===connection.revision&&l.credential_revision===connection.credential_revision);
-    if(active.length!==1||!memberAssistantEnabled(connection.organization_id)||event.kind!=='receipt'&&!event.privateChat)return {consumed:true};
+    if(active.length!==1||!memberAssistantEnabled(connection.organization_id)||!event.privateChat)return {consumed:true};
     if(!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE",[active[0].organization_id,active[0].account_id])).rowCount)return {consumed:true};
     return {consumed:false,linkId:active[0].id};
   }
@@ -220,6 +236,7 @@ export class MemberChannels {
     }
   }
   async collect(limit=16) {
+    const rollout=memberAssistantPolicy();
     const progress=(await this.pool.query(`SELECT m.*,t.state FROM agents_platform.member_channel_tasks m JOIN agents_platform.tasks t ON t.id=m.task_id
       JOIN agents_platform.member_channel_links l ON l.id=m.link_id JOIN agents_platform.channel_connections c ON c.id=l.connection_id
       JOIN agents_platform.memberships mem ON mem.organization_id=l.organization_id AND mem.account_id=l.account_id
@@ -227,7 +244,7 @@ export class MemberChannels {
       AND mem.revoked_at IS NULL AND c.state='active' AND c.revision=l.connection_revision AND c.credential_revision=l.credential_revision
       AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound o WHERE o.member_link_id=m.link_id AND o.member_notice_key='status:'||t.id::text||':'||t.state)
       AND NOT EXISTS(SELECT 1 FROM agents_platform.tool_invocation_reviews r WHERE r.root_task_id=t.id AND r.state='pending' AND r.reviewer_account_id=l.account_id)
-      ORDER BY t.created_at LIMIT $1`,[limit,(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim()).includes('*'),(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim())])).rows;
+      ORDER BY t.created_at LIMIT $1`,[limit,rollout.all,rollout.organizationIds])).rows;
     for(const task of progress)try {await transaction(this.pool,async db=>{
       const link=await this.authorizedLink(db,task.link_id);
       const body=task.state==='waiting_children'?'Working with a specialist.':task.state==='cancel_requested'?'Cancellation requested.':'Review required. Open the app to continue.';
@@ -242,7 +259,7 @@ export class MemberChannels {
       WHERE r.state='pending' AND r.expires_at>now() AND r.reviewer_account_id=l.account_id AND l.state='active' AND l.generation=m.link_generation
       AND ($2::boolean OR l.organization_id::text=ANY($3::text[]))
       AND NOT EXISTS(SELECT 1 FROM agents_platform.channel_outbound o WHERE o.member_link_id=m.link_id AND o.member_notice_key='review:'||r.id::text)
-      ORDER BY r.created_at LIMIT $1`,[limit,(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim()).includes('*'),(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim())])).rows;
+      ORDER BY r.created_at LIMIT $1`,[limit,rollout.all,rollout.organizationIds])).rows;
     for(const review of reviews)try {await transaction(this.pool,async db=>{
       const link=await this.authorizedLink(db,review.link_id);
       const details=JSON.stringify(review.arguments);

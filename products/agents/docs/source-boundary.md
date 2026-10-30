@@ -21,8 +21,9 @@ Schema095 extends the shared ingress/outbound queues with explicit member-purpos
 ten-minute, single-use pairing challenges require a provider-observed private identity and separate
 signed-in app confirmation. Member, organization, sender/chat, asset and connection generations
 remain separate authority checks. Revoked routes never fall through to customer Inbox. The app can
-continue the link's private conversation as the same human principal. Phone `/status` and `/cancel`
-use the same task lifecycle. Results and connected-tool reviews recheck current evidence, permissions
+continue the link's private conversation as the same human principal. Optional model task-status/cancellation tools use tool-directed programv2, current human grants and
+same-agent prior roots; they return bounded statuses without transcripts. Versions1/3 retain their
+pinned descriptors. Phone `/status` and `/cancel` use the same task lifecycle. Results and connected-tool reviews recheck current evidence, permissions
 and link generation immediately before sending. Unknown sends are retained without blind retry;
 WhatsApp results outside the permitted window remain in the app.
 
@@ -34,7 +35,7 @@ recovery, threat model, rollout, analytics and rollback. The
 transport evidence from provider acceptance.
 
 Controlled evidence: API `organization-assistant`, `member-channels` and
-`organization-assistant-runtime` tests cover PostgreSQL provisioning/identity, shared delivery,
+`organization-assistant-runtime`, `member-channel-composition` and `task-control` tests cover PostgreSQL provisioning/identity, shared delivery,
 actual native Restate specialist execution, phone/app continuation and revocation during child work.
 Web `assistant.spec.ts` covers pairing, lifecycle, delivery states, specialist selection and responsive
 light/dark layouts. Deterministic model/provider fixtures establish mechanics, not live-provider

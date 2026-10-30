@@ -40,7 +40,13 @@ revisions are checked independently. Group chats, forwarded claims and usernames
 A link has its own new private conversation. Linking does not import an existing app transcript.
 **Open conversation** continues that exact conversation in the app as the same human principal.
 Other members, organizations, customer Inbox and specialist child branches do not share that history.
-Use `/status` or `/cancel` for the current active request on that link; cancellation records intent,
+Optional **Task status** and **Cancel tasks** tools let the model inspect or cancel earlier work
+belonging to the same human and agent. They expose at most ten IDs/statuses/timestamps, no transcript
+or output, and deny customer/automation/evaluation/child tasks, other members and other agents.
+The tools use the new tool-directed program version 2; versions 1/3 retain their pinned descriptors.
+Current membership, selected tools and grant operations are required again at execution. Cancellation
+records an idempotent request and does not undo completed effects. Use `/status` or `/cancel` for
+the current active request on that phone link; cancellation records intent,
 while the runtime settles the root and children. Existing app task controls also remain available.
 
 ## API contracts
@@ -77,7 +83,8 @@ Acknowledgment, waiting status, review prompts and terminal results have separat
 Each text segment has a durable send claim and outcome. A lost acknowledgment is **unknown**, never a
 blind retry. Known 429 rejections use existing bounded cooldown retries. Accepted segments survive later
 failure. Receipts match connection, provider message and recipient and advance monotonically. Provider
-acceptance is distinct from sent/delivered/read. Native task completion does not prove phone delivery.
+acceptance is distinct from sent/delivered/read. Authenticated late receipts continue to update
+existing delivery facts after unlink or private-feature disablement; they never restore task access. Native task completion does not prove phone delivery.
 
 Connected-tool reviews identify the operation, connection, destination and exact arguments. Buttons
 are accepted only for the current member/chat, root, link generation, pending digest and expiry, after
@@ -106,7 +113,7 @@ source fences, current tool permissions and one-level delegation are enforced by
 
 - Change/owner/risk: organization assistant and verified private phone access; iamenochchirima; high.
 - Services/surfaces: Agents API, worker, web; ordinary editor/chat, private linking, Telegram/WhatsApp.
-- Release identity: platform VERSION remains0.1.0 for this local change. Use the implementation commit
+- Release identity: platform VERSION remains 0.1.0 for this local change. Use the implementation commit
   as `KASITEK_RELEASE_ID` when preparing a separately approved pilot artifact. No tag or deployment
   occurs here. Schema094/095 add lifecycle and purpose records. Existing V21/V22 task workflow identities
   remain because no durable workflow sequence changes; new admissions use existing human execution.
@@ -135,3 +142,27 @@ source fences, current tool permissions and one-level delegation are enforced by
   queue rows before restart. Do not run older customer-only drain logic on member-purpose rows.
 - Billing/package/model-price changes, infrastructure replacement and other-product integration:
   not applicable. Production rollout, post-release review date and merge remain owner decisions.
+
+## Local verification evidence
+
+The implementation checkpoint passed 237 joined API, database, protocol and runtime assertions
+across 18 files. Final review corrections passed 56 focused assertions, all 13 real
+PostgreSQL/Restate runtime cases including actual browser operation, and 19 responsive browser
+scenarios. These runs overlap; the counts are not an additive total. API/web production builds,
+focused web lint, Analytics registry validation, product import boundaries and platform version
+validation passed. Screenshots and command output remain ignored under `.audit/` and web
+`.artifacts/`, including `private-assistant-final-runtime.log`, `private-assistant-final-ui.log` and
+`organization-assistant-browser/`.
+
+Standards review found no documented-rule breaches; its duplicated rollout-policy concern was
+fixed with a shared neutral helper. Spec review identified Meta profile revalidation, late receipt
+identity and model task controls; subsequent review confirmed those fixes, including receipt replay
+across re-pairing and preserving incompatible product programs. No unresolved actionable finding
+remains in that review. These reviews do not certify provider acceptance.
+
+The stricter `verify:agents-modules` command still reports baseline cross-layer imports and a
+contracts dependency cycle present before this change. The affected import diagnostics are in
+Agency/Growth adapters, support status, channel contracts and contextual handoff. Product-level
+`verify:boundaries` passes. Do not describe the strict module check as passing or hide it when
+preparing a release. A first concurrent regression run also hit fixture cleanup-hook timeouts;
+the serial rerun passed. The final sources do not increase those fixture timeouts.

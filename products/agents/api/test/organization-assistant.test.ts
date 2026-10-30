@@ -39,7 +39,7 @@ suite("organization assistant provisioning", () => {
     const { owner, organization } = await fixture();
     const assistant = await assistants.getOrganizationAssistant(owner.id, organization.id);
     expect(assistant).toMatchObject({ state: "draft", version: null, agent: { name: "Assistant", created_by: owner.id,
-      offering: null, draft: { executionKind: "business", model: { selection: { kind: "organization_default" } }, tools: [],
+      offering: null, draft: { executionKind: "business", model: { selection: { kind: "organization_default" } }, tools: ["tasks.inspect", "tasks.cancel"],
         sourceRevisionIds: [], connectedToolBindingIds: [], memory: { enabled: false }, capabilities: { delegation: { enabled: false } } } } });
     expect(await store.listAgents(owner.id, organization.id)).toHaveLength(1);
     const initial = await account();
@@ -95,7 +95,7 @@ suite("organization assistant provisioning", () => {
     const version = await store.createVersion({ accountId: owner.id, organizationId: organization.id, agentId: assistant.id, expectedRevision: assistant.draft_revision });
     const grant = await store.createGrant({ accountId: owner.id, grant: {
       id: randomUUID(), product: "agents", organizationId: organization.id, resourceId: assistant.id, callerClientId: "agents-execution",
-      principal: { kind: "human", issuer: owner.issuer, subject: owner.subject }, versionId: version.id, operations: ["model.reply"],
+      principal: { kind: "human", issuer: owner.issuer, subject: owner.subject }, versionId: version.id, operations: ["model.reply", "tasks.read", "tasks.cancel"],
       maxInputBytes: assistant.draft.model.maxInputBytes, maxOutputTokens: assistant.draft.model.maxOutputTokens,
       expiresAt: new Date(Date.now() + 60_000).toISOString(), revokedAt: null,
     } });

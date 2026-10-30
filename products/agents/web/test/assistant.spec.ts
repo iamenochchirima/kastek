@@ -90,10 +90,10 @@ test("private account layout fits desktop, tablet and mobile in both themes", as
   }
 });
 
-async function specialistWorkspace(page: Page) {
-  const configuration = { executionKind: "business", program: { id: "tool-directed", version: "1" }, instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+async function specialistWorkspace(page: Page, options: { taskTools?: boolean; customer?: boolean; productBound?: boolean; programThree?: boolean } = {}) {
+  const configuration = { executionKind: "business", program: { id: "tool-directed", version: options.programThree ? "3" : options.taskTools ? "2" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: options.taskTools ? ["tasks.inspect", "tasks.cancel", "knowledge.search"] : [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
   const specialist = { agentId: "content", name: "Content", description: "Write private drafts from the supplied brief.", versionId: "content-v1", versionNumber: 1, ready: true, reasons: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [] };
-  const agent = { id: "assistant-1", name: "Business assistant", draft: configuration, draftRevision: 1 };
+  const agent = { id: "assistant-1", name: "Business assistant", offering: options.customer ? "faq" : null, draft: configuration, draftRevision: 1 };
   const saved: unknown[] = [], created: unknown[] = [];
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname;
@@ -105,10 +105,11 @@ async function specialistWorkspace(page: Page) {
     else if (path.endsWith("/model-policy")) data = { modelId: null, modelRevision: null, limits: { contextTokens: null, maxInputTokens: null, maxOutputTokens: null, maxCallDurationMs: null, maxRootTokens: null, safetyTokens: null }, effectivePolicy: null, errors: [], controls: { temperature: null, reasoning: null } };
     else if (path.endsWith("/setup-readiness")) data = { readiness: { readyToTest: false, setupStep: null, requirements: {}, channels: [] } };
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
+    else if (path.endsWith("/catalogue/tools")) data = { schemaVersion: 1, revision: "fixture", agentId: agent.id, entries: [] };
     else if (path.endsWith("/agents/summaries")) data = { agents: [{ ...agent, latestVersion: { id: "version-1", number: 1, executionKind: "business" } }], nextCursor: null };
     else if (path.endsWith("/conversations")) data = { conversations: [], nextCursor: null };
     else if (path.endsWith("/specialists")) data = { specialists: [specialist, { ...specialist, agentId: "analyst", name: "Analyst", versionId: "analyst-v2", versionNumber: 2, ready: false, reasons: ["Model unavailable"] }, { ...specialist, agentId: "editor", name: "Editor", versionId: "editor-v1" }, { ...specialist, agentId: "reviewer", name: "Reviewer", versionId: "reviewer-v1" }] };
-    else if (path.endsWith("/agents/assistant-1/configuration")) { saved.push(request.postDataJSON()); data = { agent, snapshot: { id: "version-2", number: 2, configuration: request.postDataJSON().configuration }, deployments: [] }; }
+    else if (path.endsWith("/agents/assistant-1/configuration")) { saved.push(request.postDataJSON()); agent.draft = request.postDataJSON().configuration; agent.draftRevision++; data = { agent, snapshot: { id: "version-2", number: 2, configuration: request.postDataJSON().configuration }, deployments: [] }; }
     else if (path.endsWith("/agents") && request.method() === "POST") { created.push(request.postDataJSON()); data = { agent: { ...agent, id: "new-content" } }; }
     else if (path.endsWith("/agents/assistant-1") || path.endsWith("/agents/new-content")) data = { agent, versions: [{ id: "version-1", number: 1, configuration }], deployments: [] };
     else return route.fulfill({ status: 404, json: { error: { message: "Not found" } } });
@@ -190,3 +191,55 @@ test("specialist configuration and creation dialog fit supported widths and them
     await expect(dialog).toHaveCount(0);
   }
 });
+
+test("business task controls preserve defaults and save optional task authority", async ({ page }) => {
+  const fixture = await specialistWorkspace(page, { taskTools: true });
+  await page.goto("/app/agents/assistant-1?section=tools");
+  await expect(page.getByRole("checkbox", { name: "Task status", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Cancel tasks", exact: true })).toBeChecked();
+  await page.getByRole("checkbox", { name: "Cancel tasks", exact: true }).uncheck();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "2" }, tools: ["tasks.inspect", "knowledge.search"] } });
+  await page.getByRole("checkbox", { name: "Task status", exact: true }).uncheck();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(2);
+  expect(fixture.saved[1]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "2" }, tools: ["knowledge.search"] } });
+  await page.getByRole("checkbox", { name: "Cancel tasks", exact: true }).check();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(3);
+  expect(fixture.saved[2]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "2" }, tools: ["knowledge.search", "tasks.cancel"] } });
+});
+
+test("customer offerings do not expose task controls", async ({ page }) => {
+  await specialistWorkspace(page, { customer: true });
+  await page.goto("/app/agents/assistant-1?section=tools");
+  await expect(page.getByRole("group", { name: "Staff record tools", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Task status", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "Cancel tasks", exact: true })).toHaveCount(0);
+});
+
+test("enabling a task tool upgrades normal business program to version two", async ({ page }) => {
+  const fixture = await specialistWorkspace(page);
+  await page.goto("/app/agents/assistant-1?section=tools");
+  await expect(page.getByRole("checkbox", { name: "Task status", exact: true })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Cancel tasks", exact: true })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Task status", exact: true }).check();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "2" }, tools: ["tasks.inspect"] } });
+});
+
+for (const options of [{ productBound: true, programThree: true }, { productBound: false, programThree: true }, { productBound: true, programThree: false }]) {
+  test(`product-bound task controls stay hidden and preserve program ${JSON.stringify(options)}`, async ({ page }) => {
+    const fixture = await specialistWorkspace(page, options);
+    await page.goto("/app/agents/assistant-1?section=tools");
+    await expect(page.getByRole("group", { name: "Staff record tools", exact: true })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Task status", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: "Cancel tasks", exact: true })).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "Search customer records", exact: true }).check();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect.poll(() => fixture.saved.length).toBe(1);
+    expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: options.programThree ? "3" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], tools: ["records.search"] } });
+  });
+}

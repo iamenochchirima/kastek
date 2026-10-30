@@ -1,3 +1,4 @@
+import { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
 import type { Pool,PoolClient } from "pg";
 import {
 assertGrantAuthority,isCustomerPrincipal,requestDigest,
@@ -74,8 +75,7 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
       JOIN agents_platform.member_channel_links l ON l.id=m.link_id JOIN agents_platform.channel_connections c ON c.id=l.connection_id
       WHERE m.task_id=$1 FOR SHARE OF l,c`,[task.root_task_id])).rows[0];
     if(privateRoot) {
-      const allowed=(process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS??'').split(',').map(value=>value.trim());
-      if(!allowed.includes('*')&&!allowed.includes(task.organization_id)||privateRoot.state!=='active'||privateRoot.generation!==privateRoot.link_generation||privateRoot.connection_state!=='active'||privateRoot.revision!==privateRoot.connection_revision||privateRoot.credential_revision!==privateRoot.link_credential_revision)
+      if(!memberAssistantEnabled(task.organization_id)||privateRoot.state!=='active'||privateRoot.generation!==privateRoot.link_generation||privateRoot.connection_state!=='active'||privateRoot.revision!==privateRoot.connection_revision||privateRoot.credential_revision!==privateRoot.link_credential_revision)
         throw new PlatformError("MEMBER_CHANNEL_REVOKED",403,"Private messaging access was revoked");
     }
 

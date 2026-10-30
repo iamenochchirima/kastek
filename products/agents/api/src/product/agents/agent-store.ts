@@ -49,11 +49,12 @@ function canonical(value:unknown):string {
   return JSON.stringify(value);
 }
 function configurationAuthorityChange(before:AgentConfiguration,after:AgentConfiguration):{expanded:boolean;reduced:boolean} {
+  // Version 2 adds separately granted task tools; a compatible upgrade does not revoke accepted version 1 work.
   const atoms=(config:AgentConfiguration)=>new Set([
     ...config.tools.map(id=>`tool:${id}`),...config.sourceRevisionIds.map(id=>`source:${id}`),
     ...config.skillIds.map(id=>`skill:${id}`),...connectedToolAuthorityIds(config).map(id=>`binding:${id}`),
     ...Object.entries(config.capabilities).filter(([,value])=>value.enabled).map(([key,value])=>`capability:${key}:${canonical(value)}`),
-    ...(config.memory.enabled?["memory"]:[]),`execution:${config.executionKind}`,`program:${canonical(config.program)}`,
+    ...(config.memory.enabled?["memory"]:[]),`execution:${config.executionKind}`,`program:${config.program.id==='tool-directed'&&['1','2'].includes(config.program.version)?'tool-directed-v1-v2':canonical(config.program)}`,
   ]);
   const old=atoms(before),next=atoms(after);
   return {expanded:[...next].some(value=>!old.has(value))||canonical(before.model.selection)!==canonical(after.model.selection),

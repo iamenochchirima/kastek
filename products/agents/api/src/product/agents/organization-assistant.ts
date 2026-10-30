@@ -39,6 +39,8 @@ export async function ensureOrganizationAssistantInTransaction(
   const current = await readAssistant(db, input.organizationId);
   if (current.state !== "absent") return current;
   const configuration = defaultBusinessConfiguration();
+  configuration.program = { id: "tool-directed", version: "2" };
+  configuration.tools = ["tasks.inspect", "tasks.cancel"];
   configuration.instructions = "Help the signed-in organization member with their request. Use only configured knowledge, tools and specialists. Ask for missing details when needed. Report actions and results only when confirmed. Return private drafts to the requesting member.";
   const agentId = randomUUID();
   await db.query(`INSERT INTO agents_platform.agents(id,organization_id,name,draft,created_by)

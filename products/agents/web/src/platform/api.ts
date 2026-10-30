@@ -2,16 +2,17 @@ export type DelegationBinding = { id: string; label?: string; description?: stri
 export type DelegationConfiguration = { enabled: false } | { enabled: true; bindings: DelegationBinding[]; maxChildren: 2; maxDepth: 1 };
 export type Configuration = {
   executionKind: "business" | "workspace";
-  program?: { id: "grounded-conversation" | "tool-directed"; version: "1" };
+  program?: { id: "grounded-conversation" | "tool-directed"; version: "1" | "2" | "3" };
   instructions: string;
   model: { selection: { kind: "organization_default" } | { kind: "connection"; connectionId: string; modelId: string }; maxInputBytes: number; maxOutputTokens: number; maxDurationSeconds: number; maxCostMicros?: number | null; generation?: { temperature?: number; reasoning?: { kind: "effort"; value: string } | { kind: "budget"; tokens: number } | { kind: "level"; value: string } } };
   sourceRevisionIds?: string[];
   connectedToolBindingIds?: string[];
+  productBindings?: unknown[];
   retrievalProfile?: { kind: "lexical-v1" } | { kind: "hybrid-v1"; embeddingRelease: string };
   memory?: { enabled: boolean };
   context?: { maxInputTokens: number; compactAtTokens: number };
   supportHours?: SupportHours;
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "sandbox.analyze" | "channel.request_handoff" | "support.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.propose" | "agents.delegate" | "tasks.inspect" | "tasks.cancel" | "sandbox.analyze" | "channel.request_handoff" | "support.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
   skillIds?: string[];
   capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };

@@ -87,17 +87,17 @@ export function composeChannels(pool: Pool,inbox: InboxStore,publicUrl: string,s
       if(await fixtures?.assertFixturePolicy(connection,message,request))return;
       if(connection.metadata.evaluationFixture)throw new PlatformError("EVALUATION_CHANNEL_SCOPE_DENIED",403,"Isolated channel transport is unavailable");
       if(connection.metadata.expiresAt&&Date.parse(connection.metadata.expiresAt)<=Date.now())throw new PlatformError("CHANNEL_RECONNECT_REQUIRED",409,"Reconnect this channel");
-      if(message.member_link_id) {
-        // MemberChannels rechecks member/link/connection and the WhatsApp reply window at every physical send.
-        return;
+      const profile=connection.kind==='telegram'?undefined:profiles.find(profile=>profile.kind===connection.kind&&profile.mode===connection.mode);
+      if(connection.kind!=='telegram') {
+        if(!profile)throw new PlatformError("CHANNEL_PROVIDER_UNAVAILABLE",503,"Channel provider is unavailable");
+        if(connection.metadata.setupProfileDigest!==metaSetupProfileDigest(profile))throw new PlatformError("CHANNEL_RECONNECT_REQUIRED",409,"Reconnect this channel after its provider configuration changed");
       }
+      if(message.member_link_id)return;
       if(request.attachments?.length)await media.assertDispatch({organizationId:connection.organization_id,connectionId:connection.id,
         conversationId:message.conversation_id,ownershipGeneration:String(message.ownership_generation),actorAccountId:message.author_account_id,
         messageBody:message.body,request});
       if(connection.kind==="telegram")return;
-      const profile=profiles.find(profile=>profile.kind===connection.kind&&profile.mode===connection.mode);
       if(!profile)throw new PlatformError("CHANNEL_PROVIDER_UNAVAILABLE",503,"Channel provider is unavailable");
-      if(connection.metadata.setupProfileDigest!==metaSetupProfileDigest(profile))throw new PlatformError("CHANNEL_RECONNECT_REQUIRED",409,"Reconnect this channel after its provider configuration changed");
       if(request.template){await templates.assertDispatch({organizationId:connection.organization_id,connectionId:connection.id,
         conversationId:message.conversation_id,ownershipGeneration:String(message.ownership_generation),messageBody:message.body,request});return;}
       const latest=(await pool.query(`SELECT max(f.provider_occurred_at) occurred_at FROM agents_platform.customer_messages m

@@ -118,7 +118,7 @@ checks against an owned PostgreSQL fixture with exact pgvector0.8.7. No inferenc
 account is used by these tests:
 
 ```sh
-pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/organization-assistant.test.ts test/member-channels.test.ts
+pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/organization-assistant.test.ts test/member-channels.test.ts test/member-channel-composition.test.ts test/task-control.test.ts
 ```
 
 For actual coordinator → Content specialist execution, set `AGENTS_TEST_RESTATE_BINARY` to an

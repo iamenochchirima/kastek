@@ -1,4 +1,5 @@
 import { supportStatusV2 } from "./support-status-v2";
+import { executeTaskControlTool } from "./task-control";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError,type AgentConfiguration } from "../contracts/contracts";
@@ -23,6 +24,7 @@ export async function executeTool(pool: Pool, taskId: string, operationId: strin
   let input: unknown;
   try { input = JSON.parse(rawArguments); } catch { throw new PlatformError("TOOL_ARGUMENTS_INVALID", 400, "Tool arguments must be JSON"); }
   try {
+    if(name==="tasks.inspect"||name==="tasks.cancel")return executeTaskControlTool(pool,taskId,operationId,name,input);
     if(name==="enquiry.submit"||name==="enquiry.amend")return new EnquiryStore(pool).submit(taskId,operationId,input,name);
     if(name==="enquiry.read")return new EnquiryStore(pool).readOwn(taskId,input);
     if(name==="records.search"||name==="records.update")return executeRecordTool(pool,taskId,operationId,name,input);

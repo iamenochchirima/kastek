@@ -12,6 +12,8 @@ export interface ToolDescriptor {
 }
 export const BOOKING_WORKFLOW_BINDING=Object.freeze({profileId:"calendar-booking-v1",version:"1",adapter:"calendar-provider-v1",stages:["prepare_exact_intent","customer_confirmation","reserve_slot","validate_provider_availability","claim_once","provider_commit","reconcile","confirm_receipt"]});
 const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"requiredAuthority"|"requiredResources"|"reconciliation">[] = [
+  {name:"tasks.inspect",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:4096,retry:"safe_read",cancel:"stop_admission"},
+  {name:"tasks.cancel",version:"1",effect:"channel_control",maxDurationMs:30000,maxResultBytes:1024,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"enquiry.read",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:100000,retry:"safe_read",cancel:"stop_admission"},
   {name:"enquiry.amend",version:"1",effect:"external_effect",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"records.search",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:100000,retry:"safe_read",cancel:"stop_admission"},

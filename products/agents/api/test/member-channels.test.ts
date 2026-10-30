@@ -414,4 +414,72 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(await route(f.connection.id, event(f.connection.assetId))).toEqual({ consumed: false, linkId: fresh.id });
     expect((await pool.query("SELECT state FROM agents_platform.member_channel_links WHERE id=$1", [f.challenge.id])).rows[0].state).toBe("revoked");
   });
+
+  it("records late WhatsApp delivery facts after unlink without restoring private execution access", async () => {
+    const f = await reviewFixture("whatsapp");
+    await f.delivery.drain(4);
+    expect((await pool.query("SELECT state FROM agents_platform.channel_outbound WHERE member_link_id=$1", [f.challenge.id])).rows[0].state).toBe("accepted");
+    const before = (await pool.query("SELECT count(*)::int count FROM agents_platform.execution_grants WHERE organization_id=$1", [f.scope.organizationId])).rows[0].count;
+    await members.revoke(f.scope, f.challenge.id);
+    const previous = process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
+    process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS = "";
+    try {
+      for (const [status, expected] of [["delivered", "delivered"], ["read", "read"], ["failed", "read"]]) {
+        const receipt = event(f.connection.assetId, "", { kind: "receipt", status, providerMessageId: "wamid.review" });
+        expect(await f.delivery.persist("whatsapp", [receipt])).toBe(1);
+        await f.delivery.drain(4);
+        expect((await pool.query("SELECT state,attempts FROM agents_platform.channel_outbound WHERE member_link_id=$1", [f.challenge.id])).rows[0]).toEqual({ state: expected, attempts: 1 });
+      }
+      expect(await f.delivery.persist("whatsapp", [event(f.connection.assetId, "Private access must remain revoked")])).toBe(0);
+    } finally {
+      if (previous === undefined) delete process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
+      else process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS = previous;
+    }
+    expect((await pool.query("SELECT status FROM agents_platform.channel_receipts WHERE connection_id=$1 ORDER BY created_at", [f.connection.id])).rows.map(row => row.status)).toEqual(["delivered", "read", "failed"]);
+    expect((await pool.query("SELECT state FROM agents_platform.member_channel_links WHERE id=$1", [f.challenge.id])).rows[0].state).toBe("revoked");
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.execution_grants WHERE organization_id=$1", [f.scope.organizationId])).rows[0].count).toBe(before);
+    expect((await pool.query("SELECT g.revoked_at FROM agents_platform.tasks t JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1", [f.task.id])).rows[0].revoked_at).toBeInstanceOf(Date);
+    expect((await pool.query("SELECT id FROM agents_platform.customer_conversations WHERE organization_id=$1", [f.scope.organizationId])).rowCount).toBe(0);
+    expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE organization_id=$1", [f.scope.organizationId])).rowCount).toBe(1);
+  });
+
+  it("replays a private receipt that arrived before the send response attached its provider ID", async () => {
+    const f = await fixture("whatsapp"), challenge = await pending(f);
+    await members.confirm(f.scope, challenge.id);
+    await pool.query("UPDATE agents_platform.member_channel_links SET latest_inbound_at=now() WHERE id=$1", [challenge.id]);
+    await queue(f, challenge.id, 1);
+    let calls = 0;
+    const delivery = worker(async () => {
+      calls++;
+      const receipt = event(f.connection.assetId, "", { kind: "receipt", status: "delivered", providerMessageId: "wamid.early" });
+      expect(await delivery.persist("whatsapp", [receipt])).toBe(1);
+      await delivery.drain(4);
+      expect((await pool.query("SELECT state,provider_message_id FROM agents_platform.channel_outbound WHERE member_link_id=$1", [challenge.id])).rows[0]).toEqual({ state: "sending", provider_message_id: null });
+      return Response.json({ messages: [{ id: "wamid.early" }] });
+    });
+    await delivery.drain(4);
+    expect(calls).toBe(1);
+    expect((await pool.query("SELECT state,provider_message_id FROM agents_platform.channel_outbound WHERE member_link_id=$1", [challenge.id])).rows[0]).toEqual({ state: "delivered", provider_message_id: "wamid.early" });
+  });
+
+  it("keeps receipt identities attached to the original delivery across unlink and fresh pairing", async () => {
+    const f = await reviewFixture("whatsapp");
+    await f.delivery.drain(4);
+    const delivered = event(f.connection.assetId, "", { kind: "receipt", status: "delivered", providerMessageId: "wamid.review" });
+    expect(await f.delivery.persist("whatsapp", [delivered])).toBe(1);
+    await f.delivery.drain(4);
+    await members.revoke(f.scope, f.challenge.id);
+    const fresh = await pending(f);
+    await members.confirm(f.scope, fresh.id);
+    const read = event(f.connection.assetId, "", { kind: "receipt", status: "read", providerMessageId: "wamid.review" });
+    expect(await f.delivery.persist("whatsapp", [delivered, read])).toBe(1);
+    await f.delivery.drain(4);
+    expect((await pool.query("SELECT member_link_id,event_id FROM agents_platform.channel_ingress WHERE connection_id=$1 AND event_id=ANY($2::text[]) ORDER BY event_id", [f.connection.id, [delivered.eventId, read.eventId]])).rows)
+      .toEqual([delivered.eventId, read.eventId].sort().map(eventId => ({ member_link_id: f.challenge.id, event_id: eventId })));
+    expect((await pool.query("SELECT state,attempts FROM agents_platform.channel_outbound WHERE member_link_id=$1", [f.challenge.id])).rows[0]).toEqual({ state: "read", attempts: 1 });
+    expect((await pool.query("SELECT id FROM agents_platform.channel_outbound WHERE member_link_id=$1", [fresh.id])).rowCount).toBe(0);
+    expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE organization_id=$1", [f.scope.organizationId])).rowCount).toBe(1);
+    expect((await pool.query("SELECT id FROM agents_platform.customer_conversations WHERE organization_id=$1", [f.scope.organizationId])).rowCount).toBe(0);
+    expect(await route(f.connection.id, event(f.connection.assetId))).toEqual({ consumed: false, linkId: fresh.id });
+  });
 });
