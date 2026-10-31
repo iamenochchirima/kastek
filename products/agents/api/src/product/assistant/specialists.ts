@@ -4,7 +4,7 @@ import type { Pool } from "pg";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 import { resolveAcceptedModelRoutes } from "../../execution/models/resolution";
-import { executionModelLayers, delegatedModelRoutes } from "../../execution/models/settings";
+import { executionModelLayers, delegatedModelRoutes, modelServicePolicy } from "../../execution/models/settings";
 import { PlatformStore } from "../agents/store";
 
 export async function specialistCatalogue(pool:Pool,scope:{accountId:string;organizationId:string},agentId:string) {
@@ -24,9 +24,9 @@ export async function specialistCatalogue(pool:Pool,scope:{accountId:string;orga
       try {
         const routes=await resolveAcceptedModelRoutes(db,{organizationId:scope.organizationId,agentId:parent.id,product:"agents",selection:parent.draft.model.selection,
           generation:parent.draft.model.generation,layers:executionModelLayers(parent.draft,{id:"specialist-readiness",maxInputBytes:parent.draft.model.maxInputBytes,
-            maxOutputTokens:parent.draft.model.maxOutputTokens,maxContextTokens:parent.draft.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:true});
+            maxOutputTokens:parent.draft.model.maxOutputTokens,maxContextTokens:parent.draft.context.maxInputTokens,rootTokenLimit:modelServicePolicy().maxRootTokens}),requiresTools:true});
         const binding=parent.draft.capabilities.delegation.enabled?parent.draft.capabilities.delegation.bindings.find(binding=>binding.versionId===row.version_id):undefined;
-        delegatedModelRoutes(routes,config,binding?.maxTokens??8000,binding?.maxActiveMs??120000);
+        delegatedModelRoutes(routes,config,binding?binding.maxTokens:null,binding?binding.maxActiveMs:null);
       } catch(error) {if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
       const sourceRevisionIds=config.sourceRevisionIds.filter(id=>parent.draft.sourceRevisionIds.includes(id));
       if(sourceRevisionIds.length) {

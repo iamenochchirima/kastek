@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { type ModelDescriptor } from "../src/contracts/model-providers";
+import { effectiveExecutionPolicySchema, type ModelDescriptor } from "../src/contracts/model-providers";
 import {
   compileEffectiveExecutionPolicy, type ExecutionPolicyLayer,
 } from "../src/execution/models/policy";
+
+import { modelServicePolicy } from "../src/execution/models/settings";
+
+it("accepts explicit call allowances beyond 32-bit counters without weakening transport bounds",()=>{
+  const limits={maxModelCalls:3000000000,maxToolCalls:3000000000,maxRootModelCalls:4000000000,maxRootToolCalls:4000000000,maxDurationMs:4000000000};
+  expect(modelServicePolicy({AGENTS_MODEL_POLICY_JSON:JSON.stringify(limits)})).toMatchObject(limits);
+  expect(()=>modelServicePolicy({AGENTS_MODEL_POLICY_JSON:JSON.stringify({maxModelCalls:Number.MAX_SAFE_INTEGER+1})})).toThrow();
+  expect(()=>modelServicePolicy({AGENTS_MODEL_POLICY_JSON:JSON.stringify({maxRequestBytes:3000000000})})).toThrow();
+});
 
 const official = { kind: "official" as const, reference: "https://models.example.com/model", observedAt: "2026-10-21T00:00:00.000Z" };
 const operator = { kind: "operator" as const, reference: "operator-qualification/model-v1", observedAt: "2026-10-21T00:00:00.000Z" };
@@ -26,6 +35,55 @@ const platform = (): ExecutionPolicyLayer => ({
 });
 
 describe("shared effective model execution policy compiler", () => {
+  it("defaults optional execution allowances to no cap while keeping transport and capacity finite", () => {
+    expect(modelServicePolicy({})).toMatchObject({ maxModelCalls: null, maxToolCalls: null, maxRootModelCalls: null,
+      maxRootToolCalls: null, maxRootTokens: null, maxDurationMs: null, maxWallDurationMs: null, maxCostMicros: null,
+      maxCallDurationMs: 120000, maxInputTokens: 196608, maxOutputTokens: 32768 });
+    const model = descriptor(); model.contextTokens.value = 262144;
+    const result = compileEffectiveExecutionPolicy(model, [{ kind: "platform", reference: "service", limits: modelServicePolicy({}) }]);
+    expect(result.policy.revision).toBe("model-execution-policy-v2");
+    expect(result.policy.maxRootTokens).toBeNull();
+    expect(result.policy.maxDurationMs).toBeNull();
+  });
+
+  it("keeps local and shared call limits independent and prevents null from erasing finite authority", () => {
+    const authority = platform();
+    authority.limits.maxModelCalls = null;
+    authority.limits.maxToolCalls = null;
+    authority.limits.maxRootModelCalls = 100;
+    authority.limits.maxRootToolCalls = 200;
+    const layers: ExecutionPolicyLayer[] = [authority,
+      { kind: "product", reference: "product", limits: { maxModelCalls: 12, maxRootModelCalls: null, maxRootToolCalls: 0 } },
+      { kind: "agent", reference: "agent", limits: { maxModelCalls: null, maxToolCalls: 0, maxRootToolCalls: null } },
+      { kind: "tenant", reference: "omitted", limits: {} },
+    ];
+    const result = compileEffectiveExecutionPolicy(descriptor(), layers);
+    expect(result.policy).toMatchObject({ maxModelCalls: 12, maxToolCalls: 0, maxRootModelCalls: 100, maxRootToolCalls: 0 });
+    expect(result.decisions.find(item => item.field === "maxRootModelCalls")?.sources.some(item => item.reference === "omitted")).toBe(false);
+    expect(compileEffectiveExecutionPolicy(descriptor(), layers.toReversed()).policy.digest).toBe(result.policy.digest);
+  });
+
+  it("allows omitted optional policy layers and retains finite product token and time entitlements", () => {
+    const authority = platform();
+    for (const field of ["maxModelCalls", "maxToolCalls", "maxRootTokens", "maxDurationMs", "maxWallDurationMs", "maxCostMicros"] as const) delete authority.limits[field];
+    const result = compileEffectiveExecutionPolicy(descriptor(), [authority,
+      { kind: "product", reference: "entitlement", limits: { maxRootTokens: 200000, maxDurationMs: 240000, maxWallDurationMs: 3600000 } },
+      { kind: "agent", reference: "unrestricted", limits: { maxRootTokens: null, maxDurationMs: null, maxWallDurationMs: null } },
+    ]);
+    expect(result.policy).toMatchObject({ maxModelCalls: null, maxToolCalls: null, maxRootModelCalls: null, maxRootToolCalls: null,
+      maxRootTokens: 200000, maxDurationMs: 240000, maxWallDurationMs: 3600000, maxCostMicros: null });
+    expect(() => effectiveExecutionPolicySchema.parse({ ...result.policy, maxCallDurationMs: 240001 })).toThrow("active-time allowance");
+  });
+
+  it.each(["maxModelCalls", "maxRootModelCalls", "maxRootTokens", "maxDurationMs", "maxWallDurationMs"] as const)("rejects zero, infinity and sentinel values for %s", field => {
+    for (const value of [0, -1, Infinity, "unlimited"]) {
+      const authority = platform();
+      Object.assign(authority.limits, { [field]: value });
+      expect(() => compileEffectiveExecutionPolicy(descriptor(), [authority])).toThrow();
+    }
+  });
+
+
   it("intersects authority layers and vendor capacities with a reproducible decision trail", () => {
     const model = descriptor();
     model.maxInputTokens = { value: 95000, source: official };
@@ -97,8 +155,8 @@ describe("shared effective model execution policy compiler", () => {
     expect(() => compileEffectiveExecutionPolicy(descriptor(), [])).toThrow("exactly one");
     expect(() => compileEffectiveExecutionPolicy(descriptor(), [platform(), platform()])).toThrow("exactly one");
     const authority = platform();
-    delete authority.limits.maxDurationMs;
-    expect(() => compileEffectiveExecutionPolicy(descriptor(), [authority])).toThrow("maxDurationMs");
+    delete authority.limits.maxCallDurationMs;
+    expect(() => compileEffectiveExecutionPolicy(descriptor(), [authority])).toThrow("maxCallDurationMs");
   });
 
   it("rejects unattested provenance and uses attested limits only to narrow a known vendor limit", () => {

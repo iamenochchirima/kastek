@@ -17,13 +17,17 @@ describe("aggregate orchestration lifecycle producer",()=>{
     expect(envelope.data).toEqual({action:"revision",outcome:"pending",revision:2,specialist_tasks:3,occurred_at:f.input.occurredAt});
     expect(JSON.stringify(envelope)).not.toContain(f.input.key);expect(event[5]).toMatch(/^orchestration:[a-f0-9]{64}$/);
   });
+  it("records more than the former 64 specialists without imposing a work limit",async()=>{
+    const f=fixture();await recordOrchestrationLifecycle(f.db,{...f.input,specialistTasks:70});
+    expect(JSON.parse(f.writes[1]![11] as string).data.specialist_tasks).toBe(70);
+  });
   it("uses stable record identity and payload for exact persisted-event retries",async()=>{
     const f=fixture();await recordOrchestrationLifecycle(f.db,f.input);await recordOrchestrationLifecycle(f.db,f.input);
     expect(f.writes[1]![5]).toBe(f.writes[3]![5]);expect(f.writes[1]![12]).toBe(f.writes[3]![12]);
     await recordOrchestrationLifecycle(f.db,{...f.input,revision:3});expect(f.writes[5]![5]).not.toBe(f.writes[1]![5]);
   });
   it("rejects private fields, arbitrary outcomes and out-of-policy counts before any write",async()=>{
-    const f=fixture();for(const input of [{...f.input,objective:"Private plan"},{...f.input,outcome:"optimistic"},{...f.input,specialistTasks:65},{...f.input,occurredAt:"not a date"}]){
+    const f=fixture();for(const input of [{...f.input,objective:"Private plan"},{...f.input,outcome:"optimistic"},{...f.input,specialistTasks:Number.MAX_SAFE_INTEGER+1},{...f.input,occurredAt:"not a date"}]){
       await expect(recordOrchestrationLifecycle(f.db,input as OrchestrationLifecycleInput)).rejects.toThrow();
     }expect(f.writes).toEqual([]);
   });

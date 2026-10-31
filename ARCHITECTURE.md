@@ -123,8 +123,11 @@ The standalone organization assistant uses ordinary human-principal tasks and pi
 specialists, with verified private member links over Telegram/WhatsApp behind organization allowlists.
 Explicit `tool-directed` v4 coordinators discover permitted specialists, start parallel work,
 read paginated results and follow up in isolated child conversations under bounded root policy.
-Schema096 and `product-capabilities-v13` / `AgentsBusinessRunV23` retain durable progress and queued
-user instructions; earlier task workflows remain pinned. See the
+Schemas096–098 retain durable progress, queued user instructions, immutable work continuation
+segments and nullable execution allowances. New admissions use policy v2 and
+`product-capabilities-v14` / `AgentsBusinessRunV24`; v13/V23 and earlier task workflows remain
+pinned. Local and shared call, tool and lifetime specialist limits have no default cap. Explicit
+grants, quotas, concurrency and provider capacity remain enforced. See the
 [adaptive orchestration reference](products/agents/docs/operations/adaptive-orchestration.md).
 Its lifecycle and purpose-routing records do not grant cross-product authority. Knowledge source
 bodies and temporary extraction receipts now live in PostgreSQL; unrelated connected evidence and

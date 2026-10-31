@@ -86,12 +86,14 @@ async function dispatchControls(pool:Pool,options:DispatcherOptions,{request,rou
     WHERE c.dispatched_at IS NULL AND (c.lease_until IS NULL OR c.lease_until<now()) AND t.harness_release=ANY($2::text[]) AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')
     ORDER BY c.task_id,c.generation FOR UPDATE OF c SKIP LOCKED LIMIT 32)
     UPDATE agents_platform.task_controls c SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
-    WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind,(SELECT harness_release FROM agents_platform.tasks WHERE id=c.task_id) AS harness_release`,[controlOwner,releases])).rows;
+    WHERE c.task_id=due.task_id AND c.generation=due.generation RETURNING c.task_id,c.generation,c.kind,(SELECT harness_release FROM agents_platform.tasks WHERE id=c.task_id) AS harness_release,
+      (SELECT grant_id FROM agents_platform.tasks WHERE id=c.task_id) AS grant_id,
+      (SELECT parent_task_id IS NOT NULL AND execution_policy_version>=2 FROM agents_platform.tasks WHERE id=c.task_id) AS derived_renewal`,[controlOwner,releases])).rows;
   await drainBatch(controls,8,async control=>{
     const route=routes[control.harness_release]!;
     try {
       const response = await request(`${route.ingressUrl.replace(/\/$/, "")}/${route.workflowName}/${control.task_id}/${control.kind==="review"?"review":"resume"}`, {
-        method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}`},
+        method: "POST", headers: {"content-type":"application/json", "idempotency-key":`continue:${control.task_id}:${control.generation}${control.kind==="authority"&&control.derived_renewal?":"+control.grant_id:""}`},
         body:JSON.stringify({generation:Number(control.generation)}), signal:AbortSignal.timeout(5000) });
       if(response.ok) await pool.query("UPDATE agents_platform.task_controls SET dispatched_at=now(),lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2 AND lease_owner=$3",[control.task_id,control.generation,controlOwner]);
     } catch { options.onError?.("RUNTIME_CONTINUATION_FAILED"); }

@@ -99,7 +99,12 @@ export async function reserveModelCost(db: PoolClient, scope: ModelOperationScop
   }
   if (account.maxCostMicros !== null && upper === null) throw new Error("A finite cost cap requires a known upper quote");
   const reserved = upper ?? 0n;
-  if (account.maxCostMicros !== null && account.usedMicros + account.reservedMicros + reserved > account.maxCostMicros) throw new Error("Root model cost limit exceeded");
+  if (account.maxCostMicros !== null) {
+    const work=(await db.query(`SELECT coalesce(sum(a.used_micros+a.reserved_micros),0)::text AS total
+      FROM agents_platform.root_model_accounts a JOIN agents_platform.tasks t ON t.id=a.root_task_id
+      WHERE t.work_id=(SELECT work_id FROM agents_platform.tasks WHERE id=$1)`,[scope.rootTaskId])).rows[0];
+    if(BigInt(work.total)+reserved>account.maxCostMicros) throw new Error("Work model cost limit exceeded");
+  }
   money(account.reservedMicros + reserved);
   await db.query(`INSERT INTO agents_platform.model_cost_reservations(operation_id,organization_id,root_task_id,task_id,reserved_micros,upper_cost_micros)
     VALUES($1,$2,$3,$4,$5,$6)`, [scope.operationId, scope.organizationId, scope.rootTaskId, scope.taskId, reserved.toString(), upper?.toString() ?? null]);

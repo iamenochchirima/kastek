@@ -16,7 +16,7 @@ function merge<T extends { id: string }>(previous: T[], next: T[]) {
 type PendingTurn = { conversationId: string; requestId: string; text: string; taskId?: string };
 type AssistantState = {
   scopeKey: string; businessName: string; bootstrap: GrowthAgentBootstrap | null;
-  panelOpen: boolean; loading: boolean; sending: boolean; error: string | null; reconnecting: boolean;
+  panelOpen: boolean; loading: boolean; sending: boolean; continuingTaskId: string | null; error: string | null; reconnecting: boolean;
   conversation: GrowthAgentConversation | null; messages: GrowthAgentMessage[]; tasks: GrowthAgentTask[];
   reviews: GrowthAgentReview[]; events: GrowthAgentEvent[]; hasOlder: boolean; draft: string; unconfirmed: boolean;
   setDraft: (value: string) => void; closePanel: () => void; setPanelOpen: (open: boolean) => void;
@@ -38,6 +38,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   const [blocked, setBlocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [continuingTaskId, setContinuingTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [conversation, setConversation] = useState<GrowthAgentConversation | null>(null);
@@ -55,6 +56,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   const bootstrapRequest = useRef<Promise<GrowthAgentBootstrap> | null>(null);
   const conversationRef = useRef<GrowthAgentConversation | null>(null);
   const pendingTurn = useRef<PendingTurn | null>(null);
+  const pendingContinuation = useRef<{ taskId: string; requestId: string } | null>(null);
   const sendingRef = useRef(false);
   const eventCursors = useRef(new Map<string, string>());
   const focusedTask = useRef<string | undefined>(undefined);
@@ -271,15 +273,36 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
 
   const continueTask = useCallback(async (taskId: string) => {
     if (sendingRef.current) return;
-    sendingRef.current = true; setSending(true); setError(null);
+    const selected = conversationRef.current;
+    if (!selected) return;
+    const storageKey = `${storagePrefix}:continue:${selected.id}:${taskId}`;
+    if (pendingContinuation.current?.taskId !== taskId) {
+      pendingContinuation.current = { taskId, requestId: read(storageKey) || crypto.randomUUID() };
+    }
+    const continuation = pendingContinuation.current;
+    save(storageKey, continuation.requestId);
+    sendingRef.current = true; setSending(true); setContinuingTaskId(taskId); setError(null);
     const current = selection.current;
     try {
-      const result = await run((signal) => growthAgents.continue(taskId, crypto.randomUUID(), signal));
+      const result = await run((signal) => growthAgents.continue(taskId, continuation.requestId, signal));
       if (current !== selection.current) return;
-      setTasks(previous => merge(previous, [result.task])); setRevision(value => value + 1);
-    } catch (cause) { if (!aborted(cause) && current === selection.current) setError(failure(cause)); }
-    finally { sendingRef.current = false; if (current === selection.current) setSending(false); }
-  }, [run]);
+      if (result.task.conversationId !== selected.id) throw new Error("The continued task belongs to another conversation.");
+      focusedTask.current = result.task.id;
+      pendingContinuation.current = null; save(storageKey, null);
+      setTasks(previous => merge(previous.map(task => task.id === taskId ? { ...task, canContinue: false } : task), [result.task]));
+      setRevision(value => value + 1);
+    } catch (cause) {
+      if (!aborted(cause) && current === selection.current) {
+        if (cause instanceof GrowthAgentRequestError && [400, 401, 403, 404, 409, 422].includes(cause.status)) {
+          pendingContinuation.current = null; save(storageKey, null);
+        }
+        setError(failure(cause));
+      }
+    } finally {
+      sendingRef.current = false;
+      setSending(false); setContinuingTaskId(null);
+    }
+  }, [run, storagePrefix]);
 
   const activeId = conversation?.id;
   const observed = panelOpen || pathname.startsWith("/agents/conversations/");
@@ -339,11 +362,11 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (pendingTurn.current) { setUnconfirmed(true); setError("Delivery wasn't confirmed. Retry this message to check the original request."); }
   }, []);
   const changePanel = useCallback((open: boolean) => { if (open) setPanelOpen(true); else closePanel(); }, [closePanel]);
-  const value = useMemo<AssistantState>(() => ({ scopeKey, businessName, bootstrap, panelOpen, loading, sending, error, reconnecting,
+  const value = useMemo<AssistantState>(() => ({ scopeKey, businessName, bootstrap, panelOpen, loading, sending, continuingTaskId, error, reconnecting,
     conversation, messages, tasks, reviews, events, hasOlder: Boolean(cursor), draft, unconfirmed, setDraft,
     closePanel, setPanelOpen: changePanel, ensureBootstrap, openGeneral, start, openConversation,
     attachContext, send, refresh, older, cancel, continueTask, setError,
-  }), [scopeKey, businessName, bootstrap, panelOpen, loading, sending, error, reconnecting, conversation, messages, tasks, reviews, events, cursor, draft, unconfirmed, setDraft, ensureBootstrap, openGeneral, start, openConversation, attachContext, send, refresh, older, cancel, continueTask, closePanel, changePanel]);
+  }), [scopeKey, businessName, bootstrap, panelOpen, loading, sending, continuingTaskId, error, reconnecting, conversation, messages, tasks, reviews, events, cursor, draft, unconfirmed, setDraft, ensureBootstrap, openGeneral, start, openConversation, attachContext, send, refresh, older, cancel, continueTask, closePanel, changePanel]);
   return <AgentContext.Provider value={value}>{blocked ? <div className="flex min-h-[100dvh] items-center justify-center text-sm text-muted-foreground" role="status">Switching business…</div> : children}</AgentContext.Provider>;
 }
 

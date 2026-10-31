@@ -645,8 +645,9 @@ A paid campaign feature does not let every employee publish. Products own commer
 The shared backend owns execution metering and runtime limits.
 
 The standalone platform owns root allocations and an operation-keyed usage ledger in its dedicated
-PostgreSQL database. Admission reserves up to 32,000 accounted tokens per root against a
-100,000-token organization allowance attributed to the root's admission UTC day. Settlement,
+PostgreSQL database. A finite root grant reserves its accepted allowance at admission; a null
+cumulative grant reserves each bounded physical operation instead. Both use the organization
+allowance, whose scheduling default is 100,000 tokens, attributed to the root's admission UTC day. Settlement,
 including after midnight, uses that same accounting day. Every model call, tool round and
 compaction has a stable operation identity. Unknown model outcomes conservatively retain their
 reservation and are not regenerated blindly.
@@ -970,9 +971,11 @@ cluster key distribution, backups, capacity or monitoring. See the
 ### Business subagents and temporary analysis
 
 Explicit `tool-directed` program version 4 adds a model-directed supervisor loop under
-`product-capabilities-v13` / `AgentsBusinessRunV23`. Its permitted roster supports 32 pinned
-specialists, 1–8 concurrent children (default 2), 1–64 total child tasks (default 16), and a
-repeated-operation threshold of 1–8 (default 3). Depth remains one. Separate discovery, start,
+`product-capabilities-v14` / `AgentsBusinessRunV24`. Its permitted roster supports 32 pinned
+specialists, 1–8 concurrent children (default 2), an optional total child-task allowance (default
+null), and a repeated-unchanged-observation threshold of 1–8 (default 3). The runtime gives the
+model a replanning opportunity before pausing unchanged work. Existing v13/V23 journals retain
+their original executable identity. Depth remains one. Separate discovery, start,
 status, wait, paginated result, follow-up and cancel tools allow the model to evaluate findings
 and revise its approach. A configured roster does not impose a topic router or fixed sequence.
 
@@ -981,7 +984,16 @@ prior-task ancestry authorizes its history; parent/channel transcripts are not c
 branches. Only selected child results join the coordinator's evidence. Work progress is persisted
 agent-authored data, distinct from native outcomes, and returns after compaction as untrusted
 reference content. Queued user instructions enter later contexts without rewriting accepted work.
-Schema096 stores these records. Earlier programs retain the batch behavior described below;
+Schemas096–098 store progress, logical work lineage, nullable allowances and exact counters.
+Execution policy v2 separates nullable local model/tool counts from nullable aggregate team counts.
+Finite policy layers, root grants, quotas, call deadlines and authority still constrain operations.
+`maxWallDurationMs` defaults to null for new work, separate from finite authority expiry and physical
+operation/queue/review deadlines. A finite accepted work deadline cannot reset through continuation.
+Nullable specialist token/time scopes reserve bounded physical operations instead of an upfront
+cumulative allocation; explicitly finite specialist scopes remain finite. Immutable continued root
+segments retain a shared work identity, cumulative accounting and prior authority/provenance checks.
+Current-input corrections survive context compaction; unchanged compaction input pauses rather
+than consuming an endless sequence of summary calls. Earlier programs retain the batch behavior described below;
 accepted journals never move between workflow identities. The
 [operation reference](../operations/adaptive-orchestration.md) defines tool boundaries, enablement,
 recovery, Analytics and owner acceptance limits.

@@ -22,7 +22,8 @@ import { channelPorts } from "../../infrastructure/channel-ports";
 import { automationModelRoutes } from "../models/automation-routes";
 import { resolveAcceptedModelRoutes } from "../models/resolution";
 import { executionModelLayers } from "../models/settings";
-import { saveTaskModelRoutes } from "../models/persistence";
+import { continuationModelRoutes } from "../lifecycle/work-continuation";
+import { loadTaskModelRoutes, saveTaskModelRoutes } from "../models/persistence";
 import { initializeRootModelAccount } from "../models/accounting";
 import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
@@ -92,6 +93,7 @@ export class AdmissionStore extends AuthorityStore {
     if (Buffer.byteLength(input.input) > config.model.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the input limit");
     const digest = requestDigest({ authority: input.authority, versionId: input.versionId, input: input.input, conversationId: input.conversationId ?? null,
       evaluationTrialId: input.evaluationTrialId ?? null, channelBinding: input.channelBinding ?? null,
+      ...(input.continuationOf?{continuationOf:input.continuationOf}:{}),
       ...(episodeCommandId?{purpose:"support_status_v1",episodeCommandId}:{}) });
     const existing = (await db.query<TaskRecord>(`SELECT * FROM agents_platform.tasks WHERE product=$1 AND organization_id=$2
       AND caller_client_id=$3 AND resource_id=$4 AND request_key=$5`, [input.authority.product, input.authority.organizationId, input.authority.callerClientId, input.authority.resourceId, requestKey])).rows[0];
@@ -101,14 +103,15 @@ export class AdmissionStore extends AuthorityStore {
     }
     await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
-    const models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
+    let models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,
       agentId: version.agent_id, product: input.authority.product, selection: config.model.selection, generation: config.model.generation,
       layers: [...executionModelLayers(config, grant),...(episodeCommandId?[{kind:"product" as const,reference:"support-status-v1",limits:{maxModelCalls:1,maxToolCalls:0,maxDurationMs:10000,maxCallDurationMs:10000,maxInputTokens:8192,maxOutputTokens:512,maxRootTokens:8704,compactAtTokens:1}}]:[])], requiresTools: !episodeCommandId && (config.tools.length > 0 || config.connectedToolBindingIds.length > 0 || config.productBindings.length > 0 || config.skillIds.length > 0) });
+    if(input.continuationOf) models=continuationModelRoutes(models,await loadTaskModelRoutes(db,input.continuationOf,input.authority.organizationId));
     if (Buffer.byteLength(input.input) > models.primary.policy.maxInputBytes) throw new PlatformError("INPUT_LIMIT", 413, "The message exceeds the effective input allowance");
     const active=(await db.query<{active_roots:number}>("SELECT active_roots FROM agents_platform.tenant_admission WHERE organization_id=$1 FOR UPDATE",[input.authority.organizationId])).rows[0];
     if(!active)throw new PlatformError("ADMISSION_STATE_UNAVAILABLE",503,"Admission capacity is unavailable");
     if(active.active_roots>=policy.maxConcurrentRoots)throw new PlatformError("CONCURRENCY_LIMIT",429,"Too many tasks are running");
-    const reservation = models.primary.policy.maxRootTokens;
+    const reservation = models.primary.policy.maxRootTokens ?? 0;
     if(input.channelBinding && !episodeCommandId) await channelPorts(db).assertBinding(db,channelBindingSchema.parse(input.channelBinding),
       {organization_id:input.authority.organizationId,version_id:version.id,root_task_id:"admitting"});
     if (input.evaluationTrialId && !(await db.query(`UPDATE agents_platform.evaluation_trials SET allocated_tokens=allocated_tokens+$2
@@ -136,9 +139,15 @@ export class AdmissionStore extends AuthorityStore {
     if (priorVersion && priorVersion.version_id !== input.versionId && input.configurationMode !== "current") throw new PlatformError("CONVERSATION_VERSION_CONFLICT",409,"Start a new conversation for this version");
     const sequence = (await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence", [conversationId])).rows[0].sequence;
     const task = (await db.query<TaskRecord>(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,
-      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release${episodeCommandId?",execution_purpose":""}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18${episodeCommandId?",$19":""}) RETURNING *`,
+      principal,version_id,grant_id,conversation_id,request_key,request_digest,input,turn_sequence,root_token_limit,effective_composition,evaluation_trial_id,channel_binding,harness_release,prior_task_id${episodeCommandId?",execution_purpose":""}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19${episodeCommandId?",$20":""}) RETURNING *`,
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
-      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,...(episodeCommandId?["support_status_v1"]:[])])).rows[0]!;
+      input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, models.primary.policy.maxRootTokens, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,input.continuationOf??null,...(episodeCommandId?["support_status_v1"]:[])])).rows[0]!;
+    const policyVersion=models.primary.policy.revision==="model-execution-policy-v1"?1:2;
+    const admitted=(await db.query(`UPDATE agents_platform.tasks SET execution_policy_version=$2,
+      deadline_at=CASE WHEN $2=1 THEN deadline_at WHEN $3::double precision IS NULL THEN NULL
+        ELSE created_at+($3::double precision * interval '1 millisecond') END
+      WHERE id=$1 RETURNING deadline_at,execution_policy_version`,[task.id,policyVersion,models.primary.policy.maxWallDurationMs])).rows[0];
+    Object.assign(task,admitted);
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
     if(config.program.id==="tool-directed"&&config.program.version==="4") await recordOrchestrationLifecycle(db,{organizationId:task.organization_id,key:task.id,action:"started",outcome:"pending",occurredAt:new Date(task.created_at).toISOString()});
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);

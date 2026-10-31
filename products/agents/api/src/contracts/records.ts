@@ -14,13 +14,15 @@ export interface WebsiteDeployment { id: string; organization_id: string; agent_
   appearance: Record<string,unknown>; paused:boolean;
   allowed_origins: string[]; published_by: string; published_at: Date; revoked_at: Date | null }
 export interface TaskRecord { id: string; product: AdmissionAuthority["product"]; organization_id: string; resource_id: string;
+  work_id?: string; prior_task_id?: string | null; execution_policy_version?: number;
   execution_purpose?: "business_v1" | "support_status_v1";
   caller_client_id: string; principal: AdmissionAuthority["principal"]; version_id: string; grant_id: string;
   conversation_id: string; request_key: string; request_digest: string; input: string; state: TaskState;
   runtime_invocation_id: string | null; output: string | null; error_code: string | null; created_at: Date; updated_at: Date;
-  root_task_id: string; parent_task_id: string | null; depth: number; root_token_limit: number; disposition: string;
-  delegation_operation_id: string | null; allocation_active_ms: number; allocation_released: boolean; effective_configuration: AgentConfiguration | null;
+  root_task_id: string; parent_task_id: string | null; depth: number; root_token_limit: number | null; disposition: string;
+  delegation_operation_id: string | null; allocation_active_ms: number | null; allocation_released: boolean; effective_configuration: AgentConfiguration | null;
   effective_composition: EffectiveComposition; evaluation_trial_id: string | null; channel_binding: ChannelBinding | null }
 export interface TaskEvent { sequence: string; task_id: string; event_key: string; kind: string; payload: Record<string,unknown>; created_at: Date }
 export interface AdmitTaskInput { authority: AdmissionAuthority; grantId: string; versionId: string;
+  continuationOf?: string;
   requestKey: string; input: string; taskId?: string; conversationId?: string; evaluationTrialId?: string; channelBinding?: ChannelBinding; configurationMode?: "current" }

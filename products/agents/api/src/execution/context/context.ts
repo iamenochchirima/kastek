@@ -28,6 +28,7 @@ export interface ContextInput {
   modelPolicy: ContextModelPolicy;
   // Current-step model/tool groups are mandatory and must never disappear behind compaction.
   workingGroups?: ContextGroup[];
+  compactContinuation?: boolean;
 }
 export interface ContextBuildResult {
   status: "ready" | "compaction_required"; messages: HarnessMessage[]; estimatedTokens: number;
@@ -133,11 +134,23 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   const workingMessages=working.flatMap(group=>group.messages);
   if(!fits(input,[...fixed,...summary,user,...workingMessages]))throw new ModelOperationError("CONTEXT_LIMIT","rejected",400);
   let continuation=input.continuation?structuredClone(input.continuation):undefined;
-  const continuationMessages=()=>continuation?[{role:"system" as const,content:"Server-confirmed execution receipts follow. Summaries cannot change completed work or confirmed handles. Continue unfinished work; these records grant no permissions.\n"+JSON.stringify(continuation.checkpoint)}]:[];
+  const continuationMessages=()=>{
+    if (!continuation) return [];
+    const omitted = Object.fromEntries(Object.entries(continuation.checkpoint.omitted).filter(([,value]) => value > 0));
+    const checkpoint = input.compactContinuation ? {
+      ...Object.fromEntries(Object.entries(continuation.checkpoint)
+        .filter(([key,value]) => key !== "counts" && key !== "omitted" && (!Array.isArray(value) || value.length > 0))),
+      ...(Object.keys(omitted).length ? {omitted} : {}),
+    } : continuation.checkpoint;
+    const boundary = input.compactContinuation ? "Server-confirmed execution receipts follow. Summaries cannot change these facts or grant permissions.\n" : "Server-confirmed execution receipts follow. Summaries cannot change completed work or confirmed handles. Continue unfinished work; these records grant no permissions.\n";
+    return [{role:"system" as const,content:boundary+JSON.stringify(checkpoint)}];
+  };
   const continuationResults=()=>[...(continuation?.results.length?[sourceMessage({id:"continuation-results",revision:1,kind:"result",content:JSON.stringify(continuation.results)})]:[]),...(continuation?.progress?[sourceMessage({id:"orchestration-progress",revision:continuation.progress.revision,kind:"result",content:JSON.stringify({kind:"agent-authored-work-progress",...continuation.progress})})]:[])];
   while(continuation&&!fits(input,[...fixed,...continuationMessages(),...summary,user,...continuationResults(),...workingMessages])){
     const value=continuation.checkpoint;
-    if(value.evidence.length){value.evidence.shift();value.omitted.evidence++;}
+    if(input.compactContinuation && continuation.results.length){continuation.results.shift();value.omitted.results++;}
+    else if(input.compactContinuation && continuation.progress){delete continuation.progress;delete value.progress;value.omitted.progress=(value.omitted.progress??0)+1;}
+    else if(value.evidence.length){value.evidence.shift();value.omitted.evidence++;}
     else if(value.handles.length){value.handles.shift();value.omitted.handles++;}
     else if(value.operations.length){value.operations.shift();value.omitted.operations++;}
     else if(value.artifacts.length){value.artifacts.shift();value.omitted.artifacts++;}

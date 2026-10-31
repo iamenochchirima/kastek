@@ -24,6 +24,7 @@ import { loadExecution } from "./state";
 import { quoteNormalizedUsage, reserveModelCost, settleModelCost } from "../models/accounting";
 import { assertHandoffFeedbackAdmissionAuthority } from "./authority";
 import { parseHandoffFeedbackRequest } from "./handoff-feedback-contract";
+import { adjustOperationQuota, workUsage } from "./work-policy";
 export async function event(db: Pool | PoolClient, taskId: string, key: string, kind: string, payload: object = {}): Promise<void> {
   await recordEvent(db, taskId, key, kind, payload);
 }
@@ -56,6 +57,7 @@ export async function beginHandoffFeedbackOperation(pool: Pool, taskId: string, 
 async function beginOperationForPurpose(pool: Pool, taskId: string, input: OperationRequest, handoffFeedback: boolean): Promise<OperationAdmission> {
   return transaction(pool, async db => {
     const preliminary = await taskIdentity(db, taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[preliminary.organization_id]);
     const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE", [preliminary.root_task_id])).rows[0];
     if (!budget || budget.settled_at) throw new PlatformError("TASK_SETTLED",409,"Root execution has settled");
     const execution = await loadExecution(db, taskId, true), task = execution.task;
@@ -117,16 +119,41 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     const child = Boolean(task.parent_task_id);
     const rootExecution = child ? await loadExecution(db, task.root_task_id) : execution;
     const rootPolicy = rootExecution.models.primary.policy;
-    if (task.execution_purpose === "support_status_v1" && budget.model_calls !== 0) throw new PlatformError("ROOT_LIMIT",429,"Task execution limit reached");
-    if (!Number.isSafeInteger(input.reservedTokens) || input.reservedTokens < 0 || !Number.isSafeInteger(input.reservedMs) || input.reservedMs < 0 ||
-      task.tokens_used + task.tokens_reserved + input.reservedTokens > task.root_token_limit ||
-      (model ? budget.model_calls >= (child ? Math.max(0, rootPolicy.maxModelCalls - 1) : rootPolicy.maxModelCalls) : budget.tool_calls >= rootPolicy.maxToolCalls) ||
-      (child && ((task as any).active_ms + (task as any).active_reserved_ms + input.reservedMs > task.allocation_active_ms)) ||
-      (!child && (budget.tokens_used + budget.tokens_reserved + budget.child_reserved_tokens + input.reservedTokens > root.root_token_limit ||
-        budget.active_ms + budget.active_reserved_ms + budget.child_reserved_ms + input.reservedMs > rootPolicy.maxDurationMs)) ||
-      (child && (input.reservedTokens > budget.child_reserved_tokens || input.reservedMs > budget.child_reserved_ms))) {
-      throw new PlatformError("ROOT_LIMIT", 429, "Task execution limit reached");
-    }
+    if (!Number.isSafeInteger(input.reservedTokens) || input.reservedTokens < 0 || !Number.isSafeInteger(input.reservedMs) || input.reservedMs < 0)
+      throw new PlatformError("OPERATION_RESERVATION_INVALID",400,"Invalid execution reservation");
+    const finiteExceeded=(limit:number|null|undefined,value:number)=>limit!==null&&limit!==undefined&&value>limit;
+    const denied=(code:string,message:string):never=>{throw new PlatformError(code,429,message);};
+    const modern=execution.models.primary.policy.revision!=="model-execution-policy-v1";
+    const usage=modern ? await workUsage(db,execution) : {
+      model_calls:budget.model_calls,tool_calls:budget.tool_calls,
+      tokens:budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens,
+      active_ms:budget.active_ms+budget.active_reserved_ms+budget.child_reserved_ms,
+      coordinator_model_calls:task.model_calls,coordinator_tool_calls:task.tool_calls,
+    };
+    if (task.execution_purpose === "support_status_v1" && budget.model_calls !== 0) denied("MODEL_CALL_LIMIT","The support status response is already generated");
+    const localPolicy=execution.models.primary.policy;
+    const localCalls=child ? (model?task.model_calls:task.tool_calls) :
+      (model?usage.coordinator_model_calls:usage.coordinator_tool_calls);
+    if(modern && finiteExceeded(model?localPolicy.maxModelCalls:localPolicy.maxToolCalls,localCalls+1))
+      denied(model?"MODEL_CALL_LIMIT":"TOOL_CALL_LIMIT","The agent's explicit operation allowance is exhausted");
+    const sharedLimit=model ? (modern?rootPolicy.maxRootModelCalls:rootPolicy.maxModelCalls) :
+      (modern?rootPolicy.maxRootToolCalls:rootPolicy.maxToolCalls);
+    const sharedCalls=model?usage.model_calls:usage.tool_calls;
+    const permittedShared=model&&child&&sharedLimit!==null&&sharedLimit!==undefined?Math.max(0,sharedLimit-1):sharedLimit;
+    if(finiteExceeded(permittedShared,sharedCalls+1))
+      denied(modern?(model?"ROOT_MODEL_CALL_LIMIT":"ROOT_TOOL_CALL_LIMIT"):"ROOT_LIMIT","The work's explicit operation allowance is exhausted");
+    if(child && finiteExceeded(task.root_token_limit,task.tokens_used+task.tokens_reserved+input.reservedTokens))
+      denied(modern?"TASK_TOKEN_LIMIT":"ROOT_LIMIT","The specialist's token allowance is exhausted");
+    if(child && finiteExceeded(task.allocation_active_ms,(task as any).active_ms+(task as any).active_reserved_ms+input.reservedMs))
+      denied(modern?"TASK_DURATION_LIMIT":"ROOT_LIMIT","The specialist's active-time allowance is exhausted");
+    const directTokens=!child||task.root_token_limit===null;
+    const directTime=!child||task.allocation_active_ms===null;
+    if(finiteExceeded(root.root_token_limit,usage.tokens+(directTokens?input.reservedTokens:0)))
+      denied(modern?"ROOT_TOKEN_LIMIT":"ROOT_LIMIT","The work's token allowance cannot cover this operation");
+    if(finiteExceeded(rootPolicy.maxDurationMs,usage.active_ms+(directTime?input.reservedMs:0)))
+      denied(modern?"ROOT_DURATION_LIMIT":"ROOT_LIMIT","The work's active-time allowance cannot cover this operation");
+    if(child && ((!directTokens && input.reservedTokens>budget.child_reserved_tokens) || (!directTime && input.reservedMs>budget.child_reserved_ms)))
+      denied(modern?"SPECIALIST_ALLOCATION_LIMIT":"ROOT_LIMIT","The specialist's reserved allocation is exhausted");
     const {request,policy}=operationCapacity(execution,input);
     const capacity=await requestCapacity(db,request,policy);
     if(capacity.state==='waiting'){
@@ -143,6 +170,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
             cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 }, route.model.pricing) });
       } catch { throw new PlatformError("MODEL_COST_LIMIT", 429, "The model cost allowance cannot cover this request"); }
     }
+    await adjustOperationQuota(db,execution,input.reservedTokens);
     const row = (await db.query<OperationRecord>(`INSERT INTO agents_platform.operations
       (id,task_id,kind,name,request_digest,request,state,reserved_tokens,reserved_ms,attempt_id)
       VALUES($1,$2,$3,$4,$5,$6,'started',$7,$8,$9) RETURNING *`,
@@ -154,7 +182,7 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
     await db.query(`UPDATE agents_platform.execution_roots SET tokens_reserved=tokens_reserved+$2,
       child_reserved_tokens=child_reserved_tokens-$3,active_reserved_ms=active_reserved_ms+$4,child_reserved_ms=child_reserved_ms-$5,
       model_calls=model_calls+$6,tool_calls=tool_calls+$7 WHERE root_task_id=$1`,
-    [task.root_task_id,input.reservedTokens,child?input.reservedTokens:0,input.reservedMs,child?input.reservedMs:0,model?1:0,model?0:1]);
+    [task.root_task_id,input.reservedTokens,child&&!directTokens?input.reservedTokens:0,input.reservedMs,child&&!directTime?input.reservedMs:0,model?1:0,model?0:1]);
     await event(db, taskId, `start:${input.id}`, "operation.started", { operationId: input.id, kind: input.kind, name: input.name });
     return { replayed: false, operation: row };
   });
@@ -174,6 +202,9 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number): Promise<OperationRecord> {
   if (!Number.isSafeInteger(tokens) || tokens < 0 || tokens > 2147483647) throw new PlatformError("MODEL_USAGE_INVALID", 502, "Usage cannot be accounted");
   const accounted = tokens;
+  const previousCharge=await db.query("SELECT 1 FROM agents_platform.operation_usage WHERE operation_id=$1",[op.id]);
+  if(previousCharge.rowCount) return op;
+  await adjustOperationQuota(db,execution,accounted-op.reserved_tokens);
   const charged = await db.query(`INSERT INTO agents_platform.operation_usage(operation_id,task_id,accounted_tokens,outcome)
     VALUES($1,$2,$3,$4) ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`, [op.id, op.task_id, accounted, state]);
   if (!charged.rowCount) return op;
@@ -198,8 +229,8 @@ async function finishOperationInTransaction(db: PoolClient, execution: Execution
   await db.query(`UPDATE agents_platform.execution_roots SET tokens_used=tokens_used+$2,tokens_reserved=tokens_reserved-$3,
     child_reserved_tokens=greatest(0,child_reserved_tokens+$4),active_ms=active_ms+$5,active_reserved_ms=active_reserved_ms-$6,
     child_reserved_ms=greatest(0,child_reserved_ms+$7) WHERE root_task_id=$1`,
-  [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id?op.reserved_tokens-accounted:0,
-    duration,op.reserved_ms,execution.task.parent_task_id?op.reserved_ms-duration:0]);
+  [execution.task.root_task_id,accounted,op.reserved_tokens,execution.task.parent_task_id&&execution.task.root_token_limit!==null?op.reserved_tokens-accounted:0,
+    duration,op.reserved_ms,execution.task.parent_task_id&&execution.task.allocation_active_ms!==null?op.reserved_ms-duration:0]);
   await event(db, op.task_id, `result:${op.id}`, `operation.${state}`, { operationId: op.id, accountedTokens: accounted, errorCode });
   await releaseCapacity(db,op.id,state);
   return (await db.query<OperationRecord>('SELECT * FROM agents_platform.operations WHERE id=$1',[op.id])).rows[0]!;
@@ -208,6 +239,7 @@ export async function finishOperation(pool: Pool, taskId: string, operationId: s
   state: "completed" | "failed" | "uncertain", output: unknown, errorCode: string | null, tokens: number,expectedAttemptId?:string): Promise<OperationRecord> {
   return transaction(pool, async db => {
     const before = await taskIdentity(db,taskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[before.organization_id]);
     await db.query("SELECT root_task_id FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR UPDATE",[before.root_task_id]);
     const execution = await loadExecution(db, taskId, true);
     const op = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE id=$1 AND task_id=$2 FOR UPDATE", [operationId, taskId])).rows[0];
@@ -262,14 +294,14 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
       const latest=(await db.query("SELECT tokens_used,active_ms,allocation_released FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
       if(!latest.allocation_released) {
         await db.query("UPDATE agents_platform.execution_roots SET child_reserved_tokens=child_reserved_tokens-$2,child_reserved_ms=child_reserved_ms-$3 WHERE root_task_id=$1",
-          [task.root_task_id,task.root_token_limit-latest.tokens_used,Math.max(0,task.allocation_active_ms-latest.active_ms)]);
+          [task.root_task_id,task.root_token_limit===null?0:Math.max(0,task.root_token_limit-latest.tokens_used),task.allocation_active_ms===null?0:Math.max(0,task.allocation_active_ms-latest.active_ms)]);
         await db.query("UPDATE agents_platform.tasks SET allocation_released=true WHERE id=$1",[taskId]);
       }
     } else {
       const reservation = (await db.query("SELECT * FROM agents_platform.usage_reservations WHERE task_id=$1 FOR UPDATE", [taskId])).rows[0];
-      const total = (await db.query(`SELECT coalesce(sum(u.accounted_tokens),0)::int AS tokens FROM agents_platform.operation_usage u
+      const total = (await db.query(`SELECT coalesce(sum(u.accounted_tokens),0)::double precision AS tokens FROM agents_platform.operation_usage u
         JOIN agents_platform.tasks t ON t.id=u.task_id WHERE t.root_task_id=$1`, [taskId])).rows[0].tokens;
-      if(total>task.root_token_limit) throw new PlatformError("ROOT_ACCOUNTING_INVARIANT",500,"Root accounting exceeds its admitted allocation");
+      if(task.root_token_limit!==null && total>task.root_token_limit) throw new PlatformError("ROOT_ACCOUNTING_INVARIANT",500,"Root accounting exceeds its admitted allocation");
       if (reservation && !reservation.settled_at) {
         await db.query(`UPDATE agents_platform.usage_accounts SET reserved_tokens=reserved_tokens-$3,consumed_tokens=consumed_tokens+$4
           WHERE organization_id=$1 AND day=$2`, [reservation.organization_id, reservation.day, reservation.tokens,total]);
@@ -307,8 +339,49 @@ export async function reconcilePendingRoots(pool:Pool):Promise<void> {
 
 export async function queueChildContinuations(pool:Pool,rootTaskId:string):Promise<void> {
   await transaction(pool,async db=>{
-    const rows=(await db.query("UPDATE agents_platform.tasks SET control_generation=control_generation+1 WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' RETURNING id,control_generation-1 AS generation",[rootTaskId])).rows;
-    for(const row of rows) await db.query("INSERT INTO agents_platform.task_controls(task_id,generation) VALUES($1,$2) ON CONFLICT DO NOTHING",[row.id,row.generation]);
+    const identity=await taskIdentity(db,rootTaskId);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[identity.organization_id]);
+    const root=await loadExecution(db,rootTaskId);
+    if(root.task.parent_task_id||terminalTaskStates.has(root.task.state)||root.task.state==="cancel_requested")return;
+    await assertCurrentAuthority(db,root);
+    const parentGrant=(await db.query("SELECT expires_at,operations FROM agents_platform.execution_grants WHERE id=$1 AND revoked_at IS NULL FOR SHARE",[root.task.grant_id])).rows[0];
+    if(!parentGrant)return;
+    const children=(await db.query("SELECT id FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id=$1 AND state='waiting_authority' ORDER BY id FOR NO KEY UPDATE",[rootTaskId])).rows;
+    for(const child of children) {
+      await db.query("SAVEPOINT child_authority_renewal");
+      try {
+        const execution=await loadExecution(db,child.id);
+        const priorControl=(await db.query("SELECT 1 FROM agents_platform.task_controls WHERE task_id=$1 AND generation=$2::bigint-1 AND kind='authority'",[child.id,execution.task.control_generation])).rowCount;
+        const wait=(await db.query("SELECT event_key FROM agents_platform.task_events WHERE task_id=$1 AND kind='authority.required' ORDER BY sequence DESC LIMIT 1",[child.id])).rows[0];
+        const alreadyQueued=Boolean(priorControl&&wait?.event_key!==`authority-wait:${execution.task.control_generation}`);
+        const previous=(await db.query("SELECT * FROM agents_platform.execution_grants WHERE id=$1 AND organization_id=$2 FOR SHARE",[execution.task.grant_id,identity.organization_id])).rows[0];
+        if(!previous||previous.revoked_at||alreadyQueued&&new Date(previous.expires_at).getTime()>Date.now()){await db.query("RELEASE SAVEPOINT child_authority_renewal");continue;}
+        const expiry=Math.min(new Date(parentGrant.expires_at).getTime(),
+          root.task.deadline_at===null?Infinity:new Date(root.task.deadline_at).getTime(),
+          execution.task.deadline_at===null?Infinity:new Date(execution.task.deadline_at).getTime());
+        if(expiry<=Date.now()){await db.query("RELEASE SAVEPOINT child_authority_renewal");continue;}
+        const id=randomUUID();
+        const operations=previous.operations;
+        await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,
+          max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids)
+          SELECT $2,product,organization_id,resource_id,caller_client_id,principal,version_id,$3::jsonb,
+            max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,$4,source_revision_ids,connected_tool_binding_ids
+          FROM agents_platform.execution_grants WHERE id=$1`,[previous.id,id,JSON.stringify(operations),new Date(expiry)]);
+        await db.query("UPDATE agents_platform.tasks SET grant_id=$2 WHERE id=$1",[child.id,id]);
+        await assertCurrentAuthority(db,await loadExecution(db,child.id));
+        if(alreadyQueued) {
+          await db.query("UPDATE agents_platform.task_controls SET dispatched_at=NULL,lease_owner=NULL,lease_until=NULL WHERE task_id=$1 AND generation=$2::bigint-1 AND kind='authority'",[child.id,execution.task.control_generation]);
+        } else {
+          const updated=(await db.query("UPDATE agents_platform.tasks SET control_generation=control_generation+1,updated_at=now() WHERE id=$1 AND state='waiting_authority' RETURNING control_generation-1 AS generation",[child.id])).rows[0];
+          if(updated)await db.query("INSERT INTO agents_platform.task_controls(task_id,generation) VALUES($1,$2) ON CONFLICT DO NOTHING",[child.id,updated.generation]);
+        }
+        await db.query("RELEASE SAVEPOINT child_authority_renewal");
+      } catch(error) {
+        await db.query("ROLLBACK TO SAVEPOINT child_authority_renewal");
+        await db.query("RELEASE SAVEPOINT child_authority_renewal");
+        if(!(error instanceof PlatformError))throw error;
+      }
+    }
   });
 }
 

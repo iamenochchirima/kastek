@@ -64,9 +64,9 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   const f=await fixture();try{
    const path=`/api/organizations/${f.org.id}/agents/${f.agent.id}/model-policy`,preview=await f.app.inject({method:"POST",url:path,payload:{configuration:f.configuration}});
    expect(preview.statusCode).toBe(200);const body=preview.json();expect(body.errors).toEqual([]);expect(body.controls.reasoning).toMatchObject({kind:"effort",values:["low","medium","high"]});
-   expect(body.limits).toMatchObject({maxRootTokens:32000,maxOutputTokens:23808,maxCallDurationMs:120000});
-   const bad=structuredClone(f.configuration);bad.context.maxInputTokens=31000;
-   const invalid=await f.app.inject({method:"POST",url:path,payload:{configuration:bad}});expect(invalid.statusCode).toBe(200);expect(invalid.json().errors.some((error:{field:string})=>error.field==="context.maxInputTokens")).toBe(true);
+   expect(body.limits).toMatchObject({maxRootTokens:null,maxOutputTokens:32768,maxCallDurationMs:120000});
+   const bad=structuredClone(f.configuration);bad.context.compactAtTokens=bad.context.maxInputTokens;
+   const invalid=await f.app.inject({method:"POST",url:path,payload:{configuration:bad}});expect(invalid.statusCode).toBe(200);expect(invalid.json().errors.some((error:{field:string})=>error.field==="context.compactAtTokens")).toBe(true);
    expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE organization_id=$1",[f.org.id])).rowCount).toBe(0);
   }finally{await f.app.close();}
  });

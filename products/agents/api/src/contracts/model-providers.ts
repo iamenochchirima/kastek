@@ -118,21 +118,23 @@ export const effectiveExecutionPolicySchema = z.strictObject({
   revision, digest: z.string().regex(/^[a-f0-9]{64}$/),
   contextTokens: positiveInteger, maxInputTokens: positiveInteger, maxOutputTokens: positiveInteger,
   safetyTokens: tokenCount, compactAtTokens: positiveInteger,
-  maxModelCalls: positiveInteger, maxToolCalls: tokenCount, maxDurationMs: positiveInteger, maxCallDurationMs: positiveInteger,
+  maxModelCalls: positiveInteger.nullable().default(null), maxToolCalls: tokenCount.nullable().default(null),
+  maxRootModelCalls: positiveInteger.nullable().default(null), maxRootToolCalls: tokenCount.nullable().default(null),
+  maxDurationMs: positiveInteger.nullable().default(null), maxWallDurationMs: positiveInteger.nullable().default(null), maxCallDurationMs: positiveInteger,
   maxInputBytes: positiveInteger, maxRequestBytes: positiveInteger, maxResponseBytes: positiveInteger,
-  maxMessages: positiveInteger, maxTools: tokenCount, maxRootTokens: positiveInteger,
+  maxMessages: positiveInteger, maxTools: tokenCount, maxRootTokens: positiveInteger.nullable().default(null),
   maxCostMicros: tokenCount.nullable(),
 }).superRefine((policy, context) => {
   if (BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {
     context.addIssue({ code: "custom", message: "Input, output and safety reserves exceed model context", path: ["maxInputTokens"] });
   }
-  if (policy.maxCallDurationMs > policy.maxDurationMs) {
+  if (policy.maxDurationMs !== null && policy.maxCallDurationMs > policy.maxDurationMs) {
     context.addIssue({ code: "custom", message: "A model call must fit the root active-time allowance", path: ["maxCallDurationMs"] });
   }
   if (policy.compactAtTokens >= policy.maxInputTokens) {
     context.addIssue({ code: "custom", message: "Compaction threshold must be below input allowance", path: ["compactAtTokens"] });
   }
-  if (BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) > BigInt(policy.maxRootTokens)) {
+  if (policy.maxRootTokens !== null && BigInt(policy.maxInputTokens) + BigInt(policy.maxOutputTokens) > BigInt(policy.maxRootTokens)) {
     context.addIssue({ code: "custom", message: "A model call must fit its root token allowance", path: ["maxRootTokens"] });
   }
 });

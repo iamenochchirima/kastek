@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../lifecycle/deadline";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
@@ -28,7 +29,7 @@ export async function awaitToolInvocationReview(ctx:restate.WorkflowContext,pool
         }
         await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
         await event(pool,taskId,`tool-review:${review.id}`,"review.required",{reviewId:review.id,kind:"tool",expiresAt:review.expiresAt});
-        return {generation:task.control_generation,deadline:Math.min(new Date(task.deadline_at).getTime(),new Date(review.expiresAt).getTime())};
+        return {generation:task.control_generation,deadline:Math.min(deadlineMillis(task.deadline_at),new Date(review.expiresAt).getTime())};
       }catch(error){if(error instanceof PlatformError)return {denied:error.code};throw error;}
     });
     if(status.cancelled)return {state:"cancelled"};

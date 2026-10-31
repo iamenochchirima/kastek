@@ -2,13 +2,18 @@ import { requestDigest } from "./contracts";
 import { modelGenerationSchema } from "./model-generation";
 import { z } from "zod";
 import { effectiveExecutionPolicySchema, modelDescriptorSchema, providerDefinitionSchema,
-  providerUseGrantSchema, resolvedModelBindingSchema } from "./model-providers";
+  providerUseGrantSchema, resolvedModelBindingSchema, metadataSourceSchema } from "./model-providers";
 
 export const acceptedModelRouteSchema = z.strictObject({
   binding: resolvedModelBindingSchema,
   definition: providerDefinitionSchema,
   model: modelDescriptorSchema,
   policy: effectiveExecutionPolicySchema,
+  policyDecisions: z.array(z.strictObject({
+    field:z.string().min(1).max(128),value:z.number().nullable(),rule:z.enum(["minimum","maximum"]),
+    sources:z.array(z.strictObject({kind:z.enum(["platform","product","tenant","agent","model","attestation"]),
+      reference:z.string().min(1).max(2048),value:z.number().nullable(),metadata:metadataSourceSchema.nullable().optional()})),
+  })).optional(),
   consumer: providerUseGrantSchema.shape.consumer,
   generation: modelGenerationSchema.optional(), generationRevision: z.string().min(1).max(128).optional(),
 }).superRefine((route, context) => {

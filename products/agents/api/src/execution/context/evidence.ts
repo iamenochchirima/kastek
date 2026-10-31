@@ -13,6 +13,7 @@ import { PrivateObjectStore } from "../../infrastructure/object-store";
 import { writeExecutionObject } from "../artifacts/execution-objects";
 import { assertCurrentAuthority,loadExecution,type Execution } from "../lifecycle/execution";
 import { historyPrincipalAllowed } from "./visitor-lineage";
+import { continuationChildAllowed } from "./work-lineage";
 
 import { assertCurrentEvidence,bindingAllowed,boundedText,childHistoryAllowed,citationLabels,ConnectedEvidenceInput,Db,delegationDependency,denied,dto,EvidenceKind,EvidenceNode,EvidencePassage,inspectionAuthority,integrity,memoryVisible,nodeDto,owner,payloadHas,ProductEvidenceInput,suppliedNodes,taskEvidenceManifest,unavailable } from "./evidence-policy";
 export { assertChildConnectedAuthority,assertCurrentAuthority,assertCurrentEvidence,assertDelegationInputEvidence,bindingAllowed,boundedText,citationLabels,ConnectedEvidenceInput,connectionEvidenceBinding,Db,delegationDependency,delegationInput,denied,dto,EvidenceKind,EvidenceNode,EvidencePassage,historyOrigins,inspectionAuthority,integrity,memoryVisible,nodeDto,owner,payloadHas,rootRoleAllows,sourceAllowed,suppliedNodes,taskEvidenceManifest,unavailable } from "./evidence-policy";
@@ -296,16 +297,28 @@ export class EvidenceStore {
   async joinChild(taskId:string,operationId:string,childTaskId:string):Promise<EvidenceNode>{
     return this.scoped(taskId,async(db,execution)=>{
       await this.operation(db,taskId,operationId,["agents.result","agents.wait"]);
-      const child=(await db.query(`SELECT t.id,t.state,t.output FROM agents_platform.tasks t
+      const child=(await db.query(`SELECT t.id,t.state,t.output,t.parent_task_id,t.root_task_id FROM agents_platform.tasks t
         JOIN agents_platform.delegations d ON d.child_task_id=t.id
         JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
-        WHERE t.id=$1 AND t.parent_task_id=$2 AND t.root_task_id=$2 AND d.parent_task_id=$2
-          AND t.organization_id=$3 FOR SHARE OF c`,[childTaskId,taskId,execution.task.organization_id])).rows[0];
+        WHERE t.id=$1 AND t.parent_task_id=d.parent_task_id AND t.root_task_id=t.parent_task_id
+          AND t.organization_id=$2 FOR SHARE OF c`,[childTaskId,execution.task.organization_id])).rows[0];
       if(!child)throw denied();
+      const priorSegment=child.parent_task_id!==taskId;
+      if(priorSegment&&!await continuationChildAllowed(db,execution,await loadExecution(db,child.id)))throw denied();
       if(!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.state))throw new PlatformError("CHILD_OUTCOME_PENDING",409,"Specialist outcome is not yet available");
       await assertCurrentEvidence(db,child.id,await taskEvidenceManifest(db,child.id),{requireActiveTask:false});
       const parents=child.output===null?[]:(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='child_result' ORDER BY id",[child.id])).rows.map(nodeDto);
       if(child.output!==null&&!parents.length)throw integrity();
+      if(priorSegment){
+        const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[child.root_task_id])).rows.map(nodeDto);
+        const graph=new Map(rows.map(node=>[node.id,node])),manifest=collectDependencyGraph(parents.map(node=>node.id),graph);
+        const ids=new Set<string>(),seen=new Set<string>();
+        const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);const node=graph.get(id);if(!node)throw integrity();node.evidenceIds.forEach(value=>ids.add(value));node.parents.forEach(visit);};parents.forEach(node=>visit(node.id));
+        const node=await this.node(db,execution,"input",`${operationId}:${childTaskId}`,[],[],{evidenceIds:[...ids],manifest},"fixed",[child.parent_task_id,child.id]);
+        for(const origin of [{id:child.parent_task_id,nodes:rows.filter(item=>item.taskId===child.parent_task_id).map(item=>item.id)},{id:child.id,nodes:parents.map(item=>item.id)}])
+          await db.query("INSERT INTO agents_platform.evidence_history_links(node_id,origin_task_id,origin_node_ids) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",[node.id,origin.id,origin.nodes]);
+        return node;
+      }
       return this.node(db,execution,"input",`${operationId}:${childTaskId}`,[],parents);
     });
   }

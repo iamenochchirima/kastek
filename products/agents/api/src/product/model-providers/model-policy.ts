@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { agentConfigurationSchema, executionGrantSchema, PlatformError } from "../../contracts/contracts";
+import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { compileEffectiveExecutionPolicy } from "../../execution/models/policy";
 import { executionModelLayers, modelServicePolicy } from "../../execution/models/settings";
 import { modelControls, validateGeneration } from "../../adapters/models/model-controls";
@@ -24,11 +24,11 @@ export function registerModelPolicyRoutes(app: FastifyInstance, options: {
     const model = cache.result?.models.find(model => model.id === selection.modelId);
     if (!model || model.lifecycle === "retired" || cache.result?.kind === "discovered" && cache.result.unavailableModelIds?.includes(model.id)) throw new PlatformError("MODEL_UNAVAILABLE",409,"Choose an available model");
     const connection = await options.store.get(scope, selection.connectionId);
-    const root = Math.min(executionGrantSchema.shape.rootTokenLimit.parse(undefined),service.maxRootTokens);
+    const root = service.maxRootTokens;
     const context = model.contextTokens.value === null ? null : Math.min(model.contextTokens.value,service.contextTokens);
     const output = Math.min(configuration.model.maxOutputTokens,service.maxOutputTokens,model.maxOutputTokens.value??service.maxOutputTokens);
-    const inputLimit = context === null ? null : Math.max(0,Math.min(model.maxInputTokens.value??service.maxInputTokens,service.maxInputTokens,context-output-service.safetyTokens,root-output));
-    const outputLimit = context === null || model.maxOutputTokens.value === null ? null : Math.max(0,Math.min(model.maxOutputTokens.value,service.maxOutputTokens,context-configuration.context.maxInputTokens-service.safetyTokens,root-configuration.context.maxInputTokens));
+    const inputLimit = context === null ? null : Math.max(0,Math.min(model.maxInputTokens.value??service.maxInputTokens,service.maxInputTokens,context-output-service.safetyTokens,...(root === null ? [] : [root-output])));
+    const outputLimit = context === null || model.maxOutputTokens.value === null ? null : Math.max(0,Math.min(model.maxOutputTokens.value,service.maxOutputTokens,context-configuration.context.maxInputTokens-service.safetyTokens,...(root === null ? [] : [root-configuration.context.maxInputTokens])));
     const errors: Array<{field:string;message:string}> = [];
     let effectivePolicy = null;
     try {
@@ -46,7 +46,7 @@ export function registerModelPolicyRoutes(app: FastifyInstance, options: {
     catch { errors.push({field:"model.generation",message:"The generation settings do not fit this model or reply allowance."}); }
     if (configuration.model.maxCostMicros !== null) errors.push({field:"model.maxCostMicros",message:"A strict spending cap is unavailable for this route."});
     return {modelId:model.id,modelRevision:model.revision,limits:{contextTokens:context,maxInputTokens:inputLimit,maxOutputTokens:outputLimit,
-      maxCallDurationMs:Math.min(service.maxCallDurationMs,service.maxDurationMs),maxRootTokens:Math.min(root,service.maxRootTokens),safetyTokens:service.safetyTokens},
+      maxCallDurationMs:Math.min(service.maxCallDurationMs,service.maxDurationMs ?? service.maxCallDurationMs),maxRootTokens:root,safetyTokens:service.safetyTokens},
       effectivePolicy,errors,controls};
   });
 }

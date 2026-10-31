@@ -39,7 +39,7 @@ export const delegationBindingSchema = z.strictObject({
   sourceRevisionIds: z.array(z.uuid()).max(20).default([]), connectedToolBindingIds: z.array(z.uuid()).max(8).default([]),
   label: z.string().min(1).max(120).optional(), description: z.string().max(512).optional(), versionNumber: z.number().int().positive().optional(),
   tools: z.array(z.enum(["knowledge.search", "knowledge.read", "sandbox.analyze"])).max(3),
-  maxTokens: z.number().int().min(2048).max(64000), maxActiveMs: z.number().int().min(1000).max(300000),
+  maxTokens: z.number().int().min(2048).max(64000).nullable().default(null), maxActiveMs: z.number().int().min(1000).max(300000).nullable().default(null),
 });
 export const businessCapabilitiesSchema = z.strictObject({
   delegation: z.discriminatedUnion("enabled", [unavailableCapability, z.strictObject({ enabled: z.literal(true),
@@ -78,7 +78,7 @@ export const agentConfigurationSchema = z.strictObject({
   skillIds: z.array(z.uuid()).max(8).default([]),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists")
   .refine(configuration => configuration.program.id === "tool-directed" && configuration.program.version === "4" ||
-    !configuration.capabilities.delegation.enabled || configuration.capabilities.delegation.bindings.every(binding => binding.maxTokens <= 12000),
+    !configuration.capabilities.delegation.enabled || configuration.capabilities.delegation.bindings.every(binding => binding.maxTokens !== null && binding.maxTokens <= 12000 && binding.maxActiveMs !== null),
   "Specialist allocations above 12,000 tokens require adaptive orchestration");
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>;
 
@@ -162,7 +162,7 @@ export const executionGrantSchema = z.strictObject({
   maxInputBytes: storagePositiveInteger,
   maxOutputTokens: storagePositiveInteger,
   maxContextTokens: storagePositiveInteger.default(8192),
-  rootTokenLimit: storagePositiveInteger.default(32000),
+  rootTokenLimit: storagePositiveInteger.nullable().default(null),
   expiresAt: z.iso.datetime({ offset: true }),
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
 });

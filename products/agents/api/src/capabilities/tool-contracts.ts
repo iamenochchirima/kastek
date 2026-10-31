@@ -57,12 +57,14 @@ function immutableJson<T>(value:T):T{
   }
   return value;
 }
-function createContractMetadata(contract:NonNullable<ReturnType<typeof builtinContract>>){
+function createContractMetadata(contract:{input:z.ZodType;output:z.ZodType;authority:readonly string[];resources:readonly string[];reconciliation:string}){
   return immutableJson({inputSchema:z.toJSONSchema(contract.input),outputSchema:z.toJSONSchema(contract.output),requiredAuthority:[...contract.authority],
     requiredResources:[...contract.resources],reconciliation:contract.reconciliation});
 }
 const contractMetadata=new Map<string,ReturnType<typeof createContractMetadata>>();
-export function capabilityContractMetadata(name:string){
+export function capabilityContractMetadata(name:string,legacyAdaptive=false){
+  if(legacyAdaptive&&name==="agents.status")return createContractMetadata({...builtinContract(name)!,input:orchestrationContracts["agents.status"].input.omit({offset:true}),output:orchestrationContracts["agents.status"].output.omit({nextOffset:true})});
+  if(legacyAdaptive&&name==="work.inspect")return createContractMetadata({...builtinContract(name)!,input:orchestrationContracts["work.inspect"].input.omit({instructionSequence:true,instructionOffset:true}),output:orchestrationContracts["work.inspect"].output.omit({instructionPage:true})});
   const contract=builtinContract(name);
   if(!contract)throw new PlatformError("CAPABILITY_RELEASE_UNAVAILABLE",503,"The built-in capability contract is unavailable");
   let metadata=contractMetadata.get(name);

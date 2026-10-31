@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import { execFile } from "node:child_process";
 import { createHash,randomUUID } from "node:crypto";
 import { access,mkdir,readFile,rm,writeFile } from "node:fs/promises";
@@ -66,7 +67,7 @@ export class SandboxManager {
     if (!row || !["accepted", "running"].includes(row.state) || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now() ||
       !row.configuration.capabilities?.sandbox?.enabled || row.configuration.capabilities.sandbox.profileId !== SANDBOX_PROFILE.id) throw fail("SANDBOX_SCOPE_DENIED", "Sandbox access is unavailable", 403);
     await assertCurrentAuthority(db, await loadExecution(db, scope.taskId));
-    const deadline = new Date(Math.min(new Date(row.deadline_at).getTime(), scope.deadlineAt.getTime()));
+    const deadline = new Date(Math.min(deadlineMillis(row.deadline_at), scope.deadlineAt.getTime()));
     if (!Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now()) throw fail("SANDBOX_DEADLINE", "Task deadline reached", 409);
     return deadline;
   }

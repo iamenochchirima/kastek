@@ -35,6 +35,7 @@ export interface BoundModelDispatchInput {
   signal?: AbortSignal;
   onText?: (delta: string) => void;
   beforeDispatch?: () => void | Promise<void>;
+  onPreparedInputCount?: (count: PreparedInputCount) => void | Promise<void>;
   beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>, count: PreparedInputCount) => Promise<void>;
 }
 export class BoundModelDispatchError extends Error {
@@ -123,6 +124,7 @@ export async function dispatchBoundModel(
             beforeDispatch: async () => { await input.beforeDispatch?.(); const current = await transaction(input.pool, db => input.providerStore.resolveCredential(db, binding, consumer));
               if (current !== apiKey) throw rejected("MODEL_CONNECTION_CHANGED", 409); } }) : fetch;
           count = await modelProviderAdapter.countInput(accepted, payload, counterFetch);
+          await input.onPreparedInputCount?.(count);
           if (count.tokens > policy.maxInputTokens || BigInt(count.tokens) + BigInt(policy.maxOutputTokens) + BigInt(policy.safetyTokens) > BigInt(policy.contextTokens)) {
             throw new ProviderTransportError("CONTEXT_LIMIT", "rejected", 400);
           }

@@ -78,7 +78,7 @@ export async function resolveAcceptedModelRoutes(db: PoolClient, input: {
   try { generation = validateGeneration(model, compiled.policy, connection.endpoint, input.generation); }
   catch (error) { if (error instanceof ProviderTransportError) throw new PlatformError(error.code, error.status, "The generation settings do not fit this model or output allowance"); throw error; }
   const generationDigest = requestDigest({ generation, revision: modelControlsRevision });
-  const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy, generation, generationRevision: modelControlsRevision,
+  const route = (role: "primary" | "compaction" | "delegated") => ({ definition, model, consumer, policy: compiled.policy, policyDecisions:compiled.decisions, generation, generationRevision: modelControlsRevision,
     binding: { organizationId: input.organizationId, connectionId, connectionRevision: connection.revision,
       credentialRevision: connection.credential_revision, useGrantId: grant.id, useGrantRevision: grant.revision,
       providerId: definition.id, providerDefinitionDigest: requestDigest(definition), endpoint: connection.endpoint,

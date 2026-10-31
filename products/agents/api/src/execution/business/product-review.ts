@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../lifecycle/deadline";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import type { ProductReviewReference } from "@kasitek-labs/contracts";
@@ -30,7 +31,7 @@ export async function awaitProductReview(ctx:restate.WorkflowContext,pool:Pool,r
         if(latest.state!=="proposed"||new Date(latest.expiresAt).getTime()<=Date.now())return {outcome:{state:"incomplete" as const,errorCode:"PRODUCT_REVIEW_"+latest.state.toUpperCase()}};
         await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
         await event(pool,taskId,"product-review:"+latest.id,"review.required",{reviewId:latest.id,product:latest.product,kind:"product",bindingId:binding.id,operationId,expiresAt:latest.expiresAt});
-        return {review:latest,generation:task.control_generation,deadline:Math.min(new Date(task.deadline_at).getTime(),new Date(latest.expiresAt).getTime())};
+        return {review:latest,generation:task.control_generation,deadline:Math.min(deadlineMillis(task.deadline_at),new Date(latest.expiresAt).getTime())};
       }catch(error){if(error instanceof PlatformError)return {outcome:{state:"incomplete" as const,errorCode:error.code}};throw error;}
     });
     if("outcome" in current&&current.outcome)return {outcome:current.outcome};

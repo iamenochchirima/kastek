@@ -8,7 +8,7 @@ const inputSchema = z.strictObject({
   action:z.enum(["started","revision","completed","failed","stalled"]),
   outcome:z.enum(["pending","completed","incomplete","refused","failed","cancelled","uncertain"]),
   revision:z.number().int().min(0).max(2147483647).default(0),
-  specialistTasks:z.number().int().min(0).max(64).default(0), occurredAt:z.iso.datetime(),
+  specialistTasks:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0), occurredAt:z.iso.datetime(),
 });
 export type OrchestrationLifecycleInput = z.input<typeof inputSchema>;
 /** Commit with native state; occurredAt must come from that persisted event for stable retries. */

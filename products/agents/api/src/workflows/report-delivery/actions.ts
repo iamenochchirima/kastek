@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
@@ -91,7 +92,7 @@ export class ActionService {
    if(!connection||connection.profile_id!=="report-delivery-v1"||!target||new Date(connection.expires_at).getTime()<=Date.now())throw new PlatformError("CONNECTION_UNAVAILABLE",403,"Connection is unavailable");
    const id=randomUUID(),title=input.title??report.artifact.name;
    const payload:ReportPayload={schema:"report-delivery-v1",resource:target.resource,title,report:{name:report.artifact.name,contentType:report.artifact.contentType,digest:report.artifact.contentDigest,contentBase64:Buffer.from(report.content).toString("base64")}};
-   const payloadDigest=requestDigest(payload),expiresAt=new Date(Math.min(new Date(task.deadline_at).getTime(),Date.now()+24*60*60*1000,new Date(connection.expires_at).getTime()));
+   const payloadDigest=requestDigest(payload),expiresAt=new Date(Math.min(deadlineMillis(task.deadline_at),Date.now()+24*60*60*1000,new Date(connection.expires_at).getTime()));
    const reviewer=task.principal.kind==="automation"?await resolveAutomationReviewer(db,task.organization_id,task.root_task_id):execution.accountId;
    await requireActionMember(db,{organizationId:task.organization_id,accountId:reviewer});
    const bindingDigest=this.bindingDigest(execution,reviewer);
@@ -130,7 +131,7 @@ export class ActionService {
     const grant=(await db.query("SELECT * FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE",[task.grant_id])).rows[0];
     if(!grant||grant.revoked_at)throw new PlatformError("GRANT_REVOKED",403,"Execution access was revoked");
     if(new Date(grant.expires_at).getTime()<=Date.now()){
-     const id=randomUUID(),expiresAt=new Date(Math.min(Date.now()+30*60_000,new Date(task.deadline_at).getTime()));
+     const id=randomUUID(),expiresAt=new Date(Math.min(Date.now()+30*60_000,deadlineMillis(task.deadline_at)));
      if(expiresAt.getTime()<=Date.now())throw new PlatformError("TASK_DEADLINE",409,"Task deadline reached");
      await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids)
       SELECT $2,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,$3,source_revision_ids,connected_tool_binding_ids FROM agents_platform.execution_grants WHERE id=$1`,[grant.id,id,expiresAt]);

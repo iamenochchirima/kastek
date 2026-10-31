@@ -25,6 +25,7 @@ import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault
 import {ModelProviderStore} from "../src/product/model-providers/store";
 import {createBusinessWorkflow} from "../src/execution/business/business";
 import {dispatchTasksOnce} from "../src/execution/lifecycle/dispatcher";
+import {settleTask} from "../src/execution/lifecycle/execution";
 import {dispatchBoundModel} from "../src/execution/models/dispatch";
 import {assertCurrentEvidence,taskEvidenceManifest} from "../src/execution/context/evidence-policy";
 import {requestDigest,terminalTaskStates} from "../src/contracts/contracts";
@@ -256,7 +257,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect(discoveries[0].output).toEqual({specialists:[],nextOffset:null});
     expect(discoveries[1].output.specialists).toHaveLength(3);
     expect(discoveries.every(row=>!Object.hasOwn(row.output,"discoveryNotice"))).toBe(true);
-    const allocation=(await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE parent_task_id=$1",[first.task.id])).rows;expect(allocation.every(row=>row.root_token_limit===48000)).toBe(true);
+    const allocation=(await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE parent_task_id=$1",[first.task.id])).rows;expect(allocation.every(row=>row.root_token_limit===null)).toBe(true);
     expect((await pool.query("SELECT 1 FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE t.parent_task_id=$1 AND o.error_code='TOOL_ARGUMENTS_INVALID'",[first.task.id])).rowCount).toBeGreaterThan(0);
     const dto=(await ok(command("tasks.get",{taskId:first.task.id}))).task;
     expect(dto.children).toHaveLength(4);expect(dto.children.every((child:any)=>child.state==="completed"),JSON.stringify(dto.children)).toBe(true);
@@ -355,6 +356,25 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const resumed=await finished(task.id);expect(resumed.state,resumed.error_code).toBe("completed");
     expect(resumed.grant_id).not.toBe(before.grant_id);expect(resumed.root_token_limit).toBe(before.root_token_limit);expect(resumed.deadline_at).toEqual(before.deadline_at);
     expect((await pool.query("SELECT root_token_limit FROM agents_platform.execution_grants WHERE id=$1",[resumed.grant_id])).rows[0].root_token_limit).toBe(before.root_token_limit);
+  },30000);
+
+  it("continues one immutable terminal Growth segment with signed authority and retained corrections",async()=>{
+    const conversation=(await ok(command("conversations.create",{featureId:"assistant"}))).conversation;
+    const task=(await ok(command("turns.submit",{conversationId:conversation.id,text:"Contract zero-tool terminal continuation"}))).task;
+    await ok(command("tasks.instructions",{taskId:task.id,instruction:"Keep the agreed Cedar Finch wording."}));
+    await settleTask(pool,task.id,{state:"incomplete",output:"The remaining response still needs completion.",errorCode:"ORCHESTRATION_STALLED"});
+    const prior=(await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];
+    expect((await ok(command("tasks.get",{taskId:task.id}))).task.canContinue).toBe(true);
+    const request=command("tasks.continue",{taskId:task.id}),continued=(await ok(request)).task;
+    expect(continued.id).not.toBe(task.id);expect(continued.workId).toBe(task.id);expect(continued.priorTaskId).toBe(task.id);
+    expect((await ok(request)).task.id).toBe(continued.id);
+    expect((await ok(command("tasks.get",{taskId:task.id}))).task.canContinue).toBe(false);
+    const result=await finished(continued.id);expect(result.state,result.error_code).toBe("completed");
+    expect((await pool.query("SELECT * FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0]).toEqual(prior);
+    expect(result.deadline_at).toEqual(prior.deadline_at);expect(result.root_token_limit).toBe(prior.root_token_limit);
+    const contexts=(await pool.query("SELECT payload FROM agents_platform.context_snapshots WHERE task_id=$1 ORDER BY step",[continued.id])).rows;
+    expect(JSON.stringify(contexts)).toContain("Keep the agreed Cedar Finch wording.");
+    expect(JSON.stringify(contexts)).toContain("Prior execution segment");
   },30000);
 
   it("waits durably for the one Growth decision and confirms a single draft receipt",async()=>{

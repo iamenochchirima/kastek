@@ -43,6 +43,14 @@ export interface GrowthAgentTask {
   createdAt: string; updatedAt: string; reviewIds?: string[];
   results?: GrowthAgentResult[]; sources?: GrowthAgentSource[];
   canSteer?: boolean; canContinue?: boolean;
+  workId?: string; priorTaskId?: string | null;
+  boundary?: {
+    reason: string;
+    scope: "agent" | "work" | "organization" | "authority" | "provider" | "context" | "runtime";
+    policyRevision: string | null; limit: number | null; used: number | null;
+    policySource?: { kind: string; reference: string } | null;
+    retryable: boolean; action: "continue" | "wait" | "reconcile" | "change_policy" | null;
+  };
   orchestration?: { revision: number; record: { objective: string; steps: { id: string; title: string; state: "pending" | "in_progress" | "completed" | "blocked" }[]; questions: string[]; evidenceTaskIds: string[] } | null };
   children?: { id: string; name: string; state: GrowthAgentTaskState; errorCode?: string | null }[];
 }

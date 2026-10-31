@@ -8,11 +8,11 @@ import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthAgentPublication, growthAgentPublicationV2 } from "./manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3 } from "./manifest.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const publications = new Map([growthAgentPublicationV2, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
 const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
 function reviewReference(review:GrowthAgentReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,

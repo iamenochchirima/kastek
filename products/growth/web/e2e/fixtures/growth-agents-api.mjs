@@ -15,6 +15,7 @@ const reviews = new Map();
 const requests = new Map();
 const attempts = [];
 const instructionAttempts = [];
+const continuationAttempts = [];
 let loseInstructionAcknowledgement = false;
 let active = true;
 const features = [
@@ -102,7 +103,7 @@ const server = http.createServer(async (request, response) => {
     if (migration && path === "/api/social/posts/fixture-post/publish-batch") return json(response, 200, { batch: null });
     if (migration && (path.startsWith("/api/invitations/") || path.startsWith("/api/early-access/invitations/"))) return json(response, 404, { error: "Invitation not found" });
     if (path === "/health") return json(response, 200, { ok: true });
-    if (path === "/__fixture/attempts") return json(response, 200, { attempts, instructionAttempts, tasks: [...tasks.values()], conversations: [...conversations.values()] });
+    if (path === "/__fixture/attempts") return json(response, 200, { attempts, instructionAttempts, continuationAttempts, tasks: [...tasks.values()], conversations: [...conversations.values()] });
     if (path === "/__fixture/orchestration") {
       const input = await payload(request), task = tasks.get(input.taskId);
       if (!task) return json(response, 404, { error: "Fixture task missing" });
@@ -194,7 +195,20 @@ const server = http.createServer(async (request, response) => {
         if (loseInstructionAcknowledgement) { loseInstructionAcknowledgement = false; response.destroy(); return; }
         return json(response, 200, result);
       }
-      if (taskMatch[2] === "continue") { task.state = "working"; task.canContinue = false; task.canSteer = true; task.updatedAt = now(); return json(response, 200, { task }); }
+      if (taskMatch[2] === "continue") {
+        const input = await payload(request); continuationAttempts.push({ ...input, taskId: task.id });
+        const key = `${businessId}:continuation:${input.requestId}`;
+        if (requests.has(key)) return json(response, 200, requests.get(key));
+        if (!task.canContinue) return json(response, 409, { error: "Task cannot continue" });
+        task.canContinue = false; task.updatedAt = now();
+        let continued = task;
+        if (["incomplete", "failed"].includes(task.state)) {
+          continued = { ...task, id: randomUUID(), workId: task.workId || task.id, priorTaskId: task.id,
+            state: "working", errorCode: null, canSteer: true, createdAt: now(), updatedAt: now() };
+          tasks.set(continued.id, continued);
+        } else { task.state = "working"; task.canSteer = true; }
+        const result = { task: continued }; requests.set(key, result); return json(response, 200, result);
+      }
       if (taskMatch[2] === "events") return json(response, 200, { events: [{ id: `${task.id}:${task.state}`, taskId: task.id, type: "task.state", state: task.state, createdAt: task.updatedAt }], nextCursor: task.state });
       if (taskMatch[2] === "cancel") { task.state = "cancelled"; task.canSteer = false; task.canContinue = false; task.updatedAt = now(); return json(response, 200, { task }); }
       if (!taskMatch[3]) return json(response, 200, { reviews: [...reviews.values()].filter((value) => value.taskId === task.id) });

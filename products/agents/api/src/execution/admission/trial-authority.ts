@@ -5,7 +5,7 @@ import { PlatformError, requestDigest, type AdmissionAuthority, type ExecutionGr
 /** The trial is another authority ceiling. It never replaces the normal execution grant. */
 export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
   trialId?: string | null; authority: AdmissionAuthority; agentId: string; versionId: string;
-  rootTokenLimit?: number; conversationId?: string;
+  rootTokenLimit?: number | null; conversationId?: string;
 }): Promise<void> {
   const reserved = (await db.query("SELECT id FROM agents_platform.evaluation_trials WHERE agent_id=$1", [input.agentId])).rows[0];
   if (!input.trialId) {
@@ -26,7 +26,7 @@ export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
   if (!trial || trial.state !== "active" || new Date(trial.expires_at).getTime() <= Date.now() ||
       trial.version_id !== input.versionId || trial.agent_id !== input.agentId ||
       input.authority.product !== "agents" || !actorMatches ||
-      (input.rootTokenLimit !== undefined && input.rootTokenLimit > trial.max_tokens)) {
+      (input.rootTokenLimit !== undefined && (input.rootTokenLimit === null || input.rootTokenLimit > trial.max_tokens))) {
     throw new PlatformError("EVALUATION_TRIAL_INACTIVE", 403, "The evaluation trial does not authorize this operation");
   }
   if (input.conversationId && !(await db.query(`SELECT 1 FROM agents_platform.tasks
@@ -39,13 +39,13 @@ export async function assertEvaluationTrial(db: Pool | PoolClient, input: {
 export async function trialModelRoutes(db: PoolClient, trialId: string, organizationId: string, grant: ExecutionGrant): Promise<AcceptedModelRoutes> {
   const row = (await db.query("SELECT model_routes,model_routes_digest,root_token_limit FROM agents_platform.evaluation_trials WHERE id=$1 AND organization_id=$2 FOR SHARE", [trialId, organizationId])).rows[0];
   const parsed = acceptedModelRoutesSchema.safeParse(row?.model_routes);
-  if (!parsed.success || requestDigest(parsed.data) !== row.model_routes_digest || row.root_token_limit !== grant.rootTokenLimit) {
+  if (!parsed.success || requestDigest(row.model_routes) !== row.model_routes_digest || row.root_token_limit !== grant.rootTokenLimit) {
     throw new PlatformError("EVALUATION_MODEL_MISMATCH", 409, "The trial model scope does not match this request");
   }
   for (const route of Object.values(parsed.data)) {
     const binding = route.binding;
     if (binding.organizationId !== organizationId || requestDigest(route.definition) !== binding.providerDefinitionDigest ||
-        route.policy.maxRootTokens > grant.rootTokenLimit || route.policy.maxInputBytes > grant.maxInputBytes ||
+        (grant.rootTokenLimit !== null && (route.policy.maxRootTokens === null || route.policy.maxRootTokens > grant.rootTokenLimit)) || route.policy.maxInputBytes > grant.maxInputBytes ||
         route.policy.maxInputTokens > grant.maxContextTokens || route.policy.maxOutputTokens > grant.maxOutputTokens) {
       throw new PlatformError("EVALUATION_MODEL_MISMATCH", 403, "The execution grant does not authorize the pinned model policy");
     }

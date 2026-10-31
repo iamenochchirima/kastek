@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../execution/lifecycle/deadline";
 import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
 import { specialistCatalogue } from "../product/assistant/specialists";
 import { OrganizationAssistantStore } from "../product/agents/organization-assistant";
@@ -681,7 +682,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
       maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
       rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
-      expiresAt: new Date(Math.min(Date.now()+30*60_000, new Date((task as TaskRecord & {deadline_at:Date}).deadline_at).getTime())).toISOString(), revokedAt: null });
+      expiresAt: new Date(Math.min(Date.now()+30*60_000, deadlineMillis((task as TaskRecord & {deadline_at:Date|null}).deadline_at))).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
     const db = await pool.connect();
     try {

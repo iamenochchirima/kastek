@@ -30,7 +30,7 @@ async function authorized(db: PoolClient, binding: StatusNoticeBinding, body: st
     WHERE s.task_id=$1 AND s.organization_id=$2 AND s.conversation_id=$3 AND s.input_message_id=$4
       AND s.episode_command_id=$5 AND s.ownership_generation=$6
       AND t.execution_purpose='support_status_v1' AND t.root_task_id=t.id
-      ${historical ? "" : "AND t.state IN ('accepted','running','completed') AND t.deadline_at>clock_timestamp() AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_cancellations cancellation WHERE cancellation.task_id=t.id AND cancellation.completed_at IS NULL)"}
+      ${historical ? "" : "AND t.state IN ('accepted','running','completed') AND (t.deadline_at IS NULL OR t.deadline_at>clock_timestamp()) AND NOT EXISTS (SELECT 1 FROM agents_platform.customer_cancellations cancellation WHERE cancellation.task_id=t.id AND cancellation.completed_at IS NULL)"}
       AND g.revoked_at IS NULL ${historical ? "" : "AND g.expires_at>clock_timestamp()"}
       AND g.principal=t.principal AND g.product=t.product AND g.resource_id=t.resource_id AND g.version_id=t.version_id AND g.caller_client_id=t.caller_client_id
       AND op.kind='model' AND op.name='model.support_status' AND op.state='completed'

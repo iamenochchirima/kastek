@@ -147,12 +147,12 @@ acceptance limits. Passing controlled checks does not enable private phone acces
 
 ## Adaptive specialist orchestration
 
-Programv4 uses schema096, `product-capabilities-v13` and `AgentsBusinessRunV23`; retain older
-handlers for accepted tasks. The [operation reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
+New programv4 publications use schemas096–098, policyv2, `product-capabilities-v14` and
+`AgentsBusinessRunV24`; retain v13/V23 and older handlers for their accepted tasks. The [operation reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
 is authoritative for policy, tool semantics, permissions and rollout. Select focused checks from:
 
 ```sh
-pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts test/adaptive-specialist-skills.test.ts test/orchestration-routes.test.ts test/schema-upgrade-096.test.ts
+pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts test/adaptive-specialist-skills.test.ts test/orchestration-routes.test.ts test/schema-upgrade-096.test.ts test/model-policy-snapshots.test.ts test/optional-execution-limits.test.ts test/work-continuation.test.ts test/orchestration-progress-policy.test.ts
 ```
 
 Database suites require the owned PostgreSQL prerequisite above. Continue using the existing
@@ -161,6 +161,27 @@ provider behavior from autonomous model judgment. Verify selected result provena
 same-specialist immutable follow-ups, source/member revocation, bounded repeated operations,
 compaction, queued instructions, replay, cancellation and root-owned child settlement. Inspect the
 actual operation/result records; a progress step marked completed is model-authored data.
+
+The optional-policy regressions use real PostgreSQL admission and operation settlement. Verify at
+least50 model and50 tool calls with null count caps, independent explicit local/shared ceilings,
+concurrent claims at a finite shared ceiling, quota rejection rollback, reservation versus actual
+usage, receipt replay without double charging and cumulative usage across continued segments.
+The adaptive suite also exercises65 specialist model operations and52,000 actual tokens under
+null token/time scopes, plus finite legacy bindings and17 sequential children without a total cap.
+Verify null work wall deadlines and explicitly finite `maxWallDurationMs`, preserving the original
+finite deadline across continuation. A null allowance does not disable authority, physical call deadlines, organization quota or
+concurrency. `model-policy-snapshots.test.ts` verifies retained v1 policy snapshots separately.
+
+For continuation, verify an immutable new task under the same work identity, current authority,
+original deadline, retained policy intersection, existing result/effect provenance and no usage
+reset. Pending or uncertain physical work must block continuation. Current-input corrections must
+remain present after compaction. Prove queued corrections reached successful primary requests;
+compaction requests and omitted groups do not count as delivery. Verify undelivered corrections
+carry across work segments, the latest correction stays exact, and `work.inspect` v2 pages earlier
+instructions without leaking foreign work or splitting Unicode code points. Exercise reservation
+waiting before primary generation and compaction, and expired derived-child grant renewal without
+changing pins, scope or usage. Inspect saved partial findings and the exact local/shared boundary
+reason; do not treat a generic stopped status as evidence that task completion succeeded.
 
 The runtime suite accepts `AGENTS_TEST_RESTATE_BINARY` for the official Restate 1.7.13 native
 binary when Docker is unavailable. It starts owned loopback services and removes its database

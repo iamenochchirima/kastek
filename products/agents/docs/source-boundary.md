@@ -441,16 +441,17 @@ execution grants, and agent settings can reduce the effective allowances.
 | `maxOutputTokens` | 32,768 | Service output ceiling, also bounded by model and agent settings. |
 | `safetyTokens` | 1,024 | Explicit context reserve; contributing layers retain the largest reserve. |
 | `compactAtTokens` | 131,072 | Service compaction threshold, reduced by the saved agent threshold. |
-| `maxModelCalls`, `maxToolCalls` | 24, 48 | Root call limits shared with compaction and children. |
-| `maxDurationMs`, `maxCallDurationMs` | 900,000, 120,000 | Root active-operation time and each physical model call. Approval waits use separate durable waits. |
+| `maxModelCalls`, `maxToolCalls` | `null`, `null` | Optional local agent count ceilings, cumulative for the coordinator across continued segments. |
+| `maxRootModelCalls`, `maxRootToolCalls` | `null`, `null` | Optional shared work count ceilings, including specialists and compaction. |
+| `maxDurationMs`, `maxWallDurationMs`, `maxCallDurationMs` | `null`, `null`, 120,000 | Optional shared active time and work wall lifetime; finite deadline for each physical model call. Approval waits use separate durable waits. |
 | `maxInputBytes` | 65,536 | Raw user-input byte ceiling. |
 | `maxRequestBytes`, `maxResponseBytes` | 2,097,152, 4,194,304 | Serialized native request and response byte ceilings. |
 | `maxMessages`, `maxTools` | 256, 64 | Native request collection bounds. |
-| `maxRootTokens` | 1,000,000 | Service root allowance, reduced by the execution grant. |
+| `maxRootTokens` | `null` | Optional cumulative token allowance; finite execution grants remain binding. |
 | `maxCostMicros` | `null` | No operator monetary cap. Finite caps are rejected until their price and token bound can be enforced. |
 
 For example, `AGENTS_MODEL_POLICY_JSON={"maxModelCalls":32,"maxToolCalls":64}` changes only
-the two call ceilings. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
+the two local call ceilings; use `maxRootModelCalls` / `maxRootToolCalls` for a shared team ceiling. Null never removes another finite policy layer. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
 threshold, 4,096 reply tokens, 16,384 raw input bytes, and a 120-second model-call deadline.
 These are editable configuration defaults, not provider limits. Effective root grants can be
 smaller than the service allowance. The editor's Model limits section previews the effective
@@ -476,16 +477,16 @@ relative to `api/src/`. These values are not vendor capacity promises.
 | Context, input and output capacities in `adapters/models/discovery.ts` and `model-metadata.ts` | Vendor metadata with per-field provenance. Missing context/output capacity blocks execution until sourced metadata exists. | Refresh the selected connection or supply owner-attested manual metadata. `model-discovery.test.ts`, `model-metadata.test.ts`, `model-execution-policy.test.ts`. |
 | Every operator field in the defaults table above, in `execution/models/settings.ts` | Platform policy limits request size, work, root cost exposure and transport memory. The policy compiler takes the smallest ceiling and largest safety reserve. | Strict `AGENTS_MODEL_POLICY_JSON`; `model-execution-policy.test.ts`, `model-dispatch.test.ts`. |
 | Agent defaults in `contracts/contracts.ts`: input16,384 bytes, output4,096 tokens, call120 seconds, context8,192 tokens, compaction6,144 tokens | Editable product defaults for a newly configured agent. Context and output must fit the effective model and root allowance; compaction must precede input exhaustion. | Saved configuration and the model-policy preview. `model-controls.test.ts`, `configuration-experience.spec.ts`. |
-| Grant root default32,000 tokens; tenant defaults2 active roots and100,000 tokens/day | Product and tenant admission policy, independent of a model's advertised context. Existing tenant reservations bound accepted work; child and compaction work share the root. | `executionGrantSchema`, persisted `tenant_admission`, accepted product assertion or evaluation scope. `model-accounting.test.ts`, admission and runtime tests. |
-| Positive stored counters at most2,147,483,647; seconds at most2,147,483 | Persistence integrity. Millisecond conversion must fit PostgreSQL integer counters. These broad bounds do not grant execution allowances. | `contracts/contracts.ts`, `contracts/products.ts`, schema041 and044. Initial schema001's old ceilings are superseded by these additive schemas. PostgreSQL admission/accounting tests. |
-| Delegation2 children, depth1, each2,048–12,000 tokens and1,000–300,000 active milliseconds | Current capability policy for bounded specialist work. Parent authority, remaining allowance and model policy can only narrow these allocations. | `delegationBindingSchema`, published capability and execution grant. Delegation and real business workflow tests. |
+| Optional grant root allowance; tenant defaults2 active roots and100,000 tokens/day | Product and tenant admission policy, independent of a model's advertised context. Existing tenant reservations bound accepted work; child and compaction work share the root. | `executionGrantSchema`, persisted `tenant_admission`, accepted product assertion or evaluation scope. `model-accounting.test.ts`, admission and runtime tests. |
+| Cumulative task/root counters are exact nonnegative integers through9,007,199,254,740,991; per-operation and grant fields keep their own storage bounds | Persistence integrity, not an execution allowance. Unsafe totals fail rather than losing integer precision. | Schema098 and `execution/lifecycle/work-policy.ts`; `optional-execution-limits.test.ts`. |
+| Adaptive delegation1–8 concurrent children, depth1; token/time allocations nullable; legacy bindings finite through12,000 tokens | Nullable allocations reserve each bounded operation. Explicit finite pins remain binding; delegation never increases parent authority. | `delegationBindingSchema`, published capability and execution grant; adaptive and optional execution tests. |
 | Instructions8,000 characters, sources20, connected tools8, skills8 and direct builtin tools7 | Product configuration and authority collection bounds. Larger context does not increase capability authority. Full serialized content must still fit the accepted input policy. | `agentConfigurationSchema` and published program contracts. Configuration, publication and product-scope tests. |
 | Model controls in `adapters/models/model-control-profiles.json` | Sourced vendor parameter rules, matched to endpoint, API and model. Manual budgets additionally fit the effective output reserve. Unknown routes expose provider defaults. | Reviewed JSON revision pinned at admission. `model-controls.test.ts`, `model-provider-conformance.test.ts`. |
 | Catalogue2MiB/5,000 models, TTL5 minutes, refresh30 seconds, maximum backoff15 minutes and discovery30-second deadline | Setup transport/cache protections. These values bound provider setup separately from paid agent execution. | Injected validated `ModelSetupPolicy` in `product/model-providers/setup-policy.ts`. Store/discovery tests. |
 | Explicit probe256 output tokens,32KiB request,256KiB response and30 seconds | Setup policy bounds an explicitly billable model/tool test. Actual model capacity can lower the output allowance. | The same `ModelSetupPolicy`; provider probe tests. |
 | Counter response at most64KiB, additionally bounded by the accepted response limit | Transport protection for a small token-count document. Counter failure prevents generation. Native input counts and byte estimates retain separate precision labels. | `execution/models/dispatch.ts`, `adapters/models/input-count.ts`. Native counter success/overflow/failure tests. |
 | Per-call deadline and connection/idle/progress timers | Transport protection within the original operation and task deadlines. Preparation and counting do not reset accepted execution time. Semantic progress is distinct from incoming bytes. Context preparation preserves whole-millisecond policies, including fractional seconds. | Accepted `maxCallDurationMs`, operation `started_at + reserved_ms`, task deadline and `infrastructure/model-network.ts`. Runtime elapsed-deadline and network timeout/cancellation tests. |
-| Root wall lifetime24 hours; staff chat grants and renewals30 minutes | Execution-lifecycle and authority bounds, separate from active-operation time. A renewal cannot extend the task deadline. | Schema001 task default and `composition/app.ts` grant creation/renewal. Admission, authority-expiry and deadline recovery tests. |
+| Optional work wall lifetime defaultsnull; staff chat grants and renewals30 minutes | Work deadlines are distinct from authority expiry, active-operation time and finite physical call/queue deadlines. Renewal cannot extend a finite accepted work deadline. Older accepted tasks retain their original finite deadlines. | `maxWallDurationMs`, schema098 and admission; `optional-execution-limits.test.ts` and continuation/deadline tests. |
 | Worker loop bounded by accepted `maxModelCalls`, including compaction | Platform execution policy. The operation ledger also enforces root call counts shared with delegated work. There is no independent 40-iteration ceiling. | `execution/business/business.ts` and `execution/lifecycle/execution.ts`; accepted-policy and operation-budget tests. |
 | Capacity wait at most256 wake cycles; authority renewal and tool-authority retry at most8 attempts; child-result reconciliation at most400 checks with250ms between checks | Bounded durable control and recovery work. These guards do not grant model calls or reset task deadlines. | Fixed in `execution/business/business.ts`; scheduling, authority, delegation and runtime recovery tests. |
 | Compaction retains up to1 recent whole message group | Worker context-selection policy. The remaining prefix is summarized without splitting tool exchanges. It does not change the accepted input or output allowance. | `prepareCompaction` receives `min(1, groups.length - 1)` from the worker. Context and compaction tests. |
@@ -844,7 +845,7 @@ settlement read only immutable organization/root keys before locking, then reloa
 the full execution under the original locks. Current authority and dependency checks still run.
 
 The baseline business source release is `product-capabilities-v11` / `AgentsBusinessRunV21`;
-explicit adaptive programv4 uses V23 as described below. Initial setup requires a fresh
+explicit adaptive programv4 uses V24 as described below; accepted V23 work keeps its original handler. Initial setup requires a fresh
 dedicated schema through `038_skill_script_runtime.sql`. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
 
@@ -884,7 +885,7 @@ shared harness acceptance fixtures. Full Agency execution and production deploym
 
 Growth uses `product/integrations/growth-execution.ts` for private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
-Growth API `src/agents/manifest.ts`. Managed revision 3 publishes a `tool-directed@4` assistant
+Growth API `src/agents/manifest.ts`. Managed revision 4 publishes a `tool-directed@4` assistant
 with three pinned same-business `tool-directed@3` specialists. Both compile immutable product bindings;
 `execution/products/product-runtime.ts` routes calls and opaque reviews through installed product
 ports. The shared loop has no Growth preset dispatch. Runtime clients and credentials are scoped
@@ -1400,13 +1401,15 @@ changed payloads conflict. Model, tool, and compaction operations have separate
 stable identities and receipts. A recorded result is reused after replay. An
 unconfirmed model request becomes uncertain rather than generating another reply.
 
-Root limits come from the accepted effective model policy described above. The default
-execution grant allows 32,000 accounted tokens; the operator service ceiling alone does not
-increase that grant. Default call ceilings are 24 model calls, including compaction and children,
-and 48 tool calls. The saved agent starts with 8,192 estimated input tokens, 4,096 output tokens,
-and a 120-second model-call deadline. Root wall lifetime remains 24 hours, with 15 minutes of
-accounted active-operation time. Every operation reserves time before claim. A known late
-completion charges actual elapsed time; an uncertain operation consumes at least its reservation.
+Root limits come from accepted execution policy. Policy v2 defaults local model/tool counts,
+shared team counts, cumulative tokens and active time to null at the service layer. New standalone
+grants have no cumulative token cap unless explicitly configured; persisted finite grants remain
+finite. No service setting enlarges a finite grant. Nullable grants reserve each physical operation against the
+organization quota rather than reserving an unbounded root allocation. Finite grants reserve their
+accepted amount upfront. The saved agent starts with 8,192 estimated input tokens, 4,096 output
+tokens and a 120-second call deadline. Work wall lifetime defaults to null through `maxWallDurationMs`, independent of optional
+active-operation time. Explicit wall deadlines remain anchored to the original work across continuation. Known late completion charges actual elapsed time; an uncertain operation
+consumes at least its reservation. Policy-v1 snapshots keep their aggregate counter semantics.
 Organization scheduling defaults allow two accepted roots, two model operations, and four tool
 operations in flight. `AGENTS_SCHEDULING_POLICY_JSON` configures these separate capacity limits.
 
@@ -2163,8 +2166,8 @@ bucket backup and reverse-export limitation above define rollback.
 
 ## Adaptive specialist coordination
 
-Explicit standalone `tool-directed` program version 4 uses schema096 and
-`product-capabilities-v13` / `AgentsBusinessRunV23`. Existing versions 1–3 and their accepted task
+New standalone `tool-directed` program version 4 publications use schemas096–098 and
+`product-capabilities-v14` / `AgentsBusinessRunV24`. Accepted v13/V23 journals keep their handler. Existing versions 1–3 and their accepted task
 journals remain pinned. It extends the ordinary Assistant and other authorized business agents;
 it creates no privileged replacement agent or cross-product authority.
 
@@ -2175,12 +2178,21 @@ Result offsets count Unicode code points. The coordinator may revise its approac
 paging and historical failed children do not permanently force an otherwise supported root answer
 to be partial. Native outcome and answer quality remain separate.
 
-Configuration permits 1–8 concurrent children (default 2), 1–64 total child tasks including
-follow-ups (default 16), and a repeated-identical-operation threshold of 1–8 (default 3), within
-existing root allocations. Depth remains one. The check excludes waits/progress inspection and
-runs only with no active child; it is a repetition bound rather than a general semantic progress
-judge. Permissions, resource budgets, current authority and source/tool scope remain deterministic
-runtime constraints. No hardcoded business routing sequence chooses a specialist.
+Configuration permits 1–8 concurrent children (default 2), an optional cumulative child-task
+allowance (default null) and a repeated-unchanged-observation threshold of 1–8 (default 3).
+Depth remains one. With no active child, equal recent requests and results trigger a replanning
+observation before a further unchanged action pauses. Changed results count as progress, and
+wait/progress inspection is excluded. This is not a general semantic progress judge. Nullable
+specialist token/time scopes use bounded per-operation reservations; explicit finite scopes remain
+binding. Permissions, quota, current authority and source/tool scope remain runtime constraints.
+No hardcoded business routing sequence chooses a specialist.
+
+Eligible terminal work continues through a new immutable segment, preserving `work_id`, receipts,
+cumulative accounting, original deadline and the intersection of prior/current policy. Pending or
+uncertain physical operations require reconciliation. Schemas097/098 add this lineage and exact
+counters. Prior corrections stay in current input after compaction. A nonreducing compaction
+sequence pauses; a bounded deterministic partial response can preserve eligible findings without
+another model call. Current-source and citation checks still govern those findings.
 
 Work records and queued authorized active-root instructions survive durable execution. Native
 handles/revisions are confirmed metadata; plan prose stays untrusted after compaction. Child

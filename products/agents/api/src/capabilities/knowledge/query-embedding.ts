@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import { randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
 import { z } from "zod";
@@ -22,7 +23,7 @@ export async function requireQueryAuthority(db:PoolClient,input:QueryEmbeddingRe
  if(!operation||operation.state!=="started"||!["tool","resource"].includes(operation.kind)||operation.name!=="knowledge.search")throw denied("QUERY_OPERATION_UNAVAILABLE");
  let argumentsValue:unknown;try{argumentsValue=operation.request?.tool==="knowledge.search"?JSON.parse(operation.request.arguments):operation.request;}catch{throw denied("QUERY_OPERATION_UNAVAILABLE");}
  if(!argumentsValue||typeof argumentsValue!=="object"||!("query" in argumentsValue)||typeof argumentsValue.query!=="string"||argumentsValue.query.trim()!==input.query.trim())throw denied("QUERY_OPERATION_CONFLICT");
- const deadlineAt=Math.min(new Date(execution.task.deadline_at).getTime(),new Date(operation.started_at).getTime()+operation.reserved_ms);
+ const deadlineAt=Math.min(deadlineMillis(execution.task.deadline_at),new Date(operation.started_at).getTime()+operation.reserved_ms);
  if(deadlineAt<=Date.now())throw denied("QUERY_DEADLINE");return{organizationId:execution.task.organization_id,deadlineAt};
 }
 

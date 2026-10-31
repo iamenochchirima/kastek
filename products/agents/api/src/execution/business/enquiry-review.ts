@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../lifecycle/deadline";
 import * as restate from "@restatedev/restate-sdk";
 import type {Pool} from "pg";
 import {EnquiryStore} from "../../capabilities/enquiries/enquiries";
@@ -17,7 +18,7 @@ export async function awaitEnquiryConfirmation(ctx:restate.WorkflowContext,pool:
     const enquiry=await enquiries.prepare(taskId,operationId,args,operation);
     if(["approved","submitted"].includes(enquiry.state)){await pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_review'",[taskId]);return {approved:true};}
     if(enquiry.state!=="pending")return {outcome:{state:"incomplete",errorCode:`ENQUIRY_${enquiry.state.toUpperCase()}`} as TaskOutcome};
-    const deadline=Math.min(Date.parse(enquiry.expiresAt),new Date(task.deadline_at).getTime());
+    const deadline=Math.min(Date.parse(enquiry.expiresAt),deadlineMillis(task.deadline_at));
     if(deadline<=Date.now())return {outcome:{state:"incomplete",errorCode:"ENQUIRY_CONFIRMATION_EXPIRED"} as TaskOutcome};
     await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
     await event(pool,taskId,`enquiry-confirmation:${enquiry.id}`,"review.enquiry_required",{enquiryId:enquiry.id,expiresAt:enquiry.expiresAt});

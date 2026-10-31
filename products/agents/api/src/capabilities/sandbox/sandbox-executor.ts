@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { PlatformError } from "../../contracts/contracts";
@@ -30,7 +31,7 @@ export function createSandboxExecutor(pool:Pool,manager:Pick<SandboxManager,"ana
     }
     checkDeadline();
     const scope={organizationId:execution.task.organization_id,rootTaskId:execution.task.root_task_id,taskId,
-      deadlineAt:new Date(Math.min(new Date(execution.task.deadline_at).getTime(),deadline.expiresAt-30_000))};
+      deadlineAt:new Date(Math.min(deadlineMillis(execution.task.deadline_at),deadline.expiresAt-30_000))};
     const result=await manager.analyze(scope,{operationId,code:"code" in args?args.code:"# Reviewed package entry is executed by the existing isolated guest runner.",inputs,skillPackage});
     checkDeadline();
     const skill=skillPackage?{skill:skillPackage.reference}:{};
@@ -57,7 +58,7 @@ export function createSandboxExecutor(pool:Pool,manager:Pick<SandboxManager,"ana
       const name="code" in args?"sandbox.analyze":"skills.run";
       const operation=(await db.query("SELECT started_at,reserved_ms FROM agents_platform.operations WHERE id=$1 AND task_id=$2 AND name=$3 AND kind='resource' AND state='started' FOR SHARE",[operationId,taskId,name])).rows[0];
       if(!operation)throw new PlatformError("SANDBOX_OPERATION_REQUIRED",403,"A current admitted sandbox operation is required");
-      const expiresAt=Math.min(new Date(execution.task.deadline_at).getTime(),new Date(operation.started_at).getTime()+operation.reserved_ms);
+      const expiresAt=Math.min(deadlineMillis(execution.task.deadline_at),new Date(operation.started_at).getTime()+operation.reserved_ms);
       if(expiresAt<=Date.now())throw new PlatformError("SANDBOX_OPERATION_EXPIRED",409,"The sandbox operation reached its original deadline");
       const skillPackage="skillId" in args?await resolveSkillScript(db,taskId,operationId,args):undefined;
       return {expiresAt,skillPackage};

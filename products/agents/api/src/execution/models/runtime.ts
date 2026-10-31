@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../lifecycle/deadline";
 import { modelIdentitySchema } from "../../contracts/model-transport";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -93,6 +94,7 @@ async function nativeHistory(db: Db, taskId: string, organizationId: string, rou
 export async function invokeTaskModel(input: TaskModelInvocation, dependencies: ModelRuntimeDependencies = {}): Promise<TaskModelResponse> {
   let claimed = false, dispatched = false;
   let inputCount: PreparedInputCount | undefined;
+  let inputRejectedBeforeDispatch = false;
   let guardFailure: ModelOperationError | PlatformError | undefined;
   const retainGuardFailure = (error: unknown): never => {
     if (error instanceof ModelOperationError || error instanceof PlatformError) guardFailure = error;
@@ -117,7 +119,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
         VALUES($1,$2,$3,$4,$5,$6,'started') ON CONFLICT(operation_id) DO NOTHING RETURNING operation_id`,
         [input.operationId, organizationId, taskId, input.role, requestDigest(route.binding), request]);
       if (!inserted.rowCount) throw new ModelOperationError("MODEL_NATIVE_OPERATION_ALREADY_RECORDED", "uncertain", 409);
-      const deadlineAt = Math.min(new Date(input.execution.task.deadline_at).getTime(),
+      const deadlineAt = Math.min(deadlineMillis(input.execution.task.deadline_at),
         new Date(operation.started_at).getTime() + operation.reserved_ms);
       return { route, restored, reservedTokens: operation.reserved_tokens, deadlineAt };
     });
@@ -134,6 +136,11 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
           const operation = (await db.query(`SELECT state FROM agents_platform.operations WHERE id=$1 AND task_id=$2`, [input.operationId, taskId])).rows[0];
           if (!operation || operation.state !== "started") throw new ModelOperationError("MODEL_OPERATION_UNAVAILABLE", "rejected", 409);
         }); } catch (error) { retainGuardFailure(error); }
+      },
+      onPreparedInputCount: count => {
+        inputCount = count;
+        inputRejectedBeforeDispatch = count.tokens > prepared.route.policy.maxInputTokens ||
+          BigInt(count.tokens) + BigInt(prepared.route.policy.maxOutputTokens) + BigInt(prepared.route.policy.safetyTokens) > BigInt(prepared.route.policy.contextTokens);
       },
       beforePayloadDispatch: async (payload, count) => {
         try {
@@ -173,7 +180,7 @@ export async function invokeTaskModel(input: TaskModelInvocation, dependencies: 
       new ModelOperationError(dispatched ? "MODEL_CONTINUATION_PERSISTENCE_UNCERTAIN" : "MODEL_RUNTIME_UNAVAILABLE", dispatched ? "uncertain" : "rejected");
     if (claimed) {
       try { await input.pool.query(`UPDATE agents_platform.private_model_continuations SET state=$3,input_count=$4,completed_at=now()
-        WHERE operation_id=$1 AND task_id=$2 AND state='started'`, [input.operationId, taskId, mapped.outcome, inputCount ?? null]); } catch {}
+        WHERE operation_id=$1 AND task_id=$2 AND state='started'`, [input.operationId, taskId, mapped.outcome, inputCount ? {...inputCount,...(inputRejectedBeforeDispatch && mapped.code === "CONTEXT_LIMIT" && mapped.outcome === "rejected" ? {rejectedBeforeDispatch:true} : {})} : null]); } catch {}
     }
     throw mapped;
   }

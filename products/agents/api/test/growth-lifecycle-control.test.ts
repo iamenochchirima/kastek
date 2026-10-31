@@ -11,7 +11,7 @@ import { ModelCredentialVault } from "../src/infrastructure/model-credential-vau
 import { ConnectionVault } from "../src/infrastructure/vault";
 import { setupPlatformSchema } from "../src/composition/setup";
 import {beginOperation} from "../src/execution/lifecycle/execution";
-import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
+import {growthAgentPublicationV2} from "../../../growth/api/src/agents/manifest";
 import { requestDigest } from "../src/contracts/contracts";
 import type { GrowthAgentAction, GrowthAgentCommandOutputs } from "@kasitek-labs/contracts";
 
@@ -25,7 +25,9 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   const issuer = "https://growth.control.test";
   let admin: Pool, pool: Pool, execution: GrowthExecutionService, runtime: GrowthProductRuntime;
   const vault = new ModelCredentialVault(new ConnectionVault("fixture", { fixture: randomBytes(32).toString("base64") }));
+  const originalPolicy=process.env.AGENTS_MODEL_POLICY_JSON;
   beforeAll(async () => {
+    process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({...JSON.parse(originalPolicy??"{}"),maxRootTokens:32000,maxInputTokens:8192,maxOutputTokens:4096,compactAtTokens:6144});
     admin = new Pool({ connectionString: adminUrl });
     await admin.query(`CREATE DATABASE "${database}"`);
     const url = new URL(adminUrl!); url.pathname = "/" + database;
@@ -34,11 +36,12 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
       if (action.operation === "authorization.check") return { authorized: true };
       const context = action.context ?? { kind: "workspace", resourceId: action.tenantId }, data = { name: "Fixture business" }, revision = requestDigest(data);
       return { context, data, revision, sources: [{ id: "workspace:" + action.tenantId, title: "Business", revision }] };
-    } } as GrowthActionClient;
+    }, invoke:async()=>{throw Error("No product effect is expected in this lifecycle fixture");} } as unknown as GrowthActionClient;
     runtime = new GrowthProductRuntime(pool, client);
     execution = new GrowthExecutionService(pool, { issuer, actorIssuer: issuer + "/identity", keys: { fixture: "unused by this class fixture" } }, runtime);
   }, 20000);
   afterAll(async () => {
+    if(originalPolicy===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=originalPolicy;
     await pool?.end();
     if (admin) { await dropClosedTestDatabase(admin,database); await admin.end(); }
   });
@@ -51,7 +54,7 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   }
   async function fixture() {
     const tenantId = randomUUID(), actor = { issuer: issuer + "/identity", subject: randomUUID() };
-    const tenant = await execution.ensureTenant({ tenantId });
+    const tenant = await execution.ensureTenant({ tenantId,publication:growthAgentPublicationV2 });
     await configureModel(tenantId);
     const command = { version: "1" as const, requestId: randomUUID(), tenantId, actor };
     const conversation = await execution.execute({ ...command, operation: "conversations.create", input: { featureId: "assistant" } }) as GrowthAgentCommandOutputs["conversations.create"];
@@ -61,9 +64,9 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
   it("enforces the shared root budget and refuses uninstalled specialist authority",async()=>{
     const f=await fixture();
     const root=(await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1",[f.taskId])).rows[0];
-    await expect(beginOperation(pool,f.taskId,{id:"model:"+f.taskId+":0",kind:"model",name:"model.reply",request:{},reservedTokens:root.root_token_limit+1,reservedMs:1000})).rejects.toMatchObject({code:"ROOT_LIMIT"});
+    await expect(beginOperation(pool,f.taskId,{id:"model:"+f.taskId+":0",kind:"model",name:"model.reply",request:{},reservedTokens:root.root_token_limit+1,reservedMs:1000})).rejects.toMatchObject({code:"ROOT_TOKEN_LIMIT"});
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.operations WHERE task_id=$1",[f.taskId])).rows[0].n).toBe(0);
-    const configuration=growthFeatureConfiguration("assistant");
+    const configuration=structuredClone((await execution.feature(pool,{tenantId:f.tenantId},"assistant")).configuration);
     configuration.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,bindings:[{id:"unexpected",versionId:randomUUID(),sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:2048,maxActiveMs:1000}]};
     await expect(execution.execute({...f.command,requestId:randomUUID(),operation:"features.configure",input:{featureId:"assistant",configuration}})).rejects.toMatchObject({code:"PRODUCT_CAPABILITY_UNAVAILABLE"});
   });
@@ -72,7 +75,7 @@ const adminUrl = process.env.AGENTS_TEST_ADMIN_URL;
     const disabled = await controlGrowthExecution(pool, { tenantId: first.tenantId, action: "tenant.disable" });
     expect(disabled).toMatchObject({ enabled: false, revokedExecutionGrants: 1, requestedTaskTrees: 1, pendingTaskTrees: 0 });
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [first.taskId])).rows[0].state).toBe("cancel_requested");
-    await expect(runtime.authorizeTask(first.taskId)).rejects.toMatchObject({ code: "PRODUCT_AUTHORITY_INACTIVE" });
+    await expect(runtime.authorizeTask(first.taskId)).rejects.toMatchObject({ code: "EVIDENCE_UNAVAILABLE" });
     await expect(execution.execute({ ...first.command, requestId: randomUUID(), operation: "tasks.get", input: { taskId: first.taskId } })).rejects.toMatchObject({ code: "PRODUCT_TENANT_UNAVAILABLE" });
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [other.taskId])).rows[0].state).toBe("accepted");
     const restored = await controlGrowthExecution(pool, { tenantId: first.tenantId, action: "tenant.enable" });

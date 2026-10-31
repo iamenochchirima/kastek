@@ -5,10 +5,10 @@ import { publishedToolBindings } from "../../capabilities/tool-definitions";
 import { REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING } from "../../capabilities/tool-descriptors";
 import { compileComposition } from "./composition";
 
-export function compilePublishedComposition(configuration: AgentConfiguration, connectedBindings: readonly CapabilityBinding[]) {
+export function compilePublishedComposition(configuration: AgentConfiguration, connectedBindings: readonly CapabilityBinding[], pinnedRuntime?: {release:string;workflow:string}) {
   const handoffV2 = (configuration.tools as readonly string[]).includes("support.request_handoff_v2");
   return compileComposition(configuration.program, configuration, {
-    runtime: configuration.program.id==="tool-directed"&&configuration.program.version==="4" ? {release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME} : handoffV2 ? { release: HANDOFF_HARNESS_RELEASE, workflow: HANDOFF_WORKFLOW_NAME } : { release: HARNESS_RELEASE, workflow: WORKFLOW_NAME }, tools: publishedToolBindings(configuration), connectedBindings,
+    runtime: pinnedRuntime ?? (configuration.program.id==="tool-directed"&&configuration.program.version==="4" ? {release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME} : handoffV2 ? { release: HANDOFF_HARNESS_RELEASE, workflow: HANDOFF_WORKFLOW_NAME } : { release: HARNESS_RELEASE, workflow: WORKFLOW_NAME }), tools: publishedToolBindings(configuration,pinnedRuntime?.release==="product-capabilities-v13"), connectedBindings,
     workflows: [REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING].map(binding=>({id:binding.profileId,version:binding.version,digest:requestDigest(binding)})),
   });
 }

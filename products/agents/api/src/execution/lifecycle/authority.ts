@@ -1,3 +1,4 @@
+import { deadlineMillis } from "./deadline";
 import { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
 import type { Pool,PoolClient } from "pg";
 import {
@@ -33,7 +34,7 @@ async function assertBaseAuthorityForPurpose(db: Pool | PoolClient, execution: E
   const { task, configuration, agentId } = execution;
   if (terminalTaskStates.has(task.state)) throw new PlatformError("TASK_SETTLED", 409, "Task has settled");
   if (task.state === "cancel_requested") throw new PlatformError("TASK_CANCELLED", 409, "Task is stopping");
-  if (new Date(task.deadline_at).getTime() <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
+  if (deadlineMillis(task.deadline_at) <= Date.now()) throw new PlatformError("TASK_DEADLINE", 409, "Task deadline reached");
   if (task.channel_binding && !handoffFeedback) {
     const root = task.parent_task_id ? await loadExecution(db, task.root_task_id) : execution;
     await channelPorts(db).assertBinding(db, channelBindingSchema.parse(task.channel_binding), root.task);
@@ -119,7 +120,7 @@ export async function assertPendingSupportStatusAuthority(db: Pool | PoolClient,
     JOIN agents_platform.customer_commands command ON command.conversation_id=c.id AND command.command_id=w.task_id
     WHERE s.task_id=$1 AND s.organization_id=$2 AND s.conversation_id=$3 AND s.input_message_id=$4
       AND current_task.execution_purpose='support_status_v1' AND current_task.state NOT IN ('cancel_requested','completed','incomplete','refused','failed','cancelled','uncertain')
-      AND current_task.deadline_at>clock_timestamp()
+      AND (current_task.deadline_at IS NULL OR current_task.deadline_at>clock_timestamp())
       AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_cancellations cancel WHERE cancel.task_id=s.task_id AND cancel.completed_at IS NULL)
       AND s.ownership_generation=$5::bigint AND c.ownership_generation=s.ownership_generation AND c.state='handoff_pending'
       AND c.agent_id=$6 AND c.execution_conversation_id=current_task.conversation_id AND m.author_kind='visitor' AND m.ownership_generation=s.ownership_generation AND m.body=$7

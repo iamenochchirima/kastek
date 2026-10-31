@@ -1,4 +1,5 @@
 import { sameProductAuthority } from "../../capabilities/products/product-capabilities";
+import { workUsage } from "../lifecycle/work-policy";
 import { delegatedSkills } from "./skills";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
@@ -41,9 +42,12 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
     if(active+parsed.requests.length>concurrency) throw new PlatformError("CHILD_LIMIT",429,"Specialist concurrency is exhausted");
     if(options.adaptive) {
       if((await db.query("SELECT 1 FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='uncertain' LIMIT 1",[task.id])).rowCount) throw new PlatformError("SPECIALIST_OUTCOME_UNCERTAIN",409,"Resolve the uncertain specialist outcome before starting more work");
-      const count=(await db.query("SELECT count(*)::int AS count FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL",[task.id])).rows[0].count;
-      const policy=config.capabilities.delegation as typeof config.capabilities.delegation & {policy?:{maxTasks:number}};
-      if(count+parsed.requests.length>(policy.policy?.maxTasks??16)) throw new PlatformError("SPECIALIST_TASK_LIMIT",429,"Specialist task budget is exhausted");
+      const count=(await db.query((task.execution_policy_version ?? 1) >= 2
+        ? "SELECT count(*)::int AS count FROM agents_platform.tasks WHERE work_id=$1 AND parent_task_id IS NOT NULL"
+        : "SELECT count(*)::int AS count FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL",
+      [(task.execution_policy_version ?? 1) >= 2 ? task.work_id ?? task.id : task.id])).rows[0].count;
+      const maxTasks=config.capabilities.delegation.policy?.maxTasks ?? ((task.execution_policy_version??1)<2?16:null);
+      if(maxTasks !== null && count+parsed.requests.length>maxTasks) throw new PlatformError("SPECIALIST_TASK_LIMIT",429,"Specialist task budget is exhausted");
     }
     let previous: {id:string;conversation_id:string;version_id:string;binding_id:string}|undefined;
     if(options.priorTaskId) {
@@ -61,7 +65,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
     for(const request of parsed.requests) {
       const binding=config.capabilities.delegation.bindings.find(item=>item.id===request.bindingId);
       if(!binding) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist is not permitted");
-      if(!options.adaptive&&binding.maxTokens>12000)throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Legacy delegation allocations cannot exceed 12,000 tokens");
+      if(!options.adaptive&&(binding.maxTokens===null||binding.maxTokens>12000||binding.maxActiveMs===null))throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Legacy delegation allocations cannot exceed 12,000 tokens");
       const version=(await db.query("SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a",[task.organization_id,binding.versionId])).rows[0];
       if(previous && version?.id!==previous.version_id) throw new PlatformError("SPECIALIST_SCOPE_DENIED",403,"Specialist version changed");
       if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
@@ -74,7 +78,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         sourceRevisionIds.some(id=>!binding.sourceRevisionIds.includes(id)||!childConfig.sourceRevisionIds.includes(id)||!config.sourceRevisionIds.includes(id)) ||
         connectedToolBindingIds.some(id=>!binding.connectedToolBindingIds.includes(id)||!childConfig.connectedToolBindingIds.includes(id)||!connectedToolAuthorityIds(config).includes(id)) ||
         binding.tools.some(name=>!childConfig.tools.includes(name)) || Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
-        (request.maxTokens??binding.maxTokens)>binding.maxTokens) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");
+        (binding.maxTokens!==null && (request.maxTokens??binding.maxTokens)>binding.maxTokens)) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");
       if(task.product!=="agents" && (task.product!=="growth" || childConfig.productBindings.some(child=>!config.productBindings.some(parent=>sameProductAuthority(parent,child))))) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist product capabilities exceed the coordinator grant");
       const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;
       assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
@@ -86,17 +90,34 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const models = delegatedModelRoutes(parent.models, effective, maxTokens, binding.maxActiveMs);
       prepared.push({request,binding,version,effective,composition,maxTokens,models});
     }
-    const tokens=prepared.reduce((sum,item)=>sum+item.maxTokens,0), ms=prepared.reduce((sum,item)=>sum+item.binding.maxActiveMs,0);
-    if(!budget || budget.settled_at || budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens+tokens+parent.models.primary.policy.maxOutputTokens>task.root_token_limit ||
-      budget.active_ms+budget.active_reserved_ms+budget.child_reserved_ms+ms+parent.models.primary.policy.maxCallDurationMs>parent.models.primary.policy.maxDurationMs) throw new PlatformError("ROOT_LIMIT",429,"Specialist allocations exceed the root budget");
+    const tokens=prepared.reduce((sum,item)=>sum+(item.maxTokens??0),0), ms=prepared.reduce((sum,item)=>sum+(item.binding.maxActiveMs??0),0);
+    if(!budget || budget.settled_at) throw new PlatformError("EXECUTION_SETTLED",409,"This execution has finished");
+    const modern=parent.models.primary.policy.revision!=="model-execution-policy-v1";
+    const work=modern?await workUsage(db,parent):{tokens:budget.tokens_used+budget.tokens_reserved+budget.child_reserved_tokens,active_ms:budget.active_ms+budget.active_reserved_ms+budget.child_reserved_ms,model_calls:budget.model_calls,coordinator_model_calls:task.model_calls};
+    if(modern) {
+      const policy=parent.models.primary.policy;
+      if(policy.maxRootModelCalls!==null) {
+        const pending=(await db.query("SELECT count(*)::int n FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND model_calls=0 AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain')",[task.root_task_id])).rows[0].n;
+        if(work.model_calls+pending+prepared.length+1>policy.maxRootModelCalls)
+          throw new PlatformError("ROOT_MODEL_CALL_LIMIT",429,"The shared allowance cannot cover specialists and a final response");
+      }
+      if(policy.maxModelCalls!==null && work.coordinator_model_calls+1>policy.maxModelCalls)
+        throw new PlatformError("MODEL_CALL_LIMIT",429,"The coordinator has no remaining final-response allowance");
+    }
+    if(task.root_token_limit !== null && work.tokens+tokens+parent.models.primary.policy.maxOutputTokens>task.root_token_limit)
+      throw new PlatformError("ROOT_TOKEN_LIMIT",429,"Specialist allocations exceed the shared token allowance");
+    const durationLimit=parent.models.primary.policy.maxDurationMs;
+    if(durationLimit !== null && work.active_ms+ms+parent.models.primary.policy.maxCallDurationMs>durationLimit)
+      throw new PlatformError("ROOT_DURATION_LIMIT",429,"Specialist allocations exceed the shared active time allowance");
     const children:DelegatedChild[]=[];
     for(const [slot,item] of prepared.entries()) {
       const id=randomUUID(),conversationId=previous?.conversation_id??randomUUID();
       let sequence=1;
+      const parentGrant=(await db.query("SELECT expires_at FROM agents_platform.execution_grants WHERE id=$1",[task.grant_id])).rows[0];
       const grant=executionGrantSchema.parse({id:randomUUID(),product:task.product,organizationId:task.organization_id,resourceId:item.version.agent_id,
         callerClientId:task.product==="agents"?"agents-delegation":task.caller_client_id,principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.productBindings.length?["product.read",...(item.effective.productBindings.some(binding=>binding.policy.effect==="reviewed_write")?["product.write"]:[])]:[]),...(item.effective.skillIds.length?["skill.read"]:[]),...(item.effective.capabilities.sandbox.enabled?["sandbox.execute","artifact.read","artifact.write"]:[]),...(item.effective.connectedToolBindingIds.length?["connected.read","connected.execute"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
         maxInputBytes:item.effective.model.maxInputBytes,maxOutputTokens:item.effective.model.maxOutputTokens,maxContextTokens:item.effective.context.maxInputTokens,
-        rootTokenLimit:item.maxTokens,expiresAt:new Date(task.deadline_at).toISOString(),revokedAt:null});
+        rootTokenLimit:item.maxTokens,expiresAt:new Date(task.deadline_at === null ? parentGrant.expires_at : task.deadline_at).toISOString(),revokedAt:null});
       await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,
         max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [grant.id,grant.product,grant.organizationId,grant.resourceId,grant.callerClientId,grant.principal,grant.versionId,JSON.stringify(grant.operations),
@@ -104,10 +125,10 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       if(previous) sequence=Number((await db.query("UPDATE agents_platform.conversations SET next_sequence=next_sequence+1 WHERE id=$1 RETURNING next_sequence-1 AS sequence",[conversationId])).rows[0].sequence);
       else await db.query("INSERT INTO agents_platform.conversations(id,organization_id,agent_id,principal,next_sequence) VALUES($1,$2,$3,$4,2)",[conversationId,task.organization_id,item.version.agent_id,task.principal]);
       await db.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,caller_client_id,principal,version_id,grant_id,conversation_id,request_key,
-        request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release,effective_composition,evaluation_trial_id,channel_binding,turn_sequence)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+        request_digest,input,root_task_id,parent_task_id,depth,delegation_operation_id,effective_configuration,root_token_limit,allocation_active_ms,deadline_at,harness_release,effective_composition,evaluation_trial_id,channel_binding,turn_sequence,execution_policy_version)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,1,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
       [id,task.product,task.organization_id,item.version.agent_id,grant.callerClientId,task.principal,item.version.id,grant.id,conversationId,`child:${id}`,digest,
-        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,item.composition.runtime.release,item.composition,task.evaluation_trial_id,task.channel_binding,sequence]);
+        item.request.brief,task.root_task_id,parentId,operationId,item.effective,item.maxTokens,item.binding.maxActiveMs,task.deadline_at,item.composition.runtime.release,item.composition,task.evaluation_trial_id,task.channel_binding,sequence,task.execution_policy_version??1]);
       await saveTaskModelRoutes(db, id, task.organization_id, item.models);
       await db.query("INSERT INTO agents_platform.delegations(parent_task_id,operation_id,slot,child_task_id,binding_id,request_digest,input_manifest,prior_task_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[parentId,operationId,slot,id,item.binding.id,digest,inputManifest,previous?.id??null]);
       await db.query("INSERT INTO agents_platform.task_outbox(task_id) VALUES($1)",[id]);

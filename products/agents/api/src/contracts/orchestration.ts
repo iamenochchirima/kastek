@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const orchestrationTools = ["agents.discover", "agents.start", "agents.status", "agents.result", "agents.wait", "agents.followup", "agents.cancel", "work.update", "work.inspect"] as const;
 export const orchestrationPolicySchema = z.strictObject({
-  maxTasks: z.number().int().min(1).max(64),
+  maxTasks: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable().default(null),
   maxStalls: z.number().int().min(1).max(8),
 });
 export const workRecordSchema = z.strictObject({
@@ -26,12 +26,12 @@ export const orchestrationContracts = {
   "agents.discover": { input: z.strictObject({ query: z.string().max(200).optional(), bindingId: z.string().max(64).optional(), offset: z.number().int().min(0).max(32).optional() }),
     output: z.strictObject({ specialists: z.array(z.strictObject({ bindingId: z.string(), name: z.string(), description: z.string(), versionId: taskId, ready: z.boolean(), reasons: z.array(z.string()).max(16), tools: z.array(z.string()).max(64), sourceCount: z.number().int().nonnegative(),skillCount:z.number().int().min(0).max(8).optional(),skills:z.array(z.strictObject({name:z.string(),description:z.string()})).max(8).optional() })).max(8), nextOffset: z.number().int().nullable() }) },
   "agents.start": { input: z.strictObject({ requests: z.array(specialistWorkSchema).min(1).max(2) }), output: z.strictObject({ children }) },
-  "agents.status": { input: z.strictObject({ taskIds: z.array(taskId).min(1).max(64).optional() }), output: z.strictObject({ children }) },
+  "agents.status": { input: z.strictObject({ taskIds: z.array(taskId).min(1).max(64).optional(), offset:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }), output: z.strictObject({ children, nextOffset:z.number().int().nonnegative().nullable().optional() }) },
   "agents.result": { input: z.strictObject({ taskId, offset: z.number().int().min(0).max(1048576).optional() }),
     output: z.strictObject({ taskId, state: taskState, output: z.string().max(4096), nextOffset: z.number().int().nullable(), totalBytes: z.number().int().nonnegative(), contentDigest: z.string().regex(/^[a-f0-9]{64}$/), errorCode: z.string().nullable() }) },
   "agents.wait": { input: z.strictObject({ taskIds: z.array(taskId).min(1).max(8).optional(), mode: z.enum(["any", "all"]).optional(), timeoutSeconds: z.number().int().min(1).max(60).optional() }), output: z.strictObject({ children, timedOut: z.boolean() }) },
   "agents.followup": { input: z.strictObject({ taskId, brief: specialistWorkSchema.shape.brief, context: specialistWorkSchema.shape.context, deliverable: specialistWorkSchema.shape.deliverable, criteria: specialistWorkSchema.shape.criteria }), output: z.strictObject({ children }) },
   "agents.cancel": { input: z.strictObject({ taskId }), output: z.strictObject({ taskId, state: z.enum(["cancel_requested", "already_terminal"]), taskState }) },
   "work.update": { input: z.strictObject({ expectedRevision: z.number().int().nonnegative(), record: workRecordSchema }), output: progress },
-  "work.inspect": { input: z.strictObject({}), output: progress },
+  "work.inspect": { input: z.strictObject({instructionSequence:z.string().regex(/^(0|[1-9][0-9]{0,18})$/).refine(value=>BigInt(value)<=9223372036854775807n).optional(),instructionOffset:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional()}), output: progress.extend({instructionPage:z.strictObject({taskId,sequence:z.string(),offset:z.number().int().nonnegative(),text:z.string().max(1024),next:z.strictObject({sequence:z.string(),offset:z.number().int().nonnegative()}).nullable()}).nullable().optional()}) },
 } as const;

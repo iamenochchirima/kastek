@@ -5,9 +5,9 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlatformError, requestDigest } from "../src/contracts/contracts";
 import type { Execution } from "../src/contracts/execution";
-import type { AcceptedModelRoutes } from "../src/contracts/model-bindings";
+import { acceptedModelRoutesSchema, type AcceptedModelRoutes } from "../src/contracts/model-bindings";
 import type { BoundModelDispatchInput } from "../src/execution/models/dispatch";
-import { dispatchBoundModel } from "../src/execution/models/dispatch";
+import { BoundModelDispatchError, dispatchBoundModel } from "../src/execution/models/dispatch";
 import { invokeTaskModel, saveTaskModelRoutes, loadTaskModelRoutes, type ModelRuntimeDependencies } from "../src/execution/models/runtime";
 import type { ProviderTransportResponse } from "../src/adapters/models/pi-transport";
 import { createModelFetch, type ModelFetch } from "../src/infrastructure/model-network";
@@ -87,7 +87,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   }
   it("persists immutable organization-scoped route snapshots and detects missing or corrupt snapshots", async () => {
     const f = await fixture(), other = await fixture();
-    expect(await loadTaskModelRoutes(pool, f.taskId, f.organizationId)).toEqual(f.pinned);
+    expect(await loadTaskModelRoutes(pool, f.taskId, f.organizationId)).toEqual(acceptedModelRoutesSchema.parse(f.pinned));
     await expect(loadTaskModelRoutes(pool, f.taskId, other.organizationId)).rejects.toMatchObject({ code: "MODEL_ROUTES_UNAVAILABLE" });
     await transaction(pool, db => saveTaskModelRoutes(db, f.taskId, f.organizationId, f.pinned));
     const changed = structuredClone(f.pinned); changed.primary.model.name = "Changed";
@@ -176,6 +176,32 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(invokeTaskModel({ ...invocation(f, id), estimateRequestTokens: () => 16001 }, dependencies)).rejects.toMatchObject({ code: "CONTEXT_LIMIT", outcome: "rejected" });
     expect(dependencies.assertAuthority).not.toHaveBeenCalled();
   });
+  it.each([
+    {name:"provider-returned context rejection",code:"CONTEXT_LIMIT",outcome:"rejected" as const},
+    {name:"uncertain transport after dispatch",code:"MODEL_NETWORK_RESPONSE_LOST",outcome:"uncertain" as const},
+  ])("does not authorize zero-dispatch repacking for $name", async failure => {
+    const f=await fixture(),id=await operation(f),dependencies=controlledDispatch();
+    let physicalAttempts=0;
+    dependencies.dispatch.mockImplementation(async request=>{
+      const payload={messages:request.messages};
+      const count={tokens:Buffer.byteLength(JSON.stringify(payload)),precision:"serialized_bytes_estimate" as const,revision:"fixture-v1",payloadDigest:requestDigest(payload)};
+      expect(count.tokens).toBeLessThan(f.pinned.primary.policy.maxInputTokens);
+      await request.onPreparedInputCount?.(count);
+      await request.beforePayloadDispatch?.(payload,count);
+      await request.beforeDispatch?.();
+      physicalAttempts++;
+      throw new BoundModelDispatchError(failure.code,failure.outcome,502);
+    });
+    await expect(invokeTaskModel(invocation(f,id),dependencies)).rejects.toMatchObject({code:failure.code,outcome:failure.outcome});
+    const receipt=(await pool.query("SELECT state,input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1",[id])).rows[0];
+    expect(receipt).toMatchObject({state:failure.outcome,input_count:{precision:"serialized_bytes_estimate"}});
+    expect(receipt.input_count).not.toHaveProperty("rejectedBeforeDispatch");
+    // Same native operation cannot be regenerated, and its private receipt cannot authorize repacking.
+    await expect(invokeTaskModel(invocation(f,id),dependencies)).rejects.toMatchObject({code:"MODEL_NATIVE_OPERATION_ALREADY_RECORDED",outcome:"uncertain"});
+    expect(physicalAttempts).toBe(1);
+    expect(dependencies.dispatch).toHaveBeenCalledOnce();
+  });
+
   it("rejects an expired native operation before credentials or physical generation", async () => {
     const f = await fixture(), id = await operation(f), input = invocation(f, id);
     await pool.query("UPDATE agents_platform.operations SET started_at=now()-interval '3 seconds' WHERE id=$1", [id]);
@@ -223,6 +249,16 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       expect(calls).toBe(1);
       const rejectedRows = (await pool.query("SELECT state FROM agents_platform.private_model_continuations WHERE operation_id=ANY($1::text[])", [[overflow, expired]])).rows;
       expect(rejectedRows).toEqual([{ state: "rejected" }, { state: "rejected" }]);
+      const nativeOverflow=await operation(f);
+      await expect(invokeTaskModel({...invocation(f,nativeOverflow),messages:[{role:"user",content:"x".repeat(16000)}]},dependencies))
+        .rejects.toMatchObject({code:"CONTEXT_LIMIT",outcome:"rejected"});
+      expect(calls).toBe(1);
+      const deniedCount=(await pool.query("SELECT state,input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1",[nativeOverflow])).rows[0];
+      expect(deniedCount).toMatchObject({state:"rejected",input_count:{precision:"serialized_bytes_estimate",rejectedBeforeDispatch:true}});
+      expect(deniedCount.input_count.tokens).toBeGreaterThan(f.pinned.primary.policy.maxInputTokens);
+      const fitting=await operation(f);
+      expect((await invokeTaskModel(invocation(f,fitting),dependencies)).message.content).toBe("Hello");
+      expect(calls).toBe(2);
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
   });
 });

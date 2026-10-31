@@ -59,7 +59,12 @@ export interface CompiledExecutionPolicy {
 }
 
 const { revision: _revision, digest: _digest, ...limitShape } = effectiveExecutionPolicySchema.shape;
-const limitsSchema = z.strictObject(limitShape).partial();
+const limitsSchema = z.strictObject({
+  ...limitShape,
+  maxModelCalls: limitShape.maxModelCalls.removeDefault(), maxToolCalls: limitShape.maxToolCalls.removeDefault(),
+  maxRootModelCalls: limitShape.maxRootModelCalls.removeDefault(), maxRootToolCalls: limitShape.maxRootToolCalls.removeDefault(),
+  maxRootTokens: limitShape.maxRootTokens.removeDefault(), maxDurationMs: limitShape.maxDurationMs.removeDefault(), maxWallDurationMs: limitShape.maxWallDurationMs.removeDefault(),
+}).partial();
 const attestationSourceSchema = metadataSourceSchema.refine(
   source => source.kind === "operator" || source.kind === "official", "Capacity and price attestations require operator or official provenance",
 );
@@ -88,7 +93,7 @@ const layerSchema = z.strictObject({
   if (limits.maxInputTokens !== undefined && limits.compactAtTokens !== undefined && limits.compactAtTokens >= limits.maxInputTokens) {
     context.addIssue({ code: "custom", message: "Configured compaction threshold must be below input allowance" });
   }
-  if (limits.maxRootTokens !== undefined &&
+  if (limits.maxRootTokens !== undefined && limits.maxRootTokens !== null &&
     BigInt(limits.maxInputTokens ?? 0) + BigInt(limits.maxOutputTokens ?? 0) > BigInt(limits.maxRootTokens)) {
     context.addIssue({ code: "custom", message: "Configured model call exceeds root token allowance" });
   }
@@ -96,7 +101,10 @@ const layerSchema = z.strictObject({
 
 const fields = Object.keys(limitShape).sort() as (keyof ExecutionPolicyLimits)[];
 const capacityFields: readonly ModelCapacityKey[] = ["contextTokens", "maxInputTokens", "maxOutputTokens"];
-const compilerRevision = "model-execution-policy-v1";
+const compilerRevision = "model-execution-policy-v2";
+const optionalAllowanceFields = new Set<keyof ExecutionPolicyLimits>([
+  "maxModelCalls", "maxToolCalls", "maxRootModelCalls", "maxRootToolCalls", "maxRootTokens", "maxDurationMs", "maxWallDurationMs", "maxCostMicros",
+]);
 
 function resolvePricing(model: ModelDescriptor, platform: ExecutionPolicyLayer): ResolvedPolicyPricing | null {
   const known = model.pricing;
@@ -114,7 +122,7 @@ function resolvePricing(model: ModelDescriptor, platform: ExecutionPolicyLayer):
   };
 }
 
-/** Resolve bounded execution settings before admission; this performs no discovery or secret access. */
+/** Resolve execution settings before admission; this performs no discovery or secret access. */
 export function compileEffectiveExecutionPolicy(
   descriptor: ModelDescriptor,
   layers: readonly ExecutionPolicyLayer[],
@@ -125,7 +133,7 @@ export function compileEffectiveExecutionPolicy(
   if (platforms.length !== 1) throw new Error("Execution policy requires exactly one platform authority layer");
   const platform = platforms[0]!;
   for (const field of fields) {
-    if (platform.limits[field] === undefined) throw new Error(`Platform policy must explicitly configure ${field}`);
+    if (platform.limits[field] === undefined && !optionalAllowanceFields.has(field)) throw new Error(`Platform policy must explicitly configure ${field}`);
   }
   for (const field of capacityFields) {
     if (model[field].value === null && field !== "maxInputTokens" && platform.attestedModelCaps?.[field] === undefined) {

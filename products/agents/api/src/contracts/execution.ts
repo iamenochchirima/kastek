@@ -8,13 +8,15 @@ export const WORKFLOW_NAME = "AgentsBusinessRunV21";
 // The contextual handoff controller is published separately from existing V21 tasks.
 export const HANDOFF_HARNESS_RELEASE = "product-capabilities-v12";
 export const HANDOFF_WORKFLOW_NAME = "AgentsBusinessRunV22";
-export const ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v13";
-export const ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV23";
+export const LEGACY_ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v13";
+export const LEGACY_ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV23";
+export const ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v14";
+export const ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV24";
 export const dispatcherPhases = ["dispatch", "capacity", "capacity_notifications", "controls", "reconciliation"] as const;
 export type DispatcherPhase = typeof dispatcherPhases[number];
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;
-  tokens_used: number; tokens_reserved: number; root_token_limit: number; model_calls: number; tool_calls: number;
-  deadline_at: Date; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;
+  tokens_used: number; tokens_reserved: number; active_ms: number; active_reserved_ms: number; root_token_limit: number | null; model_calls: number; tool_calls: number;
+  deadline_at: Date | null; harness_release: string; control_generation: string; pending_outcome: TaskOutcome | null }; configuration: AgentConfiguration; agentId: string;
   toolBindings:{name:string;version:string;digest:string}[]; connectedBindings: CapabilityBinding[]; models: AcceptedModelRoutes }
 export interface MemoryFence { id: string; generation: number; expiresAt?: number }
 export interface OperationRequest { id: string; kind: "model" | "compaction" | "tool" | "delegation" | "resource"; name: string;

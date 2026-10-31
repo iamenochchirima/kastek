@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../../execution/lifecycle/deadline";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { PlatformError } from "../../contracts/contracts";
@@ -51,7 +52,7 @@ export async function runRequiredReport(ctx:restate.WorkflowContext,pool:Pool,ta
         await pool.query("UPDATE agents_platform.tasks SET state='waiting_review',updated_at=now() WHERE id=$1 AND state='running'",[taskId]);
         await event(pool,taskId,`review:${fresh.id}`,"review.required",{reviewId:fresh.id,expiresAt:fresh.expiresAt});
       }
-      return{action:fresh,state:task.state,generation:task.control_generation,deadline:Math.min(new Date(task.deadline_at).getTime(),new Date(fresh.expiresAt).getTime())};
+      return{action:fresh,state:task.state,generation:task.control_generation,deadline:Math.min(deadlineMillis(task.deadline_at),new Date(fresh.expiresAt).getTime())};
     });
     if(status.denied) return failed({code:status.denied,uncertain:false});
     action=status.action!;

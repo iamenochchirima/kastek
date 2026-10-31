@@ -1,3 +1,4 @@
+import { deadlineMillis } from "../lifecycle/deadline";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { PlatformError } from "../../contracts/contracts";
@@ -38,7 +39,7 @@ export async function writeExecutionObject(pool:Pool,objects:PrivateObjectStore,
   if(row.state==='available')return;
   if(row.state!=='writing'||new Date(row.write_lease_until).getTime()<=Date.now())throw fail("EXECUTION_OBJECT_UNCERTAIN");
   const task=(await db.query("SELECT state,deadline_at FROM agents_platform.tasks WHERE id=$1",[input.taskId])).rows[0];
-  if(!task||['cancel_requested','completed','incomplete','refused','failed','cancelled','uncertain'].includes(task.state)||new Date(task.deadline_at).getTime()<=Date.now())throw fail("TASK_CANCELLED");
+  if(!task||['cancel_requested','completed','incomplete','refused','failed','cancelled','uncertain'].includes(task.state)||deadlineMillis(task.deadline_at)<=Date.now())throw fail("TASK_CANCELLED");
   try{await objects.put(input.key,input.bytes,input.contentType,db);await db.query("UPDATE agents_platform.execution_objects SET state='available',put_ack_at=now(),updated_at=now() WHERE id=$1",[row.id]);}
   catch(error){failure=error;await db.query("UPDATE agents_platform.execution_objects SET write_error_at=now(),updated_at=now() WHERE id=$1",[row.id]);}
  });

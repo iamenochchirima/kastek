@@ -9,7 +9,7 @@ import {compilePublishedComposition} from "../programs/publication";
 
 const compilerIdentity=requestDigest({compiler:"published-composition-v1",runtime:{release:HARNESS_RELEASE,workflow:WORKFLOW_NAME},
  programs:[resolveProgram({id:"grounded-conversation",version:"1"}),resolveProgram({id:"tool-directed",version:"1"}),resolveProgram({id:"tool-directed",version:"3"}),resolveProgram({id:"tool-directed",version:"4"})],
- tools:[...Object.values(BUILTIN_MODEL_ALIASES),"knowledge.initial","report.deliver"].map(toolDescriptor),workflow:REPORT_WORKFLOW_BINDING});
+ tools:[...Object.values(BUILTIN_MODEL_ALIASES),"knowledge.initial","report.deliver"].map(name=>toolDescriptor(name)),workflow:REPORT_WORKFLOW_BINDING});
 
 function immutableJson<T>(value:T):T {
  if(value!==null&&typeof value==="object"){for(const child of Object.values(value))immutableJson(child);Object.freeze(value);}

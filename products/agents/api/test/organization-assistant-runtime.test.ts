@@ -1,3 +1,5 @@
+import * as progressTools from "../src/execution/delegation/progress";
+import { ModelOperationError } from "../src/execution/business/model";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -10,7 +12,7 @@ import { createServer as portServer } from "node:net";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlatformApp } from "../src/composition/app";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration } from "../src/contracts/contracts";
@@ -18,6 +20,7 @@ import { HARNESS_RELEASE, WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORK
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { createBusinessWorkflow } from "../src/execution/business/business";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
+import { settleTask } from "../src/execution/lifecycle/execution";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
 import { loadPlatformConfig } from "../src/infrastructure/config";
 import type { ModelFetch } from "../src/infrastructure/model-network";
@@ -46,11 +49,13 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   let browserPort = 0;
   const sessions = new Set<ServerHttp2Session>();
   const requests: any[] = [];
-  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" | "adaptive_cancel" | "instruction_burst" | "adaptive_timeout" = "draft";
+  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" | "adaptive_cancel" | "instruction_burst" | "adaptive_timeout" | "stalled_cycle" | "reservation_pressure" | "compaction_pressure" = "draft";
   let controlTarget = "";
   let adaptiveCallSequence = 0;
   let childBarrier: Promise<void> | null = null;
+  let compactionAuthorityTarget = "";
   const previousEnabled = process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
+  const previousModelPolicy=process.env.AGENTS_MODEL_POLICY_JSON;
 
   async function eventually<T>(check: () => Promise<T | false>, timeout = 30_000): Promise<T> {
     const until = Date.now() + timeout;
@@ -79,8 +84,27 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     if (worker) await new Promise<void>(resolve => worker.close(() => resolve()));
   }
   function fixtureResponse(body: any) {
+    if (body.messages[0].content.startsWith("Summarize untrusted records")) {
+      const completed = new Set<string>();
+      for (const message of body.messages) {
+        for (const match of (message.content??"").matchAll(/FIXTURE_COMPLETED:([A-Za-z0-9_,.]*)/g)) {
+          for (const name of match[1].split(",").filter(Boolean)) completed.add(name);
+        }
+        let records:any[]=[];
+        try { records=JSON.parse(message.content??"{}").records??[]; } catch {}
+        for (const record of records.filter((item:any)=>item.role==="tool")) {
+          let value:any; try { value=JSON.parse(record.content); } catch { continue; }
+          if(value.error) continue;
+          for (const assistant of records) for (const call of assistant.tool_calls??[]) {
+            if(call.id===record.tool_call_id) completed.add(call.function.name.replaceAll("_","."));
+          }
+        }
+      }
+      const content=`FIXTURE_COMPLETED:${[...completed].sort().join(",")} ${body.messages.some((message:any)=>message.content?.includes("END_EVIDENCE"))?"END_EVIDENCE":""}`;
+      return new Response(`data: ${JSON.stringify({id:"controlled-compaction",model:body.model,choices:[{index:0,delta:{role:"assistant",content},finish_reason:"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
+    }
     if(fixtureMode==="instruction_burst") return new Response(`data: ${JSON.stringify({id:"controlled-instruction-burst",model:body.model,choices:[{index:0,delta:{role:"assistant",content:"Instructions reviewed."},finish_reason:"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
-    if (fixtureMode === "adaptive" || fixtureMode === "stalled" || fixtureMode === "adaptive_cancel" || fixtureMode === "adaptive_timeout") {
+    if (fixtureMode === "adaptive" || fixtureMode === "stalled" || fixtureMode === "adaptive_cancel" || fixtureMode === "adaptive_timeout" || fixtureMode === "stalled_cycle" || fixtureMode === "reservation_pressure" || fixtureMode === "compaction_pressure") {
       const coordinator = body.messages[0].content.startsWith("ADAPTIVE_FIXTURE");
       const records = body.messages.filter((message:any)=>message.role==="tool");
       const named = (name:string) => records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id && call.function.name===name))).map((record:any)=>JSON.parse(record.content));
@@ -93,18 +117,41 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       const checkpointMatch=body.messages.map((message:any)=>message.content??"").join("\n").match(/Server-confirmed execution receipts follow\.[^\n]*\n([^\n]+)/);
       const checkpoint=checkpointMatch?JSON.parse(checkpointMatch[1]):undefined;
       const persisted=named("agents_status").at(-1)?.children??checkpoint?.delegations?.flatMap((group:any)=>group.children)??[];
+      const started = first.length ? first : checkpoint?.delegations?.[0]?.children ?? named("agents_status").at(-1)?.children ?? [];
+      const summaryCompleted = new Set(body.messages.flatMap((message:any)=>[...(message.content??"").matchAll(/FIXTURE_COMPLETED:([A-Za-z0-9_,.]*)/g)].flatMap(match=>match[1].split(","))));
+      const completed = (name:string) => named(name.replaceAll(".","_")).length > 0 ||
+        checkpoint?.operations?.some((operation:any)=>operation.name===name && operation.state==="completed") || summaryCompleted.has(name);
       if(fixtureMode === "stalled") calls=[call("agents_discover",{})];
+      else if(fixtureMode === "stalled_cycle") {
+        const last = body.messages.flatMap((message:any)=>message.tool_calls??[]).at(-1)?.function.name ??
+          checkpoint?.operations?.at(-1)?.name.replaceAll(".","_");
+        calls=[call(last === "agents_discover" ? "agents_status" : "agents_discover",{})];
+      }
       else if(!coordinator) content=body.messages.some((message:any)=>message.content?.includes("Revise"))?"REVISED: The confirmed short draft.":body.messages.some((message:any)=>message.content?.includes("long evidence"))?"L".repeat(5000)+" END_EVIDENCE":"Confirmed independent finding.";
+      else if(fixtureMode === "compaction_pressure") {
+        if(!started.length && completed("agents.start")) calls=[call("agents_status",{})];
+        else if(!started.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Check the first claim"},{bindingId:"research",brief:"Check the second claim"}]}),call("work_update",{expectedRevision:0,record:{objective:"Retain the independent findings",steps:Array.from({length:8},(_,index)=>({id:`step-${index}`,title:`Verify finding ${index}: `+"x".repeat(220),state:"pending"})),questions:[],evidenceTaskIds:[]}})];
+        else if(!completed("agents.wait")) calls=[call("agents_wait",{taskIds:started.map((child:any)=>child.taskId),mode:"all",timeoutSeconds:30}),...started.map((child:any)=>result(child.taskId))];
+        else content="Confirmed findings after compaction reservation wait.";
+      }
+      else if(fixtureMode === "reservation_pressure") {
+        if(!started.length && completed("agents.start")) calls=[call("agents_status",{})];
+        else if(!started.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Check the first independent claim"},{bindingId:"research",brief:"Check the second independent claim"}]})];
+        else if(!completed("agents.wait")) calls=[call("agents_wait",{taskIds:started.map((child:any)=>child.taskId),mode:"all",timeoutSeconds:30}),...started.map((child:any)=>result(child.taskId))];
+        else content="Confirmed rolling specialist findings.";
+      }
       else if(fixtureMode === "adaptive_timeout") {
-        if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Optional specialist work"}]})];
-        else if(!named("agents_wait").length) calls=[call("agents_wait",{taskIds:[first[0].taskId],mode:"all",timeoutSeconds:1})];
-        else if(!named("agents_cancel").length) calls=[call("agents_cancel",{taskId:first[0].taskId})];
+        if(!started.length && completed("agents.start")) calls=[call("agents_status",{})];
+        else if(!started.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Optional specialist work"}]})];
+        else if(!completed("agents.wait")) calls=[call("agents_wait",{taskIds:[started[0].taskId],mode:"all",timeoutSeconds:1})];
+        else if(!completed("agents.cancel")) calls=[call("agents_cancel",{taskId:started[0].taskId})];
         else content="Wait expired; specialist cancelled.";
       }
       else if(fixtureMode === "adaptive_cancel") {
-        if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"First optional check"},{bindingId:"research",brief:"Required independent finding"}]})];
-        else if(!named("agents_cancel").length) calls=[call("agents_cancel",{taskId:first[0].taskId})];
-        else if(!named("agents_wait").length) calls=[call("agents_wait",{taskIds:[first[1].taskId],mode:"all",timeoutSeconds:30}),result(first[1].taskId)];
+        if(!started.length && completed("agents.start")) calls=[call("agents_status",{})];
+        else if(!started.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"First optional check"},{bindingId:"research",brief:"Required independent finding"}]})];
+        else if(!completed("agents.cancel")) calls=[call("agents_cancel",{taskId:started[0].taskId})];
+        else if(!completed("agents.wait")) calls=[call("agents_wait",{taskIds:[started[1].taskId],mode:"all",timeoutSeconds:30}),result(started[1].taskId)];
         else content="Confirmed remaining specialist result; first task cancelled.";
       }
       else if(coordinator && checkpoint) {
@@ -149,7 +196,13 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   function workflowForAdaptive() { return workflow({release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME}); }
   function workflow(runtimeConfig?: {release:string;workflow:string}) {
     return createBusinessWorkflow(pool, { evidence: new EvidenceStore(pool), modelProvider: fixtureModelProviders(pool), modelRuntime: {
-      dispatch: input => dispatchBoundModel(input, policy => {
+      dispatch: async input => {
+        if(compactionAuthorityTarget && input.messages[0]?.content?.startsWith("Summarize untrusted records")) {
+          const taskId=compactionAuthorityTarget;compactionAuthorityTarget="";
+          await pool.query("UPDATE agents_platform.execution_grants SET expires_at=clock_timestamp()-interval '1 millisecond' WHERE id=(SELECT grant_id FROM agents_platform.tasks WHERE id=$1)",[taskId]);
+          throw new ModelOperationError("AUTHORITY_EXPIRED","rejected");
+        }
+        return dispatchBoundModel(input, policy => {
         const network = (async (url, request) => {
           if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Fixture destination denied");
           await policy.beforeDispatch?.();
@@ -160,7 +213,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
         }) as ModelFetch;
         network.markProgress = () => {};
         return network;
-      }),
+      }); },
     } }, runtimeConfig);
   }
   const runtimeRoutes = () => ({
@@ -168,6 +221,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     [ADAPTIVE_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: ADAPTIVE_WORKFLOW_NAME },
   });
   beforeAll(async () => {
+    process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({...JSON.parse(previousModelPolicy??"{}"),maxRootTokens:32000,maxInputTokens:27904,maxOutputTokens:4096,compactAtTokens:22000});
     process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS = "*";
     expect(execFileSync(binary!, ["--version"], { encoding: "utf8" })).toContain("1.7.13");
     directory = await mkdtemp(join(tmpdir(), "kasitek-assistant-runtime-"));
@@ -195,6 +249,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     await app.ready();
   }, 60_000);
   afterAll(async () => {
+    if(previousModelPolicy===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=previousModelPolicy;
     if (previousEnabled === undefined) delete process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
     else process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS = previousEnabled;
     await app?.close();
@@ -240,14 +295,14 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       return terminalTaskStates.has(task.state) ? task : false;
     });
   }
-  async function adaptiveFixture() {
+  async function adaptiveFixture(rollingPressure = false, narrowContext = false) {
     const f=await fixture();
     const current=(await pool.query("SELECT draft,draft_revision FROM agents_platform.agents WHERE id=$1",[f.assistant.id])).rows[0];
     const configuration:AgentConfiguration={...current.draft,program:{id:"tool-directed",version:"4"},instructions:"ADAPTIVE_FIXTURE: Coordinate the requested work with authorized specialists.",
-      model:{...current.draft.model,maxOutputTokens:512},context:{maxInputTokens:24000,compactAtTokens:22000},
+      model:{...current.draft.model,maxOutputTokens:512},context:narrowContext||rollingPressure?{maxInputTokens:8192,compactAtTokens:6144}:{maxInputTokens:24000,compactAtTokens:22000},
       tools:["agents.discover","agents.start","agents.status","agents.result","agents.wait","agents.followup","agents.cancel","work.update","work.inspect"],
-      capabilities:{...current.draft.capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:8,maxStalls:3},bindings:["content","research","review"].map(id=>({id,label:id,description:`${id} specialist`,versionId:f.specialist.id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:8000,maxActiveMs:120000}))}}};
-    const specialistConfig={...defaultBusinessConfiguration(),model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},instructions:"CONTENT_FIXTURE: Complete the requested specialist brief."};
+      capabilities:{...current.draft.capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:8,maxStalls:3},bindings:["content","research","review"].map(id=>({id,label:id,description:`${id} specialist`,versionId:f.specialist.id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:rollingPressure?null:8000,maxActiveMs:rollingPressure?null:120000}))}}};
+    const specialistConfig={...defaultBusinessConfiguration(),model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},instructions:"CONTENT_FIXTURE: Complete the requested specialist brief."+(rollingPressure?"\n"+"x".repeat(5000):"")};
     await store.updateDraft({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:1,configuration:specialistConfig});
     const specialist=await store.createVersion({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:2});
     const versions=new Map([["content",specialist.id]]);
@@ -302,7 +357,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect(children).toHaveLength(4);expect(children.every(child=>child.state==="completed")).toBe(true);
     expect(new Set(children.map(child=>child.resource_id)).size).toBe(3);expect(new Set(children.map(child=>child.version_id)).size).toBe(3);
     expect((await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].root_token_limit).toBe(32000);
-    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='specialists.budget_wait'",[task.id])).rows[0].count).toBeGreaterThan(0);
+    // Shared-reservation blocking is asserted by the dedicated finite20K rolling-specialist case.
+
     expect(children.map(child=>child.id).sort()).toEqual(admittedBeforeRestart);
     expect((await pool.query("SELECT count(*)::int AS count,count(DISTINCT id)::int AS distinct_count FROM agents_platform.operations WHERE task_id=$1 AND kind='model'",[task.id])).rows[0]).toEqual({count:requests.filter(body=>body.messages[0].content.startsWith("ADAPTIVE_FIXTURE")).length,distinct_count:requests.filter(body=>body.messages[0].content.startsWith("ADAPTIVE_FIXTURE")).length});
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND event_key=$2",[task.id,`terminal:${task.id}`])).rows[0].count).toBe(1);
@@ -314,7 +370,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect((await pool.query("SELECT revision FROM agents_platform.orchestration_progress WHERE task_id=$1",[task.id])).rows[0].revision).toBe("1");
   },60_000);
   it("lets the model cancel one background specialist without cancelling its sibling or coordinator",async()=>{
-    const f=await adaptiveFixture();fixtureMode="adaptive_cancel";
+    const f=await adaptiveFixture(false,true);fixtureMode="adaptive_cancel";
     const task=await admit(f);
     await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
     await eventually(async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='agents.cancel' AND state='completed'",[task.id])).rowCount));
@@ -323,13 +379,99 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     const children=(await pool.query("SELECT state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY state",[task.id])).rows;
     expect(children).toEqual([{state:"cancelled"},{state:"completed"}]);
     expect(requests.filter(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"))).toHaveLength(1);
+    expect((await pool.query("SELECT name,count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name IN ('agents.start','agents.cancel','agents.wait') GROUP BY name ORDER BY name",[task.id])).rows)
+      .toEqual([{name:"agents.cancel",count:1},{name:"agents.start",count:1},{name:"agents.wait",count:1}]);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='context.compacted'",[task.id])).rows[0].count).toBeGreaterThan(0);
+    // Native payload overflow and safe pre-dispatch evidence are verified independently in model-runtime.test.ts.
+    // Cancellation must also succeed when packing fits without any rejected generation attempt.
   },60_000);
+
+  it("waits for held rolling specialist reservations and completes after the physical call settles",async()=>{
+    const f=await adaptiveFixture(true);fixtureMode="reservation_pressure";
+    let release!:()=>void;
+    childBarrier=new Promise<void>(resolve=>{release=resolve;});
+    let task:any;
+    const admissionPolicy=process.env.AGENTS_MODEL_POLICY_JSON;
+    try {
+      process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({...JSON.parse(admissionPolicy??"{}"),maxRootTokens:20000,maxInputTokens:8192,maxOutputTokens:4096,compactAtTokens:6144});
+      task=await admit(f);
+    } catch(error) { release();childBarrier=null;throw error; }
+    finally {
+      if(admissionPolicy===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=admissionPolicy;
+    }
+    try {
+      await eventually(async()=>{
+        await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+        return Boolean((await pool.query(`SELECT 1 FROM agents_platform.task_events e JOIN agents_platform.tasks t ON t.id=e.task_id
+          WHERE t.root_task_id=$1 AND e.kind='specialists.budget_wait' AND e.payload->>'reason'='shared_execution_reservations'`,[task.id])).rowCount);
+      });
+      expect(requests.some(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"))).toBe(true);
+      expect((await pool.query("SELECT count(*)::int count FROM agents_platform.tasks WHERE root_task_id=$1 AND state IN ('incomplete','failed','uncertain')",[task.id])).rows[0].count).toBe(0);
+      expect((await pool.query("SELECT tokens_reserved FROM agents_platform.execution_roots WHERE root_task_id=$1",[task.id])).rows[0].tokens_reserved).toBeGreaterThan(0);
+      release();childBarrier=null;
+      const finished=await finish(f,task.id);expect(finished,JSON.stringify({state:finished.state,errorCode:finished.errorCode,error_code:finished.error_code,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows})).toMatchObject({state:"completed",output:"Confirmed rolling specialist findings."});
+      expect((await pool.query("SELECT state,root_token_limit,allocation_active_ms FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[task.id])).rows)
+        .toEqual([{state:"completed",root_token_limit:null,allocation_active_ms:null},{state:"completed",root_token_limit:null,allocation_active_ms:null}]);
+      const usage=(await pool.query("SELECT tokens_used,tokens_reserved,child_reserved_tokens,child_reserved_ms FROM agents_platform.execution_roots WHERE root_task_id=$1",[task.id])).rows[0];
+      expect(usage).toMatchObject({tokens_reserved:0,child_reserved_tokens:0,child_reserved_ms:0});
+      expect(usage.tokens_used).toBeGreaterThan(0);expect(usage.tokens_used).toBeLessThan(20000);
+    } finally {release();childBarrier=null;}
+  },60000);
+
+  it("waits for held child reservations before compaction and finishes after settlement",async()=>{
+    const f=await adaptiveFixture(true);fixtureMode="compaction_pressure";
+    let releaseChildren!:()=>void,releaseWork!:()=>void;
+    childBarrier=new Promise<void>(resolve=>{releaseChildren=resolve;});
+    const workBarrier=new Promise<void>(resolve=>{releaseWork=resolve;});
+    const executeWork=progressTools.executeWorkTool;
+    const spy=vi.spyOn(progressTools,"executeWorkTool").mockImplementation(async(...args)=>{if(args[3]==="work.update")await workBarrier;return executeWork(...args);});
+    const admissionPolicy=process.env.AGENTS_MODEL_POLICY_JSON;
+    try {
+      process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({...JSON.parse(admissionPolicy??"{}"),maxRootTokens:20000,maxInputTokens:8192,maxOutputTokens:4096,compactAtTokens:6144});
+      const task=await admit(f);
+      if(admissionPolicy===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=admissionPolicy;
+      await eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});return requests.filter(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE")).length===2;});
+      releaseWork();
+      await eventually(async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.task_events WHERE task_id=$1 AND event_key LIKE 'compact-reservation-wait:%' AND kind='specialists.budget_wait'",[task.id])).rowCount));
+      expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].state).toBe("waiting_children");
+      expect(requests.some(body=>body.messages[0].content.startsWith("Summarize untrusted records"))).toBe(false);
+      releaseChildren();childBarrier=null;
+      const finished=await finish(f,task.id);expect(finished,JSON.stringify({state:finished.state,errorCode:finished.errorCode,error_code:finished.error_code,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows})).toMatchObject({state:"completed",output:"Confirmed findings after compaction reservation wait."});
+      expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND state='completed'",[task.id])).rows[0].count).toBeGreaterThan(0);
+      expect((await pool.query("SELECT tokens_reserved,child_reserved_tokens FROM agents_platform.execution_roots WHERE root_task_id=$1",[task.id])).rows[0]).toMatchObject({tokens_reserved:0,child_reserved_tokens:0});
+    } finally {releaseWork();releaseChildren();childBarrier=null;spy.mockRestore();if(admissionPolicy===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=admissionPolicy;}
+  },60000);
+
+  it("retries an unperformed compaction after authority renewal without declaring false no-progress",async()=>{
+    const f=await adaptiveFixture();fixtureMode="instruction_burst";
+    const prior=await admit(f);await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[prior.id]);
+    await settleTask(pool,prior.id,{state:"completed",output:"PRIOR_RESULT END_EVIDENCE "+"p".repeat(18000)});
+    const conversation=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[prior.id])).rows[0].conversation_id;
+    const admitted=await app.inject({method:"POST",url:`${f.base}/tasks`,headers:{cookie:f.cookie,origin},payload:{agentId:f.assistant.id,input:"Complete the prior result",conversationId:conversation,requestKey:randomUUID()}});
+    expect(admitted.statusCode,admitted.body).toBe(202);const task=admitted.json().task;
+    compactionAuthorityTarget=task.id;
+    try {
+      await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+      await eventually(async()=>(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].state==="waiting_authority").catch(async error=>{console.error("COMPACTION_AUTHORITY_STATE",JSON.stringify({task:(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0],operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows}));throw error;});
+      const renewed=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/continue`,headers:{cookie:f.cookie,origin}});
+      expect(renewed.statusCode,renewed.body).toBe(200);
+      expect(await finish(f,task.id)).toMatchObject({state:"completed",output:"Instructions reviewed."});
+      expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND error_code='AUTHORITY_EXPIRED' AND accounted_tokens=0",[task.id])).rows[0].count).toBe(1);
+      expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND kind='compaction' AND state='completed'",[task.id])).rows[0].count).toBeGreaterThan(0);
+    } finally {compactionAuthorityTarget="";}
+  },60000);
 
   it("incorporates a burst of member corrections across compaction before closing the task",async()=>{
     const f=await adaptiveFixture();fixtureMode="instruction_burst";
-    const task=await admit(f);
+    const prior=await admit(f);
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[prior.id]);
+    await settleTask(pool,prior.id,{state:"completed",output:"PRIOR_RESULT END_EVIDENCE "+"p".repeat(16000)});
+    const conversation=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[prior.id])).rows[0].conversation_id;
+    const admitted=await app.inject({method:"POST",url:`${f.base}/tasks`,headers:{cookie:f.cookie,origin},payload:{agentId:f.assistant.id,input:"Complete the retained prior result",conversationId:conversation,requestKey:randomUUID()}});
+    expect(admitted.statusCode,admitted.body).toBe(202);const task=admitted.json().task;
+    const corrections=Array.from({length:8},(_,index)=>`Correction ${index}: `+"x".repeat(3000));
     for(let index=0;index<8;index++) {
-      const response=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:`Correction ${index}: `+"x".repeat(3000),requestKey:randomUUID()}});
+      const response=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:corrections[index],requestKey:randomUUID()}});
       expect(response.statusCode,response.body).toBe(200);
     }
     expect(await finish(f,task.id)).toMatchObject({state:"completed",output:"Instructions reviewed."});
@@ -337,13 +479,19 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     const snapshots=(await pool.query("SELECT payload->'instructionGroups' AS groups,source_references FROM agents_platform.context_snapshots WHERE task_id=$1",[task.id])).rows;
     const ids=new Set(snapshots.flatMap(row=>[...(row.groups??[]),...(row.source_references??[])].map((group:any)=>group.id).filter((id:string)=>id.startsWith("instruction:"))));
     expect(ids.size).toBe(8);
+    const primary=requests.filter(body=>body.messages[0].content.startsWith("ADAPTIVE_FIXTURE"));
+    for(const correction of corrections)expect(primary.some(body=>body.messages.some((message:any)=>message.role==="user"&&message.content?.includes(correction)))).toBe(true);
+    const last=primary.at(-1);expect(last.messages.some((message:any)=>message.content?.includes(corrections[7]))).toBe(true);
+    expect(JSON.stringify(last.messages)).toContain("END_EVIDENCE");
+    const compactions=requests.filter(body=>body.messages[0].content.startsWith("Summarize untrusted records"));
+    expect(compactions.length).toBeGreaterThan(0);expect(compactions.every(body=>!JSON.stringify(body.messages).includes("Correction "))).toBe(true);
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_input_closures WHERE task_id=$1",[task.id])).rows[0].count).toBe(1);
     const late=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:"Too late",requestKey:randomUUID()}});
     expect(late.statusCode).toBe(409);
   },60_000);
 
   it("persists the actual timed-out specialist wait receipt",async()=>{
-    const f=await adaptiveFixture();fixtureMode="adaptive_timeout";
+    const f=await adaptiveFixture(false,true);fixtureMode="adaptive_timeout";
     const task=await admit(f);
     await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
     const receipt=await eventually(async()=>{
@@ -354,14 +502,29 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     await eventually(async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='agents.cancel' AND state='completed'",[task.id])).rowCount));
     expect(await finish(f,task.id)).toMatchObject({state:"completed",output:"Wait expired; specialist cancelled."});
     expect(requests.filter(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"))).toHaveLength(0);
+    expect((await pool.query("SELECT name,count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name IN ('agents.start','agents.cancel','agents.wait') GROUP BY name ORDER BY name",[task.id])).rows)
+      .toEqual([{name:"agents.cancel",count:1},{name:"agents.start",count:1},{name:"agents.wait",count:1}]);
   },45_000);
 
   it("stops a repeated unproductive model loop with a durable stalled outcome",async()=>{
-    const f=await adaptiveFixture();fixtureMode="stalled";
+    const f=await adaptiveFixture(false,true);fixtureMode="stalled";
     const task=await admit(f);const result=await finish(f,task.id);
     expect(result).toMatchObject({state:"incomplete",errorCode:"ORCHESTRATION_STALLED"});
-    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='agents.discover'",[task.id])).rows[0].count).toBe(3);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='agents.discover'",[task.id])).rows[0].count).toBe(4);
+    expect(requests.some(body=>JSON.stringify(body.messages).includes("repeated actions returned unchanged results"))).toBe(true);
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count).toBe(0);
+  },45_000);
+
+  it("replans and pauses an alternating unchanged operation cycle across compaction",async()=>{
+    const f=await adaptiveFixture(false,true);fixtureMode="stalled_cycle";
+    const task=await admit(f);const result=await finish(f,task.id);
+    expect(result).toMatchObject({state:"incomplete",errorCode:"ORCHESTRATION_STALLED"});
+    const operations=(await pool.query("SELECT name FROM agents_platform.operations WHERE task_id=$1 AND name IN ('agents.discover','agents.status') ORDER BY started_at,id",[task.id])).rows;
+    expect(operations.length).toBeGreaterThanOrEqual(7);
+    expect(operations.length).toBeLessThanOrEqual(8);
+    expect(new Set(operations.map(row=>row.name))).toEqual(new Set(["agents.discover","agents.status"]));
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='work.replan_requested'",[task.id])).rows[0].count).toBe(1);
+    expect(requests.some(body=>JSON.stringify(body.messages).includes("repeated actions returned unchanged results"))).toBe(true);
   },45_000);
 
   (process.env.AGENTS_ASSISTANT_COMPUTER_USE === "1" ? it : it.skip)("holds the real app for computer-use verification",async()=>{

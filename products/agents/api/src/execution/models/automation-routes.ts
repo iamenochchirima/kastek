@@ -22,7 +22,7 @@ export async function loadAutomationModelRoutes(db: PoolClient, organizationId: 
     WHERE organization_id=$1 AND automation_id=$2 AND revision=$3 AND version_id=$4 FOR SHARE`,
   [organizationId, automationId, revision, versionId])).rows[0];
   const parsed = acceptedModelRoutesSchema.safeParse(row?.routes);
-  if (!parsed.success || requestDigest(parsed.data) !== row.snapshot_digest || Object.values(parsed.data).some(route =>
+  if (!parsed.success || requestDigest(row.routes) !== row.snapshot_digest || Object.values(parsed.data).some(route =>
     route.binding.organizationId !== organizationId || requestDigest(route.definition) !== route.binding.providerDefinitionDigest)) mismatch();
   return parsed.data;
 }
@@ -41,7 +41,7 @@ export async function automationModelRoutes(db: PoolClient, authority: Admission
   const routes = await loadAutomationModelRoutes(db, authority.organizationId, principal.id, row.revision, versionId);
   for (const route of Object.values(routes)) {
     const binding = route.binding;
-    if (route.policy.maxRootTokens > grant.rootTokenLimit || route.policy.maxInputBytes > grant.maxInputBytes ||
+    if ((grant.rootTokenLimit !== null && (route.policy.maxRootTokens === null || route.policy.maxRootTokens > grant.rootTokenLimit)) || route.policy.maxInputBytes > grant.maxInputBytes ||
         route.policy.maxInputTokens > grant.maxContextTokens || route.policy.maxOutputTokens > grant.maxOutputTokens) mismatch();
     const current = await db.query(`SELECT 1 FROM agents_platform.model_provider_connections c
       JOIN agents_platform.model_provider_use_grants g ON g.organization_id=c.organization_id AND g.connection_id=c.id

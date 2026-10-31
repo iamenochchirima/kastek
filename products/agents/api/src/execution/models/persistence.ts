@@ -27,7 +27,7 @@ export async function loadTaskModelRoutes(db: Db, taskId: string, organizationId
   const row = (await db.query(`SELECT routes,snapshot_digest FROM agents_platform.task_model_routes WHERE task_id=$1 AND organization_id=$2`,
     [taskId, organizationId])).rows[0];
   if (!row) throw unavailable();
+  if (requestDigest(row.routes) !== row.snapshot_digest) throw integrity();
   const routes = parseRoutes(row.routes, organizationId);
-  if (requestDigest(routes) !== row.snapshot_digest) throw integrity();
   return routes;
 }

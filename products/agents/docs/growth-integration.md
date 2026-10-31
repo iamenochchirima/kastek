@@ -3,7 +3,7 @@
 Owner: Agents engineering. Last reviewed: 2026-10-31.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker. Managed defaults revision 3 uses `AgentsBusinessRunV23` / `product-capabilities-v13`
+business worker. Managed defaults revision 4 uses `AgentsBusinessRunV24` / `product-capabilities-v14`
 for the adaptive assistant and retains `AgentsBusinessRunV21` / `product-capabilities-v11` for direct specialists. Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
@@ -144,7 +144,7 @@ replace the independent Agents tenant-control operation. Missing or invalid conf
 blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
 
 The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
-Defaults revision `3` includes its four presets, operation manifest and explicit optional-capability
+Defaults revision `4` includes its four presets, operation manifest and explicit optional-capability
 policy. Agents persists this publication and validates it against the installed adapter. An operator
 can run `upgrade-defaults` to queue the new managed revision. Repair preserves customised
 configurations, disabled features, model selections and revoked tenants; accepted turns retain
@@ -182,16 +182,12 @@ stable domain receipt. A lost acknowledgement reconciles that same operation bef
 The assistant discovers its three pinned, same-business specialists and chooses direct work,
 parallel or sequential delegation, result inspection and focused revisions through the shared
 adaptive loop. The specialist definitions remain ordinary published Growth agents. There is no
-topic routing table or mandatory research/content/campaign sequence. Initial specialist allocations
-are 48,000 tokens and 300 seconds per child, with two concurrent children and a shared root budget.
-Adaptive bindings permit at most 64,000 tokens per child; legacy delegation retains its 12,000-token
-limit. Admission reserves each allocation against the existing root allowance. Child tokens and
-elapsed time still count toward that root, including retries and corrections. A larger child
-allocation permits another bounded model call after schema feedback; it does not enlarge the root
-budget or change an already admitted task. Publish the compatible worker before admitting
-larger allocations. Rollback stops new adaptive admissions or lowers future bindings; workers must
-retain support for already published configurations and admitted child allocations until those
-executions settle.
+topic routing table or mandatory research/content/campaign sequence. Revision4 specialist bindings
+use null cumulative token/time allocations and reserve the next bounded physical operation. Two
+children may run concurrently. Explicit finite published bindings remain bounded; a request cannot
+enlarge those grants. Child model/tool operations, compaction and actual token/time usage remain
+part of shared work accounting. Legacy delegation retains its finite 12,000-token binding ceiling.
+Publish compatible workers before new admissions and retain their support for accepted pins.
 
 Derived child authority requires the admitted root, the same initiating principal and business,
 an enabled pinned specialist, and product capabilities within the root's exact scope. Equivalent
@@ -201,7 +197,9 @@ Current checks fence disabled specialists and withdrawn evidence, including alre
 
 The in-app conversation shows bounded work progress and specialist status. Signed
 `tasks.instructions` queues idempotent updates against an active authorized root;
-`tasks.continue` renews expired authority without increasing its admitted budget or deadline.
+`tasks.continue` renews active authority or creates an immutable linked segment for eligible terminal
+work. The work identity, prior receipts, cumulative usage and original deadline remain; continuation
+does not increase an accepted finite allowance or reconcile unknown effects automatically.
 Cancellation reaches the whole task tree. Reopening reads persisted work and queued instructions.
 Reviewed child effects remain exact single-use approvals, projected into the initiating root's UI.
 Draft-only requests return text in chat. Publication and sending remain unavailable.
@@ -289,12 +287,12 @@ separate from this implementation.
 
 Apply recognized Agents additive schemas 070–072 with the explicit setup command before enabling
 new admissions. They store generic review projections, trusted Growth publications and managed
-configuration markers. Adaptive execution additionally requires schema096. Register V21 and V23
-workers and install current product handlers before publishing defaults revision `3`. The Growth
-manifest and product policy revision are `3`; the installed HTTP adapter remains release `2`.
+configuration markers. Adaptive execution additionally requires schemas096–098. Register V21, V23 and V24
+workers and install current product handlers before publishing defaults revision `4`. The Growth
+manifest and product policy revision are `4`; the installed HTTP adapter remains release `2`.
 Exact revision 2 publications remain supported for accepted work and persisted setup retries.
-Unknown schema digests remain rejected. This integration adds no database migration beyond the
-existing adaptive schema.
+Unknown schema digests remain rejected. Schemas097/098 store logical work lineage, nullable
+allocations and exact counters. Retain earlier schema registrations and accepted policy snapshots.
 
 Keep the V20 worker and its original `growth-products-v10` artifacts for already accepted V20 work.
 Route or drain that work on its pinned release. Do not point an existing journal at V21. Rollback
@@ -303,21 +301,22 @@ accepted snapshots, review/effect receipts and uncertain results; additive table
 to reinterpret older tasks. These are operator release requirements, not an automatic deployment.
 
 
-Growth defaults use the configured `AGENTS_MODEL_POLICY_JSON` service input and compaction allowances,
-intersected with discovered model capacity at admission. They do not impose the former 8,192-token
-context ceiling. The accepted root allowance also comes from that policy; current service defaults
-are 196,608 input tokens and 1,000,000 tokens per root. These are operator budgets, not provider limits.
-Set `AGENTS_SCHEDULING_POLICY_JSON.dailyTokenAllowance` to cover the intended outstanding root
-reservations plus consumed usage. A quota smaller than a root reservation rejects admission; it does
-not silently reduce an accepted run's budget. Custom configurations retain their saved limits.
+Growth defaults use the configured `AGENTS_MODEL_POLICY_JSON` input and compaction allowances,
+intersected with discovered model capacity at admission. Service execution policy v2 defaults local
+`maxModelCalls` / `maxToolCalls`, shared `maxRootModelCalls` / `maxRootToolCalls`, cumulative
+`maxRootTokens`, active `maxDurationMs` and work wall `maxWallDurationMs` to null. Null means no cap for that optional allowance;
+it never removes another finite policy layer. Call deadlines, request/context/output capacity,
+concurrency, authority expiry and organization quota remain finite and independent. Work without an
+explicit wall allowance has no implicit24-hour stop; old accepted finite deadlines remain binding.
 
-The model-call limit covers coordinator, specialist and compaction calls together. The service default
-is 24 calls for every program; a three-specialist request can exhaust it while tokens and active time
-remain, especially after argument corrections and result inspection. The controlled Growth pilot
-uses an explicit `AGENTS_MODEL_POLICY_JSON` override with `maxModelCalls: 48`, `maxRootTokens: 300000`
-and `maxDurationMs: 900000`. This is a bounded pilot allowance, not production model qualification.
-Merge overrides into the existing operator policy and admit new roots; accepted tasks retain their
-pinned limits. The shared service defaults remain unchanged.
+A finite root allowance reserves its allocation at admission. A null root allowance reserves only
+the next bounded physical operation against organization quota. Set
+`AGENTS_SCHEDULING_POLICY_JSON.dailyTokenAllowance` for the authorized workload. Per-operation
+settlement charges actual known usage or retains conservative charges for uncertainty; replay does
+not charge twice. Continued segments retain cumulative local/shared usage rather than resetting
+counts. Old accepted v1 policies retain their prior shared-counter semantics. The earlier private
+pilot's 48-call override is not required by the new default and does not silently alter saved grants.
+Strict monetary-cap and provider token-counter qualification remain separate acceptance gaps.
 
 Managed default provisioning also derives initial context/output ceilings and the compaction threshold
 from the selected managed-model snapshot. This allows smaller models without changing explicit saved

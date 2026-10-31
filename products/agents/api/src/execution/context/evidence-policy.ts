@@ -15,6 +15,7 @@ import { assertProductAuthority } from "../admission/product-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
+import { continuationChildAllowed } from "./work-lineage";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -123,7 +124,9 @@ export async function historyOrigins(db:Db,current:Execution,extra:string[]):Pro
   await linked(current);
   while(queue.length){const item=queue.shift()!;if(item.id===item.consumer.task.id)throw integrity();
     const origin=await loadExecution(db,item.id);
-    if((current.task.parent_task_id?!await childHistoryAllowed(db,item.consumer,origin):!!origin.task.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
+    const priorSpecialist=await continuationChildAllowed(db,current,origin);
+    if(!priorSpecialist&&((current.task.parent_task_id?!await childHistoryAllowed(db,item.consumer,origin):!!origin.task.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence)))throw denied();
+    if(priorSpecialist&&!["completed","incomplete","refused","failed","cancelled"].includes(origin.task.state))throw denied();
     if(seen.has(item.id))continue;if(seen.size>=32)throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
   }return origins;
 }
@@ -135,6 +138,10 @@ export async function suppliedNodes(db:Db,execution:Execution):Promise<EvidenceN
 export async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Extract<EvidenceDependency,{kind:"connection"}>,origins:Execution[]=[]):Promise<CapabilityBinding>{
   const own=execution.configuration.connectedToolBindingIds,candidates=[...own],delegated=new Map<string,Execution>();
   if(!execution.task.parent_task_id){
+    for(const origin of origins)if(await continuationChildAllowed(db,execution,origin)) {
+      const roleId=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1",[origin.task.id])).rows[0]?.binding_id;
+      for(const id of origin.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,origin,id);await rootRoleAllows(db,execution,roleId,origin.task.version_id,id);candidates.push(id);delegated.set(id,origin);}
+    }
     for(const origin of [execution,...origins])for(const node of await suppliedNodes(db,origin)){
       if(node.taskId===origin.task.id||node.kind!=="child_result"||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
       const child=await loadExecution(db,node.taskId);
@@ -220,6 +227,8 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   });
   for (const dependency of dependencies) {
     if (dependency.kind !== "product") continue;
+    const currentGrant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
+    if(!currentGrant?.operations.includes("product.read"))throw denied();
     const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
     const origin = [execution, root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
     if (!origin || (!dependency.bindingId && (origin.task.product !== dependency.product || root.task.product !== dependency.product))) throw denied();

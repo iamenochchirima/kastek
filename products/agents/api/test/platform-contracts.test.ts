@@ -24,6 +24,16 @@ function authorizedRequest() {
 const now = new Date("2026-10-17T13:00:00Z");
 
 describe("fresh platform execution contract", () => {
+  it("leaves token authority unrestricted when omitted while honoring explicit finite grants", () => {
+    const { grant, authority, configuration, versionId } = authorizedRequest();
+    expect(grant.rootTokenLimit).toBeNull();
+    expect(executionGrantSchema.parse({...grant,rootTokenLimit:32000}).rootTokenLimit).toBe(32000);
+    const unrestricted = executionGrantSchema.parse({ ...grant, rootTokenLimit: null });
+    expect(unrestricted.rootTokenLimit).toBeNull();
+    expect(() => assertGrantAuthority(unrestricted, authority, versionId, configuration, now)).not.toThrow();
+    expect(() => assertGrantAuthority({ ...unrestricted, operations: [] }, authority, versionId, configuration, now)).toThrow("capabilities");
+    for (const rootTokenLimit of [0, -1, Infinity, "unlimited"]) expect(() => executionGrantSchema.parse({ ...grant, rootTokenLimit })).toThrow();
+  });
   it("accepts only the two explicit technical categories", () => {
     for (const kind of ["business", "workspace"]) expect(executionKindSchema.parse(kind)).toBe(kind);
     for (const kind of [undefined, "research", "faq", "workflow", "system_hosted", "external_connected"]) {

@@ -2,7 +2,7 @@ import { orchestrationTools } from "../contracts/orchestration";
 import type { AgentConfiguration } from "../contracts/contracts";
 import { capabilityContractMetadata } from "./tool-contracts";
 export interface ToolDescriptor {
-  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read" | "skills.run" | "booking.availability" | "booking.reserve"; version: "1";
+  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read" | "skills.run" | "booking.availability" | "booking.reserve"; version: "1" | "2";
   effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect" | "channel_control";
   maxDurationMs: number; maxResultBytes: number; retry: "safe_read" | "idempotent_receipt" | "stable_children" | "adapter_reconcile" | "status_only";
   cancel: "stop_admission" | "dependent_children" | "adapter_cleanup" | "reconcile_claimed";
@@ -48,7 +48,7 @@ function immutableJson<T>(value:T):T {
 export const REPORT_WORKFLOW_BINDING=immutableJson({profileId:"report-delivery-v1",version:"1",adapter:"report-delivery-http-v1",
   stages:["generate","validate_artifact","prepare","review","claim","deliver","reconcile"],
   inputSchema:{type:"object",properties:{connectionId:{type:"string",format:"uuid"},artifactId:{type:"string",format:"uuid"},title:{type:"string",maxLength:120}},required:["connectionId","artifactId","title"],additionalProperties:false}});
-export function toolDescriptor(name:string):ToolDescriptor|undefined {
+export function toolDescriptor(name:string,legacyAdaptive=false):ToolDescriptor|undefined {
   const descriptor=descriptors.find(descriptor=>descriptor.name===name);
-  return descriptor?{...descriptor,...capabilityContractMetadata(name)}:undefined;
+  return descriptor?{...descriptor,...(!legacyAdaptive&&["agents.status","agents.result","work.inspect"].includes(name)?{version:"2" as const}:{}),...capabilityContractMetadata(name,legacyAdaptive)}:undefined;
 }
