@@ -52,6 +52,15 @@ records an idempotent request and does not undo completed effects. Use `/status`
 the current active request on that phone link; cancellation records intent,
 while the runtime settles the root and children. Existing app task controls also remain available.
 
+For an active adaptive v4 coordinator with delegation enabled, subsequent Telegram/WhatsApp text
+queues additional instructions on the same durable root. It uses the current verified link and
+returns **Instructions queued** through the normal outbox. Corrections over 4,000 characters or
+beyond the 32-instruction root limit receive a durable rejection without creating work.
+Duplicate ingress cannot queue the
+instruction twice, including after the root closes input. Once input closes, new text starts the
+next conversation turn. Earlier programs retain their normal new-turn behavior. `/status` and
+`/cancel` retain their existing meaning; exact-effect approval buttons are separate.
+
 ## API contracts
 
 All routes require the existing authenticated session, origin checks and current membership under
@@ -63,6 +72,7 @@ All routes require the existing authenticated session, origin checks and current
 | POST `/assistant/repair` with `{}` | Owner-only explicit creation/restore. |
 | GET `/agents/:agentId/specialists` | Same-organization latest and currently pinned versions, bounded allowed capabilities and current readiness reasons. |
 | POST `/agents` with `name`, `configuration`, optional `operationId` | Explicit ordinary business definition. Guided customer-service creation retains its existing contract. |
+| POST `/tasks/:taskId/instructions` with `instruction`, `requestKey` | Queue an authorized active v4 root update; request keys are idempotent. Finishing, cancelled, stale or foreign work is denied. |
 | GET `/member-channels` | Current member's links, bounded delivery states, eligible connections and rollout enablement. No provider credentials. |
 | POST `/member-channels/challenges` with `connectionId` | Returns a one-time displayed token and expiry; never retrieve it later. |
 | POST `/member-channels/:linkId/confirm` with `{}` | Confirms that member's unexpired provider-observed identity. |

@@ -83,13 +83,27 @@ export async function specialistResult(pool: Pool, parentId: string, input: { ta
 }
 
 export async function cancelSpecialist(pool: Pool, parentId: string, childId: string) {
+  const initial = await loadExecution(pool, parentId);
   return transaction(pool, async db => {
-    const parent = await authorize(db, parentId);
-    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [parent.task.organization_id]);
+    await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [initial.task.organization_id]);
     const row = await child(db, parentId, childId);
     if (terminalTaskStates.has(row.state)) return { taskId: row.id, state: "already_terminal", taskState: row.state };
     await db.query("UPDATE agents_platform.tasks SET state='cancel_requested',updated_at=now() WHERE id=$1", [childId]);
     await event(db, childId, `specialist-cancel:${parentId}`, "cancel_requested", { requestedByTaskId: parentId });
     return { taskId: row.id, state: "cancel_requested", taskState: "cancel_requested" };
+  });
+}
+
+/** Only admitted child token allocations can make this model admission temporarily infeasible. */
+export async function specialistTokenBackpressure(pool: Pool, parentId: string, requiredTokens: number, requiredMs: number) {
+  return transaction(pool, async db => {
+    const parent = await authorize(db, parentId), policy = parent.models.primary.policy;
+    const budget = (await db.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=$1 FOR SHARE", [parentId])).rows[0];
+    if (!budget || budget.settled_at || budget.child_reserved_tokens <= 0 || budget.model_calls >= policy.maxModelCalls ||
+        parent.task.tokens_used + parent.task.tokens_reserved + requiredTokens > parent.task.root_token_limit ||
+        budget.tokens_used + budget.tokens_reserved + requiredTokens > parent.task.root_token_limit ||
+        budget.active_ms + budget.active_reserved_ms + budget.child_reserved_ms + requiredMs > policy.maxDurationMs) return false;
+    const pressure = budget.tokens_used + budget.tokens_reserved + budget.child_reserved_tokens + requiredTokens > parent.task.root_token_limit;
+    return pressure && Boolean((await db.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain') LIMIT 1", [parentId])).rowCount);
   });
 }

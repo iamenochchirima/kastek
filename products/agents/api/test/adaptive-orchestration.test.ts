@@ -5,6 +5,7 @@ import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contracts/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, startSpecialist } from "../src/execution/delegation/adaptive";
+import { closeOrchestrationInstructions, orchestrationInstructionGroups, queueOrchestrationInstruction } from "../src/execution/delegation/progress";
 import { settleTask } from "../src/execution/lifecycle/execution";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
@@ -78,6 +79,27 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     await expect(startSpecialist(pool, f.task.id, "start:three", request)).rejects.toMatchObject({ code: "SPECIALIST_TASK_LIMIT" });
     await complete(f.task.id, "Recovered successfully");
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [f.task.id])).rows[0].state).toBe("completed");
+  });
+
+  it("serializes member corrections against final input closure",async()=>{
+    const f=await fixture(),outcome={state:"completed" as const,output:"Confirmed result"};
+    const [closed,queued]=await Promise.allSettled([
+      closeOrchestrationInstructions(pool,f.task.id,[],outcome),
+      queueOrchestrationInstruction(pool,f.task.id,{instruction:"Use the updated requirement",requestKey:randomUUID()}),
+    ]);
+    expect(closed.status).toBe("fulfilled");
+    if(closed.status!=="fulfilled")throw closed.reason;
+    if(closed.value) {
+      expect(queued.status).toBe("rejected");
+      if(queued.status==="rejected")expect(queued.reason).toMatchObject({code:"TASK_TERMINAL"});
+    } else {
+      expect(queued.status).toBe("fulfilled");
+      const groups=await orchestrationInstructionGroups(pool,f.task.id,[]);
+      expect(groups).toHaveLength(1);
+      expect(await closeOrchestrationInstructions(pool,f.task.id,groups.map(group=>group.id),outcome)).toBe(true);
+    }
+    expect(await closeOrchestrationInstructions(pool,f.task.id,[],outcome)).toBe(true);
+    await expect(closeOrchestrationInstructions(pool,f.task.id,[],{state:"completed",output:"Changed intent"})).rejects.toMatchObject({code:"OPERATION_CONFLICT"});
   });
 
   it("rejects another root and revoked access, and never hides uncertain child effects", async () => {

@@ -7,7 +7,7 @@ import { assertCurrentAuthority,loadExecution,transaction } from "../lifecycle/e
 
 const uuid = z.uuid();
 const operationId = z.string().min(1).max(160).regex(/^[A-Za-z0-9:_-]+$/);
-const state = z.enum(["completed","incomplete","refused","failed","cancelled","uncertain","running","accepted","waiting_authority","waiting_children","waiting_review","cancel_requested"]);
+const state = z.enum(["completed","incomplete","refused","failed","cancelled","uncertain","running","accepted","waiting_authority","waiting_children","waiting_review","cancel_requested","reconciling"]);
 export interface ContinuationEvidence { id:string; citation:string; operationId:string; kind:"source"|"connection"|"memory"|"product" }
 export interface ContinuationProgress { revision:number; record:z.infer<typeof workRecordSchema> }
 export interface ContinuationCheckpoint {

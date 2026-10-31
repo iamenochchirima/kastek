@@ -1,3 +1,5 @@
+import { delegatedSkills } from "./skills";
+import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { Pool } from "pg";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { orchestrationContracts } from "../../contracts/orchestration";
@@ -18,16 +20,20 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
     const offset = args.offset ?? 0;
     const specialists = [];
     for (const binding of selected.slice(offset, offset + 8)) {
-      const row = (await db.query(`SELECT v.configuration,a.name FROM agents_platform.agent_versions v
+      const row = (await db.query(`SELECT v.configuration,v.agent_id,a.name FROM agents_platform.agent_versions v
         JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id
         WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL`, [execution.task.organization_id, binding.versionId])).rows[0];
-      const reasons: string[] = [];
+      const reasons: string[] = [];let skills:{name:string;description:string}[]=[];
       const config = row ? agentConfigurationSchema.parse(row.configuration) : null;
       if (!config) reasons.push("Pinned specialist unavailable");
       else {
         if (config.executionKind !== "business" || config.memory.enabled || config.capabilities.delegation.enabled || (config.capabilities.sandbox.enabled && !execution.configuration.capabilities.sandbox.enabled) || config.capabilities.workflows.enabled || config.capabilities.businessActions.enabled) reasons.push("Unsupported specialist capabilities");
         try { delegatedModelRoutes(execution.models, config, binding.maxTokens, binding.maxActiveMs); }
         catch (error) { if (error instanceof PlatformError) reasons.push(error.message); else throw error; }
+        try{
+          const connections=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[execution.task.organization_id,binding.connectedToolBindingIds])).rows;
+          skills=(await delegatedSkills(db,{organizationId:execution.task.organization_id,agentId:row.agent_id,configuration:{...config,tools:binding.tools,sourceRevisionIds:binding.sourceRevisionIds,connectedToolBindingIds:binding.connectedToolBindingIds},connectedBindings:connections.map(row=>capabilityBindingSchema.parse(row.binding))})).map(skill=>({name:skill.name,description:skill.description}));
+        }catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
         if (binding.sourceRevisionIds.length) {
           const sources = await db.query(`SELECT r.id FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id
             JOIN agents_platform.source_revision_policy p ON p.revision_id=r.id WHERE r.organization_id=$1 AND r.id=ANY($2::uuid[])
@@ -42,7 +48,7 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
         }
       }
       specialists.push({ bindingId: binding.id, name: binding.label ?? row?.name ?? binding.id, description: binding.description ?? "Configured specialist",
-        versionId: binding.versionId, ready: !reasons.length, reasons, tools: [...binding.tools], sourceCount: binding.sourceRevisionIds.length });
+        versionId: binding.versionId, ready: !reasons.length, reasons, skillCount:config?.skillIds.length??0,skills, tools: [...binding.tools], sourceCount: binding.sourceRevisionIds.length });
     }
     return { specialists, nextOffset: offset + 8 < selected.length ? offset + 8 : null };
   });

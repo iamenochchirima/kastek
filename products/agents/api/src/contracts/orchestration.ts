@@ -24,7 +24,7 @@ const children = z.array(childStatusSchema).max(64);
 const progress = z.strictObject({ revision: z.number().int().nonnegative(), record: workRecordSchema.nullable() });
 export const orchestrationContracts = {
   "agents.discover": { input: z.strictObject({ query: z.string().max(200).optional(), bindingId: z.string().max(64).optional(), offset: z.number().int().min(0).max(32).optional() }),
-    output: z.strictObject({ specialists: z.array(z.strictObject({ bindingId: z.string(), name: z.string(), description: z.string(), versionId: taskId, ready: z.boolean(), reasons: z.array(z.string()).max(16), tools: z.array(z.string()).max(64), sourceCount: z.number().int().nonnegative() })).max(8), nextOffset: z.number().int().nullable() }) },
+    output: z.strictObject({ specialists: z.array(z.strictObject({ bindingId: z.string(), name: z.string(), description: z.string(), versionId: taskId, ready: z.boolean(), reasons: z.array(z.string()).max(16), tools: z.array(z.string()).max(64), sourceCount: z.number().int().nonnegative(),skillCount:z.number().int().min(0).max(8).optional(),skills:z.array(z.strictObject({name:z.string(),description:z.string()})).max(8).optional() })).max(8), nextOffset: z.number().int().nullable() }) },
   "agents.start": { input: z.strictObject({ requests: z.array(specialistWorkSchema).min(1).max(2) }), output: z.strictObject({ children }) },
   "agents.status": { input: z.strictObject({ taskIds: z.array(taskId).min(1).max(64).optional() }), output: z.strictObject({ children }) },
   "agents.result": { input: z.strictObject({ taskId, offset: z.number().int().min(0).max(1048576).optional() }),

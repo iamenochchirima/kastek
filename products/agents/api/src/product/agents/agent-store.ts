@@ -1,3 +1,4 @@
+import { delegatedSkills } from "../../execution/delegation/skills";
 import { isDeepStrictEqual } from "node:util";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
@@ -233,6 +234,7 @@ export class AgentStore extends AuthorityStore {
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");
           const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[input.organizationId,binding.connectedToolBindingIds])).rows;
           assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
+          if(config.program.version==="4")await delegatedSkills(db,{organizationId:input.organizationId,agentId:child.agent_id,configuration:{...childConfig,tools:binding.tools,sourceRevisionIds:binding.sourceRevisionIds,connectedToolBindingIds:binding.connectedToolBindingIds},connectedBindings:effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding))});
           binding.label=child.agent_name;
           binding.description=Array.from(childConfig.instructions.replace(/\s+/g," ")).slice(0,512).join("");
           binding.versionNumber=child.number;

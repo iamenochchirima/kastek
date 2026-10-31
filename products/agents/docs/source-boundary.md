@@ -2185,3 +2185,21 @@ rollback, telemetry limits and the complete release record. The owner acceptance
 under the existing Harbor adapter is not a runnable evaluation or a reported quality result.
 Controlled contract/provenance/Restate/browser checks establish only their recorded engineering
 behavior. See [verify-agents](../../../.agents/skills/verify-agents/SKILL.md) for reproducible checks.
+
+
+Adaptive specialist version pins include that agent's own selected reviewed skill revisions.
+Current package review/state and delegated capability requirements are checked at coordinator
+publication, discovery and child admission. Results retain exact consumed skill provenance;
+coordinator evidence can use it only through a joined child result with the current matching
+binding/version pin. Disabling an influencing package makes those results unavailable. No global
+or cross-agent skill-ID intersection grants authority. `adaptive-specialist-skills.test.ts` exercises
+actual package activation, source citations, exact result consumption and skill/source withdrawal.
+
+
+Active v4 member-channel roots with delegation enabled receive subsequent verified
+Telegram/WhatsApp text as queued instructions on the same root. Ingress identity deduplicates
+updates and acknowledgment notices even after final-input closure. New messages after closure
+start the next ordinary turn; legacy programs keep new-turn admission. App and phone updates use
+the same scoped queue and serialized close gate. Context groups have stable per-instruction IDs,
+load in bounded batches, and are excluded after incorporation/compaction rather than continuously
+reappending all prior text. Native outcomes remain distinct from model-authored progress.

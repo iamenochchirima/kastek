@@ -185,6 +185,23 @@ export async function assertDelegationInputEvidence(db:Db,childTaskId:string,exp
 export async function delegationDependency(db:Db,taskId:string):Promise<EvidenceDependency[]>{
  const input=await delegationInput(db,taskId);return input?[{kind:"delegation_input",referenceId:taskId,manifestDigest:input.manifest.digest}]:[];
 }
+async function joinedSpecialistSkillAllowed(db:Db,current:Execution,dependency:Extract<EvidenceDependency,{kind:"skill"}>,origins:Execution[]):Promise<boolean>{
+  const root=current.task.parent_task_id?await loadExecution(db,current.task.root_task_id):current;
+  if(root.configuration.program.id!=="tool-directed"||root.configuration.program.version!=="4"||!root.configuration.capabilities.delegation.enabled)return false;
+  for(const origin of [root,...origins]){
+    if(origin.task.parent_task_id)continue;
+    for(const node of await suppliedNodes(db,origin)){
+      if(node.kind!=="child_result"||node.taskId===origin.task.id||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
+      const child=await loadExecution(db,node.taskId);
+      if(child.task.parent_task_id!==origin.task.id||child.task.root_task_id!==origin.task.id||child.task.organization_id!==root.task.organization_id||child.agentId!==dependency.agentId||!child.configuration.skillIds.includes(dependency.skillId))continue;
+      const delegated=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1 AND parent_task_id=$2",[child.task.id,origin.task.id])).rows[0];
+      if(!root.configuration.capabilities.delegation.bindings.some(binding=>binding.id===delegated?.binding_id&&binding.versionId===child.task.version_id))continue;
+      await inspectionAuthority(db,child);
+      return true;
+    }
+  }
+  return false;
+}
 /** Call inside the same transaction as the consuming model/effect claim, holding the organization lock. */
 export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[]; historyOriginTaskIds?:string[] } = {}): Promise<void> {
   const manifest = assertDependencyManifest(input), execution = await loadExecution(db, taskId);
@@ -225,7 +242,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
     if(dependency.kind!=="skill")continue;
     const root=execution.task.parent_task_id?await loadExecution(db,execution.task.root_task_id):execution;
     const candidates=[execution,root,...origins];
-    if(!candidates.some(origin=>origin.agentId===dependency.agentId&&origin.configuration.skillIds.includes(dependency.skillId)))throw denied();
+    if(!candidates.some(origin=>origin.agentId===dependency.agentId&&origin.configuration.skillIds.includes(dependency.skillId))&&!await joinedSpecialistSkillAllowed(db,execution,dependency,origins))throw denied();
     const row=(await db.query(`SELECT s.content_digest,p.files,r.content_digest AS reviewed_digest,st.state
       FROM agents_platform.skill_revisions s JOIN agents_platform.skill_packages p ON p.skill_revision_id=s.id
       JOIN agents_platform.skill_package_reviews r ON r.skill_revision_id=s.id

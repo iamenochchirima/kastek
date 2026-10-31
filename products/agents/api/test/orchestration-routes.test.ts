@@ -49,11 +49,18 @@ const origin = "http://localhost:3100", issuer = "https://orchestration-route.fi
     await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1", [task.id]);
     const record = { objective: source?.content ?? "Prepare launch", steps: [{ id: "draft", title: "Draft", state: "in_progress" as const }], questions: [], evidenceTaskIds: [] };
     await executeWorkTool(pool, task.id, `work:${task.id}`, "work.update", { expectedRevision: 0, record });
-    return { owner, org, scope, source, task, grant, record, path: `/api/organizations/${org.id}/tasks/${task.id}` };
+    return { owner, org, scope, source, task, grant, record, agent, config, path: `/api/organizations/${org.id}/tasks/${task.id}` };
   }
   function instruction(path: string, cookie: string, payload = { requestKey: randomUUID(), instruction: "Focus on the deadline" }, includeOrigin = true) {
     return app.inject({ method: "POST", url: `${path}/instructions`, headers: { cookie, ...(includeOrigin ? { origin } : {}) }, payload });
   }
+  it("saves an adaptive coordinator with delegation disabled after removing its roster", async () => {
+    const f = await fixture();
+    const configuration = { ...f.config, tools: [], context: { maxInputTokens: 24000, compactAtTokens: 22000 }, capabilities: { ...f.config.capabilities, delegation: { enabled: false } } };
+    const response = await app.inject({ method: "POST", url: `/api/organizations/${f.org.id}/agents/${f.agent.id}/configuration`, headers: { cookie: f.owner.cookie, origin }, payload: { name: f.agent.name, configuration, expectedRevision: f.agent.draft_revision, confirmImpact: true } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().agent.draft).toMatchObject({ program: { version: "4" }, capabilities: { delegation: { enabled: false } }, context: { maxInputTokens: 24000, compactAtTokens: 22000 } });
+  });
   it("returns durable progress to its owner and accepts an unchanged instruction retry once", async () => {
     const f = await fixture(), response = await app.inject({ url: f.path, headers: { cookie: f.owner.cookie } });
     expect(response.statusCode).toBe(200); expect(response.json()).toMatchObject({ canSteer: true, orchestration: { revision: 1, record: f.record } });

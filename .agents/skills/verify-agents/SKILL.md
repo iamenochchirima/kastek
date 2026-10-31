@@ -122,7 +122,7 @@ pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/organiz
 ```
 
 For actual coordinator → Content specialist execution, set `AGENTS_TEST_RESTATE_BINARY` to an
-owned native Restate1.7.13 executable. The test creates its own loopback runtime, worker, temporary
+owned native Restate 1.7.13 executable. The test creates its own loopback runtime, worker, temporary
 data and disposable database, then tears them down. This path does not require Docker:
 
 ```sh
@@ -152,7 +152,7 @@ handlers for accepted tasks. The [operation reference](../../../products/agents/
 is authoritative for policy, tool semantics, permissions and rollout. Select focused checks from:
 
 ```sh
-pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts
+pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts test/adaptive-specialist-skills.test.ts test/orchestration-routes.test.ts test/schema-upgrade-096.test.ts
 ```
 
 Database suites require the owned PostgreSQL prerequisite above. Continue using the existing
@@ -161,6 +161,20 @@ provider behavior from autonomous model judgment. Verify selected result provena
 same-specialist immutable follow-ups, source/member revocation, bounded repeated operations,
 compaction, queued instructions, replay, cancellation and root-owned child settlement. Inspect the
 actual operation/result records; a progress step marked completed is model-authored data.
+
+The runtime suite accepts `AGENTS_TEST_RESTATE_BINARY` for the official Restate 1.7.13 native
+binary when Docker is unavailable. It starts owned loopback services and removes its database
+on completion. Set `AGENTS_ASSISTANT_COMPUTER_USE=1` and select the test named
+`holds the real app for computer-use verification` to keep the actual API, worker, database and
+frontend running for computer use. Read the disposable login URL from
+`.audit/adaptive-computer-use.json`, then drive the app through the computer-use tool. The
+fixture does not drive browser actions. Capture the visible final result and inspect persisted
+root/child/operation records before stopping it with `.audit/adaptive-computer-use.stop`.
+This mode uses controlled local provider responses and expires after 15 minutes; it does not
+contact a live provider or prove model quality. Keep session cookies and model fixture keys out
+of exported evidence. For phone updates also run `member-channels.test.ts` and the joined
+Telegram/WhatsApp native cases; distinguish normalized ingress and controlled physical sends
+from live-provider delivery.
 
 For app changes run the affected assistant browser cases at desktop/tablet/mobile widths and
 light/dark themes, including keyboard controls and active-root updates. Mocked routes are not a

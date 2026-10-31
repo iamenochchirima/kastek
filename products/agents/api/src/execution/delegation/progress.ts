@@ -15,6 +15,7 @@ export async function authorizeOrchestration(db: Db, taskId: string, tool?: stri
     throw new PlatformError("ORCHESTRATION_DENIED", 403, "Specialist orchestration is unavailable");
   }
   await assertCurrentAuthority(db, execution);
+  if (execution.task.pending_outcome || (await db.query("SELECT 1 FROM agents_platform.orchestration_input_closures WHERE task_id=$1",[taskId])).rowCount) throw new PlatformError("TASK_TERMINAL", 409, "This task is finishing");
   return execution;
 }
 
@@ -57,8 +58,11 @@ export async function executeWorkTool(pool: Pool, taskId: string, operationId: s
 
 export const instructionSchema = z.strictObject({ instruction: z.string().trim().min(1).max(4000), requestKey: z.uuid() });
 export async function queueOrchestrationInstruction(pool: Pool, taskId: string, input: unknown) {
+  return transaction(pool, db => queueOrchestrationInstructionInTransaction(db, taskId, input));
+}
+
+export async function queueOrchestrationInstructionInTransaction(db: PoolClient, taskId: string, input: unknown) {
   const args = instructionSchema.parse(input);
-  return transaction(pool, async db => {
     await db.query("SELECT id FROM agents_platform.tasks WHERE id=$1 FOR NO KEY UPDATE", [taskId]);
     const execution = await authorizeOrchestration(db, taskId);
     if (terminalTaskStates.has(execution.task.state) || execution.task.state === "cancel_requested") throw new PlatformError("TASK_TERMINAL", 409, "This task no longer accepts instructions");
@@ -72,7 +76,6 @@ export async function queueOrchestrationInstruction(pool: Pool, taskId: string, 
     await db.query("INSERT INTO agents_platform.orchestration_instructions(task_id,request_key,instruction) VALUES($1,$2,$3)", [taskId, args.requestKey, args.instruction]);
     await event(db, taskId, `instruction:${args.requestKey}`, "work.instruction_queued", {});
     return { accepted: true as const };
-  });
 }
 
 /** Queued member input is user content. It never changes grants or trusted execution receipts. */
@@ -82,6 +85,34 @@ export async function readOrchestrationInstructions(pool: Pool, taskId: string) 
   await assertCurrentAuthority(pool, execution);
   return (await pool.query("SELECT sequence,instruction FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence", [taskId])).rows
     .map(row => ({ role: "user" as const, content: `Additional instructions for this request:\n${row.instruction}` }));
+}
+
+export async function orchestrationInstructionGroups(pool: Pool, taskId: string, excluded: readonly string[], limit = 4) {
+  const execution = await loadExecution(pool, taskId);
+  if (execution.configuration.program.id !== "tool-directed" || execution.configuration.program.version !== "4" || execution.task.parent_task_id) return [];
+  await assertCurrentAuthority(pool, execution);
+  const seen = new Set(excluded);
+  const rows = (await pool.query("SELECT sequence,instruction FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence", [taskId])).rows;
+  return rows.map(row => ({ id: `instruction:${taskId}:${row.sequence}`, messages: [{ role: "user" as const, content: `Additional instructions for this request:\n${row.instruction}` }] }))
+    .filter(group => !seen.has(group.id)).slice(0, limit);
+}
+
+/** Serialize the final input check with instruction admission without publishing an unvalidated outcome. */
+export async function closeOrchestrationInstructions(pool: Pool, taskId: string, incorporated: readonly string[], outcome: import("../../contracts/execution").TaskOutcome) {
+  return transaction(pool, async db => {
+    await db.query("SELECT id FROM agents_platform.tasks WHERE id=$1 FOR NO KEY UPDATE", [taskId]);
+    const execution=await loadExecution(db,taskId);
+    await assertCurrentAuthority(db,execution);
+    if(execution.task.parent_task_id||execution.configuration.program.version!=="4")throw new PlatformError("ORCHESTRATION_DENIED",403,"Specialist orchestration is unavailable");
+    const digest=requestDigest(outcome);
+    const closed=(await db.query("SELECT outcome_digest FROM agents_platform.orchestration_input_closures WHERE task_id=$1",[taskId])).rows[0];
+    if(closed){if(closed.outcome_digest!==digest)throw new PlatformError("OPERATION_CONFLICT",409,"Completion intent changed");return true;}
+    const seen = new Set(incorporated);
+    const queued = (await db.query("SELECT sequence FROM agents_platform.orchestration_instructions WHERE task_id=$1", [taskId])).rows;
+    if (queued.some(row => !seen.has(`instruction:${taskId}:${row.sequence}`))) return false;
+    await db.query("INSERT INTO agents_platform.orchestration_input_closures(task_id,outcome_digest) VALUES($1,$2)", [taskId, digest]);
+    return true;
+  });
 }
 
 export async function orchestrationStalled(pool: Pool, taskId: string) {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { agentConfigurationSchema } from "../../api/src/contracts/contracts";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const account = { id: "member", email: "member@example.test", displayName: "Member" };
@@ -90,9 +91,9 @@ test("private account layout fits desktop, tablet and mobile in both themes", as
   }
 });
 
-async function specialistWorkspace(page: Page, options: { taskTools?: boolean; customer?: boolean; productBound?: boolean; programThree?: boolean; adaptive?: boolean } = {}) {
-  const configuration = { executionKind: "business", program: { id: "tool-directed", version: options.adaptive ? "4" : options.programThree ? "3" : options.taskTools ? "2" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: options.taskTools ? ["tasks.inspect", "tasks.cancel", "knowledge.search"] : [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
-  const specialist = { agentId: "content", name: "Content", description: "Write private drafts from the supplied brief.", versionId: "content-v1", versionNumber: 1, ready: true, reasons: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [] };
+async function specialistWorkspace(page: Page, options: { taskTools?: boolean; customer?: boolean; productBound?: boolean; programThree?: boolean; adaptive?: boolean; validIds?: boolean; context?: { maxInputTokens: number; compactAtTokens: number }; maxOutputTokens?: number } = {}) {
+  const configuration = { executionKind: "business", program: { id: "tool-directed", version: options.adaptive ? "4" : options.programThree ? "3" : options.taskTools ? "2" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], instructions: "Help this member.", context: options.context ?? { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: options.maxOutputTokens ?? 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: options.taskTools ? ["tasks.inspect", "tasks.cancel", "knowledge.search"] : [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+  const specialist = { agentId: "content", name: "Content", skillCount: 2, description: "Write private drafts from the supplied brief.", versionId: options.validIds ? "22222222-2222-4222-8222-222222222222" : "content-v1", versionNumber: 1, ready: true, reasons: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [] };
   const agent = { id: "assistant-1", name: "Business assistant", offering: options.customer ? "faq" : null, draft: configuration, draftRevision: 1 };
   const saved: unknown[] = [], created: unknown[] = [];
   await page.route("**/api/**", async route => {
@@ -123,6 +124,7 @@ test("normal configuration pins only ready specialists, enforces two bindings an
   await page.goto("/app/agents/assistant-1?section=configuration");
   const section = page.getByRole("region", { name: "Specialists", exact: true });
   await expect(section.getByText("Model unavailable", { exact: true })).toBeVisible();
+  await expect(section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Content · v1", exact: true }) }).getByText("2 skills", { exact: true })).toBeVisible();
   const analyst = section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Analyst · v2" }) });
   await expect(analyst.getByRole("button", { name: "Add specialist" })).toBeDisabled();
   for (const name of ["Content · v1", "Editor · v1"]) await section.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
@@ -338,3 +340,48 @@ test("active adaptive work shows progress and queues corrections without losing 
   await expect.poll(() => decisions.length).toBe(1);
   expect(decisions[0]).toEqual({ decision: "approve", requestDigest: "child-exact-digest" });
 });
+
+
+test("adaptive empty roster saves valid configuration before and after final removal", async ({ page }) => {
+  const fixture = await specialistWorkspace(page, { validIds: true });
+  await page.goto("/app/agents/assistant-1?section=configuration");
+  const section = page.getByRole("region", { name: "Specialists", exact: true });
+  await section.getByRole("button", { name: "Enable adaptive orchestration" }).click();
+  await expect(section.getByText("No specialists selected", { exact: true })).toBeVisible();
+  await expect(section.getByRole("spinbutton", { name: "Concurrent tasks" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  const empty = agentConfigurationSchema.parse((fixture.saved[0] as {configuration: unknown}).configuration);
+  expect(empty).toMatchObject({ program: { version: "4" }, context: { maxInputTokens: 24000, compactAtTokens: 22000 }, capabilities: { delegation: { enabled: false } } });
+  expect(empty.tools).not.toContain("agents.start");
+  await section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Content · v1", exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
+  await section.getByRole("spinbutton", { name: "Concurrent tasks" }).fill("4");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(2);
+  await section.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(3);
+  expect(agentConfigurationSchema.parse((fixture.saved[2] as {configuration: unknown}).configuration).capabilities.delegation).toEqual({ enabled: false });
+  await section.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Content · v1", exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
+  await expect(section.getByRole("spinbutton", { name: "Concurrent tasks" })).toHaveValue("4");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(4);
+  expect(agentConfigurationSchema.parse((fixture.saved[3] as {configuration: unknown}).configuration)).toMatchObject({ capabilities: { delegation: { enabled: true, maxChildren: 4, policy: { maxTasks: 16, maxStalls: 3 } } }, tools: expect.arrayContaining(["agents.start", "agents.followup"]) });
+});
+
+
+for (const input of [{ context: { maxInputTokens: 26000, compactAtTokens: 24000 }, maxOutputTokens: 4096, warning: false }, { context: { maxInputTokens: 8192, compactAtTokens: 6144 }, maxOutputTokens: 12000, warning: true }]) {
+  test(`adaptive upgrade respects configured reply and context budgets ${input.maxOutputTokens}`, async ({ page }) => {
+    const fixture = await specialistWorkspace(page, input);
+    await page.goto("/app/agents/assistant-1?section=configuration");
+    const section = page.getByRole("region", { name: "Specialists", exact: true });
+    await section.getByRole("button", { name: "Enable adaptive orchestration" }).click();
+    if (input.warning) await expect(section.getByText("Review model limits: orchestration needs room for tool schemas and specialist results.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect.poll(() => fixture.saved.length).toBe(1);
+    const saved = agentConfigurationSchema.parse((fixture.saved[0] as {configuration: unknown}).configuration);
+    expect(saved.model.maxOutputTokens).toBe(input.maxOutputTokens);
+    expect(saved.context.maxInputTokens).toBe(input.warning ? 20000 : 26000);
+    expect(saved.context.compactAtTokens).toBe(input.warning ? 19999 : 24000);
+  });
+}

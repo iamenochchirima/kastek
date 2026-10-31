@@ -10,8 +10,8 @@ capabilities are available to other authorized standalone business coordinators.
 
 The runtime enforces permissions, published version pins, budgets and durable execution. Those
 controls do not decide the business plan. This is a coordinator with specialist workers, not
-recursive teams: specialists cannot delegate further, acquire personal memory or inherit sandbox
-access. Cross-product delegation, dynamically invented elevated grants and arbitrary agent
+recursive teams: specialists cannot delegate further or acquire personal memory. Sandbox access
+requires an explicit matching scope. Cross-product delegation, dynamically invented elevated grants and arbitrary agent
 creation during execution remain unavailable.
 
 ## Configuration and release identity
@@ -38,6 +38,15 @@ queued user instructions. Program version 4 is pinned to `product-capabilities-v
 product programs. Saving an explicit version 4 configuration enables future compatible admissions;
 there is no separate adaptive rollout environment variable. Private phone admissions still require
 `AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS` on both API and worker.
+
+A specialist's explicitly pinned version also authorizes its own selected reviewed skill revisions.
+Skill revisions belong to that specialist agent; they are not matched against the coordinator's
+separate installation IDs. Publication, discovery and child admission revalidate enabled packages
+and their requirements against the delegated tool/resource/runtime scope. Discovery exposes only
+skill names/descriptions and a count. A package cannot add tools or permissions. Disabling a skill
+fences new use and results already influenced by it. Coordinator evidence recognizes specialist
+skill provenance only through an actually joined child result and the current matching binding pin;
+unselected sibling/private skills remain unavailable.
 
 ## Model tools
 
@@ -83,10 +92,36 @@ native outcomes.
 The app can queue additional instructions against an authorized active root. An idempotent request
 key prevents duplicate instructions; changing content under the same key conflicts. Instructions
 enter a later model context without rewriting an in-flight model request or the original task input.
-A terminal or cancellation-requested root rejects further instructions. These updates do not replace
-specialist follow-up tools or bypass approval.
+A terminal, cancellation-requested or finishing root rejects further queued instructions. Final input
+closure is serialized with instruction admission: if unincorporated updates exist, the coordinator
+continues; otherwise its immutable completion intent closes input before settlement. This gate does
+not publish an unvalidated outcome or change native task state. Duplicate phone ingress already
+mapped to an instruction remains idempotent after closure.
 
-The coordinator can continue independent work while children run. Restate persists operation and
+Telegram and WhatsApp text received while the verified link has an active v4 delegation root is
+queued against that same root, with a durable acknowledgment. It does not create another task.
+Each correction is limited to 4,000 characters and each root to 32 queued corrections. Oversized
+phone messages and exhausted instruction slots receive a durable concise rejection; they do not
+create another task or hide authority failures. Rejection notice identities also prevent replay
+from turning a previously rejected message into a new request after input closes.
+`/status` and `/cancel` retain their explicit controls. Once input closes or work finishes, a new
+message becomes the next ordinary conversation turn; legacy programs keep their existing new-turn
+behavior. Current membership, provider actor/chat, link generation and grant authority are checked
+before steering. These updates do not replace specialist follow-up tools or bypass approval.
+
+Each queued instruction has a stable context-group identity. Context assembly loads at most four
+unincorporated groups at a time and excludes groups already retained or compacted. Snapshots preserve
+the exact selected groups for replay. Compacted instructions remain in authorized persistent records
+and the summary, while their raw text is not appended again on every model turn. A final answer
+cannot silently overtake a pending correction.
+
+The coordinator can continue independent work while children run. If admitted child token
+reservations temporarily leave insufficient room for the next coordinator model request, v4 waits
+for that work to settle. The original grant, root budget and deadline remain unchanged. Exhausted
+model-call, time or actual-token limits still stop work. The bounded `specialists.budget_wait` task
+event records `child_token_reservations` without request content.
+
+Restate persists operation and
 child identities, waits and cancellation intent. Root accounting owns every admitted child until
 settled, even if the coordinator no longer needs its answer. The stall check detects the configured number of identical recent operation request digests,
 excluding wait/progress inspection, when no child is active. It is a repetition guard, not a semantic
@@ -117,6 +152,13 @@ outbox or debug exporter alone does not establish them.
 The project [verification skill](../../../../.agents/skills/verify-agents/SKILL.md) names deterministic
 engineering checks. Controlled model responses establish contracts, isolation, context provenance,
 replay and UI behavior. They do not establish autonomous planning quality or live-channel delivery.
+
+Controlled native phone cases in `organization-assistant-runtime.test.ts` join verified
+Telegram/WhatsApp ingress, an active v4 root, a same-root correction, four completed specialist
+turns including a same-conversation revision, and one accepted final private outbox send. Their
+model and provider responses are deterministic. The separate member-channel suite covers rejection
+limits and replay after input closure. These checks do not certify live provider transport or
+model decision quality. Record the tested commit and actual invocation alongside their evidence.
 
 The owner-run [case manifest](../../evaluation-adapters/harbor/cases/adaptive-orchestration.json)
 and [rubric](../../evaluation-adapters/harbor/cases/adaptive-orchestration-rubric.json) define outcome,

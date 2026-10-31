@@ -17,9 +17,9 @@ import type { DependencyManifest } from "../../contracts/source-contracts";
 import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy } from "../context/context";
 import { loadContinuation } from "../context/continuation";
 import type { EvidenceStore } from "../context/evidence";
-import { executeWorkTool, orchestrationStalled, readOrchestrationInstructions } from "../delegation/progress";
+import { executeWorkTool, orchestrationStalled, orchestrationInstructionGroups, closeOrchestrationInstructions } from "../delegation/progress";
 import { discoverSpecialists } from "../delegation/discovery";
-import { cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, startSpecialist } from "../delegation/adaptive";
+import { cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, specialistTokenBackpressure, startSpecialist } from "../delegation/adaptive";
 import { admitChildren,readChildResults,type DelegatedChild } from "../delegation/delegation";
 import {
 assertCurrentAuthority,beginOperation,
@@ -170,7 +170,7 @@ async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: 
       } catch (error) {
         if (!(error instanceof PlatformError)) throw error;
         if (error.code !== "AUTHORITY_EXPIRED") return { denied: error.code };
-        await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1 AND state IN ('accepted','running','waiting_review')", [taskId]);
+        await pool.query("UPDATE agents_platform.tasks SET state='waiting_authority' WHERE id=$1 AND state IN ('accepted','running','waiting_review','waiting_children')", [taskId]);
         await event(pool, taskId, `authority-wait:${loaded.task.control_generation}`, "authority.required");
         return { generation: loaded.task.control_generation, deadline: new Date(loaded.task.deadline_at).getTime() };
       }
@@ -202,7 +202,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? [],recorded.payload.continuationEvidenceIds ?? []);
       snapshot.evidenceManifest=await options.evidence.taskManifest(taskId);
     }
-    return {snapshot,history:[],working,memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false};
+    return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false};
   }
   const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
     revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
@@ -249,8 +249,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   }
   const active = invalidated ? [] : skillReceiptGroups(working);
   if (String(config.program.version) === "4" && !task.parent_task_id) {
-    const instructions = await readOrchestrationInstructions(pool, taskId);
-    if (instructions.length) active.push({ id: `instructions:${taskId}`, messages: instructions });
+    active.push(...await orchestrationInstructionGroups(pool,taskId,[...omitted,...active.map(group=>group.id)]));
   }
   const needsContinuation=Boolean(summary)&&!invalidated;
   const supplied=needsContinuation&&options.evidence?await options.evidence.suppliedEvidence(taskId,8):{items:[],omittedCount:0};
@@ -277,7 +276,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const row = (await pool.query(`INSERT INTO agents_platform.context_snapshots
     (id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING RETURNING id`,
-  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), messages: built.messages, tools: modelTools,
+  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), messages: built.messages, tools: modelTools, instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
     historyGroupIds: built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:")),
     ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
@@ -310,7 +309,14 @@ async function waitForSpecialists(ctx: restate.WorkflowContext, pool: Pool, task
   const loaded = await ctx.run(`${label}:deadline`, () => loadExecution(pool, taskId));
   const deadline = Math.min(new Date(loaded.task.deadline_at).getTime(), started + (input.timeoutSeconds ?? 30) * 1000);
   for (let attempt = 0; ; attempt++) {
-    const observed = await guardedRun(ctx,`${label}:status:${attempt}`, () => specialistStatus(pool, taskId, input.taskIds));
+    const authority=await awaitAuthority(ctx,pool,taskId,`${label}:authority:${attempt}`);
+    if (!("configuration" in authority)) throw new PlatformError(authority.state==="cancelled"?"TASK_CANCELLED":authority.errorCode??"TASK_SETTLED",409,"Specialist waiting has ended");
+    let observed: Awaited<ReturnType<typeof specialistStatus>>;
+    try { observed = await guardedRun(ctx,`${label}:status:${attempt}`, () => specialistStatus(pool, taskId, input.taskIds)); }
+    catch(error) {
+      if(error instanceof PlatformError && error.code==="AUTHORITY_EXPIRED") continue;
+      throw error;
+    }
     const ready = observed.children.map(child => terminalTaskStates.has(child.state) || includeInputNeeded && child.needsInput);
     if (!ready.length || (input.mode === "all" ? ready.every(Boolean) : ready.some(Boolean))) return { ...observed, timedOut: false };
     const remaining = deadline - await ctx.date.now();
@@ -390,6 +396,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           });
           if (!contextResult.ok) { outcome=failed({code:contextResult.code,uncertain:false}); break; }
           const assembled = contextResult.value;
+          working = assembled.working;
           if (assembled.invalidated) { working = assembled.working; summary = undefined; omitted = []; }
           finalMemoryFence=assembled.memoryFence;
           knownGeneration = assembled.memoryFence?.generation;
@@ -449,6 +456,21 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             });
           if (!generated.ok) {
             if (["CONTEXT_INVALIDATED","AUTHORITY_EXPIRED"].includes(generated.code)) continue;
+            if(generated.code==="ROOT_LIMIT" && config.program.id==="tool-directed" && config.program.version==="4" &&
+                config.capabilities.delegation.enabled && !execution.task.parent_task_id &&
+                await guardedRun(ctx,`specialist-budget:${step}`,()=>specialistTokenBackpressure(pool,taskId,
+                  Math.min(policy.maxInputTokens,snapshot.estimatedTokens+policy.safetyTokens)+policy.maxOutputTokens,policy.maxCallDurationMs))) {
+              const pending=await guardedRun(ctx,`specialist-budget-status:${step}`,()=>specialistStatus(pool,taskId));
+              const active=pending.children.filter(child=>!terminalTaskStates.has(child.state));
+              await ctx.run(`specialist-budget-event:${step}`,()=>event(pool,taskId,`specialist-budget:${step}`,"specialists.budget_wait",{reason:"child_token_reservations"}));
+              let joined={...pending,timedOut:false};
+              if(active.length) for(let batch=0;;batch++) {
+                joined=await waitForSpecialists(ctx,pool,taskId,`specialist-budget-wait:${step}:${batch}`,{taskIds:active.map(child=>child.taskId),mode:"all",timeoutSeconds:60},false);
+                if(!joined.timedOut)break;
+              }
+              working.push({id:`specialist-budget:${taskId}:${step}`,messages:[{role:"user",content:"Specialist execution status (reference data): "+JSON.stringify(joined)}]});
+              continue;
+            }
             outcome = failed(generated); break;
           }
           const response = generated.value;
@@ -457,6 +479,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             await guardedRun(ctx,"product-output-authority:"+step,()=>options.product!.authorizeTask(taskId));
           }
           if (response.finishReason !== "tool_calls") {
+            if(config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id){
+              const pending=await guardedRun(ctx,`pending-instructions:${step}`,()=>orchestrationInstructionGroups(pool,taskId,[...omitted,...working.map(group=>group.id)],1));
+              if(pending.length)continue;
+            }
             if (config.program.id === "tool-directed" && String(config.program.version) === "4" && config.capabilities.delegation.enabled && !execution.task.parent_task_id) {
               const background = await guardedRun(ctx,`finish-specialists:${step}`, () => specialistStatus(pool, taskId));
               const active = background.children.filter(child => !terminalTaskStates.has(child.state));
@@ -471,7 +497,12 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               }
             }
             outcome = { state: response.finishReason === "stop" ? (partialChildren?"incomplete":"completed") : response.finishReason === "refusal" ? "refused" : "incomplete",
-              output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) }; break;
+              output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) };
+            if(config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id&&config.capabilities.delegation.enabled){
+              const closed=await guardedRun(ctx,`close-instructions:${step}`,()=>closeOrchestrationInstructions(pool,taskId,[...omitted,...working.map(group=>group.id)],outcome));
+              if(!closed)continue;
+            }
+            break;
           }
           const messages: HarnessMessage[] = [response.message];
           const roundEvidence: string[] = [];
@@ -523,6 +554,25 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               const reviewed=await awaitToolInvocationReview(ctx,pool,options.toolReviews,taskId,id,binding,reviewArguments);
               if(reviewed){outcome=reviewed;stop=true;break;}
             }
+            let waitedSpecialists: Awaited<ReturnType<typeof waitForSpecialists>> | undefined;
+            let waitArgumentError: string | undefined;
+            if(name === "agents.wait") {
+              let input: SpecialistWait | undefined;
+              try {
+                if(!builtinToolEnabled(config,name)) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
+                input=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as SpecialistWait;
+              } catch(error) {
+                if(error instanceof PlatformError) waitArgumentError=error.code;
+                else if(error instanceof SyntaxError) waitArgumentError="TOOL_ARGUMENTS_INVALID";
+                else throw error;
+              }
+              if(input) {
+                // The durable wait precedes the short database operation, so its receipt records
+                // the observation actually returned to the model without holding execution capacity.
+                waitedSpecialists=await waitForSpecialists(ctx,pool,taskId,`specialist-wait:${step}:${callIndex}`,input);
+                await ctx.run(`specialist-wait-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
+              }
+            }
             let result: Result<unknown> = { ok: false, code: "GRANT_INACTIVE", uncertain: false };
             for (let retry = 0; retry < 8; retry++) {
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
@@ -557,7 +607,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                   if(name==="work.update" || name==="work.inspect") return {value:await executeWorkTool(pool,taskId,id,name,args),tokens:0};
                   if(name==="agents.start") return {value:await startSpecialist(pool,taskId,id,args as Parameters<typeof startSpecialist>[3]),tokens:0};
                   if(name==="agents.followup") return {value:await followupSpecialist(pool,taskId,id,args as Parameters<typeof followupSpecialist>[3]),tokens:0};
-                  if(name==="agents.status" || name==="agents.wait") return {value:await specialistStatus(pool,taskId,(args as SpecialistWait).taskIds),tokens:0};
+                  if(name==="agents.status") return {value:await specialistStatus(pool,taskId,(args as SpecialistWait).taskIds),tokens:0};
+                  if(name==="agents.wait") {
+                    if(waitArgumentError || !waitedSpecialists) throw new PlatformError(waitArgumentError??"TOOL_ARGUMENTS_INVALID",400,"Check the specialist wait arguments");
+                    return {value:waitedSpecialists,tokens:0};
+                  }
                   if(name==="agents.result") return {value:await specialistResult(pool,taskId,args as Parameters<typeof specialistResult>[2]),tokens:0};
                   if(name==="agents.cancel") return {value:await cancelSpecialist(pool,taskId,(args as {taskId:string}).taskId),tokens:0};
                   if(name==="sandbox.analyze"||name==="skills.run") {
@@ -636,11 +690,6 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               partialChildren ||= String(config.program.version)!=="4" && joined.value.partial;
               result={ok:true,value:joined.value};
               await ctx.run(`children-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
-            }
-            if(result.ok && name==="agents.wait") {
-              const input=JSON.parse(call.function.arguments) as SpecialistWait;
-              result={ok:true,value:await waitForSpecialists(ctx,pool,taskId,`specialist-wait:${step}:${callIndex}`,input)};
-              await ctx.run(`specialist-wait-resume:${step}:${callIndex}`,()=>pool.query("UPDATE agents_platform.tasks SET state='running',updated_at=now() WHERE id=$1 AND state='waiting_children'",[taskId]).then(()=>undefined));
             }
             if(result.ok && name==="agents.result" && options.evidence) {
               const input=JSON.parse(call.function.arguments) as {taskId:string};

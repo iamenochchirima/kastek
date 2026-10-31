@@ -39,6 +39,10 @@ describe("trusted execution continuation",()=>{
   const input=records();input.delegations=[{operationId:`active:${taskId}`,children:[{taskId:childId,bindingId:"research",state:"waiting_review"}]},...Array.from({length:30},(_,index)=>({operationId:`done:${index}`,children:[{taskId:randomUUID(),bindingId:"research",state:"completed"}]}))];
   const continuation=buildContinuation(input);expect(continuation.checkpoint.delegations.some(group=>group.children.some(child=>child.taskId===childId))).toBe(true);expect(continuation.checkpoint.omitted.delegations).toBeGreaterThan(0);
  });
+ it("preserves a reconciling child handle during compaction",()=>{
+  const input=records();input.delegations[0]!.children[0]!.state="reconciling";
+  expect(buildContinuation(input).checkpoint.delegations[0]!.children[0]!.state).toBe("reconciling");
+ });
  it("rejects corrupt progress revisions and malformed plan records",()=>{
   const input=records();input.progress={revision:Number.MAX_SAFE_INTEGER+1,record:{objective:"Plan",steps:[],questions:[],evidenceTaskIds:[]}};expect(()=>buildContinuation(input)).toThrow("Execution continuation records are invalid");
   input.progress.revision=1;input.progress.record.evidenceTaskIds=["invented"];expect(()=>buildContinuation(input)).toThrow("Execution continuation records are invalid");

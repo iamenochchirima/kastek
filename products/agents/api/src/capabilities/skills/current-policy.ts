@@ -5,7 +5,8 @@ import {parseSkillPackage} from "./package";
 import { assertSkillRequirements } from "./requirement-authority";
 
 /** Called within the current-authority transaction, including before final publication. */
-export async function assertCurrentSkillPolicy(db:Pool|PoolClient,execution:Execution,permissions:readonly string[]):Promise<void> {
+export type SkillPolicyContext = Pick<Execution,"configuration"|"agentId"|"connectedBindings"> & {task:Pick<Execution["task"],"organization_id">};
+export async function assertCurrentSkillPolicy(db:Pool|PoolClient,execution:SkillPolicyContext,permissions:readonly string[]):Promise<void> {
   const ids=execution.configuration.skillIds;if(!ids.length)return;
   const rows=(await db.query(`SELECT s.id,s.content_digest,p.files,r.content_digest AS reviewed_digest
     FROM agents_platform.skill_revisions s LEFT JOIN agents_platform.skill_packages p ON p.skill_revision_id=s.id

@@ -1,3 +1,5 @@
+import { delegatedSkills } from "../../execution/delegation/skills";
+import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { Pool } from "pg";
 import { agentConfigurationSchema, PlatformError } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
@@ -40,8 +42,13 @@ export async function specialistCatalogue(pool:Pool,scope:{accountId:string;orga
           AND c.policy_revision=(b.binding->'connection'->>'policyRevision')::integer`,[scope.organizationId,scope.accountId,connectedToolBindingIds]);
         if(available.rowCount!==connectedToolBindingIds.length)reasons.push("Reconnect or authorize the specialist tools");
       }
+      const tools=config.tools.filter(tool=>['knowledge.read','knowledge.search',...(parent.draft.program.version==='4'&&parent.draft.capabilities.sandbox.enabled?['sandbox.analyze']:[])].includes(tool));
+      if(parent.draft.program.version==="4")try{
+        const selected=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[scope.organizationId,connectedToolBindingIds])).rows;
+        await delegatedSkills(db,{organizationId:scope.organizationId,agentId:row.id,configuration:{...config,tools,sourceRevisionIds,connectedToolBindingIds},connectedBindings:selected.map(row=>capabilityBindingSchema.parse(row.binding))});
+      }catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
       specialists.push({agentId:row.id,name:row.name,description:config.instructions.replace(/\s+/g,' ').slice(0,512),versionId:row.version_id,
-        versionNumber:row.number,ready:reasons.length===0,reasons,sourceRevisionIds,connectedToolBindingIds,tools:config.tools.filter(tool=>['knowledge.read','knowledge.search',...(parent.draft.program.version==='4'&&parent.draft.capabilities.sandbox.enabled?['sandbox.analyze']:[])].includes(tool))});
+        skillCount:config.skillIds.length,versionNumber:row.number,ready:reasons.length===0,reasons,sourceRevisionIds,connectedToolBindingIds,tools});
     }
     return {specialists};
   });

@@ -169,10 +169,16 @@ receives no credentials or network. Select the analysis capability in an immutab
 agent version. Missing storage or a missing backend blocks analysis admission.
 This runtime is temporary compute; it does not create a persistent workspace.
 
-A coordinator can pin at most two permitted business specialist versions with
-explicit source/tool subsets and child allocations. Specialists have no inherited
-personal memory, sandbox or delegation permission. Parent and children share the
-original root budget.
+A coordinator using `tool-directed` program version 4 can select up to 32 pinned business
+specialist versions with explicit source/tool subsets and child allocations. Its model can
+discover permitted specialists, start independent work, inspect full results and request
+follow-ups through the shared Restate loop. Concurrency defaults to two (configurable 1–8),
+with a separate total-task limit. Specialists retain their own authorized reviewed skills;
+shared sandbox access requires an explicit matching scope. Personal memory and further
+delegation are unavailable to children. Parent and children share the original root budget.
+Earlier programs retain their two-binding behavior. See the
+[adaptive orchestration reference](docs/operations/adaptive-orchestration.md) for contracts,
+policy, progress, queued instructions and controlled verification.
 
 ## Reviewed reports and automation
 
@@ -211,6 +217,11 @@ responsibilities.
 The conditional appointment step binds an authorized Google or Microsoft calendar policy.
 Every runnable business agent opens Chat,
 with Activity and Configure tabs.
+The organization Assistant opens at `/app/assistant`. Configure can explicitly enable adaptive
+coordination and select published specialists. Chat and task activity show model-authored work
+progress alongside actual child task states. Active root tasks accept queued instructions;
+child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive
+browser paths are recorded in the [verification skill](../../.agents/skills/verify-agents/SKILL.md).
 Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
 catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
 and public GitHub packages pinned to an exact commit and package path.

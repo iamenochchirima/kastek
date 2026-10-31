@@ -1,3 +1,4 @@
+import { authorizeOrchestration,queueOrchestrationInstructionInTransaction } from "../../execution/delegation/progress";
 import { memberAssistantEnabled, memberAssistantPolicy } from "../../infrastructure/member-assistant-policy";
 export { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
 import { assertCurrentAuthority, loadExecution, requestTreeCancellationInTransaction } from "../../execution/lifecycle/execution";
@@ -173,6 +174,28 @@ export class MemberChannels {
       }
       const existing=(await db.query("SELECT task_id FROM agents_platform.member_channel_tasks WHERE ingress_id=$1",[row.id])).rows[0];
       if(existing)return;
+      if((await db.query(`SELECT 1 FROM agents_platform.orchestration_instructions i
+        JOIN agents_platform.member_channel_tasks m ON m.task_id=i.task_id
+        WHERE i.request_key=$1 AND m.link_id=$2 AND m.link_generation=$3`,[row.id,link.id,link.generation])).rowCount)return;
+      if((await db.query("SELECT 1 FROM agents_platform.channel_outbound WHERE member_link_id=$1 AND ownership_generation=$2 AND member_notice_key=$3",[link.id,link.generation,`instruction-rejected:${row.id}`])).rowCount)return;
+      const active=(await db.query(`SELECT t.id FROM agents_platform.member_channel_tasks m JOIN agents_platform.tasks t ON t.id=m.task_id
+        JOIN agents_platform.agent_versions v ON v.id=t.version_id
+        WHERE m.link_id=$1 AND m.link_generation=$2 AND t.state NOT IN ('completed','incomplete','refused','failed','cancelled','uncertain','cancel_requested')
+        AND v.configuration#>>'{capabilities,delegation,enabled}'='true'
+        AND v.configuration#>>'{program,id}'='tool-directed' AND v.configuration#>>'{program,version}'='4'
+        ORDER BY t.created_at DESC,t.id LIMIT 1`,[link.id,link.generation])).rows[0];
+      if(active) {
+        try {
+          await authorizeOrchestration(db,active.id);
+          if(event.text.trim().length>4000){await this.enqueue(db,link,active.id,`instruction-rejected:${row.id}`,"Message too long.");return;}
+          await queueOrchestrationInstructionInTransaction(db,active.id,{instruction:event.text,requestKey:row.id});
+          await this.enqueue(db,link,active.id,`instruction:${row.id}`,"Instructions queued.");
+          return;
+        } catch(error) {
+          if(error instanceof PlatformError&&error.code==="INSTRUCTION_LIMIT"){await this.enqueue(db,link,active.id,`instruction-rejected:${row.id}`,"Instruction limit reached.");return;}
+          if(!(error instanceof PlatformError)||error.code!=="TASK_TERMINAL")throw error;
+        }
+      }
       const version=(await db.query<VersionRecord>(`SELECT v.* FROM agents_platform.organization_assistants p JOIN agents_platform.agents a
         ON a.id=p.agent_id AND a.organization_id=p.organization_id AND a.deleted_at IS NULL
         JOIN LATERAL(SELECT * FROM agents_platform.agent_versions WHERE organization_id=p.organization_id AND agent_id=p.agent_id ORDER BY number DESC LIMIT 1) v ON true

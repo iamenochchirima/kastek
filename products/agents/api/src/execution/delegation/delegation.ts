@@ -1,3 +1,4 @@
+import { delegatedSkills } from "./skills";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -74,7 +75,8 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;
       assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
       const effective={...childConfig,sourceRevisionIds,connectedToolBindingIds,tools:binding.tools,memory:{enabled:false},
-        skillIds:options.adaptive?childConfig.skillIds.filter(id=>config.skillIds.includes(id)):childConfig.skillIds};
+        skillIds:childConfig.skillIds};
+      if(options.adaptive)await delegatedSkills(db,{organizationId:task.organization_id,agentId:version.agent_id,configuration:effective,connectedBindings:effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding))});
       const composition=compilePublishedComposition(effective,effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
       const maxTokens = request.maxTokens ?? binding.maxTokens;
       const models = delegatedModelRoutes(parent.models, effective, maxTokens, binding.maxActiveMs);

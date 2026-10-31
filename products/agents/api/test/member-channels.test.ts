@@ -1,3 +1,5 @@
+import { orchestrationTools } from "../src/contracts/orchestration";
+import { closeOrchestrationInstructions,orchestrationInstructionGroups } from "../src/execution/delegation/progress";
 import { settleTask } from "../src/execution/lifecycle/execution";
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -110,6 +112,71 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const reviews = new ToolReviewStore(pool), review = await reviews.prepare(task.id, `review:${randomUUID()}`, binding!, { value });
     return { ...f, challenge, task, review, reviews, delivery, endpoint };
   }
+
+  async function steeringFixture(kind:"telegram"|"whatsapp",adaptive=true){
+    const f=await fixture(kind),challenge=await pending(f);await members.confirm(f.scope,challenge.id);
+    await connectFixtureModel(pool,f.scope.accountId,f.scope.organizationId);
+    const marker=(await pool.query("SELECT a.id,a.draft_revision FROM agents_platform.organization_assistants p JOIN agents_platform.agents a ON a.id=p.agent_id WHERE p.organization_id=$1",[f.scope.organizationId])).rows[0];
+    const configuration=defaultBusinessConfiguration();
+    if(adaptive){
+      const child=await platform.createAgent({...f.scope,name:"Content",configuration:defaultBusinessConfiguration()});
+      const version=await platform.createVersion({...f.scope,agentId:child.id,expectedRevision:1});
+      configuration.program={id:"tool-directed",version:"4"};configuration.tools=[...orchestrationTools];
+      configuration.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:8,maxStalls:3},bindings:[{id:"content",versionId:version.id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:8000,maxActiveMs:120000}]};
+    }
+    const draft=await platform.updateDraft({...f.scope,agentId:marker.id,configuration,expectedRevision:marker.draft_revision});
+    await platform.createVersion({...f.scope,agentId:marker.id,expectedRevision:draft.draft_revision});
+    const delivery=worker(async()=>{throw Error("No physical provider call expected");});
+    async function ingress(text:string){const incoming=event(f.connection.assetId,text,{providerMessageId:randomUUID()});await delivery.persist(kind,[incoming]);
+      const row=(await pool.query("SELECT * FROM agents_platform.channel_ingress WHERE connection_id=$1 AND event_id=$2",[f.connection.id,incoming.eventId])).rows[0];expect(row).toBeDefined();return{row,incoming};}
+    const first=await ingress("Prepare a draft");await members.process(first.row,first.incoming);
+    const task=(await pool.query("SELECT t.* FROM agents_platform.member_channel_tasks m JOIN agents_platform.tasks t ON t.id=m.task_id WHERE m.ingress_id=$1",[first.row.id])).rows[0];
+    return{...f,challenge,task,ingress};
+  }
+  it.each(["telegram","whatsapp"] as const)("queues active %s corrections on the existing root, including duplicate replay after closure",async kind=>{
+    const f=await steeringFixture(kind),correction=await f.ingress("Make the draft shorter.");
+    await members.process(correction.row,correction.incoming);await members.process(correction.row,correction.incoming);
+    const instructions=(await pool.query("SELECT task_id,request_key,instruction FROM agents_platform.orchestration_instructions WHERE task_id=$1",[f.task.id])).rows;
+    expect(instructions).toEqual([{task_id:f.task.id,request_key:correction.row.id,instruction:"Make the draft shorter."}]);
+    const groups=await orchestrationInstructionGroups(pool,f.task.id,[]);expect(groups).toHaveLength(1);
+    expect(await closeOrchestrationInstructions(pool,f.task.id,groups.map(group=>group.id),{state:"completed",output:"Shorter draft"})).toBe(true);
+    await members.process(correction.row,correction.incoming);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.member_channel_tasks WHERE link_id=$1",[f.challenge.id])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_instructions WHERE task_id=$1",[f.task.id])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.channel_outbound WHERE member_link_id=$1 AND member_notice_key=$2",[f.challenge.id,`instruction:${correction.row.id}`])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.customer_conversations WHERE organization_id=$1",[f.scope.organizationId])).rows[0].count).toBe(0);
+  },15000);
+  it.each(["telegram","whatsapp"] as const)("preserves new-turn admission for legacy %s roots",async kind=>{
+    const f=await steeringFixture(kind,false),next=await f.ingress("A separate request");await members.process(next.row,next.incoming);
+    const tasks=(await pool.query("SELECT t.id,t.conversation_id FROM agents_platform.member_channel_tasks m JOIN agents_platform.tasks t ON t.id=m.task_id WHERE m.link_id=$1",[f.challenge.id])).rows;
+    expect(tasks).toHaveLength(2);expect(new Set(tasks.map(task=>task.conversation_id)).size).toBe(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_instructions WHERE task_id=ANY($1::uuid[])",[tasks.map(task=>task.id)])).rows[0].count).toBe(0);
+  },15000);
+  it("durably rejects oversized and over-limit phone corrections without masking grant denial",async()=>{
+    const f=await steeringFixture("telegram"),oversized=await f.ingress("x".repeat(4001));
+    await members.process(oversized.row,oversized.incoming);await members.process(oversized.row,oversized.incoming);
+    expect((await pool.query("SELECT request FROM agents_platform.channel_outbound WHERE member_link_id=$1 AND member_notice_key=$2",[f.challenge.id,`instruction-rejected:${oversized.row.id}`])).rows).toEqual([{request:expect.objectContaining({text:"Message too long."})}]);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_instructions WHERE task_id=$1",[f.task.id])).rows[0].count).toBe(0);
+    for(let index=0;index<32;index++)await pool.query("INSERT INTO agents_platform.orchestration_instructions(task_id,request_key,instruction) VALUES($1,$2,$3)",[f.task.id,randomUUID(),`Instruction ${index}`]);
+    const limited=await f.ingress("One more correction");await members.process(limited.row,limited.incoming);
+    expect((await pool.query("SELECT request FROM agents_platform.channel_outbound WHERE member_link_id=$1 AND member_notice_key=$2",[f.challenge.id,`instruction-rejected:${limited.row.id}`])).rows).toEqual([{request:expect.objectContaining({text:"Instruction limit reached."})}]);
+    const groups=(await pool.query("SELECT sequence FROM agents_platform.orchestration_instructions WHERE task_id=$1",[f.task.id])).rows.map(row=>`instruction:${f.task.id}:${row.sequence}`);
+    expect(await closeOrchestrationInstructions(pool,f.task.id,groups,{state:"completed",output:"Done"})).toBe(true);
+    await members.process(oversized.row,oversized.incoming);await members.process(limited.row,limited.incoming);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.member_channel_tasks WHERE link_id=$1",[f.challenge.id])).rows[0].count).toBe(1);
+    const other=await steeringFixture("whatsapp"),denied=await other.ingress("x".repeat(4001));
+    await pool.query("UPDATE agents_platform.execution_grants SET revoked_at=now() WHERE id=$1",[other.task.grant_id]);
+    await expect(members.process(denied.row,denied.incoming)).rejects.toMatchObject({code:"GRANT_REVOKED"});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.channel_outbound WHERE member_notice_key=$1",[`instruction-rejected:${denied.row.id}`])).rows[0].count).toBe(0);
+  },15000);
+  it("rejects a wrong actor and stale link before an active-root correction is queued",async()=>{
+    const f=await steeringFixture("telegram"),correction=await f.ingress("Private correction");
+    await expect(members.process(correction.row,{...correction.incoming,senderId:"5678"})).rejects.toMatchObject({code:"MEMBER_CHANNEL_DENIED"});
+    await members.revoke(f.scope,f.challenge.id);
+    const fresh=await pending(f);await members.confirm(f.scope,fresh.id);
+    await expect(members.process(correction.row,correction.incoming)).rejects.toMatchObject({code:"MEMBER_CHANNEL_DENIED"});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_instructions WHERE task_id=$1",[f.task.id])).rows[0].count).toBe(0);
+  },15000);
 
   for(const state of ["incomplete","failed","uncertain"] as const)it(`preserves ${state} status and suppresses stale approvals after terminal work`,async()=>{
     const f=await reviewFixture();

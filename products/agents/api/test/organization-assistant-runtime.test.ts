@@ -46,8 +46,9 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   let browserPort = 0;
   const sessions = new Set<ServerHttp2Session>();
   const requests: any[] = [];
-  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" = "draft";
+  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" | "adaptive_cancel" | "instruction_burst" | "adaptive_timeout" = "draft";
   let controlTarget = "";
+  let adaptiveCallSequence = 0;
   let childBarrier: Promise<void> | null = null;
   const previousEnabled = process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
 
@@ -78,7 +79,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     if (worker) await new Promise<void>(resolve => worker.close(() => resolve()));
   }
   function fixtureResponse(body: any) {
-    if (fixtureMode === "adaptive" || fixtureMode === "stalled") {
+    if(fixtureMode==="instruction_burst") return new Response(`data: ${JSON.stringify({id:"controlled-instruction-burst",model:body.model,choices:[{index:0,delta:{role:"assistant",content:"Instructions reviewed."},finish_reason:"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
+    if (fixtureMode === "adaptive" || fixtureMode === "stalled" || fixtureMode === "adaptive_cancel" || fixtureMode === "adaptive_timeout") {
       const coordinator = body.messages[0].content.startsWith("ADAPTIVE_FIXTURE");
       const records = body.messages.filter((message:any)=>message.role==="tool");
       const named = (name:string) => records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id && call.function.name===name))).map((record:any)=>JSON.parse(record.content));
@@ -88,8 +90,31 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       let calls:{name:string;arguments:string}[]=[];
       let content="";
       const call=(name:string,args:unknown)=>({name,arguments:JSON.stringify(args)});
+      const checkpointMatch=body.messages.map((message:any)=>message.content??"").join("\n").match(/Server-confirmed execution receipts follow\.[^\n]*\n([^\n]+)/);
+      const checkpoint=checkpointMatch?JSON.parse(checkpointMatch[1]):undefined;
+      const persisted=named("agents_status").at(-1)?.children??checkpoint?.delegations?.flatMap((group:any)=>group.children)??[];
       if(fixtureMode === "stalled") calls=[call("agents_discover",{})];
       else if(!coordinator) content=body.messages.some((message:any)=>message.content?.includes("Revise"))?"REVISED: The confirmed short draft.":body.messages.some((message:any)=>message.content?.includes("long evidence"))?"L".repeat(5000)+" END_EVIDENCE":"Confirmed independent finding.";
+      else if(fixtureMode === "adaptive_timeout") {
+        if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Optional specialist work"}]})];
+        else if(!named("agents_wait").length) calls=[call("agents_wait",{taskIds:[first[0].taskId],mode:"all",timeoutSeconds:1})];
+        else if(!named("agents_cancel").length) calls=[call("agents_cancel",{taskId:first[0].taskId})];
+        else content="Wait expired; specialist cancelled.";
+      }
+      else if(fixtureMode === "adaptive_cancel") {
+        if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"First optional check"},{bindingId:"research",brief:"Required independent finding"}]})];
+        else if(!named("agents_cancel").length) calls=[call("agents_cancel",{taskId:first[0].taskId})];
+        else if(!named("agents_wait").length) calls=[call("agents_wait",{taskIds:[first[1].taskId],mode:"all",timeoutSeconds:30}),result(first[1].taskId)];
+        else content="Confirmed remaining specialist result; first task cancelled.";
+      }
+      else if(coordinator && checkpoint) {
+        if(persisted.length<4) calls=[call("agents_status",{})];
+        else {
+        const original=persisted.find((child:any)=>child.bindingId==="content"),latest=[...persisted].reverse().find((child:any)=>child.bindingId==="content"),review=persisted.find((child:any)=>child.bindingId==="review");
+        if(body.messages.some((message:any)=>message.content?.includes("END_EVIDENCE"))) content="SYNTHESIS: Revised draft, independent check and specialist review confirmed.";
+        else calls=[call("agents_wait",{taskIds:persisted.map((child:any)=>child.taskId),mode:"all",timeoutSeconds:30}),result(latest.taskId),result(review.taskId),result(original.taskId,4096)];
+        }
+      }
       else if(!named("agents_discover").length) calls=[call("agents_discover",{})];
       else if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Produce long evidence"},{bindingId:"research",brief:"Check the claim"}]}),call("work_update",{expectedRevision:0,record:{objective:"Produce a verified draft",steps:[{id:"draft",title:"Check and revise",state:"in_progress"}],questions:[],evidenceTaskIds:[]}})];
       else if(!named("work_inspect").length) calls=[call("work_inspect",{}),call("agents_status",{taskIds:first.map((child:any)=>child.taskId)})];
@@ -98,7 +123,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       else if(named("agents_wait").length<2) calls=[call("agents_wait",{taskIds:[revision[0].taskId,second[0].taskId],mode:"all",timeoutSeconds:30}),result(revision[0].taskId),result(second[0].taskId)];
       else if(!named("agents_result").some((value:any)=>value.nextOffset===null&&value.totalBytes>4096)) calls=[result(first[0].taskId,4096)];
       else content="SYNTHESIS: Revised draft, independent check and specialist review confirmed.";
-      const delta=calls.length?{role:"assistant",content:null,tool_calls:calls.map((fn,index)=>({index,id:`adaptive-${records.length}-${index}`,type:"function",function:fn}))}:{role:"assistant",content};
+      const callSequence=adaptiveCallSequence++;
+      const delta=calls.length?{role:"assistant",content:null,tool_calls:calls.map((fn,index)=>({index,id:`adaptive-${callSequence}-${index}`,type:"function",function:fn}))}:{role:"assistant",content};
       return new Response(`data: ${JSON.stringify({id:"controlled-adaptive",model:body.model,choices:[{index:0,delta,finish_reason:calls.length?"tool_calls":"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
     }
     if (fixtureMode === "control") {
@@ -224,7 +250,13 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     const specialistConfig={...defaultBusinessConfiguration(),model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},instructions:"CONTENT_FIXTURE: Complete the requested specialist brief."};
     await store.updateDraft({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:1,configuration:specialistConfig});
     const specialist=await store.createVersion({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:2});
-    if(configuration.capabilities.delegation.enabled)for(const binding of configuration.capabilities.delegation.bindings)binding.versionId=specialist.id;
+    const versions=new Map([["content",specialist.id]]);
+    for(const name of ["Research","Review"]){
+      const agent=await store.createAgent({accountId:f.owner.id,organizationId:f.organization.id,name,configuration:specialistConfig});
+      const version=await store.createVersion({accountId:f.owner.id,organizationId:f.organization.id,agentId:agent.id,expectedRevision:agent.draft_revision});
+      versions.set(name.toLowerCase(),version.id);
+    }
+    if(configuration.capabilities.delegation.enabled)for(const binding of configuration.capabilities.delegation.bindings)binding.versionId=versions.get(binding.id)!;
     const configured=await app.inject({method:"POST",url:`${f.base}/agents/${f.assistant.id}/configuration`,headers:{cookie:f.cookie,origin},payload:{expectedRevision:current.draft_revision,configuration,confirmImpact:true}});
     expect(configured.statusCode,configured.body).toBe(200);fixtureMode="adaptive";
     return f;
@@ -232,15 +264,48 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   it("adaptively discovers, runs background specialists, retrieves full results and revises the same specialist thread", async () => {
     const f=await adaptiveFixture();
     let releaseChildren!:()=>void;childBarrier=new Promise<void>(resolve=>{releaseChildren=resolve;});
-    const task=await admit(f);
+    const requestKey=randomUUID(),task=await admit(f,requestKey);
+    try {
     await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
     await eventually(async()=>Number((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count)===2);
+    await eventually(async()=>(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].state==="waiting_children");
     const instruction=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:"Keep the final answer concise.",requestKey:randomUUID()}});
-    expect(instruction.statusCode,instruction.body).toBe(200);releaseChildren();childBarrier=null;
+    expect(instruction.statusCode,instruction.body).toBe(200);
+    await eventually(async()=>(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].state==="waiting_children");
+    await pool.query("UPDATE agents_platform.execution_grants SET expires_at=now()-interval '1 second' WHERE id=(SELECT grant_id FROM agents_platform.tasks WHERE id=$1)",[task.id]);
+    await eventually(async()=>(await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].state==="waiting_authority");
+    const continued=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/continue`,headers:{cookie:f.cookie,origin}});
+    expect(continued.statusCode,continued.body).toBe(200);
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+    await eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});return requests.some(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"));});
+    } finally { releaseChildren();childBarrier=null; }
+    // The next children remain in their durable outbox while the coordinator compacts and waits.
+    // Restart the worker only when no model or physical tool operation is in flight.
+    await eventually(async()=>{
+      const facts=(await pool.query(`SELECT t.state,t.pending_outcome,
+        (SELECT count(*)::int FROM agents_platform.tasks c WHERE c.parent_task_id=t.id) AS children,
+        EXISTS(SELECT 1 FROM agents_platform.task_events e WHERE e.task_id=t.id AND e.kind='context.compacted') AS compacted,
+        EXISTS(SELECT 1 FROM agents_platform.operations o JOIN agents_platform.tasks c ON c.id=o.task_id WHERE c.root_task_id=t.id AND o.state='started') AS active_operation
+        FROM agents_platform.tasks t WHERE t.id=$1`,[task.id])).rows[0];
+      if(terminalTaskStates.has(facts.state)||facts.pending_outcome) {
+        const detail=(await pool.query("SELECT state,error_code FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0];
+        throw Error("Coordinator settled before restart barrier: "+JSON.stringify({...detail,pendingOutcome:facts.pending_outcome,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at",[task.id])).rows}));
+      }
+      return facts.state==="waiting_children"&&facts.children===4&&facts.compacted&&!facts.active_operation;
+    });
+    const admittedBeforeRestart=(await pool.query("SELECT id FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY id",[task.id])).rows.map(row=>row.id);
+    await closeWorker();await listenWorker(workflow(),workerPort);
+    expect((await admit(f,requestKey)).id).toBe(task.id);
     const result=await finish(f,task.id).catch(async error=>{console.error("ADAPTIVE_RUNTIME_STATE",JSON.stringify({tasks:(await pool.query("SELECT id,state,error_code,harness_release,runtime_invocation_id FROM agents_platform.tasks WHERE root_task_id=$1",[task.id])).rows,outbox:(await pool.query("SELECT o.* FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE t.root_task_id=$1",[task.id])).rows,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows}));throw error;});
-    expect(result,JSON.stringify({state:result.state,errorCode:result.error_code,operations:(await pool.query("SELECT name,state,error_code,output FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows})).toMatchObject({state:"completed",output:"SYNTHESIS: Revised draft, independent check and specialist review confirmed."});
-    const children=(await pool.query(`SELECT t.id,t.state,t.conversation_id,t.turn_sequence,t.harness_release,d.binding_id,d.prior_task_id FROM agents_platform.tasks t JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1 ORDER BY t.created_at,t.id`,[task.id])).rows;
+    expect(result,JSON.stringify({state:result.state,errorCode:result.error_code,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows})).toMatchObject({state:"completed",output:"SYNTHESIS: Revised draft, independent check and specialist review confirmed."});
+    const children=(await pool.query(`SELECT t.id,t.state,t.resource_id,t.version_id,t.conversation_id,t.turn_sequence,t.harness_release,d.binding_id,d.prior_task_id FROM agents_platform.tasks t JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1 ORDER BY t.created_at,t.id`,[task.id])).rows;
     expect(children).toHaveLength(4);expect(children.every(child=>child.state==="completed")).toBe(true);
+    expect(new Set(children.map(child=>child.resource_id)).size).toBe(3);expect(new Set(children.map(child=>child.version_id)).size).toBe(3);
+    expect((await pool.query("SELECT root_token_limit FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].root_token_limit).toBe(32000);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='specialists.budget_wait'",[task.id])).rows[0].count).toBeGreaterThan(0);
+    expect(children.map(child=>child.id).sort()).toEqual(admittedBeforeRestart);
+    expect((await pool.query("SELECT count(*)::int AS count,count(DISTINCT id)::int AS distinct_count FROM agents_platform.operations WHERE task_id=$1 AND kind='model'",[task.id])).rows[0]).toEqual({count:requests.filter(body=>body.messages[0].content.startsWith("ADAPTIVE_FIXTURE")).length,distinct_count:requests.filter(body=>body.messages[0].content.startsWith("ADAPTIVE_FIXTURE")).length});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND event_key=$2",[task.id,`terminal:${task.id}`])).rows[0].count).toBe(1);
     expect(new Set(children.map(child=>child.binding_id))).toEqual(new Set(["content","research","review"]));
     const followup=children.find(child=>child.prior_task_id);expect(followup.turn_sequence).toBe("2");expect(followup.conversation_id).toBe(children.find(child=>child.id===followup.prior_task_id).conversation_id);
     expect(children.every(child=>child.harness_release===HARNESS_RELEASE)).toBe(true);
@@ -248,10 +313,53 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect(requests.some(body=>body.messages.some((message:any)=>message.content?.includes("Keep the final answer concise.")))).toBe(true);
     expect((await pool.query("SELECT revision FROM agents_platform.orchestration_progress WHERE task_id=$1",[task.id])).rows[0].revision).toBe("1");
   },60_000);
+  it("lets the model cancel one background specialist without cancelling its sibling or coordinator",async()=>{
+    const f=await adaptiveFixture();fixtureMode="adaptive_cancel";
+    const task=await admit(f);
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+    await eventually(async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='agents.cancel' AND state='completed'",[task.id])).rowCount));
+    const result=await finish(f,task.id);
+    expect(result).toMatchObject({state:"completed",output:"Confirmed remaining specialist result; first task cancelled."});
+    const children=(await pool.query("SELECT state FROM agents_platform.tasks WHERE parent_task_id=$1 ORDER BY state",[task.id])).rows;
+    expect(children).toEqual([{state:"cancelled"},{state:"completed"}]);
+    expect(requests.filter(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"))).toHaveLength(1);
+  },60_000);
+
+  it("incorporates a burst of member corrections across compaction before closing the task",async()=>{
+    const f=await adaptiveFixture();fixtureMode="instruction_burst";
+    const task=await admit(f);
+    for(let index=0;index<8;index++) {
+      const response=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:`Correction ${index}: `+"x".repeat(3000),requestKey:randomUUID()}});
+      expect(response.statusCode,response.body).toBe(200);
+    }
+    expect(await finish(f,task.id)).toMatchObject({state:"completed",output:"Instructions reviewed."});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='context.compacted'",[task.id])).rows[0].count).toBeGreaterThan(0);
+    const snapshots=(await pool.query("SELECT payload->'instructionGroups' AS groups,source_references FROM agents_platform.context_snapshots WHERE task_id=$1",[task.id])).rows;
+    const ids=new Set(snapshots.flatMap(row=>[...(row.groups??[]),...(row.source_references??[])].map((group:any)=>group.id).filter((id:string)=>id.startsWith("instruction:"))));
+    expect(ids.size).toBe(8);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.orchestration_input_closures WHERE task_id=$1",[task.id])).rows[0].count).toBe(1);
+    const late=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:"Too late",requestKey:randomUUID()}});
+    expect(late.statusCode).toBe(409);
+  },60_000);
+
+  it("persists the actual timed-out specialist wait receipt",async()=>{
+    const f=await adaptiveFixture();fixtureMode="adaptive_timeout";
+    const task=await admit(f);
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+    const receipt=await eventually(async()=>{
+      const row=(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='agents.wait' AND state='completed'",[task.id])).rows[0];
+      return row?.output??false;
+    });
+    expect(receipt).toMatchObject({timedOut:true,children:[{state:"accepted",resultAvailable:false}]});
+    await eventually(async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.operations WHERE task_id=$1 AND name='agents.cancel' AND state='completed'",[task.id])).rowCount));
+    expect(await finish(f,task.id)).toMatchObject({state:"completed",output:"Wait expired; specialist cancelled."});
+    expect(requests.filter(body=>body.messages[0].content.startsWith("CONTENT_FIXTURE"))).toHaveLength(0);
+  },45_000);
+
   it("stops a repeated unproductive model loop with a durable stalled outcome",async()=>{
     const f=await adaptiveFixture();fixtureMode="stalled";
     const task=await admit(f);const result=await finish(f,task.id);
-    expect(result).toMatchObject({state:"incomplete",error_code:"ORCHESTRATION_STALLED"});
+    expect(result).toMatchObject({state:"incomplete",errorCode:"ORCHESTRATION_STALLED"});
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='agents.discover'",[task.id])).rows[0].count).toBe(3);
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count).toBe(0);
   },45_000);
@@ -421,8 +529,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     }
   }, 90_000);
 
-  async function phoneFixture(kind: "telegram" | "whatsapp") {
-    const f = await fixture(), sent: { url: string; body: any }[] = [];
+  async function phoneFixture(kind: "telegram" | "whatsapp", adaptive = false) {
+    const f = await (adaptive ? adaptiveFixture() : fixture()), sent: { url: string; body: any }[] = [];
     const channels = new ChannelStore(pool, new ConnectionVault("fixture", { fixture: randomBytes(32).toString("base64") }));
     const scope = { accountId: f.owner.id, organizationId: f.organization.id }, assetId = String(randomInt(1_000_000, 1_000_000_000));
     const connection = await channels.create(scope, { kind, mode: kind === "telegram" ? "bot" : "cloud_api", name: "Controlled private channel", assetId,
@@ -457,6 +565,39 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect(sent).toHaveLength(1);
     return { ...f, kind, sent, event, delivery, challenge, connection, taskId: taskId as string };
   }
+  it.each(["telegram", "whatsapp"] as const)("steers private adaptive %s specialists on the same root and delivers the durable final result", async kind => {
+    const f = await phoneFixture(kind, true);
+    let release!: () => void; childBarrier = new Promise<void>(resolve => { release = resolve; });
+    try {
+      await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes: runtimeRoutes() });
+      await eventually(async () => Number((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE parent_task_id=$1", [f.taskId])).rows[0].count) === 2);
+      await eventually(async () => (await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [f.taskId])).rows[0].state === "waiting_children");
+      await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes: runtimeRoutes() });
+      await eventually(async () => requests.some(body => body.messages[0].content.startsWith("CONTENT_FIXTURE")));
+      const correction = f.event("Keep the final answer concise.");
+      expect(await f.delivery.persist(kind, [correction])).toBe(1);
+      expect(await f.delivery.persist(kind, [correction])).toBe(0);
+      await f.delivery.drain(8);
+      expect((await pool.query("SELECT count(*)::int count FROM agents_platform.member_channel_tasks WHERE link_id=$1", [f.challenge.id])).rows[0].count).toBe(1);
+      expect((await pool.query("SELECT task_id,instruction FROM agents_platform.orchestration_instructions WHERE task_id=$1", [f.taskId])).rows).toEqual([{ task_id: f.taskId, instruction: "Keep the final answer concise." }]);
+      expect(JSON.stringify(f.sent)).toContain("Instructions queued.");
+    } finally { release(); childBarrier = null; }
+    const completed = await finish(f, f.taskId);
+    expect(completed).toMatchObject({ state: "completed", output: "SYNTHESIS: Revised draft, independent check and specialist review confirmed." });
+    const children = (await pool.query(`SELECT t.id,t.state,t.resource_id,t.version_id,t.conversation_id,d.prior_task_id FROM agents_platform.tasks t
+      JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1`, [f.taskId])).rows;
+    expect(children).toHaveLength(4); expect(children.every(child => child.state === "completed")).toBe(true);
+    expect(new Set(children.map(child=>child.resource_id)).size).toBe(3);expect(new Set(children.map(child=>child.version_id)).size).toBe(3);
+    const revised = children.find(child => child.prior_task_id);
+    expect(revised.conversation_id).toBe(children.find(child => child.id === revised.prior_task_id).conversation_id);
+    expect(requests.some(body => body.messages.some((message: any) => message.content?.includes("Keep the final answer concise.")))).toBe(true);
+    await f.delivery.members.collect(); await f.delivery.drain(16); await f.delivery.drain(16);
+    const result = (await pool.query("SELECT state,request FROM agents_platform.channel_outbound WHERE member_link_id=$1 AND member_notice_key=$2", [f.challenge.id, `result:${f.taskId}`])).rows;
+    expect(result).toHaveLength(1); expect(result[0]).toMatchObject({ state: "accepted" });
+    expect(result[0].request.text).toBe(completed.output);
+    expect(f.sent.filter(send => JSON.stringify(send.body).includes(completed.output))).toHaveLength(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.customer_conversations WHERE organization_id=$1", [f.organization.id])).rows[0].count).toBe(0);
+  }, 90_000);
   it.each(["telegram", "whatsapp"] as const)("delivers a private %s Content draft and continues the same conversation in app", async kind => {
     const f = await phoneFixture(kind);
     const completed = await finish(f, f.taskId);

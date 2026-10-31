@@ -24,3 +24,9 @@ CREATE TABLE agents_platform.orchestration_progress_updates (
   output jsonb NOT NULL,
   PRIMARY KEY(task_id,operation_id)
 );
+
+CREATE TABLE agents_platform.orchestration_input_closures (
+  task_id uuid PRIMARY KEY REFERENCES agents_platform.tasks(id),
+  outcome_digest text NOT NULL CHECK(length(outcome_digest)=64),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
