@@ -52,6 +52,39 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
   }
   const request = { requests: [{ bindingId: "specialist", brief: "Produce a draft" }] };
 
+  it("keeps coordinator and specialist call limits local while atomically enforcing the shared ceiling",async()=>{
+    const saved=process.env.AGENTS_MODEL_POLICY_JSON;
+    let f:Awaited<ReturnType<typeof fixture>>;
+    try {
+      process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({maxModelCalls:2,maxRootModelCalls:5});
+      f=await fixture(null,2,true);
+    } finally {if(saved===undefined)delete process.env.AGENTS_MODEL_POLICY_JSON;else process.env.AGENTS_MODEL_POLICY_JSON=saved;}
+    const children=(await startSpecialist(pool,f!.task.id,"local:children",{requests:[request.requests[0]!,request.requests[0]!]})).children;
+    const operation=(taskId:string,key:string)=>({id:`local:${taskId}:${key}`,kind:"model" as const,name:"model.generate",request:{key},reservedTokens:20,reservedMs:1000});
+    async function run(taskId:string,key:string){
+      const input=operation(taskId,key),admitted=await beginOperation(pool,taskId,input);
+      if(admitted.waiting)throw Error("Unexpected capacity wait");
+      await finishOperation(pool,taskId,input.id,"completed",{finding:key},null,3,admitted.operation.attempt_id);
+    }
+    await run(f!.task.id,"root-one");
+    await run(children[0]!.taskId,"child-one");await run(children[0]!.taskId,"child-two");
+    await expect(beginOperation(pool,children[0]!.taskId,operation(children[0]!.taskId,"child-local-denied"))).rejects.toMatchObject({code:"MODEL_CALL_LIMIT"});
+    const attempts=await Promise.allSettled([0,1,2].map(index=>beginOperation(pool,children[1]!.taskId,operation(children[1]!.taskId,`shared-${index}`))));
+    expect(attempts.filter(result=>result.status==="fulfilled")).toHaveLength(1);
+    expect(attempts.filter(result=>result.status==="rejected").map(result=>result.reason.code)).toEqual(["ROOT_MODEL_CALL_LIMIT","ROOT_MODEL_CALL_LIMIT"]);
+    for(const result of attempts)if(result.status==="fulfilled"){
+      if(result.value.waiting)throw Error("Unexpected capacity wait");
+      await finishOperation(pool,children[1]!.taskId,result.value.operation.id,"completed",{finding:"shared"},null,3,result.value.operation.attempt_id);
+    }
+    await run(f!.task.id,"root-two");
+    await expect(beginOperation(pool,f!.task.id,operation(f!.task.id,"root-local-denied"))).rejects.toMatchObject({code:"MODEL_CALL_LIMIT"});
+    expect((await pool.query("SELECT model_calls FROM agents_platform.execution_roots WHERE root_task_id=$1",[f!.task.id])).rows[0].model_calls).toBe(5);
+    expect((await pool.query("SELECT model_calls FROM agents_platform.tasks WHERE id=$1",[f!.task.id])).rows[0].model_calls).toBe(2);
+    expect((await pool.query("SELECT model_calls FROM agents_platform.tasks WHERE id=$1",[children[1]!.taskId])).rows[0].model_calls).toBe(1);
+    for(const child of children)await complete(child.taskId,"Confirmed finding");
+    await complete(f!.task.id,"Completed within the explicit shared allowance");
+  });
+
   it("does not admit specialists when an explicit shared call cap cannot cover their calls and a final response",async()=>{
     const saved=process.env.AGENTS_MODEL_POLICY_JSON;
     let f:Awaited<ReturnType<typeof fixture>>;
@@ -299,15 +332,28 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1", [f.task.id])).rows[0].state).toBe("completed");
   });
 
-  it("allows more than the former lifetime task count when no cap is configured", async () => {
-    const f = await fixture(null, 1);
-    for (let index = 0; index < 17; index++) {
-      const child = (await startSpecialist(pool, f.task.id, `unlimited:${index}`, request)).children[0]!;
-      await complete(child.taskId, `Finding ${index}`);
+  it("lets one progressing work item exceed the former model, tool and specialist ceilings", async () => {
+    const f = await fixture(null, 1, true);
+    for (let index = 0; index < 50; index++) {
+      for(const kind of ["model","tool"] as const) {
+        const id=`unlimited:${f.task.id}:${kind}:${index}`;
+        const admission=await beginOperation(pool,f.task.id,{id,kind,name:kind==="model"?"model.generate":"agents.status",request:{index},reservedTokens:kind==="model"?20:0,reservedMs:1000});
+        if(admission.waiting)throw Error("Unexpected capacity wait");
+        await finishOperation(pool,f.task.id,id,"completed",{finding:index},null,kind==="model"?3:0,admission.operation.attempt_id);
+      }
+      if(index<17) {
+        const child = (await startSpecialist(pool, f.task.id, `unlimited:${index}`, request)).children[0]!;
+        await complete(child.taskId, `Finding ${index}`);
+      }
     }
     const status = await specialistStatus(pool, f.task.id);
     expect(status.children).toHaveLength(17);
     expect(status.children.every(child => child.state === "completed")).toBe(true);
+    const usage=(await pool.query("SELECT t.model_calls,t.tool_calls,r.model_calls AS shared_model_calls,r.tool_calls AS shared_tool_calls FROM agents_platform.tasks t JOIN agents_platform.execution_roots r ON r.root_task_id=t.id WHERE t.id=$1",[f.task.id])).rows[0];
+    expect(usage).toMatchObject({model_calls:50,shared_model_calls:50});
+    expect(usage.tool_calls).toBeGreaterThanOrEqual(50);expect(usage.shared_tool_calls).toBeGreaterThanOrEqual(50);
+    await complete(f.task.id,"All17 specialist findings retained after50 model and50 tool operations");
+    expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[f.task.id])).rows[0].state).toBe("completed");
   }, 30000);
 
   it("runs a specialist beyond the former cumulative token allocation using bounded operation reservations", async () => {

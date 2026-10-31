@@ -167,7 +167,10 @@ least50 model and50 tool calls with null count caps, independent explicit local/
 concurrent claims at a finite shared ceiling, quota rejection rollback, reservation versus actual
 usage, receipt replay without double charging and cumulative usage across continued segments.
 The adaptive suite also exercises65 specialist model operations and52,000 actual tokens under
-null token/time scopes, plus finite legacy bindings and17 sequential children without a total cap.
+null token/time scopes, plus finite legacy bindings. One work item must finish after50 coordinator
+model operations, at least50 tool operations and17 sequential specialists. Verify coordinator and
+specialist local count caps independently, with concurrent claims at an explicit shared ceiling
+preserving its reserved coordinator finishing call.
 Verify null work wall deadlines and explicitly finite `maxWallDurationMs`, preserving the original
 finite deadline across continuation. A null allowance does not disable authority, physical call deadlines, organization quota or
 concurrency. `model-policy-snapshots.test.ts` verifies retained v1 policy snapshots separately.
