@@ -38,11 +38,11 @@ async function dispatchRootBatch(pool:Pool,options:DispatcherOptions,{request,ro
   const {owner,rows,policy}=await claimDispatchBatch(pool,options.policy,releases);
   await drainBatch(rows,policy.parallelism,async row=>{
     try {
-      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id${options.supportStatusRoute?',execution_purpose':''} FROM agents_platform.tasks WHERE id=$1`, [row.task_id])).rows[0];
+      const task = (await pool.query(`SELECT state,runtime_invocation_id,harness_release,parent_task_id,EXISTS(SELECT 1 FROM agents_platform.operations op WHERE op.task_id=t.parent_task_id AND op.id=t.delegation_operation_id AND op.name IN ('agents.start','agents.followup') AND op.state='completed') AS background${options.supportStatusRoute?',execution_purpose':''} FROM agents_platform.tasks t WHERE id=$1`, [row.task_id])).rows[0];
       const route=task?.execution_purpose==='support_status_v1'?options.supportStatusRoute:routes[task?.harness_release];if(!route)throw new Error("HARNESS_RELEASE_UNAVAILABLE");
       if (Date.now() - new Date(row.created_at).getTime() >= 24 * 60 * 60 * 1000) {
         await settleTask(pool, row.task_id, { state: "uncertain", errorCode: "DISPATCH_WINDOW_EXPIRED" });
-      } else if (task?.parent_task_id) {
+      } else if (task?.parent_task_id && !task.background) {
         if(task.state==="cancel_requested"&&!task.runtime_invocation_id)await settleTask(pool,row.task_id,{state:"cancelled"});
       } else if (task?.state === "cancel_requested" && !task.runtime_invocation_id &&
           (await pool.query(`SELECT attempts FROM agents_platform.task_outbox WHERE task_id=$1`, [row.task_id])).rows[0]?.attempts === 1) {

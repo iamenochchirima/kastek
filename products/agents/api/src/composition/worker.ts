@@ -30,7 +30,7 @@ import { EvidenceStore } from "../execution/context/evidence";
 import { startDispatcher } from "../execution/lifecycle/dispatcher";
 import { dispatchPolicyFromEnvironment } from "../execution/scheduling/dispatch-claims";
 import { WORKFLOW_NAME } from "../execution/lifecycle/execution";
-import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME } from "../contracts/execution";
+import { HARNESS_RELEASE, HANDOFF_HARNESS_RELEASE, HANDOFF_WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME } from "../contracts/execution";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
 import { createAutomationWorkflow,startAutomationDispatcher } from "../product/automations/automation-runtime";
 import { AutomationService } from "../product/automations/automations";
@@ -149,10 +149,11 @@ async function main(): Promise<void> {
     settleHandoffReceipt:(taskId,candidate,definitiveFailure)=>settleReceipt(pool,taskId,candidate?{text:candidate}:null,HANDOFF_RECEIPT,
       (db,input)=>inbox.publishPendingHandoffReceipt(db,input),definitiveFailure),
   },{release:HANDOFF_HARNESS_RELEASE,workflow:HANDOFF_WORKFLOW_NAME});
+  const adaptiveWorkflow = createBusinessWorkflow(pool, workflowOptions, {release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME});
   const {host,identityKeys} = workerSecurityFromEnvironment();
   const receiptWorkflow=createReceiptWorkflow(pool,HANDOFF_RECEIPT,(db,input)=>inbox.publishPendingHandoffReceipt(db,input));
   const statusWorkflow=createSupportStatusWorkflow(pool,{...workflowOptions,publishSupportStatus:taskId=>inbox.publishSupportStatus(taskId)});
-  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
+  const server = createServer(createEndpointHandler({ services: [workflow,handoffWorkflow,adaptiveWorkflow,receiptWorkflow,statusWorkflow,createAutomationWorkflow(automations),createSupportWaitingWorkflow(supportWaiting),...(followups?[createCustomerFollowupWorkflow(followups)]:[]),...(ingestion?[createIngestionWorkflow(ingestion)]:[])], identityKeys }));
   const sessions = new Set<ServerHttp2Session>();
   server.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
   try {
@@ -164,7 +165,7 @@ async function main(): Promise<void> {
     policy: dispatchPolicy,
     ingressUrl: process.env.RESTATE_INGRESS_URL ?? "http://127.0.0.1:18080",
     adminUrl: process.env.RESTATE_ADMIN_URL ?? "http://127.0.0.1:19070",
-    runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
+    runtimeRoutes: Object.fromEntries([[HARNESS_RELEASE,WORKFLOW_NAME],[HANDOFF_HARNESS_RELEASE,HANDOFF_WORKFLOW_NAME],[ADAPTIVE_HARNESS_RELEASE,ADAPTIVE_WORKFLOW_NAME]].map(([release,workflowName])=>[release!,{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:workflowName!}])),
     supportStatusRoute:{ingressUrl:process.env.RESTATE_INGRESS_URL??"http://127.0.0.1:18080",adminUrl:process.env.RESTATE_ADMIN_URL??"http://127.0.0.1:19070",workflowName:SUPPORT_STATUS_WORKFLOW},
     onError: code => console.error(JSON.stringify({ ...diagnosticIdentity, event: "runtime_publisher_error", code })),
     onPhase: metrics?.dispatcherPhase,

@@ -227,7 +227,7 @@ export class AgentStore extends AuthorityStore {
             WHERE v.organization_id=$1 AND v.id=$2 FOR SHARE OF v`, [input.organizationId,binding.versionId])).rows[0];
           if (!child || child.agent_id === agent.id) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Choose a published specialist from this workspace");
           const childConfig = agentConfigurationSchema.parse(child.configuration);
-          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || childConfig.capabilities.sandbox.enabled || childConfig.capabilities.workflows.enabled || childConfig.capabilities.businessActions.enabled ||
+          if (childConfig.executionKind !== "business" || childConfig.memory.enabled || childConfig.capabilities.delegation.enabled || (childConfig.capabilities.sandbox.enabled && !(config.program.version==="4"&&config.capabilities.sandbox.enabled)) || childConfig.capabilities.workflows.enabled || childConfig.capabilities.businessActions.enabled ||
               binding.sourceRevisionIds.some(id => !config.sourceRevisionIds.includes(id) || !childConfig.sourceRevisionIds.includes(id)) ||
               binding.connectedToolBindingIds.some(id => !childConfig.connectedToolBindingIds.includes(id)) ||
               binding.tools.some(tool => !childConfig.tools.includes(tool))) throw new PlatformError("DELEGATION_BINDING_INVALID",409,"Specialist binding exceeds the published scope");

@@ -8,7 +8,7 @@ import {resolveProgram} from "../programs/composition";
 import {compilePublishedComposition} from "../programs/publication";
 
 const compilerIdentity=requestDigest({compiler:"published-composition-v1",runtime:{release:HARNESS_RELEASE,workflow:WORKFLOW_NAME},
- programs:[resolveProgram({id:"grounded-conversation",version:"1"}),resolveProgram({id:"tool-directed",version:"1"}),resolveProgram({id:"tool-directed",version:"3"})],
+ programs:[resolveProgram({id:"grounded-conversation",version:"1"}),resolveProgram({id:"tool-directed",version:"1"}),resolveProgram({id:"tool-directed",version:"3"}),resolveProgram({id:"tool-directed",version:"4"})],
  tools:[...Object.values(BUILTIN_MODEL_ALIASES),"knowledge.initial","report.deliver"].map(toolDescriptor),workflow:REPORT_WORKFLOW_BINDING});
 
 function immutableJson<T>(value:T):T {

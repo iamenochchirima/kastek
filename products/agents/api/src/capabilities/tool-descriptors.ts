@@ -1,3 +1,4 @@
+import { orchestrationTools } from "../contracts/orchestration";
 import type { AgentConfiguration } from "../contracts/contracts";
 import { capabilityContractMetadata } from "./tool-contracts";
 export interface ToolDescriptor {
@@ -33,6 +34,7 @@ const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"re
   {name:"memory.propose",version:"1",effect:"idempotent_memory",maxDurationMs:30000,maxResultBytes:8192,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"skills.activate",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:6144,retry:"safe_read",cancel:"stop_admission"},
   {name:"skills.read",version:"1",effect:"read",maxDurationMs:30000,maxResultBytes:6144,retry:"safe_read",cancel:"stop_admission"},
+  ...orchestrationTools.map(name=>({name,version:"1" as const,effect:(name==="agents.start"||name==="agents.followup"?"delegation":name==="agents.cancel"||name==="work.update"?"channel_control":"read") as ToolDescriptor["effect"],maxDurationMs:30000,maxResultBytes:16384,retry:"idempotent_receipt" as const,cancel:"dependent_children" as const})),
   {name:"agents.delegate",version:"1",effect:"delegation",maxDurationMs:0,maxResultBytes:8192,retry:"stable_children",cancel:"dependent_children"},
   {name:"skills.run",version:"1",effect:"resource",maxDurationMs:240000,maxResultBytes:8192,retry:"adapter_reconcile",cancel:"adapter_cleanup",requiredProfile:"python-analysis-v1"},
   {name:"sandbox.analyze",version:"1",effect:"resource",maxDurationMs:240000,maxResultBytes:8192,retry:"adapter_reconcile",cancel:"adapter_cleanup",requiredProfile:"python-analysis-v1"},

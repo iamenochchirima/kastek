@@ -843,7 +843,8 @@ configuration, or live authority state. Operation admission, receipt persistence
 settlement read only immutable organization/root keys before locking, then reload and validate
 the full execution under the original locks. Current authority and dependency checks still run.
 
-The current source release is `product-capabilities-v11` / `AgentsBusinessRunV21`. Initial setup requires a fresh
+The baseline business source release is `product-capabilities-v11` / `AgentsBusinessRunV21`;
+explicit adaptive programv4 uses V23 as described below. Initial setup requires a fresh
 dedicated schema through `038_skill_script_runtime.sql`. Verification uses separate compiled artifacts and databases. Running older local
 artifacts are not upgraded by setup or rewritten to accept the new schema.
 
@@ -1410,7 +1411,7 @@ a separate physical-consumption cap for each later day. Uncertain operations
 conservatively consume their reservation. Definitive rejection releases unused
 usage. Settlement is idempotent at both operation and root level.
 
-A coordinator can admit two version-pinned read-only business specialists with
+Earlier tool-directed programs use batch delegation. A coordinator can admit two version-pinned read-only business specialists with
 explicit briefs and source subsets. Children use private conversation branches and
 subdivide one root allocation; they do not consume new root slots or organization
 reservations. Their current authority is also bounded by the root grant. A parent
@@ -2148,3 +2149,39 @@ schema setup and the verified backfill while writers are stopped, deploy the API
 and worker together, then check import, preview, retrieval and cleanup before
 removing any legacy copies. Model evaluations remain owner-run. The database and
 bucket backup and reverse-export limitation above define rollback.
+
+
+## Adaptive specialist coordination
+
+Explicit standalone `tool-directed` program version 4 uses schema096 and
+`product-capabilities-v13` / `AgentsBusinessRunV23`. Existing versions 1–3 and their accepted task
+journals remain pinned. It extends the ordinary Assistant and other authorized business agents;
+it creates no privileged replacement agent or cross-product authority.
+
+The model can discover a permitted roster (up to 32 published pins), start one/two focused tasks,
+inspect or wait for selected child statuses, read a selected result in 4,096-byte UTF-8-safe pages,
+follow up the latest terminal specialist turn in the same child conversation, and cancel a child.
+Result offsets count Unicode code points. The coordinator may revise its approach after failure;
+paging and historical failed children do not permanently force an otherwise supported root answer
+to be partial. Native outcome and answer quality remain separate.
+
+Configuration permits 1–8 concurrent children (default 2), 1–64 total child tasks including
+follow-ups (default 16), and a repeated-identical-operation threshold of 1–8 (default 3), within
+existing root allocations. Depth remains one. The check excludes waits/progress inspection and
+runs only with no active child; it is a repetition bound rather than a general semantic progress
+judge. Permissions, resource budgets, current authority and source/tool scope remain deterministic
+runtime constraints. No hardcoded business routing sequence chooses a specialist.
+
+Work records and queued authorized active-root instructions survive durable execution. Native
+handles/revisions are confirmed metadata; plan prose stays untrusted after compaction. Child
+history requires explicit same-root/version/member prior-task ancestry, excluding sibling/root
+transcripts. An explicit selected result joins only that child's current evidence. Private phone
+rollout remains independently allowlisted.
+
+`agent.orchestration.lifecycle@1` adds aggregate lifecycle facts to the existing Analytics outbox;
+private task and plan content stay within authorized native evidence. The
+[operation reference](operations/adaptive-orchestration.md) records tool/API boundaries, rollout,
+rollback, telemetry limits and the complete release record. The owner acceptance manifest/rubric
+under the existing Harbor adapter is not a runnable evaluation or a reported quality result.
+Controlled contract/provenance/Restate/browser checks establish only their recorded engineering
+behavior. See [verify-agents](../../../.agents/skills/verify-agents/SKILL.md) for reproducible checks.

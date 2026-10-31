@@ -91,13 +91,33 @@ export async function assertChildConnectedAuthority(db:Db,child:Execution,bindin
   if(!delegation||delegation.parent_task_id!==root.task.id||child.task.parent_task_id!==root.task.id||child.task.organization_id!==root.task.organization_id||await owner(db,child)!==await owner(db,root))throw denied();
   await rootRoleAllows(db,root,delegation.binding_id,child.task.version_id,bindingId);
 }
+/** Only explicit follow-up ancestry can supply another child turn's conversation. */
+export async function childHistoryAllowed(db:Db,current:Execution,origin:Execution):Promise<boolean>{
+  const task=current.task,prior=origin.task;
+  if(!task.parent_task_id||!prior.parent_task_id||task.parent_task_id!==task.root_task_id||prior.parent_task_id!==task.parent_task_id||
+    task.root_task_id!==prior.root_task_id||task.organization_id!==prior.organization_id||task.conversation_id!==prior.conversation_id||
+    task.version_id!==prior.version_id||current.agentId!==origin.agentId||!await historyPrincipalAllowed(db,current,origin)||
+    BigInt(prior.turn_sequence)>=BigInt(task.turn_sequence))return false;
+  let cursor=task.id;const seen=new Set<string>();
+  while(seen.size<32){
+    if(seen.has(cursor))throw integrity();seen.add(cursor);
+    const link=(await db.query(`SELECT d.prior_task_id FROM agents_platform.delegations d
+      JOIN agents_platform.tasks t ON t.id=d.child_task_id
+      WHERE d.child_task_id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3
+        AND t.conversation_id=$4 AND t.version_id=$5`,[cursor,task.parent_task_id,task.organization_id,task.conversation_id,task.version_id])).rows[0];
+    if(!link?.prior_task_id)return false;
+    if(link.prior_task_id===prior.id)return true;
+    cursor=link.prior_task_id;
+  }
+  throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");
+}
 export async function historyOrigins(db:Db,current:Execution,extra:string[]):Promise<Execution[]>{
   const origins:Execution[]=[],seen=new Set<string>(),queue:{id:string;consumer:Execution}[]=extra.map(id=>({id,consumer:current}));
   async function linked(consumer:Execution){for(const row of(await db.query("SELECT h.origin_task_id FROM agents_platform.evidence_history_links h JOIN agents_platform.evidence_nodes n ON n.id=h.node_id WHERE n.task_id=$1",[consumer.task.id])).rows)queue.push({id:row.origin_task_id,consumer});}
   await linked(current);
   while(queue.length){const item=queue.shift()!;if(item.id===item.consumer.task.id)throw integrity();
     const origin=await loadExecution(db,item.id);
-    if(origin.task.parent_task_id||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
+    if((current.task.parent_task_id?!await childHistoryAllowed(db,item.consumer,origin):!!origin.task.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence))throw denied();
     if(seen.has(item.id))continue;if(seen.size>=32)throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
   }return origins;
 }
@@ -169,7 +189,7 @@ export async function delegationDependency(db:Db,taskId:string):Promise<Evidence
 export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[]; historyOriginTaskIds?:string[] } = {}): Promise<void> {
   const manifest = assertDependencyManifest(input), execution = await loadExecution(db, taskId);
   if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
-  const origins=execution.task.parent_task_id?[]:await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
+  const origins=await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
   const dependencies = [...manifest.dependencies].sort((a, b) => {
     const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.kind === "product" ? `${value.product}:${value.tenantId}:${value.taskId}:${value.sourceId}` : value.referenceId;
     return key(a).localeCompare(key(b));

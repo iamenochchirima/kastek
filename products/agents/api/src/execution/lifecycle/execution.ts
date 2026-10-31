@@ -1,3 +1,4 @@
+import { recordOrchestrationLifecycle } from "../../observability/orchestration-lifecycle";
 import {requestCapacity,activateCapacity,releaseCapacity,stopTaskCapacity,type CapacityDecision} from "../scheduling/capacity";
 import {operationCapacity} from "../scheduling/policy";
 import { randomUUID } from "node:crypto";
@@ -104,6 +105,11 @@ async function beginOperationForPurpose(pool: Pool, taskId: string, input: Opera
       return { replayed: true, operation: existing };
     }
     if (!handoffFeedback) await assertCurrentAuthority(db, execution);
+    if (!task.parent_task_id && String(execution.configuration.program.version)==="4" &&
+        !["agents.status","agents.result","agents.wait","agents.cancel","work.inspect"].includes(input.name) &&
+        (await db.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state='uncertain' LIMIT 1",[task.id])).rowCount) {
+      throw new PlatformError("SPECIALIST_OUTCOME_UNCERTAIN",409,"Resolve the uncertain specialist outcome before continuing");
+    }
     await checkMemoryFence(db, input.memoryFence);
     if (input.evidenceManifest && !handoffFeedback) await (await import("../context/evidence-policy")).assertCurrentEvidence(db, taskId, input.evidenceManifest);
     const model = input.kind === "model" || input.kind === "compaction";
@@ -245,7 +251,9 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
       return;
     }
     if (children.some(child=>child.state==='uncertain') && outcome.state==='cancelled') outcome={state:'uncertain',errorCode:'CHILD_OUTCOME_UNCERTAIN'};
-    if (children.some(child=>child.state!=='completed') && outcome.state==='completed') outcome={...outcome,state:'incomplete',errorCode:'CHILD_PARTIAL_FAILURE'};
+    const adaptive = execution.configuration.program.id === "tool-directed" && String(execution.configuration.program.version) === "4";
+    if (adaptive && children.some(child=>child.state==='uncertain') && outcome.state==='completed') outcome={state:'uncertain',errorCode:'CHILD_OUTCOME_UNCERTAIN'};
+    if (!adaptive && children.some(child=>child.state!=='completed') && outcome.state==='completed') outcome={...outcome,state:'incomplete',errorCode:'CHILD_PARTIAL_FAILURE'};
     await stopTaskCapacity(db,taskId);
     const operations = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND state='started' FOR UPDATE", [taskId])).rows;
     for (const op of operations) await finishOperationInTransaction(db, execution, op, "uncertain", null, "OPERATION_INTERRUPTED", op.reserved_tokens);
@@ -277,6 +285,12 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     if(task.channel_binding && !task.parent_task_id && task.execution_purpose!=="support_status_v1") await channelPorts(db).publishAutomated(db,
       {taskId,binding:task.channel_binding,output:outcome.output??""});
     await event(db, taskId, `terminal:${taskId}`, outcome.state);
+    if(adaptive && !task.parent_task_id) {
+      const terminal=(await db.query("SELECT created_at FROM agents_platform.task_events WHERE task_id=$1 AND event_key=$2",[taskId,`terminal:${taskId}`])).rows[0];
+      await recordOrchestrationLifecycle(db,{organizationId:task.organization_id,key:taskId,
+        action:outcome.errorCode==="ORCHESTRATION_STALLED"?"stalled":outcome.state==="completed"?"completed":"failed",outcome:outcome.state,
+        specialistTasks:children.length,occurredAt:new Date(terminal.created_at).toISOString()});
+    }
   });
 }
 

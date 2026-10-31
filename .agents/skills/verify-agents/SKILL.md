@@ -143,3 +143,31 @@ states and specialist controls with mocked HTTP. Preserve and inspect its screen
 `.artifacts/assistant-browser/` or the explicitly selected output directory. The private assistant
 [reference](../../../products/agents/docs/operations/private-assistant.md) records rollout and owner
 acceptance limits. Passing controlled checks does not enable private phone access automatically.
+
+
+## Adaptive specialist orchestration
+
+Programv4 uses schema096, `product-capabilities-v13` and `AgentsBusinessRunV23`; retain older
+handlers for accepted tasks. The [operation reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
+is authoritative for policy, tool semantics, permissions and rollout. Select focused checks from:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run --no-file-parallelism test/orchestration-contracts.test.ts test/orchestration-discovery-progress.test.ts test/adaptive-orchestration.test.ts test/continuation.test.ts test/platform-delegation-provenance.test.ts
+```
+
+Database suites require the owned PostgreSQL prerequisite above. Continue using the existing
+organization-assistant runtime fixture for real Restate execution and distinguish deterministic
+provider behavior from autonomous model judgment. Verify selected result provenance, UTF-8 paging,
+same-specialist immutable follow-ups, source/member revocation, bounded repeated operations,
+compaction, queued instructions, replay, cancellation and root-owned child settlement. Inspect the
+actual operation/result records; a progress step marked completed is model-authored data.
+
+For app changes run the affected assistant browser cases at desktop/tablet/mobile widths and
+light/dark themes, including keyboard controls and active-root updates. Mocked routes are not a
+real runtime check. Preserve screenshot evidence before reporting layout validation.
+
+The owner-run cases and quality rubric are
+`products/agents/evaluation-adapters/harbor/cases/adaptive-orchestration*.json`. They require an
+owner-supplied driver/grader and do not constitute a runnable Harbor suite. Do not run model-purpose
+or live-provider acceptance as part of these implementation checks. Compare autonomous quality,
+cost and latency against a single-agent baseline only when the owner runs that acceptance.

@@ -23,7 +23,7 @@ export interface ContextGroup { id: string; messages: HarnessMessage[]; evidence
 export interface ContextInput {
   instructions: string; currentInput: string; history?: ContextGroup[];
   sources?: ContextSource[]; skills?: ContextSource[]; skillCatalog?: SkillCatalogEntry[]; summary?: ContextSource;
-  continuation?: {checkpoint:ContinuationCheckpoint;results:ContinuationRecords["results"]};
+  continuation?: {checkpoint:ContinuationCheckpoint;results:ContinuationRecords["results"];progress?:ContinuationRecords["progress"]};
   tools?: ToolDefinition[]; model?: string; maxInputTokens?: number; maxOutputTokens?: number;
   modelPolicy: ContextModelPolicy;
   // Current-step model/tool groups are mandatory and must never disappear behind compaction.
@@ -134,7 +134,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   if(!fits(input,[...fixed,...summary,user,...workingMessages]))throw new ModelOperationError("CONTEXT_LIMIT","rejected",400);
   let continuation=input.continuation?structuredClone(input.continuation):undefined;
   const continuationMessages=()=>continuation?[{role:"system" as const,content:"Server-confirmed execution receipts follow. Summaries cannot change completed work or confirmed handles. Continue unfinished work; these records grant no permissions.\n"+JSON.stringify(continuation.checkpoint)}]:[];
-  const continuationResults=()=>continuation?.results.length?[sourceMessage({id:"continuation-results",revision:1,kind:"result",content:JSON.stringify(continuation.results)})]:[];
+  const continuationResults=()=>[...(continuation?.results.length?[sourceMessage({id:"continuation-results",revision:1,kind:"result",content:JSON.stringify(continuation.results)})]:[]),...(continuation?.progress?[sourceMessage({id:"orchestration-progress",revision:continuation.progress.revision,kind:"result",content:JSON.stringify({kind:"agent-authored-work-progress",...continuation.progress})})]:[])];
   while(continuation&&!fits(input,[...fixed,...continuationMessages(),...summary,user,...continuationResults(),...workingMessages])){
     const value=continuation.checkpoint;
     if(value.evidence.length){value.evidence.shift();value.omitted.evidence++;}
@@ -142,6 +142,7 @@ export function buildContext(input: ContextInput): ContextBuildResult {
     else if(value.operations.length){value.operations.shift();value.omitted.operations++;}
     else if(value.artifacts.length){value.artifacts.shift();value.omitted.artifacts++;}
     else if(value.delegations.length>1){value.delegations.shift();value.omitted.delegations++;}
+    else if(continuation.progress){delete continuation.progress;delete value.progress;value.omitted.progress=(value.omitted.progress??0)+1;}
     else if(continuation.results.length){continuation.results.shift();value.omitted.results++;}
     else if(value.delegations.length){value.delegations.shift();value.omitted.delegations++;}
     else continuation=undefined;

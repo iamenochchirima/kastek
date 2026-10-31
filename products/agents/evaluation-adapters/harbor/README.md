@@ -476,3 +476,15 @@ Follow-up status, assignment, due dates and notes are separate from Inbox takeov
 and booking effects. Check those outcomes independently. No Growth linkage or external CRM
 synchronization is part of these ports. Existing prepared native versions and exact decisions
 remain authoritative. Disable new tools/UI commands for rollback while retaining submitted data.
+
+
+## Adaptive coordinator owner acceptance
+
+`cases/adaptive-orchestration.json` and `cases/adaptive-orchestration-rubric.json` describe
+owner-run programv4 acceptance against a single-agent baseline: specialist selection, independent
+work, revisions, failure/conflict recovery, long-result paging, compaction, user steering,
+revocation, cancellation, budgets and repetition. They grade outcomes and supported evidence,
+not a mandatory tool sequence or a fixed number of delegates. They are case/rubric artifacts,
+not a runnable Harbor suite, an automatic driver, or a reported evaluation result. No new model
+or live-provider run is included in their creation. Use isolated owner-prepared native scopes,
+normal approvals and authorized evidence; record cost/latency, coverage and cleanup separately.

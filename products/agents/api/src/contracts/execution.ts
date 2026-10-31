@@ -8,6 +8,8 @@ export const WORKFLOW_NAME = "AgentsBusinessRunV21";
 // The contextual handoff controller is published separately from existing V21 tasks.
 export const HANDOFF_HARNESS_RELEASE = "product-capabilities-v12";
 export const HANDOFF_WORKFLOW_NAME = "AgentsBusinessRunV22";
+export const ADAPTIVE_HARNESS_RELEASE = "product-capabilities-v13";
+export const ADAPTIVE_WORKFLOW_NAME = "AgentsBusinessRunV23";
 export const dispatcherPhases = ["dispatch", "capacity", "capacity_notifications", "controls", "reconciliation"] as const;
 export type DispatcherPhase = typeof dispatcherPhases[number];
 export interface Execution { task: TaskRecord & { turn_sequence: string; history_cutoff: string | null;

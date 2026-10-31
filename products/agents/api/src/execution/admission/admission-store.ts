@@ -1,3 +1,4 @@
+import { recordOrchestrationLifecycle } from "../../observability/orchestration-lifecycle";
 import {schedulingPolicyFromEnvironment} from "../scheduling/policy";
 import { createHash,randomUUID } from "node:crypto";
 import type { Pool,PoolClient } from "pg";
@@ -139,6 +140,7 @@ export class AdmissionStore extends AuthorityStore {
     [input.taskId ?? randomUUID(), input.authority.product, input.authority.organizationId, input.authority.resourceId, input.authority.callerClientId, input.authority.principal,
       input.versionId, grant.id, conversationId, requestKey, digest, input.input, sequence, reservation, composition, input.evaluationTrialId ?? null,input.channelBinding??null,composition.runtime.release,...(episodeCommandId?["support_status_v1"]:[])])).rows[0]!;
     await db.query("INSERT INTO agents_platform.execution_roots(root_task_id) VALUES($1)", [task.id]);
+    if(config.program.id==="tool-directed"&&config.program.version==="4") await recordOrchestrationLifecycle(db,{organizationId:task.organization_id,key:task.id,action:"started",outcome:"pending",occurredAt:new Date(task.created_at).toISOString()});
     await saveTaskModelRoutes(db, task.id, task.organization_id, models);
     await initializeRootModelAccount(db, { organizationId: task.organization_id, rootTaskId: task.id,
       maxCostMicros: models.primary.policy.maxCostMicros === null ? null : BigInt(models.primary.policy.maxCostMicros) });

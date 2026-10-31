@@ -969,6 +969,24 @@ cluster key distribution, backups, capacity or monitoring. See the
 
 ### Business subagents and temporary analysis
 
+Explicit `tool-directed` program version 4 adds a model-directed supervisor loop under
+`product-capabilities-v13` / `AgentsBusinessRunV23`. Its permitted roster supports 32 pinned
+specialists, 1–8 concurrent children (default 2), 1–64 total child tasks (default 16), and a
+repeated-operation threshold of 1–8 (default 3). Depth remains one. Separate discovery, start,
+status, wait, paginated result, follow-up and cancel tools allow the model to evaluate findings
+and revise its approach. A configured roster does not impose a topic router or fixed sequence.
+
+Each follow-up is a new immutable child task in the same pinned specialist conversation. Explicit
+prior-task ancestry authorizes its history; parent/channel transcripts are not copied into child
+branches. Only selected child results join the coordinator's evidence. Work progress is persisted
+agent-authored data, distinct from native outcomes, and returns after compaction as untrusted
+reference content. Queued user instructions enter later contexts without rewriting accepted work.
+Schema096 stores these records. Earlier programs retain the batch behavior described below;
+accepted journals never move between workflow identities. The
+[operation reference](../operations/adaptive-orchestration.md) defines tool boundaries, enablement,
+recovery, Analytics and owner acceptance limits.
+
+
 A published coordinator pins same-organization specialist AgentVersions, permitted
 knowledge and read tools, and child token/time ceilings. Atomic delegation slots
 persist one child per parent operation and slot. Children run the common controller

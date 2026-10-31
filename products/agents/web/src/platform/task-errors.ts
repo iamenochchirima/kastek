@@ -1,4 +1,9 @@
 const modelErrors: Record<string, string> = {
+  ORCHESTRATION_STALLED: "Work stopped after repeated attempts. Update the instructions to try a different approach.",
+  SPECIALIST_TASK_LIMIT: "Specialist task limit reached.",
+  CHILD_LIMIT: "Specialist concurrency limit reached.",
+  SPECIALIST_OUTCOME_UNCERTAIN: "A specialist action has an unknown outcome. Check it before retrying.",
+  CHILD_OUTCOME_UNCERTAIN: "A specialist action has an unknown outcome. Check it before retrying.",
   MODEL_UNAVAILABLE: "Model unavailable. Choose another model in Configure.",
   MODEL_AUTHENTICATION_FAILED: "Model authentication failed. Ask your administrator to check provider credentials.",
   MODEL_BILLING_REQUIRED: "Model provider credits required. Contact your administrator.",

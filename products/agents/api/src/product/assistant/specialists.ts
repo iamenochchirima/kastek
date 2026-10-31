@@ -17,7 +17,7 @@ export async function specialistCatalogue(pool:Pool,scope:{accountId:string;orga
     const specialists=[];
     for(const row of rows) {
       const config=agentConfigurationSchema.parse(row.configuration),reasons:string[]=[];
-      if(config.executionKind!=="business"||config.memory.enabled||config.capabilities.delegation.enabled||config.capabilities.sandbox.enabled||config.capabilities.workflows.enabled||config.capabilities.businessActions.enabled)
+      if(config.executionKind!=="business"||config.memory.enabled||config.capabilities.delegation.enabled||(config.capabilities.sandbox.enabled&&!(parent.draft.program.version==="4"&&parent.draft.capabilities.sandbox.enabled))||config.capabilities.workflows.enabled||config.capabilities.businessActions.enabled)
         reasons.push("Specialist capabilities exceed the delegation scope");
       try {
         const routes=await resolveAcceptedModelRoutes(db,{organizationId:scope.organizationId,agentId:parent.id,product:"agents",selection:parent.draft.model.selection,
@@ -41,7 +41,7 @@ export async function specialistCatalogue(pool:Pool,scope:{accountId:string;orga
         if(available.rowCount!==connectedToolBindingIds.length)reasons.push("Reconnect or authorize the specialist tools");
       }
       specialists.push({agentId:row.id,name:row.name,description:config.instructions.replace(/\s+/g,' ').slice(0,512),versionId:row.version_id,
-        versionNumber:row.number,ready:reasons.length===0,reasons,sourceRevisionIds,connectedToolBindingIds,tools:config.tools.filter(tool=>['knowledge.read','knowledge.search'].includes(tool))});
+        versionNumber:row.number,ready:reasons.length===0,reasons,sourceRevisionIds,connectedToolBindingIds,tools:config.tools.filter(tool=>['knowledge.read','knowledge.search',...(parent.draft.program.version==='4'&&parent.draft.capabilities.sandbox.enabled?['sandbox.analyze']:[])].includes(tool))});
     }
     return {specialists};
   });

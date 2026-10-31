@@ -25,14 +25,14 @@ export async function claimDispatchBatch(pool:Pool,input:Partial<DispatchPolicy>
  SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.task_outbox o ON o.task_id=t.id WHERE t.organization_id=st.organization_id
  AND o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
  AND t.harness_release=ANY($4::text[]) AND t.state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')
- AND (t.parent_task_id IS NULL OR t.state='cancel_requested'))
+ AND (t.parent_task_id IS NULL OR t.state='cancel_requested' OR EXISTS(SELECT 1 FROM agents_platform.operations op WHERE op.task_id=t.parent_task_id AND op.id=t.delegation_operation_id AND op.name IN ('agents.start','agents.followup') AND op.state='completed')))
  ORDER BY st.last_dispatch_at,st.organization_id LIMIT $2
  ), due AS MATERIALIZED (
  SELECT due.* FROM tenants st CROSS JOIN LATERAL (
  SELECT o.task_id,o.created_at,t.organization_id FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id
  WHERE t.organization_id=st.organization_id AND o.dispatched_at IS NULL AND o.available_at<=now() AND (o.lease_until IS NULL OR o.lease_until<now())
  AND t.harness_release=ANY($4::text[]) AND t.state IN ('accepted','running','waiting_children','waiting_authority','waiting_review','reconciling','cancel_requested')
- AND (t.parent_task_id IS NULL OR t.state='cancel_requested') ORDER BY o.created_at,o.task_id LIMIT $2) due
+ AND (t.parent_task_id IS NULL OR t.state='cancel_requested' OR EXISTS(SELECT 1 FROM agents_platform.operations op WHERE op.task_id=t.parent_task_id AND op.id=t.delegation_operation_id AND op.name IN ('agents.start','agents.followup') AND op.state='completed')) ORDER BY o.created_at,o.task_id LIMIT $2) due
  ), ranked AS (SELECT *,row_number() OVER(PARTITION BY organization_id ORDER BY created_at,task_id) AS tenant_rank FROM due),
  candidate AS (SELECT o.task_id,r.organization_id FROM agents_platform.task_outbox o JOIN ranked r ON r.task_id=o.task_id
  WHERE o.dispatched_at IS NULL AND (o.lease_until IS NULL OR o.lease_until<now())

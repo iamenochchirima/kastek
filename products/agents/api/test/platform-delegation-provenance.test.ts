@@ -39,7 +39,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   else{const managed={...scope,agentId:agent.id},candidate=await memory.proposeManaged(managed,{operationId:randomUUID(),kind:"semantic",content:"Parent-only secret fact."});item=await memory.mutate(managed,candidate.id,{operationId:randomUUID(),expectedRevision:1,action:"accept"});memoryScope=(await pool.query("SELECT * FROM agents_platform.memory_scopes WHERE organization_id=$1 AND agent_id=$2",[org.id,agent.id])).rows[0];references=[{id:item.id,kind:"memory",revision:item.revision}];}
   const label=ids.length?(await pool.query("SELECT citation_label FROM agents_platform.evidence_references WHERE id=$1",ids)).rows[0].citation_label:"",payload={messages:[{role:"user",content:`Parent-only secret fact. [${label}]`}]};await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff) VALUES($1,$2,0,$3,$4,$5,$6,$7,0)",[id,task.id,requestDigest(payload),payload,JSON.stringify(references),memoryScope?.id??null,memoryScope?.generation??null]);await contextEvidence.supplyContext(task.id,id,ids);
   const children=await admitChildren(pool,task.id,`delegate:${task.id}`,{requests:[{bindingId:"narrow",brief:"Use the parent-only secret fact."},{bindingId:"narrow",brief:"Another derived secret brief."}]});
-  const first=children[0]!,second=children[1]!,childPayload={messages:[{role:"user",content:"Use the parent-only secret fact."}]},snapshot=`context:${first.taskId}:0`;await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,0)",[snapshot,first.taskId,requestDigest(childPayload),childPayload]);await contextEvidence.supplyContext(first.taskId,snapshot,[]);await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[first.taskId]);await settleTask(pool,first.taskId,{state:"completed",output:"Derived parent-only secret fact."});
+  const first=children[0]!,second=children[1]!,childPayload={messages:[{role:"user",content:"Use the parent-only secret fact."}]},snapshot=`context:${first.taskId}:0`;await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,0)",[snapshot,first.taskId,requestDigest(childPayload),childPayload]);await contextEvidence.supplyContext(first.taskId,snapshot,[]);await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[first.taskId]);await contextEvidence.derive(first.taskId,"child_result",first.taskId);await settleTask(pool,first.taskId,{state:"completed",output:"Derived parent-only secret fact."});
   const session=await store.createSession({accountId:account.id,providerSessionId:randomUUID(),expiresAt:new Date(Date.now()+60000)}),headers={cookie:`agents_session=${session.token}`};
   return{account,scope,source,item,agent,child,childVersion,authority,grant,task,children,first,second,headers,async invalidate(){if(source)await source.knowledge.setPolicy(scope,source.sourceId,{operationId:randomUUID(),expectedGeneration:1,action:"withdraw"});else await memory.mutate({...scope,agentId:agent.id},item!.id,{operationId:randomUUID(),expectedRevision:item!.revision,action:"forget"});}};
  }
@@ -52,6 +52,24 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   await settleTask(pool,f.second.taskId,{state:"completed",output:"Must not publish derived secret"});expect((await pool.query("SELECT state,output,error_code FROM agents_platform.tasks WHERE id=$1",[f.second.taskId])).rows[0]).toMatchObject({state:"incomplete",output:null,error_code:"EVIDENCE_UNAVAILABLE"});
   const hidden=(await app.inject({url:path,headers:f.headers})).json().task;expect(hidden).toMatchObject({input:null,output:null,inputAvailability:"unavailable",outputAvailability:"unavailable"});
   const root=(await app.inject({url:`/api/organizations/${f.scope.organizationId}/tasks/${f.task.id}`,headers:f.headers})).json();expect(root.children.find((child:any)=>child.id===f.first.taskId).output).toBeNull();
+ });
+ it("joins only the explicitly selected child evidence and permits only follow-up ancestry",async()=>{
+  const f=await fixture("source"),firstNodes=(await pool.query("SELECT id FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='child_result'",[f.first.taskId])).rows;
+  const resultOp=`result:${f.task.id}`;await beginOperation(pool,f.task.id,{id:resultOp,kind:"tool",name:"agents.result",request:{taskId:f.first.taskId},reservedTokens:0,reservedMs:1000,retrySafe:true});
+  const joined=await evidence.joinChild(f.task.id,resultOp,f.first.taskId);
+  expect(firstNodes).toHaveLength(1);expect(joined.parents).toEqual(firstNodes.map(node=>node.id));
+  await expect(evidence.joinChild(f.task.id,resultOp,f.second.taskId)).rejects.toMatchObject({code:"CHILD_OUTCOME_PENDING"});
+  await expect(evidence.joinChild(f.task.id,resultOp,randomUUID())).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
+  await finishOperation(pool,f.task.id,resultOp,"completed",{},null,0);
+  const [next]=await admitChildren(pool,f.task.id,`followup:${f.task.id}`,{requests:[{bindingId:"narrow",brief:"Revise the first result."}]},{priorTaskId:f.first.taskId});
+  expect(next).toBeDefined();const prior=(await evidence.checkHistory(next!.taskId,[f.first.taskId]))[0];expect(prior?.eligible).toBe(true);
+  await expect(evidence.checkHistory(next!.taskId,[f.second.taskId])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
+  await expect(evidence.checkHistory(next!.taskId,[f.task.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
+  const snapshot=`context:${next!.taskId}:0`,payload={historyGroupIds:[f.first.taskId],messages:[{role:"assistant",content:"Derived parent-only secret fact."}]};
+  await pool.query("INSERT INTO agents_platform.context_snapshots(id,task_id,step,digest,payload,history_cutoff) VALUES($1,$2,0,$3,$4,1)",[snapshot,next!.taskId,requestDigest(payload),payload]);
+  const inherited=await evidence.inheritHistory(next!.taskId,snapshot,[f.first.taskId]);expect(inherited.manifest.dependencies.some(dependency=>dependency.kind==="delegation_input")).toBe(true);
+  await evidence.supplyContext(next!.taskId,snapshot,[]);
+  await f.invalidate();await expect(assertCurrentAuthority(pool,await loadExecution(pool,next!.taskId))).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
  });
  it("retains reviewed memory and inherited brief fences without any object storage",async()=>{
   const f=await fixture("memory",true),manifest=await taskEvidenceManifest(pool,f.first.taskId);

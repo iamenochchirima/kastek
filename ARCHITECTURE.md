@@ -121,6 +121,11 @@ citation snapshots remain in private PostgreSQL. Selected native/MCP public-repo
 read adapters share the controller; authenticated GitHub acceptance remains pending.
 The standalone organization assistant uses ordinary human-principal tasks and pinned business
 specialists, with verified private member links over Telegram/WhatsApp behind organization allowlists.
+Explicit `tool-directed` v4 coordinators discover permitted specialists, start parallel work,
+read paginated results and follow up in isolated child conversations under bounded root policy.
+Schema096 and `product-capabilities-v13` / `AgentsBusinessRunV23` retain durable progress and queued
+user instructions; earlier task workflows remain pinned. See the
+[adaptive orchestration reference](products/agents/docs/operations/adaptive-orchestration.md).
 Its lifecycle and purpose-routing records do not grant cross-product authority. Knowledge source
 bodies and temporary extraction receipts now live in PostgreSQL; unrelated connected evidence and
 artifacts continue to use private object storage. See the [private assistant reference](products/agents/docs/operations/private-assistant.md).

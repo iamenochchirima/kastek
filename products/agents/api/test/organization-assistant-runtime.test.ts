@@ -4,6 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
+import { createServer as httpServer } from "node:http";
+import { access } from "node:fs/promises";
 import { createServer as portServer } from "node:net";
 import { createServer, type ServerHttp2Session } from "node:http2";
 import { createEndpointHandler } from "@restatedev/restate-sdk";
@@ -12,6 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildPlatformApp } from "../src/composition/app";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration } from "../src/contracts/contracts";
+import { HARNESS_RELEASE, WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME } from "../src/contracts/execution";
+import { EvidenceStore } from "../src/execution/context/evidence";
 import { createBusinessWorkflow } from "../src/execution/business/business";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
@@ -42,7 +46,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   let browserPort = 0;
   const sessions = new Set<ServerHttp2Session>();
   const requests: any[] = [];
-  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" = "draft";
+  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" = "draft";
   let controlTarget = "";
   let childBarrier: Promise<void> | null = null;
   const previousEnabled = process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS;
@@ -64,7 +68,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     return port;
   }
   async function listenWorker(workflow: ReturnType<typeof createBusinessWorkflow>, port = 0) {
-    worker = createServer(createEndpointHandler({ services: [workflow] }));
+    worker = createServer(createEndpointHandler({ services: [workflow, workflowForAdaptive()] }));
     worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
     await new Promise<void>(resolve => worker.listen(port, "127.0.0.1", resolve));
     workerPort = (worker.address() as { port: number }).port;
@@ -74,6 +78,29 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     if (worker) await new Promise<void>(resolve => worker.close(() => resolve()));
   }
   function fixtureResponse(body: any) {
+    if (fixtureMode === "adaptive" || fixtureMode === "stalled") {
+      const coordinator = body.messages[0].content.startsWith("ADAPTIVE_FIXTURE");
+      const records = body.messages.filter((message:any)=>message.role==="tool");
+      const named = (name:string) => records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id && call.function.name===name))).map((record:any)=>JSON.parse(record.content));
+      const stages=named("agents_start");
+      const first=stages[0]?.children??[], second=stages[1]?.children??[], revision=named("agents_followup")[0]?.children??[];
+      const result = (taskId:string,offset?:number)=>({name:"agents_result",arguments:JSON.stringify({taskId,...(offset===undefined?{}:{offset})})});
+      let calls:{name:string;arguments:string}[]=[];
+      let content="";
+      const call=(name:string,args:unknown)=>({name,arguments:JSON.stringify(args)});
+      if(fixtureMode === "stalled") calls=[call("agents_discover",{})];
+      else if(!coordinator) content=body.messages.some((message:any)=>message.content?.includes("Revise"))?"REVISED: The confirmed short draft.":body.messages.some((message:any)=>message.content?.includes("long evidence"))?"L".repeat(5000)+" END_EVIDENCE":"Confirmed independent finding.";
+      else if(!named("agents_discover").length) calls=[call("agents_discover",{})];
+      else if(!stages.length) calls=[call("agents_start",{requests:[{bindingId:"content",brief:"Produce long evidence"},{bindingId:"research",brief:"Check the claim"}]}),call("work_update",{expectedRevision:0,record:{objective:"Produce a verified draft",steps:[{id:"draft",title:"Check and revise",state:"in_progress"}],questions:[],evidenceTaskIds:[]}})];
+      else if(!named("work_inspect").length) calls=[call("work_inspect",{}),call("agents_status",{taskIds:first.map((child:any)=>child.taskId)})];
+      else if(!named("agents_wait").length) calls=[call("agents_wait",{taskIds:first.map((child:any)=>child.taskId),mode:"all",timeoutSeconds:30}),...first.map((child:any)=>result(child.taskId))];
+      else if(!revision.length) calls=[call("agents_followup",{taskId:first[0].taskId,brief:"Revise to a short draft"}),call("agents_start",{requests:[{bindingId:"review",brief:"Review the conclusion"}]})];
+      else if(named("agents_wait").length<2) calls=[call("agents_wait",{taskIds:[revision[0].taskId,second[0].taskId],mode:"all",timeoutSeconds:30}),result(revision[0].taskId),result(second[0].taskId)];
+      else if(!named("agents_result").some((value:any)=>value.nextOffset===null&&value.totalBytes>4096)) calls=[result(first[0].taskId,4096)];
+      else content="SYNTHESIS: Revised draft, independent check and specialist review confirmed.";
+      const delta=calls.length?{role:"assistant",content:null,tool_calls:calls.map((fn,index)=>({index,id:`adaptive-${records.length}-${index}`,type:"function",function:fn}))}:{role:"assistant",content};
+      return new Response(`data: ${JSON.stringify({id:"controlled-adaptive",model:body.model,choices:[{index:0,delta,finish_reason:calls.length?"tool_calls":"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
+    }
     if (fixtureMode === "control") {
       const steps = body.messages.filter((message: any) => message.role === "tool").length;
       const call = steps === 0 ? { name: "tasks_inspect", arguments: "{}" } : { name: "tasks_cancel", arguments: JSON.stringify({ taskId: controlTarget }) };
@@ -93,8 +120,9 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       choices: [{ index: 0, delta, finish_reason: delegate ? "tool_calls" : "stop" }], usage: { prompt_tokens: 50, completion_tokens: 10 } })}\n\ndata: [DONE]\n\n`,
     { headers: { "content-type": "text/event-stream" } });
   }
-  function workflow() {
-    return createBusinessWorkflow(pool, { modelProvider: fixtureModelProviders(pool), modelRuntime: {
+  function workflowForAdaptive() { return workflow({release:ADAPTIVE_HARNESS_RELEASE,workflow:ADAPTIVE_WORKFLOW_NAME}); }
+  function workflow(runtimeConfig?: {release:string;workflow:string}) {
+    return createBusinessWorkflow(pool, { evidence: new EvidenceStore(pool), modelProvider: fixtureModelProviders(pool), modelRuntime: {
       dispatch: input => dispatchBoundModel(input, policy => {
         const network = (async (url, request) => {
           if (!policy.authorizeUrl(new URL(String(url)))) throw Error("Fixture destination denied");
@@ -107,8 +135,12 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
         network.markProgress = () => {};
         return network;
       }),
-    } });
+    } }, runtimeConfig);
   }
+  const runtimeRoutes = () => ({
+    [HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: WORKFLOW_NAME },
+    [ADAPTIVE_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: ADAPTIVE_WORKFLOW_NAME },
+  });
   beforeAll(async () => {
     process.env.AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS = "*";
     expect(execFileSync(binary!, ["--version"], { encoding: "utf8" })).toContain("1.7.13");
@@ -128,7 +160,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     pool = new Pool({ connectionString: url.href, max: 10 });
     await setupPlatformSchema(pool);
     store = new PlatformStore(pool);
-    if (process.env.AGENTS_ASSISTANT_BROWSER === "1") { browserPort = await freePort(); origin = `http://127.0.0.1:${browserPort}`; }
+    if (process.env.AGENTS_ASSISTANT_BROWSER === "1" || process.env.AGENTS_ASSISTANT_COMPUTER_USE === "1") { browserPort = await freePort(); origin = `http://127.0.0.1:${browserPort}`; }
     await listenWorker(workflow());
     const registration = await fetch(`${adminUrl}/deployments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uri: `http://127.0.0.1:${workerPort}`, force: false }) });
     expect(registration.ok, await registration.text()).toBe(true);
@@ -175,13 +207,85 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   }
   async function finish(f: Awaited<ReturnType<typeof fixture>>, taskId: string) {
     return eventually(async () => {
-      await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
+      await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes:runtimeRoutes() });
       const response = await app.inject({ method: "GET", url: `${f.base}/tasks/${taskId}`, headers: { cookie: f.cookie } });
       expect(response.statusCode, response.body).toBe(200);
       const task = response.json().task;
       return terminalTaskStates.has(task.state) ? task : false;
     });
   }
+  async function adaptiveFixture() {
+    const f=await fixture();
+    const current=(await pool.query("SELECT draft,draft_revision FROM agents_platform.agents WHERE id=$1",[f.assistant.id])).rows[0];
+    const configuration:AgentConfiguration={...current.draft,program:{id:"tool-directed",version:"4"},instructions:"ADAPTIVE_FIXTURE: Coordinate the requested work with authorized specialists.",
+      model:{...current.draft.model,maxOutputTokens:512},context:{maxInputTokens:24000,compactAtTokens:22000},
+      tools:["agents.discover","agents.start","agents.status","agents.result","agents.wait","agents.followup","agents.cancel","work.update","work.inspect"],
+      capabilities:{...current.draft.capabilities,delegation:{enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:8,maxStalls:3},bindings:["content","research","review"].map(id=>({id,label:id,description:`${id} specialist`,versionId:f.specialist.id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:8000,maxActiveMs:120000}))}}};
+    const specialistConfig={...defaultBusinessConfiguration(),model:{...defaultBusinessConfiguration().model,maxOutputTokens:512},instructions:"CONTENT_FIXTURE: Complete the requested specialist brief."};
+    await store.updateDraft({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:1,configuration:specialistConfig});
+    const specialist=await store.createVersion({accountId:f.owner.id,organizationId:f.organization.id,agentId:f.specialist.agent_id,expectedRevision:2});
+    if(configuration.capabilities.delegation.enabled)for(const binding of configuration.capabilities.delegation.bindings)binding.versionId=specialist.id;
+    const configured=await app.inject({method:"POST",url:`${f.base}/agents/${f.assistant.id}/configuration`,headers:{cookie:f.cookie,origin},payload:{expectedRevision:current.draft_revision,configuration,confirmImpact:true}});
+    expect(configured.statusCode,configured.body).toBe(200);fixtureMode="adaptive";
+    return f;
+  }
+  it("adaptively discovers, runs background specialists, retrieves full results and revises the same specialist thread", async () => {
+    const f=await adaptiveFixture();
+    let releaseChildren!:()=>void;childBarrier=new Promise<void>(resolve=>{releaseChildren=resolve;});
+    const task=await admit(f);
+    await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+    await eventually(async()=>Number((await pool.query("SELECT count(*) FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count)===2);
+    const instruction=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:"Keep the final answer concise.",requestKey:randomUUID()}});
+    expect(instruction.statusCode,instruction.body).toBe(200);releaseChildren();childBarrier=null;
+    const result=await finish(f,task.id).catch(async error=>{console.error("ADAPTIVE_RUNTIME_STATE",JSON.stringify({tasks:(await pool.query("SELECT id,state,error_code,harness_release,runtime_invocation_id FROM agents_platform.tasks WHERE root_task_id=$1",[task.id])).rows,outbox:(await pool.query("SELECT o.* FROM agents_platform.task_outbox o JOIN agents_platform.tasks t ON t.id=o.task_id WHERE t.root_task_id=$1",[task.id])).rows,operations:(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows}));throw error;});
+    expect(result,JSON.stringify({state:result.state,errorCode:result.error_code,operations:(await pool.query("SELECT name,state,error_code,output FROM agents_platform.operations WHERE task_id=$1",[task.id])).rows})).toMatchObject({state:"completed",output:"SYNTHESIS: Revised draft, independent check and specialist review confirmed."});
+    const children=(await pool.query(`SELECT t.id,t.state,t.conversation_id,t.turn_sequence,t.harness_release,d.binding_id,d.prior_task_id FROM agents_platform.tasks t JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1 ORDER BY t.created_at,t.id`,[task.id])).rows;
+    expect(children).toHaveLength(4);expect(children.every(child=>child.state==="completed")).toBe(true);
+    expect(new Set(children.map(child=>child.binding_id))).toEqual(new Set(["content","research","review"]));
+    const followup=children.find(child=>child.prior_task_id);expect(followup.turn_sequence).toBe("2");expect(followup.conversation_id).toBe(children.find(child=>child.id===followup.prior_task_id).conversation_id);
+    expect(children.every(child=>child.harness_release===HARNESS_RELEASE)).toBe(true);
+    expect(requests.some(body=>body.messages.some((message:any)=>message.content?.includes("END_EVIDENCE")))).toBe(true);
+    expect(requests.some(body=>body.messages.some((message:any)=>message.content?.includes("Keep the final answer concise.")))).toBe(true);
+    expect((await pool.query("SELECT revision FROM agents_platform.orchestration_progress WHERE task_id=$1",[task.id])).rows[0].revision).toBe("1");
+  },60_000);
+  it("stops a repeated unproductive model loop with a durable stalled outcome",async()=>{
+    const f=await adaptiveFixture();fixtureMode="stalled";
+    const task=await admit(f);const result=await finish(f,task.id);
+    expect(result).toMatchObject({state:"incomplete",error_code:"ORCHESTRATION_STALLED"});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='agents.discover'",[task.id])).rows[0].count).toBe(3);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count).toBe(0);
+  },45_000);
+
+  (process.env.AGENTS_ASSISTANT_COMPUTER_USE === "1" ? it : it.skip)("holds the real app for computer-use verification",async()=>{
+    const f=await adaptiveFixture(),root=resolve(__dirname,"../../../.."),web=resolve(root,"products/agents/web");
+    const manifest=resolve(root,".audit/adaptive-computer-use.json"),stop=resolve(root,".audit/adaptive-computer-use.stop");
+    await rm(stop,{force:true});
+    const endpoint=await app.listen({host:"127.0.0.1",port:0});
+    const login=httpServer((request,response)=>{
+      if(request.url!=="/__fixture/login"){response.writeHead(404).end();return;}
+      response.setHeader("Set-Cookie",`${f.cookie}; Path=/; HttpOnly; SameSite=Lax`);
+      response.writeHead(302,{location:`${origin}/app/assistant`});response.end();
+    });
+    await new Promise<void>(resolve=>login.listen(0,"127.0.0.1",resolve));
+    const loginPort=(login.address() as {port:number}).port;
+    const frontend=spawn(process.execPath,[resolve(web,"node_modules/vite/bin/vite.js"),"--host","127.0.0.1","--port",String(browserPort)],{cwd:web,env:{...process.env,AGENTS_API_PROXY_TARGET:endpoint},stdio:["ignore","pipe","pipe"]});
+    let frontendOutput="";frontend.stdout?.on("data",chunk=>{frontendOutput+=chunk.toString();});frontend.stderr?.on("data",chunk=>{frontendOutput+=chunk.toString();});
+    try{
+      await eventually(async()=>{if(frontend.exitCode!==null)throw Error(frontendOutput);try{return(await fetch(origin)).ok;}catch{return false;}});
+      await writeFile(manifest,JSON.stringify({loginUrl:`http://127.0.0.1:${loginPort}/__fixture/login`,origin,databaseName,organizationId:f.organization.id,assistantId:f.assistant.id},null,2));
+      const until=Date.now()+15*60_000;
+      while(Date.now()<until){
+        if(await access(stop).then(()=>true,()=>false))return;
+        await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      throw Error("Computer-use fixture reached its time limit");
+    }finally{
+      await new Promise<void>(resolve=>login.close(()=>resolve()));
+      if(frontend.exitCode===null){frontend.kill("SIGTERM");await new Promise<void>(resolve=>frontend.once("exit",()=>resolve()));}
+    }
+  },16*60_000);
+
   it("returns a pinned Content draft through the app once and keeps another member out", async () => {
     const f = await fixture(), key = randomUUID();
     const task = await admit(f, key);
@@ -202,7 +306,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     expect(history.json().conversations).toEqual([]);
     await closeWorker(); await listenWorker(workflow(), workerPort);
     expect((await admit(f, key)).id).toBe(task.id);
-    await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
+    await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes:runtimeRoutes() });
     expect((await pool.query("SELECT id FROM agents_platform.tasks WHERE parent_task_id=$1", [task.id])).rows).toHaveLength(1);
     expect(requests).toHaveLength(3);
   }, 45_000);
@@ -392,7 +496,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     let release!: () => void;
     childBarrier = new Promise<void>(resolve => { release = resolve; });
     try {
-      await dispatchTasksOnce(pool, { ingressUrl, adminUrl });
+      await dispatchTasksOnce(pool, { ingressUrl, adminUrl, runtimeRoutes:runtimeRoutes() });
       await eventually(async () => requests.some(request => request.messages[0].content.startsWith("CONTENT_FIXTURE")));
       const revoked = await app.inject({ method: "DELETE", url: `${f.base}/member-channels/${f.challenge.id}`, headers: { cookie: f.cookie, origin } });
       expect(revoked.statusCode, revoked.body).toBe(200);

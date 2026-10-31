@@ -1,3 +1,4 @@
+import { orchestrationTools } from "../../contracts/orchestration";
 import { assertProductBindings } from "../../capabilities/products/product-capabilities";
 import { PlatformError, requestDigest, type AgentConfiguration } from "../../contracts/contracts";
 import { effectiveCompositionSchema, programReferenceSchema, type EffectiveComposition, type ProgramReference } from "../../contracts/programs";
@@ -5,7 +6,7 @@ import { capabilityBindingSchema, type CapabilityBinding } from "../../contracts
 
 // These descriptors select trusted code policies. A prompt cannot register a program or release.
 interface ProgramDescriptor {
-  readonly id: ProgramReference["id"]; readonly version: "1" | "2" | "3"; readonly executionKind: "business";
+  readonly id: ProgramReference["id"]; readonly version: "1" | "2" | "3" | "4"; readonly executionKind: "business";
   readonly controller: string; readonly input: string; readonly output: string;
   readonly allowedTools: readonly string[]; readonly personalMemory: boolean;
   readonly delegation: boolean; readonly sandbox: boolean; readonly connectedTools: boolean; readonly workflows: readonly string[];
@@ -30,6 +31,7 @@ export function resolveProgram(reference: ProgramReference) {
   if (!parsed.success) throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE", 503, "The trusted program release is unavailable");
   if(parsed.data.id==='tool-directed'&&parsed.data.version==='2')return {...programs['tool-directed'],version:'2' as const,
     allowedTools:[...programs['tool-directed'].allowedTools,'tasks.inspect','tasks.cancel']};
+  if(parsed.data.id==='tool-directed'&&parsed.data.version==='4') return {...programs['tool-directed'],version:'4' as const,controller:'adaptive-business-loop-v1',allowedTools:[...programs['tool-directed'].allowedTools,'tasks.inspect','tasks.cancel',...orchestrationTools]};
   if (parsed.data.version !== "1") {
     if(parsed.data.id!=="tool-directed"||parsed.data.version!=="3")throw new PlatformError("PROGRAM_RELEASE_UNAVAILABLE",503,"The trusted program release is unavailable");
     return {...programs["tool-directed"],version:"3" as const};
@@ -50,6 +52,7 @@ export function compileComposition(reference: ProgramReference, configuration: A
   assertProductBindings(configuration.productBindings);
   if(configuration.productBindings.length && (reference.id!=="tool-directed"||reference.version!=="3"))throw new PlatformError("PROGRAM_COMPOSITION_DENIED",409,"Product tools require a compatible program");
   const denied = () => { throw new PlatformError("PROGRAM_COMPOSITION_DENIED", 409, "The configuration exceeds the trusted program contract"); };
+  if(configuration.capabilities.delegation.enabled && reference.version!=="4" && (configuration.capabilities.delegation.bindings.length>2 || configuration.capabilities.delegation.maxChildren!==2 || configuration.capabilities.delegation.policy)) denied();
   if (configuration.program.id !== reference.id || configuration.program.version !== reference.version) denied();
   if (configuration.executionKind !== program.executionKind) throw new PlatformError("RUNTIME_UNAVAILABLE", 503, "The program requires an available compatible runtime");
   if (configuration.tools.some(name => !program.allowedTools.includes(name) && !(["support.get_status","support.get_status_v2","support.request_handoff","support.request_handoff_v2"].includes(name) && configuration.tools.includes("channel.request_handoff"))) ||

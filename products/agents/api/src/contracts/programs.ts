@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const programReferenceSchema = z.strictObject({
   id: z.enum(["grounded-conversation", "tool-directed"]),
-  version: z.enum(["1", "2", "3"]),
+  version: z.enum(["1", "2", "3", "4"]),
 });
 export type ProgramReference = z.infer<typeof programReferenceSchema>;
 

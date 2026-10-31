@@ -1,3 +1,4 @@
+import { orchestrationContracts } from "../contracts/orchestration";
 import { z } from "zod";
 import { PlatformError, taskStateSchema } from "../contracts/contracts";
 import { recordFieldsSchema } from "../contracts/customer-records";
@@ -15,7 +16,9 @@ const skillResult=z.strictObject({skillId:uuid,revision:z.number().int().positiv
 const bookingSlot=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})});
 export const enquiryFieldsSchema=z.strictObject({name:z.string().trim().min(1).max(200).optional(),email:z.email().max(320).optional(),phone:z.string().trim().min(1).max(80).optional(),service:z.string().trim().min(1).max(200).optional(),message:z.string().trim().min(1).max(4000).optional()});
 const recordResult=z.strictObject({enquiryId:uuid,fields:recordFieldsSchema,status:z.string().max(32),revision:z.string().regex(/^[1-9][0-9]*$/),dueAt:z.iso.datetime({offset:true}).nullable()});
+const adaptiveContracts=Object.fromEntries(Object.entries(orchestrationContracts).map(([name,contract])=>[name,{...contract,authority:["delegation.execute"],resources:["published_specialist_bindings","root_allocation"],reconciliation:name==="agents.start"||name==="agents.followup"?"stable_children":"idempotent_receipt"}]));
 const contracts={
+  ...adaptiveContracts,
   "tasks.inspect":{input:z.strictObject({taskId:uuid.optional(),limit:z.number().int().min(1).max(10).optional()}),output:z.strictObject({tasks:z.array(z.strictObject({id:uuid,state:taskStateSchema,createdAt:z.iso.datetime({offset:true}),updatedAt:z.iso.datetime({offset:true})})).max(10)}),authority:["tasks.read"],resources:["current_human_membership","same_agent_prior_root"],reconciliation:"not_applicable"},
   "tasks.cancel":{input:z.strictObject({taskId:uuid}),output:z.strictObject({taskId:uuid,state:z.enum(["cancel_requested","already_terminal"]),taskState:taskStateSchema}),authority:["tasks.cancel"],resources:["current_human_membership","same_agent_prior_root"],reconciliation:"idempotent_tree_cancellation"},
   "enquiry.read":{input:z.strictObject({}),output:z.strictObject({enquiries:z.array(z.strictObject({enquiryId:uuid,fields:enquiryFieldsSchema,amendsEnquiryId:uuid.nullable()})).max(10)}),authority:["enquiry.read"],resources:["trusted_conversation_participant"],reconciliation:"not_applicable"},

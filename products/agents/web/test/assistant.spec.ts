@@ -90,8 +90,8 @@ test("private account layout fits desktop, tablet and mobile in both themes", as
   }
 });
 
-async function specialistWorkspace(page: Page, options: { taskTools?: boolean; customer?: boolean; productBound?: boolean; programThree?: boolean } = {}) {
-  const configuration = { executionKind: "business", program: { id: "tool-directed", version: options.programThree ? "3" : options.taskTools ? "2" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: options.taskTools ? ["tasks.inspect", "tasks.cancel", "knowledge.search"] : [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
+async function specialistWorkspace(page: Page, options: { taskTools?: boolean; customer?: boolean; productBound?: boolean; programThree?: boolean; adaptive?: boolean } = {}) {
+  const configuration = { executionKind: "business", program: { id: "tool-directed", version: options.adaptive ? "4" : options.programThree ? "3" : options.taskTools ? "2" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], instructions: "Help this member.", context: { maxInputTokens: 8192, compactAtTokens: 6144 }, model: { selection: { kind: "organization_default" }, maxInputBytes: 16384, maxOutputTokens: 4096, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], tools: options.taskTools ? ["tasks.inspect", "tasks.cancel", "knowledge.search"] : [], memory: { enabled: false }, capabilities: { delegation: { enabled: false }, sandbox: { enabled: false }, businessActions: { enabled: false }, workflows: { enabled: false }, schedules: { enabled: false } } };
   const specialist = { agentId: "content", name: "Content", description: "Write private drafts from the supplied brief.", versionId: "content-v1", versionNumber: 1, ready: true, reasons: [], sourceRevisionIds: [], connectedToolBindingIds: [], tools: [] };
   const agent = { id: "assistant-1", name: "Business assistant", offering: options.customer ? "faq" : null, draft: configuration, draftRevision: 1 };
   const saved: unknown[] = [], created: unknown[] = [];
@@ -243,3 +243,98 @@ for (const options of [{ productBound: true, programThree: true }, { productBoun
     expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: options.programThree ? "3" : "1" }, productBindings: options.productBound ? [{ id: "product-binding", alias: "product.read", authority: { kind: "product" } }] : [], tools: ["records.search"] } });
   });
 }
+
+
+test("adaptive orchestration admits a third specialist and saves explicit execution policy", async ({ page }) => {
+  const fixture = await specialistWorkspace(page);
+  await page.goto("/app/agents/assistant-1?section=configuration");
+  const section = page.getByRole("region", { name: "Specialists", exact: true });
+  await section.getByRole("button", { name: "Enable adaptive orchestration" }).click();
+  for (const name of ["Content · v1", "Editor · v1", "Reviewer · v1"]) await section.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) }).getByRole("button", { name: "Add specialist" }).click();
+  await section.getByRole("spinbutton", { name: "Concurrent tasks", exact: true }).fill("4");
+  await section.getByRole("spinbutton", { name: "Total tasks", exact: true }).fill("24");
+  await section.getByRole("spinbutton", { name: "Stall limit", exact: true }).fill("4");
+  expect(fixture.saved).toHaveLength(0);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { id: "tool-directed", version: "4" }, tools: expect.arrayContaining(["agents.discover", "agents.start", "agents.followup", "work.update", "agents.delegate"]), capabilities: { delegation: { maxChildren: 4, maxDepth: 1, policy: { maxTasks: 24, maxStalls: 4 }, bindings: [{ versionId: "content-v1" }, { versionId: "editor-v1" }, { versionId: "reviewer-v1" }] } } } });
+});
+
+test("adaptive execution policy fits supported widths and themes", async ({ page }) => {
+  await specialistWorkspace(page, { adaptive: true });
+  for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/app/agents/assistant-1?section=configuration");
+    const section = page.getByRole("region", { name: "Specialists", exact: true });
+    await expect(section.getByRole("group", { name: "Adaptive orchestration", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await section.screenshot({ path: test.info().outputPath(`adaptive-${theme}-${width}.png`), animations: "disabled" });
+  }
+});
+
+test("task authority additions retain adaptive program version", async ({ page }) => {
+  const fixture = await specialistWorkspace(page, { adaptive: true });
+  await page.goto("/app/agents/assistant-1?section=tools");
+  await page.getByRole("checkbox", { name: "Task status", exact: true }).check();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect.poll(() => fixture.saved.length).toBe(1);
+  expect(fixture.saved[0]).toMatchObject({ configuration: { program: { version: "4" }, tools: ["tasks.inspect"] } });
+});
+
+test("active adaptive work shows progress and queues corrections without losing failed input", async ({ page }) => {
+  await specialistWorkspace(page, { adaptive: true });
+  const queued: Array<{ instruction: string; requestKey: string }> = [];
+  const task = { id: "adaptive-task", state: "waiting_children", conversationId: "adaptive-conversation", input: "Draft our launch", requestKey: "initial", output: null, errorCode: null };
+  await page.route("**/api/**/conversations/adaptive-conversation", route => route.fulfill({ json: { tasks: [task], nextCursor: null, conversation: { agentId: "assistant-1", versionId: "version-1", versionNumber: 1 } } }));
+  await page.route("**/api/**/tasks**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/tasks") && route.request().method() === "POST") task.requestKey = route.request().postDataJSON().requestKey;
+    if (path.endsWith("/instructions")) {
+      queued.push(route.request().postDataJSON());
+      return route.fulfill(queued.length === 1 ? { status: 503, json: { error: { message: "Temporarily unavailable" } } } : { json: { accepted: true } });
+    }
+    return route.fulfill({ json: { task, canSteer: true, orchestration: { revision: 2, record: { objective: "Prepare launch draft", steps: [{ id: "draft", title: "Collect specialist draft", state: "in_progress" }], questions: ["Which audience?"], evidenceTaskIds: [] } }, children: [{ id: "child", agentName: "Content", state: "waiting_review", versionId: "content-v1", output: null }] } });
+  });
+  await page.goto("/app/agents/assistant-1");
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Draft our launch");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  const progress = page.getByRole("region", { name: "Work progress", exact: true });
+  await expect(progress.getByText("Collect specialist draft", { exact: true })).toBeVisible();
+  await expect(progress.getByText("Which audience?", { exact: true })).toBeVisible();
+  const correction = progress.getByRole("textbox", { name: "Update instructions", exact: true });
+  await correction.fill("Write for existing customers.");
+  await progress.getByRole("button", { name: "Queue instructions" }).click();
+  await expect(progress.getByText("Temporarily unavailable", { exact: true })).toBeVisible();
+  await expect(correction).toHaveValue("Write for existing customers.");
+  await progress.getByRole("button", { name: "Queue instructions" }).click();
+  await expect(page.getByText("Instructions queued", { exact: true })).toBeVisible();
+  await expect(correction).toHaveValue("");
+  expect(queued).toHaveLength(2);
+  expect(queued[0]).toEqual(queued[1]);
+  for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: theme });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await progress.screenshot({ path: test.info().outputPath(`progress-${theme}-${width}.png`), animations: "disabled" });
+  }
+  const decisions: unknown[] = [];
+  const review = { id: "child-review", taskId: "child", rootTaskId: task.id, operationId: "child-operation", operationName: "send_message", connectionName: "Workspace", destination: "https://workspace.example.test", effect: "reviewed_write", bindingId: "binding", bindingDigest: "binding-digest", requestDigest: "child-exact-digest", arguments: { message: "Launch draft" }, connectionId: "connection", reviewerAccountId: account.id, state: "pending", expiresAt: new Date(Date.now() + 600000).toISOString() };
+  await page.route("**/api/**/tasks/child**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/decision")) { decisions.push(route.request().postDataJSON()); review.state = "approved"; return route.fulfill({ json: { review } }); }
+    if (path.endsWith("/tool-reviews")) return route.fulfill({ json: { reviews: [review] } });
+    return route.fulfill({ json: { task: { id: "child", state: "waiting_review", hasToolReviews: true, conversationId: "specialist-conversation", output: null, errorCode: null, input: "Draft launch" }, canControl: true, actions: [], children: [], operations: [], events: [] } });
+  });
+  const children = page.getByRole("region", { name: "Specialist tasks", exact: true });
+  await children.getByText("Content", { exact: true }).click();
+  await children.getByRole("link", { name: "Open task", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks\/child$/);
+  const approvals = page.getByRole("region", { name: "Tool approvals", exact: true });
+  await expect(approvals.getByText("Launch draft", { exact: true })).toBeVisible();
+  await approvals.getByRole("button", { name: "Approve action", exact: true }).click();
+  expect(decisions).toHaveLength(0);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Approve action", exact: true }).click();
+  await expect.poll(() => decisions.length).toBe(1);
+  expect(decisions[0]).toEqual({ decision: "approve", requestDigest: "child-exact-digest" });
+});

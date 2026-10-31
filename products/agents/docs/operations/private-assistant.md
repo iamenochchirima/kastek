@@ -10,15 +10,18 @@ revoked grants, channels or automations. Existing organizations use **Set up ass
 
 Configure a model, instructions, approved knowledge and permitted tools through the normal editor.
 **Create specialist** creates an ordinary business definition, initially named Content. Save its
-configuration, then select its published version under the assistant's Specialists. Up to two pinned
-bindings and two outstanding children at depth one are supported. The catalogue checks the parent's
+configuration, then select its published version under the assistant's Specialists. Explicit
+`tool-directed` version 4 configurations support up to 32 pinned bindings, configurable concurrent
+children and bounded follow-ups at depth one. Earlier program versions retain their existing
+batch delegation. See [adaptive orchestration](adaptive-orchestration.md). The catalogue checks the parent's
 actual model route, child allocation and permitted source/tool scope. Updating a specialist does not
 silently update a pin. A text draft remains private to its requesting member; saving to Growth or
 publishing content is not implemented by this feature.
 
 ## Enablement and linking
 
-Deploy matching API, worker and web code with schema094 and schema095. `setup:db` recognizes
+Deploy matching API, worker and web code with schema094 and schema095; adaptive orchestration
+also requires schema096 and its V23 worker. `setup:db` recognizes
 exact preceding schema checksums; do not bypass its rejection of unknown databases. No historical
 installation migration or unrelated database change is required.
 
@@ -107,8 +110,9 @@ Provider authentication proves transport origin, not membership. Challenge theft
 pending identity requiring signed-in confirmation. Cross-asset challenges, replay, expired challenges,
 group senders, wrong actors, stale revisions and removed memberships fail closed. Link generations
 prevent queued results and approval callbacks from reaching a stale phone identity. Explicit private
-routing precedes customer processing, including revoked-route tombstones. No provider credential,
-other-member transcript, personal memory or arbitrary history enters a specialist brief. Root budgets,
+routing precedes customer processing, including revoked-route tombstones. Specialists inherit no provider credential,
+other-member transcript, personal-memory namespace or arbitrary parent history. Parent-selected
+briefs remain derived inputs and retain their original evidence fences. Root budgets,
 source fences, current tool permissions and one-level delegation are enforced by the shared runtime.
 
 ## Release record

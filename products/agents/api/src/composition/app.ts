@@ -1,3 +1,4 @@
+import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
 import { specialistCatalogue } from "../product/assistant/specialists";
 import { OrganizationAssistantStore } from "../product/agents/organization-assistant";
 import { MemberChannels } from "../product/assistant/member-channels";
@@ -608,7 +609,20 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
       .map(a=>({...a,downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${a.id}`}));
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
     const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
-    return { actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    const configuration=agentConfigurationSchema.parse((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[task.version_id])).rows[0].configuration);
+    const adaptive=configuration.program.id==="tool-directed"&&configuration.program.version==="4"&&!task.parent_task_id;
+    let orchestration=adaptive?await readWorkProgress(pool,task.id):undefined;
+    if(orchestration?.record){
+      const conversation=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
+      try{
+        if(!conversation||conversation.deleted_at)throw new PlatformError("CONVERSATION_DELETED",403,"Conversation unavailable");
+        const policy=await import("../execution/context/evidence");
+        await policy.assertCurrentEvidence(pool,task.id,await policy.taskEvidenceManifest(pool,task.id),{requireActiveTask:false});
+      }catch(error){if(!(error instanceof PlatformError))throw error;orchestration={revision:orchestration.revision,record:null};}
+    }
+    let canSteer=adaptive&&canControl&&task.principal.kind==="human"&&!terminalTaskStates.has(task.state)&&task.state!=="cancel_requested";
+    if(canSteer)try{await authorizeOrchestration(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;canSteer=false;}
+    return { orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);
@@ -645,6 +659,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const result=await taskArtifacts.download(user.id,task.organization_id,task.id,uuid.parse(parameters(request).artifactId));
     return reply.header("content-type",result.artifact.contentType).header("content-disposition",`attachment; filename="${result.artifact.name}"`)
       .header("cache-control","private, no-store").header("x-content-type-options","nosniff").send(Buffer.from(result.content));
+  });
+  app.post(`${base}/tasks/:taskId/instructions`, async request => {
+    const {task,reviewOnly}=await humanTask(request);
+    if(reviewOnly||task.principal.kind!=="human"||task.parent_task_id)throw new PlatformError("ACCESS_DENIED",403,"Task instructions are unavailable");
+    return queueOrchestrationInstruction(pool,task.id,request.body);
   });
   app.post(`${base}/tasks/:taskId/continue`, async request => {
     const { task, authority } = await humanTask(request);

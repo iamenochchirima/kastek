@@ -14,7 +14,7 @@ import { writeExecutionObject } from "../artifacts/execution-objects";
 import { assertCurrentAuthority,loadExecution,type Execution } from "../lifecycle/execution";
 import { historyPrincipalAllowed } from "./visitor-lineage";
 
-import { assertCurrentEvidence,bindingAllowed,boundedText,citationLabels,ConnectedEvidenceInput,Db,delegationDependency,denied,dto,EvidenceKind,EvidenceNode,EvidencePassage,inspectionAuthority,integrity,memoryVisible,nodeDto,owner,payloadHas,ProductEvidenceInput,suppliedNodes,taskEvidenceManifest,unavailable } from "./evidence-policy";
+import { assertCurrentEvidence,bindingAllowed,boundedText,childHistoryAllowed,citationLabels,ConnectedEvidenceInput,Db,delegationDependency,denied,dto,EvidenceKind,EvidenceNode,EvidencePassage,inspectionAuthority,integrity,memoryVisible,nodeDto,owner,payloadHas,ProductEvidenceInput,suppliedNodes,taskEvidenceManifest,unavailable } from "./evidence-policy";
 export { assertChildConnectedAuthority,assertCurrentAuthority,assertCurrentEvidence,assertDelegationInputEvidence,bindingAllowed,boundedText,citationLabels,ConnectedEvidenceInput,connectionEvidenceBinding,Db,delegationDependency,delegationInput,denied,dto,EvidenceKind,EvidenceNode,EvidencePassage,historyOrigins,inspectionAuthority,integrity,memoryVisible,nodeDto,owner,payloadHas,rootRoleAllows,sourceAllowed,suppliedNodes,taskEvidenceManifest,unavailable } from "./evidence-policy";
 export type { ProductEvidenceInput } from "./evidence-policy";
 export class EvidenceStore {
@@ -179,8 +179,8 @@ export class EvidenceStore {
   private async history(db:Db,execution:Execution,priorTaskId:string):Promise<{taskId:string;eligible:boolean;omissionCode?:string;evidenceIds:string[];manifest:DependencyManifest;originNodeIds:string[]}>{
     const empty={taskId:priorTaskId,evidenceIds:[] as string[],manifest:createDependencyManifest([]),originNodeIds:[] as string[]};
     const prior=(await db.query(`SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2 AND conversation_id=$3
-      AND turn_sequence<$4 AND parent_task_id IS NULL`,[priorTaskId,execution.task.organization_id,execution.task.conversation_id,execution.task.turn_sequence])).rows[0];
-    if(!prior||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(prior.state)||!await historyPrincipalAllowed(db,execution,await loadExecution(db,prior.id)))throw denied();
+      AND turn_sequence<$4`,[priorTaskId,execution.task.organization_id,execution.task.conversation_id,execution.task.turn_sequence])).rows[0];
+    if(!prior||(execution.task.parent_task_id?!await childHistoryAllowed(db,execution,await loadExecution(db,prior.id)):!!prior.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(prior.state)||!await historyPrincipalAllowed(db,execution,await loadExecution(db,prior.id)))throw denied();
     const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[prior.root_task_id])).rows.map(nodeDto);
     const roots=rows.filter(node=>node.taskId===priorTaskId),graph=new Map(rows.map(node=>[node.id,node]));
     const manifest=collectDependencyGraph(roots.map(node=>node.id),graph),ids=new Set<string>(),seen=new Set<string>();
@@ -291,6 +291,22 @@ export class EvidenceStore {
         JOIN agents_platform.delegations d ON d.child_task_id=t.id
         WHERE d.parent_task_id=$1 AND d.operation_id=$2 AND t.state IN ('completed','incomplete','refused','failed','cancelled','uncertain') AND t.output IS NOT NULL AND n.kind='child_result' ORDER BY n.id`,[taskId,operationId])).rows.map(nodeDto);
       return this.node(db,execution,"input",operationId,[],children);
+    });
+  }
+  async joinChild(taskId:string,operationId:string,childTaskId:string):Promise<EvidenceNode>{
+    return this.scoped(taskId,async(db,execution)=>{
+      await this.operation(db,taskId,operationId,["agents.result","agents.wait"]);
+      const child=(await db.query(`SELECT t.id,t.state,t.output FROM agents_platform.tasks t
+        JOIN agents_platform.delegations d ON d.child_task_id=t.id
+        JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+        WHERE t.id=$1 AND t.parent_task_id=$2 AND t.root_task_id=$2 AND d.parent_task_id=$2
+          AND t.organization_id=$3 FOR SHARE OF c`,[childTaskId,taskId,execution.task.organization_id])).rows[0];
+      if(!child)throw denied();
+      if(!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.state))throw new PlatformError("CHILD_OUTCOME_PENDING",409,"Specialist outcome is not yet available");
+      await assertCurrentEvidence(db,child.id,await taskEvidenceManifest(db,child.id),{requireActiveTask:false});
+      const parents=child.output===null?[]:(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE task_id=$1 AND kind='child_result' ORDER BY id",[child.id])).rows.map(nodeDto);
+      if(child.output!==null&&!parents.length)throw integrity();
+      return this.node(db,execution,"input",`${operationId}:${childTaskId}`,[],parents);
     });
   }
   async validateCitations(taskId: string, text: string): Promise<EvidencePassage[]> {

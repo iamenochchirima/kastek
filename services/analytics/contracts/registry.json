@@ -476,6 +476,16 @@
       "owner": "agent-platform",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.orchestration.lifecycle@1",
+      "schema": "events/agent/orchestration_lifecycle/v1.schema.json",
+      "examples": [
+        "examples/agent/orchestration_lifecycle.json"
+      ],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }
