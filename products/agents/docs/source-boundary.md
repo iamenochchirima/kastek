@@ -884,7 +884,8 @@ shared harness acceptance fixtures. Full Agency execution and production deploym
 
 Growth uses `product/integrations/growth-execution.ts` for private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
-Growth API `src/agents/manifest.ts`. `tool-directed@3` compiles selected immutable product bindings;
+Growth API `src/agents/manifest.ts`. Managed revision 3 publishes a `tool-directed@4` assistant
+with three pinned same-business `tool-directed@3` specialists. Both compile immutable product bindings;
 `execution/products/product-runtime.ts` routes calls and opaque reviews through installed product
 ports. The shared loop has no Growth preset dispatch. Runtime clients and credentials are scoped
 to each runtime instance; global descriptor registration cannot redirect another instance.
@@ -898,7 +899,11 @@ Growth exposes bounded workspace context/help, content discovery/read, WhatsApp 
 discovery/read, explicit-range analytics and reviewed DRAFT creation through existing domain
 services. Presets share tools. Exact operation authority and account scope govern draft writes,
 not the preset name. Each read preserves its source/binding/revision through context, compaction,
-history and later checks. Native knowledge bindings, skills, memory, delegation, sandbox,
+history and later checks. The assistant uses the shared adaptive loop for discovery, concurrent
+children, result inspection and revisions. Signed active instructions, authority continuation,
+root cancellation and child review projections retain Growth's initiating actor and business.
+Child authority intersects the root's product scope and current enabled specialist pin, with no
+standalone Agents membership. Native knowledge bindings, skills, memory, sandbox,
 workflows and external connections remain unavailable under the initial Growth product policy.
 See [Product capabilities](product-capabilities.md) and [Growth integration](growth-integration.md).
 
@@ -1757,8 +1762,12 @@ deadline sweeps are bounded to 128 rows; continuation publication uses leased cl
 locks, provisional generation-fenced grants, active holds and a transactional
 notification outbox. Operation admission must commit a waiting decision, wait for
 its durable notification, then recheck authority before activating a grant.
-Active or uncertain provider calls retain their holds until confirmed settlement
-or explicit reconciliation. Provisional grants may expire; an expired generation
+Active or uncertain business-effect calls retain their holds until confirmed settlement
+or explicit reconciliation. Uncertain model/compaction calls have a narrower local-capacity exception:
+the capacity phase releases their physical slots after the persisted transport deadline, only with a
+matching private model-continuation record proving the bounded dispatch path. This does not change
+uncertain outcomes, token/time accounting or monetary reservations, and never retries the call.
+Provisional grants may expire; an expired generation
 cannot start a call. No provider wait holds a database transaction.
 Each bucket has numbered permit slots with a unique bucket/slot constraint and
 database-enforced immutable bounds. Compatible configuration locks and indexed
@@ -1935,7 +1944,8 @@ Restate promise and its fixed queue deadline. The notification handler checks th
 native request, task and generation before resolving that promise. A queued
 operation rechecks grants, ownership, source/memory policy and root limits before
 activating its permit. Confirmed settlement releases its holds exactly once;
-uncertain settlement retains them. Ordinary capacity waits do not poll every
+uncertain business-effect settlement retains them. Proven bounded model/compaction capacity is
+reclaimed after its transport deadline through the normal capacity phase. Ordinary capacity waits do not poll every
 250 ms. Connected-read reconciliation may separately retry its existing status
 check with a bounded durable delay.
 

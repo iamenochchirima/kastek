@@ -60,3 +60,10 @@ export function createProductBindings(manifestInput:ProductCapabilityManifest,or
 }
 export function productModelTools(bindings:readonly CapabilityBinding[]):ToolDefinition[]{assertProductBindings(bindings);return bindings.map(binding=>({type:"function",function:{name:binding.alias,description:binding.definition.description,parameters:binding.definition.inputSchema as Record<string,unknown>}}));}
 export function productAdapter(binding:CapabilityBinding):InstalledProductAdapter{productDescriptor(binding);return productAdapterRegistry.resolve(binding);}
+
+/** Binding identities are publication-local; authority requires identical validated descriptors and scope. */
+export function sameProductAuthority(left:CapabilityBinding,right:CapabilityBinding):boolean {
+  productDescriptor(left);productDescriptor(right);
+  const scope=(binding:CapabilityBinding)=>{const {id,alias,digest,...authority}=binding;return authority;};
+  return canonicalJson(scope(left))===canonicalJson(scope(right));
+}

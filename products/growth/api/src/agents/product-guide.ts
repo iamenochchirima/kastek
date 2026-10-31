@@ -4,7 +4,7 @@ import { requireCapability } from "../services/billing.js";
 import type { GrowthAgentScope } from "./scope.js";
 
 const pages = [
-  { title: "Agents", route: "/agents", capability: null, purpose: "Private agent conversations, task status and review.", agentActions: ["Read authorized business context and discover permitted records", "Continue or cancel your tasks"] },
+  { title: "Agents", route: "/agents", capability: null, purpose: "Private agent conversations, task status and review.", agentActions: ["Read authorized business context and discover permitted records", "Coordinate permitted specialists", "Update, continue or cancel your tasks"] },
   { title: "Workspace", route: "/workspace/settings", capability: null, purpose: "Business settings. Page permissions govern changes.", agentActions: ["Explain the current business details"] },
   { title: "Content", route: "/content/posts", capability: "feature.content.manage", purpose: "Review and edit content drafts and their connected accounts.", agentActions: ["Suggest content", "Prepare an editable draft review", "Save the exact approved draft to a selected connected account"] },
   { title: "Campaigns", route: "/campaigns", capability: "feature.campaigns.manage", purpose: "Manage WhatsApp campaigns and inspect their delivery.", agentActions: ["Find and read permitted WhatsApp campaigns", "Explain observed status and recommend changes"] },
@@ -21,9 +21,9 @@ export async function growthAgentProductGuide(core: CoreContext, scope: GrowthAg
     visible.push({ title: page.title, route: page.route, purpose: page.purpose, agentActions: page.agentActions });
   }
   return {
-    revision: "growth-product-guide-v2", pages: visible,
+    revision: "growth-product-guide-v3", pages: visible,
     unavailableAgentActions: ["External web research", "Automatic publishing or scheduling", "Campaign launch or recipient changes",
-      "Autonomous replies to Growth Inbox conversations", "Personal memory, subagents or sandbox execution in Growth features"],
+      "Autonomous replies to Growth Inbox conversations", "Personal memory or sandbox execution in Growth features"],
     customerChannelSetup: "Customer-facing website and messaging agents use the separate Agents platform deployment and Inbox.",
   };
 }

@@ -1,4 +1,4 @@
-import { growthAgentPublication } from "../agents/manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2 } from "../agents/manifest.js";
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { metrics } from "@opentelemetry/api";
@@ -19,7 +19,7 @@ export function growthAgentSetupRetryDelay(attempt: number, random = Math.random
 }
 export function growthAgentSetupRequest(job: GrowthAgentSetupJob): GrowthAgentProvisionRequest {
   return { version: "1", requestId: job.requestId, tenantId: job.orgId, defaultsRevision: job.defaultsRevision,
-    modelProfileId: job.modelProfileId, modelProfileRevision: job.modelProfileRevision, ...(job.defaultsRevision==="2"?{publication:growthAgentPublication,upgradeDefaults:true}:{}) };
+    modelProfileId: job.modelProfileId, modelProfileRevision: job.modelProfileRevision, ...(["2","3"].includes(job.defaultsRevision)?{publication:job.defaultsRevision==="2"?growthAgentPublicationV2:growthAgentPublication,upgradeDefaults:true}:{}) };
 }
 export async function claimGrowthAgentSetups(core: CoreContext, owner: string, limit = 5): Promise<GrowthAgentSetupJob[]> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new Error("Setup batch must be between 1 and 20");

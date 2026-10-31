@@ -8,11 +8,12 @@ import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthCapabilityManifest } from "./manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2 } from "./manifest.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const validators=new Map(growthCapabilityManifest.operations.map(o=>[o.operation,ajv.compile(o.inputSchema)]));
+const publications = new Map([growthAgentPublicationV2, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
 function reviewReference(review:GrowthAgentReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
     state:review.state==="executing"||review.state==="failed"?"uncertain":review.state,expiresAt:review.expiresAt};
@@ -26,10 +27,10 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
       typeof command.taskId!=="string"||typeof command.conversationId!=="string"||!command.actor||!command.authority||
       typeof command.bindingId!=="string"||!/^[a-f0-9]{64}$/.test(command.bindingDigest)||
       !["invoke","authorize","prepare","review","commit","evidence"].includes(command.control))throw new ApiError(400,"agent_capability_invalid","Check the capability request");
-    const authority=command.authority,descriptor=growthCapabilityManifest.operations.find(o=>o.operation===command.operation);
+    const authority=command.authority, publication=publications.get(authority.policyRevision), manifest=publication?.manifest, descriptor=manifest?.operations.find(o=>o.operation===command.operation);
     if(!descriptor||authority.kind!=="product"||authority.originProduct!=="growth"||authority.destinationProduct!=="growth"||
-      authority.originTenantId!==authority.tenantId||authority.mappingRef!==`growth:${authority.tenantId}`||authority.policyRevision!=="2"||
-      authority.manifestDigest!==growthCapabilityManifest.digest||authority.descriptorDigest!==growthAgentDigest(descriptor)||authority.handlerRef!==descriptor.handlerRef)
+      authority.originTenantId!==authority.tenantId||authority.mappingRef!==`growth:${authority.tenantId}`||!publication||
+      authority.manifestDigest!==manifest!.digest||authority.descriptorDigest!==growthAgentDigest(descriptor)||authority.handlerRef!==descriptor.handlerRef)
       throw new ApiError(403,"agent_capability_denied","The capability is not authorized");
     const scope={tenantId:authority.tenantId,actor:command.actor};
     await authorizeGrowthAgentScope(core,scope);
@@ -58,7 +59,7 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
       const result=action.operation==="draft.commit"?await reviews.commit(action):await reviews.reconcile(action);
       return {value:result,review:reviewReference(result.review,command.operationId),...(result.result?{receipt:{id:result.result.recordId,operationId:command.operationId,payloadDigest:result.result.payloadDigest,state:"saved" as const}}:{})};
     }
-    if(!validators.get(command.operation)?.(command.input))throw new ApiError(422,"agent_tool_arguments_invalid","Check the tool arguments");
+    if(!validators.get(manifest!.digest)?.get(command.operation)?.(command.input))throw new ApiError(422,"agent_tool_arguments_invalid","Check the tool arguments");
     const input=command.input as Record<string,unknown>;
     if(command.operation==="draft.prepare"){
       if(command.control!=="prepare")throw new ApiError(403,"agent_review_required","The change requires review");

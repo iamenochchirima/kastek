@@ -9,7 +9,7 @@ import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthCapabilityManifest, growthAgentPresets } from "../src/agents/manifest.js";
+import { growthCapabilityManifest, growthAgentPresets, growthAgentPublicationV2 } from "../src/agents/manifest.js";
 import { registerGrowthCapabilityRoutes } from "../src/agents/capability-routes.js";
 import { discoverGrowthRecords, readGrowthRecord } from "../src/agents/tools.js";
 import type { CoreContext } from "../src/context.js";
@@ -64,13 +64,17 @@ test("real content discovery and continuation retain current tenant, actor, sour
     registerGrowthCapabilityRoutes(app,core);
     const descriptor=growthCapabilityManifest.operations.find(o=>o.operation==="content.read")!;
     const command={version:"1",requestId:randomUUID(),operationId:"read-one",taskId:randomUUID(),conversationId:randomUUID(),actor:scope.actor,
-      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:"2",
+      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:"3",
         manifestDigest:growthCapabilityManifest.digest,descriptorDigest:growthAgentDigest(descriptor),handlerRef:descriptor.handlerRef},
       bindingId:randomUUID(),bindingDigest:"a".repeat(64),operation:"content.read",control:"invoke",input:{resourceId:"a"}};
     async function send(body:unknown){const token=await new SignJWT({product:"growth",requestDigest:growthAgentDigest(body)}).setProtectedHeader({alg:"RS256",kid:"agents-v1"})
       .setIssuer("https://agents.kasitek.co.za").setAudience("product-capability-actions").setSubject("agents-worker").setJti(randomUUID()).setIssuedAt().setExpirationTime("60s").sign(keys.privateKey);
       return app.inject({method:"POST",url:"/internal/agents/capabilities",headers:{authorization:"Bearer "+token},payload:body});}
     const accepted=await send(command);assert.equal(accepted.statusCode,200);
+    const legacyDescriptor=growthAgentPublicationV2.manifest.operations.find(operation=>operation.operation==="content.read")!;
+    const legacy={...command,authority:{...command.authority,policyRevision:"2",manifestDigest:growthAgentPublicationV2.manifest.digest,descriptorDigest:growthAgentDigest(legacyDescriptor)}};
+    assert.equal((await send(legacy)).statusCode,200);
+    assert.equal((await send({...legacy,authority:{...legacy.authority,manifestDigest:growthCapabilityManifest.digest}})).statusCode,403);
     const source=accepted.json().sources[0];assert.match(source.id,/^growth-resource:[a-f0-9]{64}$/);
     assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,200);
     await pool.query('INSERT INTO "OrganizationMember" VALUES(\'org\',\'outsider\')');

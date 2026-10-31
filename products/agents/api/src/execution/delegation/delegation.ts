@@ -1,3 +1,4 @@
+import { sameProductAuthority } from "../../capabilities/products/product-capabilities";
 import { delegatedSkills } from "./skills";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
@@ -60,9 +61,11 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
     for(const request of parsed.requests) {
       const binding=config.capabilities.delegation.bindings.find(item=>item.id===request.bindingId);
       if(!binding) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist is not permitted");
+      if(!options.adaptive&&binding.maxTokens>12000)throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Legacy delegation allocations cannot exceed 12,000 tokens");
       const version=(await db.query("SELECT v.* FROM agents_platform.agent_versions v JOIN agents_platform.agents a ON a.id=v.agent_id AND a.organization_id=v.organization_id WHERE v.organization_id=$1 AND v.id=$2 AND a.deleted_at IS NULL FOR SHARE OF v,a",[task.organization_id,binding.versionId])).rows[0];
       if(previous && version?.id!==previous.version_id) throw new PlatformError("SPECIALIST_SCOPE_DENIED",403,"Specialist version changed");
       if(!version) throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Specialist version is unavailable");
+      if(task.product==="growth"&&!(await db.query("SELECT 1 FROM agents_platform.product_execution_features WHERE product='growth' AND organization_id=$1 AND agent_id=$2 AND feature_id IN ('research','content','campaigns') AND enabled FOR SHARE",[task.organization_id,version.agent_id])).rowCount)throw new PlatformError("DELEGATION_BINDING_DENIED",403,"Growth specialist is unavailable");
       const childConfig=agentConfigurationSchema.parse(version.configuration);
       const sourceRevisionIds=request.sourceRevisionIds??binding.sourceRevisionIds, connectedToolBindingIds=request.connectedToolBindingIds??binding.connectedToolBindingIds;
       const sandboxAllowed=options.adaptive && childConfig.capabilities.sandbox.enabled && config.capabilities.sandbox.enabled &&
@@ -72,6 +75,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
         connectedToolBindingIds.some(id=>!binding.connectedToolBindingIds.includes(id)||!childConfig.connectedToolBindingIds.includes(id)||!connectedToolAuthorityIds(config).includes(id)) ||
         binding.tools.some(name=>!childConfig.tools.includes(name)) || Buffer.byteLength(request.brief)>childConfig.model.maxInputBytes ||
         (request.maxTokens??binding.maxTokens)>binding.maxTokens) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist request exceeds its published scope");
+      if(task.product!=="agents" && (task.product!=="growth" || childConfig.productBindings.some(child=>!config.productBindings.some(parent=>sameProductAuthority(parent,child))))) throw new PlatformError("DELEGATION_SCOPE_DENIED",403,"Specialist product capabilities exceed the coordinator grant");
       const effectiveBindings=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[task.organization_id,connectedToolBindingIds])).rows;
       assertConnectedBindingDependencies(effectiveBindings.map(row=>capabilityBindingSchema.parse(row.binding)));
       const effective={...childConfig,sourceRevisionIds,connectedToolBindingIds,tools:binding.tools,memory:{enabled:false},
@@ -90,7 +94,7 @@ export async function admitChildren(pool: Pool, parentId: string, operationId: s
       const id=randomUUID(),conversationId=previous?.conversation_id??randomUUID();
       let sequence=1;
       const grant=executionGrantSchema.parse({id:randomUUID(),product:task.product,organizationId:task.organization_id,resourceId:item.version.agent_id,
-        callerClientId:"agents-delegation",principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.skillIds.length?["skill.read"]:[]),...(item.effective.capabilities.sandbox.enabled?["sandbox.execute","artifact.read","artifact.write"]:[]),...(item.effective.connectedToolBindingIds.length?["connected.read","connected.execute"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
+        callerClientId:task.product==="agents"?"agents-delegation":task.caller_client_id,principal:task.principal,versionId:item.version.id,operations:["model.reply","knowledge.read",...(item.effective.productBindings.length?["product.read",...(item.effective.productBindings.some(binding=>binding.policy.effect==="reviewed_write")?["product.write"]:[])]:[]),...(item.effective.skillIds.length?["skill.read"]:[]),...(item.effective.capabilities.sandbox.enabled?["sandbox.execute","artifact.read","artifact.write"]:[]),...(item.effective.connectedToolBindingIds.length?["connected.read","connected.execute"]:[])],sourceRevisionIds:item.effective.sourceRevisionIds,connectedToolBindingIds:item.effective.connectedToolBindingIds,
         maxInputBytes:item.effective.model.maxInputBytes,maxOutputTokens:item.effective.model.maxOutputTokens,maxContextTokens:item.effective.context.maxInputTokens,
         rootTokenLimit:item.maxTokens,expiresAt:new Date(task.deadline_at).toISOString(),revokedAt:null});
       await db.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,

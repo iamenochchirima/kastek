@@ -7,7 +7,7 @@ import {defaultBusinessConfiguration,executionGrantSchema,type AdmissionAuthorit
 import {PlatformStore} from "../src/product/agents/store";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {beginOperation,finishOperation,settleTask} from '../src/execution/lifecycle/execution';
-import {advanceCapacity} from "../src/execution/scheduling/capacity";
+import {advanceCapacity,reclaimExpiredModelCapacity} from "../src/execution/scheduling/capacity";
 import {persistOperationReceipt} from "../src/execution/scheduling/receipt-persistence";
 const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (dbUrl?describe:describe.skip)("native operation capacity PostgreSQL",()=>{
@@ -97,6 +97,33 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE operation_id=$1',[input.id])).rows[0].n).toBe(0);
   await finishOperation(pool,task!.id,input.id,'uncertain',null,'PREVIOUS_OUTCOME_UNCERTAIN',0,second.operation.attempt_id);
   expect(await finishOperation(pool,task!.id,input.id,'completed',{answer:'Late'},null,0,second.operation.attempt_id)).toMatchObject({state:'uncertain',output:null,error_code:'PREVIOUS_OUTCOME_UNCERTAIN'});
+ });
+ it('reclaims only proven expired generation slots once without changing conservative accounting',async()=>{
+  const [a,b]=await tasks(),inputs=[{id:randomUUID(),kind:'model' as const,name:'model.generate',request:{},reservedTokens:100,reservedMs:1000},{id:randomUUID(),kind:'compaction' as const,name:'context.compact',request:{},reservedTokens:100,reservedMs:1000}];
+  for(const [i,input]of inputs.entries()){
+   const task=[a,b][i]!;await beginOperation(pool,task.id,input);
+   await pool.query("INSERT INTO agents_platform.private_model_continuations(operation_id,organization_id,task_id,role,route_binding_digest,request_digest,state) VALUES($1,$2,$3,$4,$5,$5,'started')",[input.id,task.organization_id,task.id,i?'compaction':'primary','0'.repeat(64)]);
+   await finishOperation(pool,task.id,input.id,'uncertain',null,'MODEL_CANCELLED',100);
+  }
+  const accounting=async()=>({tasks:(await pool.query("SELECT id,state,error_code,tokens_used,tokens_reserved,active_ms,active_reserved_ms,root_token_limit FROM agents_platform.tasks WHERE id=ANY($1::uuid[]) ORDER BY id",[[a!.id,b!.id]])).rows,
+   roots:(await pool.query("SELECT * FROM agents_platform.execution_roots WHERE root_task_id=ANY($1::uuid[]) ORDER BY root_task_id",[[a!.id,b!.id]])).rows,
+   operations:(await pool.query("SELECT * FROM agents_platform.operations WHERE id=ANY($1::text[]) ORDER BY id",[inputs.map(input=>input.id)])).rows,
+   usage:(await pool.query("SELECT * FROM agents_platform.operation_usage WHERE operation_id=ANY($1::text[]) ORDER BY operation_id",[inputs.map(input=>input.id)])).rows,
+   costs:(await pool.query("SELECT * FROM agents_platform.model_cost_reservations WHERE operation_id=ANY($1::text[]) ORDER BY operation_id",[inputs.map(input=>input.id)])).rows,
+   accounts:(await pool.query("SELECT * FROM agents_platform.root_model_accounts WHERE root_task_id=ANY($1::uuid[]) ORDER BY root_task_id",[[a!.id,b!.id]])).rows});
+  const before=await accounting();expect(await reclaimExpiredModelCapacity(pool)).toBe(0);
+  await new Promise(resolve=>setTimeout(resolve,1100));
+  const releases=await Promise.all([reclaimExpiredModelCapacity(pool),reclaimExpiredModelCapacity(pool)]);expect(releases.reduce((a,b)=>a+b,0)).toBe(2);
+  expect(await reclaimExpiredModelCapacity(pool)).toBe(0);expect(await accounting()).toEqual(before);
+  expect((await pool.query("SELECT count(*)::int n FROM agents_platform.capacity_holds WHERE request_id=ANY($1::text[])",[inputs.map(input=>input.id)])).rows[0].n).toBe(0);
+  expect((await pool.query("SELECT count(*)::int n FROM agents_platform.task_events WHERE task_id=ANY($1::uuid[]) AND kind='resource.capacity_released'",[[a!.id,b!.id]])).rows[0].n).toBe(2);
+ });
+ it('retains uncertain business effects and generation without persisted bounded-path proof',async()=>{
+  const [a,b]=await tasks(),inputs=[{id:randomUUID(),kind:'tool' as const,name:'external.business.write',request:{},reservedTokens:0,reservedMs:1000},{id:randomUUID(),kind:'model' as const,name:'model.generate',request:{},reservedTokens:100,reservedMs:1000}];
+  for(const [i,input]of inputs.entries()){const task=[a,b][i]!;await beginOperation(pool,task.id,input);await finishOperation(pool,task.id,input.id,'uncertain',null,'UNCONFIRMED_EXTERNAL_OUTCOME',input.reservedTokens);}
+  await new Promise(resolve=>setTimeout(resolve,1100));await advanceCapacity(pool);
+  expect((await pool.query("SELECT state FROM agents_platform.capacity_requests WHERE id=ANY($1::text[])",[inputs.map(input=>input.id)])).rows).toEqual([{state:'uncertain'},{state:'uncertain'}]);
+  expect((await pool.query("SELECT count(DISTINCT request_id)::int n FROM agents_platform.capacity_holds WHERE request_id=ANY($1::text[])",[inputs.map(input=>input.id)])).rows[0].n).toBe(2);
  });
  it('bounds receipt retries and does not retry invariant failures',async()=>{
   let transient=0;await expect(persistOperationReceipt(async()=>{transient++;throw Object.assign(Error('Disconnected'),{code:'08006'});})).rejects.toMatchObject({code:'08006'});expect(transient).toBe(3);

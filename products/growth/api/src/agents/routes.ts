@@ -76,7 +76,7 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     await enqueueGrowthAgentCommand(core.pool, auth, { operation, requestId: commandId,
       featureId: acknowledged.task?.featureId ?? acknowledged.conversation?.featureId ?? (input as { featureId?: GrowthAgentFeatureId }).featureId ?? null,
       conversationId: acknowledged.task?.conversationId ?? acknowledged.conversation?.id ?? (input as { conversationId?: string }).conversationId ?? null,
-      taskId: acknowledged.task?.id ?? null, outcome: "accepted", failureCode: null });
+      taskId: acknowledged.task?.id ?? (input as { taskId?: string }).taskId ?? null, outcome: "accepted", failureCode: null });
     return result;
   }
   const id = (request: FastifyRequest, name: string) => string((request.params as Record<string, unknown>)[name], name);
@@ -132,32 +132,74 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   app.get("/api/agents/tasks", request => invoke(request, "tasks.list", page(request, ["conversationId", "state", "search"])));
   app.get("/api/agents/tasks/:taskId", request => invoke(request, "tasks.get", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/export", request => invoke(request, "tasks.export", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/specialists/:childTaskId/result", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const query = request.query as Record<string, unknown> ?? {}; strict(query, ["offset"]);
+    const offset = query.offset === undefined ? 0 : Number(query.offset);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 2097152) throw new ApiError(400, "agent_request_invalid", "Check the result offset");
+    const taskId = id(request, "taskId"), childTaskId = id(request, "childTaskId");
+    const result = await invoke(request, "tasks.export", { taskId });
+    const capture = result.capture as { schemaVersion?: unknown; rootTaskId?: unknown; tasks?: unknown } | null;
+    if (!capture || capture.schemaVersion !== "execution-export.v1" || capture.rootTaskId !== taskId || !Array.isArray(capture.tasks) || capture.tasks.length > 1024)
+      throw new ApiError(502, "agent_result_invalid", "Specialist result is unavailable");
+    const child = capture.tasks.find((task: unknown) => task && typeof task === "object" && (task as Record<string, unknown>).id === childTaskId && (task as Record<string, unknown>).parentTaskId === taskId) as { state?: unknown; output?: unknown } | undefined;
+    if (!child) throw new ApiError(404, "agent_result_missing", "Specialist result is unavailable");
+    if (typeof child.state !== "string" || !["completed", "incomplete", "failed", "cancelled", "uncertain", "refused"].includes(child.state)) throw new ApiError(409, "agent_result_pending", "Specialist work is still running");
+    if (child.output === null) return { taskId: childTaskId, state: child.state, available: false, output: null, nextOffset: null };
+    if (typeof child.output !== "string") throw new ApiError(502, "agent_result_invalid", "Specialist result is unavailable");
+    const points = Array.from(child.output), output = points.slice(offset, offset + 4096).join("");
+    return { taskId: childTaskId, state: child.state, available: true, output, nextOffset: offset + 4096 < points.length ? offset + 4096 : null };
+  });
   app.get("/api/agents/tasks/:taskId/events", request => invoke(request, "tasks.events", { ...page(request, []), taskId: id(request, "taskId") }));
   app.post("/api/agents/tasks/:taskId/cancel", request => {
     const input = body(request); strict(input, ["requestId"]);
     return invoke(request, "tasks.cancel", { taskId: id(request, "taskId") }, string(input.requestId));
   });
+  app.post("/api/agents/tasks/:taskId/instructions", request => {
+    const input = body(request); strict(input, ["requestId", "instruction"]);
+    return invoke(request, "tasks.instructions", { taskId: id(request, "taskId"), instruction: string(input.instruction, "instructions", 4000) }, string(input.requestId));
+  });
+  app.post("/api/agents/tasks/:taskId/continue", request => {
+    const input = body(request); strict(input, ["requestId"]);
+    return invoke(request, "tasks.continue", { taskId: id(request, "taskId") }, string(input.requestId));
+  });
   app.get("/api/agents/draft-destinations", async request => ({ destinations: await reviews.destinations(await scope(request)) }));
-  app.get("/api/agents/tasks/:taskId/reviews", async request => ({ reviews: await reviews.list(await scope(request), id(request, "taskId")) }));
+  app.get("/api/agents/tasks/:taskId/reviews", async request => {
+    const taskId = id(request, "taskId"), result = await invoke(request, "reviews.list", { taskId });
+    return { reviews: result.reviews.map(review => ({ ...review, taskId })) };
+  });
+  async function scopedReview(auth: GrowthAgentScope, taskId: string, reviewId: string) {
+    const result = await client.command(auth, "reviews.list", { taskId });
+    const review = result.reviews.find(review => review.id === reviewId);
+    if (!review) throw new ApiError(404, "agent_review_missing", "Review is unavailable");
+    return review;
+  }
   app.patch("/api/agents/tasks/:taskId/reviews/:reviewId", async request => {
     const input = body(request); strict(input, ["requestId", "payloadDigest", "draft"]);
-    return reviews.revise(await scope(request), id(request, "taskId"), id(request, "reviewId"), {
+    const auth = await scope(request), taskId = id(request, "taskId"), reviewId = id(request, "reviewId"), allowed = await scopedReview(auth, taskId, reviewId);
+    const result = await reviews.revise(auth, allowed.taskId, reviewId, {
       requestId: string(input.requestId), payloadDigest: string(input.payloadDigest), draft: parseGrowthDraftProposal(input.draft),
     });
+    return { review: { ...result.review, taskId } };
   });
   async function decision(request: FastifyRequest) {
     const input = body(request); strict(input, ["requestId", "payloadDigest", "decision"]);
     if (input.decision !== "approve" && input.decision !== "reject") throw new ApiError(400, "agent_request_invalid", "Choose a review decision");
     const requestId = string(input.requestId), auth = await scope(request), payloadDigest = string(input.payloadDigest), reviewId = id(request, "reviewId");
     const taskId = (request.params as Record<string, unknown>).taskId;
-    const result = await reviews.decide(auth, reviewId, { requestId, payloadDigest, decision: input.decision }, taskId === undefined ? undefined : string(taskId));
+    const publicTaskId = taskId === undefined ? undefined : string(taskId);
+    const allowed = publicTaskId ? await scopedReview(auth, publicTaskId, reviewId) : undefined;
+    const result = await reviews.decide(auth, reviewId, { requestId, payloadDigest, decision: input.decision }, allowed?.taskId);
     let resumePending = false;
-    try { await client.command(auth, "reviews.decide", { taskId: result.review.taskId, reviewId, payloadDigest, decision: input.decision }, requestId); }
+    try { await client.command(auth, "reviews.decide", { taskId: publicTaskId ?? result.review.taskId, reviewId, payloadDigest, decision: input.decision }, requestId); }
     catch (error) { if (!(error instanceof ApiError) || error.status < 500) throw error; resumePending = true; }
-    return { ...result, resumePending };
+    return { ...result, review: { ...result.review, taskId: publicTaskId ?? result.review.taskId }, resumePending };
   }
   app.post("/api/agents/tasks/:taskId/reviews/:reviewId/decision", decision);
-  app.post("/api/agents/reviews/:reviewId/decision", decision);
+  app.post("/api/agents/reviews/:reviewId/decision", async request => {
+    await scope(request);
+    throw new ApiError(400, "agent_review_task_required", "Open the task to review this draft");
+  });
   app.get("/api/agents/tasks/:taskId/artifacts", request => invoke(request, "artifacts.list", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/artifacts/:artifactId/download", async (request, reply) => {
     const chunks: Buffer[] = []; let offset = 0, digest: string | undefined, bytes: number | undefined, mediaType = "application/octet-stream";

@@ -7,7 +7,7 @@ import { ApiError } from "../error.js";
 import { growthAgentDigest } from "./security.js";
 import type { GrowthAgentScope } from "./scope.js";
 
-const commandOperations = new Set<GrowthAgentCommandOperation>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel"]);
+const commandOperations = new Set<GrowthAgentCommandOperation>(["conversations.create", "conversations.context", "turns.submit", "tasks.cancel", "tasks.instructions", "tasks.continue"]);
 export interface GrowthAgentCommandOutcome {
   operation: GrowthAgentCommandOperation; requestId: string; featureId: GrowthAgentFeatureId | null;
   conversationId: string | null; taskId: string | null;

@@ -44,8 +44,8 @@ export class ProductRuntime implements ProductRuntimePort {
     return {execution,scope:s};
   }
   private async dispatch(db:Pool|PoolClient,taskId:string,operationId:string,binding:CapabilityBinding,control:ProductCapabilityInvocation["control"],input:unknown,review?:ProductReviewReference,signal?:AbortSignal,originAuthorized=false):Promise<ProductCapabilityResult>{
-    const {execution}=await this.scope(db,taskId,binding);if(["invoke","prepare","commit"].includes(control))await assertCurrentAuthority(db,execution);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
-    const command:ProductCapabilityInvocation={version:"1",requestId:randomUUID(),operationId,taskId,conversationId:execution.task.conversation_id,
+    const {execution,scope}=await this.scope(db,taskId,binding);if(["invoke","prepare","commit"].includes(control))await assertCurrentAuthority(db,execution);if(!originAuthorized)await this.originAuthority(execution.task.product,taskId,db);const p=execution.task.principal;if(p.kind!=="human")throw denied();
+    const command:ProductCapabilityInvocation={version:"1",requestId:randomUUID(),operationId,taskId,conversationId:execution.task.parent_task_id?scope.conversation_id:execution.task.conversation_id,
       actor:{issuer:p.issuer,subject:p.subject},authority:binding.authority!,bindingId:binding.id,bindingDigest:binding.digest,operation:binding.definition.providerOperation,control,input,...(review?{review}:{})};
     const timeout=AbortSignal.timeout(binding.limits.timeoutMs);
     const result=await this.adapters.resolve(binding).invoke(command,signal?AbortSignal.any([signal,timeout]):timeout);

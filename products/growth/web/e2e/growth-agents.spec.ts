@@ -272,3 +272,148 @@ test("blocked organisation setup stops automatic refresh and keeps all defaults 
   await page.waitForTimeout(2600);
   expect(reads).toBe(1);
 });
+
+for (const width of [1440, 768, 390]) test(`coordinates visible specialist work and queues a safe active follow-up at ${width}px`, async ({ page, request }) => {
+  await page.setViewportSize({ width, height: 900 });
+  if (width === 390) await page.addInitScript(() => localStorage.setItem("kasitek-theme", "dark"));
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const initial = `keep working for orchestration ${width}`;
+  await chat.getByRole("textbox", { name: "Message agent" }).fill(initial);
+  await chat.getByRole("button", { name: "Send message" }).click();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((task: { input: string }) => task.input === initial);
+  expect(task).toBeTruthy();
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, loseInstructionAcknowledgement: true } });
+  const progress = chat.getByRole("region", { name: "Work progress", exact: true });
+  await expect(progress.getByText("Compare specialist drafts", { exact: true })).toBeVisible({ timeout: 12000 });
+  await expect(progress.getByRole("region", { name: "Specialist work", exact: true }).getByText("Research", { exact: true })).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await chat.getByRole("button", { name: "View Research result", exact: true }).click();
+  const result = page.getByRole("dialog", { name: "Research result", exact: true });
+  await expect(result.getByText(/Verified specialist findings/)).toBeVisible();
+  await result.getByRole("button", { name: "Load more", exact: true }).click();
+  await expect(result.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
+  await expect(result.getByRole("heading", { name: "Research result", exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath(`specialist-result-${width}.png`), animations: "disabled" });
+  await page.keyboard.press("Escape"); await expect(result).toHaveCount(0);
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("Focus on existing customers.");
+  await chat.getByRole("button", { name: "Send instructions", exact: true }).click();
+  await expect(chat.getByRole("button", { name: "Retry message", exact: true })).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toHaveValue("Focus on existing customers.");
+  await chat.getByRole("button", { name: "Retry message", exact: true }).click();
+  await expect(page.getByText("Instructions queued", { exact: true })).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toHaveValue("");
+  const accepted = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const attempts = accepted.instructionAttempts.filter((attempt: { taskId: string }) => attempt.taskId === task.id);
+  expect(attempts).toHaveLength(2); expect(attempts[0]).toEqual(attempts[1]);
+  expect(accepted.tasks.filter((item: { conversationId: string }) => item.conversationId === task.conversationId)).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath(`specialist-progress-${width}.png`), animations: "disabled" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "waiting_authority", canContinue: true, canSteer: false } });
+  await expect(chat.getByRole("button", { name: "Continue task", exact: true })).toBeVisible({ timeout: 12000 });
+  await chat.getByRole("button", { name: "Continue task", exact: true }).click();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await chat.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Stop task", exact: true }).click();
+  await expect(chat.getByText("Cancelled", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close assistant", exact: true }).click();
+  await page.getByRole("button", { name: "Open Growth assistant", exact: true }).click();
+  await expect(chat.getByText("Cancelled", { exact: true })).toBeVisible();
+});
+
+
+test("model interruption keeps the conversation usable without implying an external action or unsupported resume", async ({ page, request }) => {
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("keep working before interruption");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((item: {input: string}) => item.input === "keep working before interruption");
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "uncertain", errorCode: "MODEL_REQUEST_FAILED", canSteer: false, canContinue: false } });
+  await expect(chat.getByText("The model response was interrupted. Review completed work before continuing.", { exact: true })).toBeVisible({ timeout: 12000 });
+  await expect(chat.getByText(/An action may have completed/)).toHaveCount(0);
+  await expect(chat.getByRole("button", { name: "Continue task", exact: true })).toHaveCount(0);
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("Use the available findings to finish the answer.");
+  await expect(chat.getByRole("button", { name: "Send message", exact: true })).toBeEnabled();
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  const older = chat.locator(`[data-task-id="${task.id}"]`);
+  await expect(older.getByText("The model response was interrupted. Review completed work before continuing.", { exact: true })).toBeVisible();
+  const lastMessage = chat.locator('[data-role="user"]').last();
+  expect(await lastMessage.evaluate((element, oldId) => Boolean(document.querySelector(`[data-task-id="${oldId}"]`)?.compareDocumentPosition(element)! & Node.DOCUMENT_POSITION_FOLLOWING), task.id)).toBe(true);
+});
+
+test("new conversation retries creation instead of reopening the saved conversation", async ({ page }) => {
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("An existing conversation");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
+  await chat.getByRole("link", { name: "Expand conversation", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents\/conversations\//);
+  await expect(chat.locator('[data-role="user"]').getByText("An existing conversation", { exact: true })).toBeVisible();
+  let fail = true;
+  const identities: string[] = [];
+  await page.route("**/api/agents/conversations", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    identities.push(route.request().postDataJSON().requestId);
+    if (fail) { fail = false; return route.fulfill({ status: 503, json: { error: "Unavailable" } }); }
+    return route.continue();
+  });
+  await chat.getByRole("button", { name: "New conversation", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents$/);
+  await expect(chat.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await chat.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await expect(chat.getByText("An existing conversation", { exact: true })).toHaveCount(0);
+  expect(identities).toHaveLength(2); expect(identities[0]).toBe(identities[1]);
+});
+
+
+test("expanded new conversation adopts the first prompt title without clearing a subsequent draft", async ({ page }) => {
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  await chat.getByRole("link", { name: "Expand conversation", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents\/conversations\//);
+  await expect(chat.getByRole("heading", { name: "New conversation", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Growth assistant", exact: true })).toHaveCount(0);
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("Plan an autumn campaign");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.getByRole("heading", { name: "Plan an autumn campaign", exact: true })).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await chat.getByRole("textbox", { name: "Message agent" }).fill("Keep this unsent follow-up");
+  await page.waitForTimeout(3500);
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toHaveValue("Keep this unsent follow-up");
+  await page.screenshot({ path: test.info().outputPath("conversation-title-and-draft.png"), animations: "disabled" });
+});
+
+
+for (const failure of [
+  { state: "failed", code: "CAPACITY_WAIT_EXPIRED", label: "The task waited too long to start. Try a new message." },
+  { state: "uncertain", code: "CHILD_OUTCOME_UNCERTAIN", label: "A specialist outcome could not be confirmed. Review its result before repeating work." },
+]) test(`shows actionable ${failure.code} feedback`, async ({ page, request }) => {
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const prompt = `keep working for ${failure.code}`;
+  await chat.getByRole("textbox", { name: "Message agent" }).fill(prompt);
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((item: { input: string }) => item.input === prompt);
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: failure.state, errorCode: failure.code, canSteer: false, canContinue: false } });
+  await expect(chat.getByText(failure.label, { exact: true })).toBeVisible({ timeout: 12000 });
+  await expect(chat.getByText(/An action may have completed/)).toHaveCount(0);
+  await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
+  await expect(chat.getByRole("button", { name: "Continue task", exact: true })).toHaveCount(0);
+});

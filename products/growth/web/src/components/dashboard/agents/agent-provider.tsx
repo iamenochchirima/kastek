@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useLocation } from "react-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { growthAgents, GrowthAgentRequestError, isActiveTask, type GrowthAgentBootstrap, type GrowthAgentContext, type GrowthAgentConversation, type GrowthAgentFeatureId, type GrowthAgentMessage, type GrowthAgentReview, type GrowthAgentTask, type GrowthAgentEvent } from "@/lib/growth-agents";
@@ -12,7 +13,7 @@ function merge<T extends { id: string }>(previous: T[], next: T[]) {
   return [...values.values()];
 }
 
-type PendingTurn = { conversationId: string; requestId: string; text: string };
+type PendingTurn = { conversationId: string; requestId: string; text: string; taskId?: string };
 type AssistantState = {
   scopeKey: string; businessName: string; bootstrap: GrowthAgentBootstrap | null;
   panelOpen: boolean; loading: boolean; sending: boolean; error: string | null; reconnecting: boolean;
@@ -24,7 +25,7 @@ type AssistantState = {
   openConversation: (conversationId: string, panel?: boolean, focusTaskId?: string) => Promise<void>;
   attachContext: (context: GrowthAgentContext | null) => Promise<string | null>;
   send: () => Promise<void>; refresh: () => Promise<void>; older: () => Promise<void>;
-  cancel: (taskId: string) => Promise<void>; setError: (message: string | null) => void;
+  cancel: (taskId: string) => Promise<void>; continueTask: (taskId: string) => Promise<void>; setError: (message: string | null) => void;
 };
 const AgentContext = createContext<AssistantState | null>(null);
 
@@ -59,6 +60,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   const focusedTask = useRef<string | undefined>(undefined);
   const reviewCache = useRef(new Map<string, { revision: string; reviews: GrowthAgentReview[] }>());
   const createRequest = useRef<{ fingerprint: string; id: string } | null>(null);
+  const pendingStart = useRef<{ featureId: GrowthAgentFeatureId; context: GrowthAgentContext | null; initialDraft: string } | null>(null);
 
   const run = useCallback(async <T,>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     const current = epoch.current;
@@ -116,7 +118,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     updateDraft(read(`${storagePrefix}:draft:${value.id}`) ?? "");
     let pending: PendingTurn | null = null;
     try { pending = JSON.parse(read(`${storagePrefix}:pending:${value.id}`) ?? "null") as PendingTurn | null; } catch { /* Invalid local preferences are ignored. */ }
-    if (!pending || pending.conversationId !== value.id || typeof pending.text !== "string" || typeof pending.requestId !== "string") pending = null;
+    if (!pending || pending.conversationId !== value.id || typeof pending.text !== "string" || typeof pending.requestId !== "string" || pending.taskId !== undefined && typeof pending.taskId !== "string") pending = null;
     pendingTurn.current = pending;
     setUnconfirmed(Boolean(pending));
     if (pending) updateDraft(pending.text);
@@ -124,7 +126,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   }, [storagePrefix]);
 
   const openConversation = useCallback(async (conversationId: string, panel = true, focusTaskId?: string) => {
-    focusedTask.current = focusTaskId;
+    pendingStart.current = null; focusedTask.current = focusTaskId;
     const current = ++selection.current;
     setPanelOpen(panel); setLoading(true); setError(null); setReconnecting(false);
     setConversation(null); conversationRef.current = null; setMessages([]); setTasks([]); setReviews([]); setEvents([]); updateDraft("");
@@ -140,6 +142,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
 
   const start = useCallback(async (featureId: GrowthAgentFeatureId, context: GrowthAgentContext | null = null, initialDraft = "") => {
     if (sendingRef.current) return null;
+    pendingStart.current = { featureId, context, initialDraft };
     sendingRef.current = true; focusedTask.current = undefined; setPanelOpen(true); setLoading(true); setError(null);
     setConversation(null); conversationRef.current = null; setMessages([]); setTasks([]); setReviews([]); setEvents([]); updateDraft(""); pendingTurn.current = null; setUnconfirmed(false);
     const current = ++selection.current;
@@ -151,13 +154,14 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
       if (createRequest.current?.fingerprint !== fingerprint) createRequest.current = { fingerprint, id: crypto.randomUUID() };
       const response = await run((signal) => growthAgents.createConversation({ requestId: createRequest.current!.id, featureId, context }, signal));
       if (selection.current !== current) return null;
-      createRequest.current = null; applyConversation(response.conversation); if (initialDraft) { updateDraft(initialDraft); save(`${storagePrefix}:draft:${response.conversation.id}`, initialDraft); } setMessages([]); setTasks([]); setReviews([]); setEvents([]); setCursor(null); setRevision((value) => value + 1);
+      createRequest.current = null; pendingStart.current = null; applyConversation(response.conversation); if (initialDraft) { updateDraft(initialDraft); save(`${storagePrefix}:draft:${response.conversation.id}`, initialDraft); } setMessages([]); setTasks([]); setReviews([]); setEvents([]); setCursor(null); setRevision((value) => value + 1);
       return response.conversation.id;
     } catch (cause) { if (!aborted(cause) && selection.current === current) setError(failure(cause)); return null; }
     finally { sendingRef.current = false; if (selection.current === current) setLoading(false); }
   }, [ensureBootstrap, run, applyConversation, storagePrefix]);
 
   const openGeneral = useCallback(async () => {
+    if (pendingStart.current) { const pending = pendingStart.current; await start(pending.featureId, pending.context, pending.initialDraft); return; }
     if (conversationRef.current?.featureId === "assistant") { await openConversation(conversationRef.current.id); return; }
     setPanelOpen(true); setLoading(true); setError(null);
     try {
@@ -188,6 +192,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     const current = selection.current;
     const [detail, work] = await run((signal) => Promise.all([growthAgents.conversation(selected.id, undefined, signal), growthAgents.tasks({ conversationId: selected.id, limit: 50 }, signal)]));
     if (selection.current !== current) return;
+    conversationRef.current = detail.conversation; setConversation(detail.conversation);
     setMessages((previous) => merge(previous, detail.messages).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
     setTasks(work.tasks.filter((task) => task.conversationId === selected.id));
     work.tasks.forEach((task) => reviewCache.current.delete(task.id));
@@ -206,25 +211,28 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     if (!selected || sendingRef.current || (!draft.trim() && !pendingTurn.current)) return;
     sendingRef.current = true; setSending(true); setError(null);
     const current = selection.current;
-    const turn = pendingTurn.current ?? { conversationId: selected.id, requestId: crypto.randomUUID(), text: draft.trim() };
+    const active = tasks.find(isActiveTask);
+    if (!pendingTurn.current && active && (!active.canSteer || active.state === "cancel_requested")) { sendingRef.current = false; setSending(false); setError("This task cannot accept instructions right now."); return; }
+    const turn = pendingTurn.current ?? { conversationId: selected.id, requestId: crypto.randomUUID(), text: draft.trim(), ...(active ? { taskId: active.id } : {}) };
     pendingTurn.current = turn; save(`${storagePrefix}:pending:${selected.id}`, JSON.stringify(turn));
     let acceptedConfirmed = false;
     try {
-      const accepted = await run((signal) => growthAgents.send(selected.id, turn.text, turn.requestId, signal));
+      const accepted = await run<{ task: GrowthAgentTask; replayed: boolean } | { accepted: true }>((signal) => turn.taskId ? growthAgents.instruct(turn.taskId, turn.text, turn.requestId, signal) : growthAgents.send(selected.id, turn.text, turn.requestId, signal));
       if (selection.current !== current) return;
       acceptedConfirmed = true; pendingTurn.current = null; setUnconfirmed(false); save(`${storagePrefix}:pending:${selected.id}`, null);
       updateDraft(""); save(`${storagePrefix}:draft:${selected.id}`, null);
-      setTasks((previous) => merge(previous, [accepted.task]));
+      if ("task" in accepted) setTasks((previous) => merge(previous, [accepted.task]));
+      else toast.success("Instructions queued");
       await refresh();
     } catch (cause) {
       if (!aborted(cause) && selection.current === current) {
         if (acceptedConfirmed) { setReconnecting(true); setError("Message accepted. Reconnect to check its progress."); return; }
-        const definitive = cause instanceof GrowthAgentRequestError && [400, 401, 403, 404, 422].includes(cause.status);
+        const definitive = cause instanceof GrowthAgentRequestError && [400, 401, 403, 404, 413, 422, ...(turn.taskId ? [409] : [])].includes(cause.status);
         if (definitive) { pendingTurn.current = null; setUnconfirmed(false); save(`${storagePrefix}:pending:${selected.id}`, null); setError(failure(cause)); }
         else { setUnconfirmed(true); setError("Delivery wasn't confirmed. Retry this message to check the original request."); }
       }
     } finally { sendingRef.current = false; if (selection.current === current) setSending(false); }
-  }, [draft, refresh, run, storagePrefix]);
+  }, [draft, refresh, run, storagePrefix, tasks]);
 
   const attachContext = useCallback(async (context: GrowthAgentContext | null) => {
     const selected = conversationRef.current;
@@ -250,10 +258,27 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   }, [cursor, run]);
 
   const cancel = useCallback(async (taskId: string) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setError(null);
+    const current = selection.current;
     try {
       const result = await run((signal) => growthAgents.cancel(taskId, crypto.randomUUID(), signal));
+      if (current !== selection.current) return;
       setTasks((previous) => merge(previous, [result.task])); setRevision((value) => value + 1);
-    } catch (cause) { if (!aborted(cause)) setError(failure(cause)); }
+    } catch (cause) { if (!aborted(cause) && current === selection.current) setError(failure(cause)); }
+    finally { sendingRef.current = false; if (current === selection.current) setSending(false); }
+  }, [run]);
+
+  const continueTask = useCallback(async (taskId: string) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setError(null);
+    const current = selection.current;
+    try {
+      const result = await run((signal) => growthAgents.continue(taskId, crypto.randomUUID(), signal));
+      if (current !== selection.current) return;
+      setTasks(previous => merge(previous, [result.task])); setRevision(value => value + 1);
+    } catch (cause) { if (!aborted(cause) && current === selection.current) setError(failure(cause)); }
+    finally { sendingRef.current = false; if (current === selection.current) setSending(false); }
   }, [run]);
 
   const activeId = conversation?.id;
@@ -288,6 +313,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
         activity.forEach((page, index) => { if (page.nextCursor) eventCursors.current.set(pending[index].id, page.nextCursor); });
         setEvents((previous) => merge(previous, activity.flatMap((page) => page.events)).slice(-100));
         setTasks(scopedTasks); setReviews(reviewsResponse.flatMap((page) => page.reviews));
+        conversationRef.current = detail.conversation; setConversation(detail.conversation);
         setMessages((previous) => merge(previous, detail.messages).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
         setReconnecting(false); failures = 0;
         if (pending.length) timer = setTimeout(poll, 3000);
@@ -316,8 +342,8 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
   const value = useMemo<AssistantState>(() => ({ scopeKey, businessName, bootstrap, panelOpen, loading, sending, error, reconnecting,
     conversation, messages, tasks, reviews, events, hasOlder: Boolean(cursor), draft, unconfirmed, setDraft,
     closePanel, setPanelOpen: changePanel, ensureBootstrap, openGeneral, start, openConversation,
-    attachContext, send, refresh, older, cancel, setError,
-  }), [scopeKey, businessName, bootstrap, panelOpen, loading, sending, error, reconnecting, conversation, messages, tasks, reviews, events, cursor, draft, unconfirmed, setDraft, ensureBootstrap, openGeneral, start, openConversation, attachContext, send, refresh, older, cancel, closePanel, changePanel]);
+    attachContext, send, refresh, older, cancel, continueTask, setError,
+  }), [scopeKey, businessName, bootstrap, panelOpen, loading, sending, error, reconnecting, conversation, messages, tasks, reviews, events, cursor, draft, unconfirmed, setDraft, ensureBootstrap, openGeneral, start, openConversation, attachContext, send, refresh, older, cancel, continueTask, closePanel, changePanel]);
   return <AgentContext.Provider value={value}>{blocked ? <div className="flex min-h-[100dvh] items-center justify-center text-sm text-muted-foreground" role="status">Switching business…</div> : children}</AgentContext.Provider>;
 }
 

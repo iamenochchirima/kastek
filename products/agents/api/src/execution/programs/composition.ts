@@ -50,7 +50,7 @@ export interface CompositionDependencies {
 export function compileComposition(reference: ProgramReference, configuration: AgentConfiguration, dependencies: CompositionDependencies): EffectiveComposition {
   const program = resolveProgram(reference);
   assertProductBindings(configuration.productBindings);
-  if(configuration.productBindings.length && (reference.id!=="tool-directed"||reference.version!=="3"))throw new PlatformError("PROGRAM_COMPOSITION_DENIED",409,"Product tools require a compatible program");
+  if(configuration.productBindings.length && (reference.id!=="tool-directed"||!["3","4"].includes(reference.version)))throw new PlatformError("PROGRAM_COMPOSITION_DENIED",409,"Product tools require a compatible program");
   const denied = () => { throw new PlatformError("PROGRAM_COMPOSITION_DENIED", 409, "The configuration exceeds the trusted program contract"); };
   if(configuration.capabilities.delegation.enabled && reference.version!=="4" && (configuration.capabilities.delegation.bindings.length>2 || configuration.capabilities.delegation.maxChildren!==2 || configuration.capabilities.delegation.policy)) denied();
   if (configuration.program.id !== reference.id || configuration.program.version !== reference.version) denied();

@@ -65,6 +65,21 @@ describe("native model transport", () => {
     expect(calls).toBe(1);
   });
 
+  it.each(["provider_error", "incomplete"])("classifies HTTP 200 %s after partial output as uncertain stream failure without exposing provider details", async kind => {
+    let calls = 0;
+    const deltas: string[] = [];
+    const partial = sse({ id: "response-1", model: "fixture-model",
+      choices: [{ index: 0, delta: { role: "assistant", content: "Partial" }, finish_reason: null }] });
+    const tail = kind === "provider_error" ? sse({ error: { code: 503, message: "PRIVATE_PROVIDER_SECRET", metadata: { raw: "PRIVATE_PROMPT" } } }) : "data: [DONE]\n\n";
+    const error = await callProviderModel(request, { apiKey: "fixture-key", onText: text => deltas.push(text), fetch: fetcher(() => {
+      calls++; return new Response(partial + tail, { headers: { "Content-Type": "text/event-stream" } });
+    }) }).catch(error => error);
+    expect(deltas.join("")).toBe("Partial");
+    expect(error).toMatchObject({ code: "MODEL_STREAM_FAILED", status: 502, outcome: "uncertain" });
+    expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_SECRET|PRIVATE_PROMPT|fixture-key/);
+    expect(calls).toBe(1);
+  });
+
   it("rejects repaired partial tool arguments instead of executing them", async () => {
     const body = sse({ choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "call-1", type: "function",
       function: { name: "lookup", arguments: '{"x":' } }] }, finish_reason: "tool_calls" }] }) + "data: [DONE]\n\n";

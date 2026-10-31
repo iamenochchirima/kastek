@@ -12,7 +12,10 @@ export async function awaitProductReview(ctx:restate.WorkflowContext,pool:Pool,r
     try {await runtime.authorizeTask(taskId);const value=await runtime.prepare(taskId,operationId,binding,args);return {review:value.review!};}
     catch(error){if(error instanceof PlatformError)return {code:error.code};throw error;}
   });
-  if("code" in prepared){if(prepared.code==="TOOL_ARGUMENTS_INVALID")return {errorCode:prepared.code};return {outcome:{state:"incomplete",errorCode:prepared.code}};}
+  if("code" in prepared){
+    if(prepared.code!==undefined&&["TOOL_ARGUMENTS_INVALID","AGENT_DESTINATION_REQUIRED","AGENT_DESTINATION_UNAVAILABLE"].includes(prepared.code))return {errorCode:prepared.code};
+    return {outcome:{state:"incomplete",errorCode:prepared.code}};
+  }
   let review=prepared.review;
   for(let attempt=0;attempt<64;attempt++) {
     const current=await ctx.run("product-review:"+operationId+":"+attempt,async()=>{

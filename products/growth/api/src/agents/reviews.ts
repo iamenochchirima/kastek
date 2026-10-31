@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { parseGrowthDraftProposal, type GrowthDraftProposal, type GrowthDraftReceipt, type GrowthAgentReview, type GrowthAgentAction, type GrowthAgentFeatureId, type GrowthAgentContext } from "@kasitek-labs/contracts";
+import { GrowthAgentContractError, parseGrowthDraftProposal, type GrowthDraftProposal, type GrowthDraftReceipt, type GrowthAgentReview, type GrowthAgentAction, type GrowthAgentFeatureId, type GrowthAgentContext } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { transaction } from "../db.js";
 import { ApiError } from "../error.js";
@@ -60,7 +60,13 @@ export class GrowthAgentReviewStore {
     return rows.map(dto);
   }
   async prepare(action: GrowthAgentAction<"draft.prepare">): Promise<{ review: GrowthAgentReview }> {
-    const scope = { tenantId: action.tenantId, actor: action.actor }, draft = parseGrowthDraftProposal(action.input.draft);
+    const scope = { tenantId: action.tenantId, actor: action.actor };
+    let draft: GrowthDraftProposal;
+    try { draft = parseGrowthDraftProposal(action.input.draft); }
+    catch (error) {
+      if (error instanceof GrowthAgentContractError) throw new ApiError(422, "agent_tool_arguments_invalid", "Check the draft fields and supported channels");
+      throw error;
+    }
     await authorizeGrowthAgentScope(this.core, scope, "content");
     await assertGrowthAgentContext(this.core, scope, action.context, action.contextRevision);
     const requestDigest = growthAgentDigest({ taskId: action.taskId, conversationId: action.conversationId, featureId: action.featureId, draft, context: action.context, contextRevision: action.contextRevision ?? null });

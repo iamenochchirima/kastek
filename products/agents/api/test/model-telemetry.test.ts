@@ -53,6 +53,15 @@ it.each([[401, "authorization"], [402, "credit"], [403, "authorization"], [404, 
   expect(JSON.parse(output.mock.calls[0]![0] as string)).toMatchObject({ outcome: "uncertain", failureClass });
   expect(JSON.stringify(output.mock.calls)).not.toMatch(/Bearer|private|HOSTILE/);
 });
+it("reports a failed accepted stream as a provider failure while preserving uncertainty and first token timing", async () => {
+  const output = vi.spyOn(console, "info").mockImplementation(() => {});
+  const error = Object.assign(new Error("MODEL_STREAM_FAILED"), { code: "MODEL_STREAM_FAILED", status: 502, outcome: "uncertain" });
+  vi.mocked(invokeTaskModel).mockImplementationOnce(async options => { options.onText?.("private partial output"); throw error; });
+  await expect(invokeObservedTaskModel(invocation())).rejects.toBe(error);
+  expect(JSON.parse(output.mock.calls[0]![0] as string)).toMatchObject({ outcome: "uncertain", failureClass: "provider", firstVisibleTokenStatus: "observed" });
+  expect(JSON.stringify(output.mock.calls)).not.toContain("private partial output");
+  expect(invokeTaskModel).toHaveBeenCalled();
+});
 it("keeps compaction distinct and observes quota rejection without converting it into a retry", async () => {
   const output = vi.spyOn(console, "info").mockImplementation(() => {});
   const input = invocation(); input.role = "compaction";

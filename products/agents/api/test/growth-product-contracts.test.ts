@@ -1,3 +1,4 @@
+import {delegationRequestSchema} from "../src/execution/delegation/delegation";
 import {randomUUID} from "node:crypto";
 import {generateKeyPair,exportSPKI,SignJWT} from "jose";
 import {beforeAll,describe,it,expect} from "vitest";
@@ -5,9 +6,11 @@ import {GrowthServiceAuth} from "../src/adapters/products/growth-service-auth";
 import {GrowthActionClient} from "../src/adapters/products/growth-action-client";
 import {growthFeatureConfiguration} from "../src/product/integrations/growth-features";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
-import {defaultBusinessConfiguration,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
-import {registerProductAdapter} from "../src/capabilities/products/product-capabilities";
+import {defaultBusinessConfiguration,agentConfigurationSchema,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
+import {registerProductAdapter,sameProductAuthority} from "../src/capabilities/products/product-capabilities";
 import {growthInstalledAdapterManifest} from "../src/execution/products/growth-runtime";
+import {parseGrowthAgentCommand} from "@kasitek-labs/contracts";
+import {orchestrationTools} from "../src/contracts/orchestration";
 import type {GrowthAgentPublication,ProductCapabilityDescriptor,GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
 const organizationId=randomUUID(),tenantId=randomUUID();
 const descriptors:ProductCapabilityDescriptor[]=["workspace.read","draft.prepare"].map(operation=>({operation,revision:"1",description:operation,inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,handlerRef:`growth.${operation}@1`,requiredAuthority:["feature.agents.manage"],evidence:"versioned_sources",policy:operation==="workspace.read"?{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"}:{effect:"reviewed_write",disclosure:"exact_reviewed_payload",retry:"status_only",approval:"exact_single_use",cancel:"reconcile_claimed"},limits:{timeoutMs:10000,maxPhysicalAttempts:1,maxResponseBytes:131072,maxModelResultBytes:8192}}));
@@ -54,6 +57,34 @@ describe("Growth product contracts",()=>{
     expect(compilePublishedComposition(growth,[]).productBindings).toHaveLength(2);
     for(const version of ["1","2"])expect(()=>compilePublishedComposition({...growth,program:{id:"tool-directed",version}},[])).toThrow();
     expect(compilePublishedComposition(original,[]).program.digest).not.toBe(compilePublishedComposition(growth,[]).program.digest);
+  });
+  it("compiles the authorized adaptive coordinator and compares full specialist product scope across publication identities",()=>{
+    const configured={...publication,policy:{...publication.policy,optionalCapabilities:{...publication.policy.optionalCapabilities,delegation:true}}};
+    const delegation={enabled:true as const,maxChildren:2,maxDepth:1 as const,policy:{maxTasks:16,maxStalls:3},bindings:["research","content","campaigns"].map(id=>({id,versionId:randomUUID(),sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:12000,maxActiveMs:300000}))};
+    const coordinator=growthFeatureConfiguration(configured,"assistant",organizationId,tenantId,undefined,delegation);
+    expect(coordinator.tools).toEqual([...orchestrationTools]);expect(compilePublishedComposition(coordinator,[]).program.version).toBe("4");
+    const specialist=growthFeatureConfiguration(configured,"content",organizationId,tenantId);
+    expect(specialist.program.version).toBe("3");expect(specialist.capabilities.delegation.enabled).toBe(false);
+    expect(coordinator.productBindings[0].id).not.toBe(specialist.productBindings[0].id);
+    expect(sameProductAuthority(coordinator.productBindings[0],specialist.productBindings[0])).toBe(true);
+    expect(sameProductAuthority(coordinator.productBindings[0],specialist.productBindings[1])).toBe(false);
+    const foreign=growthFeatureConfiguration(configured,"content",organizationId,randomUUID());
+    expect(sameProductAuthority(coordinator.productBindings[0],foreign.productBindings[0])).toBe(false);
+    expect(()=>growthFeatureConfiguration(configured,"assistant",organizationId,tenantId)).toThrow();
+    const enlarged=structuredClone(coordinator);if(!enlarged.capabilities.delegation.enabled)throw Error("Expected delegation");
+    enlarged.capabilities.delegation.bindings[0].maxTokens=64000;
+    expect(agentConfigurationSchema.safeParse(enlarged).success).toBe(true);
+    for(const version of ["1","2","3"])expect(agentConfigurationSchema.safeParse({...enlarged,program:{id:"tool-directed",version}}).success).toBe(false);
+    enlarged.capabilities.delegation.bindings[0].maxTokens=64001;expect(agentConfigurationSchema.safeParse(enlarged).success).toBe(false);
+    enlarged.capabilities.delegation.bindings[0].maxTokens=2047;expect(agentConfigurationSchema.safeParse(enlarged).success).toBe(false);
+    expect(delegationRequestSchema.safeParse({requests:[{bindingId:"content",brief:"Scoped work",maxTokens:12000}]}).success).toBe(true);
+    expect(delegationRequestSchema.safeParse({requests:[{bindingId:"content",brief:"Scoped work",maxTokens:12001}]}).success).toBe(false);
+  });
+  it("parses bounded steering and continuation commands without widening their signed payload",()=>{
+    expect(parseGrowthAgentCommand({...command,operation:"tasks.instructions",input:{taskId:randomUUID(),instruction:"Change the audience"}}).operation).toBe("tasks.instructions");
+    expect(parseGrowthAgentCommand({...command,operation:"tasks.continue",input:{taskId:randomUUID()}}).operation).toBe("tasks.continue");
+    expect(()=>parseGrowthAgentCommand({...command,operation:"tasks.instructions",input:{taskId:randomUUID(),instruction:"x".repeat(4001)}})).toThrow();
+    expect(()=>parseGrowthAgentCommand({...command,operation:"tasks.continue",input:{taskId:randomUUID(),configuration:{}}})).toThrow();
   });
   it("cannot give standalone or read-only agents Growth mutation authority",()=>{
     const config=contentConfiguration(),id=randomUUID(),authority={product:"agents" as const,organizationId:randomUUID(),resourceId:"content",callerClientId:"growth-api",principal:{kind:"human" as const,...actor}};

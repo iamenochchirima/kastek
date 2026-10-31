@@ -1,5 +1,7 @@
+import { builtinObservationView } from "../../capabilities/tool-observation-feedback";
 import { visibleTaskControlTools } from "../../capabilities/task-control";
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
+import { builtinArgumentFeedback } from "../../capabilities/tool-argument-feedback";
 import type {CapacityDecision} from "../scheduling/capacity";
 import {persistOperationReceipt} from "../scheduling/receipt-persistence";
 import * as restate from "@restatedev/restate-sdk";
@@ -238,8 +240,18 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC LIMIT 100`,
   [task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null])).rows;
   const eligible = options.evidence ? new Set((await options.evidence.checkHistory(taskId, prior.map(t => t.id))).filter(item => item.eligible).map(item => item.taskId)) : undefined;
-  let history: ContextGroup[] = prior.reverse().filter(t => !omitted.includes(t.id) && (!eligible || eligible.has(t.id))).map(t => ({ id: t.id, messages: [
-    { role: "user", content: t.input }, { role: "assistant", content: t.output ?? `Task ended: ${t.state}` },
+  const selectedPrior = prior.reverse().filter(t => !omitted.includes(t.id) && (!eligible || eligible.has(t.id)));
+  const priorInstructions = task.parent_task_id || !selectedPrior.length ? [] : (await pool.query(`
+    SELECT i.task_id,i.instruction FROM agents_platform.orchestration_instructions i
+    JOIN agents_platform.tasks t ON t.id=i.task_id
+    WHERE t.id=ANY($1::uuid[]) AND t.organization_id=$2 AND t.conversation_id=$3
+      AND t.principal=$4::jsonb AND t.parent_task_id IS NULL AND t.turn_sequence<$5
+    ORDER BY t.turn_sequence,i.sequence`,
+  [selectedPrior.map(t=>t.id),task.organization_id,task.conversation_id,JSON.stringify(task.principal),task.turn_sequence])).rows;
+  let history: ContextGroup[] = selectedPrior.map(t => ({ id: t.id, messages: [
+    { role: "user", content: t.input },
+    ...priorInstructions.filter(instruction=>instruction.task_id===t.id).map(instruction=>({role:"user" as const,content:instruction.instruction})),
+    { role: "assistant", content: t.output ?? `Task ended: ${t.state}` },
   ] }));
   if(task.channel_binding && !task.parent_task_id) {
     const messages=await channelPorts(pool).context(pool,task.channel_binding,task.channel_binding.inputMessageId);
@@ -735,7 +747,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             }
             if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
             if (result.ok && options.evidence) roundEvidence.push(...await guardedRun(ctx,`tool-evidence:${step}:${callIndex}`,()=>options.evidence!.operationEvidenceIds(taskId,id)));
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : result.value : { error: result.code }) });
+            const argumentFeedback=!result.ok&&!binding&&!productBinding?builtinArgumentFeedback(name,call.function.arguments,result.code):undefined;
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? result.value : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback }) });
           }
           if (stop) break;
           if (refreshContext) continue;

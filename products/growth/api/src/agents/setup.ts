@@ -19,7 +19,7 @@ const profile = (config: CoreConfig) => ({
 export async function enqueueGrowthAgentSetup(tx: Pool | PoolClient, tenantId: string, config: CoreConfig): Promise<void> {
   const target = profile(config);
   await tx.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision","defaultsRevision")
-    SELECT id,$2,$3,$4,'2' FROM "Organization" WHERE id=$1 ON CONFLICT ("orgId") DO NOTHING`,
+    SELECT id,$2,$3,$4,'3' FROM "Organization" WHERE id=$1 ON CONFLICT ("orgId") DO NOTHING`,
   [tenantId, randomUUID(), target.id, target.revision]);
 }
 export async function readGrowthAgentSetup(pool: Pool, tenantId: string): Promise<GrowthAgentSetupDto | null> {
@@ -42,7 +42,7 @@ export async function backfillGrowthAgentSetup(core: CoreContext, limit = 100): 
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error("Backfill limit must be between 1 and 1000");
   const target = profile(core.config);
   return (await core.pool.query(`INSERT INTO "GrowthAgentSetup" ("orgId","requestId","modelProfileId","modelProfileRevision","defaultsRevision")
-    SELECT o.id,gen_random_uuid()::text,$1,$2,'2' FROM "Organization" o
+    SELECT o.id,gen_random_uuid()::text,$1,$2,'3' FROM "Organization" o
     WHERE NOT EXISTS (SELECT 1 FROM "GrowthAgentSetup" s WHERE s."orgId"=o.id)
     ORDER BY o.id LIMIT $3 ON CONFLICT ("orgId") DO NOTHING`, [target.id,target.revision,limit])).rowCount ?? 0;
 }
@@ -69,7 +69,7 @@ export async function readGrowthAgentSetupMetrics(pool: Pool): Promise<GrowthAge
 
 /** An explicit operator action updates future defaults without changing the managed model target. */
 export async function upgradeGrowthAgentDefaults(core:CoreContext,tenantId:string):Promise<boolean> {
-  return Boolean((await core.pool.query(`UPDATE "GrowthAgentSetup" SET "defaultsRevision"='2',"requestId"=$2,
+  return Boolean((await core.pool.query(`UPDATE "GrowthAgentSetup" SET "defaultsRevision"='3',"requestId"=$2,
     status='pending',attempts=0,"nextAttemptAt"=NOW(),"failureCode"=NULL,"leaseOwner"=NULL,"leaseExpiresAt"=NULL,
     generation=generation+1,"updatedAt"=NOW() WHERE "orgId"=$1 AND status<>'cancelled'`,[tenantId,randomUUID()])).rowCount);
 }

@@ -50,9 +50,15 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
   const accountId = await owner(db, root);
   const grant = (await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
   if (!grant || grant.revoked_at) throw unavailable();
+  if(execution.task.parent_task_id && root.task.product!=="agents") {
+    const rootGrant=(await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE",[root.task.grant_id])).rows[0];
+    if(!rootGrant||rootGrant.revoked_at)throw unavailable();
+  }
   if(root.task.product!=="agents") {
     await assertProductAuthority(db,{product:root.task.product,organizationId:root.task.organization_id,resourceId:root.task.resource_id,
       callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id);
+    if(execution.task.parent_task_id)await assertProductAuthority(db,{product:execution.task.product,organizationId:execution.task.organization_id,resourceId:execution.task.resource_id,
+      callerClientId:execution.task.caller_client_id,principal:execution.task.principal},execution.task.version_id);
   } else if (accountId) {
     if (!(await db.query("SELECT 1 FROM agents_platform.memberships WHERE organization_id=$1 AND account_id=$2 AND revoked_at IS NULL FOR SHARE", [root.task.organization_id, accountId])).rowCount) throw unavailable();
   } else if (root.task.principal.kind === "visitor") {
@@ -176,6 +182,7 @@ export async function delegationInput(db:Db,childTaskId:string){
 }
 export async function assertDelegationInputEvidence(db:Db,childTaskId:string,expectedDigest?:string,trail:readonly string[]=[],consumerTaskId=childTaskId):Promise<void>{
  const input=await delegationInput(db,childTaskId);if(!input){if(expectedDigest)throw integrity();return;}
+ if(input.child.task.product!=="agents")await inspectionAuthority(db,input.child);
  const consumer=consumerTaskId===childTaskId?input.child:await loadExecution(db,consumerTaskId);
  if(consumer.task.organization_id!==input.child.task.organization_id||await owner(db,consumer)!==await owner(db,input.child))throw denied();
  if(expectedDigest&&expectedDigest!==input.manifest.digest||trail.includes(childTaskId)||trail.length>=32)throw integrity();
@@ -214,7 +221,7 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   for (const dependency of dependencies) {
     if (dependency.kind !== "product") continue;
     const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
-    const origin = [root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
+    const origin = [execution, root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
     if (!origin || (!dependency.bindingId && (origin.task.product !== dependency.product || root.task.product !== dependency.product))) throw denied();
     try { await productPorts(db).assertCurrentEvidence(db, { consumerTaskId: taskId, dependency }); }
     catch (error) {

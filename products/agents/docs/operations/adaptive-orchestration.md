@@ -12,7 +12,8 @@ The runtime enforces permissions, published version pins, budgets and durable ex
 controls do not decide the business plan. This is a coordinator with specialist workers, not
 recursive teams: specialists cannot delegate further or acquire personal memory. Sandbox access
 requires an explicit matching scope. Cross-product delegation, dynamically invented elevated grants and arbitrary agent
-creation during execution remain unavailable.
+creation during execution remain unavailable. Growth's managed assistant can now coordinate its
+three existing same-business specialists through the product integration described below.
 
 ## Configuration and release identity
 
@@ -50,8 +51,19 @@ unselected sibling/private skills remain unavailable.
 
 ## Model tools
 
+Growth defaults revision 3 publishes its assistant on program 4 and pins Research, Content and
+Campaigns as direct program 3 specialists. Growth membership and signed product authority remain
+the source of access; no standalone Agents account or membership is created. Child grants retain
+the root's initiating principal and product scope and cannot delegate further. Current specialist
+availability and root authority are checked before execution and when consuming child evidence.
+See [Growth integration](../growth-integration.md) for managed upgrades, signed instruction and
+continuation commands, reviewed child effects, verification and rollback. Other product adapters
+do not acquire delegation authority from this Growth-specific publication.
+
 `contracts/orchestration.ts` is authoritative for request and response schemas. Provider tool names
 use the existing underscore encoding of these dotted names.
+An empty literal discovery filter adds a fixed model-only notice to retry without a filter; a filtered
+miss does not establish an empty roster, and the stored tool receipt remains unchanged.
 
 | Tool | Behavior |
 | --- | --- |
@@ -97,6 +109,8 @@ closure is serialized with instruction admission: if unincorporated updates exis
 continues; otherwise its immutable completion intent closes input before settlement. This gate does
 not publish an unvalidated outcome or change native task state. Duplicate phone ingress already
 mapped to an instruction remains idempotent after closure.
+Later roots include these corrections as ordinary user messages in the authorized prior-turn history
+group, under the same principal and conversation; specialist conversations do not inherit them.
 
 Telegram and WhatsApp text received while the verified link has an active v4 delegation root is
 queued against that same root, with a durable acknowledgment. It does not create another task.
@@ -183,3 +197,36 @@ a model, approve effects, or reuse active production organizations when preparin
 | Rollback/disable | Stop new v4 admissions by selecting/publishing the earlier compatible configuration; keep V23 available for accepted work or cancel through normal controls. Clear the private-phone allowlist separately if needed. Retain additive tables, pins, journals, receipts and queued Analytics records. Never replay V23 journals through V21/V22 or blindly retry unknown effects. |
 | Other impacts | Billing/pricing, new infrastructure, other-product synchronization and browser telemetry: not applicable. |
 | Post-release review | Owner schedules after a separately approved pilot; no release date is set by this implementation. |
+
+Growth integration release decisions: Growth web/API, Agents API/worker and shared contracts are
+affected. Manifest/default/policy revision 3 enables only same-business specialist delegation;
+the existing adapter stays at release 2 and no additional schema migration is introduced.
+`growth.agent.command@1` records `tasks.instructions` and `tasks.continue` through the existing
+outbox without instruction bodies. Native root/child/operation observations retain bounded error
+codes. New exporters, Collector changes, credentials in telemetry, pricing changes and customer
+sends are not applicable. Rollout uses fresh managed defaults or an explicit managed upgrade;
+operator customizations remain preserved. Rollback disables new adaptive admissions and keeps the
+pinned V21/V23 handlers for accepted work. Local live-model computer-use acceptance is separately
+authorized and must record actual outcomes, rather than treating scripted model fixtures as model
+quality evidence. Production promotion, hosted monitoring and a post-release date remain separate.
+
+## Model capacity after interruption
+
+A failed or interrupted model call can remain uncertain while its physical permit is reclaimed.
+The normal capacity phase processes a bounded set of owned permits and releases only model or
+compaction permits whose persisted transport deadline has passed. A matching private continuation
+must prove that the call used the deadline-enforced model runtime; older or unknown paths retain
+their holds. The bound is the earlier of the task deadline and operation start plus reserved duration.
+
+The fixed `resource.capacity_released` event records the operation identity and uncertain outcome.
+This releases local concurrency, not the provider outcome or possible billing: operation/task
+uncertainty, conservative token/time charges and monetary reservations remain unchanged. Business
+effect holds still require explicit reconciliation. No cleanup retries a model request or business
+operation. A queued follower still rechecks authority and its original queue deadline after wakeup.
+
+For a blocked follow-up, inspect the model class's held requests, their immutable operation kinds,
+private continuation proof and persisted deadlines. Keep the dispatcher and compatible worker
+running for canonical reclamation; do not delete holds or reset accounting manually. A queue deadline
+that already expired remains expired, so a later user request creates a new bounded task. There is no
+schema migration or new exporter. Rollback preserves receipts and usage records; retain compatible
+cleanup for admitted calls rather than converting uncertain outcomes to success.

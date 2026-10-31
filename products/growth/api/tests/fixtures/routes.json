@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedBy": "scripts/refresh-route-contracts.ts",
-  "routeCount": 344,
+  "routeCount": 347,
   "routes": [
     "DELETE /api/admin/invoices/:id",
     "DELETE /api/admin/leads/:id",
@@ -81,6 +81,7 @@
     "GET /api/agents/tasks/:taskId/events",
     "GET /api/agents/tasks/:taskId/export",
     "GET /api/agents/tasks/:taskId/reviews",
+    "GET /api/agents/tasks/:taskId/specialists/:childTaskId/result",
     "GET /api/analytics/catalog",
     "GET /api/auth/account",
     "GET /api/auth/callback",
@@ -274,6 +275,8 @@
     "POST /api/agents/conversations/:conversationId/messages",
     "POST /api/agents/reviews/:reviewId/decision",
     "POST /api/agents/tasks/:taskId/cancel",
+    "POST /api/agents/tasks/:taskId/continue",
+    "POST /api/agents/tasks/:taskId/instructions",
     "POST /api/agents/tasks/:taskId/reviews/:reviewId/decision",
     "POST /api/analytics/query",
     "POST /api/auth/activity",

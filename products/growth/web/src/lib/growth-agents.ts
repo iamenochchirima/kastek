@@ -57,10 +57,16 @@ export const growthAgents = {
   tasks: (options: { conversationId?: string; state?: string; search?: string; cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["tasks.list"]>(`/tasks${query(options)}`, { signal }),
   task: (taskId: string, signal?: AbortSignal) => request<{ task: GrowthAgentTask }>(`/tasks/${id(taskId)}`, { signal }),
+  specialistResult: (taskId: string, childTaskId: string, offset = 0, signal?: AbortSignal) =>
+    request<{ taskId: string; state: string; available: boolean; output: string | null; nextOffset: number | null }>(`/tasks/${id(taskId)}/specialists/${id(childTaskId)}/result${query({ offset })}`, { signal }),
   events: (taskId: string, cursor?: string, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["tasks.events"]>(`/tasks/${id(taskId)}/events${query({ cursor })}`, { signal }),
   cancel: (taskId: string, requestId: string, signal?: AbortSignal) =>
     request<{ task: GrowthAgentTask }>(`/tasks/${id(taskId)}/cancel`, json({ requestId }, signal)),
+  instruct: (taskId: string, instruction: string, requestId: string, signal?: AbortSignal) =>
+    request<GrowthAgentCommandOutputs["tasks.instructions"]>(`/tasks/${id(taskId)}/instructions`, json({ requestId, instruction }, signal)),
+  continue: (taskId: string, requestId: string, signal?: AbortSignal) =>
+    request<GrowthAgentCommandOutputs["tasks.continue"]>(`/tasks/${id(taskId)}/continue`, json({ requestId }, signal)),
   reviews: (taskId: string, signal?: AbortSignal) => request<{ reviews: GrowthAgentReview[] }>(`/tasks/${id(taskId)}/reviews`, { signal }),
   decide: (review: GrowthAgentReview, decision: "approve" | "reject", requestId: string, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["reviews.decide"]>(`/tasks/${id(review.taskId)}/reviews/${id(review.id)}/decision`, json({ requestId, payloadDigest: review.payloadDigest, decision }, signal)),

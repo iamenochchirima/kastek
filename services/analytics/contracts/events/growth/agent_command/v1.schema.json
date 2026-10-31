@@ -38,7 +38,9 @@
         "conversations.create",
         "conversations.context",
         "turns.submit",
-        "tasks.cancel"
+        "tasks.cancel",
+        "tasks.instructions",
+        "tasks.continue"
       ]
     },
     "outcome": {

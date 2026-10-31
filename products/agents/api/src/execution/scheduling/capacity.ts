@@ -75,7 +75,7 @@ export async function activateCapacity(db:PoolClient,requestId:string,generation
  WHERE id=$1 AND generation=$2 AND (state='active' OR state='granted' AND lease_until>now()) RETURNING id`,[requestId,generation]);
  if(!result.rowCount)throw new PlatformError("CAPACITY_LEASE_LOST",409,"Execution capacity changed");
 }
-/** Unconfirmed external calls retain holds. Only explicit effect reconciliation may release them. */
+/** Unconfirmed effects retain holds. Explicit capacity reconciliation also permits bounded local generation cleanup. */
 export async function releaseCapacity(db:PoolClient,requestId:string,outcome:"completed"|"failed"|"uncertain",reconciled=false):Promise<void>{
  const row=(await db.query("SELECT * FROM agents_platform.capacity_requests WHERE id=$1 FOR UPDATE",[requestId])).rows[0];if(!row||row.state==='released')return;
  if(outcome==='uncertain'&&!reconciled){await db.query("UPDATE agents_platform.capacity_requests SET state='uncertain',lease_until=NULL WHERE id=$1",[requestId]);return;}
@@ -85,11 +85,41 @@ export async function releaseCapacity(db:PoolClient,requestId:string,outcome:"co
  // Transactional wakeup hint; polling the durable queue is recovery, never a worker capacity spin.
  await db.query("SELECT pg_notify('agents_capacity_ready','')");
 }
+/** Reclaim only local generation concurrency after its persisted absolute transport bound. */
+export async function reclaimExpiredModelCapacity(pool:Pool,limit=64):Promise<number>{
+ if(!Number.isInteger(limit)||limit<1||limit>256)throw Error("Invalid model capacity reclaim bound");
+ const candidates=(await pool.query(`WITH held AS MATERIALIZED (SELECT DISTINCT request_id FROM agents_platform.capacity_holds)
+  SELECT c.id FROM held h JOIN agents_platform.capacity_requests c ON c.id=h.request_id
+  JOIN agents_platform.operations o ON o.id=c.id AND o.task_id=c.task_id
+  JOIN agents_platform.tasks t ON t.id=o.task_id
+  JOIN agents_platform.private_model_continuations m ON m.operation_id=o.id AND m.task_id=o.task_id AND m.organization_id=t.organization_id
+  WHERE c.state='uncertain' AND o.state='uncertain' AND o.kind IN ('model','compaction')
+    AND least(t.deadline_at,o.started_at+o.reserved_ms*interval '1 millisecond')<=clock_timestamp()
+  ORDER BY o.started_at,c.id LIMIT $1`,[limit])).rows;
+ let released=0;
+ for(const candidate of candidates)released+=await transaction(pool,async db=>{
+  const row=(await db.query(`SELECT c.id,c.task_id FROM agents_platform.capacity_requests c
+   JOIN agents_platform.operations o ON o.id=c.id AND o.task_id=c.task_id
+   JOIN agents_platform.tasks t ON t.id=o.task_id
+   JOIN agents_platform.private_model_continuations m ON m.operation_id=o.id AND m.task_id=o.task_id AND m.organization_id=t.organization_id
+   WHERE c.id=$1 AND c.state='uncertain' AND o.state='uncertain' AND o.kind IN ('model','compaction')
+     AND least(t.deadline_at,o.started_at+o.reserved_ms*interval '1 millisecond')<=clock_timestamp()
+   FOR UPDATE OF c SKIP LOCKED`,[candidate.id])).rows[0];
+  if(!row)return 0;
+  // This reconciles local slot ownership, never the provider outcome or its conservative charge.
+  await releaseCapacity(db,row.id,'uncertain',true);
+  await recordEvent(db,row.task_id,`capacity-model-deadline:${row.id}`,"resource.capacity_released",{operationId:row.id,outcome:"uncertain",count:1});
+  return 1;
+ });
+ return released;
+}
+
 export async function advanceCapacity(pool:Pool,options:Partial<CapacityPolicy>={},limit=64):Promise<number>{
  const policy=capacityPolicySchema.parse(options);if(!Number.isInteger(limit)||limit<1||limit>256)throw Error("Invalid capacity sweep bound");
+ const reclaimed=await reclaimExpiredModelCapacity(pool,limit);
  const candidates=await transaction(pool,db=>selectCapacityCandidates(db,limit));
  const parallelism=Math.min(4,Math.max(1,Math.floor((pool.options.max??10)/2)));
- let next=0,failed=false,failure:unknown,progress=0;
+ let next=0,failed=false,failure:unknown,progress=reclaimed;
  await Promise.all(Array.from({length:Math.min(parallelism,candidates.length)},async()=>{
   while(next<candidates.length){const candidate=candidates[next++]!;
    try{const changed=await transaction(pool,async db=>{

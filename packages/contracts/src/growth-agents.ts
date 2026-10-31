@@ -42,6 +42,9 @@ export interface GrowthAgentTask {
   input: string; output: string | null; errorCode: string | null;
   createdAt: string; updatedAt: string; reviewIds?: string[];
   results?: GrowthAgentResult[]; sources?: GrowthAgentSource[];
+  canSteer?: boolean; canContinue?: boolean;
+  orchestration?: { revision: number; record: { objective: string; steps: { id: string; title: string; state: "pending" | "in_progress" | "completed" | "blocked" }[]; questions: string[]; evidenceTaskIds: string[] } | null };
+  children?: { id: string; name: string; state: GrowthAgentTaskState; errorCode?: string | null }[];
 }
 export interface GrowthAgentEvent { id: string; taskId: string; type: string; createdAt: string; message?: string; state?: GrowthAgentTaskState }
 export interface GrowthAgentPage<T> { nextCursor: string | null; items: T[] }
@@ -74,6 +77,8 @@ export interface GrowthAgentCommandInputs {
   "tasks.export": { taskId: string };
   "tasks.events": { taskId: string; cursor?: string; limit?: number };
   "tasks.cancel": { taskId: string };
+  "tasks.instructions": { taskId: string; instruction: string };
+  "tasks.continue": { taskId: string };
   "reviews.list": { taskId: string };
   "reviews.decide": { taskId: string; reviewId: string; payloadDigest: string; decision: "approve" | "reject" };
   "artifacts.list": { taskId: string };
@@ -96,6 +101,8 @@ export interface GrowthAgentCommandOutputs {
   "tasks.export": { capture: unknown };
   "tasks.events": { events: GrowthAgentEvent[]; nextCursor: string | null };
   "tasks.cancel": { task: GrowthAgentTask };
+  "tasks.instructions": { accepted: true };
+  "tasks.continue": { task: GrowthAgentTask };
   "reviews.list": { reviews: GrowthAgentReview[] };
   "reviews.decide": { reviewId: string; state: string };
   "artifacts.list": { artifacts: GrowthAgentArtifact[] };
@@ -199,7 +206,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "conversations.create": ["featureId", "title", "context"], "conversations.list": ["featureId", "search", "cursor", "limit"],
     "conversations.get": ["conversationId", "cursor", "limit"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
-    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"],
+    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"],
     "reviews.list": ["taskId"], "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId", "offset"],
   };
@@ -207,13 +214,13 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
   const input = growthObject(item.input, fields);
   for (const [key, value] of Object.entries(input)) {
     if (["context", "configuration", "limit", "offset"].includes(key)) continue;
-    growthString(value, key === "text" ? 131072 : key === "search" ? 200 : key === "cursor" ? 2048 : 256);
+    growthString(value, key === "text" ? 131072 : key === "instruction" ? 4000 : key === "search" ? 200 : key === "cursor" ? 2048 : 256);
   }
   const required: Partial<Record<GrowthAgentCommandOperation, string[]>> = {
     "features.configure": ["featureId", "configuration"], "conversations.create": ["featureId"],
     "conversations.get": ["conversationId"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId"],
-    "tasks.cancel": ["taskId"], "reviews.list": ["taskId"],
+    "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"], "reviews.list": ["taskId"],
     "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],
   };

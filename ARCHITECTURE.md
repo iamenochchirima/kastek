@@ -129,7 +129,10 @@ user instructions; earlier task workflows remain pinned. See the
 Its lifecycle and purpose-routing records do not grant cross-product authority. Knowledge source
 bodies and temporary extraction receipts now live in PostgreSQL; unrelated connected evidence and
 artifacts continue to use private object storage. See the [private assistant reference](products/agents/docs/operations/private-assistant.md).
-Growth and Agencies integration and product delegation policy remain later work. Workspace execution
+Growth's managed assistant now uses the adaptive loop with its three existing same-business
+specialists under signed product authority. Growth retains membership, business permissions and
+exact-effect approvals; child execution does not create Agents-product membership. Agency
+delegation remains unavailable. Workspace execution
 is explicitly unavailable until the Lina adapter is implemented. No existing database or
 production deployment is changed by this source reset.
 

@@ -44,6 +44,11 @@ export async function getBundledProviderModels(providerId: string): Promise<Bund
 
 function failure(status: number | undefined, dispatched: boolean, cancelled: boolean): ProviderTransportError {
   if (cancelled) return new ProviderTransportError("MODEL_CANCELLED", dispatched ? "uncertain" : "rejected", 409);
+  // SDK error events can follow an accepted HTTP response, including partial output.
+  // Their private errorMessage is not a safe diagnostic, and HTTP 200 is not an error status.
+  if (status !== undefined && status >= 200 && status < 300) {
+    return new ProviderTransportError("MODEL_STREAM_FAILED", dispatched ? "uncertain" : "rejected", 502);
+  }
   const rejections: Record<number, string> = { 400: "MODEL_REQUEST_INVALID", 422: "MODEL_REQUEST_INVALID", 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED",
     403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED" };
   if (status && rejections[status]) return new ProviderTransportError(rejections[status], "rejected", status);

@@ -203,3 +203,32 @@ When API background workers are disabled, start a dedicated API process with
 to inspect setup counts, attempts, pending age and duration; use its bounded `backfill 100` command
 for organisations created before this worker was enabled. No model inference or evaluations run
 as part of setup.
+
+
+Defaults revision 3 keeps the existing Growth assistant, Research, Content and Campaigns. The
+assistant can coordinate the three specialist versions through the shared adaptive runtime;
+Growth remains the authority for business membership, record access and exact draft approval.
+New setup jobs and bounded missing-organisation backfill target revision 3. Existing revision 2
+jobs retain their original signed publication. To upgrade an existing organisation explicitly,
+run `pnpm --filter @kasitek/growth-core agents:setup upgrade-defaults <organisation-id>`; unchanged
+managed defaults can advance while owner customisations remain protected. Do not substitute a
+database update for the setup operation.
+
+The browser sends active-task instructions through `POST /api/agents/tasks/:taskId/instructions`
+with a stable `requestId` and at most 4,000 characters. Accepted instructions are queued for a later
+model step. A lost acknowledgment retries the same request; it does not create another task.
+`POST /api/agents/tasks/:taskId/continue` requests renewed access. Both commands enforce the current
+Growth origin and business/member scope before signed execution. Cancellation keeps the task and
+conversation available for inspection and subsequent messages. Root review routes include only
+specialist reviews verified as belonging to that authorized root; exact decisions retain the
+actual child operation and payload digest.
+
+The current capability endpoint accepts exact published manifest/policy pairs for revisions 2 and
+3. It validates arguments against the selected version, rejects mixed digests, and returns bounded
+argument feedback for malformed model calls. Chat-only drafting does not prepare a saved-draft
+review. Publishing, scheduling, external web research, personal memory and sandbox execution remain
+unavailable through these Growth defaults.
+
+Completed specialist work can be inspected from its conversation turn. Growth authenticates the root task export and returns only a direct child's terminal state and output, in pages of 4,096 Unicode code points. Redacted output stays unavailable. The raw execution capture is not exposed by this result route. Task progress and failure messages remain attached to the corresponding turn; model interruption does not imply an uncertain external action or enable terminal-task continuation. Draft decisions require the scoped task review endpoint; the unscoped legacy decision route rejects before changing a review. Failed new-conversation creation retries the same creation identity instead of reopening the saved conversation.
+
+Conversation refreshes adopt the server title after the first prompt while preserving unsent drafts. The floating assistant launcher is hidden on full conversation routes so it cannot cover the composer.

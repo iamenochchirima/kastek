@@ -14,6 +14,8 @@ const tasks = new Map();
 const reviews = new Map();
 const requests = new Map();
 const attempts = [];
+const instructionAttempts = [];
+let loseInstructionAcknowledgement = false;
 let active = true;
 const features = [
   { id: "assistant", name: "Growth assistant", description: "Guidance and help with your business.", ready: true, reasons: [] },
@@ -100,7 +102,16 @@ const server = http.createServer(async (request, response) => {
     if (migration && path === "/api/social/posts/fixture-post/publish-batch") return json(response, 200, { batch: null });
     if (migration && (path.startsWith("/api/invitations/") || path.startsWith("/api/early-access/invitations/"))) return json(response, 404, { error: "Invitation not found" });
     if (path === "/health") return json(response, 200, { ok: true });
-    if (path === "/__fixture/attempts") return json(response, 200, { attempts, conversations: [...conversations.values()] });
+    if (path === "/__fixture/attempts") return json(response, 200, { attempts, instructionAttempts, tasks: [...tasks.values()], conversations: [...conversations.values()] });
+    if (path === "/__fixture/orchestration") {
+      const input = await payload(request), task = tasks.get(input.taskId);
+      if (!task) return json(response, 404, { error: "Fixture task missing" });
+      if (input.loseInstructionAcknowledgement !== undefined) loseInstructionAcknowledgement = input.loseInstructionAcknowledgement;
+      task.state = input.state || task.state; if (input.errorCode !== undefined) task.errorCode = input.errorCode; task.canSteer = input.canSteer ?? true; task.canContinue = input.canContinue ?? false;
+      task.orchestration = { revision: 1, record: { objective: "Prepare a launch draft", steps: [{ id: "draft", title: "Compare specialist drafts", state: "in_progress" }], questions: ["Which audience?"], evidenceTaskIds: [] } };
+      task.children = [{ id: "research-child", name: "Research", state: "completed" }, { id: "content-child", name: "Content", state: "working" }];
+      task.updatedAt = now(); return json(response, 200, { task });
+    }
     if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }
     if (path === "/__fixture/availability") { active = (await payload(request)).active; return json(response, 200, { ok: true }); }
     if (path === "/api/auth/me" && process.env.GROWTH_AGENTS_FIXTURE_REQUIRE_SESSION === "1" && !/(?:^|;\s*)kasitek_session=[^;]+/.test(request.headers.cookie || "")) return json(response, 401, { error: "Unauthorized" });
@@ -163,12 +174,29 @@ const server = http.createServer(async (request, response) => {
       if (search) result = result.filter((task) => task.input.toLowerCase().includes(search.toLowerCase()));
       return json(response, 200, { tasks: result, nextCursor: null });
     }
-    const taskMatch = /^\/api\/agents\/tasks\/([^/]+)(?:\/(events|reviews|cancel)(?:\/([^/]+)(?:\/(decision))?)?)?$/.exec(path);
+    const specialistMatch = /^\/api\/agents\/tasks\/([^/]+)\/specialists\/([^/]+)\/result$/.exec(path);
+    if (specialistMatch) {
+      const task = tasks.get(specialistMatch[1]);
+      if (!task || task.businessId !== businessId || !task.children?.some(child => child.id === specialistMatch[2])) return json(response, 404, { error: "Result unavailable" });
+      const offset = Number(url.searchParams.get("offset") || 0), text = "Verified specialist findings. ".repeat(180);
+      return json(response, 200, { taskId: specialistMatch[2], state: "completed", available: true, output: text.slice(offset, offset + 4096), nextOffset: offset + 4096 < text.length ? offset + 4096 : null });
+    }
+    const taskMatch = /^\/api\/agents\/tasks\/([^/]+)(?:\/(events|reviews|cancel|instructions|continue)(?:\/([^/]+)(?:\/(decision))?)?)?$/.exec(path);
     if (taskMatch) {
       const task = tasks.get(taskMatch[1]); if (!task || task.businessId !== businessId) return json(response, 404, { error: "Task unavailable" });
       if (!taskMatch[2]) return json(response, 200, { task });
+      if (taskMatch[2] === "instructions") {
+        const input = await payload(request); instructionAttempts.push({ ...input, taskId: task.id });
+        const key = `${businessId}:instruction:${input.requestId}`;
+        if (requests.has(key)) return json(response, 200, requests.get(key));
+        if (!task.canSteer || !["working", "waiting_review", "waiting_authority"].includes(task.state)) return json(response, 409, { error: "Task no longer accepts instructions" });
+        const result = { accepted: true }; requests.set(key, result);
+        if (loseInstructionAcknowledgement) { loseInstructionAcknowledgement = false; response.destroy(); return; }
+        return json(response, 200, result);
+      }
+      if (taskMatch[2] === "continue") { task.state = "working"; task.canContinue = false; task.canSteer = true; task.updatedAt = now(); return json(response, 200, { task }); }
       if (taskMatch[2] === "events") return json(response, 200, { events: [{ id: `${task.id}:${task.state}`, taskId: task.id, type: "task.state", state: task.state, createdAt: task.updatedAt }], nextCursor: task.state });
-      if (taskMatch[2] === "cancel") { task.state = "cancelled"; task.updatedAt = now(); return json(response, 200, { task }); }
+      if (taskMatch[2] === "cancel") { task.state = "cancelled"; task.canSteer = false; task.canContinue = false; task.updatedAt = now(); return json(response, 200, { task }); }
       if (!taskMatch[3]) return json(response, 200, { reviews: [...reviews.values()].filter((value) => value.taskId === task.id) });
       const review = reviews.get(taskMatch[3]); if (!review || review.taskId !== task.id) return json(response, 404, { error: "Review unavailable" });
       const input = await payload(request);

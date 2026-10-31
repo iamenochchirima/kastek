@@ -1,9 +1,10 @@
 # Configure Growth agent execution
 
-Owner: Agents engineering. Last reviewed: 2026-10-23.
+Owner: Agents engineering. Last reviewed: 2026-10-31.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker (`AgentsBusinessRunV21`, harness `product-capabilities-v11`). Growth users keep their
+business worker. Managed defaults revision 3 uses `AgentsBusinessRunV23` / `product-capabilities-v13`
+for the adaptive assistant and retains `AgentsBusinessRunV21` / `product-capabilities-v11` for direct specialists. Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
 ## Prepare the services
@@ -143,7 +144,7 @@ replace the independent Agents tenant-control operation. Missing or invalid conf
 blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
 
 The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
-Defaults revision `2` includes its four presets, operation manifest and explicit optional-capability
+Defaults revision `3` includes its four presets, operation manifest and explicit optional-capability
 policy. Agents persists this publication and validates it against the installed adapter. An operator
 can run `upgrade-defaults` to queue the new managed revision. Repair preserves customised
 configurations, disabled features, model selections and revoked tenants; accepted turns retain
@@ -178,7 +179,34 @@ account-bound `SocialPost` in `DRAFT` state. Current operation permissions autho
 the agent's name is not proof of write access. Growth owns account checks, exact approval and the
 stable domain receipt. A lost acknowledgement reconciles that same operation before another save.
 
-Growth's installed policy disables native knowledge bindings, skills, memory, delegation, sandbox,
+The assistant discovers its three pinned, same-business specialists and chooses direct work,
+parallel or sequential delegation, result inspection and focused revisions through the shared
+adaptive loop. The specialist definitions remain ordinary published Growth agents. There is no
+topic routing table or mandatory research/content/campaign sequence. Initial specialist allocations
+are 48,000 tokens and 300 seconds per child, with two concurrent children and a shared root budget.
+Adaptive bindings permit at most 64,000 tokens per child; legacy delegation retains its 12,000-token
+limit. Admission reserves each allocation against the existing root allowance. Child tokens and
+elapsed time still count toward that root, including retries and corrections. A larger child
+allocation permits another bounded model call after schema feedback; it does not enlarge the root
+budget or change an already admitted task. Publish the compatible worker before admitting
+larger allocations. Rollback stops new adaptive admissions or lowers future bindings; workers must
+retain support for already published configurations and admitted child allocations until those
+executions settle.
+
+Derived child authority requires the admitted root, the same initiating principal and business,
+an enabled pinned specialist, and product capabilities within the root's exact scope. Equivalent
+bindings may have different publication-local IDs; comparison retains organization, descriptor,
+adapter, policy, limits and destination authority. It never matches by operation name alone.
+Current checks fence disabled specialists and withdrawn evidence, including already joined results.
+
+The in-app conversation shows bounded work progress and specialist status. Signed
+`tasks.instructions` queues idempotent updates against an active authorized root;
+`tasks.continue` renews expired authority without increasing its admitted budget or deadline.
+Cancellation reaches the whole task tree. Reopening reads persisted work and queued instructions.
+Reviewed child effects remain exact single-use approvals, projected into the initiating root's UI.
+Draft-only requests return text in chat. Publication and sending remain unavailable.
+
+Growth's installed policy disables native knowledge bindings, skills, memory, sandbox,
 workflows and external connections until their product custody/principal authority is installed.
 External web research, automatic publishing, campaign launch and arbitrary writes are unavailable.
 Standalone customer-channel agents retain their own deployments and Inbox path.
@@ -220,7 +248,9 @@ The engineering journey uses the actual built Growth UI and BFF, authenticated p
 PostgreSQL and Restate. Only dashboard identity and model responses are controlled fixtures.
 It checks Growth-only identity, two turns, quick access/history, API/worker restarts, exact
 reviewed draft readback, signed pagination, concurrent configuration, private downloads and
-withdrawn evidence. It creates and removes its own databases and Restate container.
+withdrawn evidence. Adaptive cases also exercise three specialists, a specialist revision, product
+reads by child tasks, steering, authority renewal, cancellation, disabled specialists and root review
+isolation. It creates and removes its own databases and Restate runtime.
 
 With local PostgreSQL administrator access supplied privately as `AGENTS_TEST_ADMIN_URL`,
 Docker and Playwright Chromium available, run from the repository root:
@@ -230,6 +260,11 @@ pnpm --filter @kasitek-labs/contracts build
 pnpm --dir products/growth/web build
 pnpm --filter @kasitek/agents exec vitest run test/growth-product-http.test.ts
 ```
+
+When Docker is unavailable, `AGENTS_TEST_RESTATE_BINARY` may identify an owned official Restate
+1.7.13 executable. The same suite starts a separate loopback native runtime and removes its data
+and database afterward. It must not use the running user's application database. Computer-use
+checks with normal sign-in and a live model remain separate from these controlled cases.
 
 Browser evidence is saved under `.audit/growth-agent-real-browser/`. A passed deterministic
 journey establishes engineering behavior, not model quality or live provider compatibility.
@@ -254,9 +289,12 @@ separate from this implementation.
 
 Apply recognized Agents additive schemas 070–072 with the explicit setup command before enabling
 new admissions. They store generic review projections, trusted Growth publications and managed
-configuration markers, and set new tasks to `product-capabilities-v11`. Register the matching
-`AgentsBusinessRunV21` worker and install current product handlers before publishing defaults
-revision `2`. Unknown schema digests remain rejected.
+configuration markers. Adaptive execution additionally requires schema096. Register V21 and V23
+workers and install current product handlers before publishing defaults revision `3`. The Growth
+manifest and product policy revision are `3`; the installed HTTP adapter remains release `2`.
+Exact revision 2 publications remain supported for accepted work and persisted setup retries.
+Unknown schema digests remain rejected. This integration adds no database migration beyond the
+existing adaptive schema.
 
 Keep the V20 worker and its original `growth-products-v10` artifacts for already accepted V20 work.
 Route or drain that work on its pinned release. Do not point an existing journal at V21. Rollback
@@ -272,6 +310,14 @@ are 196,608 input tokens and 1,000,000 tokens per root. These are operator budge
 Set `AGENTS_SCHEDULING_POLICY_JSON.dailyTokenAllowance` to cover the intended outstanding root
 reservations plus consumed usage. A quota smaller than a root reservation rejects admission; it does
 not silently reduce an accepted run's budget. Custom configurations retain their saved limits.
+
+The model-call limit covers coordinator, specialist and compaction calls together. The service default
+is 24 calls for every program; a three-specialist request can exhaust it while tokens and active time
+remain, especially after argument corrections and result inspection. The controlled Growth pilot
+uses an explicit `AGENTS_MODEL_POLICY_JSON` override with `maxModelCalls: 48`, `maxRootTokens: 300000`
+and `maxDurationMs: 900000`. This is a bounded pilot allowance, not production model qualification.
+Merge overrides into the existing operator policy and admit new roots; accepted tasks retain their
+pinned limits. The shared service defaults remain unchanged.
 
 Managed default provisioning also derives initial context/output ceilings and the compaction threshold
 from the selected managed-model snapshot. This allows smaller models without changing explicit saved

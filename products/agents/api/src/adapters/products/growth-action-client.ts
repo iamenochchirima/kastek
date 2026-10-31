@@ -55,7 +55,8 @@ export class GrowthActionClient {
     if(!response.ok) {
       const body=value as {code?:unknown;error?:{code?:unknown}};
       const candidate=body.code??body.error?.code;
-      const code=typeof candidate==="string"&&/^[a-zA-Z0-9_]{1,80}$/.test(candidate)?candidate.toUpperCase():"GROWTH_ACTION_DENIED";
+      const destinationCode=typeof candidate==="string"&&/^[a-zA-Z0-9_]{1,80}$/.test(candidate)?candidate.toUpperCase():"GROWTH_ACTION_DENIED";
+      const code=[400,422].includes(response.status)&&destinationCode==="AGENT_TOOL_ARGUMENTS_INVALID"?"TOOL_ARGUMENTS_INVALID":destinationCode;
       throw new PlatformError(code,response.status>=500?503:response.status,"Growth could not authorize or complete this operation");
     }
     return value;
