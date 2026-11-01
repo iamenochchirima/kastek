@@ -42,6 +42,12 @@ product programs. Saving an explicit version 4 configuration enables future comp
 there is no separate adaptive rollout environment variable. Private phone admissions still require
 `AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS` on both API and worker.
 
+For local Restate setup, verify the registered service list includes `AgentsBusinessRunV24` and
+the retained handlers after changing the worker. Re-registering an existing endpoint with
+`force: false` can return HTTP200 while keeping its earlier manifest. Refresh that owned local
+registration with `force: true`, then inspect the registered services before admitting work.
+An HTTP200 response alone does not prove that the current workflow is available.
+
 A specialist's explicitly pinned version also authorizes its own selected reviewed skill revisions.
 Skill revisions belong to that specialist agent; they are not matched against the coordinator's
 separate installation IDs. Publication, discovery and child admission revalidate enabled packages
@@ -303,9 +309,32 @@ quality evidence. Production promotion, hosted monitoring and a post-release dat
 | Analytics / success | Reuse `agent.orchestration.lifecycle@1` and `growth.agent.command@1`. The orchestration contract widens `specialist_tasks` from64 to the exact-integer bound without adding fields or changing its event identity. Update the Analytics registry before producers emit larger counts. Compare terminal outcomes, stalls, child tasks, accounted usage and latency. A model-authored completed step is not a success metric. |
 | Logs / metrics | Native operation receipts and bounded `work.replan_requested` / `work.continued` events provide investigation facts. No new Collector revision, OTLP endpoint or exporter: not applicable. Credentials, prompts, results and queued instructions stay out of aggregate telemetry. Hosted retention, dashboards and alerts remain unverified. |
 | Documentation | This runbook, architecture, source boundary, Growth integration and verification skill. New public marketing/navigation: not applicable. |
-| Validation | 292 distinct core policy, lifecycle, accounting, context and integration checks passed across a combined run, an isolated provenance-suite retest after a fixture timeout, and strengthened joint-threshold/scope coverage. One work item completes after50 model operations, at least50 tool operations and17 specialists; concurrent specialist claims preserve the explicit shared ceiling and coordinator finishing call. 39 native PostgreSQL/Restate and signed Growth checks passed across the combined run and affected cancellation retest; two optional computer-use cases were skipped. Four persisted v13 pins remain readable. API build/type checks and product boundaries passed; the internal module checker retains seven existing violations. Controlled responsive UI checks remain separate from actual visible Growth acceptance, which is incomplete because browser control is disabled. Record exact logs and tested commit in implementation evidence; no staging/production check is claimed. |
+| Validation | 292 distinct core policy, lifecycle, accounting, context and integration checks passed across a combined run, an isolated provenance-suite retest after a fixture timeout, and strengthened joint-threshold/scope coverage. One work item completes after50 model operations, at least50 tool operations and17 specialists; concurrent specialist claims preserve the explicit shared ceiling and coordinator finishing call. 39 native PostgreSQL/Restate and signed Growth checks passed across the combined run and affected cancellation retest; two optional computer-use cases were skipped. Four persisted v13 pins remain readable. API build/type checks and product boundaries passed; the internal module checker retains seven existing violations. Actual visible Growth acceptance passed in the owned test organization on 1 November 2026: natural prompts, model-selected Content/Campaigns specialists, queued correction, full results, reload/follow-up, direct simple answers, Stop, continuation and an explicit low allowance. The initial workspace-read cursor loop, model-only Stop classification and result-dialog lifetime/focus defects were repaired and retested. Earlier drafts required user steering; this journey does not establish general model quality. Controlled responsive UI checks remain separate evidence. Record exact logs and tested commit in implementation evidence; no staging/production check is claimed. |
 | Rollback / disable | Stop new revision4/v14 admissions or publish a compatible future configuration. Drain or cancel accepted work using its pinned workflow; retain V24, V23 and earlier required handlers, accepted policy snapshots,097/098 lineage/counters, receipts and journals. Never reinterpret a V24 journal on V23, undo quota by editing counters, or blindly retry uncertain effects. Reverting schema is not the rollback path. |
 | Other / post-release | Commercial billing, new infrastructure and browser telemetry: not applicable. Owner schedules post-release review after a separately approved deployment; no deployment date is assigned. |
+
+## Live acceptance repairs
+
+An empty optional Growth read cursor means the first page, as allowed by the published schema.
+Malformed nonempty cursors and foreign-scope cursors remain rejected. This compatible correction
+requires no manifest, policy or schema revision.
+
+A stopped task whose unresolved operations are exclusively model generation or compaction reports
+`MODEL_OUTCOME_UNCERTAIN`. The physical outcome and conservative usage remain uncertain; the code
+does not authorize regeneration or continuation. Mixed or tool uncertainty retains the general
+uncertain-operation classification, and child uncertainty retains its own classification.
+
+Growth owns the specialist-result dialog at conversation scope, so a root completing while the
+result loads does not unmount it. Closing restores focus without scrolling the outer page; any
+necessary adjustment stays inside the message scroller. Account, business and conversation changes
+clear the selection and abort obsolete requests.
+
+These fixes affect Agents worker, Growth API and Growth web under the existing release identities.
+Existing analytics and bounded operation observations suffice; new events, Collector changes,
+permissions, quotas, migrations and infrastructure are not applicable. Local acceptance kept posts,
+campaigns and customer messages unchanged. Rollback uses compatible prior artifacts and retains all
+accepted snapshots, receipts and uncertain usage. Production rollout and post-release review remain
+owner-controlled gates.
 
 ## Model capacity after interruption
 

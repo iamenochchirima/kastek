@@ -111,6 +111,10 @@ const server = http.createServer(async (request, response) => {
       task.state = input.state || task.state; if (input.errorCode !== undefined) task.errorCode = input.errorCode; task.canSteer = input.canSteer ?? true; task.canContinue = input.canContinue ?? false;
       task.orchestration = { revision: 1, record: { objective: "Prepare a launch draft", steps: [{ id: "draft", title: "Compare specialist drafts", state: "in_progress" }], questions: ["Which audience?"], evidenceTaskIds: [] } };
       task.children = [{ id: "research-child", name: "Research", state: "completed" }, { id: "content-child", name: "Content", state: "working" }];
+      if (input.output !== undefined) {
+        task.output = input.output;
+        if (task.state === "completed" && !messages.get(task.conversationId).some(message => message.role === "assistant" && message.taskId === task.id)) messages.get(task.conversationId).push({ id: randomUUID(), role: "assistant", text: task.output, createdAt: now(), taskId: task.id });
+      }
       task.updatedAt = now(); return json(response, 200, { task });
     }
     if (path === "/__fixture/research") { const input = await payload(request); features.find((feature) => feature.id === "research").ready = input.ready; return json(response, 200, { ok: true }); }

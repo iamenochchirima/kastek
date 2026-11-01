@@ -93,6 +93,33 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operation_usage WHERE operation_id=$1",[input.id])).rows[0].count).toBe(1);
   });
 
+  it.each([
+    { kinds: ["model"], alreadyUncertain: false, code: "MODEL_OUTCOME_UNCERTAIN" },
+    { kinds: ["compaction"], alreadyUncertain: false, code: "MODEL_OUTCOME_UNCERTAIN" },
+    { kinds: ["model"], alreadyUncertain: true, code: "MODEL_OUTCOME_UNCERTAIN" },
+    { kinds: ["model", "tool"], alreadyUncertain: false, code: "OPERATION_OUTCOME_UNCERTAIN" },
+    { kinds: ["tool"], alreadyUncertain: false, code: "OPERATION_OUTCOME_UNCERTAIN" },
+  ] as const)("classifies stopped $kinds uncertainty precisely (previously uncertain: $alreadyUncertain)", async ({ kinds, alreadyUncertain, code }) => {
+    const { task, authority, grant } = await fixture();
+    await execute(task.id,"completed-read","tool");
+    for (const [index,kind] of kinds.entries()) {
+      const input = { ...request(task.id,`interrupted-${index}`,kind==="tool"?"tool":"model"),kind };
+      const admitted = await beginOperation(pool,task.id,input);
+      if(admitted.waiting) throw Error("Unexpected capacity wait");
+      if(alreadyUncertain) await finishOperation(pool,task.id,input.id,"uncertain",null,"MODEL_OUTCOME_UNCERTAIN",input.reservedTokens,admitted.operation.attempt_id);
+    }
+    await settleTask(pool,task.id,{state:"cancelled"});
+    expect((await pool.query("SELECT state,error_code,tokens_used,tokens_reserved FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0])
+      .toMatchObject({state:"uncertain",error_code:code,tokens_used:3+20*kinds.length,tokens_reserved:0});
+    const interrupted = (await pool.query("SELECT o.state,u.accounted_tokens FROM agents_platform.operations o JOIN agents_platform.operation_usage u ON u.operation_id=o.id WHERE o.task_id=$1 AND o.state='uncertain'",[task.id])).rows;
+    expect(interrupted).toHaveLength(kinds.length);
+    expect(interrupted.every(op=>op.state==="uncertain" && op.accounted_tokens===20)).toBe(true);
+    expect((await pool.query("SELECT reserved_tokens,consumed_tokens FROM agents_platform.usage_accounts WHERE organization_id=$1",[authority.organizationId])).rows[0])
+      .toMatchObject({reserved_tokens:0,consumed_tokens:3+20*kinds.length});
+    await expect(transaction(pool,db=>continueWorkInTransaction(db,new AdmissionStore(pool),{priorTaskId:task.id,authority,grantId:grant.id,requestKey:randomUUID()})))
+      .rejects.toMatchObject({code:"WORK_CONTINUATION_UNAVAILABLE"});
+  });
+
   it("preserves cumulative call allowances across a linked continuation", async () => {
     for (const [field,code] of [["maxRootModelCalls","ROOT_MODEL_CALL_LIMIT"],["maxModelCalls","MODEL_CALL_LIMIT"]] as const) {
       const f = await fixture({[field]:2});

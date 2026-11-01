@@ -173,6 +173,9 @@ and query analytics with an explicit range/timezone where the reporting gateway 
 They share one model-directed loop; the model chooses its tools and order. Attached records give
 focus without replacing current resource authorization. Reads return bounded continuation and
 versioned citations so several records can influence one result.
+For record reads, an omitted or empty `continuation` requests the initial page, matching the
+published tool schema. Nonempty cursors remain authenticated to the actor, operation, resource
+and revision; malformed or foreign cursors do not become initial-page requests.
 
 Growth assistant and Content can prepare an editable draft for exact staff review and save one
 account-bound `SocialPost` in `DRAFT` state. Current operation permissions authorize the save;

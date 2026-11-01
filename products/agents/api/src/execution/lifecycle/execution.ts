@@ -289,7 +289,10 @@ export async function settleTask(pool: Pool, taskId: string, requested: TaskOutc
     await stopTaskCapacity(db,taskId);
     const operations = (await db.query<OperationRecord>("SELECT * FROM agents_platform.operations WHERE task_id=$1 AND state='started' FOR UPDATE", [taskId])).rows;
     for (const op of operations) await finishOperationInTransaction(db, execution, op, "uncertain", null, "OPERATION_INTERRUPTED", op.reserved_tokens);
-    if (operations.length && outcome.state === "cancelled") outcome = { state: "uncertain", errorCode: "OPERATION_OUTCOME_UNCERTAIN" };
+    if (outcome.state === "cancelled" || (outcome.state === "uncertain" && outcome.errorCode === "OPERATION_OUTCOME_UNCERTAIN")) {
+      const uncertain = (await db.query<Pick<OperationRecord,"kind">>("SELECT kind FROM agents_platform.operations WHERE task_id=$1 AND state='uncertain'",[taskId])).rows;
+      if (uncertain.length) outcome = { state: "uncertain", errorCode: uncertain.every(op=>op.kind==="model" || op.kind==="compaction") ? "MODEL_OUTCOME_UNCERTAIN" : "OPERATION_OUTCOME_UNCERTAIN" };
+    }
     if (task.parent_task_id) {
       const latest=(await db.query("SELECT tokens_used,active_ms,allocation_released FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
       if(!latest.allocation_released) {

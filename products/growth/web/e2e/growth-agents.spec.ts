@@ -504,3 +504,51 @@ test("shows a binding call limit without offering unsupported continuation", asy
   await expect(chat.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
   await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
 });
+
+for (const width of [1440, 390]) test(`keeps a loading specialist result open when the root completes at ${width}px`, async ({ page, request }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const input = `keep working result transition ${width}`;
+  await chat.getByRole("textbox", { name: "Message agent" }).fill(input);
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((item: { input: string }) => item.input === input);
+  expect(task).toBeTruthy();
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id } });
+  const trigger = chat.getByRole("button", { name: "View Research result", exact: true });
+  await expect(trigger).toBeVisible({ timeout: 12000 });
+  await page.evaluate(() => { document.body.style.minHeight = "4000px"; });
+  const outerScroll = await page.evaluate(() => window.scrollY);
+  const completedOutput = "The root finished while its specialist result was opening." + "\n\nCompleted draft detail.".repeat(100);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**/api/agents/tasks/${task.id}/specialists/research-child/result?offset=0`, async route => {
+    const response = await route.fetch();
+    await held;
+    await route.fulfill({ response });
+  });
+  try {
+    await trigger.click();
+    const result = page.getByRole("dialog", { name: "Research result", exact: true });
+    await expect(result.getByRole("status")).toHaveText("Loading result…");
+    expect(await page.evaluate(() => window.scrollY)).toBe(outerScroll);
+    await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "completed", output: completedOutput } });
+    await expect(page.locator('[data-role="assistant"]').filter({ hasText: "The root finished while its specialist result was opening." })).toHaveCount(1, { timeout: 12000 });
+    await expect(result).toBeVisible();
+    await expect(result.getByRole("status")).toHaveText("Loading result…");
+    release();
+    await expect(result.getByText(/Verified specialist findings/)).toBeVisible();
+    await result.getByRole("button", { name: "Load more", exact: true }).click();
+    await expect(result.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
+    await expect(result.getByText(/Verified specialist findings/)).toHaveText("Verified specialist findings. ".repeat(180));
+    await page.locator("[data-agent-message-scroll]").evaluate(element => { element.scrollTop = 0; });
+    await page.keyboard.press("Escape");
+    await expect(result).toHaveCount(0);
+    await expect(chat.getByRole("button", { name: "View Research result", exact: true })).toBeFocused();
+    await expect(chat.getByRole("button", { name: "View Research result", exact: true })).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(outerScroll);
+  } finally { release(); }
+});

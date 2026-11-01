@@ -56,10 +56,11 @@ export async function discoverGrowthRecords(core:CoreContext,scope:GrowthAgentSc
 export async function readGrowthRecord(core:CoreContext,scope:GrowthAgentScope,context:GrowthAgentContext,input:unknown):Promise<GrowthAgentContextEvidence & {continuation:string|null}> {
   const value=object(input);
   if(Object.keys(value).some(k=>!["resourceId","range","report","continuation"].includes(k)))throw bad();
+  if(value.continuation!==undefined&&(typeof value.continuation!=="string"||value.continuation.length>2048))throw bad();
   const response=await readGrowthAgentContext(core,scope,context);
   const full=JSON.stringify(response.data);let offset=0;
-  if(value.continuation!==undefined){
-    if(typeof value.continuation!=="string"||value.continuation.length>2048)throw bad();
+  // Published capability schemas allow an empty continuation for the initial page.
+  if(typeof value.continuation==="string"&&value.continuation.length>0){
     const cursor=decode(value.continuation);
     if(cursor.scope!==growthAgentDigest({tenantId:scope.tenantId,actor:scope.actor,context})||cursor.revision!==response.revision||typeof cursor.offset!=="number"||!Number.isSafeInteger(cursor.offset)||cursor.offset<0||cursor.offset>=full.length)throw new ApiError(409,"agent_source_changed","The source changed. Read it again");
     offset=cursor.offset;

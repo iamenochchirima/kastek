@@ -9,7 +9,7 @@ import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthCapabilityManifest, growthAgentPresets, growthAgentPublicationV2 } from "../src/agents/manifest.js";
+import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2 } from "../src/agents/manifest.js";
 import { registerGrowthCapabilityRoutes } from "../src/agents/capability-routes.js";
 import { discoverGrowthRecords, readGrowthRecord } from "../src/agents/tools.js";
 import type { CoreContext } from "../src/context.js";
@@ -55,6 +55,7 @@ test("real content discovery and continuation retain current tenant, actor, sour
     await assert.rejects(discoverGrowthRecords(core,scope,"content_post",{limit:21}));
     const context={kind:"content_post" as const,resourceId:"a"};
     const chunks=[];let current=await readGrowthRecord(core,scope,context,{resourceId:"a"});
+    assert.deepEqual(await readGrowthRecord(core,scope,context,{resourceId:"a",continuation:""}),current);
     const revision=current.revision;chunks.push((current.data as {text:string}).text);
     while(current.continuation){current=await readGrowthRecord(core,scope,context,{resourceId:"a",continuation:current.continuation});chunks.push((current.data as {text:string}).text);assert.equal(current.revision,revision);}
     assert.equal((JSON.parse(chunks.join("")) as {content:string}).content,"Useful content ".repeat(1000));
@@ -64,13 +65,26 @@ test("real content discovery and continuation retain current tenant, actor, sour
     registerGrowthCapabilityRoutes(app,core);
     const descriptor=growthCapabilityManifest.operations.find(o=>o.operation==="content.read")!;
     const command={version:"1",requestId:randomUUID(),operationId:"read-one",taskId:randomUUID(),conversationId:randomUUID(),actor:scope.actor,
-      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:"3",
+      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:growthAgentPublication.policy.revision,
         manifestDigest:growthCapabilityManifest.digest,descriptorDigest:growthAgentDigest(descriptor),handlerRef:descriptor.handlerRef},
       bindingId:randomUUID(),bindingDigest:"a".repeat(64),operation:"content.read",control:"invoke",input:{resourceId:"a"}};
     async function send(body:unknown){const token=await new SignJWT({product:"growth",requestDigest:growthAgentDigest(body)}).setProtectedHeader({alg:"RS256",kid:"agents-v1"})
       .setIssuer("https://agents.kasitek.co.za").setAudience("product-capability-actions").setSubject("agents-worker").setJti(randomUUID()).setIssuedAt().setExpirationTime("60s").sign(keys.privateKey);
       return app.inject({method:"POST",url:"/internal/agents/capabilities",headers:{authorization:"Bearer "+token},payload:body});}
     const accepted=await send(command);assert.equal(accepted.statusCode,200);
+    const workspaceDescriptor=growthCapabilityManifest.operations.find(operation=>operation.operation==="workspace.read")!;
+    const workspace={...command,operation:"workspace.read",input:{},authority:{...command.authority,
+      descriptorDigest:growthAgentDigest(workspaceDescriptor),handlerRef:workspaceDescriptor.handlerRef}};
+    const firstWorkspace=await send(workspace);assert.equal(firstWorkspace.statusCode,200);
+    const emptyWorkspace=await send({...workspace,input:{continuation:""}});assert.equal(emptyWorkspace.statusCode,200);
+    assert.deepEqual(emptyWorkspace.json().value,firstWorkspace.json().value);
+    assert.equal(emptyWorkspace.json().sources[0].id,firstWorkspace.json().sources[0].id);
+    for(const continuation of [" ","invalid-cursor"])
+      assert.equal((await send({...workspace,input:{continuation}})).statusCode,400);
+    assert.equal((await send({...workspace,input:{continuation:null}})).statusCode,422);
+    const foreignCursor=Buffer.from(JSON.stringify({scope:growthAgentDigest({tenantId:"foreign-org",actor:scope.actor,context:{kind:"workspace",resourceId:"org"}}),revision:firstWorkspace.json().value.revision,offset:1})).toString("base64url");
+    assert.equal((await send({...workspace,input:{continuation:foreignCursor}})).statusCode,409);
+    assert.equal((await send({...workspace,actor:{...scope.actor,subject:"outsider"},input:{continuation:""}})).statusCode,403);
     const legacyDescriptor=growthAgentPublicationV2.manifest.operations.find(operation=>operation.operation==="content.read")!;
     const legacy={...command,authority:{...command.authority,policyRevision:"2",manifestDigest:growthAgentPublicationV2.manifest.digest,descriptorDigest:growthAgentDigest(legacyDescriptor)}};
     assert.equal((await send(legacy)).statusCode,200);
