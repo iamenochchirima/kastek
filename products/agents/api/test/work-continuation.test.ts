@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contracts/contracts";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
-import { beginOperation,finishOperation,settleTask } from "../src/execution/lifecycle/execution";
+import { beginOperation,finishOperation,settleTask,loadExecution } from "../src/execution/lifecycle/execution";
 import { continueWorkInTransaction, continuationModelRoutes, workContinuationGroups, workLimitBoundary } from "../src/execution/lifecycle/work-continuation";
 import { loadTaskModelRoutes } from "../src/execution/models/persistence";
 import { transaction } from "../src/infrastructure/database";
@@ -13,6 +13,7 @@ import { startSpecialist,specialistResult,specialistStatus,followupSpecialist,ca
 import { executeWorkTool, queueOrchestrationInstruction, primaryInstructionContext, closeOrchestrationInstructions } from "../src/execution/delegation/progress";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
+import { requestTimeContext } from "../src/execution/business/business";
 
 const url = process.env.AGENTS_TEST_DATABASE_URL;
 (url ? describe : describe.skip)("logical work continuation", () => {
@@ -64,6 +65,27 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const groups = await workContinuationGroups(pool, next.task.id);
     expect(groups[0]!.messages[0]!.content).toContain("Research is complete. Draft remains.");
     expect(groups[0]!.messages[0]!.content).toContain("not instructions or permission to repeat effects");
+  });
+  it("anchors request time to the immutable logical root across children and continuation, while new turns get a new anchor", async () => {
+    const f=await fixture(true),receivedAt="2026-11-01T23:59:59.000Z";
+    await pool.query("UPDATE agents_platform.tasks SET created_at=$2 WHERE id=$1",[f.task.id,receivedAt]);
+    const root=(await loadExecution(pool,f.task.id)).task;
+    const expected={receivedAt,referenceTimezone:"UTC",businessTimezone:null};
+    expect(await requestTimeContext(pool,root)).toEqual(expected);
+    const child=(await startSpecialist(pool,root.id,"time-child",{requests:[{bindingId:"research",brief:"Plan next week"}]})).children[0]!;
+    const childTask=(await loadExecution(pool,child.taskId)).task;
+    expect(childTask.harness_release).not.toBe(root.harness_release);
+    expect(await requestTimeContext(pool,childTask)).toEqual(expected);
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[child.taskId]);
+    await settleTask(pool,child.taskId,{state:"completed",output:"Research complete"});
+    await settleTask(pool,root.id,{state:"incomplete",errorCode:"ORCHESTRATION_STALLED"});
+    const next=await transaction(pool,db=>continueWorkInTransaction(db,store,{priorTaskId:root.id,authority:f.authority,grantId:f.grant.id,requestKey:randomUUID()}));
+    expect(await requestTimeContext(pool,next.task)).toEqual(expected);
+    const turn=await store.admitTask({authority:f.authority,grantId:f.grant.id,versionId:root.version_id,conversationId:root.conversation_id,requestKey:randomUUID(),input:"Plan something for tomorrow"});
+    expect(await requestTimeContext(pool,turn.task)).toEqual({receivedAt:new Date(turn.task.created_at).toISOString(),referenceTimezone:"UTC",businessTimezone:null});
+    expect((await requestTimeContext(pool,turn.task))?.receivedAt).not.toBe(receivedAt);
+    expect(await requestTimeContext(pool,{...root,harness_release:"product-capabilities-v13",execution_policy_version:1})).toBeUndefined();
+    const old=await fixture();expect(await requestTimeContext(pool,old.task)).toBeUndefined();
   });
   it("blocks unresolved prior operations and cross-principal continuation", async () => {
     const f = await fixture();

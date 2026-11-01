@@ -187,7 +187,7 @@ function progressFingerprint(row: ProgressOperation) {
   const orchestration = row.name.startsWith("agents.");
   const output = row.name === "work.update" ? "work.record" : row.output;
   return requestDigest({ name: row.name,
-    request: row.name === "work.update" ? "work.update" : orchestration && request !== undefined ? normalizeRuntimeHandles(request) : row.request_digest,
+    request: row.name === "work.update" ? "work.update" : request !== undefined ? orchestration ? normalizeRuntimeHandles(request) : request : row.request_digest,
     output: orchestration ? normalizeRuntimeHandles(output) : output, error: row.error_code, state: row.state });
 }
 

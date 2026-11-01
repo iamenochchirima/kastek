@@ -14,6 +14,22 @@ describe("orchestration observations", () => {
     expect(repeatedOperationObservation([{ ...read, name: "product.other" }, read, read], 3)).toBeNull();
   });
 
+  it("recognizes reordered product arguments without changing receipt identity or semantic distinctions", () => {
+    const product = (arguments_:string,request_digest:string) => ({...read,name:"t_content_list",state:"failed",error_code:"TOOL_ARGUMENTS_INVALID",output:null,
+      request_digest,request:{tool:"t_content_list",arguments:arguments_}});
+    const attempts=[product('{"status":"","limit":20}',"first-receipt"),product('{"limit":20,"status":""}',"second-receipt"),product('{"status":"","limit":20}',"third-receipt")];
+    expect(repeatedOperationObservation(attempts,3)).toEqual(expect.any(String));
+    expect(attempts.map(value=>value.request_digest)).toEqual(["first-receipt","second-receipt","third-receipt"]);
+    expect(repeatedOperationObservation([product('{"limit":1,"status":""}',"changed"),...attempts.slice(1)],3)).toBeNull();
+    expect(repeatedOperationObservation([{...attempts[0]!,output:{items:[{id:"new"}]}},...attempts.slice(1)],3)).toBeNull();
+    expect(repeatedOperationObservation([{...attempts[0]!,error_code:"WITHDRAWN"},...attempts.slice(1)],3)).toBeNull();
+    const malformed=[product("{bad","receipt-a"),product("{bad","receipt-b"),product("{bad","receipt-c")];
+    expect(repeatedOperationObservation(malformed,3)).toBeNull();
+    expect(repeatedOperationObservation([malformed[0]!,malformed[0]!,malformed[0]!],3)).toEqual(expect.any(String));
+    const businessHandle=(taskId:string)=>({...read,request:{arguments:JSON.stringify({taskId})}});
+    expect(repeatedOperationObservation([businessHandle("one"),businessHandle("two"),businessHandle("three")],3)).toBeNull();
+  });
+
   it("detects alternating operation cycles and preserves their identity across phase rotation", () => {
     const other = { ...read, name: "product.check", output: { answer: "unchanged" } };
     const cycle = repeatedOperationObservation([read,other,read,other,read,other],3);

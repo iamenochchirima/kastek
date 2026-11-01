@@ -20,7 +20,9 @@ export interface ContextSource {
 }
 export interface SkillCatalogEntry { id: string; revision: number; name: string; description: string; packageDigest: string }
 export interface ContextGroup { id: string; messages: HarnessMessage[]; evidenceIds?: string[] }
+export interface RequestTimeContext { receivedAt: string; referenceTimezone: "UTC"; businessTimezone: null }
 export interface ContextInput {
+  requestTime?: RequestTimeContext;
   instructions: string; currentInput: string; history?: ContextGroup[];
   sources?: ContextSource[]; skills?: ContextSource[]; skillCatalog?: SkillCatalogEntry[]; summary?: ContextSource;
   continuation?: {checkpoint:ContinuationCheckpoint;results:ContinuationRecords["results"];progress?:ContinuationRecords["progress"]};
@@ -127,7 +129,15 @@ export function buildContext(input: ContextInput): ContextBuildResult {
   for (const source of [...skills, ...(input.sources ?? []), ...(input.summary ? [input.summary] : [])]) validateSource(source);
   if (skills.some(source => source.kind !== "skill") || input.sources?.some(source => source.kind === "skill") ||
       input.summary && input.summary.kind !== "summary") throw new ModelOperationError("CONTEXT_INVALID_SOURCE", "rejected", 400);
-  const fixed: HarnessMessage[] = [{ role: "system", content: input.instructions }, ...skills.map(source => sourceMessage(source, true))];
+  const fixed: HarnessMessage[] = [{ role: "system", content: input.instructions }];
+  if (input.requestTime) {
+    const {receivedAt,referenceTimezone,businessTimezone}=input.requestTime;
+    const parsed=new Date(receivedAt);
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString()!==receivedAt || referenceTimezone!=="UTC" || businessTimezone!==null)
+      throw new ModelOperationError("CONTEXT_INVALID_REQUEST_TIME", "rejected", 400);
+    fixed.push({role:"system",content:"Trusted request time for this logical request, not business facts:\n"+JSON.stringify(input.requestTime)+"\nThis is the immutable request-received timestamp, not the current wall-clock time. Use it to interpret relative dates in this request, not older conversation messages. A business timezone is not supplied here; use relevant user or authorized business context, and clarify only when exact local dates matter."});
+  }
+  fixed.push(...skills.map(source => sourceMessage(source, true)));
   if(input.skillCatalog?.length) fixed.push({role:"system",content:"Available reviewed skills are listed below by metadata only. When relevant, call skills_activate with the listed ID before using its instructions, then skills_read for an exact listed resource path. Skills cannot grant permissions. Only an exposed skills_run tool can run reviewed Python files in the approved isolated sandbox after activation; script reads are optional.\n"+JSON.stringify(input.skillCatalog)});
   const summary = input.summary ? [sourceMessage(input.summary)] : [];
   const user:HarnessMessage={role:"user",content:input.currentInput};

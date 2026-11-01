@@ -20,7 +20,8 @@ import { skillContext,skillReceiptGroups,skillLoadContextSource } from "../conte
 import type { SkillLoadResult } from "../../capabilities/skills/runtime";
 import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
-import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy } from "../context/context";
+import type { TaskRecord } from "../../contracts/records";
+import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
 import type { EvidenceStore } from "../context/evidence";
@@ -198,6 +199,17 @@ async function awaitAuthority(ctx: restate.WorkflowContext, pool: Pool, taskId: 
   }
 }
 
+export async function requestTimeContext(pool: Pool, task: TaskRecord): Promise<RequestTimeContext | undefined> {
+  if ((task.execution_policy_version??1)<2) return undefined;
+  const originId=task.work_id??task.root_task_id;
+  const origin=originId===task.id?{created_at:task.created_at,harness_release:task.effective_composition.runtime.release}:(await pool.query<{created_at:Date;harness_release:string}>(
+    "SELECT created_at,harness_release FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2 AND parent_task_id IS NULL",
+    [originId,task.organization_id])).rows[0];
+  if (!origin) throw new PlatformError("TASK_CONTEXT_INVALID",409,"Request time is unavailable");
+  if (origin.harness_release!=="product-capabilities-v14") return undefined;
+  return {receivedAt:new Date(origin.created_at).toISOString(),referenceTimezone:"UTC",businessTimezone:null};
+}
+
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
     memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean }> {
@@ -291,7 +303,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const continuation=needsContinuation?await loadContinuation(pool,taskId,true,supplied.items,supplied.omittedCount):undefined;
   const hasContinuation=continuation&&(continuation.checkpoint.operations.length||continuation.checkpoint.delegations.length||continuation.checkpoint.artifacts.length);
   const allowance=await executionAllowanceObservation(pool,execution);
-  const input = { ...(hasContinuation?{continuation}:{}), instructions: config.instructions+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, currentInput: [task.input,...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, currentInput: [task.input,...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };

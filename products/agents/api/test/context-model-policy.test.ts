@@ -26,6 +26,25 @@ const completeToolGroup = (): ContextGroup => ({ id: "working", messages: [
 ] });
 
 describe("runtime-supplied context model policy", () => {
+  it("retains trusted request time separately from instructions and counts it in the mandatory context budget", () => {
+    const input = { instructions: "Answer", currentInput: "Help me plan next week", requestTime: { receivedAt: "2026-11-01T23:59:59.000Z", referenceTimezone: "UTC" as const, businessTimezone: null }, modelPolicy: policy() };
+    const result = buildContext(input);
+    expect(result.messages[0]).toEqual({role:"system",content:"Answer"});
+    const clock = result.messages.find(message => message.role === "system" && message.content?.includes("Trusted request time"));
+    expect(clock?.content).toContain(input.requestTime.receivedAt);
+    expect(clock?.content).toContain('"businessTimezone":null');
+    expect(clock?.content).toContain("not the current wall-clock time");
+    expect(clock?.content).toContain("older conversation messages");
+    const withoutClock = buildContext({instructions:input.instructions,currentInput:input.currentInput,modelPolicy:input.modelPolicy});
+    expect(result.estimatedTokens).toBeGreaterThan(withoutClock.estimatedTokens);
+    expect(() => buildContext({...input,modelPolicy:policy({maxInputTokens:withoutClock.estimatedTokens})})).toThrow("CONTEXT_LIMIT");
+  });
+  it("keeps an immutable request-date anchor after a clock change and rejects invalid timestamp metadata", () => {
+    const input = { instructions:"Answer",currentInput:"next week",requestTime:{receivedAt:"2026-11-01T23:59:59.000Z",referenceTimezone:"UTC" as const,businessTimezone:null},modelPolicy:policy() };
+    const original=buildContext(input),clock=vi.spyOn(Date,"now").mockReturnValue(Date.parse("2026-11-03T08:00:00Z"));
+    try { expect(buildContext(input)).toEqual(original); } finally {clock.mockRestore();}
+    expect(() => buildContext({...input,requestTime:{...input.requestTime,receivedAt:"not a timestamp"}})).toThrow("CONTEXT_INVALID_REQUEST_TIME");
+  });
   it("requires an explicit policy instead of selecting an implicit model or tokenizer", () => {
     expect(() => buildContext({ instructions: "Answer", currentInput: "Hi" } as never)).toThrow("MODEL_POLICY_REQUIRED");
     expect(() => prepareCompaction([group("old", "Earlier"), group("recent", "Latest")], {} as never)).toThrow("MODEL_POLICY_REQUIRED");
