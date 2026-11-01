@@ -9,7 +9,7 @@ import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2 } from "../src/agents/manifest.js";
+import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV4 } from "../src/agents/manifest.js";
 import { registerGrowthCapabilityRoutes } from "../src/agents/capability-routes.js";
 import { discoverGrowthRecords, readGrowthRecord } from "../src/agents/tools.js";
 import type { CoreContext } from "../src/context.js";
@@ -38,6 +38,12 @@ test("real content discovery and continuation retain current tenant, actor, sour
       INSERT INTO "User" VALUES('user',now()),('outsider',now());
       INSERT INTO "OrganizationMember" VALUES('org','user');`);
     await pool.query(growthAgentSocialFixture);
+    await pool.query(`CREATE TABLE "WhatsappConnection"(id text,"phoneDisplayNumber" text,"phoneNumberId" text);
+      CREATE TABLE "WhatsappTemplate"(id text,status text);
+      CREATE TABLE "WhatsappCampaign"(id text,"orgId" text,"userId" text,"connectionId" text,"templateId" text,name text,description text,
+        "templateName" text,"templateLanguage" text,"variableMappings" jsonb,"listLabel" text,"defaultBatchSize" integer,status text,
+        "scheduledAt" timestamp,"launchedAt" timestamp,"completedAt" timestamp,"totalRecipients" integer,"sentCount" integer,"deliveredCount" integer,
+        "readCount" integer,"failedCount" integer,"blockedCount" integer,"unsubscribedCount" integer,"createdAt" timestamp,"updatedAt" timestamp);`);
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20261023183000_growth_agent_source_handles/migration.sql",import.meta.url),"utf8"));
     await pool.query(`INSERT INTO "SocialPost"(id,"userId","orgId",title,content,channels,status,"createdAt","updatedAt") VALUES
       ('a','user','org','First',$1,'{FACEBOOK}','DRAFT',now(),now()),
@@ -72,6 +78,21 @@ test("real content discovery and continuation retain current tenant, actor, sour
       .setIssuer("https://agents.kasitek.co.za").setAudience("product-capability-actions").setSubject("agents-worker").setJti(randomUUID()).setIssuedAt().setExpirationTime("60s").sign(keys.privateKey);
       return app.inject({method:"POST",url:"/internal/agents/capabilities",headers:{authorization:"Bearer "+token},payload:body});}
     const accepted=await send(command);assert.equal(accepted.statusCode,200);
+    for(const operation of ["content.list","campaigns.list"]) {
+      const listDescriptor=growthCapabilityManifest.operations.find(value=>value.operation===operation)!;
+      const list={...command,operation,input:{limit:1},authority:{...command.authority,descriptorDigest:growthAgentDigest(listDescriptor),handlerRef:listDescriptor.handlerRef}};
+      const unfiltered=await send(list);assert.equal(unfiltered.statusCode,200);
+      const emptyStatus=await send({...list,input:{limit:1,status:"",search:"",cursor:""}});assert.equal(emptyStatus.statusCode,200);
+      assert.deepEqual(emptyStatus.json().value,unfiltered.json().value);
+      for(const status of [" ","draft","DRAFT;DROP"])
+        assert.equal((await send({...list,input:{status}})).statusCode,400);
+      assert.equal((await send({...list,input:{status:null}})).statusCode,422);
+      assert.equal((await send({...list,input:{status:"",cursor:"invalid-cursor"}})).statusCode,400);
+      assert.equal((await send({...list,actor:{...scope.actor,subject:"outsider"},input:{status:""}})).statusCode,403);
+    }
+    const emptyStatusFirst=await discoverGrowthRecords(core,scope,"content_post",{limit:1,status:""});
+    assert.deepEqual(emptyStatusFirst,await discoverGrowthRecords(core,scope,"content_post",{limit:1}));
+    assert.deepEqual(await discoverGrowthRecords(core,scope,"content_post",{limit:1,status:"",cursor:first.nextCursor}),second);
     const workspaceDescriptor=growthCapabilityManifest.operations.find(operation=>operation.operation==="workspace.read")!;
     const workspace={...command,operation:"workspace.read",input:{},authority:{...command.authority,
       descriptorDigest:growthAgentDigest(workspaceDescriptor),handlerRef:workspaceDescriptor.handlerRef}};
@@ -88,6 +109,10 @@ test("real content discovery and continuation retain current tenant, actor, sour
     const legacyDescriptor=growthAgentPublicationV2.manifest.operations.find(operation=>operation.operation==="content.read")!;
     const legacy={...command,authority:{...command.authority,policyRevision:"2",manifestDigest:growthAgentPublicationV2.manifest.digest,descriptorDigest:growthAgentDigest(legacyDescriptor)}};
     assert.equal((await send(legacy)).statusCode,200);
+    const retainedV4Descriptor=growthAgentPublicationV4.manifest.operations.find(operation=>operation.operation==="content.read")!;
+    const retainedV4={...command,authority:{...command.authority,policyRevision:"4",manifestDigest:growthAgentPublicationV4.manifest.digest,descriptorDigest:growthAgentDigest(retainedV4Descriptor)}};
+    assert.equal((await send(retainedV4)).statusCode,200);
+    assert.equal((await send({...retainedV4,authority:{...retainedV4.authority,manifestDigest:growthCapabilityManifest.digest}})).statusCode,403);
     assert.equal((await send({...legacy,authority:{...legacy.authority,manifestDigest:growthCapabilityManifest.digest}})).statusCode,403);
     const source=accepted.json().sources[0];assert.match(source.id,/^growth-resource:[a-f0-9]{64}$/);
     assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,200);

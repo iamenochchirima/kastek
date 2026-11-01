@@ -19,11 +19,12 @@ function page(input: unknown) {
   const value=object(input);
   if(Object.keys(value).some(k=>!["search","status","limit","cursor"].includes(k)))throw bad();
   if(value.search!==undefined&&(typeof value.search!=="string"||value.search.length>200))throw bad();
-  if(value.status!==undefined&&(typeof value.status!=="string"||!/^[_A-Z]{1,40}$/.test(value.status)))throw bad();
+  if(value.status!==undefined&&(typeof value.status!=="string"||value.status!==""&&!/^[_A-Z]{1,40}$/.test(value.status)))throw bad();
   const limit=value.limit??PAGE_LIMIT;
   if(typeof limit!=="number"||!Number.isSafeInteger(limit)||limit<1||limit>PAGE_LIMIT)throw bad();
   if(value.cursor!==undefined&&(typeof value.cursor!=="string"||value.cursor.length>2048))throw bad();
-  const filters={...(value.search===undefined?{}:{search:value.search as string}),...(value.status===undefined?{}:{status:value.status as string})};
+  // Empty optional filters select the unfiltered page allowed by the published schema.
+  const filters={...(value.search===undefined||value.search===""?{}:{search:value.search as string}),...(value.status===undefined||value.status===""?{}:{status:value.status as string})};
   return {limit,filters,cursor:value.cursor as string|undefined};
 }
 function encode(value:unknown){return Buffer.from(JSON.stringify(value)).toString("base64url");}

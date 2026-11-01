@@ -26,6 +26,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = await response.json().catch(() => ({})) as { error?: string; code?: string };
     const message = response.status === 401 ? "Sign in to continue."
       : response.status === 403 ? "You don't have access to this work."
+      : response.status === 429 && body.code === "QUOTA_EXCEEDED" ? "Daily agent allowance reached."
       : response.status === 503 ? "Agents are unavailable. Try again shortly."
       : body.error || "Unable to complete this request.";
     throw new GrowthAgentRequestError(message, response.status, body.code);

@@ -467,6 +467,10 @@ reasoning budgets must fit the accepted reply allowance. Admission, evaluation p
 schedule creation validate generation settings and pin their reviewed revision and digest beside
 the model binding. Dispatch validates the pin and applies native fields before byte checks and
 input counting. A changed controls revision rejects accepted settings rather than retargeting them.
+OpenRouter dispatch removes SDK-inserted root reasoning controls before applying the accepted
+settings. An omitted reasoning choice preserves the provider default instead of sending a
+synthetic off value. Explicit reviewed effort settings remain explicit. Provider-native assistant
+reasoning and signatures remain private and unchanged in continuation history.
 Saving still uses background configuration snapshots.
 
 The following inventory separates model facts from policy and transport protections. Paths are
@@ -885,7 +889,7 @@ shared harness acceptance fixtures. Full Agency execution and production deploym
 
 Growth uses `product/integrations/growth-execution.ts` for private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
-Growth API `src/agents/manifest.ts`. Managed revision 4 publishes a `tool-directed@4` assistant
+Growth API `src/agents/manifest.ts`. Managed revision 5 publishes a `tool-directed@4` assistant
 with three pinned same-business `tool-directed@3` specialists. Both compile immutable product bindings;
 `execution/products/product-runtime.ts` routes calls and opaque reviews through installed product
 ports. The shared loop has no Growth preset dispatch. Runtime clients and credentials are scoped

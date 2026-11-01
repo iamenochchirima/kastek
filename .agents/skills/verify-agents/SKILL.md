@@ -147,6 +147,8 @@ acceptance limits. Passing controlled checks does not enable private phone acces
 
 ## Adaptive specialist orchestration
 
+Current Growth defaults revision5 retains revision4 rolling specialist scopes and original revisions2–4 publication identities. Verify upgrades preserve custom configurations, disabled features, selected models and accepted versions.
+
 New programv4 publications use schemas096–098, policyv2, `product-capabilities-v14` and
 `AgentsBusinessRunV24`; retain v13/V23 and older handlers for their accepted tasks. The [operation reference](../../../products/agents/docs/operations/adaptive-orchestration.md)
 is authoritative for policy, tool semantics, permissions and rollout. Select focused checks from:
@@ -209,3 +211,11 @@ The owner-run cases and quality rubric are
 owner-supplied driver/grader and do not constitute a runnable Harbor suite. Do not run model-purpose
 or live-provider acceptance as part of these implementation checks. Compare autonomous quality,
 cost and latency against a single-agent baseline only when the owner runs that acceptance.
+
+For owner-authorized ordinary-user acceptance, start fresh Growth in-app conversations. Use brief
+business requests, answer essential clarification questions with facts, and observe autonomous
+behavior. Do not prescribe tools, specialist order, grading criteria or output-cleanup instructions
+to make a failed answer pass. Preserve failed trials separately. Grade useful deliverables, factual
+grounding, proportionate clarification and specialist use, correction retention and authorized effects.
+A coached correction establishes only that correction's mechanics. Model selection, live-provider
+behavior and deterministic invariants are distinct evidence; record the exact model for every trial.

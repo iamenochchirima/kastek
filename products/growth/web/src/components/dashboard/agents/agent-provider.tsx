@@ -229,7 +229,7 @@ export function GrowthAgentProvider({ children, userId, businessId, businessName
     } catch (cause) {
       if (!aborted(cause) && selection.current === current) {
         if (acceptedConfirmed) { setReconnecting(true); setError("Message accepted. Reconnect to check its progress."); return; }
-        const definitive = cause instanceof GrowthAgentRequestError && [400, 401, 403, 404, 413, 422, ...(turn.taskId ? [409] : [])].includes(cause.status);
+        const definitive = cause instanceof GrowthAgentRequestError && ([400, 401, 403, 404, 413, 422, ...(turn.taskId ? [409] : [])].includes(cause.status) || cause.status === 429 && cause.code === "QUOTA_EXCEEDED");
         if (definitive) { pendingTurn.current = null; setUnconfirmed(false); save(`${storagePrefix}:pending:${selected.id}`, null); setError(failure(cause)); }
         else { setUnconfirmed(true); setError("Delivery wasn't confirmed. Retry this message to check the original request."); }
       }

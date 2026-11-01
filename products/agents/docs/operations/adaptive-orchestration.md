@@ -59,7 +59,7 @@ unselected sibling/private skills remain unavailable.
 
 ## Model tools
 
-Growth defaults revision 4 publishes its assistant on program 4 and pins Research, Content and
+Growth defaults revision 5 publishes its assistant on program 4 and pins Research, Content and
 Campaigns as direct program 3 specialists. Growth membership and signed product authority remain
 the source of access; no standalone Agents account or membership is created. Child grants retain
 the root's initiating principal and product scope and cannot delegate further. Current specialist
@@ -187,8 +187,8 @@ Compaction is context management, and its model usage still enters the shared le
 Specialist bindings can use `null` for `maxTokens` and `maxActiveMs`. Such work reserves only the
 next bounded physical operation against root policy and organization quota; it does not reserve
 an unlimited allocation upfront or stop at a hidden per-child cumulative default. Explicit finite
-published scopes remain enforced and cannot be enlarged by a brief or follow-up. New Growth
-revision4 bindings use this rolling reservation behavior. Earlier finite pins remain finite.
+published scopes remain enforced and cannot be enlarged by a brief or follow-up. Growth revision4 and revision5
+bindings use this rolling reservation behavior. Earlier finite pins remain finite.
 
 Continuation creates a new immutable root task linked by `prior_task_id` and a stable `work_id`.
 Original tasks, operations, results, reviews and effect receipts remain immutable. Local coordinator
@@ -309,7 +309,7 @@ quality evidence. Production promotion, hosted monitoring and a post-release dat
 | Analytics / success | Reuse `agent.orchestration.lifecycle@1` and `growth.agent.command@1`. The orchestration contract widens `specialist_tasks` from64 to the exact-integer bound without adding fields or changing its event identity. Update the Analytics registry before producers emit larger counts. Compare terminal outcomes, stalls, child tasks, accounted usage and latency. A model-authored completed step is not a success metric. |
 | Logs / metrics | Native operation receipts and bounded `work.replan_requested` / `work.continued` events provide investigation facts. No new Collector revision, OTLP endpoint or exporter: not applicable. Credentials, prompts, results and queued instructions stay out of aggregate telemetry. Hosted retention, dashboards and alerts remain unverified. |
 | Documentation | This runbook, architecture, source boundary, Growth integration and verification skill. New public marketing/navigation: not applicable. |
-| Validation | 292 distinct core policy, lifecycle, accounting, context and integration checks passed across a combined run, an isolated provenance-suite retest after a fixture timeout, and strengthened joint-threshold/scope coverage. One work item completes after50 model operations, at least50 tool operations and17 specialists; concurrent specialist claims preserve the explicit shared ceiling and coordinator finishing call. 39 native PostgreSQL/Restate and signed Growth checks passed across the combined run and affected cancellation retest; two optional computer-use cases were skipped. Four persisted v13 pins remain readable. API build/type checks and product boundaries passed; the internal module checker retains seven existing violations. Actual visible Growth acceptance passed in the owned test organization on 1 November 2026: natural prompts, model-selected Content/Campaigns specialists, queued correction, full results, reload/follow-up, direct simple answers, Stop, continuation and an explicit low allowance. The initial workspace-read cursor loop, model-only Stop classification and result-dialog lifetime/focus defects were repaired and retested. Earlier drafts required user steering; this journey does not establish general model quality. Controlled responsive UI checks remain separate evidence. Record exact logs and tested commit in implementation evidence; no staging/production check is claimed. |
+| Validation | 292 distinct core policy, lifecycle, accounting, context and integration checks passed across a combined run, an isolated provenance-suite retest after a fixture timeout, and strengthened joint-threshold/scope coverage. One work item completes after50 model operations, at least50 tool operations and17 specialists; concurrent specialist claims preserve the explicit shared ceiling and coordinator finishing call. 39 native PostgreSQL/Restate and signed Growth checks passed across the combined run and affected cancellation retest; two optional computer-use cases were skipped. Four persisted v13 pins remain readable. API build/type checks and product boundaries passed; the internal module checker retains seven existing violations. Visible Growth controls were exercised in the owned test organization on 1 November 2026: natural prompts, model-selected Content/Campaigns specialists, queued correction, full results, reload/follow-up, direct simple answers, Stop, continuation and an explicit low allowance. The initial workspace-read cursor loop, model-only Stop classification and result-dialog lifetime/focus defects were repaired and retested. The owner rejected the coached final-copy prompt as ordinary-user acceptance. That gate is reopened; these runs establish mechanics only. Controlled responsive UI checks remain separate evidence. Record exact logs and tested commit in implementation evidence; no staging/production check is claimed. |
 | Rollback / disable | Stop new revision4/v14 admissions or publish a compatible future configuration. Drain or cancel accepted work using its pinned workflow; retain V24, V23 and earlier required handlers, accepted policy snapshots,097/098 lineage/counters, receipts and journals. Never reinterpret a V24 journal on V23, undo quota by editing counters, or blindly retry uncertain effects. Reverting schema is not the rollback path. |
 | Other / post-release | Commercial billing, new infrastructure and browser telemetry: not applicable. Owner schedules post-release review after a separately approved deployment; no deployment date is assigned. |
 
@@ -356,3 +356,46 @@ running for canonical reclamation; do not delete holds or reset accounting manua
 that already expired remains expired, so a later user request creates a new bounded task. There is no
 schema migration or new exporter. Rollback preserves receipts and usage records; retain compatible
 cleanup for admitted calls rather than converting uncertain outcomes to success.
+
+
+## Ordinary-user behavior correction release record
+
+Owner: iamenochchirima. Risk: standard. Services: Growth API publication and list handlers, Agents
+API managed provisioning, model transport and worker context/progress observations, plus Growth web
+admission and failure messages.
+The new release identity is Growth manifest/default/policy revision5; adapter2, policy compiler2,
+harness14, V24 and schemas097/098 are unchanged. Preserve original publication revisions2–4.
+
+Revision5 gives the assistant responsibility for essential clarification, grounded deliverables and
+substantive discretionary specialist work. It does not prescribe business keywords or a specialist
+sequence. Empty list filters match the published schema. Progress observations compare parsed
+product-tool arguments, so reordered JSON keys cannot evade repetition detection. Authoritative
+request digests and receipts do not change. Existing journaled observations replay their recorded
+values; no durable call names or ordering change.
+
+Future unprepared V24/policy2 contexts include the immutable original request timestamp in UTC.
+Specialists and continuation segments retain that logical request's anchor; a new conversation turn
+gets its own timestamp. This is not a live clock or a business timezone. Recorded context snapshots
+return unchanged, and the timestamp is mandatory input counted against the ordinary context limit.
+Earlier runtime/policy pins keep their previous context shape.
+
+OpenRouter calls with no saved reasoning setting omit SDK-inserted off controls and preserve provider
+defaults. Explicit reviewed settings remain explicit, private assistant continuation is untouched,
+and reasoning usage remains inside the existing output allowance and ledger. Growth displays known
+daily quota rejections with editable input, distinguishes them from unconfirmed delivery, and labels
+model access/authentication/request denials without exposing provider responses.
+
+Managed upgrades preserve customized configuration, disabled features and selected models. The
+owned test organization explicitly adopted the revised instructions; test model comparisons require
+owner authorization and do not change the shipped provider default. No new entitlement, permission,
+quota, review exemption or external-action authority is added. API contracts and migrations: no new
+fields or schema migration. Analytics events, Collector, OTLP, dashboards and alerts: no changes;
+existing bounded native observations and registered outcomes suffice. Documentation: integration,
+source boundary, verification skill and this runbook. Marketing: not applicable.
+
+Validate immutable publications, signed scoped reads, managed upgrade, repetition and API types/builds.
+Actual ordinary-prompt behavior remains an independent acceptance gate. Preserve failed trials and
+record the selected model; a clean answer after detailed user coaching is not a pass. Roll out only
+to the owned local organization until separately approved. Rollback disables new revision5 upgrades
+and retains compatible publication handlers, accepted versions, receipts and conservative usage.
+Production rollout and post-release review date remain owner decisions.

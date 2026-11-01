@@ -57,7 +57,8 @@ export class GrowthExecutionService {
         let specialists:import("../../contracts/contracts").AgentConfiguration["capabilities"]["delegation"]|undefined;
         if(feature.id==="assistant"&&publication.policy.optionalCapabilities.delegation){
           const rows=(await db.query("SELECT f.feature_id,f.version_id,a.name,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agents a ON a.id=f.agent_id JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id IN ('research','content','campaigns') ORDER BY f.feature_id",[command.tenantId])).rows;
-          specialists={enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:publication.policy.revision==="4"?null:16,maxStalls:3},bindings:rows.map(row=>({id:row.feature_id,label:row.name,description:publication.presets.find(item=>item.id===row.feature_id)?.description??row.name,versionId:row.version_id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:publication.policy.revision==="4"?null:48000,maxActiveMs:publication.policy.revision==="4"?null:300000}))};
+          const rolling=["4","5"].includes(publication.policy.revision);
+          specialists={enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:rolling?null:16,maxStalls:3},bindings:rows.map(row=>({id:row.feature_id,label:row.name,description:publication.presets.find(item=>item.id===row.feature_id)?.description??row.name,versionId:row.version_id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:rolling?null:48000,maxActiveMs:rolling?null:300000}))};
         }
         const previous=(await db.query("SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2 FOR UPDATE OF f",[command.tenantId,feature.id])).rows[0];
         if(previous){

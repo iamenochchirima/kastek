@@ -3,7 +3,7 @@
 Owner: Agents engineering. Last reviewed: 2026-10-31.
 
 This setup connects Growth's Agents workspace and general assistant launcher to the shared
-business worker. Managed defaults revision 4 uses `AgentsBusinessRunV24` / `product-capabilities-v14`
+business worker. Managed defaults revision 5 uses `AgentsBusinessRunV24` / `product-capabilities-v14`
 for the adaptive assistant and retains `AgentsBusinessRunV21` / `product-capabilities-v11` for direct specialists. Growth users keep their
 existing business membership. They do not sign into standalone Agents or supply the worker's service credentials.
 
@@ -144,12 +144,20 @@ replace the independent Agents tenant-control operation. Missing or invalid conf
 blocked. Transient failures use bounded retries; exhausted attempts remain visible for repair.
 
 The approved Growth publication is owned by `src/agents/manifest.ts` in Growth API.
-Defaults revision `4` includes its four presets, operation manifest and explicit optional-capability
+Defaults revision `5` includes its four presets, operation manifest and explicit optional-capability
 policy. Agents persists this publication and validates it against the installed adapter. An operator
 can run `upgrade-defaults` to queue the new managed revision. Repair preserves customised
 configurations, disabled features, model selections and revoked tenants; accepted turns retain
 their old configuration. An unsupported optional capability remains denied even if requested in
 configuration. See [Product capabilities](product-capabilities.md) for the shared contract.
+
+Revision5 changes the product-owned working instructions and specialist descriptions. The assistant
+owns clarification, relevant evidence gathering, useful specialist assignments and final synthesis.
+It asks for essentials that materially affect the work, accepts user-supplied facts without demanding
+stored confirmation, and keeps implementation identifiers out of ordinary replies. This guidance
+has no keyword router, required specialist order or mandatory delegation for simple work. Revisions2–4
+remain registered with their original publication identities for accepted bindings. Revision5 keeps
+revision4's null cumulative specialist scopes, current permissions and exact draft reviews.
 
 The operator status reports state counts, attempts, pending age and completed setup duration.
 Structured `agent.setup.*` logs include organisation/operation/generation and safe failure codes.
@@ -291,8 +299,8 @@ separate from this implementation.
 Apply recognized Agents additive schemas 070–072 with the explicit setup command before enabling
 new admissions. They store generic review projections, trusted Growth publications and managed
 configuration markers. Adaptive execution additionally requires schemas096–098. Register V21, V23 and V24
-workers and install current product handlers before publishing defaults revision `4`. The Growth
-manifest and product policy revision are `4`; the installed HTTP adapter remains release `2`.
+workers and install current product handlers before publishing defaults revision `5`. The Growth
+manifest and product policy revision are `5`; the installed HTTP adapter remains release `2`.
 Exact revision 2 publications remain supported for accepted work and persisted setup retries.
 Unknown schema digests remain rejected. Schemas097/098 store logical work lineage, nullable
 allocations and exact counters. Retain earlier schema registrations and accepted policy snapshots.
@@ -326,3 +334,5 @@ from the selected managed-model snapshot. This allows smaller models without cha
 limits or weakening the policy compiler. Workers refresh trusted publication metadata for the task's
 tenant on every handler entry, including replay, so a publication installed after worker startup is
 available without treating a process-local registry fill as a journaled business operation.
+
+Empty optional discovery search/status strings mean no filter, matching the published list schema. Nonempty invalid statuses, malformed cursors and foreign-scope handles remain rejected.

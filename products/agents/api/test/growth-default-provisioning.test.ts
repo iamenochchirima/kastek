@@ -114,6 +114,38 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect(current.find(row=>row.feature_id==='research').revision).toBe(2);expect(current.find(row=>row.feature_id==='content').enabled).toBe(false);
     expect((await pool.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1",[model.organization_id])).rows[0]).toEqual(model);
   });
+  it("upgrades retained revision4 through revision5 without restoring finite defaults or changing custom agents and model selection",async()=>{
+    const priorPublication=publication("4");priorPublication.policy.optionalCapabilities.delegation=true;
+    const input={...request(),defaultsRevision:"4",publication:priorPublication};
+    expect((await service.provision(input)).state).toBe("ready");
+    const execution=new GrowthExecutionService(pool,trust);
+    const read=async()=> (await pool.query("SELECT f.feature_id,f.version_id,f.enabled,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1",[input.tenantId])).rows;
+    const before=await read(),assistant=before.find(row=>row.feature_id==='assistant'),content=before.find(row=>row.feature_id==='content');
+    await execution.execute({version:"1",requestId:randomUUID(),tenantId:input.tenantId,actor:{issuer:trust.actorIssuer,subject:"staff"},operation:"features.configure",input:{featureId:"content",configuration:{...content.configuration,instructions:"Keep my custom content agent"}}});
+    await pool.query("UPDATE agents_platform.product_execution_features SET enabled=false WHERE tenant_id=$1 AND feature_id='research'",[input.tenantId]);
+    const customized=(await read()).find(row=>row.feature_id==='content');
+    const nextPublication=publication("5");nextPublication.policy.optionalCapabilities.delegation=true;
+    const upgrade={...input,requestId:randomUUID(),defaultsRevision:"5",publication:nextPublication,upgradeDefaults:true};
+    expect((await service.provision(upgrade)).state).toBe("ready");
+    const after=await read(),current=after.find(row=>row.feature_id==='assistant');
+    expect(current.version_id).not.toBe(assistant.version_id);
+    expect(current.configuration.instructions).toContain("Revision 5");
+    expect(current.configuration.model).toEqual(assistant.configuration.model);
+    expect(current.configuration.capabilities.delegation.policy.maxTasks).toBeNull();
+    expect(current.configuration.capabilities.delegation.bindings).toHaveLength(3);
+    for(const binding of current.configuration.capabilities.delegation.bindings){
+      expect(binding.maxTokens).toBeNull();expect(binding.maxActiveMs).toBeNull();
+      expect(binding.versionId).toBe(after.find(row=>row.feature_id===binding.id).version_id);
+    }
+    expect(after.find(row=>row.feature_id==='content')).toEqual(customized);
+    expect(after.find(row=>row.feature_id==='research').enabled).toBe(false);
+    expect((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[assistant.version_id])).rows[0].configuration).toEqual(assistant.configuration);
+    expect((await pool.query("SELECT revision,publication FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 ORDER BY revision",[input.tenantId])).rows.map(row=>row.revision)).toEqual(["4","5"]);
+    const versions=after.map(row=>row.version_id).sort();
+    expect((await service.provision(upgrade)).state).toBe("ready");
+    expect((await read()).map(row=>row.version_id).sort()).toEqual(versions);
+
+  });
   it("never revives tenant or model revocations, rejects implicit profile upgrades",async()=>{
     const input=request();await service.provision(input);await controlGrowthExecution(pool,{tenantId:input.tenantId,action:"tenant.disable"});
     expect(await service.provision(input)).toMatchObject({state:"blocked",code:"PRODUCT_TENANT_UNAVAILABLE"});

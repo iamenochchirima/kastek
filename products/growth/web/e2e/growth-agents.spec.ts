@@ -552,3 +552,60 @@ for (const width of [1440, 390]) test(`keeps a loading specialist result open wh
     expect(await page.evaluate(() => window.scrollY)).toBe(outerScroll);
   } finally { release(); }
 });
+
+test("daily allowance rejection preserves editable input without an uncertain-delivery retry", async ({ page }) => {
+  const attempts: { requestId: string; text: string }[] = [];
+  await page.route("**/api/agents/conversations/*/messages", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    attempts.push(route.request().postDataJSON());
+    if (attempts.length === 1) return route.fulfill({ status: 429, json: { code: "QUOTA_EXCEEDED", error: "Daily token allowance exceeded" } });
+    return route.continue();
+  });
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const composer = chat.getByRole("textbox", { name: "Message agent", exact: true });
+  await composer.fill("Draft a normal launch post");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.getByRole("alert")).toContainText("Daily agent allowance reached.");
+  await expect(chat.getByRole("button", { name: "Retry message", exact: true })).toHaveCount(0);
+  await expect(composer).toHaveValue("Draft a normal launch post");
+  await expect(composer).toBeEditable();
+  await expect(chat.getByRole("button", { name: "Send message", exact: true })).toBeEnabled();
+  const destination = await chat.getByRole("link", { name: "Expand conversation", exact: true }).getAttribute("href");
+  expect(destination).toBeTruthy();
+  await page.goto(destination!);
+  await expect(composer).toHaveValue("Draft a normal launch post");
+  await expect(composer).toBeEditable();
+  await expect(chat.getByRole("button", { name: "Retry message", exact: true })).toHaveCount(0);
+  await composer.fill("Draft a shorter launch post");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.getByText("I reviewed the business context. Here is the next step for your work.", { exact: true })).toBeVisible();
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1].requestId).not.toBe(attempts[0].requestId);
+  expect(attempts[1].text).toBe("Draft a shorter launch post");
+});
+
+for (const [code, description] of [
+  ["MODEL_ACCESS_DENIED", "The model provider denied access to this model."],
+  ["MODEL_REQUEST_INVALID", "The model provider rejected this request."],
+  ["MODEL_AUTHENTICATION_FAILED", "The model provider rejected authentication."],
+  ["MODEL_USE_DENIED", "This agent is not authorized to use the model connection."],
+]) test(`explains failed model access ${code} without changing continuation controls`, async ({ page, request }) => {
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const input = `keep working before ${code}`;
+  await chat.getByRole("textbox", { name: "Message agent", exact: true }).fill(input);
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((item: { input: string }) => item.input === input);
+  expect(task).toBeTruthy();
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "failed", errorCode: code, canSteer: false, canContinue: true } });
+  const detail = chat.locator(`[data-task-id="${task.id}"]`);
+  await expect(detail.getByRole("status")).toHaveText(description, { timeout: 12000 });
+  await expect(detail.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message agent", exact: true })).toBeEnabled();
+});
