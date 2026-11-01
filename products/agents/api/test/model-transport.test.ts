@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ModelNetworkError } from "../src/infrastructure/model-network";
+import { ModelNetworkError, createModelFetch } from "../src/infrastructure/model-network";
+import { createServer } from "node:http";
 import { callProviderModel, getBundledProviderModels, type ProviderTransportRequest } from "../src/adapters/models/pi-transport";
 
 const request: ProviderTransportRequest = {
@@ -51,6 +52,23 @@ describe("native model transport", () => {
     expect(JSON.stringify(result)).not.toContain("fixture-key");
   });
 
+  it("forwards incremental response bytes and releases the original body reader on completion", async () => {
+    let finish:()=>void=()=>{throw Error("Stream not started");},finished=false;
+    const body=new ReadableStream<Uint8Array>({start(controller) {
+      controller.enqueue(new TextEncoder().encode(sse({id:"response-1",model:"fixture-model",choices:[{index:0,delta:{role:"assistant",content:"Hello"},finish_reason:null}]})));
+      finish=()=>{
+        finished=true;
+        controller.enqueue(new TextEncoder().encode(sse({id:"response-1",model:"fixture-model",choices:[{index:0,delta:{},finish_reason:"stop"}],usage:{prompt_tokens:9,completion_tokens:2}})+"data: [DONE]\n\n"));
+        controller.close();
+      };
+    }});
+    const result=await callProviderModel(request,{apiKey:"fixture-key",fetch:fetcher(()=>new Response(body,{headers:{"Content-Type":"text/event-stream"}})),
+      onText:()=>{expect(finished).toBe(false);finish();}});
+    expect(result.message.content).toBe("Hello");
+    expect(result.usage).toMatchObject({observed:true,inputTokens:9,outputTokens:2});
+    expect(body.locked).toBe(false);
+  });
+
   it("does not invent zero usage when the provider omits it", async () => {
     const result = await callProviderModel(request, { apiKey: "fixture-key", fetch: fetcher(() => chat()) });
     expect(result.usage).toEqual({ observed: false });
@@ -78,6 +96,30 @@ describe("native model transport", () => {
     expect(error).toMatchObject({ code: "MODEL_STREAM_FAILED", status: 502, outcome: "uncertain" });
     expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_SECRET|PRIVATE_PROMPT|fixture-key/);
     expect(calls).toBe(1);
+  });
+
+  it("preserves the physical deadline after HTTP200 while the SDK consumes partial SSE output", async () => {
+    let calls=0;
+    const deltas:string[]=[];
+    const server=createServer((_req,res)=>{
+      calls++;
+      res.writeHead(200,{"content-type":"text/event-stream"});
+      res.write(sse({id:"response-1",model:"fixture-model",choices:[{index:0,delta:{role:"assistant",content:"Partial"},finish_reason:null}]}));
+    });
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    const baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}/v1`;
+    const fetch=(async(url,init)=>createModelFetch({authorizeUrl:target=>target.href===baseUrl+"/chat/completions",
+      maxRequestBytes:100_000,maxResponseBytes:100_000,deadlineAt:Date.now()+100,testLoopback:true})(url,init)) as typeof globalThis.fetch;
+    try {
+      const error=await callProviderModel({...request,baseUrl},{apiKey:"fixture-key",fetch,onText:text=>deltas.push(text)}).catch(error=>error);
+      expect(deltas.join("")).toBe("Partial");
+      expect(error).toMatchObject({code:"MODEL_NETWORK_DEADLINE",outcome:"uncertain"});
+      expect(calls).toBe(1);
+      expect(String(error)+JSON.stringify(error)).not.toContain("fixture-key");
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>(resolve=>server.close(()=>resolve()));
+    }
   });
 
   it("rejects repaired partial tool arguments instead of executing them", async () => {
@@ -133,12 +175,15 @@ describe("native model transport", () => {
   it("cancels an open stream and rejects pre-cancelled calls without dispatch", async () => {
     const abort = new AbortController();
     let calls = 0;
+    const bodies:ReadableStream[]=[];
     const fetch = (async (_url: unknown, init: RequestInit) => {
       calls++;
-      return new Response(new ReadableStream({ start(controller) {
+      const body=new ReadableStream({ start(controller) {
         controller.enqueue(new TextEncoder().encode(": heartbeat\n\n"));
         init.signal?.addEventListener("abort", () => controller.error(new Error("cancelled")), { once: true });
-      } }), { headers: { "Content-Type": "text/event-stream" } });
+      } });
+      bodies.push(body);
+      return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
     }) as typeof globalThis.fetch;
     const running = callProviderModel(request, { apiKey: "fixture", fetch, signal: abort.signal });
     setTimeout(() => abort.abort(), 30);
@@ -146,6 +191,7 @@ describe("native model transport", () => {
     await expect(callProviderModel(request, { apiKey: "fixture", fetch, signal: abort.signal }))
       .rejects.toMatchObject({ code: "MODEL_CANCELLED_BEFORE_DISPATCH" });
     expect(calls).toBe(1);
+    expect(bodies.every(body=>!body.locked)).toBe(true);
   });
 
   it("rejects missing keys and missing protected Google transport before dispatch", async () => {

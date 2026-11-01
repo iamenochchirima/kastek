@@ -42,6 +42,11 @@ export function applyGeneration(model:ModelDescriptor,policy:Pick<EffectiveExecu
     if(model.protocol==="google_generate_content") (payload.generationConfig as Record<string,unknown>).temperature=settings.temperature;
     else payload.temperature=settings.temperature;
   }
+  if(model.providerId==="openrouter"&&model.protocol==="openai_chat_completions"){
+    // The SDK inserts an unsaved off setting. Preserve provider defaults unless an accepted control follows.
+    delete payload.reasoning;
+    delete payload.reasoning_effort;
+  }
   if(model.providerId==="openai"&&model.protocol==="openai_responses"&&model.capabilities.reasoning.value===true){
     // Preserve native provider defaults; the SDK's synthetic 'off' must not disable an unspecified mode.
     delete payload.reasoning;

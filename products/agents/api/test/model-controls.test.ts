@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import Fastify from "fastify";
 import { afterAll,beforeAll,describe,expect,it } from "vitest";
+import { callProviderModel } from "../src/adapters/models/pi-transport";
 import { modelControls,validateGeneration,applyGeneration,generationSdkOptions } from "../src/adapters/models/model-controls";
 import type { ModelDescriptor } from "../src/contracts/model-providers";
 import { defaultBusinessConfiguration,requestDigest } from "../src/contracts/contracts";
@@ -37,6 +38,40 @@ describe("reviewed model generation controls",()=>{
   const payload:Record<string,unknown>={reasoning:{effort:"none"},include:[]};
   applyGeneration(descriptor("openai","gpt-5.1","openai_responses"),{maxOutputTokens:4096},"https://api.openai.com/v1",{},payload);
   expect(payload).not.toHaveProperty("reasoning");expect(payload.include).toEqual(["reasoning.encrypted_content"]);
+ });
+ it("preserves unspecified OpenRouter reasoning defaults without touching assistant continuity",()=>{
+  const model=descriptor("openrouter","fixture/reasoning","openai_chat_completions"),policy={maxOutputTokens:4096};
+  const messages=[{role:"assistant",content:"Prior answer",reasoning:"private prior reasoning",reasoning_details:[{type:"reasoning.encrypted",data:"opaque-continuation"}]}];
+  const payload:Record<string,unknown>={max_tokens:4096,reasoning:{effort:"none"},reasoning_effort:"none",messages:structuredClone(messages)};
+  applyGeneration(model,policy,"https://openrouter.ai/api/v1",{},payload);
+  expect(payload).not.toHaveProperty("reasoning");expect(payload).not.toHaveProperty("reasoning_effort");
+  expect(payload.messages).toEqual(messages);expect(payload.max_tokens).toBe(4096);
+ });
+ it.each([undefined,"low","medium","high"] as const)("sends only the accepted OpenRouter reasoning choice %s through the native SDK",async effort=>{
+  const model=descriptor("openrouter","fixture/reasoning","openai_chat_completions"),policy={maxOutputTokens:4096},endpoint="https://openrouter.ai/api/v1";
+  const settings=effort?{reasoning:{kind:"effort" as const,value:effort}}:{};
+  let body:Record<string,unknown>|undefined;
+  await callProviderModel({provider:model.providerId,protocol:model.protocol,model:model.id,baseUrl:endpoint,credentialRevision:"fixture",contextWindowTokens:262144,maxOutputTokens:policy.maxOutputTokens,
+    reasoningCapable:true,messages:[{role:"user",content:"Hello"}]},{apiKey:"fixture-key",preparePayload:payload=>applyGeneration(model,policy,endpoint,settings,payload),fetch:async(_url,init)=>{
+      body=JSON.parse(String(init?.body));
+      return new Response(`data: ${JSON.stringify({id:"fixture-response",model:model.id,choices:[{index:0,delta:{role:"assistant",content:"Hello"},finish_reason:"stop"}]})}\n\ndata: [DONE]\n\n`,{headers:{"Content-Type":"text/event-stream"}});
+    }});
+  if(effort)expect(body!.reasoning).toEqual({effort});else expect(body).not.toHaveProperty("reasoning");
+  expect(body).not.toHaveProperty("reasoning_effort");expect(body!.max_tokens).toBe(policy.maxOutputTokens);
+ });
+ it("keeps OpenRouter assistant reasoning continuity when preserving provider defaults",async()=>{
+  const model=descriptor("openrouter","fixture/reasoning","openai_chat_completions"),policy={maxOutputTokens:4096},endpoint="https://openrouter.ai/api/v1";
+  const bodies:Record<string,unknown>[]=[];
+  const request={provider:model.providerId,protocol:model.protocol,model:model.id,baseUrl:endpoint,credentialRevision:"fixture",contextWindowTokens:262144,maxOutputTokens:policy.maxOutputTokens,reasoningCapable:true,messages:[{role:"user" as const,content:"Hello"}]};
+  const options={apiKey:"fixture-key",preparePayload:(payload:Record<string,unknown>)=>applyGeneration(model,policy,endpoint,{},payload),fetch:async(_url:unknown,init?:RequestInit)=>{
+    bodies.push(JSON.parse(String(init?.body)));
+    return new Response(`data: ${JSON.stringify({id:"fixture-response",model:model.id,choices:[{index:0,delta:{role:"assistant",reasoning_details:[{type:"reasoning.encrypted",data:"opaque-private-reasoning",id:"reasoning-1",format:"unknown",index:0}],content:"Hello"},finish_reason:"stop"}]})}\n\ndata: [DONE]\n\n`,{headers:{"Content-Type":"text/event-stream"}});
+  }};
+  const first=await callProviderModel(request,options);
+  await callProviderModel({...request,messages:[...request.messages,first.message,{role:"user",content:"Continue"}],nativeHistory:{1:first.nativeState}},options);
+  expect(JSON.stringify(first.message)).not.toContain("opaque-private-reasoning");
+  expect(JSON.stringify(bodies[1]!.messages)).toContain("opaque-private-reasoning");
+  for(const body of bodies){expect(body).not.toHaveProperty("reasoning");expect(body).not.toHaveProperty("reasoning_effort");expect(body.max_tokens).toBe(4096);}
  });
  it("maps Gemini budgets and levels independently and keeps thought text private",()=>{
   const endpoint="https://generativelanguage.googleapis.com/v1beta",policy={maxOutputTokens:4096},payload:Record<string,unknown>={generationConfig:{maxOutputTokens:4096}};

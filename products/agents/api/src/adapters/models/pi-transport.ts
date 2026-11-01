@@ -55,6 +55,36 @@ function failure(status: number | undefined, dispatched: boolean, cancelled: boo
   return new ProviderTransportError(status === undefined && dispatched ? "MODEL_OUTCOME_UNCERTAIN" : "MODEL_REQUEST_FAILED", dispatched ? "uncertain" : "rejected", status ?? 502);
 }
 
+// SDK error events omit the original body-reader error. Retain its type before SDK parsing.
+function observeResponseBody(response: Response, onFailure: (error: unknown) => void): Response {
+  if (!response.body) return response;
+  const reader = response.body.getReader();
+  let released = false, cancelled = false;
+  const release = () => { if (!released) { released = true; reader.releaseLock(); } };
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (cancelled) return;
+        if (chunk.done) { release(); controller.close(); }
+        else controller.enqueue(chunk.value);
+      } catch (error) {
+        onFailure(error); release();
+        if (!cancelled) controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      cancelled = true;
+      try { await reader.cancel(reason); }
+      catch (error) { onFailure(error); throw error; }
+      finally { release(); }
+    },
+  });
+  const observed = new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+  Object.defineProperty(observed, "url", { value: response.url });
+  return observed;
+}
+
 function validate(request: ProviderTransportRequest, options: ProviderTransportOptions): void {
   if (!protocols.has(request.protocol) || !request.provider || !request.model || !request.credentialRevision ||
       !options.apiKey?.trim() || !Number.isSafeInteger(request.maxOutputTokens) || request.maxOutputTokens < 1 ||
@@ -151,7 +181,10 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
             init = { ...init, body };
           }
           const response = await options.fetch!(url, init);
-          httpStatus = response.status; return response;
+          httpStatus = response.status;
+          return observeResponseBody(response, error => {
+            if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
+          });
         } catch (error) {
           if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
           if (error instanceof ProviderTransportError) preparationFailure = error;
@@ -246,6 +279,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
   } catch (error) {
     control.abort();
     if (error instanceof ProviderTransportError) throw error;
+    if (physicalFailure) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
     throw new ProviderTransportError(options.signal?.aborted ? "MODEL_CANCELLED" : "MODEL_TRANSPORT_FAILED", dispatched ? "uncertain" : "rejected", httpStatus ?? 502);
   } finally { options.signal?.removeEventListener("abort", cancel); }
 }
