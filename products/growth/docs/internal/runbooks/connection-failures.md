@@ -134,8 +134,12 @@ https://api.kasitek.co.za/api/social/oauth/tiktok/callback
 Threads deletion uses the account owner's `threads_delete` permission. If deletion is unavailable,
 reconnect or use **Grant access** from the connection details and verify that the returned token
 includes that permission. Some Threads token exchanges omit the scope field; KasiTek records the
-exact scopes requested by the successful OAuth attempt in that case. Threads post editing is not
-part of the adapter.
+exact scopes requested by the successful OAuth attempt in that case. The Threads API does not document editing published posts. Edit previews and execution reject
+Threads-only posts with `platform_edit_unsupported` and the message “The Threads API does not
+support editing published posts.” Granting more permissions does not enable editing. Drafts remain
+editable. The rejected preview retains the Threads account and destination without changing the
+post or contacting the provider. See the [Threads API reference](https://developers.facebook.com/documentation/threads/reference)
+and [changelog](https://developers.facebook.com/documentation/threads/changelog).
 
 ## Bluesky
 

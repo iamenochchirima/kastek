@@ -7,6 +7,7 @@ import { SQL } from "../capabilities/content-batch-sql.js";
 import { preflightInternal, type TargetPlan } from "../capabilities/content-batch.js";
 import { authorizationRequirement, permissionSnapshots } from "../integrations/connection-permissions.js";
 import { getSocialPost } from "../services/social/posts.js";
+import { THREADS_PUBLISHED_EDIT_UNSUPPORTED } from "../capabilities/content-published-edit.js";
 import { apiJson } from "../json.js";
 
 export const contentActionNames = [
@@ -51,7 +52,8 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
   if (!saved) throw new ApiError(404, "not_found", "Content post not found");
   const revision = (await core.pool.query(`SELECT "updatedAt" AT TIME ZONE 'UTC' AS revision FROM "SocialPost" WHERE id=$1 AND "orgId"=$2`, [postId, ctx.organizationId])).rows[0]?.revision;
   snapshot.postRevision = revision instanceof Date ? revision.toISOString() : String(revision);
-  const targetPlatform = action === "content.posts.update_published" ? "FACEBOOK" : typeof input.platform === "string" ? input.platform : undefined;
+  const threadsEdit = action === "content.posts.update_published" && saved.channels.length === 1 && saved.channels[0] === "THREADS";
+  const targetPlatform = action === "content.posts.update_published" ? threadsEdit ? "THREADS" : "FACEBOOK" : typeof input.platform === "string" ? input.platform : undefined;
   const jobs = saved.publishJobs.filter(job => (!targetPlatform || job.platform === targetPlatform) && (!input.jobId || job.id === input.jobId) && (!retryJobIds || retryJobIds.has(job.id))).sort((a,b) => a.id.localeCompare(b.id));
   const media = saved.media.map(item => ({assetId:item.asset_id, fileName:item.file_name, mimeType:item.mime_type, kind:item.kind, altText:item.alt_text, sortOrder:item.sort_order, byteSize:String(item.byte_size), width:item.width, height:item.height, durationMs:item.duration_ms, processingStatus:item.processing_status, scanStatus:item.scan_status})).sort((a,b) => a.sortOrder-b.sortOrder || a.assetId.localeCompare(b.assetId));
   snapshot.mediaAssets = await contentPreviewMediaAssetsDigest(core,ctx,saved.media.map(item=>item.asset_id));
@@ -115,14 +117,15 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
   if(remoteMedia.length) preview.remoteMedia=remoteMedia;
   if (action === "content.posts.update_published") {
     if (new Date(String(input.expectedUpdatedAt)).getTime() !== new Date(snapshot.postRevision).getTime()) throw new ApiError(409,"operation_review_conflict","The post changed. Reload it before preparing this edit.");
-    preview.previousContent = saved.variants.find(variant=>variant.platform==="FACEBOOK")?.content ?? saved.content;
-    preview.content = input.content; preview.variants = [{platform:"FACEBOOK",content:input.content}];
+    preview.previousContent = saved.variants.find(variant=>variant.platform===targetPlatform)?.content ?? saved.content;
+    preview.content = input.content; preview.variants = [{platform:targetPlatform,content:input.content}];
     preview.targets = (preview.targets as Record<string,unknown>[]).map(target=>({...target,content:input.content}));
     preview.removePhoto = input.removePhoto === true;
-    preview.targetLabel = input.removePhoto === true ? "Facebook · update existing post and remove photo" : "Facebook · update existing post";
-    if (input.removePhoto === true) {preview.removedMedia=media;preview.media=[];}
-    if (saved.status !== "PUBLISHED" || saved.channels.length !== 1 || saved.channels[0] !== "FACEBOOK" || saved.publishJobs.length !== 1 || jobs.some(job=>job.status!=="PUBLISHED" || !job.external_post_id)) errors.push({code:"unsupported_published_edit",message:"Only a confirmed Facebook-only publication can be updated"});
-    if (input.removePhoto === true && (saved.media.length!==1 || saved.media[0]?.kind!=="IMAGE")) errors.push({code:"photo_removal_unavailable",message:"Photo removal requires one published image"});
+    preview.targetLabel = threadsEdit ? "Threads · published post" : input.removePhoto === true ? "Facebook · update existing post and remove photo" : "Facebook · update existing post";
+    if (!threadsEdit && input.removePhoto === true) {preview.removedMedia=media;preview.media=[];}
+    if (threadsEdit) errors.push({code:"platform_edit_unsupported",message:THREADS_PUBLISHED_EDIT_UNSUPPORTED});
+    else if (saved.status !== "PUBLISHED" || saved.channels.length !== 1 || saved.channels[0] !== "FACEBOOK" || saved.publishJobs.length !== 1 || jobs.some(job=>job.status!=="PUBLISHED" || !job.external_post_id)) errors.push({code:"unsupported_published_edit",message:"Only a confirmed Facebook-only publication can be updated"});
+    if (!threadsEdit && input.removePhoto === true && (saved.media.length!==1 || saved.media[0]?.kind!=="IMAGE")) errors.push({code:"photo_removal_unavailable",message:"Photo removal requires one published image"});
   }
   const unknown = (job:typeof jobs[number]) => plain(job.metadata)._kasitek_outcome === "UNKNOWN";
   if (action === "content.posts.schedule" && (!["DRAFT","SCHEDULED"].includes(saved.status) || jobs.some(job=>!["PENDING","QUEUED","CANCELED"].includes(job.status) || job.external_post_id || unknown(job)))) errors.push({code:"schedule_unavailable",message:"Only unclaimed draft content can be scheduled"});
