@@ -106,3 +106,38 @@ but a complete rollback was not executed during this rollout.
 Post-release review: 2026-11-03. Remaining acceptance is listed above. Growth's existing landing-page
 SEO metadata still references its legacy `growth.kasitek.co.za` canonical origin; application routing
 uses `app.kasitek.co.za`. This metadata cleanup was not included in the hosting fixes.
+
+## Identity hostname configuration revision
+
+Change: `identity-auth-domain-2026-11-02`, owned by Enoch Chirima. Risk: standard.
+Identity now uses `https://auth.kasitek.co.za`; Cloudflare holds a DNS-only Railway CNAME
+and ownership verification record. Railway supplies the validated HTTPS certificate.
+`KC_HOSTNAME` and the passwordless relying-party ID use this origin. There were no completed
+human accounts or enrolled passkeys when the issuer changed; no membership migration was needed.
+Existing signup pages on the previous hostname must restart from their product's signup entry.
+
+Rollout uses the existing Identity image, followed by cached redeployment of the seven issuer
+consumers: Growth API/analytics worker, Agents API/worker, Agency API/analytics worker and
+Operations API. Their issuer variables reference Identity's hostname. Product command issuers,
+client secrets, callbacks and production Meta settings are unchanged. Vercel needs no redeployment.
+The initial artifact manifest remains a historical capture; this configuration revision has its
+own deployment evidence. API/schema migrations and new analytics events: not applicable.
+Platform source version remains 0.2.0; this is an infrastructure configuration revision.
+
+Documentation: release configuration record and Growth deployment topology updated. Existing
+readiness, authentication failure logs and Keycloak event retention apply; no log payload change.
+Collector/exporter configuration is unchanged; durable log retention and alert delivery remain
+unconfigured as recorded above. Monitor readiness and login-start failures during the cutover.
+
+Rollback before account enrollment restores the previous `KC_HOSTNAME` and passwordless RP ID,
+then restarts the same seven consumers. Keep both DNS bindings and the private previous config
+until acceptance. After users enroll, issuer/subject membership keys and passkey RP IDs require
+an explicit migration assessment before reverting. No database or user deletion is part of rollback.
+Post-release review: 2026-11-03.
+
+Validation: all 19 Railway services report successful deployments. Certificate validation,
+Identity readiness/discovery and passwordless RP ID checks passed. All four product login
+starts and Growth signup reach the new origin with PKCE S256 and unchanged callbacks; no user
+input was submitted. See the [configuration verification record](./releases/identity-auth-domain-2026-11-02.json).
+Product import boundaries and whitespace checks passed. Completed human login/logout and email
+delivery remain unverified; the existing CI limitations above still apply.
