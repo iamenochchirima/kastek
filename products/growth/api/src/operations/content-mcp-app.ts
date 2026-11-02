@@ -7,7 +7,7 @@ import {authorizeGrowthOperation} from "./policy.js";
 import {auditGrowthAccess} from "./telemetry.js";
 import {growthToolArguments} from "./transport.js";
 import {operationDomainKey} from "./reconciliation.js";
-import {getBatch} from "../capabilities/content-batch.js";
+import {batchTargetView,getBatch} from "../capabilities/content-batch.js";
 import {invokeGrowthOperation} from "./dispatch.js";
 import {contentPreviewMediaAssetsDigest} from "./content-preview.js";
 import {contentMcpAppHtml} from "./content-mcp-app-ui.generated.js";
@@ -19,7 +19,7 @@ export const CONTENT_APP_MIME="text/html;profile=mcp-app";
 export const CONTENT_APP_TOOL_NAME="content.actions.confirm";
 const META_KEY="kasitek.co.za/contentReview";
 const DOMAIN="growth-content-mcp-app-v1\0";
-const publicationActions=new Set(["content.posts.publish","content.posts.publish_batch","content.posts.publish_batch.retry"]);
+const publicationActions=new Set(["content.posts.publish","content.posts.publish_batch","content.posts.publish_batch.retry","content.jobs.retry"]);
 type Json=Record<string,unknown>;
 const object=(value:unknown):value is Json=>value!==null&&typeof value==="object"&&!Array.isArray(value);
 const invalid=()=>new ApiError(403,"content_confirmation_invalid","This content confirmation is invalid or expired");
@@ -70,6 +70,17 @@ function raw(value:Json,meta?:Json) {
 }
 async function delivery(core:CoreContext,ctx:RequestContext,row:OperationReviewRow):Promise<Json|undefined> {
   if(!publicationActions.has(row.operation)||!["succeeded","executing","uncertain"].includes(row.state))return;
+  if(row.operation==="content.jobs.retry") {
+    const job=(await core.pool.query(`SELECT job.id,job.platform::text,job.status::text,job."externalPostId",job.metadata,job."errorMessage" AS error_message,NULL::text AS error_code,channel."displayName" AS display_name,channel.handle
+      FROM "SocialPublishJob" job LEFT JOIN "SocialChannelConnection" channel ON channel.id=job."channelConnectionId" AND channel."orgId"=job."orgId" WHERE job.id=$1 AND job."orgId"=$2`,[row.input.jobId,ctx.organizationId])).rows[0];
+    const unknown=!job||(object(job.metadata)&&job.metadata._kasitek_outcome==="UNKNOWN")||(job.status==="PUBLISHED"&&!(typeof job.externalPostId==="string"&&job.externalPostId.trim()));
+    const published=!unknown&&job.status==="PUBLISHED";
+    const processing=!unknown&&["PENDING","QUEUED","PROCESSING"].includes(job.status);
+    const failed=!unknown&&["FAILED","CANCELED"].includes(job.status);
+    const status=published?"SUCCEEDED":processing?"PROCESSING":failed?"FAILED":"UNKNOWN";
+    const target=job?{...batchTargetView({...job,status:unknown?"UNKNOWN":job.status,retryable:false}),jobId:job.id}:{jobId:row.input.jobId,state:"UNKNOWN",status:"UNKNOWN"};
+    return {status,targetCount:1,publishedCount:published?1:0,processingCount:processing?1:0,failedCount:failed?1:0,unknownCount:!published&&!processing&&!failed?1:0,blockedCount:0,targets:[target]};
+  }
   const result=object(row.result)?row.result:{};
   const batch=object(result.batch)?result.batch:{};
   let batchId=typeof result.batchId==="string"?result.batchId:typeof batch.batchId==="string"?batch.batchId:row.input.batchId;

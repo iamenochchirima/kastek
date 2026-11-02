@@ -12,6 +12,8 @@ import type {RequestContext} from "../src/identity/request-context.js";
 import {executeGrowthOperation,getOperationReview} from "../src/operations/reviews.js";
 import {operationDomainKey} from "../src/operations/reconciliation.js";
 import {invokeGrowthOperation} from "../src/operations/dispatch.js";
+import {syncOrgConnections} from "../src/services/connections.js";
+import {syncPermissionInventory} from "../src/integrations/connection-permissions.js";
 import {CONTENT_APP_URI,CONTENT_APP_MIME,contentMcpAppTool,contentMcpAppResourcesList,readContentMcpAppResource,
   decorateContentMcpAppResult,invokeContentMcpAppControl} from "../src/operations/content-mcp-app.js";
 
@@ -186,6 +188,36 @@ test("owned content app confirmation stays hidden, exact and single-use across r
       const delivered=await invokeContentMcpAppControl(core,context,control);
       assert.equal((delivered.structuredContent.delivery as any).status,"SUCCEEDED");assert.equal((delivered.structuredContent.delivery as any).publishedCount,1);
       assert.equal((delivered as any)._meta["kasitek.co.za/contentReview"].delivery.status,"SUCCEEDED");
+    });
+    await t.test("single-job retry admission tracks only that job and status never retries delivery",async()=>{
+      const view=await preview();
+      const jobId=(await pool.query('SELECT id FROM "SocialPublishJob" WHERE "postId"=$1',[view.postId])).rows[0].id;
+      await pool.query(`UPDATE "SocialChannelConnection" SET metadata='{"permissions":["pages_manage_posts"],"permissionsInspected":true}',"updatedAt"=NOW() WHERE id='facebook'`);
+      await syncOrgConnections(pool,"org-a");await syncPermissionInventory(pool,"org-a");
+      await pool.query(`UPDATE "SocialPublishJob" SET status='FAILED',"updatedAt"=NOW() WHERE id=$1`,[jobId]);
+      const args={action:"content.jobs.retry",input:{jobId},requestId:"app-single-job-retry"};
+      const value=await executeGrowthOperation(core,context,{operation:"content.actions.preview",input:args});
+      const result=await decorateContentMcpAppResult(core,context,"content.actions.preview",args,value) as any;
+      const metadata=result._meta["kasitek.co.za/contentReview"],control={previewId:metadata.previewId,token:metadata.token};
+      assert.equal(metadata.preview.validation.ready,true,JSON.stringify(metadata.preview));
+      const approved=await invokeContentMcpAppControl(core,context,{...control,decision:"approve"});
+      assert.equal(approved.structuredContent.state,"succeeded");assert.equal(approved.structuredContent.outcome,"publication_admitted");
+      assert.equal((approved.structuredContent.delivery as any).status,"PROCESSING");assert.equal((approved.structuredContent.delivery as any).processingCount,1);
+      assert.equal((approved.structuredContent.delivery as any).targets[0].jobId,jobId);
+      assert.equal((await pool.query('SELECT status FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0].status,"QUEUED");
+      const counts=async()=>(await pool.query('SELECT (SELECT count(*) FROM "SocialPublishJob" WHERE "postId"=$1) AS jobs,(SELECT count(*) FROM "SocialPublishBatch" WHERE "postId"=$1) AS batches',[view.postId])).rows[0];
+      const originalCounts=await counts();
+      for(const [jobStatus,externalId,outcome,deliveryStatus,countKey] of [["PUBLISHED","confirmed-retry-post",null,"SUCCEEDED","publishedCount"],["FAILED",null,null,"FAILED","failedCount"],["FAILED",null,"UNKNOWN","UNKNOWN","unknownCount"],["PUBLISHED",null,null,"UNKNOWN","unknownCount"]] as const){
+        await pool.query(`UPDATE "SocialPublishJob" SET status=$2::"SocialPublishJobStatus","externalPostId"=$3,metadata=(COALESCE(metadata,'{}'::jsonb)-'_kasitek_outcome')||CASE WHEN $4::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('_kasitek_outcome',$4::text) END,"updatedAt"=NOW() WHERE id=$1`,[jobId,jobStatus,externalId,outcome]);
+        const before=(await pool.query('SELECT status,"updatedAt" FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0];
+        const status=await invokeContentMcpAppControl(core,context,{...control,decision:"status"});
+        assert.equal((status.structuredContent.delivery as any).status,deliveryStatus);assert.equal((status.structuredContent.delivery as any)[countKey],1);
+        await invokeContentMcpAppControl(core,context,{...control,decision:"approve"});
+        assert.deepEqual((await pool.query('SELECT status,"updatedAt" FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0],before);
+        assert.deepEqual(await counts(),originalCounts);
+      }
+      await pool.query('DELETE FROM "SocialPublishJob" WHERE id=$1',[jobId]);
+      const missing=await invokeContentMcpAppControl(core,context,{...control,decision:"status"});assert.equal((missing.structuredContent.delivery as any).status,"UNKNOWN");
     });
   }finally{await fixture.close();await rm(storage,{recursive:true,force:true});}
 });
