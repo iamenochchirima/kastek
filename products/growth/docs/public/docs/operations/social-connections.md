@@ -28,6 +28,16 @@ Choose **Edit post** for a draft or scheduled post to change its text and media,
 **Undo** restores it before saving. Replacing or adding published media is not supported, and
 the destination remains unchanged. Other published platforms and processing posts cannot be edited here.
 
+## Instagram without a Facebook Page
+
+Open **Connections** → **Connect Instagram**, then select **Connect Instagram** under
+**Instagram Login**. Sign in with a Business or Creator account. A Facebook Page is not required
+for this path. **Continue to Meta** connects accounts through the separate Facebook Page flow.
+
+After returning, confirm the intended Instagram identity and granted permissions. A connected
+status alone does not establish that publishing, messages or analytics work. Ordinary personal
+accounts are not supported by this integration.
+
 ## LinkedIn Company Pages
 
 Open **Connections** and select **Connect** under LinkedIn. After one LinkedIn authorization, KasiTek
