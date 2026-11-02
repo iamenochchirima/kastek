@@ -18,6 +18,7 @@ Configure the hosted service before starting it:
 | `KC_DB_USERNAME`, `KC_DB_PASSWORD` | Identity-owned database credential |
 | `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | Independent bootstrap administrator, password at least 32 characters |
 | `KC_HTTP_PORT` | `8080` |
+| `RESEND_API_KEY` | Identity-owned Resend key authorized to send from the configured domain |
 
 Railway terminates TLS. Keep `KC_HOSTNAME_STRICT=true` and the full HTTPS hostname.
 Do not expose a separate direct plaintext endpoint or trust caller-controlled forwarding
@@ -26,6 +27,47 @@ health checks on the application listener; use `/health/ready` on port 8080.
 Keycloak PostgreSQL data belongs on the separate database service's persistent volume.
 No identity application volume is required. Use one replica initially; scale and cluster
 configuration require separate validation.
+
+## HTTPS email
+
+The hosted image selects the `resend` email-sender SPI at build time. It sends Keycloak's
+existing verification, password-reset and action templates through
+`https://api.resend.com/emails`. Railway Free, Trial and Hobby plans block outbound SMTP;
+HTTPS works without changing the account plan or weakening verification.
+
+Set `RESEND_API_KEY` only on Identity, and verify the sending domain in the same Resend
+account. The sender uses the realm's `smtpServer.from`, `fromDisplayName` and `replyTo` fields.
+The realm configuration helper continues to populate those fields from `IDENTITY_SMTP_FROM`,
+`IDENTITY_SMTP_FROM_DISPLAY_NAME` and `IDENTITY_SMTP_REPLY_TO`. Its existing SMTP transport
+settings can remain stored for rollback, but the hosted sender does not use the SMTP host,
+port, username or password and never falls back to SMTP. The local development runtime still
+uses Mailpit and its default SMTP sender.
+
+The provider validates HTTPS certificates, refuses redirects and bounds connection/request
+waits to five/ten seconds. It does not automatically retry an uncertain send. Failures report
+a bounded category or HTTP status, without logging provider response bodies, recipients,
+credentials or action links. Keycloak's existing verification expiry and resend controls apply.
+
+The email-sender SPI is internal to Keycloak, so keep the server pinned to 26.6.0 and repeat
+provider tests and real verification-email acceptance before upgrading it.
+
+The Docker build compiles the provider against the pinned Keycloak distribution and runs its
+transport tests before packaging the jar. To run those checks outside Docker, set `JAVA_HOME`
+to a JDK 21 installation and `KEYCLOAK_HOME` to Keycloak 26.6.0, then run:
+
+```sh
+IDENTITY_PROVIDER_BUILD_DIR=/tmp/kasitek-email-provider bash infra/identity/email-provider/build.sh
+```
+
+The checks use an injected transport and send no email. Hosted acceptance must separately
+retry a real pending verification email and confirm provider acceptance/delivery. Monitor
+`SEND_VERIFY_EMAIL_ERROR` and Keycloak readiness after rollout. Roll back to the previous
+image and managed sender configuration if necessary; SMTP availability must be established
+before treating that image as a working email fallback. No database migration is needed.
+
+References: [Railway outbound email](https://docs.railway.com/networking/outbound-networking),
+[Keycloak provider configuration](https://www.keycloak.org/server/configuration-provider),
+[Resend send API](https://resend.com/docs/api-reference/emails/send-email).
 
 ## Realm and clients
 

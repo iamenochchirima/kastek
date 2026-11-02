@@ -141,3 +141,9 @@ starts and Growth signup reach the new origin with PKCE S256 and unchanged callb
 input was submitted. See the [configuration verification record](./releases/identity-auth-domain-2026-11-02.json).
 Product import boundaries and whitespace checks passed. Completed human login/logout and email
 delivery remain unverified; the existing CI limitations above still apply.
+
+
+The subsequent [email and Railway reference update](./production-email-and-references.md)
+records the first real hosted email failure, its HTTPS transport fix, shared production settings
+and Analytics dependency references. The original SMTP AUTH result above did not establish
+connectivity from the hosted Identity container.

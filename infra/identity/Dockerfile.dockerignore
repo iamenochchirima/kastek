@@ -1,1 +1,7 @@
 **
+!infra/
+!infra/identity/
+!infra/identity/email-provider/
+!infra/identity/email-provider/build.sh
+!infra/identity/email-provider/src/
+!infra/identity/email-provider/src/**
