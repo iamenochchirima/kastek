@@ -165,12 +165,30 @@ export async function decideOperationReview(core: CoreContext, ctx: RequestConte
 }
 
 /** A preview creates only a scoped internal receipt, never a content or provider mutation. */
-export async function prepareContentActionPreview(core: CoreContext, ctx: RequestContext, value: {action:string;input:Record<string,unknown>;requestId?:string}) {
+export async function prepareContentActionPreview(core: CoreContext, ctx: RequestContext, value: {action:string;input:Record<string,unknown>;requestId?:string}, binding: Pick<OperationInvocation,"taskId"|"conversationId"|"operationId"> = {}) {
   if (!isContentAction(value.action)) throw new ApiError(422,"operation_arguments_invalid","Choose a supported content action");
-  const result = await runGrowthOperation(core,ctx,{operation:value.action,input:value.input,requestId:value.requestId ?? `content-preview:${randomUUID()}`,prepareOnly:true});
+  const result = await runGrowthOperation(core,ctx,{operation:value.action,input:value.input,requestId:value.requestId ?? `content-preview:${randomUUID()}`,...binding,prepareOnly:true});
   if (!result.review || typeof result.review !== "object") throw conflict("This action did not produce a preview");
   const review = result.review as Record<string,unknown>;
   return {preview:{...review,previewId:review.id}};
+}
+
+/** An internal action gets its own proposed review; preview approval is never reassigned. */
+export async function prepareInternalContentActionFromPreview(core:CoreContext,ctx:RequestContext,previewId:string,call:OperationInvocation) {
+  const source=await getOperationReview(core,ctx,previewId);
+  if (!isContentAction(call.operation) || !call.taskId || !call.conversationId || !call.operationId || source.taskId!==call.taskId || source.conversationId!==call.conversationId || !source.operationId)
+    throw new ApiError(403,"operation_review_denied","The preview belongs to another task or conversation");
+  if (source.operation!==call.operation || source.payloadDigest!==growthOperationPayloadDigest(call.operation,call.input)) throw conflict("The preview belongs to different content or an action");
+  if (source.state!=="proposed" || +new Date(source.expiresAt)<=Date.now()) throw conflict("Prepare a fresh preview for this action");
+  await authorizeGrowthOperation(core,{...ctx,idempotencyKey:call.operationId},call.operation);
+  const current=await resourceSnapshot(core,ctx,call.input,call.operation);
+  if (digest(current)!==digest(source.snapshot)) throw conflict("The content, account or record changed. Prepare a new preview.");
+  const value=await executeGrowthOperation(core,ctx,{...call,reviewId:undefined,requestId:call.operationId,prepareOnly:true});
+  const id=(value.review as {id?:string}|undefined)?.id;
+  if (!id) throw conflict("This action did not produce a review");
+  const prepared=await getOperationReview(core,ctx,id);
+  if (prepared.taskId!==call.taskId || prepared.conversationId!==call.conversationId || prepared.operationId!==call.operationId || digest(prepared.snapshot)!==digest(source.snapshot)) throw conflict("The action review does not match the exact preview");
+  return value;
 }
 
 /** Trusted transport boundary. A model-supplied approval field is never accepted here. */
@@ -223,7 +241,7 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
   const requestedContentWrite = directContentWrite && !call.forceReviewed;
   if (definition.review === "none" && !directContentWrite) {
     if (call.continuation && definition.effect !== "read") throw new ApiError(409, "operation_continuation_changed", "A continuation can only observe an existing result");
-    return { state: "succeeded", result: await invokeGrowthOperation(core, context, call.operation, call.input) };
+    return { state: "succeeded", result: await invokeGrowthOperation(core, context, call.operation, call.input, {previewBinding:{taskId:call.taskId,conversationId:call.conversationId,operationId:call.operationId}}) };
   }
   if (!call.prepareOnly && ["external_effect", "destructive"].includes(definition.effect) && (core.config.env.GROWTH_AGENT_EFFECTS_ENABLED === "false" || core.config.environment === "production" && core.config.env.GROWTH_AGENT_EFFECTS_ENABLED !== "true")) throw new ApiError(503, "agent_effects_disabled", "New external agent actions are disabled");
   const payloadDigest = digest({ operation: definition.name, version: definition.version, input: call.input });

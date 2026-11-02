@@ -140,3 +140,13 @@ per-platform checklist remains separate from connection success. Some list servi
 workspace collection before taking a bounded page; pagination bounds the returned observation,
 not the database work. Use [agent access operations](../operations/growth-agent-access.md) for
 rollout flags, migrations, status-only recovery, evidence and rollback.
+
+## Internal preview admission
+
+Internal previews carry trusted task, conversation and invocation identifiers outside the model's
+business input. Preparing an action with `_previewId` validates that source artifact and creates
+an action-specific proposed review for the current command. It preserves the source snapshot and
+never transfers its approval. The agent presents the action review returned by preparation.
+Current task/conversation authority and the frozen payload are checked again for review and commit.
+External MCP continues to confirm its existing owned preview directly. Neither path can borrow
+another task's preview or turn a read-only preview into execution authority.
