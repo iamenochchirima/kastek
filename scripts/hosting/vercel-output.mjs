@@ -24,7 +24,7 @@ export function createVercelRoutes(product, { apiOrigin, frontendOrigin, growthR
     if (agencyWildcardDomain !== `*.${frontend.hostname}` || frontend.port) throw Error('AGENCY_VERIFIED_WILDCARD_DOMAIN must match the configured frontend host');
     const tenantHost = `[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.${escape(frontend.hostname)}`;
     // Bind tenant routing to the matched public host, independent of upstream forwarding headers.
-    routes.push({ src: source, dest: `${api.origin}/$1`, has: [{ type: 'host', value: `(?<tenantHost>${tenantHost})` }], transforms: [...transforms, header('x-kasitek-tenant-host', '$tenantHost'), header('x-forwarded-proto', 'https')] });
+    routes.push({ src: source, dest: `${api.origin}/$1`, has: [{ type: 'host', value: `(?<tenantHost>${tenantHost})` }], transforms: [...transforms, header('x-forwarded-proto', 'https'), header('x-kasitek-tenant-host', '$tenantHost')] });
   }
   if (product === 'agency') transforms.push(header('x-kasitek-tenant-host', frontend.host), header('x-forwarded-proto', 'https'));
   routes.push({ src: source, dest: `${api.origin}${product === 'agency' ? '/$1' : '$1'}`, ...(product === 'agency' ? { has: [{ type: 'host', value: escape(frontend.host) }] } : {}), transforms });
