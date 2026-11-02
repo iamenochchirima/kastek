@@ -59,6 +59,16 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
     recording degrades after the provider effect. Retry only after confirming that no published
     provider ID exists; the same idempotency key is safe to replay.
 
+## Split-host OAuth callbacks
+
+When the app and API use different hosts, the API callback relays to the configured frontend's
+`/api/social/oauth/{provider}/complete` path, regardless of API-host cookies. The frontend proxy
+then supplies its host-only session and state cookies. Completion still requires a signed-in workspace
+admin and matching OAuth state; never widen cookie domains or bypass these checks to repair401s.
+Keep the provider-registered callback and code-exchange redirect URI on the public API origin.
+Use a fresh Connect attempt after a failed or expired callback. Do not copy callback codes into
+logs. See `docs/operations/social-oauth-callback-relay.md` for release and verification evidence.
+
 ## Production Meta approval gate
 
 Before enabling production connections, verify all of the following in the production Meta app:

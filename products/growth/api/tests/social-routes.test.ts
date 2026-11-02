@@ -41,7 +41,10 @@ test("Social registration matches authoritative Rust route inventory including p
         ),
     );
     assert.ok(expected.size > 40);
-    const additiveRoutes = ["POST /api/social/posts/:id/update-published"];
+    const additiveRoutes = [
+      "POST /api/social/posts/:id/update-published",
+      ...["x", "linkedin", "threads", "tiktok", "meta", "instagram"].map(provider => `GET /api/social/oauth/${provider}/complete`),
+    ];
     assert.deepEqual([...observed].sort(), [...expected, ...additiveRoutes].sort());
     const publicResponse = await app.inject(
       "/api/social/oauth/bluesky/client-metadata",
@@ -49,6 +52,71 @@ test("Social registration matches authoritative Rust route inventory including p
     assert.notEqual(publicResponse.statusCode, 401);
     const privateResponse = await app.inject("/api/social/posts");
     assert.equal(privateResponse.statusCode, 401);
+  } finally {
+    await app.close();
+    await pool.end();
+  }
+});
+
+test("split-origin Social OAuth callbacks relay only to the app's authenticated completion route", async () => {
+  const pool = new pg.Pool({ connectionString: "postgres://unused" });
+  const config = readConfig({
+    DATABASE_URL: "postgres://unused",
+    FRONTEND_URL: "https://app.example.test",
+    KASITEK_CORE_PUBLIC_URL: "https://api.example.test",
+  });
+  const app = await buildApp({ pool, config }, [registerSocialRoutes]);
+  try {
+    for (const provider of ["meta", "instagram", "x", "linkedin", "threads", "tiktok"]) {
+      const code = "synthetic-code&redirect_uri=https://attacker.example";
+      const state = "synthetic-state+with/special=characters";
+      const query = new URLSearchParams({code, state, iss: "https://issuer.example", returnTo: "https://attacker.example"});
+      const relayed = await app.inject(`/api/social/oauth/${provider}/callback?${query}`);
+      assert.equal(relayed.statusCode, 302, relayed.body);
+      const location = new URL(relayed.headers.location!);
+      assert.equal(location.origin, config.frontendUrl);
+      assert.equal(location.pathname, `/api/social/oauth/${provider}/complete`);
+      assert.equal(location.searchParams.get("code"), code);
+      assert.equal(location.searchParams.get("state"), state);
+      assert.equal(location.searchParams.get("iss"), "https://issuer.example");
+      assert.equal(location.searchParams.has("returnTo"), false);
+      assert.equal(location.searchParams.has("redirect_uri"), false);
+      assert.equal(relayed.headers["cache-control"], "no-store");
+      assert.equal(relayed.headers["referrer-policy"], "no-referrer");
+      assert.equal(relayed.cookies.length, 0, "relay must not create broader-domain cookies");
+      for (const apiCookie of ["stale-api-session", "present-api-session"]) {
+        const withApiCookie = await app.inject({
+          url: `/api/social/oauth/${provider}/callback?${query}`,
+          headers: {cookie: `kasitek_session=${apiCookie}; kasitek_social_${provider}_state=other-api-state`},
+        });
+        assert.equal(withApiCookie.statusCode, 302, withApiCookie.body);
+        assert.equal(withApiCookie.headers.location, relayed.headers.location,
+          "API-host cookies must not choose the user or prevent returning to the app's session");
+      }
+      const completion = await app.inject(location.pathname + location.search);
+      assert.equal(completion.statusCode, 401, completion.body);
+      assert.equal(completion.headers.location, undefined, "missing app session must not cause a redirect loop");
+      assert.equal(completion.headers["cache-control"], "no-store");
+      const duplicate = await app.inject(`/api/social/oauth/${provider}/callback?state=first&state=second`);
+      assert.equal(duplicate.statusCode, 400);
+    }
+    const denied = await app.inject("/api/social/oauth/meta/callback?error=access_denied&error_description=Declined");
+    assert.equal(new URL(denied.headers.location!).searchParams.get("error"), "access_denied");
+    assert.equal(new URL(denied.headers.location!).searchParams.get("error_description"), "Declined");
+  } finally {
+    await app.close();
+    await pool.end();
+  }
+});
+
+test("same-origin Social OAuth callbacks retain the original authentication boundary", async () => {
+  const pool = new pg.Pool({ connectionString: "postgres://unused" });
+  const config = readConfig({DATABASE_URL: "postgres://unused", FRONTEND_URL: "https://app.example.test", KASITEK_CORE_PUBLIC_URL: "https://app.example.test"});
+  const app = await buildApp({pool, config}, [registerSocialRoutes]);
+  try {
+    const response = await app.inject("/api/social/oauth/meta/callback?code=synthetic&state=synthetic");
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.headers.location, undefined);
   } finally {
     await app.close();
     await pool.end();
@@ -102,14 +170,24 @@ test(
       assert.equal(
         (
           await app.inject({
-            url: "/api/social/oauth/x/callback?code=fake&state=tampered",
+            url: "/api/social/oauth/x/complete?code=fake&state=tampered",
             headers,
           })
         ).statusCode,
         400,
       );
+      for (const provider of ["meta", "instagram", "x", "linkedin", "threads", "tiktok"]) {
+        for (const query of ["code=fake", "code=fake&state=tampered"]) {
+          const completion = await app.inject({
+            url: `/api/social/oauth/${provider}/complete?${query}`,
+            headers: {cookie: `${headers.cookie}; kasitek_social_${provider}_state=expected`},
+          });
+          assert.equal(completion.statusCode, 400, completion.body);
+          assert.match(completion.body, /OAuth state/);
+        }
+      }
       const denied = await app.inject({
-        url: "/api/social/oauth/x/callback?error=denied&error_description=synthetic%20denied",
+        url: "/api/social/oauth/x/complete?error=denied&error_description=synthetic%20denied",
         headers,
       });
       assert.equal(denied.statusCode, 302);
@@ -117,7 +195,25 @@ test(
         denied.headers.location,
         "http://localhost:3000/connections?error=synthetic%20denied",
       );
+      const validSessionRelay = await app.inject({
+        url: "/api/social/oauth/meta/callback?error=access_denied&state=expected",
+        headers: {cookie: `${headers.cookie}; kasitek_social_meta_state=other-api-state`},
+      });
+      assert.equal(validSessionRelay.statusCode, 302);
+      const completionUrl = new URL(validSessionRelay.headers.location!);
+      assert.equal(completionUrl.pathname, "/api/social/oauth/meta/complete");
+      const completedDenial = await app.inject({
+        url: completionUrl.pathname + completionUrl.search,
+        headers: {cookie: `${headers.cookie}; kasitek_social_meta_state=expected`},
+      });
+      assert.equal(completedDenial.statusCode, 302, completedDenial.body);
+      assert.equal(completedDenial.headers.location, "http://localhost:3000/connections?error=access_denied");
       await pool.query(`UPDATE "OrganizationMember" SET role='MEMBER'`);
+      const forbiddenCompletion = await app.inject({
+        url: "/api/social/oauth/meta/complete?code=synthetic&state=expected",
+        headers: {cookie: `${headers.cookie}; kasitek_social_meta_state=expected`},
+      });
+      assert.equal(forbiddenCompletion.statusCode, 403, forbiddenCompletion.body);
       assert.equal(
         (await app.inject({ url: "/api/social/oauth/x/start", headers }))
           .statusCode,

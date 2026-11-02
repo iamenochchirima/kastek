@@ -69,6 +69,28 @@ function warn(
     "provider operation failed",
   );
 }
+function registerBrowserCallback(
+  app: FastifyInstance,
+  core: CoreContext,
+  provider: string,
+  complete: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown>,
+) {
+  app.get(`/api/social/oauth/${provider}/complete`, complete);
+  app.get(`/api/social/oauth/${provider}/callback`, async (request, reply) => {
+    reply.header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer");
+    const query = typedQuery<CallbackQuery>(request.query, [
+      "code", "state", "error", "error_description", "iss",
+    ]);
+    if (new URL(core.config.frontendUrl).origin !== new URL(core.config.publicApiUrl).origin) {
+      // Provider callbacks land on the API host; browser session/state cookies belong to the app host.
+      const destination = new URL(`/api/social/oauth/${provider}/complete`, core.config.frontendUrl);
+      for (const [key, value] of Object.entries(query))
+        if (value !== undefined) destination.searchParams.set(key, value);
+      return redirect(reply, destination.toString());
+    }
+    return complete(request, reply);
+  });
+}
 async function prepare(
   core: CoreContext,
   org: string,
@@ -301,9 +323,8 @@ export function registerSocialOAuthRoutes(
     "meta",
     "instagram",
   ] as const) {
-    app.get(
-      `/api/social/oauth/${provider}/callback`,
-      async (request, reply) => {
+    registerBrowserCallback(app, core, provider, async (request, reply) => {
+        reply.header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer");
         const query = typedQuery<CallbackQuery>(request.query, [
           "code",
           "state",
@@ -695,8 +716,7 @@ export function registerSocialOAuthRoutes(
         }
         clearCookie(reply, cookie(provider));
         return redirect(reply, url);
-      },
-    );
+      });
   }
   app.get(
     "/api/social/oauth/bluesky/client-metadata",
