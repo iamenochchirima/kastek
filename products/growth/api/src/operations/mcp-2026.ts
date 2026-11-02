@@ -27,7 +27,26 @@ function object(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 const hash = (value: unknown) => createHash("sha256").update(canonicalJson(value)).digest("hex");
-const invalidState = () => new ApiError(409, "content_confirmation_invalid", "This content confirmation is invalid or expired. Prepare a fresh preview.");
+type ConfirmationFailure = "state_shape" | "state_hmac" | "state_payload" | "state_expired" | "state_identity" | "state_arguments" | "state_review" | "form_capability" | "form_responses" | "form_id" | "decision_action" | "decision_schema";
+class ContentConfirmationError extends ApiError {
+  constructor(readonly confirmationReason: ConfirmationFailure) {
+    super(409, "content_confirmation_invalid", "This content confirmation is invalid or expired. Prepare a fresh preview.");
+  }
+}
+const invalidState = (reason: ConfirmationFailure = "state_payload") => new ContentConfirmationError(reason);
+
+/** Diagnostic vocabulary is fixed: never log response keys, values, content or opaque state. */
+export function mcpConfirmationResponseShape(params: JsonObject) {
+  const responses = object(params.inputResponses) ? Object.values(params.inputResponses) : [];
+  const first = responses.length === 1 && object(responses[0]) ? responses[0] : {};
+  const content = object(first.content) ? first.content : {};
+  const action = ["accept", "decline", "cancel"].includes(String(first.action)) ? String(first.action) : first.action === undefined ? "absent" : "other";
+  return { state_present: typeof params.requestState === "string", responses_object: object(params.inputResponses),
+    responses_count: Math.min(responses.length, 10), response_object: responses.length === 1 && object(responses[0]),
+    response_error: object(first.error), response_result: object(first.result), response_action: action,
+    content_object: object(first.content), content_count: Math.min(Object.keys(content).length, 10),
+    confirm_boolean: typeof content.confirm === "boolean" };
+}
 
 export function isMcp2026Request(request: Pick<FastifyRequest, "headers" | "body">): boolean {
   const body = request.body;
@@ -102,18 +121,19 @@ export function sealMcpContentConfirmation(core: CoreContext, ctx: RequestContex
 
 export function readMcpContentConfirmation(core: CoreContext, ctx: RequestContext, value: unknown,
   operation: string, args: JsonObject, now = Date.now(), allowReceiptObservation = false): ConfirmationState {
-  if (typeof value !== "string" || value.length > 8192 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value)) throw invalidState();
+  if (typeof value !== "string" || value.length > 8192 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value)) throw invalidState("state_shape");
   const [encoded, supplied] = value.split(".") as [string, string];
   const expected = createHmac("sha256", stateSecret(core)).update(STATE_DOMAIN + encoded).digest("base64url");
-  if (!timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) throw invalidState();
+  if (!timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) throw invalidState("state_hmac");
   let parsed: unknown;
   try { parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")); } catch { throw invalidState(); }
   if (!object(parsed) || parsed.version !== 1 || typeof parsed.reviewId !== "string" ||
       typeof parsed.payloadDigest !== "string" || typeof parsed.requestKey !== "string" ||
-      typeof parsed.formId !== "string" || typeof parsed.expires !== "number" || !allowReceiptObservation && parsed.expires <= now ||
-      parsed.operation !== operation || parsed.argumentsDigest !== hash({ name: operation, arguments: args }) ||
-      parsed.principalKind !== ctx.principal.kind || parsed.principalId !== ctx.principal.id ||
-      parsed.userId !== ctx.userId || parsed.organizationId !== ctx.organizationId || parsed.clientId !== ctx.clientId) throw invalidState();
+      typeof parsed.formId !== "string" || typeof parsed.expires !== "number") throw invalidState("state_payload");
+  if (!allowReceiptObservation && parsed.expires <= now) throw invalidState("state_expired");
+  if (parsed.operation !== operation || parsed.argumentsDigest !== hash({ name: operation, arguments: args })) throw invalidState("state_arguments");
+  if (parsed.principalKind !== ctx.principal.kind || parsed.principalId !== ctx.principal.id ||
+      parsed.userId !== ctx.userId || parsed.organizationId !== ctx.organizationId || parsed.clientId !== ctx.clientId) throw invalidState("state_identity");
   return parsed as unknown as ConfirmationState;
 }
 
@@ -138,9 +158,9 @@ export function contentConfirmationMessage(row: OperationReviewRow): string | nu
 }
 
 export function mcpContentConfirmationDecision(response: unknown): "approve" | "reject" {
-  if (!object(response) || !["accept", "decline", "cancel"].includes(String(response.action))) throw invalidState();
+  if (!object(response) || !["accept", "decline", "cancel"].includes(String(response.action))) throw invalidState("decision_action");
   if (response.action !== "accept") return "reject";
-  if (!object(response.content) || Object.keys(response.content).length !== 1 || typeof response.content.confirm !== "boolean") throw invalidState();
+  if (!object(response.content) || Object.keys(response.content).length !== 1 || typeof response.content.confirm !== "boolean") throw invalidState("decision_schema");
   return response.content.confirm ? "approve" : "reject";
 }
 
@@ -169,15 +189,23 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
   const args = params.arguments as JsonObject | undefined ?? {};
   const invocation = growthToolArguments(args);
   if (params.inputResponses !== undefined || params.requestState !== undefined) {
-    if (!mode || !isContentPublicOperation(operation)) throw invalidState();
+    if (!mode || !isContentPublicOperation(operation)) throw invalidState("form_capability");
     const state = readMcpContentConfirmation(core, context, params.requestState, operation, args, Date.now(), true);
-    if (!object(params.inputResponses) || Object.keys(params.inputResponses).length !== 1) throw invalidState();
-    const decision = mcpContentConfirmationDecision(params.inputResponses[state.formId]);
+    if (!object(params.inputResponses) || Object.keys(params.inputResponses).length !== 1) throw invalidState("form_responses");
+    if (!Object.hasOwn(params.inputResponses, state.formId)) throw invalidState("form_id");
+    const response = params.inputResponses[state.formId];
     const row = await getOperationReview(core, context, state.reviewId);
-    if (row.operation !== operation || row.payloadDigest !== state.payloadDigest || row.requestKey !== state.requestKey) throw invalidState();
+    if (row.operation !== operation || row.payloadDigest !== state.payloadDigest || row.requestKey !== state.requestKey) throw invalidState("state_review");
     if (["succeeded", "executing", "uncertain"].includes(row.state))
       return toolResult(await executeGrowthOperation(core, context, { operation, ...invocation, requestId: row.requestKey, reviewId: row.id }));
-    if (state.expires <= Date.now()) throw invalidState();
+    if (state.expires <= Date.now()) throw invalidState("state_expired");
+    // A host's explicit protocol error cannot confirm an action. Preserve its owned review fallback.
+    if (object(response) && object(response.error) && typeof response.error.code === "number" &&
+        [-32601, -32602].includes(response.error.code) && response.action === undefined)
+      return toolResult({ state: "approval_required", review: (await executeGrowthOperation(core, context,
+        { operation, ...invocation, requestId: row.requestKey, reviewId: row.id, prepareOnly: true })).review,
+        message: "Chat confirmation is unavailable. Review this content action in Growth." });
+    const decision = mcpContentConfirmationDecision(response);
     if (decision === "reject") {
       await rejectContentOperationReview(core, context, row.id, row.payloadDigest, "mcp_form");
       return toolResult({ state: "rejected", message: "Content action cancelled. Nothing was executed." });
@@ -247,7 +275,9 @@ export async function handleGrowthMcp2026(core: CoreContext, context: RequestCon
     const value = { code: error instanceof ApiError ? error.code : "internal_error",
       message: error instanceof ApiError ? error.message : "Could not complete the Growth operation" };
     request.log.warn({ event: "growth.operation.failed", protocol_version: MCP_2026_VERSION,
-      error_type: value.code }, "Growth MCP request failed");
+      error_type: value.code,
+      ...(error instanceof ContentConfirmationError ? { confirmation_reason: error.confirmationReason,
+        confirmation_shape: mcpConfirmationResponseShape(params) } : {}) }, "Growth MCP request failed");
     return reply.send({ jsonrpc: "2.0", id, result: { resultType: "complete", isError: true,
       content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value } });
   }
