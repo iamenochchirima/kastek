@@ -34,10 +34,31 @@ optional previews, stale/revoked grants and repeat identities. Internal runtime 
 explicit write authority and observation-only recovery. Build/boundary and production evidence
 passed with 36 Growth checks and 14 focused Agents checks, zero skipped. Growth/Agents API builds,
 import boundaries, release identity, OpenAPI and watch matrix passed. Production migration was
-applied transactionally and checksum read back before rollout. Live MCP smoke remains pending deployment. These checks do not prove every provider's
+applied transactionally and checksum read back before rollout. Live MCP smoke passed after deployment. These checks do not prove every provider's
 live delivery or expand provider format/edit capabilities.
 
 Rollback: restore prior service images and retained internal selections, retain additive schema
 and execution receipts. Existing succeeded/uncertain effects must never be reissued with a new
 identity. Prior code will restore its previous approval requirement. Post-release review: after
 production MCP smoke verification on 2 November 2026.
+
+
+## Production verification
+
+PR #45 merged at a55147ed5048f959e30522e26c4fb1efe8c75401. All 19 Railway roles have successful
+active artifacts; the 13 Git watch configurations match the inventory, and six databases remain
+image-only. Growth and Agents health return 200; identity discovery retains auth.kasitek.co.za.
+The [artifact manifest](releases/platform-0.3.1-artifacts.json) records exact deployed identities.
+
+The ordinary production MCP delete tool removed the existing disposable unpublished draft without
+a form/card/page approval. Its audit source is requested_action. Same-key replay returned the
+identical receipt/result; authoritative readback returned not_found. Database readback found one
+request receipt and zero approval events. No public provider post was changed by this smoke.
+
+The 36 Growth checks include OAuth, SDK/modern MCP, REST/internal parity, schedule/reschedule/
+unschedule, publication admission and an owned Facebook provider fixture, stale grants/revisions,
+replay and bounded observations. Fourteen focused Agents policy/runtime/publication checks passed.
+Broader Agents source CI was already failing before this patch and remains separately tracked;
+these focused results do not claim that full suite passes. Public docs CI passed. Internal docs CI
+caught a relative ADR link outside its site root; this follow-up uses the canonical repository
+link, and the corrected internal site build passed locally using its Node 22 toolchain.
