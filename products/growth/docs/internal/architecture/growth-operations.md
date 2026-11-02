@@ -57,7 +57,7 @@ requested schedule and organization timezone, target receipts, update/removal de
 Execution requires confirmation of that immutable artifact and rechecks current authority.
 `2026-07-28` MCP clients with form capabilities can return a sealed, scoped protocol input response;
 legacy/incapable clients and REST retain the Growth review page. A model-supplied approval field
-cannot grant authority. See [ADR 0002](../../adr/0002-content-action-confirmation.md).
+cannot grant authority. See [ADR 0002](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0002-content-action-confirmation.md).
 
 Other non-read business changes retain exact persisted reviews. Internal agents invoke these same
 business operations directly, without MCP, and retain trusted internal review for public actions.
