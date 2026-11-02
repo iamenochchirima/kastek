@@ -8,6 +8,7 @@ import { apiJson } from "../json.js";
 import { listGrowthOperations } from "./policy.js";
 import { auditGrowthAccess } from "./telemetry.js";
 import { growthToolArguments, growthToolInputSchema } from "./transport.js";
+import { CONTENT_APP_URI, CONTENT_APP_TOOL_NAME, contentMcpAppTool, contentMcpAppResourcesList, readContentMcpAppResource, invokeContentMcpAppControl, decorateContentMcpAppResult } from "./content-mcp-app.js";
 import {
   confirmContentOperationReview, rejectContentOperationReview,
   executeGrowthOperation, getOperationReview, isContentPublicOperation,
@@ -172,22 +173,49 @@ function toolResult(value: JsonObject) {
   return { resultType: "complete", content: [{ type: "text", text }], structuredContent: output, isError: value.state === "uncertain" };
 }
 
-export async function growthMcpToolList(core: CoreContext, context: RequestContext) {
-  return auditGrowthAccess(core, context, "discovery", async () => ({
-    tools: (await listGrowthOperations(core, context)).map(operation => ({
+/** A client without chat confirmation receives a blocked action, never a browser detour. */
+export function sanitizeMcpChatResult(value: JsonObject): JsonObject {
+  const clean = (item: unknown): unknown => Array.isArray(item) ? item.map(clean) : object(item)
+    ? Object.fromEntries(Object.entries(item).filter(([key]) => key !== "reviewUrl").map(([key, entry]) => [key, clean(entry)])) : item;
+  const output = clean(value) as JsonObject;
+  if (["approval_required", "validation_required"].includes(String(value.state))) {
+    // A serialized continuation may contain the old browser-review field. It cannot authorize
+    // anything on an unsupported client, so expose only its safe receipt identity here.
+    if (object(output.result) && output.result.encoding === "json") delete output.result;
+    return { ...output, state: "confirmation_unavailable", message: "This client cannot confirm this content action in chat. Use a client with in-chat confirmation support." };
+  }
+  return output;
+}
+
+export async function growthMcpToolList(core: CoreContext, context: RequestContext, appUiSupported = false) {
+  return auditGrowthAccess(core, context, "discovery", async () => {
+    const permitted = await listGrowthOperations(core, context);
+    const canConfirm = appUiSupported && permitted.some(operation => isContentPublicOperation(operation.name));
+    return { tools: [ ...permitted.map(operation => ({
       name: operation.name, description: operation.description,
       inputSchema: growthToolInputSchema(operation), outputSchema: operation.outputSchema,
       annotations: { readOnlyHint: operation.effect === "read", destructiveHint: operation.effect === "destructive",
         idempotentHint: operation.idempotency === "required", openWorldHint: operation.effect === "external_effect" },
-    })),
-  }));
+      ...(appUiSupported && (isContentPublicOperation(operation.name) || operation.name === "content.actions.preview")
+        ? { _meta: { ui: { resourceUri: CONTENT_APP_URI, visibility: ["model", "app"] }, "openai/outputTemplate": CONTENT_APP_URI } } : {}),
+    })), ...(canConfirm ? [contentMcpAppTool()] : []) ] };
+  });
 }
 
-async function callTool(core: CoreContext, context: RequestContext, params: JsonObject, mode: FormMode | null, log: FastifyRequest["log"]) {
+function appToolResult(result: Awaited<ReturnType<typeof decorateContentMcpAppResult>>) {
+  if (Buffer.byteLength(apiJson(result)) > 2 * 1024 * 1024) throw new ApiError(413, "operation_result_too_large", "Narrow the requested content preview");
+  return { resultType: "complete", ...result };
+}
+
+async function callTool(core: CoreContext, context: RequestContext, params: JsonObject, mode: FormMode | null, log: FastifyRequest["log"], appUiSupported: boolean) {
   if (typeof params.name !== "string" || params.name.length > 200 ||
       params.arguments !== undefined && !object(params.arguments)) throw new ApiError(422, "operation_arguments_invalid", "Invalid tool arguments");
   const operation = params.name;
   const args = params.arguments as JsonObject | undefined ?? {};
+  if (operation === CONTENT_APP_TOOL_NAME) {
+    if (!appUiSupported) throw new ApiError(409, "content_confirmation_unavailable", "This client does not support in-chat content confirmation");
+    return appToolResult(await invokeContentMcpAppControl(core, context, args));
+  }
   const invocation = growthToolArguments(args);
   if (params.inputResponses !== undefined || params.requestState !== undefined) {
     if (!mode || !isContentPublicOperation(operation)) throw invalidState("form_capability");
@@ -203,9 +231,8 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
     // A host's explicit protocol error cannot confirm an action. Preserve its owned review fallback.
     if (object(response) && object(response.error) && typeof response.error.code === "number" &&
         [-32601, -32602].includes(response.error.code) && response.action === undefined)
-      return toolResult({ state: "approval_required", review: (await executeGrowthOperation(core, context,
-        { operation, ...invocation, requestId: row.requestKey, reviewId: row.id, prepareOnly: true })).review,
-        message: "Chat confirmation is unavailable. Review this content action in Growth." });
+      return toolResult(sanitizeMcpChatResult(await executeGrowthOperation(core, context,
+        { operation, ...invocation, requestId: row.requestKey, reviewId: row.id, prepareOnly: true })));
     if (object(response) && response.action === "accept" && object(response.content) &&
         Object.keys(response.content).length === 0 && response.error === undefined && response.result === undefined) {
       // Some hosts submit the empty core schema without rendering the extended form.
@@ -216,7 +243,7 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
       log.warn({ event: "growth.mcp.confirmation.unavailable", protocol_version: MCP_2026_VERSION,
         reason: "missing_required_answer", confirmation_shape: mcpConfirmationResponseShape(params) },
       "MCP client did not return required content confirmation");
-      return toolResult({ ...pending, message: "The client did not return the required confirmation. Review this content action in Growth." });
+      return toolResult(sanitizeMcpChatResult(pending));
     }
     const decision = mcpContentConfirmationDecision(response);
     if (decision === "reject") {
@@ -227,7 +254,10 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
     return toolResult(await executeGrowthOperation(core, context, { operation, ...invocation, requestId: row.requestKey, reviewId: row.id }));
   }
   const value = await executeGrowthOperation(core, context, { operation, ...invocation });
-  if (value.state !== "approval_required" || !mode || !isContentPublicOperation(operation) || invocation.continuation) return toolResult(value);
+  if (appUiSupported && (isContentPublicOperation(operation) || operation === "content.actions.preview"))
+    return appToolResult(await decorateContentMcpAppResult(core, context, operation, args, value));
+  if (value.state !== "approval_required" || !isContentPublicOperation(operation) || invocation.continuation) return toolResult(value);
+  if (!mode) return toolResult(sanitizeMcpChatResult(value));
   const review = object(value.review) ? value.review : undefined;
   if (!review || typeof review.id !== "string") return toolResult(value);
   const row = await getOperationReview(core, context, review.id);
@@ -235,7 +265,7 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
   if (object(preview) && object(preview.validation) && preview.validation.ready === false)
     return toolResult({ ...value, state: "validation_required", message: "Fix the listed validation issues before confirming this content action." });
   const message = contentConfirmationMessage(row);
-  if (!message) return toolResult({ ...value, message: "The exact content preview is too large for chat confirmation. Review it in Growth." });
+  if (!message) return toolResult(sanitizeMcpChatResult(value));
   const requestState = sealMcpContentConfirmation(core, context, row, args);
   const sealed = readMcpContentConfirmation(core, context, requestState, operation, args);
   const requestedSchema = { type: "object", properties: { decision: { type: "string", title: "Content action", enum: ["confirm", "cancel"], default: "cancel" } }, required: ["decision"] };
@@ -280,12 +310,18 @@ export async function handleGrowthMcp2026(core: CoreContext, context: RequestCon
     let result: unknown;
     switch (body.method) {
       case "server/discover":
-        result = { resultType: "complete", supportedVersions: [MCP_2026_VERSION, "2025-11-25"], capabilities: { tools: {} },
-          _meta: { "io.modelcontextprotocol/serverInfo": { name: "kasitek-growth", version: "1.1.0" } } };
+        result = { resultType: "complete", supportedVersions: [MCP_2026_VERSION, "2025-11-25"], capabilities: { tools: {}, resources: {}, extensions: { "io.modelcontextprotocol/ui": {} } },
+          _meta: { "io.modelcontextprotocol/serverInfo": { name: "kasitek-growth", version: "1.2.0" } } };
         break;
       case "ping": result = { resultType: "complete" }; break;
-      case "tools/list": result = { resultType: "complete", ...await growthMcpToolList(core, context) }; break;
-      case "tools/call": result = await callTool(core, context, params, mode, request.log); break;
+      case "resources/list": result = { resultType: "complete", ...await auditGrowthAccess(core, context, "content.review.resources", async () => contentMcpAppResourcesList()) }; break;
+      case "resources/read":
+        if (typeof params.uri !== "string") return fail(-32602, "A resource URI is required");
+        if (params.uri !== CONTENT_APP_URI) return fail(-32002, "Resource not found", 404);
+        result = { resultType: "complete", ...await auditGrowthAccess(core, context, "content.review.resource", async () => readContentMcpAppResource(params.uri as string, core.config.publicApiUrl)) };
+        request.log.info({ event: "growth.mcp.resource.read", resource_version: "content-review-v1" }, "Growth content review resource read"); break;
+      case "tools/list": result = { resultType: "complete", ...await growthMcpToolList(core, context, appUiSupported) }; break;
+      case "tools/call": result = await callTool(core, context, params, mode, request.log, appUiSupported); break;
       default: return fail(-32601, "MCP method not supported", 404);
     }
     return reply.send({ jsonrpc: "2.0", id, result });

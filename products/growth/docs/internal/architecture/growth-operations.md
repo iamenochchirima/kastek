@@ -150,3 +150,17 @@ never transfers its approval. The agent presents the action review returned by p
 Current task/conversation authority and the frozen payload are checked again for review and commit.
 External MCP continues to confirm its existing owned preview directly. Neither path can borrow
 another task's preview or turn a read-only preview into execution authority.
+
+## MCP App confirmation
+
+The MCP adapters link exact content previews/public actions to the versioned static review resource.
+The model receives a bounded summary; hidden UI metadata supplies the full preview and scoped
+short-lived token. App-only approve/reject controls reuse the same current-grant, snapshot and
+durable execution path with `mcp_app` provenance. Status cannot admit an effect and may reconcile
+known receipts. Refresh renews the nonce only within the original deadline. The static UI has no
+user data, strict CSP, keyboard controls and responsive themes. Media uses the existing authorized
+preview-signing operation and stays outside model output.
+
+Clients without working Apps or form confirmation receive a clear unavailable state without an
+automatic browser review link. Existing manual/team review routes and REST business contracts are
+unchanged. Transport UI controls are not new product execution capabilities or model authority.
