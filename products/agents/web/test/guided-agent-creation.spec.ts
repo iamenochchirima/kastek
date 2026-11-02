@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 const base = "/api/organizations/org";
+test.use({ timezoneId: "Africa/Johannesburg" });
 async function fixture(page: Page) {
   const requests: { path: string; body: Record<string, unknown> }[] = [];
   let draftRevision = 1;
@@ -40,6 +41,7 @@ async function start(page: Page) {
 }
 async function setSupportHours(dialog: ReturnType<Page["getByRole"]>) {
   await dialog.getByLabel("Timezone", { exact: true }).fill("Africa/Johannesburg");
+  for (const day of ["Tuesday", "Wednesday", "Thursday", "Friday"]) await dialog.getByLabel(day, { exact: true }).uncheck();
   await dialog.getByLabel("Monday", { exact: true }).check();
   await dialog.getByLabel("Monday opens").fill("09:00");
   await dialog.getByLabel("Monday closes", { exact: true }).fill("12:00");
@@ -79,6 +81,7 @@ for (const width of [1440, 768, 390]) test(`guided setup preserves choices and k
   await dialog.getByLabel("WhatsApp", { exact: true }).check();
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await dialog.getByLabel("Agent name", { exact: true }).fill("Cycle helper");
+  await dialog.getByLabel("Monday opens", { exact: true }).fill("");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByRole("alert")).toHaveText("Select support days and enter valid hours and timezone.");
   await setSupportHours(dialog);
@@ -208,4 +211,72 @@ test("tablet conditional setup stays usable in both themes", async ({ page }) =>
     await capture("review");
     await page.keyboard.press("Escape");
   }
+});
+
+async function supportPreferences(page: Page) {
+  const dialog = await start(page);
+  await dialog.getByLabel("Business name", { exact: true }).fill("Support business");
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByLabel(/Handle support/).check();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByRole("button", { name: "Skip for now", exact: true }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  return dialog;
+}
+for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"] as const) test(`support hours have editable defaults at ${width}px ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme: theme });
+  const requests = await fixture(page), dialog = await supportPreferences(page);
+  await expect(dialog.getByLabel("Timezone", { exact: true })).toHaveValue("Africa/Johannesburg");
+  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]) {
+    await expect(dialog.getByLabel(day, { exact: true })).toBeChecked();
+    await expect(dialog.getByLabel(`${day} opens`, { exact: true })).toHaveValue("09:00");
+    await expect(dialog.getByLabel(`${day} closes`, { exact: true })).toHaveValue("17:00");
+  }
+  await expect(dialog.getByLabel("Sunday", { exact: true })).not.toBeChecked();
+  await dialog.getByLabel("Sunday", { exact: true }).check();
+  await expect(dialog.getByLabel("Sunday opens", { exact: true })).toHaveValue("09:00");
+  await dialog.getByLabel("Sunday", { exact: true }).uncheck();
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await dialog.getByLabel("Monday opens", { exact: true }).focus();
+  await page.screenshot({ path: test.info().outputPath(`support-defaults-${width}-${theme}.png`), fullPage: true });
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Review agent", exact: true })).toBeVisible();
+  expect((requests.filter(request => request.path.endsWith("/configuration")).at(-1)!.body.setup as any).supportHours.intervals).toEqual([1,2,3,4,5].map(day=>({day,start:"09:00",end:"17:00"})));
+});
+test("support hours normalize input and preserve invalid entries for correction", async ({ page }) => {
+  const requests = await fixture(page), dialog = await supportPreferences(page);
+  for (const day of ["Tuesday", "Wednesday", "Thursday", "Friday"]) await dialog.getByLabel(day, {exact:true}).uncheck();
+  const opens = dialog.getByLabel("Monday opens", {exact:true}), closes = dialog.getByLabel("Monday closes", {exact:true});
+  await opens.fill("<script>"); await closes.focus();
+  await expect(opens).toHaveValue("<script>"); await expect(opens).toHaveAttribute("aria-invalid","true");
+  await dialog.getByRole("button", {name:"Continue",exact:true}).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await opens.fill("24:00"); await closes.focus(); await expect(opens).toHaveAttribute("aria-invalid","true");
+  await opens.fill("930"); await closes.fill("25:00"); await opens.focus();
+  await expect(closes).toHaveAttribute("aria-invalid","true");
+  await closes.fill("24:00"); await opens.focus();
+  await expect(opens).toHaveValue("09:30"); await expect(closes).not.toHaveAttribute("aria-invalid","true");
+  await expect(dialog.getByRole("button",{name:"Add Monday hours"})).toHaveCount(0);
+  await closes.fill("12:00"); await opens.focus();
+  await dialog.getByRole("button",{name:"Add Monday hours"}).click();
+  await expect(dialog.getByLabel("Monday opens 2")).toHaveValue("12:00");
+  await expect(dialog.getByLabel("Monday closes 2")).toHaveValue("13:00");
+  await dialog.getByLabel("Monday opens 2").fill("11:00"); await opens.focus();
+  await expect(dialog.getByText("Hours overlap.").first()).toBeVisible();
+  await dialog.getByLabel("Monday opens 2").fill("1300");
+  await dialog.getByLabel("Timezone",{exact:true}).fill(" africa/johannesburg "); await opens.focus();
+  await expect(dialog.getByLabel("Timezone",{exact:true})).toHaveValue("Africa/Johannesburg");
+  await dialog.getByLabel("Monday closes 2").fill("18");
+  await dialog.getByRole("button",{name:"Continue",exact:true}).click();
+  await expect(dialog.getByRole("heading",{name:"Review agent",exact:true})).toBeVisible();
+  expect((requests.filter(request=>request.path.endsWith("/configuration")).at(-1)!.body.setup as any).supportHours).toEqual({timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"09:30",end:"12:00"},{day:1,start:"13:00",end:"18:00"}]});
+  await page.reload();
+  await page.getByRole("button",{name:"Create agent",exact:true}).filter({visible:true}).first().click();
+  await expect(dialog.getByRole("heading",{name:"Review agent",exact:true})).toBeVisible();
+  await dialog.getByRole("button",{name:"Back",exact:true}).click();
+  await expect(opens).toHaveValue("09:30");
+  await expect(closes).toHaveValue("12:00");
+  await expect(dialog.getByLabel("Monday opens 2")).toHaveValue("13:00");
+  await expect(dialog.getByLabel("Monday closes 2")).toHaveValue("18:00");
+  await expect(dialog.getByLabel("Tuesday",{exact:true})).not.toBeChecked();
 });

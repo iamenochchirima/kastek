@@ -129,7 +129,11 @@ projection. Channel actions preselect the agent, preserve authorization return c
 website domains/customization/install snippets or messaging asset selection. Connected, paused,
 unconnected and needs-attention states come from records rather than selected checkboxes.
 Support hands off to the existing unassigned Inbox queue; free text does not create staffing rules.
-Customer-service setup can save weekly support hours and an IANA timezone. The saved schedule is
+Customer-service setup starts new support schedules with editable Monday–Friday 09:00–17:00
+values and the browser timezone; saved schedules are preserved. Enabling a day inserts real hours,
+not placeholder text. Time and timezone input is normalized before save; malformed, reversed and
+overlapping periods remain invalid, with 24:00 accepted only as closing time. These are suggested
+setup values, not inferred business facts. The saved schedule is
 pinned to the agent configuration when published. When human support is selected in setup, its
 `support.get_status_v2` tool returns whether the current time falls within that schedule, the next
 opening when closed, and aggregate staff availability. It reports unknown when a schedule or
