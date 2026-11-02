@@ -16,7 +16,7 @@ export interface ProductRuntimePort {
   authorizeTask(taskId:string):Promise<void>;
   authorizeControl(taskId:string):Promise<void>;
   availableBindings(taskId:string):Promise<CapabilityBinding[]>;
-  invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal):Promise<ProductCapabilityResult>;
+  invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal,statusOnly?:boolean):Promise<ProductCapabilityResult>;
   prepare(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown):Promise<ProductCapabilityResult>;
   review(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference):Promise<ProductCapabilityResult>;
   commit(taskId:string,operationId:string,binding:CapabilityBinding,review:ProductReviewReference,signal?:AbortSignal,statusOnly?:boolean):Promise<ProductCapabilityResult>;
@@ -63,9 +63,22 @@ export class ProductRuntime implements ProductRuntimePort {
     catch(error){if(!(error instanceof PlatformError)||![403,404].includes(error.statusCode))throw error;}
     return available;
   }
-  async invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal):Promise<ProductCapabilityResult>{
+  async invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal,statusOnly=false):Promise<ProductCapabilityResult>{
     await validateProductArguments(binding,args);
-    const result=await this.dispatch(this.pool,taskId,operationId,binding,"invoke",args,undefined,signal);
+    const direct=binding.policy.effect==="draft_write";
+    if(statusOnly&&!direct)throw new PlatformError("PRODUCT_CONTROL_DENIED",403,"Status-only draft recovery requires direct product write authority");
+    let result:ProductCapabilityResult;
+    try { result=await this.dispatch(this.pool,taskId,operationId,binding,direct&&statusOnly?"review":"invoke",args,undefined,signal); }
+    catch(error) {
+      if(!direct||statusOnly||!(error instanceof PlatformError)||error.statusCode<500)throw error;
+      result=await this.dispatch(this.pool,taskId,operationId,binding,"review",args);
+    }
+    if(direct){
+      const input=args&&typeof args==="object"&&!Array.isArray(args)?Object.fromEntries(Object.entries(args).filter(([key])=>!["_requestId","_reviewId","_previewId","_continuation"].includes(key))):args;
+      const expected=requestDigest({operation:binding.definition.providerOperation,version:binding.definition.product!.revision,input});
+      if(!result.receipt||typeof result.receipt.id!=="string"||!result.receipt.id||result.receipt.id.length>256||result.receipt.state!=="saved"||result.receipt.operationId!==operationId||result.receipt.payloadDigest!==expected)
+        throw new PlatformError("PRODUCT_EFFECT_UNCERTAIN",409,"The private product write has no matching saved receipt");
+    }
     if(binding.definition.outputSchema){const {AjvJsonSchemaValidator}=await import("@modelcontextprotocol/client/validators/ajv");if(!new AjvJsonSchemaValidator().getValidator(binding.definition.outputSchema as Record<string,unknown>)(result.value).valid)throw new PlatformError("PRODUCT_RESULT_INVALID",502,"The product result does not match the published schema");}
     return this.observe(taskId,operationId,binding,result);
   }

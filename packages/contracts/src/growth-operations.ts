@@ -14,6 +14,7 @@ export interface GrowthOperationDefinition {
   review: "none" | "required";
   resourceFields: string[];
   stagingControl?: boolean;
+  directContentWrite?: boolean;
 }
 const object = (properties: Record<string, unknown> = {}, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 const text = (maxLength = 256) => ({ type: "string", minLength: 1, maxLength });
@@ -35,7 +36,8 @@ const draft = object({
 const scope: Record<GrowthOperationEffect, GrowthOperationScope> = { read: "growth:read", draft: "growth:draft", external_effect: "growth:publish", destructive: "growth:manage" };
 function operation(name: string, description: string, schema: Record<string, unknown>, effect: GrowthOperationEffect = "read", entitlement: string | null = "feature.content.manage", resourceFields: string[] = []): GrowthOperationDefinition {
   const requiredEntitlements = [...(entitlement ? [entitlement] : []), ...(name.startsWith("content.") && (effect === "external_effect" || name === "content.posts.delete_published") ? ["feature.content.publish"] : [])];
-  return { name, version: "1", description, inputSchema: schema, outputSchema: { type: "object", additionalProperties: true }, effect, scope: scope[effect], entitlement, requiredEntitlements, idempotency: effect === "read" ? "not_applicable" : "required", review: effect === "read" ? "none" : "required", resourceFields };
+  return { name, version: "1", description, inputSchema: schema, outputSchema: { type: "object", additionalProperties: true }, effect, scope: scope[effect], entitlement, requiredEntitlements, idempotency: effect === "read" ? "not_applicable" : "required", review: effect === "read" || ["content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare"].includes(name) ? "none" : "required",
+    ...(["content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare"].includes(name) ? { directContentWrite: true } : {}), resourceFields };
 }
 const byPost = object({ postId: id }, ["postId"]);
 const byAsset = object({ assetId: id }, ["assetId"]);
@@ -51,14 +53,14 @@ export const growthOperations: readonly GrowthOperationDefinition[] = [
   operation("content.posts.list", "Find content posts with bounded search, status filtering and pagination.", object(search)),
   operation("content.posts.get", "Read one authorized post, its media, platform variants and publishing outcomes.", byPost, "read", "feature.content.manage", ["postId"]),
   operation("content.posts.activity", "Read a post's saved activity and publication history.", byPost, "read", "feature.content.manage", ["postId"]),
-  operation("content.posts.draft.create", "Prepare a new content draft for exact review. Does not publish or schedule.", object({ draft }, ["draft"]), "draft"),
-  operation("content.posts.draft.update", "Update an unpublished draft after exact review. Published history must remain unchanged.", object({ postId: id, draft }, ["postId", "draft"]), "draft", "feature.content.manage", ["postId"]),
+  operation("content.posts.draft.create", "Create a private content draft directly when requested. Does not publish or schedule.", object({ draft }, ["draft"]), "draft"),
+  operation("content.posts.draft.update", "Update an unpublished draft directly when requested. Published history remains unchanged.", object({ postId: id, draft }, ["postId", "draft"]), "draft", "feature.content.manage", ["postId"]),
   operation("content.posts.update_published", "Update a confirmed Facebook Page post after exact review. Edit text or caption and optionally remove its existing photo while preserving the provider post, link and account. Unknown outcomes require reconciliation, not another update.", object({ postId: id, content: text(32768), expectedUpdatedAt: dateTime, removePhoto: { type: "boolean", default: false } }, ["postId", "content", "expectedUpdatedAt"]), "external_effect", "feature.content.manage", ["postId"]),
   operation("content.posts.duplicate", "Copy an authorized post into a new draft without copying delivery history or scheduling.", byPost, "draft", "feature.content.manage", ["postId"]),
   operation("content.media.get", "Read metadata for an authorized media asset.", byAsset, "read", "feature.content.manage", ["assetId"]),
   operation("content.media.preview", "Obtain a short-lived authorized preview for a ready media asset. Do not persist the preview URL as an asset identifier.", byAsset, "read", "feature.content.manage", ["assetId"]),
-  { ...operation("content.media.transfer.prepare", "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload after review.", object({ fileName: text(255), mimeType: { type: "string", maxLength: 100 }, byteSize: { type: "integer", minimum: 1, maximum: 536870912 }, sha256: { type: "string", minLength: 64, maxLength: 64, description: "Lowercase hexadecimal SHA-256 checksum" } }, ["mimeType", "byteSize"]), "draft"), review: "none", stagingControl: true },
-  operation("content.media.upload", "Save a completed owned transfer, or a small image/video of at most 16 KiB decoded from canonical base64, after exact review. Choose exactly one source.", {
+  { ...operation("content.media.transfer.prepare", "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload.", object({ fileName: text(255), mimeType: { type: "string", maxLength: 100 }, byteSize: { type: "integer", minimum: 1, maximum: 536870912 }, sha256: { type: "string", minLength: 64, maxLength: 64, description: "Lowercase hexadecimal SHA-256 checksum" } }, ["mimeType", "byteSize"]), "draft"), review: "none", stagingControl: true },
+  operation("content.media.upload", "Save a completed owned transfer, or a small image/video of at most 16 KiB decoded from canonical base64, directly when requested. Choose exactly one source.", {
     ...object({ transferId: id, ...mediaBytes }),
     oneOf: [
       object({ transferId: id }, ["transferId"]),
@@ -66,6 +68,7 @@ export const growthOperations: readonly GrowthOperationDefinition[] = [
     ],
   }, "draft", "feature.content.manage", ["transferId"]),
   operation("operations.reviews.get", "Read the current state, exact input and safe result of an operation review owned by this connection.", object({ reviewId: id }, ["reviewId"]), "read", null, ["reviewId"]),
+  operation("content.actions.preview", "Preview an exact content action without changing content or contacting a provider. Repeat the same requestId and business input when reading continuation chunks. Returns a bound preview ID for confirmation; publishing, scheduling, retries and deletion remain separate actions.", object({action:{type:"string",enum:["content.posts.publish","content.posts.publish_batch","content.posts.publish_batch.retry","content.posts.schedule","content.posts.reschedule","content.posts.unschedule","content.jobs.cancel","content.jobs.retry","content.posts.delete","content.posts.delete_published","content.posts.update_published"]},input:{type:"object",additionalProperties:true},requestId:{type:"string",minLength:8,maxLength:240}},["action","input","requestId"])),
   operation("content.posts.publish_batch.preflight", "Check exact content, media, permissions and selected destinations without starting publication.", byPost, "read", "feature.content.manage", ["postId"]),
   operation("content.posts.publish", "Publish the exact reviewed post to one selected platform. Observe its authoritative result before retrying.", object({ postId: id, platform }, ["postId", "platform"]), "external_effect", "feature.content.manage", ["postId"]),
   operation("content.posts.publish_batch", "Admit the reviewed content to all configured destinations and return a durable batch result.", byPost, "external_effect", "feature.content.manage", ["postId"]),

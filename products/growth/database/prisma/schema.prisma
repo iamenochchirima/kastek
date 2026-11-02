@@ -2922,6 +2922,7 @@ model GrowthOperationReview {
   state          String   @default("proposed")
   result         Json?
   errorCode      String?
+  decisionSource String?
   taskId         String?
   conversationId String?
   operationId    String?

@@ -189,7 +189,7 @@ export function assertGrantAuthority(
     throw new PlatformError("GRANT_SCOPE_DENIED", 403, "Execution authorization does not cover this request");
   }
   if (configuration.productBindings.length>0 && (!grant.operations.includes("product.read") || configuration.productBindings.some(binding=>binding.authority?.originProduct!==grant.product)||
-      configuration.productBindings.some(binding=>binding.policy.effect==="reviewed_write") && !grant.operations.includes("product.write"))) {
+      configuration.productBindings.some(binding=>binding.policy.effect!=="read") && !grant.operations.includes("product.write"))) {
     throw new PlatformError("GRANT_PRODUCT_DENIED",403,"The product capability is outside this execution grant");
   }
   if (!grant.operations.includes("model.reply") ||

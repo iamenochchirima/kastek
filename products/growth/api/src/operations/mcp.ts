@@ -1,14 +1,13 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import type { FastifyInstance } from "fastify";
 import { apiJson } from "../json.js";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
-import { listGrowthOperations } from "./policy.js";
 import { executeGrowthOperation } from "./reviews.js";
-import { growthToolArguments, growthToolInputSchema, resolveGrowthOperationContext } from "./transport.js";
-import { auditGrowthAccess } from "./telemetry.js";
+import { growthToolArguments, resolveGrowthOperationContext } from "./transport.js";
+import { growthMcpToolList, handleGrowthMcp2026, isMcp2026Request } from "./mcp-2026.js";
 
 export function registerGrowthMcpRoutes(app: FastifyInstance, core: CoreContext) {
   app.post("/mcp", { bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {
@@ -26,13 +25,13 @@ export function registerGrowthMcpRoutes(app: FastifyInstance, core: CoreContext)
     const origin = request.headers.origin;
     const origins = new Set([core.config.frontendUrl, ...(core.config.env.GROWTH_MCP_ALLOWED_ORIGINS ?? "").split(",").filter(Boolean)]);
     if (origin && !origins.has(origin)) throw new ApiError(403, "origin_denied", "MCP request origin is not allowed");
+    if (isMcp2026Request(request)) return handleGrowthMcp2026(core, context, request, reply);
+    const version = request.headers["mcp-protocol-version"];
+    request.log.info({ event: "growth.mcp.capabilities",
+      protocol_version: typeof version === "string" && SUPPORTED_PROTOCOL_VERSIONS.includes(version) ? version : "legacy",
+      content_form_supported: false, extended_form_supported: false }, "Growth MCP request capabilities");
     const server = new Server({ name: "kasitek-growth", version: "1.0.0" }, { capabilities: { tools: {} } });
-    server.setRequestHandler(ListToolsRequestSchema, async () => auditGrowthAccess(core, context, "discovery", async () => ({ tools: (await listGrowthOperations(core, context)).map(operation => ({
-      name: operation.name, description: operation.description,
-      inputSchema: growthToolInputSchema(operation) as { type: "object" },
-      outputSchema: operation.outputSchema as { type: "object" },
-      annotations: { readOnlyHint: operation.effect === "read", destructiveHint: operation.effect === "destructive", idempotentHint: operation.idempotency === "required", openWorldHint: operation.effect === "external_effect" },
-    })) })));
+    server.setRequestHandler(ListToolsRequestSchema, async () => growthMcpToolList(core, context));
     server.setRequestHandler(CallToolRequestSchema, async call => {
       const started = Date.now();
       try {

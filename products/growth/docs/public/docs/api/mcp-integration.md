@@ -1,14 +1,15 @@
 ---
 title: MCP integration
 owner: engineering
-last_reviewed: 2026-11-01
+last_reviewed: 2026-11-02
 ---
 
 # MCP integration
 
 Growth implements an OAuth-protected MCP endpoint at `<Growth API origin>/mcp`.
-It uses Streamable HTTP POST with JSON responses. GET/SSE sessions and DELETE session
-termination are not supported. Availability depends on the deployment's agent-access flag;
+It accepts HTTP POST with JSON responses. Legacy clients use Streamable HTTP; clients using
+protocol `2026-07-28` use stateless discovery and per-request capabilities. GET/SSE sessions and
+DELETE session termination are not supported. Availability depends on the deployment's agent-access flag;
 source support does not establish that a hosted endpoint has been enabled.
 
 Open **Developers → MCP** for the configured endpoint and your agent connections. Add that
@@ -29,7 +30,7 @@ permissions and supported account type for the requested operation.
 | Scope | Authority |
 | --- | --- |
 | `growth:read` | Authorized workspace records, including content and customer data permitted by the operation. |
-| `growth:draft` | Reviewed draft and internal record changes. |
+| `growth:draft` | Requested private content drafts/media; reviewed changes to other internal records. |
 | `growth:publish` | Reviewed publication, scheduling, message sending and other external effects. |
 | `growth:manage` | Reviewed destructive or account-management operations. |
 
@@ -39,13 +40,38 @@ results and review rules serve [REST](./agent-rest.md) and internal Growth agent
 call the application directly rather than making an MCP request. The standalone Agents product
 retains separate identity, storage and configuration.
 
-Non-read calls require `_requestId`, a stable request identity. The response supplies
-`state: "approval_required"`, `_reviewId`'s value in `review.id`, a payload digest and `reviewUrl`.
-The user reviews the saved copy, accounts, media and target identity where applicable, and approves or rejects the exact proposed input in Growth. Approval alone does not execute
-an action. Resume with the same arguments, `_requestId` and `_reviewId`. Never create a new
-request identity to retry an uncertain provider result. Tool results are bounded; follow the
-returned `_continuation` using unchanged business arguments to read further JSON chunks.
-Large media uses reviewed staged transfers rather than placing entire files in tool results.
+## Drafts and exact content confirmation
+
+An explicit request to save or change a private content draft can execute directly. This covers
+`content.posts.draft.create`, `content.posts.draft.update`, `content.posts.duplicate`,
+`content.media.upload` and `content.media.transfer.prepare`. These remain writes: they require
+draft scope, current authority and a stable `_requestId`, and return durable receipts. A request
+for suggested copy alone does not authorize saving it.
+
+Before publishing, scheduling, retrying, canceling, deleting or editing published content, call
+`content.actions.preview` with the action name, exact business `input` and a stable `requestId`.
+It returns a bound preview ID, copy and platform variants, media, selected account identities,
+timing/timezone, targets and readiness errors. Previewing does not publish or contact providers.
+Use `_previewId` with the unchanged action input; `_reviewId` remains supported for existing
+reviews. Changing saved content, account state, media or the requested action requires a fresh
+preview and confirmation. Provider permissions and format support still apply separately for
+Facebook, Instagram, Threads, TikTok, LinkedIn, X and Bluesky.
+
+A capable `2026-07-28` client can present the exact action as an in-chat confirmation form.
+Growth accepts the client's protocol-level form response bound to the saved preview; a model
+argument such as `approved: true` is not approval. The client must advertise form elicitation
+on the current request. Registered ChatGPT clients additionally need the OpenAI form extension.
+Native host rendering remains subject to client support and deployment acceptance checks.
+
+Other clients receive `state: "approval_required"` with a payload digest and `review.reviewUrl`.
+Open that Growth page to inspect and approve/reject the exact action, then resume with unchanged
+arguments, `_requestId` and `_reviewId`. The same fallback applies when the exact preview cannot
+fit in the confirmation form. Approval alone does not execute an action. Other non-content
+writes retain their existing Growth review flow.
+
+Never create a new request identity to retry an uncertain result. Tool results are bounded;
+follow `_continuation` with unchanged business arguments to read further JSON chunks. Large media
+uses staged transfers rather than placing entire files in tool results.
 
 Access tokens expire after one hour; refresh tokens expire after 30 days. Refresh rotates the
 access and refresh tokens. Reusing an old refresh token revokes that connection. Clients must

@@ -12,12 +12,12 @@ function context(scopes: string[] | null = ["growth:read"]): RequestContext {
   return { principal: { kind: "workspace_api_key", id: "key", subjectUserId: "user", clientId: "key" }, organizationId: "org", userId: "user", clientId: "key", apiScopes: scopes === null ? null : new Set(scopes), effectiveGrants: new Set(), correlationId: "fixture", causationId: null, idempotencyKey: null };
 }
 
-test("canonical Growth catalogue binds every write to review and an explicit authority without publish escalation", () => {
+test("canonical Growth catalogue separates direct private content writes from reviewed effects without publish escalation", () => {
   assert.equal(new Set(growthOperations.map(operation => operation.name)).size, growthOperations.length);
   assert.ok(growthOperations.length >= 40);
   for (const operation of growthOperations) {
     assert.equal(operation.version, "1");
-    assert.equal(operation.review, operation.effect === "read" || operation.stagingControl ? "none" : "required");
+    assert.equal(operation.review, operation.effect === "read" || operation.stagingControl || operation.effect === "draft" && operation.name.startsWith("content.") ? "none" : "required");
     assert.equal(operation.idempotency, operation.effect === "read" ? "not_applicable" : "required");
     assert.equal(operation.inputSchema.additionalProperties, false);
     assert.equal(growthOperationHasScope(context([operation.scope]), operation), true);

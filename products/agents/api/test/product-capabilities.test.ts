@@ -2,13 +2,14 @@ import {randomUUID} from "node:crypto";
 import {describe,it,expect,vi} from "vitest";
 import type {ProductCapabilityManifest,ProductCapabilityDescriptor} from "@kasitek-labs/contracts";
 import {registerProductAdapter,registerProductManifest,createProductBindings,productModelTools,productDescriptor} from "../src/capabilities/products/product-capabilities";
-import {requestDigest,defaultBusinessConfiguration} from "../src/contracts/contracts";
+import {requestDigest,defaultBusinessConfiguration,executionGrantSchema,assertGrantAuthority,PlatformError} from "../src/contracts/contracts";
 import {createDependencyManifest} from "../src/contracts/source-contracts";
 import {ProductRuntime,validateProductArguments} from "../src/execution/products/product-runtime";
+import {capabilityBindingSchema,capabilityPolicySchema} from "../src/contracts/capability-catalog";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
-function fixture(){
+function fixture(effect: "read" | "draft_write" = "read"){
  const adapter=registerProductAdapter({schemaVersion:1,id:"neutral-test-"+randomUUID(),release:"1",executableDigest:"a".repeat(64),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},{handlers:["records.read@1","records.other@1"],invoke:async()=>({value:{}})});
- const descriptor:ProductCapabilityDescriptor={operation:"records.read",revision:"1",handlerRef:"records.read@1",description:"Read records available to the current destination actor",inputSchema:{type:"object",properties:{id:{type:"string",minLength:1,maxLength:128}},required:["id"],additionalProperties:false},outputSchema:null,policy:{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"},requiredAuthority:["records.read"],evidence:"versioned_sources",limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192}};
+ const descriptor:ProductCapabilityDescriptor={operation:"records.read",revision:"1",handlerRef:"records.read@1",description:"Read records available to the current destination actor",inputSchema:{type:"object",properties:{id:{type:"string",minLength:1,maxLength:128}},required:["id"],additionalProperties:false},outputSchema:null,policy:effect==="read"?{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"}:{effect:"draft_write",disclosure:"exact_requested_payload",retry:"status_only",approval:"none",cancel:"reconcile_claimed"},requiredAuthority:["records.read"],evidence:"versioned_sources",limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192}};
  const content={schemaVersion:1 as const,product:"fixture-product",revision:"1",adapter,operations:[descriptor]},manifest:ProductCapabilityManifest={...content,digest:requestDigest(content)};
  const bindings=createProductBindings(manifest,randomUUID(),{originProduct:"growth",originTenantId:"origin-business",tenantId:"destination-workspace",mappingRef:"explicit-destination-map",policyRevision:"1"},[descriptor.operation]);
  return {manifest,descriptor,bindings};
@@ -41,4 +42,54 @@ describe("installed product capability composition",()=>{
  expect(runtime.project).not.toHaveBeenCalled();
  });
  it("does not allow product tools in an incompatible program",()=>{const {bindings}=fixture(),config=defaultBusinessConfiguration();config.productBindings=bindings;expect(()=>compilePublishedComposition(config,[])).toThrowError(expect.objectContaining({code:"PROGRAM_COMPOSITION_DENIED"}));});
+});
+
+
+describe("direct private product writes", () => {
+ it("requires installed product authority and rejects unsafe policy combinations", () => {
+  const {bindings} = fixture("draft_write"), binding = bindings[0]!;
+  expect(binding.policy.effect).toBe("draft_write");
+  for(const patch of [{retry:"safe_read"},{approval:"exact_single_use"},{disclosure:"approved_resource_identifiers"},{cancel:"stop_admission"}])
+    expect(capabilityPolicySchema.safeParse({...binding.policy,...patch}).success).toBe(false);
+  const {authority:_,digest:__,...rest}=binding, forged={...rest,digest:requestDigest(rest)};
+  const parsed=capabilityBindingSchema.safeParse(forged);
+  expect(parsed.success).toBe(false);
+  if(!parsed.success)expect(parsed.error.issues.some(issue=>issue.message==="Direct draft writes require installed product authority")).toBe(true);
+ });
+ it("requires product.write even though no separate draft review is needed", () => {
+  const {bindings}=fixture("draft_write"),config=defaultBusinessConfiguration();config.program={id:"tool-directed",version:"3"};config.productBindings=bindings;
+  const authority={product:"growth" as const,organizationId:bindings[0]!.organizationId,resourceId:"business",callerClientId:"growth-api",principal:{kind:"human" as const,issuer:"https://identity.example",subject:"person"}};
+  const versionId=randomUUID(),grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId,operations:["model.reply","product.read"],sourceRevisionIds:[],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+  expect(()=>assertGrantAuthority(grant,authority,versionId,config)).toThrowError(expect.objectContaining({code:"GRANT_PRODUCT_DENIED"}));
+  expect(()=>assertGrantAuthority({...grant,operations:[...grant.operations,"product.write"]},authority,versionId,config)).not.toThrow();
+ });
+ function runtimeFixture() {
+  const {bindings}=fixture("draft_write"),binding=bindings[0]!,operationId="tool:"+randomUUID(),args={id:"one"};
+  const receipt={id:randomUUID(),operationId,payloadDigest:requestDigest({operation:binding.definition.providerOperation,version:"1",input:args}),state:"saved" as const};
+  const runtime=Object.create(ProductRuntime.prototype) as ProductRuntime;
+  Object.assign(runtime,{observe:vi.fn(async(_task:unknown,_operation:unknown,_binding:unknown,value:unknown)=>value)});
+  return {runtime,binding,operationId,args,receipt,taskId:randomUUID()};
+ }
+ it("invokes requested private writes directly and requires their exact saved receipt", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture();
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{postId:"saved-post"},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch).toHaveBeenCalledOnce();expect(dispatch.mock.calls[0]?.[4]).toBe("invoke");
+  for(const wrong of [{...receipt,operationId:"another"},{...receipt,payloadDigest:"f".repeat(64)}]){
+    Object.assign(runtime,{dispatch:vi.fn(async()=>({value:{},receipt:wrong}))});
+    await expect(runtime.invoke(taskId,operationId,binding,args)).rejects.toMatchObject({code:"PRODUCT_EFFECT_UNCERTAIN"});
+  }
+ });
+ it("uses observation only after interruption and never repeats an uncertain draft mutation", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture();
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args,undefined,true)).resolves.toMatchObject({receipt});
+  expect(dispatch).toHaveBeenCalledOnce();expect(dispatch.mock.calls[0]?.[4]).toBe("review");
+  dispatch.mockReset();dispatch.mockRejectedValueOnce(new PlatformError("PRODUCT_UNAVAILABLE",503,"Unavailable")).mockResolvedValueOnce({value:{},receipt});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke","review"]);
+  dispatch.mockReset();dispatch.mockResolvedValueOnce({value:{}} as never);
+  await expect(runtime.invoke(taskId,operationId,binding,args,undefined,true)).rejects.toMatchObject({code:"PRODUCT_EFFECT_UNCERTAIN"});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["review"]);
+ });
 });

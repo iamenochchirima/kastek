@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  growthAgentPublication, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
+  growthAgentPublication, growthAgentPublicationV8, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
 } from "../src/agents/manifest.js";
 import { growthAgentDigest } from "../src/agents/security.js";
 
@@ -13,6 +13,7 @@ test("new Growth defaults preserve every retained publication identity", () => {
     [growthAgentPublicationV5, "8356f52d010eed396766ec577f2b9d3ada636658ffe357f56a9b249d4fa5e6c7"],
     [growthAgentPublicationV6, "2e491ffdb2178913e46716f4aa1233c2703cd3be0c1bfa7001e3600f7f5f522d"],
     [growthAgentPublicationV7, "7dc3f0249a1eb3fe867ac16b7246fc8075694d3a049361ba0a15db54bbf3e558"],
+    [growthAgentPublicationV8, "2c4347d6697106ad3c79b7add614fa9b0c24adcc81b1ed449af60c2ff296f31d"],
   ] as const;
   for (const [publication, digest] of retained) assert.equal(growthAgentDigest(publication), digest);
   assert.equal(growthAgentPublicationV5.manifest.revision, "5");
@@ -38,8 +39,8 @@ test("revised Growth instructions change behavior without expanding product auth
 
 test("current Growth publication derives the canonical callable contract", async () => {
   const {growthOperationDescriptors}=await import("../src/operations/manifest.js");
-  assert.equal(growthAgentPublication.manifest.revision,"8");
-  assert.equal(growthAgentPublication.policy.revision,"8");
+  assert.equal(growthAgentPublication.manifest.revision,"9");
+  assert.equal(growthAgentPublication.policy.revision,"9");
   assert.deepEqual(growthAgentPublication.manifest.operations,growthOperationDescriptors);
   assert(growthAgentPublication.presets.every(preset=>preset.operations.every(name=>growthOperationDescriptors.some(operation=>operation.operation===name))));
   assert(growthAgentPublication.presets.find(preset=>preset.id==="content")!.operations.includes("content.posts.draft.create"));
@@ -50,4 +51,26 @@ test("current Growth publication derives the canonical callable contract", async
   assert(!growthAgentPublication.presets.find(preset=>preset.id==="research")!.operations.includes("content.posts.draft.create"));
   const {digest,...body}=growthAgentPublication.manifest;
   assert.equal(digest,growthAgentDigest(body));
+});
+
+
+test("private content writes remain writes and only revision 9 receives the new preview contract", () => {
+  assert.equal(growthAgentPublication.manifest.adapter.release, "6");
+  const direct = ["content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare"];
+  for (const name of direct) {
+    const operation = growthAgentPublication.manifest.operations.find(item => item.operation === name)!;
+    assert.equal(operation.policy.effect, "draft_write", name);
+    assert.equal(operation.policy.approval, "none", name);
+    assert.equal(operation.policy.retry, "status_only", name);
+    assert.equal(operation.policy.disclosure, "exact_requested_payload", name);
+    for (const preset of growthAgentPublication.presets.filter(preset => ["research", "campaigns"].includes(preset.id)))
+      assert(!preset.operations.includes(name), `${preset.id} must not gain ${name}`);
+  }
+  assert(growthAgentPublication.manifest.operations.some(item => item.operation === "content.actions.preview"));
+  for (const publication of [growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8]) {
+    assert(!publication.manifest.operations.some(item => item.operation === "content.actions.preview"));
+    for (const descriptor of publication.manifest.operations) assert.equal((descriptor.inputSchema.properties as Record<string, unknown>)._previewId, undefined);
+    assert.equal(publication.manifest.operations.find(item => item.operation === "content.posts.draft.create")!.policy.effect, "reviewed_write");
+  }
+  assert(growthAgentPublication.presets.find(preset => preset.id === "content")!.instructions.includes("content.actions.preview"));
 });
