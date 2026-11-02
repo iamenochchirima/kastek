@@ -87,3 +87,17 @@ column: old code ignores it, and retained ledger decisions are needed for reconc
 review, token and provider receipt history. Secret rotation invalidates outstanding sealed forms;
 users prepare a fresh preview, and OAuth grants remain independent. Do not retry an unknown effect
 with a new request identity during rollback. Frontend rollback is not applicable to this feature.
+
+## Deployment watch-path correction
+
+The owner requested service-specific watch paths during rollout. Live settings already scoped source
+by product but also included `VERSION`, which caused all 13 Git-backed roles to rebuild for this
+release. The old account's read-only configuration confirmed service-specific source filters.
+
+All 13 production services now watch their actual runtime/build/shared inputs and exclude `VERSION`,
+documentation, tests and frontend-only changes. Six database services remain image-only. The
+[inventory](../../infra/railway/watch-paths.json) and [operating rules](../../infra/railway/README.md)
+record the configuration. Matrix checks passed and every live pattern array was read back exactly.
+This updates deployment selection only; application behavior, events, migrations and secrets are
+unaffected. Restore the privately captured previous patterns to roll back this configuration.
+The already queued release deployments are retained; the correction applies to subsequent pushes.
