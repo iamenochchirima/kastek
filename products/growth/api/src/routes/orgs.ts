@@ -19,7 +19,8 @@ export function registerOrganizationRoutes(app: FastifyInstance,context: CoreCon
  });
  app.post('/api/orgs/set-active',async(request,reply)=>{
   const frontend=new URL(context.config.frontendUrl);
-  if(request.headers.host!==frontend.host)throw new ApiError(403,'forbidden','Invalid request host');
+  const allowedHosts=new Set([frontend.host,new URL(context.config.publicApiUrl).host]);
+  if(!allowedHosts.has(request.headers.host??''))throw new ApiError(403,'forbidden','Invalid request host');
   requireOrigin(request,context);
   if(!request.cookies[USER_SESSION_COOKIE])throw new ApiError(401,'unauthorized','Sign in required');
   const user=await extractUser(request,context);

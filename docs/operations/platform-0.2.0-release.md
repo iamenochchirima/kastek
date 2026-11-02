@@ -35,7 +35,7 @@ publication identities. New setup targets manifest/policy8 and adapter5.
 
 Real Operations, Agents, Identity and Restate images built successfully. Identity's fresh realm,
 execution roles and session revocation grants passed against PostgreSQL. Restate signed discovery,
-invocation, unsigned rejection and durable restart replay passed. Five Vercel hosting tests
+invocation, unsigned rejection and durable restart replay passed. Four Vercel hosting tests
 passed; hosted cookies, streaming, uploads and tenant host forwarding remain acceptance checks.
 Local Facebook tests establish manual provider behavior, not hosted agent acceptance.
 
