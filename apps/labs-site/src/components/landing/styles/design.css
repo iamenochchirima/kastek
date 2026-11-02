@@ -26,10 +26,12 @@
 .labs-landing h1,.labs-landing h2 { font-family:var(--sans); font-weight:400; letter-spacing:-.055em; }
 .labs-landing h1 em,.labs-landing h2 em,.labs-landing .feature-heading h2 em { font-family:var(--serif); font-weight:400; }
 .labs-landing h2 { font-size:clamp(39px,4.25vw,60px); line-height:1.05; margin-bottom:0; }
-.labs-landing .button { min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:23px; padding:13px 19px; background:var(--paper); color:var(--ink); font-size:12px; border:0; border-radius:3px; width:fit-content; transition:background .18s; }
+.labs-landing .button { min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:23px; padding:13px 19px; background:var(--paper); color:var(--ink); font-size:12px; border:0; border-radius:3px; width:fit-content; cursor:pointer; transition:background .18s; }
 .labs-landing .button:hover { background:#e7e0d5; }
 .labs-landing .button-signal { background:var(--signal); color:white; }
 .labs-landing .button-signal:hover { background:#cf4423; }
+.labs-landing .product-panel .button { min-height:44px; }
+.labs-landing .agency-editorial .button { margin-top:18px; align-self:start; justify-self:start; }
 .labs-landing .text-action { display:inline-flex; align-items:center; gap:20px; padding-block:10px; border-bottom:1px solid #b5aca1; font-size:13px; }
 .labs-landing .text-action:hover { border-color:var(--ink); }
 .labs-landing .skip-link { position:fixed; z-index:20; top:10px; left:10px; padding:14px; background:var(--paper); transform:translateY(-160%); }

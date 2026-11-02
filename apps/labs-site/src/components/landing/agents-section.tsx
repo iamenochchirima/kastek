@@ -21,8 +21,8 @@ export function AgentsSection() {
           <p>
             {"AI agents for customer support, business tasks and personal work. Each with the knowledge and tools for its job."}
           </p>
-          <a className="text-action" href={productUrls.agents}>
-            {"Explore Agents "}
+          <a className="button button-signal" href={productUrls.agents}>
+            {"Open Agents "}
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <path d="M5 19 19 5M5 5h14v14">
               </path>

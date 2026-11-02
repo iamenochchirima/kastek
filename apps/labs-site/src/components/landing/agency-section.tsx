@@ -25,8 +25,8 @@ export function AgencySection() {
             <br />
             {"Keep the work and feedback together."}
           </p>
-          <a className="agency-enquire" href={productUrls.agency}>
-            {"Explore Agency "}
+          <a className="button button-signal" href={productUrls.agency}>
+            {"Open Agency "}
             <span aria-hidden="true">
               {"↗"}
             </span>
@@ -390,23 +390,6 @@ export function AgencySection() {
             {"Illustrative client portal"}
           </span>
         </div>
-      </div>
-      <div className="pr-controls">
-        <span className="demo-scene-label" data-sequence-label="">
-          {"Client workspaces"}
-        </span>
-        <button type="button" data-sequence-pause="" aria-pressed="false">
-          {"Ⅱ "}
-          <span>
-            {"Pause"}
-          </span>
-        </button>
-        <button type="button" data-sequence-next="">
-          {"Next view →"}
-        </button>
-        <button type="button" data-sequence-replay="" aria-label="Replay this section">
-          {"↻ Replay"}
-        </button>
       </div>
       <p className="sr-only" data-sequence-status="" role="status">
       </p>

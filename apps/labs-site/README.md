@@ -31,13 +31,15 @@ to avoid changing the other Labs routes.
 The client runtime loads GSAP, runs the Agents, Growth and Agency demonstrations, and disposes
 listeners, timers and animations when navigation leaves the homepage. Agent scenes use hidden,
 inert JSX source containers so React can hydrate them before the runtime clones a scene.
-Reduced-motion preferences keep the demos available through their controls.
+Reduced-motion preferences keep the demos available through the in-preview navigation. Growth
+and Agency previews omit the external scene-label and playback-control strips. Each product
+section has a visible Open Agents, Open Growth or Open Agency button.
 
 Product destinations are defined in `src/lib/site-config.ts`:
 
 - Agents: `https://agents.kasitek.co.za`
-- Growth: `https://growth.kasitek.co.za`
-- Agency: `https://agencies.kasitek.co.za`
+- Growth: `https://app.kasitek.co.za`
+- Agency: `https://portal.kasitek.co.za`
 
 Company and project enquiries stay on Labs routes. Chat uses an explicitly configured Agents publication; unavailable chat has a contact fallback.
 
@@ -76,3 +78,19 @@ environment. Those remain separate cutover work.
 - Rollback: restore the previous homepage, shared navigation and URL configuration; remove the
   landing-only components, assets and GSAP dependency together.
 - Post-release review: not applicable until a deployment is scheduled.
+
+## Product navigation cleanup
+
+- Change and risk: low; remove the Growth/Agency scene-label and playback strips, make all
+  three product links visible buttons, restore the hand cursor, and keep the Agency button
+  clear of its mobile client tabs.
+- Documentation: product URLs and preview-control behavior are recorded above.
+- Analytics: not applicable; existing navigation destinations are unchanged. Structured logs,
+  metrics, API/schema changes, migrations and permissions: not applicable.
+- Validation: focused component/runtime ESLint, production build with TypeScript, and product
+  boundaries passed. Browser checks at 320, 390, 768, 1024 and 1440 pixels confirmed 44-pixel
+  button targets, pointer cursors, configured URLs, no horizontal overflow or Agency-tab overlap,
+  and removed playback strips. Growth view selection and Agency client selection worked with
+  motion disabled.
+- Version, rollout and post-release review: not applicable; local source and preview only.
+  Rollback: revert this navigation/presentation change together, including its runtime cleanup.
