@@ -59,7 +59,7 @@ Restart the server after changing environment variables.
 ## Test flow
 
 1. Add the Instagram professional account as an app tester while the app is in development mode.
-2. Open **Connections** → **Connect Instagram**, then choose **Connect Instagram** under **Instagram Login**. The **Continue to Meta** action is the separate Page-linked flow.
+2. Open **Connections** → **Connect Instagram**, select **Instagram Login**, then **Continue**. Select **Meta Login** for the separate Facebook Page-linked flow.
 3. Sign in with the Instagram Business or Creator account.
 4. Confirm the account appears under the Instagram section.
 5. Send a message to the professional account from another Instagram account and confirm it reaches the Inbox.
@@ -69,17 +69,16 @@ Restart the server after changing environment variables.
 Accounts without an app role require the relevant permissions to have Advanced
 Access through App Review.
 
-## Hosted verification and limits
+## Hosted behavior and limits
 
-On 2026-11-02 the live Instagram app ID matched the Instagram Login product, and its allowed
-redirect already matched the current public API callback. No Meta settings or credentials were
-changed. Starting the direct flow from the authenticated live Connections page reached
-Instagram's own login screen with the Instagram-specific client ID and business scopes.
-This does not establish completed authorization until an eligible account signs in and is imported.
+The registered Instagram callback must match `socialAppUrl(config)`, which uses the public API
+origin. For split app/API hosts, the callback relays to the authenticated app completion route;
+keep both the session and OAuth-state checks. Do not substitute the app-host callback from an
+older deployment or broaden the session cookie domain.
 
-Meta's dashboard currently labels this Instagram Login setup as legacy and states that it still
-works. This restoration preserves that existing integration; a Unified Login migration is separate
-work. The credential fields being populated does not prove the stored secret is valid.
+The current integration uses Instagram Login, which Meta's dashboard labels legacy but still
+working. A Unified Login migration is separate work. Populated credential fields do not prove
+that the stored secret is valid; verify a real eligible-account authorization and import.
 
 Direct Instagram long-lived-token refresh is not implemented in the current runtime. Initial
 connection and explicit reconnect must be verified separately from long-term unattended operation.
