@@ -1,0 +1,478 @@
+{
+  "platformVersion": "0.2.0",
+  "deployedOn": "2026-11-02",
+  "codeMainSha": "3f74905880e1d555f5745d7c5a44608bed3bba8b",
+  "railway": {
+    "capturedAt": "2026-11-02T16:09:31.090954+00:00",
+    "projectId": "83fe5737-0fcd-4b07-b077-04e336a1c7c4",
+    "environment": "production",
+    "services": [
+      {
+        "service": "agency-analytics-worker",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "a0640a0a-78c0-48ae-b8d1-f3ded02061b1",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:52eb8a15c98d67540e5f03d6dc362afbf357af65733083e42b34843aedc47efc"
+        },
+        "active": [
+          {
+            "id": "a0640a0a-78c0-48ae-b8d1-f3ded02061b1",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:52eb8a15c98d67540e5f03d6dc362afbf357af65733083e42b34843aedc47efc"
+          }
+        ]
+      },
+      {
+        "service": "agency-api",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "beafe898-a4e6-420e-99a6-47df8b39a5f5",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:2147f2a36cf2a03a59fff5150e7f0a764ec9d6736e1453bd294fb269454e4411"
+        },
+        "active": [
+          {
+            "id": "beafe898-a4e6-420e-99a6-47df8b39a5f5",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:2147f2a36cf2a03a59fff5150e7f0a764ec9d6736e1453bd294fb269454e4411"
+          }
+        ]
+      },
+      {
+        "service": "agency-db",
+        "source": {
+          "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+          "repo": null
+        },
+        "latest": {
+          "id": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+        },
+        "active": [
+          {
+            "id": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+          }
+        ]
+      },
+      {
+        "service": "agents-api",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "248f7f13-cf73-4f02-b83e-cd02bc243795",
+          "status": "SUCCESS",
+          "commit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+          "imageDigest": "sha256:4cb5e10a0af52939dbd10a01b320e00195816fb81a129578e83ddbe09992458b"
+        },
+        "active": [
+          {
+            "id": "248f7f13-cf73-4f02-b83e-cd02bc243795",
+            "status": "SUCCESS",
+            "commit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+            "imageDigest": "sha256:4cb5e10a0af52939dbd10a01b320e00195816fb81a129578e83ddbe09992458b"
+          }
+        ]
+      },
+      {
+        "service": "agents-db",
+        "source": {
+          "image": "pgvector/pgvector@sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31",
+          "repo": null
+        },
+        "latest": {
+          "id": "9c87ad2e-0a6b-4d7e-8e10-719d6512c8c2",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31"
+        },
+        "active": [
+          {
+            "id": "9c87ad2e-0a6b-4d7e-8e10-719d6512c8c2",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31"
+          }
+        ]
+      },
+      {
+        "service": "agents-worker",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "cb500980-d1fd-4043-8626-fc86108177b2",
+          "status": "SUCCESS",
+          "commit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+          "imageDigest": "sha256:feebbe76be15e922d1dd2ff48ff666cc159b431814462c0900d8933d9005daad"
+        },
+        "active": [
+          {
+            "id": "cb500980-d1fd-4043-8626-fc86108177b2",
+            "status": "SUCCESS",
+            "commit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+            "imageDigest": "sha256:feebbe76be15e922d1dd2ff48ff666cc159b431814462c0900d8933d9005daad"
+          }
+        ]
+      },
+      {
+        "service": "analytics-api",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "9fe0e025-be8b-46e8-b141-f4f6f81e2f0e",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:af1a4808c0f18100dca3a961746531c1572a0df979d54481568f7de838aadcc5"
+        },
+        "active": [
+          {
+            "id": "9fe0e025-be8b-46e8-b141-f4f6f81e2f0e",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:af1a4808c0f18100dca3a961746531c1572a0df979d54481568f7de838aadcc5"
+          }
+        ]
+      },
+      {
+        "service": "analytics-db",
+        "source": {
+          "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+          "repo": null
+        },
+        "latest": {
+          "id": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+        },
+        "active": [
+          {
+            "id": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+          }
+        ]
+      },
+      {
+        "service": "analytics-worker",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "47826bc7-d89e-41af-b99e-93bbbd5664a6",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:140c8236bc86019f7334e25d7a870f7816f6903a32abd5a0d6466a57a13c05ca"
+        },
+        "active": [
+          {
+            "id": "47826bc7-d89e-41af-b99e-93bbbd5664a6",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:140c8236bc86019f7334e25d7a870f7816f6903a32abd5a0d6466a57a13c05ca"
+          }
+        ]
+      },
+      {
+        "service": "growth-analytics-worker",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "bb7cf266-8198-4026-a6e7-62cc5e635018",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:15aec7ab97190c79051dc9fc8fc00d68580f9f06ef3a8db158a35a799d5c5402"
+        },
+        "active": [
+          {
+            "id": "bb7cf266-8198-4026-a6e7-62cc5e635018",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:15aec7ab97190c79051dc9fc8fc00d68580f9f06ef3a8db158a35a799d5c5402"
+          }
+        ]
+      },
+      {
+        "service": "growth-api",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "81b9d884-fb74-446b-9ad5-6217a512c895",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:9fb91399fb93886db596ae4e362132163167b851cc8af0078427e2e1ff78a13e"
+        },
+        "active": [
+          {
+            "id": "81b9d884-fb74-446b-9ad5-6217a512c895",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:9fb91399fb93886db596ae4e362132163167b851cc8af0078427e2e1ff78a13e"
+          }
+        ]
+      },
+      {
+        "service": "growth-db",
+        "source": {
+          "image": "postgres:17",
+          "repo": null
+        },
+        "latest": {
+          "id": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+        },
+        "active": [
+          {
+            "id": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+          }
+        ]
+      },
+      {
+        "service": "identity",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "9bbb16af-dd6e-4a94-93fb-3d7f4dc4023d",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:00976da0419a9945e84b6c693a0ee2dfe999b2c195a4732b0b23569fc18070ad"
+        },
+        "active": [
+          {
+            "id": "9bbb16af-dd6e-4a94-93fb-3d7f4dc4023d",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:00976da0419a9945e84b6c693a0ee2dfe999b2c195a4732b0b23569fc18070ad"
+          }
+        ]
+      },
+      {
+        "service": "identity-db",
+        "source": {
+          "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+          "repo": null
+        },
+        "latest": {
+          "id": "f8477a21-77bc-45f7-8379-488bb94e431c",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+        },
+        "active": [
+          {
+            "id": "f8477a21-77bc-45f7-8379-488bb94e431c",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+          }
+        ]
+      },
+      {
+        "service": "operations-api",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "45f919ee-1fd8-4aca-96fd-d638652edb78",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:b2f6726cd415f1047cf59d27c2741c843cc728070b916ea4f52a70d0dce9d862"
+        },
+        "active": [
+          {
+            "id": "45f919ee-1fd8-4aca-96fd-d638652edb78",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:b2f6726cd415f1047cf59d27c2741c843cc728070b916ea4f52a70d0dce9d862"
+          }
+        ]
+      },
+      {
+        "service": "operations-db",
+        "source": {
+          "image": "postgres:17",
+          "repo": null
+        },
+        "latest": {
+          "id": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+          "status": "SUCCESS",
+          "commit": null,
+          "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+        },
+        "active": [
+          {
+            "id": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+            "status": "SUCCESS",
+            "commit": null,
+            "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1"
+          }
+        ]
+      },
+      {
+        "service": "operations-worker",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "db3912cd-ecbb-487e-a250-05ba8c9c3ba6",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:44edea140aac0163ea6af4c795f7e8c2517084a8e6c838a82b4fcfcfa3a1c858"
+        },
+        "active": [
+          {
+            "id": "db3912cd-ecbb-487e-a250-05ba8c9c3ba6",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:44edea140aac0163ea6af4c795f7e8c2517084a8e6c838a82b4fcfcfa3a1c858"
+          }
+        ]
+      },
+      {
+        "service": "otel-collector",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:941db0cfa898b84598300053e12a532e2fd6bbc37fa5d5c1e729f8935b7aa473"
+        },
+        "active": [
+          {
+            "id": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:941db0cfa898b84598300053e12a532e2fd6bbc37fa5d5c1e729f8935b7aa473"
+          }
+        ]
+      },
+      {
+        "service": "restate",
+        "source": {
+          "image": null,
+          "repo": "Kasitek-Labs/kastek"
+        },
+        "latest": {
+          "id": "3f5e2711-9f57-485f-8d9f-611d0c419acc",
+          "status": "SUCCESS",
+          "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+          "imageDigest": "sha256:97ab17b26879d30ceb44ef2474db37d0cf7d5b03e42eafb4e3fcee0033facad9"
+        },
+        "active": [
+          {
+            "id": "3f5e2711-9f57-485f-8d9f-611d0c419acc",
+            "status": "SUCCESS",
+            "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+            "imageDigest": "sha256:97ab17b26879d30ceb44ef2474db37d0cf7d5b03e42eafb4e3fcee0033facad9"
+          }
+        ]
+      }
+    ]
+  },
+  "vercel": {
+    "method": "manual prebuilt artifacts; private organization Git integration unavailable on Hobby",
+    "projects": [
+      {
+        "name": "kasitek-app",
+        "projectId": "prj_H1CahlqdRFTCUrDSprhBhJOTivTi",
+        "canonicalOrigin": "https://kasitek.co.za",
+        "productionDeploymentId": "dpl_Em1RwjgtpubaJ2oKS1TCH2Ew5tLo",
+        "sourceSha": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+        "previousProductionTargetId": "dpl_CMAvQM6rCh5cBT7an7Y4mZomvut1",
+        "readyState": "READY"
+      },
+      {
+        "name": "kasiai-admin",
+        "projectId": "prj_13l4YVWHGIYPdpg9NXwUwAXuM62W",
+        "canonicalOrigin": "https://admin.kasitek.co.za",
+        "productionDeploymentId": "dpl_DZ4YiGaNckjtupxmyb8vMtVChpkC",
+        "sourceSha": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+        "previousProductionTargetId": "dpl_8hghDcenYjCPAfU3qMyx5yRyuPGY",
+        "readyState": "READY"
+      },
+      {
+        "name": "kasitek",
+        "projectId": "prj_dPu8OmVJUcmVf8kgdAA7Q3Yh7alt",
+        "canonicalOrigin": "https://app.kasitek.co.za",
+        "productionDeploymentId": "dpl_FWcuU1hpLvh9EnbMgdHhBYor75QL",
+        "sourceSha": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+        "previousProductionTargetId": "dpl_9fNkAoB4kwRWCAKT4afPUv5AFGCU",
+        "readyState": "READY"
+      },
+      {
+        "name": "kasitek-portal",
+        "projectId": "prj_ytWUBLHhPfz3N1eNKLb31KXUuyKV",
+        "canonicalOrigin": "https://portal.kasitek.co.za",
+        "productionDeploymentId": "dpl_25tgDKuMsKKKieAKqoBZvV6r6hax",
+        "sourceSha": "3f74905880e1d555f5745d7c5a44608bed3bba8b",
+        "previousProductionTargetId": "dpl_2mmGKcJgsKz3ipp5TgEemXjbF4fT",
+        "readyState": "READY"
+      },
+      {
+        "name": "kasitek-agents",
+        "projectId": "prj_zfO3gTNkfLHWXJehRbnvVRNUuw49",
+        "canonicalOrigin": "https://agents.kasitek.co.za",
+        "productionDeploymentId": "dpl_FcXxzx4ke9LbfmH1bgUP5NiBj4QJ",
+        "sourceSha": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7",
+        "previousProductionTargetId": null,
+        "readyState": "READY"
+      }
+    ]
+  },
+  "dnsCutover": [
+    {
+      "host": "api.kasitek.co.za",
+      "previous": "yktcl0aj.up.railway.app",
+      "current": "growth-api-production-7c41.up.railway.app"
+    },
+    {
+      "host": "api-tenants.kasitek.co.za",
+      "previous": "ca282nsy.up.railway.app",
+      "current": "agency-api-production-3977.up.railway.app"
+    },
+    {
+      "host": "agents.kasitek.co.za",
+      "previous": "d3mb22ie.up.railway.app",
+      "current": "e7f7d7d4a9baa655.vercel-dns-017.com"
+    }
+  ]
+}

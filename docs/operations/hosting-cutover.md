@@ -133,3 +133,23 @@ backend configuration; retain database state and do not replay provider effects.
 This hosting change adds no analytics event or database migration. Existing API outcome logs and
 telemetry remain authoritative. Hosting-specific validation is
 `node --test scripts/hosting/vercel-output.test.mjs`; hosted preview acceptance remains required.
+
+### Manual Vercel artifact promotion
+
+The current Vercel Hobby team rejects Git connections to this private organization repository.
+Keep automatic Git deployments disabled and use the exact merged source revision through the
+CLI without changing repository visibility or upgrading the account. Prepare a clean private
+release directory per project so cached project settings and environment downloads cannot cross
+product boundaries. The CLI reads that project's configured production environment during build.
+
+```sh
+vercel build --prod --project <project> --yes
+vercel deploy --prebuilt --prod --skip-domain --project <project> --meta sourceSha=<commit>
+vercel promote <deployment-url>
+```
+
+Record the source SHA, configuration revision, artifact/deployment ID and previous production
+alias target. The initial upload does not promote public domains. Verify the candidate and its
+own backend before promotion; an HTTP status from Deployment Protection is not an application
+check. Keep downloaded `.vercel` environment files private and out of source archives. Existing
+Git links are not evidence that this release deploys automatically from `main`.
