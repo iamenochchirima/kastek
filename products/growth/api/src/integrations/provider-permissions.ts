@@ -148,7 +148,7 @@ export function requiredScopes(adapter: ProviderAdapter, requested: string[], co
         for (const scope of capability(adapter, key).requestScopes)
             if (!scopes.includes(scope))
                 scopes.push(scope);
-    for (const scope of adapter === 'MetaFacebook' ? ['pages_show_list', 'pages_manage_metadata', 'business_management'] : adapter === 'MetaInstagram' ? ['instagram_basic'] : [])
+    for (const scope of adapter === 'MetaFacebook' ? ['pages_show_list', 'pages_manage_metadata', 'business_management'] : adapter === 'MetaInstagram' ? ['instagram_basic'] : adapter === 'InstagramDirect' ? ['instagram_business_basic'] : [])
         if (!scopes.includes(scope))
             scopes.push(scope);
     return scopes;

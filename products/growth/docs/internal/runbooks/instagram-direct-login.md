@@ -48,19 +48,22 @@ API setup. They are not the Facebook/Meta App ID and App Secret. The server does
 not fall back to the Meta credentials because Instagram rejects the Meta App ID
 as an invalid platform app.
 
-The optional scope override is:
+When the caller does not select capabilities, the optional legacy scope override is:
+
 
 ```dotenv
 AUTH_INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights
 ```
 
-Restart the server after changing environment variables.
+Explicit UI capability selections request their mapped permission scopes plus
+`instagram_business_basic`, rather than the full legacy bundle. Instagram may group related
+features under one permission. Restart the server after changing environment variables.
 
 ## Test flow
 
 1. Add the Instagram professional account as an app tester while the app is in development mode.
 2. Open **Connections** → **Connect Instagram**, select **Instagram Login**, then **Continue**. Select **Meta Login** for the separate Facebook Page-linked flow.
-3. Sign in with the Instagram Business or Creator account.
+3. Choose requested access, then sign in with the Instagram Business or Creator account. Basic account access is always required. Unsupported direct-login deletion stays disabled.
 4. Confirm the account appears under the Instagram section.
 5. Send a message to the professional account from another Instagram account and confirm it reaches the Inbox.
 6. Reply from the Inbox.

@@ -10,8 +10,10 @@ Offer two selectable methods, **Instagram Login** and **Meta Login**, with one *
 action. Show Business/Creator eligibility and the no-Page requirement for direct login. Reuse the existing provider flow, token exchange,
 account import and provider-specific operations rather than adding a parallel connector.
 The preceding picker mixed a clickable direct card with a static Page-linked section; the
-inconsistent affordances made the second method look unavailable. Access choices now appear
-only for Meta Login, and switching methods alone does not navigate. The sign-in confirmation and account boundary remain unchanged.
+inconsistent affordances made the second method look unavailable. Both methods expose requested
+access choices, and switching methods alone does not navigate. Direct login disables unsupported
+published-media deletion. Selected direct capabilities are included in its start URL; the backend
+adds required basic account access alongside only the selected feature permission scopes. The sign-in confirmation and account boundary remain unchanged.
 
 The live Instagram client ID matches the Meta dashboard's Instagram product. Its existing
 callback allowlist already includes the current public API callback. Both Instagram-specific
@@ -36,13 +38,16 @@ deletion remains unsupported through this adapter. Other capabilities require th
 ## Release decisions
 
 API/schema migrations, credential/configuration changes and new analytics events: not applicable.
+The retained direct-start capability contract now has a frontend selector and a required Basic
+scope correction. Explicit capabilities no longer lose the profile-access baseline.
 Existing connection outcome logging and provider health records apply. Do not log passwords,
 authorization codes, state, tokens or full OAuth callback URLs. Collector configuration and
 existing central retention/alerting limitations are unchanged.
 
 Update the direct-login runbook's obsolete callback URLs, public connection instructions and
 feature-map verification entry. Rollout promotes a clean merged-source Growth frontend artifact
-through the existing Vercel project. Backend additions are regression tests only. Rollback uses
+through the existing Vercel project. The backend retains existing flows and adds the mandatory Basic scope for explicit direct
+permission selections. Rollback uses
 the previous frontend deployment and preserves all connections; the former direct path remains
 available as its clickable card. No Identity or provider configuration rollback is needed.
 Post-release review: 2026-11-03. Direct provider sign-in/account import passed; publishing and messaging acceptance remain separate. Existing unrelated platform CI limitations remain in effect.
@@ -55,7 +60,13 @@ boundaries and changed-file whitespace checks passed. These checks used a clean 
 with only this change, excluding unrelated working-tree edits.
 
 The final picker was exercised by clicking the Meta card label and changing selection with the
-keyboard. The checked radio and access fields change without navigation; direct selection hides
-Meta-only fields and Continue opens the retained Instagram sign-in confirmation. Both methods
+keyboard. The checked radio changes without navigation; both methods show their applicable access fields,
+and direct Continue opens the retained Instagram sign-in confirmation with the selected capabilities. Both methods
 remain selectable in the mobile drawer. An owned professional account completed the real direct
 login and import; its CONNECTED state and `instagram_login` mode were read back through MCP.
+
+Selected-permission verification: two new regressions failed before the mandatory Basic scope
+fix and passed afterward. All five direct Instagram checks and two existing permission regressions
+passed without skips; the Growth API build passed. Explicit publish-only, comment-only,
+message-only and analytics-only selections include Basic and omit unrelated permission scopes.
+The empty legacy request still retains its existing full bundle for compatibility.
