@@ -669,23 +669,22 @@ export function ConnectionsManager({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
-                      className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
-                        <div>
-                          <h3 className="font-medium">Instagram Business or Creator account</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Connect your professional Instagram account directly.
-                          </p>
-                        </div>
+                  <div className="space-y-3 rounded-lg border p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
+                      <div>
+                        <h3 className="font-medium">Instagram Login</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Business or Creator account. No Facebook Page required.
+                        </p>
                       </div>
-                    </button>
-                    <p className="px-1 text-xs text-muted-foreground">Instagram controls the access bundle for direct login.</p>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
+                    >
+                      Connect Instagram
+                    </Button>
                   </div>
 
                   <div className="space-y-3 rounded-lg border p-4">
