@@ -301,15 +301,17 @@ test("active adaptive work shows progress and queues corrections without losing 
   await page.goto("/app/agents/assistant-1");
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Draft our launch");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
-  const progress = page.getByRole("region", { name: "Work progress", exact: true });
+  const progress = page.getByRole("region", { name: "Agent work", exact: true });
+  await expect(progress.getByText("Collect specialist draft", { exact: true })).toBeHidden();
+  await progress.getByText("Approach", { exact: true }).click();
   await expect(progress.getByText("Collect specialist draft", { exact: true })).toBeVisible();
   await expect(progress.getByText("Which audience?", { exact: true })).toBeVisible();
-  const correction = progress.getByRole("textbox", { name: "Update instructions", exact: true });
+  const correction = page.getByRole("textbox", { name: "Update instructions", exact: true });
   await correction.fill("Write for existing customers.");
-  await progress.getByRole("button", { name: "Queue instructions" }).click();
-  await expect(progress.getByText("Temporarily unavailable", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Queue instructions", exact: true }).click();
+  await expect(page.getByText("Temporarily unavailable", { exact: true })).toBeVisible();
   await expect(correction).toHaveValue("Write for existing customers.");
-  await progress.getByRole("button", { name: "Queue instructions" }).click();
+  await page.getByRole("button", { name: "Queue instructions", exact: true }).click();
   await expect(page.getByText("Instructions queued", { exact: true })).toBeVisible();
   await expect(correction).toHaveValue("");
   expect(queued).toHaveLength(2);
@@ -318,7 +320,7 @@ test("active adaptive work shows progress and queues corrections without losing 
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ colorScheme: theme });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await progress.screenshot({ path: test.info().outputPath(`progress-${theme}-${width}.png`), animations: "disabled" });
+    await page.getByRole("region", { name: "Conversation", exact: true }).screenshot({ path: test.info().outputPath(`progress-${theme}-${width}.png`), animations: "disabled" });
   }
   const decisions: unknown[] = [];
   const review = { id: "child-review", taskId: "child", rootTaskId: task.id, operationId: "child-operation", operationName: "send_message", connectionName: "Workspace", destination: "https://workspace.example.test", effect: "reviewed_write", bindingId: "binding", bindingDigest: "binding-digest", requestDigest: "child-exact-digest", arguments: { message: "Launch draft" }, connectionId: "connection", reviewerAccountId: account.id, state: "pending", expiresAt: new Date(Date.now() + 600000).toISOString() };
@@ -328,9 +330,9 @@ test("active adaptive work shows progress and queues corrections without losing 
     if (path.endsWith("/tool-reviews")) return route.fulfill({ json: { reviews: [review] } });
     return route.fulfill({ json: { task: { id: "child", state: "waiting_review", hasToolReviews: true, conversationId: "specialist-conversation", output: null, errorCode: null, input: "Draft launch" }, canControl: true, actions: [], children: [], operations: [], events: [] } });
   });
-  const children = page.getByRole("region", { name: "Specialist tasks", exact: true });
-  await children.getByText("Content", { exact: true }).click();
-  await children.getByRole("link", { name: "Open task", exact: true }).click();
+  await progress.getByRole("button", { name: "Open Content activity", exact: true }).click();
+  const childActivity = page.getByRole("dialog", { name: "Content", exact: true });
+  await childActivity.getByRole("link", { name: "Open task", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/tasks\/child$/);
   const approvals = page.getByRole("region", { name: "Tool approvals", exact: true });
   await expect(approvals.getByText("Launch draft", { exact: true })).toBeVisible();
