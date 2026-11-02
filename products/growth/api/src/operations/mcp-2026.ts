@@ -45,7 +45,7 @@ export function mcpConfirmationResponseShape(params: JsonObject) {
     responses_count: Math.min(responses.length, 10), response_object: responses.length === 1 && object(responses[0]),
     response_error: object(first.error), response_result: object(first.result), response_action: action,
     content_object: object(first.content), content_count: Math.min(Object.keys(content).length, 10),
-    confirm_boolean: typeof content.confirm === "boolean" };
+    confirm_boolean: typeof content.confirm === "boolean", decision_string: typeof content.decision === "string" };
 }
 
 export function isMcp2026Request(request: Pick<FastifyRequest, "headers" | "body">): boolean {
@@ -82,7 +82,8 @@ export function mcpContentFormMode(capabilities: JsonObject, clientId: string | 
 }
 
 interface ConfirmationState {
-  version: 1;
+  version: 2;
+  answerSchema: "choice_v1";
   reviewId: string;
   payloadDigest: string;
   operation: string;
@@ -108,7 +109,7 @@ function stateSecret(core: CoreContext): string {
 export function sealMcpContentConfirmation(core: CoreContext, ctx: RequestContext, row: OperationReviewRow,
   args: JsonObject, now = Date.now()): string {
   const payload: ConfirmationState = {
-    version: 1, reviewId: row.id, payloadDigest: row.payloadDigest, operation: row.operation,
+    version: 2, answerSchema: "choice_v1", reviewId: row.id, payloadDigest: row.payloadDigest, operation: row.operation,
     requestKey: row.requestKey, argumentsDigest: hash({ name: row.operation, arguments: args }),
     principalKind: ctx.principal.kind, principalId: ctx.principal.id, userId: ctx.userId,
     organizationId: ctx.organizationId, clientId: ctx.clientId, formId: randomUUID(),
@@ -127,7 +128,7 @@ export function readMcpContentConfirmation(core: CoreContext, ctx: RequestContex
   if (!timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) throw invalidState("state_hmac");
   let parsed: unknown;
   try { parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")); } catch { throw invalidState(); }
-  if (!object(parsed) || parsed.version !== 1 || typeof parsed.reviewId !== "string" ||
+  if (!object(parsed) || parsed.version !== 2 || parsed.answerSchema !== "choice_v1" || typeof parsed.reviewId !== "string" ||
       typeof parsed.payloadDigest !== "string" || typeof parsed.requestKey !== "string" ||
       typeof parsed.formId !== "string" || typeof parsed.expires !== "number") throw invalidState("state_payload");
   if (!allowReceiptObservation && parsed.expires <= now) throw invalidState("state_expired");
@@ -160,8 +161,8 @@ export function contentConfirmationMessage(row: OperationReviewRow): string | nu
 export function mcpContentConfirmationDecision(response: unknown): "approve" | "reject" {
   if (!object(response) || !["accept", "decline", "cancel"].includes(String(response.action))) throw invalidState("decision_action");
   if (response.action !== "accept") return "reject";
-  if (!object(response.content) || Object.keys(response.content).length !== 1 || typeof response.content.confirm !== "boolean") throw invalidState("decision_schema");
-  return response.content.confirm ? "approve" : "reject";
+  if (!object(response.content) || Object.keys(response.content).length !== 1 || !["confirm", "cancel"].includes(String(response.content.decision)) || typeof response.content.decision !== "string") throw invalidState("decision_schema");
+  return response.content.decision === "confirm" ? "approve" : "reject";
 }
 
 function toolResult(value: JsonObject) {
@@ -237,7 +238,7 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
   if (!message) return toolResult({ ...value, message: "The exact content preview is too large for chat confirmation. Review it in Growth." });
   const requestState = sealMcpContentConfirmation(core, context, row, args);
   const sealed = readMcpContentConfirmation(core, context, requestState, operation, args);
-  const requestedSchema = { type: "object", properties: { confirm: { type: "boolean", title: "Confirm this content action", default: false } }, required: ["confirm"] };
+  const requestedSchema = { type: "object", properties: { decision: { type: "string", title: "Content action", enum: ["confirm", "cancel"], default: "cancel" } }, required: ["decision"] };
   const formParams = mode === "openai" ? { mode: "form", message,
     requestedSchema: { type: "object", properties: {} },
     _meta: { "openai/elicitation": { requestedSchema } },
@@ -267,8 +268,13 @@ export async function handleGrowthMcp2026(core: CoreContext, context: RequestCon
     return fail(-32020, "MCP name metadata and header must agree", 400);
   if (!object(meta[CAPABILITIES_META])) return fail(-32602, "MCP client capabilities are required", 400);
   const mode = mcpContentFormMode(meta[CAPABILITIES_META] as JsonObject, context.clientId);
+  const capabilities = meta[CAPABILITIES_META] as JsonObject;
+  const appUi = object(capabilities.extensions) ? capabilities.extensions["io.modelcontextprotocol/ui"] : undefined;
+  const appUiDeclared = object(appUi);
+  const appUiSupported = appUiDeclared && Array.isArray(appUi.mimeTypes) && appUi.mimeTypes.includes("text/html;profile=mcp-app");
   request.log.info({ event: "growth.mcp.capabilities", protocol_version: MCP_2026_VERSION,
-    content_form_supported: mode !== null, extended_form_supported: mode === "openai" }, "Growth MCP request capabilities");
+    content_form_supported: mode !== null, extended_form_supported: mode === "openai",
+    app_ui_declared: appUiDeclared, app_ui_supported: appUiSupported }, "Growth MCP request capabilities");
   reply.header("Cache-Control", "no-store");
   try {
     let result: unknown;
