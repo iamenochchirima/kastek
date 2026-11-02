@@ -15,7 +15,7 @@ import { encryptSocialSecret } from "../src/integrations/crypto.js";
 import { isolatedDatabase } from "./helpers/database-fixture.js";
 import type { OperationReviewRow } from "../src/operations/reviews.js";
 import { MCP_2026_VERSION, contentConfirmationMessage, handleGrowthMcp2026, isMcp2026Request,
-  mcpContentConfirmationDecision, mcpContentFormMode, readMcpContentConfirmation,
+  mcpContentConfirmationDecision, mcpContentFormMode, mcpConfirmationResponseShape, readMcpContentConfirmation,
   sealMcpContentConfirmation } from "../src/operations/mcp-2026.js";
 
 const core = { config: readConfig({ DATABASE_URL: "postgres://unused", ENVIRONMENT: "test",
@@ -29,6 +29,17 @@ const review = { id: "review-a", operation: "content.posts.publish", payloadDige
     accounts: [{ platform: "FACEBOOK", displayName: "Fixture Page", externalAccountId: "page-a" }],
     media: [{ assetId: "image-a", fileName: "image.jpg", altText: "Exact image description" }], requestedScheduledFor: "2026-11-03T12:00:00+02:00" }) } } as OperationReviewRow;
 const args = { postId: "post-a", platform: "FACEBOOK", _requestId: "stable-request-a" };
+
+test("confirmation diagnostics contain only fixed categorical structure", () => {
+  const shape=mcpConfirmationResponseShape({requestState:"do-not-log",inputResponses:{secretKey:{action:"unexpected-secret",content:{confirm:"secret-content",private:"secret"},error:{message:"secret"}}}});
+  assert.deepEqual(shape,{state_present:true,responses_object:true,responses_count:1,response_object:true,response_error:true,response_result:false,response_action:"other",content_object:true,content_count:2,confirm_boolean:false});
+  assert.equal(JSON.stringify(shape).includes("secret"),false);
+  const sealed=sealMcpContentConfirmation(core,context,review,args,now);
+  assert.throws(()=>readMcpContentConfirmation(core,context,sealed,"content.posts.publish",{...args,postId:"changed"},now),
+    error=>(error as {confirmationReason:string}).confirmationReason==="state_arguments");
+  assert.throws(()=>mcpContentConfirmationDecision({action:"accept",content:{}}),
+    error=>(error as {confirmationReason:string}).confirmationReason==="decision_schema");
+});
 
 test("MCP2026 detects protocol requests without changing legacy request routing", () => {
   assert.equal(isMcp2026Request({headers: {"mcp-protocol-version": MCP_2026_VERSION}, body: {}}), true);
@@ -211,6 +222,13 @@ test("real MCP2026 host forms confirm an exact owned content action once and fai
     assert.equal(form._meta["openai/elicitation"].requestedSchema.properties.confirm.type,"boolean");
     assert.ok(form.message.includes("Exact test text") && form.message.includes("Fixture Page"));
     const approve = {requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{confirm:true}}}};
+    const hostUnsupported=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{error:{code:-32602,message:"unsupported host form"}}}});
+    assert.equal(hostUnsupported.structuredContent.state,"approval_required");
+    assert.equal(hostUnsupported.structuredContent.review.state,"proposed");
+    assert.equal(await draftCount(),1);
+    const missingAnswer=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{}}}});
+    assert.equal(missingAnswer.structuredContent.code,"content_confirmation_invalid");
+    assert.equal(await draftCount(),1);
     const foreign = await invoke("content.posts.delete",deletion,approve,readToken);
     assert.equal(foreign.structuredContent.code,"content_confirmation_invalid");
     assert.equal(await draftCount(),1);

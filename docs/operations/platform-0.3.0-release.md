@@ -101,3 +101,13 @@ record the configuration. Matrix checks passed and every live pattern array was 
 This updates deployment selection only; application behavior, events, migrations and secrets are
 unaffected. Restore the privately captured previous patterns to roll back this configuration.
 The already queued release deployments are retained; the correction applies to subsequent pushes.
+
+## First hosted MCP acceptance
+
+All 19 Railway roles reported success after PR 37. The connected external MCP client saved the
+requested Hello world draft directly, with `decisionSource=requested_draft`; repeating the stable
+request returned the same draft and receipt. The host advertised protocol 2026 and both form
+capabilities, but its publish continuation failed closed before approval. No provider action ran.
+Bounded confirmation failure categories and response-shape flags were added to diagnose the host
+interaction without logging content, tokens or opaque state. Explicit unsupported-form protocol
+errors retain the owned Growth review fallback. Native confirmation acceptance remains pending.
