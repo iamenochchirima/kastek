@@ -120,3 +120,12 @@ Growth review fallback after a fresh grant check, with a bounded diagnostic even
 answers remain errors. Nine protocol checks passed after this interoperability fix. Actual native
 form rendering remains unverified; do not describe the current host as having completed in-chat
 confirmation.
+
+## Internal preview handoff verification
+
+The internal preview-to-action handoff now carries trusted task metadata separately from model
+input. Action preparation creates its own exact proposed review and does not copy approval from
+the preview. A PostgreSQL-backed regression covers preview, preparation, human UI approval and
+commit receipt, plus repeated preparation and cross-task, cross-chat, stale and unbound denials.
+The combined core/protocol rerun passed 20 tests without skips, and the Growth API build passed.
+No migration, analytics event, manifest revision, frontend or secret change is needed for this fix.

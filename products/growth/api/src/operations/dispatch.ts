@@ -93,6 +93,7 @@ async function reschedule(core: CoreContext, context: RequestContext, postId: st
 }
 
 export interface GrowthOperationExecutionOptions {
+  previewBinding?: { taskId?: string; conversationId?: string; operationId?: string };
   /** Trusted value from a persisted review, never a model-supplied input field. */
   expectedSnapshotHash?: string;
   expectedPostRevision?: string;
@@ -172,7 +173,7 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
     }
     case "content.actions.preview": {
       const { prepareContentActionPreview } = await import("./reviews.js");
-      return prepareContentActionPreview(core, context, {action:text(input,"action"), input:object(input,"input"), requestId:input.requestId as string | undefined});
+      return prepareContentActionPreview(core, context, {action:text(input,"action"), input:object(input,"input"), requestId:input.requestId as string | undefined}, options.previewBinding);
     }
     case "content.posts.publish_batch.preflight": return batches.preflight(pool, context, text(input, "postId"));
     case "content.posts.publish": return batches.publishBatch(pool, context, text(input, "postId"), options.expectedSnapshotHash, { ...options, platform: text(input, "platform") });

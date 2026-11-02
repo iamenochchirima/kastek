@@ -9,7 +9,7 @@ import {installPgTimestampParsers} from "../src/db.js";
 import {readConfig} from "../src/config.js";
 import type {RequestContext} from "../src/identity/request-context.js";
 import type {ProductCapabilityInvocation} from "@kasitek-labs/contracts";
-import {executeGrowthOperation,confirmContentOperationReview,rejectContentOperationReview,getOperationReview} from "../src/operations/reviews.js";
+import {executeGrowthOperation,confirmContentOperationReview,rejectContentOperationReview,getOperationReview,decideOperationReview} from "../src/operations/reviews.js";
 import {invokeInternalGrowthOperation} from "../src/operations/internal.js";
 import {contentActionNames} from "../src/operations/content-preview.js";
 
@@ -136,6 +136,33 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
         assert.deepEqual(preview.accounts.map((account:any)=>account.id),[selections[platform]]);
         assert.deepEqual(preview.targets.map((target:any)=>target.platform),[platform]);
       }
+    });
+    await t.test("internal preview prepares a distinct task-bound review and UI approval commits its exact action",async()=>{
+      const command={operation:"content.posts.draft.create",control:"invoke",input:{draft:{content:"Task-specific draft",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"facebook"}}},actor:{subject:"alice"},authority:{tenantId:"org-a",policyRevision:"9"},operationId:"parity-draft",requestId:"parity-call",taskId:"d31ca63f-9a25-47fa-8b3c-ad4795126eac",conversationId:"e51ca63f-9a25-47fa-8b3c-ad4795126eac"} as ProductCapabilityInvocation;
+      const created=await invokeInternalGrowthOperation(core,command);
+      const jobId=(created.value as any).result.post.publishJobs[0].id;
+      const previewCommand={...command,operation:"content.actions.preview",operationId:"parity-preview",input:{action:"content.jobs.cancel",input:{jobId},requestId:"parity-preview-key"}};
+      const artifact=await invokeInternalGrowthOperation(core,previewCommand);
+      const preview=(artifact.value as any).result.preview;
+      const action={...command,operation:"content.jobs.cancel",control:"prepare" as const,operationId:"parity-action",input:{jobId,_previewId:preview.previewId}};
+      await assert.rejects(invokeInternalGrowthOperation(core,{...action,taskId:"different-task"}),/another task or conversation/);
+      await assert.rejects(invokeInternalGrowthOperation(core,{...action,conversationId:"different-chat"}),/another task or conversation/);
+      const prepared=await invokeInternalGrowthOperation(core,action);
+      assert.notEqual(prepared.review!.id,preview.previewId);assert.equal(prepared.review!.taskId,command.taskId);assert.equal(prepared.review!.operationId,action.operationId);
+      assert.equal(prepared.review!.state,"proposed");
+      const repeated=await invokeInternalGrowthOperation(core,action);assert.equal(repeated.review!.id,prepared.review!.id);
+      const internal=await import("../src/operations/internal.js");const internalContext=internal.internalOperationContext(command);
+      const unbound=await executeGrowthOperation(core,internalContext,{operation:"content.actions.preview",input:{action:"content.jobs.cancel",input:{jobId},requestId:"public-unbound-preview"}}) as any;
+      await assert.rejects(invokeInternalGrowthOperation(core,{...action,operationId:"borrow-unbound",input:{jobId,_previewId:unbound.result.preview.previewId}}),/another task or conversation/);
+      assert.equal((await pool.query('SELECT status FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0].status,"PENDING");
+      const human:RequestContext={...internalContext,principal:{kind:"direct_user",id:"alice",subjectUserId:"alice",clientId:"growth"}};
+      await decideOperationReview(core,human,prepared.review!.id,"approve",prepared.review!.payloadDigest);
+      await assert.rejects(invokeInternalGrowthOperation(core,{...action,control:"commit",conversationId:"different-chat",input:{},review:prepared.review}),/another operation/);
+      const committed=await invokeInternalGrowthOperation(core,{...action,control:"commit",input:{},review:prepared.review});
+      assert.equal(committed.receipt!.state,"saved");assert.equal(committed.receipt!.operationId,action.operationId);
+      assert.equal((await pool.query('SELECT status FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0].status,"CANCELED");
+      assert.equal((await getOperationReview(core,internalContext,preview.previewId)).state,"proposed","source preview approval is never borrowed or reassigned");
+      await assert.rejects(invokeInternalGrowthOperation(core,{...action,operationId:"stale-action"}),/changed/);
     });
     await t.test("current internal drafts return exact receipts; status recovery never admits a missing write",async()=>{
       const command={operation:"content.posts.draft.create",control:"invoke",input:{draft},actor:{subject:"alice"},authority:{tenantId:"org-a",policyRevision:"9"},operationId:"new-internal-draft",requestId:"internal-call",taskId:"task",conversationId:"chat"} as ProductCapabilityInvocation;

@@ -3,7 +3,7 @@ import type { CoreContext } from "../context.js";
 import type { RequestContext } from "../identity/request-context.js";
 import { ApiError } from "../error.js";
 import { authorizeGrowthOperation } from "./policy.js";
-import { boundedGrowthOperationResult, executeGrowthOperation, getOperationReview, operationReviewState, operationReviewView, type OperationReviewRow, isDirectContentOperation, growthOperationPayloadDigest, observeGrowthOperationReceipt } from "./reviews.js";
+import { boundedGrowthOperationResult, executeGrowthOperation, getOperationReview, operationReviewState, operationReviewView, type OperationReviewRow, isDirectContentOperation, growthOperationPayloadDigest, observeGrowthOperationReceipt, prepareInternalContentActionFromPreview } from "./reviews.js";
 import { growthToolArguments, requireGrowthAgentAccess } from "./transport.js";
 
 export function internalOperationContext(command: Pick<ProductCapabilityInvocation, "actor" | "authority" | "operationId" | "requestId">): RequestContext {
@@ -43,12 +43,17 @@ export async function invokeInternalGrowthOperation(core: CoreContext, command: 
   if (command.control === "review" || command.control === "commit") {
     if (!command.review || command.review.product !== "growth" || command.review.taskId !== command.taskId || command.review.operationId !== command.operationId) throw new ApiError(403, "operation_review_denied", "The review belongs to another operation");
     const row = await getOperationReview(core, context, command.review.id);
-    if (row.operation !== command.operation || row.taskId !== command.taskId || row.operationId !== command.operationId || row.payloadDigest !== command.review.payloadDigest) throw new ApiError(403, "operation_review_denied", "The review belongs to another operation");
+    if (row.operation !== command.operation || row.taskId !== command.taskId || row.conversationId !== command.conversationId || row.operationId !== command.operationId || row.payloadDigest !== command.review.payloadDigest) throw new ApiError(403, "operation_review_denied", "The review belongs to another operation");
     const result = command.control === "commit" ? await executeGrowthOperation(core, context, { operation: row.operation, input: row.input, requestId: row.requestKey, reviewId: row.id, forceReviewed:retainedContentReview }) : boundedGrowthOperationResult({ state: row.state, review: operationReviewView(core, row), result: row.result });
     const latest = await getOperationReview(core, context, row.id);
     return { value: result, review: reference(latest), ...(latest.state === "succeeded" ? { receipt: { id: latest.id, operationId: command.operationId, payloadDigest: latest.payloadDigest, state: "saved" as const } } : {}) };
   }
   const args = growthToolArguments(command.input as Record<string, unknown>);
+  if (command.control === "prepare" && typeof (command.input as Record<string,unknown>)._previewId === "string") {
+    const value=await prepareInternalContentActionFromPreview(core,context,args.reviewId!,{operation:command.operation,input:args.input,taskId:command.taskId,conversationId:command.conversationId,operationId:command.operationId});
+    const row=await getOperationReview(core,context,(value.review as {id:string}).id);
+    return {value,review:reference(row)};
+  }
   const value = await executeGrowthOperation(core, context, { operation: command.operation, ...args, requestId: isDirectContentOperation(command.operation) ? command.operationId : args.requestId ?? command.operationId,
     taskId: command.taskId, conversationId: command.conversationId, operationId: command.operationId, prepareOnly: command.control === "prepare",forceReviewed:retainedContentReview });
   if (command.control === "prepare") {
