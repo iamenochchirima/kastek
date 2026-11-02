@@ -30,9 +30,9 @@ the destination remains unchanged. Other published platforms and processing post
 
 ## Instagram without a Facebook Page
 
-Open **Connections** → **Connect Instagram**, then select **Connect Instagram** under
-**Instagram Login**. Sign in with a Business or Creator account. A Facebook Page is not required
-for this path. **Continue to Meta** connects accounts through the separate Facebook Page flow.
+Open **Connections** → **Connect Instagram**, select **Instagram Login**, then **Continue**.
+Sign in with a Business or Creator account. A Facebook Page is not required for this path.
+Select **Meta Login** to use the separate Facebook Page-linked flow and choose its access.
 
 After returning, confirm the intended Instagram identity and granted permissions. A connected
 status alone does not establish that publishing, messages or analytics work. Ordinary personal

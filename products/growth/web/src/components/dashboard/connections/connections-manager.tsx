@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { WorkspaceConnection } from "@/lib/connections";
@@ -303,6 +304,7 @@ export function ConnectionsManager({
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [blueskyHandle, setBlueskyHandle] = useState("");
   const [instagramConnectPath, setInstagramConnectPath] = useState<string | null>(null);
+  const [instagramConnectionMethod, setInstagramConnectionMethod] = useState<"instagram" | "meta">("instagram");
   const [permissionConnectProvider, setPermissionConnectProvider] = useState<string | null>(null);
   const [selectedAccess, setSelectedAccess] = useState<string[]>(DEFAULT_ACCESS_KEYS);
   const [requestedPermissionKeys, setRequestedPermissionKeys] = useState<string[]>([]);
@@ -358,7 +360,7 @@ export function ConnectionsManager({
   function connectProvider(provider: string) {
     setAddOpen(false);
     if (provider === "WHATSAPP") { beginWhatsappEmbeddedSignup(); return; }
-    if (provider === "FACEBOOK" || provider === "INSTAGRAM") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setConnectionPicker(provider); return; }
+    if (provider === "FACEBOOK" || provider === "INSTAGRAM") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setInstagramConnectionMethod("instagram"); setConnectionPicker(provider); return; }
     if (provider === "BLUESKY") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setBlueskyOpen(true); return; }
     setSelectedAccess(defaultAccessKeysForProvider(provider)); setPermissionConnectProvider(provider);
   }
@@ -669,41 +671,45 @@ export function ConnectionsManager({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="space-y-3 rounded-lg border p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
-                      <div>
-                        <h3 className="font-medium">Instagram Login</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Business or Creator account. No Facebook Page required.
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
-                    >
-                      Connect Instagram
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3 rounded-lg border p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><FacebookBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("FACEBOOK")}`} /></div>
-                      <div>
-                        <h3 className="font-medium">Instagram through Meta Login</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Choose the access KasiTek should request for the Instagram account linked to a Facebook Page.
-                        </p>
-                      </div>
-                    </div>
+                  <RadioGroup
+                    aria-label="Instagram connection method"
+                    value={instagramConnectionMethod}
+                    onValueChange={(value) => setInstagramConnectionMethod(value as "instagram" | "meta")}
+                    className="space-y-2"
+                  >
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${instagramConnectionMethod === "instagram" ? "border-primary bg-primary/5" : "border-border"}`}>
+                      <RadioGroupItem value="instagram" className="mt-1" />
+                      <InstagramBrandIcon className={`mt-0.5 h-5 w-5 shrink-0 ${getPlatformBrandColor("INSTAGRAM")}`} />
+                      <span>
+                        <span className="block font-medium">Instagram Login</span>
+                        <span className="mt-1 block text-sm text-muted-foreground">Business or Creator account. No Facebook Page required.</span>
+                      </span>
+                    </label>
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${instagramConnectionMethod === "meta" ? "border-primary bg-primary/5" : "border-border"}`}>
+                      <RadioGroupItem value="meta" className="mt-1" />
+                      <FacebookBrandIcon className={`mt-0.5 h-5 w-5 shrink-0 ${getPlatformBrandColor("FACEBOOK")}`} />
+                      <span>
+                        <span className="block font-medium">Meta Login</span>
+                        <span className="mt-1 block text-sm text-muted-foreground">Instagram account linked to a Facebook Page.</span>
+                      </span>
+                    </label>
+                  </RadioGroup>
+                  {instagramConnectionMethod === "meta" ? (
                     <AccessSelection value={selectedAccess} onChange={setSelectedAccess} />
+                  ) : null}
+                  <div className="sticky bottom-0 bg-background py-2">
                     <Button
                       className="w-full"
-                      disabled={selectedAccess.length === 0}
-                      onClick={() => startOAuthConnection(metaConnectionPath("instagram", selectedAccess))}
+                      disabled={instagramConnectionMethod === "meta" && selectedAccess.length === 0}
+                      onClick={() => {
+                        if (instagramConnectionMethod === "instagram") {
+                          setInstagramConnectPath("/api/social/oauth/instagram/start");
+                        } else {
+                          startOAuthConnection(metaConnectionPath("instagram", selectedAccess));
+                        }
+                      }}
                     >
-                      Continue to Meta
+                      Continue
                     </Button>
                   </div>
                 </div>

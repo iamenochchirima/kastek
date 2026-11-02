@@ -6,17 +6,20 @@ verification. Existing provider connections and the Page-linked Meta alternative
 
 ## Outcome and scope
 
-Expose direct Instagram Login as an explicit **Connect Instagram** action with Business/Creator
-eligibility and no-Page requirement visible. Reuse the existing provider flow, token exchange,
+Offer two selectable methods, **Instagram Login** and **Meta Login**, with one **Continue**
+action. Show Business/Creator eligibility and the no-Page requirement for direct login. Reuse the existing provider flow, token exchange,
 account import and provider-specific operations rather than adding a parallel connector.
-The preceding clickable card was easy to overlook beside the Page-linked **Continue to Meta**
-button. The sign-in confirmation and account boundary remain unchanged.
+The preceding picker mixed a clickable direct card with a static Page-linked section; the
+inconsistent affordances made the second method look unavailable. Access choices now appear
+only for Meta Login, and switching methods alone does not navigate. The sign-in confirmation and account boundary remain unchanged.
 
 The live Instagram client ID matches the Meta dashboard's Instagram product. Its existing
 callback allowlist already includes the current public API callback. Both Instagram-specific
 credential fields are populated; no secret was displayed, changed or made global. No Meta app
 settings changed. A real authenticated start reaches Instagram's login screen with the direct
-client and business scopes. Final consent/account import requires the account holder.
+client and business scopes. The account holder completed the real sign-in/consent flow; MCP then confirmed a CONNECTED
+an owned professional account with `authMethod=instagram_login`. This is separate from the
+workspace's existing Page-linked connection using Meta Login.
 
 ## Verification and limitations
 
@@ -42,8 +45,7 @@ feature-map verification entry. Rollout promotes a clean merged-source Growth fr
 through the existing Vercel project. Backend additions are regression tests only. Rollback uses
 the previous frontend deployment and preserves all connections; the former direct path remains
 available as its clickable card. No Identity or provider configuration rollback is needed.
-Post-release review: 2026-11-03. Complete provider sign-in, account import, publishing and messaging
-acceptance separately. Existing unrelated platform CI limitations remain in effect.
+Post-release review: 2026-11-03. Direct provider sign-in/account import passed; publishing and messaging acceptance remain separate. Existing unrelated platform CI limitations remain in effect.
 
 The isolated frontend passed frozen dependency installation, focused ESLint, typecheck and
 shared/Growth production build. The updated drawer and its sign-in confirmation were checked
@@ -51,3 +53,9 @@ through the browser at390pxmobile,768pxtablet and the default1280pxdesktop viewp
 button remains visible and the drawer scrolls without squeezing the control. Product import
 boundaries and changed-file whitespace checks passed. These checks used a clean source archive
 with only this change, excluding unrelated working-tree edits.
+
+The final picker was exercised by clicking the Meta card label and changing selection with the
+keyboard. The checked radio and access fields change without navigation; direct selection hides
+Meta-only fields and Continue opens the retained Instagram sign-in confirmation. Both methods
+remain selectable in the mobile drawer. An owned professional account completed the real direct
+login and import; its CONNECTED state and `instagram_login` mode were read back through MCP.
