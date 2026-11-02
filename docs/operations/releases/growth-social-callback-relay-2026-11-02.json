@@ -1,0 +1,61 @@
+{
+  "releaseId": "growth-social-callback-relay-2026-11-02",
+  "verifiedAt": "2026-11-02T18:09:21.808426+00:00",
+  "deployments": [
+    {
+      "service": "growth-api",
+      "deploymentId": "5963c85a-d743-4101-ae30-0bcda15706c2",
+      "status": "SUCCESS",
+      "sourceCommit": "5c98003b1b33724141d758d4328d9dbfa5a92630"
+    },
+    {
+      "service": "growth-analytics-worker",
+      "deploymentId": "61160712-d1bc-495f-b9ef-00e77dec88a4",
+      "status": "SUCCESS",
+      "sourceCommit": "5c98003b1b33724141d758d4328d9dbfa5a92630"
+    }
+  ],
+  "liveChecks": {
+    "checkedAt": "2026-11-02T18:08:46.608761+00:00",
+    "checks": [
+      {
+        "check": "without API cookie",
+        "status": 302,
+        "target": "https://app.kasitek.co.za/api/social/oauth/meta/complete",
+        "noStore": true,
+        "noReferrer": true,
+        "passed": true
+      },
+      {
+        "check": "stale API cookie",
+        "status": 302,
+        "target": "https://app.kasitek.co.za/api/social/oauth/meta/complete",
+        "noStore": true,
+        "noReferrer": true,
+        "passed": true
+      },
+      {
+        "check": "app completion requires app session",
+        "status": 401,
+        "passed": true
+      }
+    ],
+    "providerCodeExchanged": false,
+    "providerAuthorizationCompleted": false,
+    "allPassed": true
+  },
+  "localVerification": {
+    "focusedChecksPassed": 5,
+    "skipped": 0,
+    "apiBuild": "passed",
+    "importBoundaries": "passed",
+    "changedFileWhitespace": "passed"
+  },
+  "providerAppSettingsChanged": false,
+  "cookiesBroadened": false,
+  "limits": [
+    "Live checks used synthetic codes and did not authorize or import a real Facebook Page.",
+    "Fresh Facebook authorization and subsequent MCP posting remain acceptance steps.",
+    "Existing unrelated platform CI limitations still apply."
+  ]
+}

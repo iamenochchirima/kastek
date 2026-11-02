@@ -14,10 +14,10 @@ An unauthenticated synthetic callback reproduced the exact unauthorised response
 or exchanging the user's authorization code.
 
 For split origins, the public callback relays only recognized callback fields to a fixed
-completion URL on the configured frontend, regardless of any API-host cookie. Its `/api` proxy forwards the app cookies to
-Growth. The completion endpoint runs the existing session, workspace admin and OAuth state
-checks; it does not relay again. Same-origin callbacks retain their original processing path. A stale or different API-host
-session cannot override the app's session. The relay is not an authorization grant.
+completion URL on the configured frontend, regardless of any API-host cookie. Its `/api` proxy
+forwards the app cookies to Growth. The completion endpoint runs the existing session, workspace admin and OAuth state
+checks; it does not relay again. Same-origin callbacks retain their original processing path.
+A stale or different API-host session cannot override the app's session. The relay is not an authorization grant.
 
 The Meta app's registered callback and the redirect URI used during code exchange remain on the
 public API origin. No production Meta settings change. Cookies keep their host-only scope.
@@ -52,3 +52,11 @@ API cookies, authenticated app completion, same-origin compatibility, missing or
 workspace admin denial, no redirect loops and no-store/no-referrer headers. Growth API build,
 product import boundaries and whitespace checks passed. No real provider code was exchanged by
 these fixture tests; Page import still requires the user's fresh Facebook authorization.
+
+Hosted verification at 2026-11-02 20:08 Africa/Johannesburg: Growth API and its analytics worker
+successfully deployed merged source `5c98003b1b33724141d758d4328d9dbfa5a92630`. The callback now
+returns302to the configured app completion path, both without an API cookie and with a stale
+one. No-store and no-referrer headers are present. The actual Vercel app proxy reaches the new
+completion route and correctly returns401without an app session; it does not loop. API health
+returns200. No real provider code was exchanged by these checks. See the
+[sanitized deployment record](./releases/growth-social-callback-relay-2026-11-02.json).
