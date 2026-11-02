@@ -9,21 +9,22 @@ import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV4 } from "../src/agents/manifest.js";
+import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV4, growthAgentPublicationV5 } from "../src/agents/manifest.js";
 import { registerGrowthCapabilityRoutes } from "../src/agents/capability-routes.js";
 import { discoverGrowthRecords, readGrowthRecord } from "../src/agents/tools.js";
 import type { CoreContext } from "../src/context.js";
 
 test("Growth owns shared capability selections without purpose-specific mandatory tool sequences",()=>{
   assert.equal(new Set(growthAgentPresets.map(p=>p.id)).size,4);
-  assert(growthAgentPresets.every(p=>p.operations.includes("content.read")&&p.operations.includes("campaigns.read")));
-  assert(growthAgentPresets.find(p=>p.id==="assistant")!.operations.includes("draft.prepare"));
-  assert(!growthAgentPresets.find(p=>p.id==="research")!.operations.includes("draft.prepare"));
+  assert(growthAgentPresets.every(p=>p.operations.includes("workspace.read")));
+  assert(growthAgentPresets.find(p=>p.id==="assistant")!.operations.includes("content.posts.draft.create"));
+  assert(!growthAgentPresets.find(p=>p.id==="research")!.operations.includes("content.posts.draft.create"));
   const {digest,...content}=growthCapabilityManifest;assert.equal(digest,growthAgentDigest(content));
   assert(growthCapabilityManifest.operations.every(op=>!JSON.stringify(op).includes("https://")));
 });
 
 test("real content discovery and continuation retain current tenant, actor, source and exact operation authority",{skip:!process.env.CORE_ORGS_TEST_DATABASE_URL},async()=>{
+  const growthCapabilityManifest=growthAgentPublicationV5.manifest;
   const url=process.env.CORE_ORGS_TEST_DATABASE_URL!,schema="growth_caps_"+randomUUID().replaceAll("-","");
   const admin=new pg.Pool({connectionString:url});await admin.query(`CREATE SCHEMA "${schema}"`);
   const pool=new pg.Pool({connectionString:url,options:`-c search_path=${schema} -c timezone=UTC`});
@@ -71,7 +72,7 @@ test("real content discovery and continuation retain current tenant, actor, sour
     registerGrowthCapabilityRoutes(app,core);
     const descriptor=growthCapabilityManifest.operations.find(o=>o.operation==="content.read")!;
     const command={version:"1",requestId:randomUUID(),operationId:"read-one",taskId:randomUUID(),conversationId:randomUUID(),actor:scope.actor,
-      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:growthAgentPublication.policy.revision,
+      authority:{kind:"product",originProduct:"growth",destinationProduct:"growth",originTenantId:"org",tenantId:"org",mappingRef:"growth:org",policyRevision:growthAgentPublicationV5.policy.revision,
         manifestDigest:growthCapabilityManifest.digest,descriptorDigest:growthAgentDigest(descriptor),handlerRef:descriptor.handlerRef},
       bindingId:randomUUID(),bindingDigest:"a".repeat(64),operation:"content.read",control:"invoke",input:{resourceId:"a"}};
     async function send(body:unknown){const token=await new SignJWT({product:"growth",requestDigest:growthAgentDigest(body)}).setProtectedHeader({alg:"RS256",kid:"agents-v1"})

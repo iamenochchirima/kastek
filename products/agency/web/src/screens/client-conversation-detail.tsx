@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentMessageContent } from "@kasitek-labs/ui/agent";
 import Link from "@/lib/link";
 import {
   useGetClientConversation,
@@ -93,9 +94,7 @@ export default function ClientConversationDetailScreen({
                         {new Date(message.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">
-                      {message.content}
-                    </p>
+                    <div className="mt-3"><AgentMessageContent text={message.content} format="plain" /></div>
                   </div>
                 ))
               ) : (

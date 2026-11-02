@@ -310,3 +310,7 @@ export * from "./product-capabilities.js";
 export * from "./product-capability-transport.js";
 
 export * from "./operations.js";
+
+export * from "./growth-operations.js";
+
+export type { GrowthAgentRuntime, GrowthAgentRuntimeOperation } from "./growth-agent-runtime.js";

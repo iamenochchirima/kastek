@@ -1,7 +1,7 @@
 export const productUrls = {
   agents: "https://agents.kasitek.co.za",
-  growth: "https://growth.kasitek.co.za",
-  agency: "https://agencies.kasitek.co.za",
+  growth: "https://app.kasitek.co.za",
+  agency: "https://portal.kasitek.co.za",
 } as const;
 
 export const appUrl = productUrls.growth;

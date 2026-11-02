@@ -22,7 +22,7 @@ Growth imports workspace controls and theme tokens from `@kasitek-labs/ui` in
 `packages/ui/`. Growth dev, build and typecheck commands build its JavaScript and
 declarations first. Rebuild that package after changing a shared React control during
 a running development session. Theme CSS is consumed directly from source. See the
-[root package guide](../../../../../packages/ui/README.md) for exports and styling boundaries.
+[root package guide](https://github.com/Kasitek-Labs/kastek/blob/main/packages/ui/README.md) for exports and styling boundaries.
 
 ## Toolchain
 
@@ -92,6 +92,28 @@ email/password, Google, passkeys, optional two-factor authentication and recover
 email inbox is `http://localhost:8025/`; set Core `LOCAL_MAILPIT_URL` for organization invitations.
 
 ## Starting services
+
+### Facebook development tunnel
+
+The existing Cloudflare `KasiTek Dev` tunnel publishes `https://dev-client.kasitek.co.za`.
+Its published application must target the running Growth frontend, currently
+`http://localhost:3002`, rather than an unrelated application on port 3000. The frontend
+proxies `/api` to Growth Core on port 4000. The system `cloudflared` service uses a
+remotely managed route; inspect it in Cloudflare Networking → Tunnels before changing
+local ports. Keep identity and other product services on loopback.
+
+For a tunnel session, align Core `FRONTEND_URL` and the web server's `FRONTEND_URL` with
+`https://dev-client.kasitek.co.za`, Core `KASITEK_CORE_PUBLIC_URL` with the same origin,
+and Core `OIDC_REDIRECT_URI` with `https://dev-client.kasitek.co.za/api/auth/callback`.
+Register that exact callback, origin and `/login` logout return on the local Keycloak
+Growth client. Preserve other product registrations and existing local callbacks.
+The Meta callback remains `https://dev-client.kasitek.co.za/api/social/oauth/meta/callback`.
+
+Start Growth sign-in and Facebook Connect from the public tunnel origin. A login or
+connection started on localhost has different cookies and cannot finish on the tunnel
+origin. After changing origins, restart Growth API and web with their other settings
+preserved. Returning to local-only work requires restoring the localhost frontend and
+OIDC callback settings. Do not push a temporary tunnel override to the dotenv vault.
 
 The launcher uses the native Node.js 24 Core. See
 [TypeScript Core commands and worker modes](typescript-core.md). Stop any Core

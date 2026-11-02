@@ -93,7 +93,8 @@ export function createGrowthServer({ root = join(webRoot, 'build/client'), upstr
       path = decodeURIComponent(encodedPath);
       if (path.includes('\\') || path.includes('\0') || path.split('/').some(part => part === '.' || part === '..')) return end(response, 400, 'Invalid path');
     } catch { return end(response, 400, 'Invalid path'); }
-    if (path === '/api' || path.startsWith('/api/')) {
+    if (path === '/api' || path.startsWith('/api/') || path === '/v1' || path.startsWith('/v1/') || path === '/mcp' ||
+        ['/oauth/authorize','/oauth/register','/oauth/token','/oauth/revoke','/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp','/.well-known/oauth-authorization-server'].includes(path)) {
       const headers = cleanHeaders(request.headers);
       // Forward the browser Host for Core's exact-origin cookie mutation checks.
       headers.host = request.headers.host;

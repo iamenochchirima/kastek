@@ -86,3 +86,8 @@ export function parseOptionalDatetime(
     throw bad("Scheduled time is invalid");
   }
 }
+
+export function validatePostSchedule(status: string, scheduled: Date | null): void {
+  if (status === "SCHEDULED" && (!scheduled || scheduled.getTime() <= Date.now()))
+    throw bad("Choose a scheduled time in the future");
+}

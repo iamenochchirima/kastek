@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
+import { transaction } from "../../db.js";
 import type { Pool } from "pg";
 import { createId } from "@paralleldrive/cuid2";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
-import { wireInteger } from "@kasitek-labs/server-support/json";
+import { apiJson, canonicalJson, wireInteger } from "@kasitek-labs/server-support/json";
 import { linkWhatsappContact } from "../customers.js";
 import type {
   Row,
@@ -148,7 +150,7 @@ export async function exportContactList(
   };
 }
 export async function updateContact(
-  pool: Pool,
+  pool: Pick<Pool, "query">,
   orgId: string,
   id: string,
   input: WhatsappContactUpdateRequest,
@@ -228,37 +230,31 @@ export async function updateAgentContact(
   id: string,
   input: WhatsappContactUpdateRequest,
   idempotencyKey: string,
+  options: { expectedSnapshot?: string } = {},
 ): Promise<Row> {
   const key = idempotencyKey.trim();
   if (Buffer.byteLength(key) < 8 || Buffer.byteLength(key) > 240)
     throw bad("A valid agent contact idempotency key is required");
-  if (
-    input.metadata != null &&
-    (typeof input.metadata !== "object" || Array.isArray(input.metadata))
-  )
+  if (input.metadata != null && (typeof input.metadata !== "object" || Array.isArray(input.metadata)))
     throw bad("Agent contact metadata must be a JSON object");
-  const claimed = (
-    await pool.query(SQL.update_agent_contact[0], [id, orgId, [MARKER], key])
-  ).rows[0];
-  if (!claimed) {
-    const existing = (
-      await pool.query(SQL.update_agent_contact[1], [id, orgId])
-    ).rows[0];
-    if (!existing) throw missing("Contact not found");
-    throw conflict(
-      Object.values(existing)[0] != null
-        ? "This contact update is already claimed by another execution"
-        : "This contact update could not be claimed",
-    );
-  }
-  const metadata = {
-    ...((input.metadata as object) ?? (claimed.metadata as object)),
-    [MARKER]: key,
-  };
-  const result = await updateContact(pool, orgId, id, { ...input, metadata });
-  if (result.contact.metadata && typeof result.contact.metadata === "object")
-    delete result.contact.metadata[MARKER];
-  return result;
+  return transaction(pool, async tx => {
+    const revision = (await tx.query(`SELECT m."updatedAt" AS "membershipRevision",c."updatedAt" AS "contactRevision"
+      FROM "WhatsappContactListMembership" m JOIN "WhatsappContact" c ON c.id=m."contactId" AND c."orgId"=m."orgId"
+      WHERE m.id=$1 AND m."orgId"=$2 FOR UPDATE OF m,c`, [id, orgId])).rows[0];
+    if (!revision) throw missing("Contact not found");
+    const existing = (await selectListContactRow(tx, orgId, id))!;
+    if (existing.metadata?.[MARKER] === key) {
+      const contact = rowView("WhatsappListContactRow", existing);
+      if (contact.metadata && typeof contact.metadata === "object") delete contact.metadata[MARKER];
+      return { contact };
+    }
+    if (options.expectedSnapshot && createHash("sha256").update(canonicalJson(JSON.parse(apiJson(revision)))).digest("hex") !== options.expectedSnapshot)
+      throw conflict("The reviewed contact changed. Review it again before updating.");
+    const metadata = { ...((input.metadata as object) ?? (existing.metadata as object)), [MARKER]: key };
+    const result = await updateContact(tx, orgId, id, { ...input, metadata });
+    if (result.contact.metadata && typeof result.contact.metadata === "object") delete result.contact.metadata[MARKER];
+    return result;
+  });
 }
 export interface ContactImportInput {
   bytes: Buffer;

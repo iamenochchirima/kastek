@@ -66,7 +66,7 @@ export const agentConfigurationSchema = z.strictObject({
   model: modelSchema,
   sourceRevisionIds: z.array(z.uuid()).max(20).refine(ids => new Set(ids).size === ids.length, "Duplicate source revision").default([]),
   connectedToolBindingIds: z.array(z.uuid()).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate connected tool").default([]),
-  productBindings: z.array(z.custom<CapabilityBinding>((value): value is CapabilityBinding => !!value && typeof value === "object" && (value as CapabilityBinding).authority?.kind === "product", "Product bindings require destination authority")).max(24).default([]),
+  productBindings: z.array(z.custom<CapabilityBinding>((value): value is CapabilityBinding => !!value && typeof value === "object" && (value as CapabilityBinding).authority?.kind === "product", "Product bindings require destination authority")).max(64).default([]),
   retrievalProfile: z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("lexical-v1") }),
     z.strictObject({ kind: z.literal("hybrid-v1"), embeddingRelease: z.string().min(1).max(256) })]).default({ kind: "lexical-v1" }),
   capabilities: businessCapabilitiesSchema,

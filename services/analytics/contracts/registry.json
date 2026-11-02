@@ -486,6 +486,17 @@
       "owner": "agent-platform",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "growth.agent.access@1",
+      "schema": "events/growth/agent_access/v1.schema.json",
+      "examples": [
+        "examples/growth/agent_access_operation.json",
+        "examples/growth/agent_access_connection.json"
+      ],
+      "owner": "growth",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }

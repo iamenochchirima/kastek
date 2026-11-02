@@ -1,15 +1,12 @@
-import { taskErrorLabel } from "./task-errors";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, loadTaskDetail, message, readStored, terminal, writeStored, type Task } from "./api";
-import { PiArrowUp as ArrowUp, PiRobot as Bot, PiUser as User } from "react-icons/pi";
-import { TaskProgress } from "./task-progress";
-import { TaskEvents } from "./task-events";
-import { MessageContent } from "./message-content";
+import { PiRobot as Bot } from "react-icons/pi";
 import { ErrorMessage } from "./shell";
-import { TaskSources } from "./cited-passages";
-import { cleanupPending, TaskActivity } from "./task-activity";
+import { cleanupPending } from "./task-activity";
+import { AgentComposer, AgentConversationScroll, AgentMessage } from "@kasitek-labs/ui/agent";
+import { TaskExecutionBody } from "./execution-view";
 
 type SavedChat = { id: string; label: string; entries: Entry[] };
 type Entry = { requestKey: string; input: string; agentId?: string; conversationId?: string; versionId?: string; versionNumber?: number; task?: Task };
@@ -35,6 +32,7 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   const [continuing, setContinuing] = useState(false);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const lock = useRef(false);
+  const pendingInstruction = useRef<{ instruction: string; requestKey: string } | null>(null);
   const mounted = useRef(true);
   const pinnedVersion = useRef(onPinnedVersion);
   pinnedVersion.current = onPinnedVersion;
@@ -43,6 +41,8 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   const followedId = last?.task?.id;
   const activeId = last?.task && !terminal(last.task.state) ? last.task.id : undefined;
   const unknown = Boolean(last && !last.task);
+  const canSteer = Boolean(activeId && last?.task?.canSteer && last.task.state !== "cancel_requested");
+  useEffect(() => { pendingInstruction.current = null; }, [activeId]);
   useEffect(() => { onPendingChanged?.(unknown); }, [unknown, onPendingChanged]);
   const needsContinuation = last?.task?.state === "waiting_authority" ||
     last?.task?.state === "waiting_children" && last.task.children?.some(child => child.state === "waiting_authority");
@@ -53,7 +53,7 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
     for (let offset = 0; offset < tasks.length && live(); offset += 4) {
       await Promise.all(tasks.slice(offset, offset + 4).map(async task => {
         try { const detail = await loadTaskDetail(`${endpoint}/${encodeURIComponent(task.id)}`, token); if (!live()) return;
-          setEntries(current => current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...detail.task, orchestration: detail.orchestration, canSteer: detail.canSteer, events: detail.events, eventsNextCursor: detail.eventsNextCursor, operations: detail.operations, children: detail.children, resources: detail.resources, artifacts: detail.canDownloadArtifacts === false ? [] : detail.artifacts, actions: detail.actions } } : entry));
+          setEntries(current => current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...detail.task, publicUpdates: detail.updates, updatesTruncated: detail.updatesTruncated, orchestration: detail.orchestration, canSteer: detail.canSteer, events: detail.events, eventsNextCursor: detail.eventsNextCursor, operationsNextCursor: detail.operationsNextCursor, operations: detail.operations, children: detail.children, resources: detail.resources, artifacts: detail.canDownloadArtifacts === false ? [] : detail.artifacts, actions: detail.actions } } : entry));
         } catch (e) { if (!live()) return; if (e instanceof ApiError && [401, 403, 404].includes(e.status)) { setEntries([]); setAccessDenied(true); } setError(message(e)); }
       }));
     }
@@ -88,9 +88,9 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
     let timer: ReturnType<typeof setTimeout>;
     let uncertainPolls = 0;
     const poll = async () => {
-      try { const { task, orchestration, canSteer, events, eventsNextCursor, operations, children, resources, artifacts, actions } = await loadTaskDetail(`${endpoint}/${encodeURIComponent(followedId)}`, token);
+      try { const { task, updates, updatesTruncated, orchestration, canSteer, events, eventsNextCursor, operationsNextCursor, operations, children, resources, artifacts, actions } = await loadTaskDetail(`${endpoint}/${encodeURIComponent(followedId)}`, token);
         if (closed) return;
-        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, orchestration, canSteer, events: events ?? task.events, eventsNextCursor, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, restorable(next)); return next; });
+        setEntries(current => { const next = current.map(entry => entry.task?.id === task.id ? { ...entry, task: { ...task, publicUpdates: updates, updatesTruncated, orchestration, canSteer, events: events ?? task.events, eventsNextCursor, operationsNextCursor, operations: operations ?? task.operations, children: children ?? task.children, resources: resources ?? task.resources, artifacts: artifacts ?? task.artifacts, actions: actions ?? task.actions } } : entry); writeStored(storageKey, restorable(next)); return next; });
         setError("");
         if (terminal(task.state)) {
           if (!cleanupPending({ ...task, resources: resources ?? task.resources }) && !actions?.some(action => ["approved", "claimed", "uncertain"].includes(action.state))) return;
@@ -135,8 +135,15 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
     }
     finally { lock.current = false; setSending(false); }
   }
-  async function send(event: FormEvent) {
-    event.preventDefault(); if (!input.trim() || activeId || unknown || sending || historyLoading || accessDenied) return;
+  async function send() { if (!input.trim() || activeId && !canSteer || unknown || sending || historyLoading || accessDenied) return;
+    if (canSteer && activeId) {
+      if (lock.current) return;
+      lock.current = true; setSending(true); setError("");
+      if (pendingInstruction.current?.instruction !== input.trim()) pendingInstruction.current = { instruction: input.trim(), requestKey: crypto.randomUUID() };
+      try { await api(`${endpoint}/${encodeURIComponent(activeId)}/instructions`, pendingInstruction.current, "POST", token); pendingInstruction.current = null; setInput(""); writeStored(`${storageKey}.draft`, ""); toast.success("Instructions queued"); setRefreshGeneration(value => value + 1); }
+      catch (cause) { setError(message(cause)); } finally { lock.current = false; setSending(false); }
+      return;
+    }
     await submit({ input: input.trim(), requestKey: crypto.randomUUID(), agentId, conversationId, versionId, versionNumber }, entries);
   }
   async function continueTask() {
@@ -156,24 +163,22 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
       {savedChats.length ? <label className="min-w-0 max-w-full text-sm"><span className="sr-only">Saved conversations</span><select aria-label="Saved conversations" className="max-w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value="" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied} onChange={event => restoreConversation(event.target.value)}><option value="">Saved conversations</option>{savedChats.map(chat => <option key={chat.id} value={chat.id}>{chat.label}</option>)}</select></label> : <span />}
       <Button type="button" size="sm" variant="outline" onClick={newConversation} disabled={!entries.length || sending || Boolean(activeId) || unknown}>New conversation</Button>
     </div> : null}
-    <div className="chat-messages" aria-live="polite" aria-busy={historyLoading}>
-      {!entries.length ? <div className="chat-empty"><span className="agent-welcome-icon"><Bot size={28} /></span><h2>{historyLoading ? "Loading conversation…" : "How can I help?"}</h2><p>{historyLoading ? "" : "Send a message to get started."}</p></div> : entries.map((entry, index) => <article key={entry.requestKey} aria-label={`Turn ${entry.task?.turnSequence ?? index + 1}`} className="chat-turn space-y-4">
-        <div className="chat-user-message"><User size={17} className="message-avatar" /><div><p className="mb-1 text-xs font-medium text-muted-foreground">You</p><p className="whitespace-pre-wrap break-words text-sm">{entry.input}</p></div></div>
-        {entry.task?.output ? <div className="chat-assistant-message"><span className="assistant-mark"><Bot size={17} /></span><div className="min-w-0 flex-1"><p className="mb-2 text-xs font-medium text-muted-foreground">Assistant</p><MessageContent text={entry.task.output} /></div></div> : null}
-        {entry.task?.outputAvailability === "unavailable" ? <p className="text-sm text-muted-foreground">This response is no longer available.</p> : null}
-        {entry.task && (cancellable || !entry.task.output || entry.task.state !== "completed") ? <div className="space-y-1 text-xs text-muted-foreground"><p>{entry.task.state.replaceAll("_", " ")}{entry.task.errorCode ? ` · ${taskErrorLabel(entry.task.errorCode)}` : ""}</p><details><summary className="cursor-pointer">Task details</summary><code className="mt-2 block break-all">{entry.task.id}</code>{entry.task.versionId ? <p className="mt-2 break-all">Configuration snapshot: {entry.task.versionId}</p> : null}{entry.task.turnSequence ? <p className="mt-2">Conversation turn {entry.task.turnSequence}</p> : null}{entry.task.operations?.length ? <ol className="mt-3 space-y-2" aria-label="Task operations">{entry.task.operations.map((operation, index) => <li key={operation.operationId ?? operation.id ?? index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-border pt-2"><span className="break-all">{operation.toolName ?? operation.name ?? operation.kind ?? "Operation"}</span><span>{operation.state.replaceAll("_", " ")}{operation.errorCode ? ` · ${taskErrorLabel(operation.errorCode)}` : ""}</span>{operation.inputTokens != null || operation.outputTokens != null ? <span className="basis-full">{operation.inputTokens ?? 0} input tokens · {operation.outputTokens ?? 0} output tokens</span> : null}</li>)}</ol> : null}{cancellable ? <TaskEvents endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} initial={entry.task.events ?? []} initialCursor={entry.task.eventsNextCursor ?? null} onUnavailable={cause => { setEntries([]); setAccessDenied(true); setError(message(cause)); }} /> : entry.task.events?.length ? <ol className="mt-3 space-y-1" aria-label="Task history">{entry.task.events.map(event => <li key={event.sequence}>{event.kind.replaceAll("_", " ")}</li>)}</ol> : null}</details></div> : !entry.task ? <p className="text-xs text-muted-foreground">{sending ? "Submitting…" : "Request outcome unknown"}</p> : null}
-        {entry.task ? <TaskSources key={`${entry.task.id}.${entry.task.output}.${historyGeneration}`} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token} output={entry.task.output} onUnavailable={cause => { if (cause instanceof ApiError && [401,403,404].includes(cause.status)) { setEntries([]); setAccessDenied(true); setError(message(cause)); } else { setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", orchestration: undefined, canSteer: false, children: [], artifacts: [], actions: [] } } : item)); } }} /> : null}
-        {entry.task ? <TaskProgress key={entry.task.id} task={entry.task} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token} /> : null}
-        {entry.task ? <TaskActivity task={entry.task} onRefresh={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }} /> : null}
+    <AgentConversationScroll className="chat-messages" resetKey={`${endpoint}:${conversationId ?? storageKey}`}>
+      {!entries.length ? <div className="chat-empty"><span className="agent-welcome-icon"><Bot size={28} /></span><h2>{historyLoading ? "Loading conversation…" : "How can I help?"}</h2></div> : entries.map((entry, index) => <article key={entry.requestKey} aria-label={`Turn ${entry.task?.turnSequence ?? index + 1}`} className="chat-turn space-y-4">
+        <AgentMessage role="user" text={entry.input} />
+        {entry.task ? <TaskExecutionBody task={entry.task} endpoint={`${endpoint}/${encodeURIComponent(entry.task.id)}`} token={token}
+          onRefresh={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}
+          onUnavailable={cause => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); if (cause instanceof ApiError && [401,403,404].includes(cause.status)) { setEntries([]); setAccessDenied(true); setError(message(cause)); }
+            else setEntries(current => current.map(item => item.task?.id === entry.task?.id ? { ...item, task: { ...item.task!, output: null, outputAvailability: "unavailable", orchestration: undefined, canSteer: false, children: [], artifacts: [], actions: [] } } : item)); }} />
+          : <p className="text-xs text-muted-foreground" role="status">{sending ? "Submitting…" : "Request outcome unknown"}</p>}
       </article>)}
       {historyCursor ? <Button variant="outline" size="sm" onClick={() => void loadMoreHistory()} disabled={historyLoading}>{historyLoading ? "Loading…" : "Older messages"}</Button> : null}
-    </div>
+    </AgentConversationScroll>
     <div className="chat-feedback">{cancellable && conversationId ? <Button variant="ghost" size="sm" onClick={() => { setHistoryGeneration(value => value + 1); setRefreshGeneration(value => value + 1); }}>Refresh conversation</Button> : null}<ErrorMessage value={error} />
     {unknown && !sending ? <Button variant="outline" onClick={() => void submit(last!, entries.slice(0, -1))}>Retry request</Button> : null}
     </div>
-    {view === "chat" ? <form onSubmit={event => void send(event)} className={`chat-composer${composerAccessory ? " has-accessory" : ""}`}>
-      <label className="block space-y-2 text-sm"><span className="sr-only">Message</span><Textarea value={input} onChange={event => { setInput(event.target.value); writeStored(`${storageKey}.draft`, event.target.value); }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} required rows={3} placeholder="Message your agent…" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied} /></label>
-      <div className="chat-composer-actions flex flex-wrap gap-3">{composerAccessory}<Button type="submit" aria-label="Send message" className="chat-send" disabled={sending || Boolean(activeId) || unknown || historyLoading || accessDenied || !input.trim()}>{sending ? "Sending…" : <><ArrowUp size={17} /><span>Send</span></>}</Button>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</div>
-    </form> : null}
+    {view === "chat" ? <AgentComposer className="chat-composer" label={canSteer ? "Update instructions" : "Message"} sendLabel={canSteer ? "Queue instructions" : "Send message"} maxLength={canSteer ? 4000 : undefined} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} value={input} onChange={value => { setInput(value); writeStored(`${storageKey}.draft`, value); }}
+      onSubmit={() => void send()} disabled={sending || Boolean(activeId) && !canSteer || unknown || historyLoading || accessDenied} sending={sending}
+      context={composerAccessory} actions={<>{cancellable && needsContinuation ? <Button type="button" onClick={() => void continueTask()} disabled={sending || continuing}>{continuing ? "Continuing…" : "Continue task"}</Button> : null}{cancellable && activeId ? <Button type="button" variant="outline" disabled={sending || continuing || last?.task?.state === "cancel_requested"} onClick={() => void cancel()}>Cancel task</Button> : null}</>} /> : null}
   </section>;
 }

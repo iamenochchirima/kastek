@@ -9,6 +9,7 @@ import {
   type AnalyticsPublisherSettings,
   MAX_RECONCILIATION_STREAMS,
 } from "@kasitek-labs/server-support/analytics-producer";
+import { enqueueMissingOAuthAccessEvents } from "./agent-access.js";
 import { enqueueMissingScopeDefinitions } from "./scope-bootstrap.js";
 interface Log {
   info(fields: Record<string, unknown>, message?: string): void;
@@ -163,6 +164,11 @@ export async function runAnalyticsPublisher(
   let cursor: ReconciliationCursor | undefined;
   while (!signal?.aborted) {
     await recordOperationsWorkerHeartbeat(pool,"publisher",env);
+    try {
+      await queueSpan("analytics_publisher.agent_access", () => enqueueMissingOAuthAccessEvents(pool));
+    } catch (error) {
+      log.error({ event: "queue.item.failed", worker: "analytics_publisher", phase: "agent_access_export", error_type: error instanceof Error ? error.name : "unknown" }, "agent access export failed");
+    }
     try {
       const stats = await queueSpan("analytics_publisher.publish", () =>
         publishOutboxOnce(pool, client, settings, new Date()),

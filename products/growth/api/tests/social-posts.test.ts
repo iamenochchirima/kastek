@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
 import { installPgTimestampParsers } from "../src/db.js";
+import { buildApp } from "../src/app.js";
+import { readConfig } from "../src/config.js";
+import { registerSocialRoutes } from "../src/routes/social.js";
+import { sha256 } from "../src/identity/session.js";
 import {
   generatedSocialPostTitle,
   createSocialPostIdempotent,
@@ -16,7 +20,7 @@ import {
   listSocialChannels,
   platformCapabilities,
 } from "../src/services/social/channels.js";
-import { parseOptionalDatetime } from "../src/services/social/common.js";
+import { parseOptionalDatetime, validatePostSchedule } from "../src/services/social/common.js";
 installPgTimestampParsers();
 test("social schedule validation retains RFC3339 calendar and fraction boundaries", () => {
   assert.equal(
@@ -47,7 +51,15 @@ test("content title generation uses Unicode characters and safe provider capabil
   );
   assert.equal(generatedSocialPostTitle(""), "Untitled social post");
   assert.equal(platformCapabilities("INSTAGRAM").supportsMediaUpload, true);
+  assert.deepEqual((platformCapabilities("FACEBOOK").media as { images: unknown }).images, { supported: true, maxCount: 1 });
   assert.equal(platformCapabilities("unknown").canPublish, false);
+});
+test("scheduled posts require a future, explicit timestamp", () => {
+  assert.throws(() => parseOptionalDatetime("2030-01-01T09:00"), /Scheduled time is invalid/);
+  assert.throws(() => validatePostSchedule("SCHEDULED", null), /future/);
+  assert.throws(() => validatePostSchedule("SCHEDULED", new Date(0)), /future/);
+  assert.doesNotThrow(() => validatePostSchedule("SCHEDULED", new Date(Date.now() + 60_000)));
+  assert.doesNotThrow(() => validatePostSchedule("DRAFT", null));
 });
 test(
   "isolated content CRUD preserves media snapshots, scope boundaries and concurrent draft idempotency",
@@ -147,9 +159,14 @@ test(
       assert.equal(updated.title, "new content");
       assert.equal(updated.variants[0]!.content, "new content");
       assert.equal(updated.variants[0]!.status, "DRAFT");
-      assert.notEqual(updated.publishJobs[0]!.id, one.publishJobs[0]!.id);
+      assert.equal(updated.publishJobs[0]!.id, one.publishJobs[0]!.id);
       assert.equal(updated.media.length, 1);
       assert.equal(updated.publishJobs[0]!.status, "PENDING");
+      await pool.query('UPDATE "SocialPublishJob" SET status=\'PUBLISHED\',"externalPostId"=\'provider-post\' WHERE id=$1', [updated.publishJobs[0]!.id]);
+      await assert.rejects(updateSocialPost(pool, "user", "org", one.id, {
+        content: "must not replace delivered content", status: "DRAFT", channelSelections: { FACEBOOK: "channel" },
+      }), /publishing attempt/);
+      assert.equal((await getSocialPost(pool, "org", one.id))!.publishJobs[0]!.external_post_id, "provider-post");
       assert.equal(
         (
           (await getSocialPostActivity(pool, "org", one.id)) as {
@@ -168,6 +185,101 @@ test(
         ).rows[0].count,
         0,
       );
+
+      const draftInput = {
+        content: "Facebook draft before connecting a Page.",
+        channels: ["FACEBOOK"],
+      };
+      const draft = await createSocialPostIdempotent(pool, "user", "org", draftInput, "unassigned-draft");
+      assert.equal(draft.status, "DRAFT");
+      assert.equal(draft.primary_channel_id, null);
+      assert.equal(draft.publishJobs[0]!.channel_connection_id, null);
+      assert.equal(draft.publishJobs[0]!.status, "PENDING");
+      assert.equal((await getSocialPost(pool, "org", draft.id))!.content, draftInput.content);
+      const editedDraft = await updateSocialPost(pool, "user", "org", draft.id, {
+        content: "Edited Facebook draft before connecting a Page.",
+      });
+      assert.equal(editedDraft.id, draft.id);
+      assert.equal(editedDraft.publishJobs[0]!.id, draft.publishJobs[0]!.id);
+      assert.equal(editedDraft.publishJobs[0]!.channel_connection_id, null);
+      assert.equal((await getSocialPost(pool, "org", draft.id))!.content, "Edited Facebook draft before connecting a Page.");
+      await assert.rejects(updateSocialPost(pool, "user", "org", draft.id, {
+        status: "SCHEDULED", scheduledFor: "2030-01-01T12:00:00Z",
+      }), /Choose a connected facebook account before scheduling/);
+      await assert.rejects(createSocialPostIdempotent(pool, "user", "org", {
+        ...draftInput, status: "SCHEDULED", scheduledFor: "2030-01-01T12:00:00Z",
+      }), /Choose a connected facebook account before scheduling/);
+      for (const invalidId of ["foreign-channel", "missing-channel"]) {
+        await assert.rejects(createSocialPostIdempotent(pool, "user", "org", {
+          ...draftInput, channelSelections: { FACEBOOK: invalidId },
+        }), /Selected channel was not found/);
+        await assert.rejects(updateSocialPost(pool, "user", "org", draft.id, {
+          channelSelections: { FACEBOOK: invalidId },
+        }), /Selected channel was not found/);
+      }
+      await pool.query('UPDATE "SocialChannelConnection" SET status=\'DISCONNECTED\' WHERE id=\'channel\'');
+      await assert.rejects(updateSocialPost(pool, "user", "org", draft.id, {
+        channelSelections: { FACEBOOK: "channel" },
+      }), /Choose a connected facebook account before saving/);
+      await pool.query('UPDATE "SocialChannelConnection" SET status=\'CONNECTED\' WHERE id=\'channel\'');
+      const assigned = await updateSocialPost(pool, "user", "org", draft.id, {
+        status: "SCHEDULED", scheduledFor: "2030-01-01T12:00:00Z", channelSelections: { FACEBOOK: "channel" },
+      });
+      assert.equal(assigned.publishJobs[0]!.channel_connection_id, "channel");
+      assert.equal(assigned.publishJobs[0]!.status, "QUEUED");
+      const retainedSelection = await updateSocialPost(pool, "user", "org", draft.id, {
+        status: "DRAFT", content: "Edit retains the selected Page.",
+      });
+      assert.equal(retainedSelection.publishJobs[0]!.channel_connection_id, "channel");
+
+      await pool.query(`CREATE TABLE "User"(id text,name text,email text,phone text,image text,"emailVerified" timestamp,"createdAt" timestamp,"updatedAt" timestamp);
+        CREATE TABLE "Session"("userId" text,"refreshToken" text,"identityCheckedAt" timestamp,"providerRefreshedAt" timestamp,"sessionToken" text,expires timestamp,"lastActivityAt" timestamp);
+        CREATE TABLE "Organization"(id text,"createdAt" timestamp);
+        CREATE TABLE "OrganizationMember"("orgId" text,"userId" text,role text);
+        INSERT INTO "User" VALUES('user','Synthetic','fixture@example.test',NULL,NULL,NOW(),NOW(),NOW());
+        INSERT INTO "Organization" VALUES('org',NOW());
+        INSERT INTO "OrganizationMember" VALUES('org','user','OWNER');`);
+      await pool.query(`INSERT INTO "Session" VALUES('user','unused',NOW(),NOW(),$1,NOW()+INTERVAL '1 day',NOW())`, [sha256("social-draft-session")]);
+      const config = readConfig({ DATABASE_URL: "postgres://unused", LOG_LEVEL: "silent" });
+      const app = await buildApp({ pool, config }, [registerSocialRoutes]);
+      try {
+        const headers = { cookie: "kasitek_session=social-draft-session", origin: config.frontendUrl };
+        const channelResponse = await app.inject({ url: "/api/social/channels", headers });
+        assert.equal(channelResponse.statusCode, 200, channelResponse.body);
+        const wireChannel = channelResponse.json().channels.find((channel: { id: string }) => channel.id === "channel");
+        assert.equal(wireChannel.displayName, "Synthetic");
+        assert.equal(wireChannel.userId, "user");
+        assert.equal(wireChannel.display_name, undefined);
+        assert.ok(Number.isFinite(Date.parse(wireChannel.createdAt)));
+        const response = await app.inject({ method: "POST", url: "/api/social/posts", headers,
+          payload: { ...draftInput, media: [{ assetId: "asset", altText: "Saved alternative text" }], metadata: { keep_snake_key: "unchanged" } } });
+        assert.equal(response.statusCode, 201, response.body);
+        const wirePost = response.json().post;
+        assert.equal(wirePost.userId, "user");
+        assert.ok(Number.isFinite(Date.parse(wirePost.createdAt)));
+        assert.ok(Number.isFinite(Date.parse(wirePost.updatedAt)));
+        assert.equal(wirePost.created_at, undefined);
+        assert.equal(wirePost.scheduledFor, null);
+        assert.equal(wirePost.publishJobs[0].postId, wirePost.id);
+        assert.equal(wirePost.publishJobs[0].channelConnectionId, null);
+        assert.equal(wirePost.variants[0].postId, wirePost.id);
+        assert.equal(wirePost.media[0].assetId, "asset");
+        assert.equal(wirePost.media[0].altText, "Saved alternative text");
+        assert.equal(wirePost.media[0].mimeType, "image/png");
+        assert.equal(wirePost.metadata.keep_snake_key, "unchanged");
+        const fetched = await app.inject({ url: `/api/social/posts/${wirePost.id}`, headers });
+        assert.deepEqual(fetched.json().post, wirePost);
+        const edited = await app.inject({ method: "PATCH", url: `/api/social/posts/${wirePost.id}`,
+          headers: { ...headers, "if-match": wirePost.updatedAt }, payload: { content: "Edited using the returned revision." } });
+        assert.equal(edited.statusCode, 200, edited.body);
+        assert.equal(edited.json().post.id, wirePost.id);
+        assert.equal(edited.json().post.content, "Edited using the returned revision.");
+        assert.ok(Number.isFinite(Date.parse(edited.json().post.updatedAt)));
+        const listed = await app.inject({ url: "/api/social/posts", headers });
+        assert.deepEqual(listed.json().posts.find((post: { id: string }) => post.id === wirePost.id), edited.json().post);
+      } finally {
+        await app.close();
+      }
     } finally {
       await pool.end();
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);

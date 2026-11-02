@@ -591,6 +591,20 @@ The current application creates grounded FAQ or customer-service agents from the
 The chosen offering is stored on the agent. Offering names remain separate from execution programs.
 The standalone Booking creation choice remains unavailable. Customer-service agents can explicitly
 configure Google or Microsoft Calendar appointments, and other agents can open optional setup through Tools.
+Agent execution presentation is shared with Growth through `@kasitek-labs/ui/agent`.
+The standalone Chat, Activity and task-detail hosts use one product adapter for compact
+operation rows, adaptive approach, public updates, output and specialist inspection. Running
+and completed specialists open in the same read-only modal, backed by authorized task detail;
+the dialog becomes full-screen on mobile. Closing it stops observation, not execution.
+Public commentary comes only from completed primary-model public content accompanying tool
+calls. Provider reasoning and raw tool payloads are excluded. Missing historical commentary
+is not reconstructed. Operation metadata is bounded and cursor-paged; the interface can load
+earlier activity. Source withdrawal removes protected content and current access is checked
+while a specialist modal remains open. Customer timelines reuse plain message typography
+without gaining runtime visibility. Controlled browser evidence is in
+`web/test/chat-workspace.spec.ts`, `cited-passages.spec.ts` and `tool-reviews.spec.ts`;
+these mocked transports do not establish live model acceptance.
+
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
 resolution and explicit return to automation. Human-owned ingress does not admit model work.

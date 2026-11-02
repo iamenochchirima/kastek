@@ -7,10 +7,11 @@ import pg from "pg";
 import Fastify from "fastify";
 import { readConfig } from "../src/config.js";
 import { ApiError,installErrorHandler } from "../src/error.js";
-import { enqueueGrowthAgentSetup,ensureGrowthAgentSetup,currentGrowthAgentSetup,backfillGrowthAgentSetup,retryGrowthAgentSetup,readGrowthAgentSetup,readGrowthAgentSetupMetrics } from "../src/agents/setup.js";
+import { enqueueGrowthAgentSetup,ensureGrowthAgentSetup,currentGrowthAgentSetup,backfillGrowthAgentSetup,retryGrowthAgentSetup,readGrowthAgentSetup,readGrowthAgentSetupMetrics,upgradeGrowthAgentDefaults } from "../src/agents/setup.js";
 import { claimGrowthAgentSetups,finishGrowthAgentSetup,processGrowthAgentSetupBatch,growthAgentSetupRequest,growthAgentSetupRetryDelay } from "../src/workers/growth-agent-setup.js";
 import { provisionGrowthAgents } from "../src/agents/provisioning-client.js";
 import { registerGrowthAgentProvisioningRoutes } from "../src/agents/provisioning-routes.js";
+import { growthAgentPublication } from "../src/agents/manifest.js";
 import { growthAgentDigest } from "../src/agents/security.js";
 const log={info(){},warn(){},error(){}};
 const target={version:"1" as const,tenantId:"org",requestId:randomUUID(),defaultsRevision:"1" as const,modelProfileId:"growth-default",modelProfileRevision:"1"};
@@ -44,6 +45,7 @@ test("PostgreSQL setup queue: concurrent claims, expired fencing, retries, cance
   const core={pool,config:readConfig({DATABASE_URL:url,AGENTS_PRODUCT_ACTION_PUBLIC_KEY:publicKey})};
   await Promise.all([ensureGrowthAgentSetup(core,"org"),ensureGrowthAgentSetup(core,"org")]);
   assert.equal((await pool.query('SELECT count(*) FROM "GrowthAgentSetup"')).rows[0].count,"1");
+  assert.equal((await pool.query('SELECT "defaultsRevision" FROM "GrowthAgentSetup" WHERE "orgId"=\'org\'')).rows[0].defaultsRevision,growthAgentPublication.manifest.revision);
   const claimed=await Promise.all([claimGrowthAgentSetups(core,"a"),claimGrowthAgentSetups(core,"b")]);
   const claims=claimed.flat();assert.equal(claims.length,1);const stale=claims[0]!;
   const request=growthAgentSetupRequest(stale);assert.equal(await currentGrowthAgentSetup(core,request),true);
@@ -57,6 +59,7 @@ test("PostgreSQL setup queue: concurrent claims, expired fencing, retries, cance
   await ensureGrowthAgentSetup(core,"org");assert.equal((await readGrowthAgentSetup(pool,"org"))!.state,"ready");
   assert.equal(await retryGrowthAgentSetup(core,"org"),false);
   assert.equal(await backfillGrowthAgentSetup(core,1),1);assert.equal(await backfillGrowthAgentSetup(core,1),0);
+  assert.equal((await pool.query('SELECT "defaultsRevision" FROM "GrowthAgentSetup" WHERE "orgId"=\'other\'')).rows[0].defaultsRevision,growthAgentPublication.manifest.revision);
   let deliveryAttempts=0;let firstRequest:unknown;
   await processGrowthAgentSetupBatch(core,log,{deliver:async body=>{firstRequest=body;deliveryAttempts++;throw new Error("network acknowledgement lost");}});
   assert.equal((await readGrowthAgentSetup(pool,"other"))!.state,"pending");
@@ -81,6 +84,20 @@ test("PostgreSQL setup queue: concurrent claims, expired fencing, retries, cance
   assert.equal((await claimGrowthAgentSetups(core,"after-restart")).length,0);
   assert.equal((await readGrowthAgentSetup(pool,"exhausted"))!.state,"failed");
   await pool.query('DELETE FROM "Organization" WHERE id=\'exhausted\'');
+
+  await pool.query('INSERT INTO "Organization" VALUES(\'retained\')');
+  await ensureGrowthAgentSetup(core,"retained");
+  await pool.query('UPDATE "GrowthAgentSetup" SET "defaultsRevision"=\'6\',status=\'ready\' WHERE "orgId"=\'retained\'');
+  const oldTarget=(await pool.query('SELECT * FROM "GrowthAgentSetup" WHERE "orgId"=\'retained\'')).rows[0];
+  await ensureGrowthAgentSetup(core,"retained");
+  assert.equal((await pool.query('SELECT "defaultsRevision" FROM "GrowthAgentSetup" WHERE "orgId"=\'retained\'')).rows[0].defaultsRevision,"6");
+  assert.equal(await upgradeGrowthAgentDefaults(core,"retained"),true);
+  const upgraded=(await pool.query('SELECT * FROM "GrowthAgentSetup" WHERE "orgId"=\'retained\'')).rows[0];
+  assert.equal(upgraded.defaultsRevision,growthAgentPublication.manifest.revision);
+  assert.equal(upgraded.status,"pending");assert.notEqual(upgraded.requestId,oldTarget.requestId);
+  assert.equal(upgraded.modelProfileId,oldTarget.modelProfileId);assert.equal(upgraded.modelProfileRevision,oldTarget.modelProfileRevision);
+  assert.equal(await upgradeGrowthAgentDefaults(core,"other"),false);
+  await pool.query('DELETE FROM "Organization" WHERE id=\'retained\'');
 
   const app=Fastify();installErrorHandler(app);registerGrowthAgentProvisioningRoutes(app,core);
   const sign=async(body:unknown,subject="agents-provisioner",audience="growth-agent-provisioning-lifecycle",iat=Math.floor(Date.now()/1000))=>new SignJWT({requestDigest:growthAgentDigest(body)})

@@ -1,3 +1,4 @@
+import type { GrowthAgentRuntime } from "./growth-agent-runtime.js";
 /** Growth product contracts. No standalone Agents membership or installation is implied. */
 export const GROWTH_AGENT_CONTRACT_VERSION = "1" as const;
 export const GROWTH_AGENT_COMMAND_PATH = "/internal/v1/products/growth/commands";
@@ -38,6 +39,9 @@ export interface GrowthAgentResult {
   route?: string; artifactId?: string; revision?: string;
 }
 export interface GrowthAgentTask {
+  updates?: GrowthAgentPublicUpdate[]; updatesTruncated?: boolean;
+  runtime?: GrowthAgentRuntime;
+  observedAt?: string;
   id: string; conversationId: string; featureId: GrowthAgentFeatureId; state: GrowthAgentTaskState;
   input: string; output: string | null; errorCode: string | null;
   createdAt: string; updatedAt: string; reviewIds?: string[];
@@ -52,7 +56,15 @@ export interface GrowthAgentTask {
     retryable: boolean; action: "continue" | "wait" | "reconcile" | "change_policy" | null;
   };
   orchestration?: { revision: number; record: { objective: string; steps: { id: string; title: string; state: "pending" | "in_progress" | "completed" | "blocked" }[]; questions: string[]; evidenceTaskIds: string[] } | null };
-  children?: { id: string; name: string; state: GrowthAgentTaskState; errorCode?: string | null }[];
+  children?: { id: string; name: string; state: GrowthAgentTaskState; errorCode?: string | null; assignment?: string; createdAt?: string }[];
+}
+export interface GrowthAgentPublicUpdate { id: string; text: string; createdAt: string }
+/** Owner-authorized public activity. No private model reasoning or raw execution export. */
+export interface GrowthAgentObservation {
+  task: GrowthAgentTask; rootTaskId: string; parentTaskId: string | null; agentName: string;
+  events: GrowthAgentEvent[]; nextCursor: string | null;
+  operations: import("./growth-agent-runtime.js").GrowthAgentRuntimeOperation[]; nextOperationCursor: string | null;
+  updates: GrowthAgentPublicUpdate[]; updatesTruncated: boolean;
 }
 export interface GrowthAgentEvent { id: string; taskId: string; type: string; createdAt: string; message?: string; state?: GrowthAgentTaskState }
 export interface GrowthAgentPage<T> { nextCursor: string | null; items: T[] }
@@ -64,13 +76,21 @@ export interface GrowthDraftReceipt {
   operationId: string; reviewId: string; payloadDigest: string; recordId: string;
   revision: string; route: string; state: "saved"; actorId: string;
 }
-export interface GrowthAgentReview {
+export interface GrowthDraftReview {
   id: string; taskId: string; conversationId: string; featureId: GrowthAgentFeatureId;
   kind: "content_draft"; payloadDigest: string;
   state: "proposed" | "approved" | "rejected" | "executing" | "saved" | "failed" | "uncertain" | "expired";
   draft: GrowthDraftProposal; createdAt: string; expiresAt: string;
   result: GrowthDraftReceipt | null;
 }
+export interface GrowthOperationReview {
+  id: string; taskId: string; conversationId: string; featureId: GrowthAgentFeatureId;
+  kind: "operation"; operation: string; payloadDigest: string;
+  state: "proposed" | "approved" | "rejected" | "executing" | "succeeded" | "failed" | "uncertain" | "expired";
+  input: Record<string, unknown>; reviewUrl: string; createdAt: string; expiresAt: string;
+  result: null;
+}
+export type GrowthAgentReview = GrowthDraftReview | GrowthOperationReview;
 export interface GrowthAgentArtifact { id: string; title: string; mediaType: string; text?: string; downloadPath?: string; chunk?: { offset: number; nextOffset: number | null; bytes: number; digest: string; base64: string } }
 export interface GrowthAgentCommandInputs {
   "features.list": Record<string, never>;
@@ -83,6 +103,7 @@ export interface GrowthAgentCommandInputs {
   "tasks.list": { conversationId?: string; state?: string; search?: string; cursor?: string; limit?: number };
   "tasks.get": { taskId: string };
   "tasks.export": { taskId: string };
+  "tasks.observe": { taskId: string; childTaskId?: string; cursor?: string; operationCursor?: string; limit?: number };
   "tasks.events": { taskId: string; cursor?: string; limit?: number };
   "tasks.cancel": { taskId: string };
   "tasks.instructions": { taskId: string; instruction: string };
@@ -107,6 +128,7 @@ export interface GrowthAgentCommandOutputs {
   "tasks.list": { tasks: GrowthAgentTask[]; nextCursor: string | null };
   "tasks.get": { task: GrowthAgentTask };
   "tasks.export": { capture: unknown };
+  "tasks.observe": GrowthAgentObservation;
   "tasks.events": { events: GrowthAgentEvent[]; nextCursor: string | null };
   "tasks.cancel": { task: GrowthAgentTask };
   "tasks.instructions": { accepted: true };
@@ -123,6 +145,7 @@ export interface GrowthAgentActionInputs {
   "draft.prepare": { draft: GrowthDraftProposal };
   "draft.commit": { reviewId: string; payloadDigest: string };
   "draft.reconcile": { reviewId: string };
+  "operation.review.read": { reviewId: string };
 }
 export type GrowthAgentActionOperation = keyof GrowthAgentActionInputs;
 export type GrowthAgentAction<K extends GrowthAgentActionOperation = GrowthAgentActionOperation> = {
@@ -137,9 +160,10 @@ export interface GrowthAgentActionOutputs {
   "authorization.check": { authorized: true };
   "workspace.read": GrowthAgentContextEvidence;
   "context.read": GrowthAgentContextEvidence;
-  "draft.prepare": { review: GrowthAgentReview };
-  "draft.commit": { review: GrowthAgentReview; result: GrowthDraftReceipt | null };
-  "draft.reconcile": { review: GrowthAgentReview; result: GrowthDraftReceipt | null };
+  "draft.prepare": { review: GrowthDraftReview };
+  "draft.commit": { review: GrowthDraftReview; result: GrowthDraftReceipt | null };
+  "draft.reconcile": { review: GrowthDraftReview; result: GrowthDraftReceipt | null };
+  "operation.review.read": { review: GrowthOperationReview; result: null };
 }
 
 /** The product wire protocol hashes this JSON form before signing either boundary. */
@@ -214,7 +238,7 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
     "conversations.create": ["featureId", "title", "context"], "conversations.list": ["featureId", "search", "cursor", "limit"],
     "conversations.get": ["conversationId", "cursor", "limit"], "conversations.context": ["conversationId", "context"],
     "turns.submit": ["conversationId", "text", "context"], "tasks.list": ["conversationId", "state", "search", "cursor", "limit"],
-    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"],
+    "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.observe": ["taskId", "childTaskId", "cursor", "operationCursor", "limit"], "tasks.events": ["taskId", "cursor", "limit"], "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"],
     "reviews.list": ["taskId"], "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId", "offset"],
   };
@@ -222,12 +246,12 @@ export function parseGrowthAgentCommand(value: unknown): GrowthAgentCommand {
   const input = growthObject(item.input, fields);
   for (const [key, value] of Object.entries(input)) {
     if (["context", "configuration", "limit", "offset"].includes(key)) continue;
-    growthString(value, key === "text" ? 131072 : key === "instruction" ? 4000 : key === "search" ? 200 : key === "cursor" ? 2048 : 256);
+    growthString(value, key === "text" ? 131072 : key === "instruction" ? 4000 : key === "search" ? 200 : ["cursor", "operationCursor"].includes(key) ? 2048 : 256);
   }
   const required: Partial<Record<GrowthAgentCommandOperation, string[]>> = {
     "features.configure": ["featureId", "configuration"], "conversations.create": ["featureId"],
     "conversations.get": ["conversationId"], "conversations.context": ["conversationId", "context"],
-    "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.events": ["taskId"],
+    "turns.submit": ["conversationId", "text"], "tasks.get": ["taskId"], "tasks.export": ["taskId"], "tasks.observe": ["taskId"], "tasks.events": ["taskId"],
     "tasks.cancel": ["taskId"], "tasks.instructions": ["taskId", "instruction"], "tasks.continue": ["taskId"], "reviews.list": ["taskId"],
     "reviews.decide": ["taskId", "reviewId", "payloadDigest", "decision"],
     "artifacts.list": ["taskId"], "artifacts.get": ["taskId", "artifactId"],
@@ -255,14 +279,14 @@ export function parseGrowthAgentAction(value: unknown): GrowthAgentAction {
   if (item.contextRevision !== undefined && item.contextRevision !== null) growthString(item.contextRevision);
   const fields: Record<GrowthAgentActionOperation, readonly string[]> = {
     "authorization.check": ["context"], "workspace.read": [], "context.read": ["context"],
-    "draft.prepare": ["draft"], "draft.commit": ["reviewId", "payloadDigest"], "draft.reconcile": ["reviewId"],
+    "draft.prepare": ["draft"], "draft.commit": ["reviewId", "payloadDigest"], "draft.reconcile": ["reviewId"], "operation.review.read": ["reviewId"],
   };
   const accepted = Object.hasOwn(fields, String(item.operation)) ? fields[item.operation as GrowthAgentActionOperation] : undefined; if (!accepted) return invalidGrowthContract();
   const input = growthObject(item.input, accepted);
   if (input.context !== undefined && input.context !== null) parseGrowthAgentContext(input.context);
   if (item.operation === "context.read" && !input.context) return invalidGrowthContract();
   if (item.operation === "draft.prepare") parseGrowthDraftProposal(input.draft);
-  if (["draft.commit", "draft.reconcile"].includes(String(item.operation))) growthString(input.reviewId);
+  if (["draft.commit", "draft.reconcile", "operation.review.read"].includes(String(item.operation))) growthString(input.reviewId);
   if (item.operation === "draft.commit" && !/^[a-f0-9]{64}$/.test(String(input.payloadDigest))) return invalidGrowthContract();
   return item as unknown as GrowthAgentAction;
 }

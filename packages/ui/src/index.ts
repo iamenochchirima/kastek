@@ -21,3 +21,4 @@ export * from "./scroll-area.js";
 export * from "./progress.js";
 export * from "./radio-group.js";
 export * from "./appearance.js";
+export * from "./agent.js";

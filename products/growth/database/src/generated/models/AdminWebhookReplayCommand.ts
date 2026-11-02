@@ -39,6 +39,11 @@ export type AdminWebhookReplayCommandMinAggregateOutputType = {
   idempotencyKey: string | null
   deliveryId: string | null
   actorId: string | null
+  customerId: string | null
+  operationId: string | null
+  requestDigest: string | null
+  reason: string | null
+  settledStatus: string | null
   expectedStatus: string | null
   expectedAttemptCount: number | null
   status: string | null
@@ -53,6 +58,11 @@ export type AdminWebhookReplayCommandMaxAggregateOutputType = {
   idempotencyKey: string | null
   deliveryId: string | null
   actorId: string | null
+  customerId: string | null
+  operationId: string | null
+  requestDigest: string | null
+  reason: string | null
+  settledStatus: string | null
   expectedStatus: string | null
   expectedAttemptCount: number | null
   status: string | null
@@ -67,6 +77,11 @@ export type AdminWebhookReplayCommandCountAggregateOutputType = {
   idempotencyKey: number
   deliveryId: number
   actorId: number
+  customerId: number
+  operationId: number
+  requestDigest: number
+  reason: number
+  settledStatus: number
   expectedStatus: number
   expectedAttemptCount: number
   approverIds: number
@@ -93,6 +108,11 @@ export type AdminWebhookReplayCommandMinAggregateInputType = {
   idempotencyKey?: true
   deliveryId?: true
   actorId?: true
+  customerId?: true
+  operationId?: true
+  requestDigest?: true
+  reason?: true
+  settledStatus?: true
   expectedStatus?: true
   expectedAttemptCount?: true
   status?: true
@@ -107,6 +127,11 @@ export type AdminWebhookReplayCommandMaxAggregateInputType = {
   idempotencyKey?: true
   deliveryId?: true
   actorId?: true
+  customerId?: true
+  operationId?: true
+  requestDigest?: true
+  reason?: true
+  settledStatus?: true
   expectedStatus?: true
   expectedAttemptCount?: true
   status?: true
@@ -121,6 +146,11 @@ export type AdminWebhookReplayCommandCountAggregateInputType = {
   idempotencyKey?: true
   deliveryId?: true
   actorId?: true
+  customerId?: true
+  operationId?: true
+  requestDigest?: true
+  reason?: true
+  settledStatus?: true
   expectedStatus?: true
   expectedAttemptCount?: true
   approverIds?: true
@@ -224,6 +254,11 @@ export type AdminWebhookReplayCommandGroupByOutputType = {
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  customerId: string | null
+  operationId: string | null
+  requestDigest: string | null
+  reason: string | null
+  settledStatus: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds: string[]
@@ -263,6 +298,11 @@ export type AdminWebhookReplayCommandWhereInput = {
   idempotencyKey?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
   deliveryId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
   actorId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  customerId?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  operationId?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  requestDigest?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  reason?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  settledStatus?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
   expectedStatus?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
   expectedAttemptCount?: Prisma.IntFilter<"AdminWebhookReplayCommand"> | number
   approverIds?: Prisma.StringNullableListFilter<"AdminWebhookReplayCommand">
@@ -272,6 +312,8 @@ export type AdminWebhookReplayCommandWhereInput = {
   completedAt?: Prisma.DateTimeNullableFilter<"AdminWebhookReplayCommand"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
+  customer?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalListRelationFilter
   auditEvents?: Prisma.AdminWebhookReplayAuditEventListRelationFilter
 }
 
@@ -280,6 +322,11 @@ export type AdminWebhookReplayCommandOrderByWithRelationInput = {
   idempotencyKey?: Prisma.SortOrder
   deliveryId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrderInput | Prisma.SortOrder
+  operationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  requestDigest?: Prisma.SortOrderInput | Prisma.SortOrder
+  reason?: Prisma.SortOrderInput | Prisma.SortOrder
+  settledStatus?: Prisma.SortOrderInput | Prisma.SortOrder
   expectedStatus?: Prisma.SortOrder
   expectedAttemptCount?: Prisma.SortOrder
   approverIds?: Prisma.SortOrder
@@ -289,17 +336,24 @@ export type AdminWebhookReplayCommandOrderByWithRelationInput = {
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  customer?: Prisma.OrganizationOrderByWithRelationInput
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalOrderByRelationAggregateInput
   auditEvents?: Prisma.AdminWebhookReplayAuditEventOrderByRelationAggregateInput
 }
 
 export type AdminWebhookReplayCommandWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   idempotencyKey?: string
+  operationId?: string
   AND?: Prisma.AdminWebhookReplayCommandWhereInput | Prisma.AdminWebhookReplayCommandWhereInput[]
   OR?: Prisma.AdminWebhookReplayCommandWhereInput[]
   NOT?: Prisma.AdminWebhookReplayCommandWhereInput | Prisma.AdminWebhookReplayCommandWhereInput[]
   deliveryId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
   actorId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  customerId?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  requestDigest?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  reason?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  settledStatus?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
   expectedStatus?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
   expectedAttemptCount?: Prisma.IntFilter<"AdminWebhookReplayCommand"> | number
   approverIds?: Prisma.StringNullableListFilter<"AdminWebhookReplayCommand">
@@ -309,14 +363,21 @@ export type AdminWebhookReplayCommandWhereUniqueInput = Prisma.AtLeast<{
   completedAt?: Prisma.DateTimeNullableFilter<"AdminWebhookReplayCommand"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
+  customer?: Prisma.XOR<Prisma.OrganizationNullableScalarRelationFilter, Prisma.OrganizationWhereInput> | null
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalListRelationFilter
   auditEvents?: Prisma.AdminWebhookReplayAuditEventListRelationFilter
-}, "id" | "idempotencyKey">
+}, "id" | "idempotencyKey" | "operationId">
 
 export type AdminWebhookReplayCommandOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   deliveryId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrderInput | Prisma.SortOrder
+  operationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  requestDigest?: Prisma.SortOrderInput | Prisma.SortOrder
+  reason?: Prisma.SortOrderInput | Prisma.SortOrder
+  settledStatus?: Prisma.SortOrderInput | Prisma.SortOrder
   expectedStatus?: Prisma.SortOrder
   expectedAttemptCount?: Prisma.SortOrder
   approverIds?: Prisma.SortOrder
@@ -341,6 +402,11 @@ export type AdminWebhookReplayCommandScalarWhereWithAggregatesInput = {
   idempotencyKey?: Prisma.StringWithAggregatesFilter<"AdminWebhookReplayCommand"> | string
   deliveryId?: Prisma.StringWithAggregatesFilter<"AdminWebhookReplayCommand"> | string
   actorId?: Prisma.StringWithAggregatesFilter<"AdminWebhookReplayCommand"> | string
+  customerId?: Prisma.StringNullableWithAggregatesFilter<"AdminWebhookReplayCommand"> | string | null
+  operationId?: Prisma.StringNullableWithAggregatesFilter<"AdminWebhookReplayCommand"> | string | null
+  requestDigest?: Prisma.StringNullableWithAggregatesFilter<"AdminWebhookReplayCommand"> | string | null
+  reason?: Prisma.StringNullableWithAggregatesFilter<"AdminWebhookReplayCommand"> | string | null
+  settledStatus?: Prisma.StringNullableWithAggregatesFilter<"AdminWebhookReplayCommand"> | string | null
   expectedStatus?: Prisma.StringWithAggregatesFilter<"AdminWebhookReplayCommand"> | string
   expectedAttemptCount?: Prisma.IntWithAggregatesFilter<"AdminWebhookReplayCommand"> | number
   approverIds?: Prisma.StringNullableListFilter<"AdminWebhookReplayCommand">
@@ -357,6 +423,10 @@ export type AdminWebhookReplayCommandCreateInput = {
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
@@ -366,6 +436,8 @@ export type AdminWebhookReplayCommandCreateInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  customer?: Prisma.OrganizationCreateNestedOneWithoutCustomerReplayCommandsInput
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalCreateNestedManyWithoutCommandInput
   auditEvents?: Prisma.AdminWebhookReplayAuditEventCreateNestedManyWithoutCommandInput
 }
 
@@ -374,6 +446,11 @@ export type AdminWebhookReplayCommandUncheckedCreateInput = {
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  customerId?: string | null
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
@@ -383,6 +460,7 @@ export type AdminWebhookReplayCommandUncheckedCreateInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedCreateNestedManyWithoutCommandInput
   auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedCreateNestedManyWithoutCommandInput
 }
 
@@ -391,6 +469,10 @@ export type AdminWebhookReplayCommandUpdateInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -400,6 +482,8 @@ export type AdminWebhookReplayCommandUpdateInput = {
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customer?: Prisma.OrganizationUpdateOneWithoutCustomerReplayCommandsNestedInput
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUpdateManyWithoutCommandNestedInput
   auditEvents?: Prisma.AdminWebhookReplayAuditEventUpdateManyWithoutCommandNestedInput
 }
 
@@ -408,6 +492,11 @@ export type AdminWebhookReplayCommandUncheckedUpdateInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -417,6 +506,7 @@ export type AdminWebhookReplayCommandUncheckedUpdateInput = {
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedUpdateManyWithoutCommandNestedInput
   auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedUpdateManyWithoutCommandNestedInput
 }
 
@@ -425,6 +515,11 @@ export type AdminWebhookReplayCommandCreateManyInput = {
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  customerId?: string | null
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
@@ -441,6 +536,10 @@ export type AdminWebhookReplayCommandUpdateManyMutationInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -457,6 +556,11 @@ export type AdminWebhookReplayCommandUncheckedUpdateManyInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -468,11 +572,26 @@ export type AdminWebhookReplayCommandUncheckedUpdateManyInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
+export type AdminWebhookReplayCommandListRelationFilter = {
+  every?: Prisma.AdminWebhookReplayCommandWhereInput
+  some?: Prisma.AdminWebhookReplayCommandWhereInput
+  none?: Prisma.AdminWebhookReplayCommandWhereInput
+}
+
+export type AdminWebhookReplayCommandOrderByRelationAggregateInput = {
+  _count?: Prisma.SortOrder
+}
+
 export type AdminWebhookReplayCommandCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   deliveryId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
+  operationId?: Prisma.SortOrder
+  requestDigest?: Prisma.SortOrder
+  reason?: Prisma.SortOrder
+  settledStatus?: Prisma.SortOrder
   expectedStatus?: Prisma.SortOrder
   expectedAttemptCount?: Prisma.SortOrder
   approverIds?: Prisma.SortOrder
@@ -493,6 +612,11 @@ export type AdminWebhookReplayCommandMaxOrderByAggregateInput = {
   idempotencyKey?: Prisma.SortOrder
   deliveryId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
+  operationId?: Prisma.SortOrder
+  requestDigest?: Prisma.SortOrder
+  reason?: Prisma.SortOrder
+  settledStatus?: Prisma.SortOrder
   expectedStatus?: Prisma.SortOrder
   expectedAttemptCount?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -507,6 +631,11 @@ export type AdminWebhookReplayCommandMinOrderByAggregateInput = {
   idempotencyKey?: Prisma.SortOrder
   deliveryId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
+  customerId?: Prisma.SortOrder
+  operationId?: Prisma.SortOrder
+  requestDigest?: Prisma.SortOrder
+  reason?: Prisma.SortOrder
+  settledStatus?: Prisma.SortOrder
   expectedStatus?: Prisma.SortOrder
   expectedAttemptCount?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -525,6 +654,48 @@ export type AdminWebhookReplayCommandScalarRelationFilter = {
   isNot?: Prisma.AdminWebhookReplayCommandWhereInput
 }
 
+export type AdminWebhookReplayCommandCreateNestedManyWithoutCustomerInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput> | Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput[] | Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput | Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput[]
+  createMany?: Prisma.AdminWebhookReplayCommandCreateManyCustomerInputEnvelope
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+}
+
+export type AdminWebhookReplayCommandUncheckedCreateNestedManyWithoutCustomerInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput> | Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput[] | Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput | Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput[]
+  createMany?: Prisma.AdminWebhookReplayCommandCreateManyCustomerInputEnvelope
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+}
+
+export type AdminWebhookReplayCommandUpdateManyWithoutCustomerNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput> | Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput[] | Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput | Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput[]
+  upsert?: Prisma.AdminWebhookReplayCommandUpsertWithWhereUniqueWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpsertWithWhereUniqueWithoutCustomerInput[]
+  createMany?: Prisma.AdminWebhookReplayCommandCreateManyCustomerInputEnvelope
+  set?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  disconnect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  delete?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  update?: Prisma.AdminWebhookReplayCommandUpdateWithWhereUniqueWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpdateWithWhereUniqueWithoutCustomerInput[]
+  updateMany?: Prisma.AdminWebhookReplayCommandUpdateManyWithWhereWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpdateManyWithWhereWithoutCustomerInput[]
+  deleteMany?: Prisma.AdminWebhookReplayCommandScalarWhereInput | Prisma.AdminWebhookReplayCommandScalarWhereInput[]
+}
+
+export type AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput> | Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput[] | Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput[]
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput | Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput[]
+  upsert?: Prisma.AdminWebhookReplayCommandUpsertWithWhereUniqueWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpsertWithWhereUniqueWithoutCustomerInput[]
+  createMany?: Prisma.AdminWebhookReplayCommandCreateManyCustomerInputEnvelope
+  set?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  disconnect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  delete?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput | Prisma.AdminWebhookReplayCommandWhereUniqueInput[]
+  update?: Prisma.AdminWebhookReplayCommandUpdateWithWhereUniqueWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpdateWithWhereUniqueWithoutCustomerInput[]
+  updateMany?: Prisma.AdminWebhookReplayCommandUpdateManyWithWhereWithoutCustomerInput | Prisma.AdminWebhookReplayCommandUpdateManyWithWhereWithoutCustomerInput[]
+  deleteMany?: Prisma.AdminWebhookReplayCommandScalarWhereInput | Prisma.AdminWebhookReplayCommandScalarWhereInput[]
+}
+
 export type AdminWebhookReplayCommandCreateapproverIdsInput = {
   set: string[]
 }
@@ -532,6 +703,20 @@ export type AdminWebhookReplayCommandCreateapproverIdsInput = {
 export type AdminWebhookReplayCommandUpdateapproverIdsInput = {
   set?: string[]
   push?: string | string[]
+}
+
+export type AdminWebhookReplayCommandCreateNestedOneWithoutCustomerApprovalsInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerApprovalsInput>
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerApprovalsInput
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+}
+
+export type AdminWebhookReplayCommandUpdateOneRequiredWithoutCustomerApprovalsNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerApprovalsInput>
+  connectOrCreate?: Prisma.AdminWebhookReplayCommandCreateOrConnectWithoutCustomerApprovalsInput
+  upsert?: Prisma.AdminWebhookReplayCommandUpsertWithoutCustomerApprovalsInput
+  connect?: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateToOneWithWhereWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUpdateWithoutCustomerApprovalsInput>, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerApprovalsInput>
 }
 
 export type AdminWebhookReplayCommandCreateNestedOneWithoutAuditEventsInput = {
@@ -548,11 +733,15 @@ export type AdminWebhookReplayCommandUpdateOneRequiredWithoutAuditEventsNestedIn
   update?: Prisma.XOR<Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateToOneWithWhereWithoutAuditEventsInput, Prisma.AdminWebhookReplayCommandUpdateWithoutAuditEventsInput>, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutAuditEventsInput>
 }
 
-export type AdminWebhookReplayCommandCreateWithoutAuditEventsInput = {
+export type AdminWebhookReplayCommandCreateWithoutCustomerInput = {
   id?: string
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
@@ -562,6 +751,206 @@ export type AdminWebhookReplayCommandCreateWithoutAuditEventsInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalCreateNestedManyWithoutCommandInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventCreateNestedManyWithoutCommandInput
+}
+
+export type AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput = {
+  id?: string
+  idempotencyKey: string
+  deliveryId: string
+  actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
+  expectedStatus: string
+  expectedAttemptCount: number
+  approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
+  status?: string
+  error?: string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedCreateNestedManyWithoutCommandInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedCreateNestedManyWithoutCommandInput
+}
+
+export type AdminWebhookReplayCommandCreateOrConnectWithoutCustomerInput = {
+  where: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput>
+}
+
+export type AdminWebhookReplayCommandCreateManyCustomerInputEnvelope = {
+  data: Prisma.AdminWebhookReplayCommandCreateManyCustomerInput | Prisma.AdminWebhookReplayCommandCreateManyCustomerInput[]
+  skipDuplicates?: boolean
+}
+
+export type AdminWebhookReplayCommandUpsertWithWhereUniqueWithoutCustomerInput = {
+  where: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+  update: Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerInput>
+  create: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerInput>
+}
+
+export type AdminWebhookReplayCommandUpdateWithWhereUniqueWithoutCustomerInput = {
+  where: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+  data: Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateWithoutCustomerInput, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerInput>
+}
+
+export type AdminWebhookReplayCommandUpdateManyWithWhereWithoutCustomerInput = {
+  where: Prisma.AdminWebhookReplayCommandScalarWhereInput
+  data: Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateManyMutationInput, Prisma.AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerInput>
+}
+
+export type AdminWebhookReplayCommandScalarWhereInput = {
+  AND?: Prisma.AdminWebhookReplayCommandScalarWhereInput | Prisma.AdminWebhookReplayCommandScalarWhereInput[]
+  OR?: Prisma.AdminWebhookReplayCommandScalarWhereInput[]
+  NOT?: Prisma.AdminWebhookReplayCommandScalarWhereInput | Prisma.AdminWebhookReplayCommandScalarWhereInput[]
+  id?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  idempotencyKey?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  deliveryId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  actorId?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  customerId?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  operationId?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  requestDigest?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  reason?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  settledStatus?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  expectedStatus?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  expectedAttemptCount?: Prisma.IntFilter<"AdminWebhookReplayCommand"> | number
+  approverIds?: Prisma.StringNullableListFilter<"AdminWebhookReplayCommand">
+  status?: Prisma.StringFilter<"AdminWebhookReplayCommand"> | string
+  error?: Prisma.StringNullableFilter<"AdminWebhookReplayCommand"> | string | null
+  result?: Prisma.JsonNullableFilter<"AdminWebhookReplayCommand">
+  completedAt?: Prisma.DateTimeNullableFilter<"AdminWebhookReplayCommand"> | Date | string | null
+  createdAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"AdminWebhookReplayCommand"> | Date | string
+}
+
+export type AdminWebhookReplayCommandCreateWithoutCustomerApprovalsInput = {
+  id?: string
+  idempotencyKey: string
+  deliveryId: string
+  actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
+  expectedStatus: string
+  expectedAttemptCount: number
+  approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
+  status?: string
+  error?: string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  customer?: Prisma.OrganizationCreateNestedOneWithoutCustomerReplayCommandsInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventCreateNestedManyWithoutCommandInput
+}
+
+export type AdminWebhookReplayCommandUncheckedCreateWithoutCustomerApprovalsInput = {
+  id?: string
+  idempotencyKey: string
+  deliveryId: string
+  actorId: string
+  customerId?: string | null
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
+  expectedStatus: string
+  expectedAttemptCount: number
+  approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
+  status?: string
+  error?: string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedCreateNestedManyWithoutCommandInput
+}
+
+export type AdminWebhookReplayCommandCreateOrConnectWithoutCustomerApprovalsInput = {
+  where: Prisma.AdminWebhookReplayCommandWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerApprovalsInput>
+}
+
+export type AdminWebhookReplayCommandUpsertWithoutCustomerApprovalsInput = {
+  update: Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerApprovalsInput>
+  create: Prisma.XOR<Prisma.AdminWebhookReplayCommandCreateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedCreateWithoutCustomerApprovalsInput>
+  where?: Prisma.AdminWebhookReplayCommandWhereInput
+}
+
+export type AdminWebhookReplayCommandUpdateToOneWithWhereWithoutCustomerApprovalsInput = {
+  where?: Prisma.AdminWebhookReplayCommandWhereInput
+  data: Prisma.XOR<Prisma.AdminWebhookReplayCommandUpdateWithoutCustomerApprovalsInput, Prisma.AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerApprovalsInput>
+}
+
+export type AdminWebhookReplayCommandUpdateWithoutCustomerApprovalsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
+  actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customer?: Prisma.OrganizationUpdateOneWithoutCustomerReplayCommandsNestedInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUpdateManyWithoutCommandNestedInput
+}
+
+export type AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerApprovalsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
+  actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedUpdateManyWithoutCommandNestedInput
+}
+
+export type AdminWebhookReplayCommandCreateWithoutAuditEventsInput = {
+  id?: string
+  idempotencyKey: string
+  deliveryId: string
+  actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
+  expectedStatus: string
+  expectedAttemptCount: number
+  approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
+  status?: string
+  error?: string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  customer?: Prisma.OrganizationCreateNestedOneWithoutCustomerReplayCommandsInput
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalCreateNestedManyWithoutCommandInput
 }
 
 export type AdminWebhookReplayCommandUncheckedCreateWithoutAuditEventsInput = {
@@ -569,6 +958,11 @@ export type AdminWebhookReplayCommandUncheckedCreateWithoutAuditEventsInput = {
   idempotencyKey: string
   deliveryId: string
   actorId: string
+  customerId?: string | null
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
   expectedStatus: string
   expectedAttemptCount: number
   approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
@@ -578,6 +972,7 @@ export type AdminWebhookReplayCommandUncheckedCreateWithoutAuditEventsInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedCreateNestedManyWithoutCommandInput
 }
 
 export type AdminWebhookReplayCommandCreateOrConnectWithoutAuditEventsInput = {
@@ -601,6 +996,10 @@ export type AdminWebhookReplayCommandUpdateWithoutAuditEventsInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -610,6 +1009,8 @@ export type AdminWebhookReplayCommandUpdateWithoutAuditEventsInput = {
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customer?: Prisma.OrganizationUpdateOneWithoutCustomerReplayCommandsNestedInput
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUpdateManyWithoutCommandNestedInput
 }
 
 export type AdminWebhookReplayCommandUncheckedUpdateWithoutAuditEventsInput = {
@@ -617,6 +1018,96 @@ export type AdminWebhookReplayCommandUncheckedUpdateWithoutAuditEventsInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
   actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  customerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedUpdateManyWithoutCommandNestedInput
+}
+
+export type AdminWebhookReplayCommandCreateManyCustomerInput = {
+  id?: string
+  idempotencyKey: string
+  deliveryId: string
+  actorId: string
+  operationId?: string | null
+  requestDigest?: string | null
+  reason?: string | null
+  settledStatus?: string | null
+  expectedStatus: string
+  expectedAttemptCount: number
+  approverIds?: Prisma.AdminWebhookReplayCommandCreateapproverIdsInput | string[]
+  status?: string
+  error?: string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type AdminWebhookReplayCommandUpdateWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
+  actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUpdateManyWithoutCommandNestedInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUpdateManyWithoutCommandNestedInput
+}
+
+export type AdminWebhookReplayCommandUncheckedUpdateWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
+  actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  result?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  customerApprovals?: Prisma.AdminCustomerReplayApprovalUncheckedUpdateManyWithoutCommandNestedInput
+  auditEvents?: Prisma.AdminWebhookReplayAuditEventUncheckedUpdateManyWithoutCommandNestedInput
+}
+
+export type AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  deliveryId?: Prisma.StringFieldUpdateOperationsInput | string
+  actorId?: Prisma.StringFieldUpdateOperationsInput | string
+  operationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  settledStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   expectedStatus?: Prisma.StringFieldUpdateOperationsInput | string
   expectedAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
   approverIds?: Prisma.AdminWebhookReplayCommandUpdateapproverIdsInput | string[]
@@ -634,10 +1125,12 @@ export type AdminWebhookReplayCommandUncheckedUpdateWithoutAuditEventsInput = {
  */
 
 export type AdminWebhookReplayCommandCountOutputType = {
+  customerApprovals: number
   auditEvents: number
 }
 
 export type AdminWebhookReplayCommandCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  customerApprovals?: boolean | AdminWebhookReplayCommandCountOutputTypeCountCustomerApprovalsArgs
   auditEvents?: boolean | AdminWebhookReplayCommandCountOutputTypeCountAuditEventsArgs
 }
 
@@ -654,6 +1147,13 @@ export type AdminWebhookReplayCommandCountOutputTypeDefaultArgs<ExtArgs extends 
 /**
  * AdminWebhookReplayCommandCountOutputType without action
  */
+export type AdminWebhookReplayCommandCountOutputTypeCountCustomerApprovalsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AdminCustomerReplayApprovalWhereInput
+}
+
+/**
+ * AdminWebhookReplayCommandCountOutputType without action
+ */
 export type AdminWebhookReplayCommandCountOutputTypeCountAuditEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.AdminWebhookReplayAuditEventWhereInput
 }
@@ -664,6 +1164,11 @@ export type AdminWebhookReplayCommandSelect<ExtArgs extends runtime.Types.Extens
   idempotencyKey?: boolean
   deliveryId?: boolean
   actorId?: boolean
+  customerId?: boolean
+  operationId?: boolean
+  requestDigest?: boolean
+  reason?: boolean
+  settledStatus?: boolean
   expectedStatus?: boolean
   expectedAttemptCount?: boolean
   approverIds?: boolean
@@ -673,6 +1178,8 @@ export type AdminWebhookReplayCommandSelect<ExtArgs extends runtime.Types.Extens
   completedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
+  customerApprovals?: boolean | Prisma.AdminWebhookReplayCommand$customerApprovalsArgs<ExtArgs>
   auditEvents?: boolean | Prisma.AdminWebhookReplayCommand$auditEventsArgs<ExtArgs>
   _count?: boolean | Prisma.AdminWebhookReplayCommandCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["adminWebhookReplayCommand"]>
@@ -682,6 +1189,11 @@ export type AdminWebhookReplayCommandSelectCreateManyAndReturn<ExtArgs extends r
   idempotencyKey?: boolean
   deliveryId?: boolean
   actorId?: boolean
+  customerId?: boolean
+  operationId?: boolean
+  requestDigest?: boolean
+  reason?: boolean
+  settledStatus?: boolean
   expectedStatus?: boolean
   expectedAttemptCount?: boolean
   approverIds?: boolean
@@ -691,6 +1203,7 @@ export type AdminWebhookReplayCommandSelectCreateManyAndReturn<ExtArgs extends r
   completedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
 }, ExtArgs["result"]["adminWebhookReplayCommand"]>
 
 export type AdminWebhookReplayCommandSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -698,6 +1211,11 @@ export type AdminWebhookReplayCommandSelectUpdateManyAndReturn<ExtArgs extends r
   idempotencyKey?: boolean
   deliveryId?: boolean
   actorId?: boolean
+  customerId?: boolean
+  operationId?: boolean
+  requestDigest?: boolean
+  reason?: boolean
+  settledStatus?: boolean
   expectedStatus?: boolean
   expectedAttemptCount?: boolean
   approverIds?: boolean
@@ -707,6 +1225,7 @@ export type AdminWebhookReplayCommandSelectUpdateManyAndReturn<ExtArgs extends r
   completedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
 }, ExtArgs["result"]["adminWebhookReplayCommand"]>
 
 export type AdminWebhookReplayCommandSelectScalar = {
@@ -714,6 +1233,11 @@ export type AdminWebhookReplayCommandSelectScalar = {
   idempotencyKey?: boolean
   deliveryId?: boolean
   actorId?: boolean
+  customerId?: boolean
+  operationId?: boolean
+  requestDigest?: boolean
+  reason?: boolean
+  settledStatus?: boolean
   expectedStatus?: boolean
   expectedAttemptCount?: boolean
   approverIds?: boolean
@@ -725,17 +1249,25 @@ export type AdminWebhookReplayCommandSelectScalar = {
   updatedAt?: boolean
 }
 
-export type AdminWebhookReplayCommandOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "idempotencyKey" | "deliveryId" | "actorId" | "expectedStatus" | "expectedAttemptCount" | "approverIds" | "status" | "error" | "result" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["adminWebhookReplayCommand"]>
+export type AdminWebhookReplayCommandOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "idempotencyKey" | "deliveryId" | "actorId" | "customerId" | "operationId" | "requestDigest" | "reason" | "settledStatus" | "expectedStatus" | "expectedAttemptCount" | "approverIds" | "status" | "error" | "result" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["adminWebhookReplayCommand"]>
 export type AdminWebhookReplayCommandInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
+  customerApprovals?: boolean | Prisma.AdminWebhookReplayCommand$customerApprovalsArgs<ExtArgs>
   auditEvents?: boolean | Prisma.AdminWebhookReplayCommand$auditEventsArgs<ExtArgs>
   _count?: boolean | Prisma.AdminWebhookReplayCommandCountOutputTypeDefaultArgs<ExtArgs>
 }
-export type AdminWebhookReplayCommandIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
-export type AdminWebhookReplayCommandIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type AdminWebhookReplayCommandIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
+}
+export type AdminWebhookReplayCommandIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  customer?: boolean | Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>
+}
 
 export type $AdminWebhookReplayCommandPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "AdminWebhookReplayCommand"
   objects: {
+    customer: Prisma.$OrganizationPayload<ExtArgs> | null
+    customerApprovals: Prisma.$AdminCustomerReplayApprovalPayload<ExtArgs>[]
     auditEvents: Prisma.$AdminWebhookReplayAuditEventPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -743,6 +1275,11 @@ export type $AdminWebhookReplayCommandPayload<ExtArgs extends runtime.Types.Exte
     idempotencyKey: string
     deliveryId: string
     actorId: string
+    customerId: string | null
+    operationId: string | null
+    requestDigest: string | null
+    reason: string | null
+    settledStatus: string | null
     expectedStatus: string
     expectedAttemptCount: number
     approverIds: string[]
@@ -1146,6 +1683,8 @@ readonly fields: AdminWebhookReplayCommandFieldRefs;
  */
 export interface Prisma__AdminWebhookReplayCommandClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  customer<T extends Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminWebhookReplayCommand$customerArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  customerApprovals<T extends Prisma.AdminWebhookReplayCommand$customerApprovalsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminWebhookReplayCommand$customerApprovalsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminCustomerReplayApprovalPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   auditEvents<T extends Prisma.AdminWebhookReplayCommand$auditEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminWebhookReplayCommand$auditEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminWebhookReplayAuditEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1180,6 +1719,11 @@ export interface AdminWebhookReplayCommandFieldRefs {
   readonly idempotencyKey: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
   readonly deliveryId: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
   readonly actorId: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
+  readonly customerId: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
+  readonly operationId: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
+  readonly requestDigest: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
+  readonly reason: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
+  readonly settledStatus: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
   readonly expectedStatus: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String'>
   readonly expectedAttemptCount: Prisma.FieldRef<"AdminWebhookReplayCommand", 'Int'>
   readonly approverIds: Prisma.FieldRef<"AdminWebhookReplayCommand", 'String[]'>
@@ -1438,6 +1982,10 @@ export type AdminWebhookReplayCommandCreateManyAndReturnArgs<ExtArgs extends run
    */
   data: Prisma.AdminWebhookReplayCommandCreateManyInput | Prisma.AdminWebhookReplayCommandCreateManyInput[]
   skipDuplicates?: boolean
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminWebhookReplayCommandIncludeCreateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1508,6 +2056,10 @@ export type AdminWebhookReplayCommandUpdateManyAndReturnArgs<ExtArgs extends run
    * Limit how many AdminWebhookReplayCommands to update.
    */
   limit?: number
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminWebhookReplayCommandIncludeUpdateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1574,6 +2126,49 @@ export type AdminWebhookReplayCommandDeleteManyArgs<ExtArgs extends runtime.Type
    * Limit how many AdminWebhookReplayCommands to delete.
    */
   limit?: number
+}
+
+/**
+ * AdminWebhookReplayCommand.customer
+ */
+export type AdminWebhookReplayCommand$customerArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Organization
+   */
+  select?: Prisma.OrganizationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Organization
+   */
+  omit?: Prisma.OrganizationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationInclude<ExtArgs> | null
+  where?: Prisma.OrganizationWhereInput
+}
+
+/**
+ * AdminWebhookReplayCommand.customerApprovals
+ */
+export type AdminWebhookReplayCommand$customerApprovalsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminCustomerReplayApproval
+   */
+  select?: Prisma.AdminCustomerReplayApprovalSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AdminCustomerReplayApproval
+   */
+  omit?: Prisma.AdminCustomerReplayApprovalOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminCustomerReplayApprovalInclude<ExtArgs> | null
+  where?: Prisma.AdminCustomerReplayApprovalWhereInput
+  orderBy?: Prisma.AdminCustomerReplayApprovalOrderByWithRelationInput | Prisma.AdminCustomerReplayApprovalOrderByWithRelationInput[]
+  cursor?: Prisma.AdminCustomerReplayApprovalWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AdminCustomerReplayApprovalScalarFieldEnum | Prisma.AdminCustomerReplayApprovalScalarFieldEnum[]
 }
 
 /**

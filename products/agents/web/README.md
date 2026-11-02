@@ -22,6 +22,19 @@ Hugeicons free icons; shared controls use Phosphor icons. Product state and them
 preference handling remain local. See the
 [shared package guide](../../../packages/ui/README.md).
 
+Agent chat, Activity and task detail use the shared conversation, execution and composer
+components from `@kasitek-labs/ui/agent`. `platform/execution-view.tsx` maps authorized
+product task records to those components and observes selected subagents through the normal
+task-detail API. A running specialist opens its own read-only conversation in a responsive
+modal. Closing or navigating within that modal does not send execution commands.
+Tool details contain recorded safe metadata; raw arguments and results are not exposed.
+Public model updates remain separate from native operation status and final output.
+Current-policy and evidence withdrawal clear protected output, including in an open modal.
+
+Customer website and staff Inbox messages share the plain-text message primitive only.
+Their attachment, delivery, ownership and takeover controls retain their existing contracts;
+internal tools, specialists and execution diagnostics are not added to customer timelines.
+
 The desktop workspace sidebar can be collapsed to icon navigation. Its state is
 stored in the browser; mobile uses the navigation drawer.
 
@@ -60,6 +73,7 @@ pnpm --filter @kasitek/agent-platform typecheck
 pnpm --filter @kasitek/agent-platform lint
 pnpm --filter @kasitek/agent-platform build
 pnpm --filter @kasitek/agent-platform test:browser
+pnpm --filter @kasitek/agent-platform exec playwright test --config playwright.activity.config.ts
 ```
 
 The default browser test uses mocked HTTP transport and labels that boundary.

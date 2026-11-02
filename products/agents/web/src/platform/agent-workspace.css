@@ -52,19 +52,7 @@
 .agent-channel-state[data-state="connected"] { color: var(--success); }
 .agent-workspace .chat-messages { padding: 30px max(24px, calc((100% - 820px) / 2)); }
 .agent-workspace .chat-turn { padding-bottom: 26px; }
-.agent-workspace .chat-user-message, .agent-workspace .chat-assistant-message { gap: 12px; padding: 0; background: none; }
-.agent-workspace .chat-user-message > div, .agent-workspace .chat-assistant-message > div { min-width: 0; }
-.agent-workspace .chat-user-message > div > p:last-child, .agent-workspace .chat-assistant-message .message-content { padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); line-height: 1.6; }
-.agent-workspace .chat-assistant-message .message-content p:last-child { margin-bottom: 0; }
-.agent-workspace .chat-composer { max-width: 900px; width: calc(100% - 56px); margin: 8px auto 24px; border-radius: 8px; box-shadow: none; }
-.agent-workspace .chat-composer.has-accessory { display: flex; align-items: flex-end; gap: 8px; padding: 8px; }
-.agent-workspace .chat-composer.has-accessory > label { flex: 1; min-width: 0; }
-.agent-workspace .chat-composer textarea { min-height: 48px; }
-.agent-workspace .chat-composer.has-accessory textarea { height: 48px; padding: 12px 8px; }
-.agent-workspace .chat-composer-actions { align-items: center; }
 .agent-workspace .chat-model-picker { max-width: 220px; border: 1px solid var(--border); border-radius: 6px; }
-.agent-workspace .chat-composer .chat-send { width: 40px; height: 40px; border-radius: 6px; }
-.agent-workspace .chat-send span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (max-width: 1100px) { .agent-general-grid { grid-template-columns: 1fr; grid-template-areas: "readiness" "basic" "channels" "knowledge" "model" "extras" "save" "history"; } }
 @media (max-width: 767px) {
   .agent-workspace .agent-editor-header { padding: 16px; }
@@ -72,10 +60,6 @@
   .agent-workspace .agent-tabs { padding: 0 16px; gap: 22px; }
   .agent-workspace .agent-view-configure .agent-editor-body { padding: 18px 16px 36px; }
   .agent-workspace .chat-messages { padding: 20px 16px; }
-  .agent-workspace .chat-composer { width: calc(100% - 24px); margin-bottom: max(12px, env(safe-area-inset-bottom)); }
-  .agent-workspace .chat-composer.has-accessory { flex-wrap: wrap; }
-  .agent-workspace .chat-composer.has-accessory > label { flex-basis: 100%; }
-  .agent-workspace .chat-composer-actions { width: 100%; }
   .agent-workspace .chat-model-picker { margin-right: auto; max-width: calc(100% - 56px); }
   .agent-channel-row { grid-template-columns: minmax(70px, 1fr) minmax(95px, 1fr) auto; }
 }

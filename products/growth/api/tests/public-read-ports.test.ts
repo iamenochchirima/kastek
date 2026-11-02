@@ -17,11 +17,12 @@ import type { RequestContext } from '../src/identity/request-context.js';
 installPgTimestampParsers();
 const url = process.env.CORE_PUBLIC_READ_TEST_DATABASE_URL;
 test(
-  'real public ports preserve organization, scopes, pagination, filtering and redaction; workspace summary uses all native domains',
+  'real public aliases preserve canonical organization, scopes, pagination and filtering; workspace summary uses all native domains',
   { skip: !url },
   async () => {
     const fixture = await isolatedDatabase(url!, 'public_reads', [
       'DeveloperApiKey',
+      'OrganizationMember',
       'PublicApiRequest',
       'UsageEvent',
       'PublicApiWebhookSubscription',
@@ -49,6 +50,7 @@ test(
       };
     let app: Awaited<ReturnType<typeof buildApp>> | undefined;
     try {
+      await pool.query(`INSERT INTO "OrganizationMember"(id,"orgId","userId",role,"updatedAt")VALUES('membership','org','user','OWNER',NOW())`);
       await pool.query(
         `INSERT INTO "WhatsappConnection"(id,"userId","orgId","phoneNumberId","accessTokenEncrypted","wabaId","currentQualityRating","authMethod","dailyLimitEstimate","updatedAt") VALUES('connection','user','org','phone','unused','waba','GREEN','manual',10,NOW())`,
       );
@@ -102,22 +104,26 @@ test(
         assert.equal(result.statusCode, 200, result.body);
         return result.json();
       };
+      await pool.query(`UPDATE "WhatsappContactListMembership" SET location='Harare' WHERE id='member_contact'`);
+      const filtered=await get('/v1/contacts?q=Allowed&optIn=all&excluded=false&location=Harare&listLabel=approved&tag=tag');
+      assert.deepEqual(filtered.contacts.map((contact:{id:string})=>contact.id),['member_contact']);
+      assert.equal((await app.inject({url:'/v1/contacts?excluded=unknown',headers:{authorization}})).statusCode,422);
       const contacts = await get('/v1/contacts?optIn=true&listLabel=approved');
       assert.equal(contacts.contacts.length, 1);
       assert.equal(contacts.contacts[0].id, 'member_contact');
-      assert.equal('phone' in contacts.contacts[0], false);
-      assert.equal('metadata' in contacts.contacts[0], false);
+      assert.equal(contacts.contacts[0].phone, '+123');
+      assert.deepEqual(contacts.contacts[0].metadata, {private:true});
       const conversations = await get(
         '/v1/inbox/conversations?cursor=1&limit=1',
       );
-      assert.equal(conversations.pagination.total, 2);
+      assert.equal(conversations.pagination.cursor, 1);
       assert.equal(conversations.conversations[0].id, 'second');
-      assert.equal('lastMessage' in conversations.conversations[0], false);
-      assert.equal('phone' in conversations.conversations[0], false);
+      assert.equal(conversations.pagination.nextCursor, null);
+      assert.equal(conversations.conversations[0].phone, '+124');
       const messages = await get('/v1/inbox/conversations/first/messages');
       assert.equal(messages.messages[0].id, 'message');
-      assert.equal('content' in messages.messages[0], false);
-      assert.equal('attachments' in messages.messages[0], false);
+      assert.equal(messages.messages[0].content, 'Private message');
+      assert.ok(Array.isArray(messages.messages[0].attachments));
       assert.equal(
         (
           await app.inject({
@@ -134,7 +140,7 @@ test(
       );
       const templates = await get('/v1/templates');
       assert.equal(templates.templates.length, 1);
-      assert.equal('body' in templates.templates[0], false);
+      assert.equal(templates.templates[0].body, 'Private template');
       await pool.query(
         `UPDATE "DeveloperApiKey" SET scopes=ARRAY['api:write'] WHERE id=$1`,
         [key.key.id],

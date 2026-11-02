@@ -107,11 +107,16 @@
     "./utils": {
       "types": "./dist/utils.d.ts",
       "default": "./dist/utils.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test test/*.test.mjs"
   },
   "peerDependencies": {
     "react": "^19.2.3",
@@ -134,7 +139,9 @@
     "clsx": "2.1.1",
     "tailwind-merge": "3.5.0",
     "sonner": "2.0.7",
-    "react-icons": "5.6.0"
+    "react-icons": "5.6.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "19.2.14",

@@ -1,3 +1,4 @@
+import { AgentMessageContent } from "@kasitek-labs/ui/agent";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Robot01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import type { CustomerMessage } from "./inbox";
@@ -19,7 +20,7 @@ export function InboxMessages({ messages, customerName, agentName, members }: {
     return <article key={item.id} className={`inbox-message inbox-message--${item.authorKind}`}>
       <span className="inbox-message-avatar" aria-hidden="true">{initial || <HugeiconsIcon icon={item.authorKind === "assistant" ? Robot01Icon : UserIcon} size={18} />}</span>
       <div className="inbox-message-content"><div className="inbox-message-meta"><span>{name}</span><time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()}>{new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>
-        <div className="inbox-message-bubble"><p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{item.body}</p>{item.channelFacts?.attachments.length ? <ul className="mt-2 space-y-1 text-xs" aria-label="Message attachments">{item.channelFacts.attachments.map(attachment => <li key={attachment.index} className="break-words">{attachment.fileName ?? `${attachment.kind} attachment`}</li>)}</ul> : null}</div>
+        <div className="inbox-message-bubble"><AgentMessageContent text={item.body} format="plain" />{item.channelFacts?.attachments.length ? <ul className="mt-2 space-y-1 text-xs" aria-label="Message attachments">{item.channelFacts.attachments.map(attachment => <li key={attachment.index} className="break-words">{attachment.fileName ?? `${attachment.kind} attachment`}</li>)}</ul> : null}</div>
         {item.deliveries?.length ? <div aria-label="Delivery status" className="inbox-message-delivery">{item.deliveries.map(delivery => <span key={delivery.id}>{item.deliveries!.length > 1 ? `Part ${delivery.segment + 1}: ` : ""}{deliveryLabels[delivery.state]}{delivery.state === "unknown" ? " · Check provider before retrying" : ""}</span>)}</div> : null}
       </div>
     </article>;

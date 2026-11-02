@@ -6,6 +6,9 @@ import { ApiError } from "../error.js";
 import { verifyGrowthAgentAction } from "./security.js";
 import { authorizeGrowthAgentScope, assertGrowthAgentContext, readGrowthAgentContext } from "./scope.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
+import { getOperationReview } from "../operations/reviews.js";
+import { internalOperationContext, internalOperationReviewView } from "../operations/internal.js";
+import { authorizeGrowthOperation } from "../operations/policy.js";
 export function registerGrowthAgentActionRoutes(app: FastifyInstance, core: CoreContext, options: { drafts?: GrowthDraftPorts } = {}): void {
   registerGrowthCapabilityRoutes(app,core,options);
   const reviews = new GrowthAgentReviewStore(core, options.drafts);
@@ -18,8 +21,15 @@ export function registerGrowthAgentActionRoutes(app: FastifyInstance, core: Core
     await verifyGrowthAgentAction(core.config, request.headers.authorization, request.body);
     const scope = { tenantId: action.tenantId, actor: action.actor };
     await authorizeGrowthAgentScope(core, scope, action.featureId);
-    await assertGrowthAgentContext(core, scope, action.context, action.contextRevision);
+    if (action.operation !== "operation.review.read") await assertGrowthAgentContext(core, scope, action.context, action.contextRevision);
     switch (action.operation) {
+      case "operation.review.read": {
+        const context = internalOperationContext({ actor: action.actor, authority: { tenantId: action.tenantId } as import("@kasitek-labs/contracts").ProductCapabilityAuthority, operationId: action.operationId, requestId: action.requestId });
+        const row = await getOperationReview(core, context, action.input.reviewId);
+        if (row.taskId !== action.taskId || row.conversationId !== action.conversationId) throw new ApiError(403, "operation_review_denied", "The review belongs to another task");
+        await authorizeGrowthOperation(core, context, row.operation, { discovery: true });
+        return { review: internalOperationReviewView(core, row), result: null };
+      }
       case "authorization.check":
         if (action.input.context !== undefined && growthAgentCanonicalJson(action.input.context) !== growthAgentCanonicalJson(action.context)) throw new ApiError(403, "agent_context_denied", "The action does not cover this record");
         return { authorized: true };

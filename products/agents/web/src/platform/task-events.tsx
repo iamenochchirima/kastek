@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { api, ApiError, message, type TaskEvent } from "./api";
 import { ErrorMessage } from "./shell";
 
-export function TaskEvents({ endpoint, initial, initialCursor, onUnavailable }: { endpoint: string; initial: TaskEvent[]; initialCursor: string | null; onUnavailable: (cause: unknown) => void }) {
+export function TaskEvents({ endpoint, initial, initialCursor, onUnavailable, token }: { endpoint: string; token?: string; initial: TaskEvent[]; initialCursor: string | null; onUnavailable: (cause: unknown) => void }) {
   const [loaded, setLoaded] = useState<{ events: TaskEvent[]; nextCursor: string | null } | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
@@ -13,7 +13,7 @@ export function TaskEvents({ endpoint, initial, initialCursor, onUnavailable }: 
     if (!cursor || busy) return;
     setBusy(true); setError("");
     try {
-      const result = await api<{ events: TaskEvent[]; nextCursor: string | null }>(`${endpoint}/events?limit=30&cursor=${encodeURIComponent(cursor)}`);
+      const result = await api<{ events: TaskEvent[]; nextCursor: string | null }>(`${endpoint}/events?limit=30&cursor=${encodeURIComponent(cursor)}`, undefined, "GET", token);
       if (live.current) setLoaded(current => ({ events: [...(current?.events ?? []), ...result.events], nextCursor: result.nextCursor }));
     } catch (cause) {
       if (live.current) { setError(message(cause)); if (cause instanceof ApiError && [401,403,404].includes(cause.status)) onUnavailable(cause); }

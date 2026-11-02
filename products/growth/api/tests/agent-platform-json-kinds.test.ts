@@ -173,7 +173,7 @@ test("source-derived DTO map enforces manual i64/i32 and nested media fields whi
     },
     [
       (app) => {
-        app.post("/api/internal/agents/v1/credits/reservations", async () => ({
+        app.post("/api/admin/billing/orgs/:orgId/credits/grants", async () => ({
           ok: true,
         }));
         app.post("/api/social/posts", async () => ({ ok: true }));
@@ -191,9 +191,9 @@ test("source-derived DTO map enforces manual i64/i32 and nested media fields whi
         (
           await app.inject({
             method: "POST",
-            url: "/api/internal/agents/v1/credits/reservations",
+            url: "/api/admin/billing/orgs/fixture/credits/grants",
             headers: { "content-type": "application/json" },
-            payload: `{"estimatedCredits":${token}}`,
+            payload: `{"amount":${token}}`,
           })
         ).statusCode,
         400,

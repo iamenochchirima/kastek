@@ -135,6 +135,9 @@ export async function buildApp(
     delegator: (request, callback) => {
       const value = request.headers.origin;
       let allowed = value === context.config.frontendUrl;
+      const machinePath = request.url.split("?")[0] ?? "";
+      const machineOrigin = machinePath === "/mcp" || machinePath.startsWith("/oauth/") || machinePath.startsWith("/.well-known/") || machinePath.startsWith("/v1/");
+      if (value && machineOrigin && (context.config.env.GROWTH_MCP_ALLOWED_ORIGINS ?? "").split(",").includes(value)) allowed = true;
       if (value) {
         try {
           const parsed = new URL(value);
@@ -171,11 +174,16 @@ export async function buildApp(
           "Content-Type",
           "Authorization",
           "Idempotency-Key",
+          "MCP-Protocol-Version",
+          "Mcp-Session-Id",
+          "Mcp-Method",
+          "Mcp-Name",
           "X-Audio-Idempotency-Key",
           "X-Audio-File-Name",
           "X-Audio-Caption",
           "X-Audio-Display-Name",
         ],
+        exposedHeaders: ["WWW-Authenticate", "MCP-Protocol-Version", "Mcp-Session-Id", "X-Request-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
       });
     },
   });

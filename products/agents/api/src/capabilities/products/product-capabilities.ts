@@ -9,7 +9,7 @@ const digest=z.string().regex(/^[a-f0-9]{64}$/),id=z.string().min(1).max(128);
 const descriptorSchema=z.strictObject({operation:id,revision:id,description:z.string().min(1).max(4096),inputSchema:z.record(z.string(),z.unknown()),
   outputSchema:z.record(z.string(),z.unknown()).nullable(),handlerRef:id,policy:capabilityPolicySchema,requiredAuthority:z.array(id).min(1).max(16),
   evidence:z.enum(["none","versioned_sources"]),limits:z.strictObject({timeoutMs:z.number().int().min(1).max(240000),maxPhysicalAttempts:z.number().int().min(1).max(3),maxResponseBytes:z.number().int().min(1).max(2097152),maxModelResultBytes:z.number().int().min(1).max(8192)})});
-const manifestSchema=z.strictObject({schemaVersion:z.literal(1),product:id,revision:id,adapter:adapterReferenceSchema,operations:z.array(descriptorSchema).min(1).max(24),digest});
+const manifestSchema=z.strictObject({schemaVersion:z.literal(1),product:id,revision:id,adapter:adapterReferenceSchema,operations:z.array(descriptorSchema).min(1).max(64),digest});
 export interface InstalledProductAdapter { handlers:readonly string[]; invoke(command:ProductCapabilityInvocation,signal?:AbortSignal):Promise<ProductCapabilityResult> }
 export const productAdapterRegistry=new ExecutableAdapterRegistry<InstalledProductAdapter>();
 const manifests=new Map<string,ProductCapabilityManifest>();
@@ -45,7 +45,7 @@ export function productDescriptor(binding:CapabilityBinding):ProductCapabilityDe
   return descriptor;
 }
 export function assertProductBindings(bindings:readonly CapabilityBinding[]):void {
-  if(bindings.length>24||new Set(bindings.map(binding=>binding.alias)).size!==bindings.length)throw invalid();
+  if(bindings.length>64||new Set(bindings.map(binding=>binding.alias)).size!==bindings.length)throw invalid();
   for(const binding of bindings)productDescriptor(binding);
 }
 export function createProductBindings(manifestInput:ProductCapabilityManifest,organizationId:string,scope:{originProduct:string;originTenantId:string;tenantId:string;mappingRef:string;policyRevision:string},operations:readonly string[]):CapabilityBinding[] {

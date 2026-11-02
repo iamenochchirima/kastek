@@ -1,15 +1,39 @@
 # Agent access to Growth REST
 
-An external agent or script can call the supported Growth REST API with a workspace Developer
-API key. Send `Authorization: Bearer <developer-api-key>`. Current workspace permissions, key
-scopes, expiry, revocation, and operation-specific checks still apply.
+Growth REST, external MCP and internal agents share one operation catalogue and exact-review
+execution path. Use `GET /v1/operations` to discover the operations currently available to your
+credential and `POST /v1/operations/{operation}` to invoke one. The body is the operation's
+business arguments, with optional transport controls `_requestId`, `_reviewId` and `_continuation`.
 
-See [Public API v1](./public-v1.md) for the current REST contract and
-[Agent connection guide](./agent-connection-guide.md) for the integration boundary.
+Authenticate with a delegated [Growth OAuth token](./mcp-integration.md), a scoped workspace
+Developer API key, or the normal Growth user session. OAuth access tokens must have been issued
+for the configured Growth MCP resource; tokens for other products or resources are rejected.
+Developer API keys are created in **Developers → API Keys** with explicitly selected scopes; rotation preserves those scopes. Send bearer credentials in the
+`Authorization` header. Browser session writes additionally require Growth's exact Origin.
 
-The former installation-token exchange, private Agent Platform routes, and installation-based
-agent-management instructions have been removed with the old backend. They are not a supported
-setup path for the new Agents product. Product OAuth MCP is unavailable.
+The current workspace membership, entitlements, credential status and operation scope are
+checked at execution. `api:read` keys permit reads; `api:write` permits reviewed drafts and does
+not grant publication. Use the explicit `growth:*` scopes for other operation classes.
 
-The standalone Agents FAQ journey and local setup are documented in `products/agents/README.md`
-in the repository. Embedded Growth agents use Growth authorization and the shared product execution API.
+Every non-read operation requires a stable request identity and an exact user review unless
+its discovery schema explicitly identifies a staging control. On `approval_required`, open
+`review.reviewUrl`. After approval, repeat the unchanged request with its `_reviewId`.
+Do not retry an uncertain outcome with a fresh identity. Read receipts through
+`GET /v1/operation-reviews/{id}`. Large results return bounded JSON chunks; repeat unchanged
+arguments with the returned continuation value in `_continuation`.
+
+[Public API v1](./public-v1.md) documents the typed aliases and legacy headers. All operation
+availability depends on the configured deployment flags; this documentation does not claim that
+a hosted environment has been enabled. The former installation-token exchange and retired
+Agents gateway are unsupported.
+
+## Update published Facebook text
+
+Use `content.posts.update_published` with `postId`, `content` and `expectedUpdatedAt` from
+the current post. This requires `growth:publish` and exact review. It updates the text or
+caption of the existing confirmed Facebook post, retaining its external identity. Add
+`removePhoto: true` to detach its single image after exact review. Omit the flag to retain
+media. Replacement and additional media are unsupported.
+Only Facebook-only posts are supported. A stale revision or changed account requires a new
+review. Reuse the same request identity to reconcile an uncertain result; never publish a
+replacement as an edit.

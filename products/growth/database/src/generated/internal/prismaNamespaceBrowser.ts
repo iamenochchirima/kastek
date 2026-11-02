@@ -100,6 +100,7 @@ export const ModelName = {
   AdminSupportAccessGrant: 'AdminSupportAccessGrant',
   AdminSupportAccessAuditEvent: 'AdminSupportAccessAuditEvent',
   AdminWebhookReplayCommand: 'AdminWebhookReplayCommand',
+  AdminCustomerReplayApproval: 'AdminCustomerReplayApproval',
   AdminWebhookReplayAuditEvent: 'AdminWebhookReplayAuditEvent',
   BusinessProfile: 'BusinessProfile',
   OnboardingConversation: 'OnboardingConversation',
@@ -154,7 +155,19 @@ export const ModelName = {
   WhatsappCampaign: 'WhatsappCampaign',
   WhatsappCampaignRecipient: 'WhatsappCampaignRecipient',
   WhatsappSendEvent: 'WhatsappSendEvent',
-  GrowthAgentReview: 'GrowthAgentReview'
+  GrowthAgentReview: 'GrowthAgentReview',
+  AdminSession: 'AdminSession',
+  AdminCommercialAudit: 'AdminCommercialAudit',
+  AdminOutreachSendAttempt: 'AdminOutreachSendAttempt',
+  GrowthAgentSetup: 'GrowthAgentSetup',
+  GrowthAgentSourceHandle: 'GrowthAgentSourceHandle',
+  GrowthOAuthClient: 'GrowthOAuthClient',
+  GrowthOAuthRequest: 'GrowthOAuthRequest',
+  GrowthOAuthCode: 'GrowthOAuthCode',
+  GrowthOAuthConnection: 'GrowthOAuthConnection',
+  GrowthOAuthRefresh: 'GrowthOAuthRefresh',
+  GrowthOperationReview: 'GrowthOperationReview',
+  GrowthMediaTransfer: 'GrowthMediaTransfer'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -953,7 +966,8 @@ export const AdminReportExportAuditEventScalarFieldEnum = {
   days: 'days',
   format: 'format',
   status: 'status',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  scope: 'scope'
 } as const
 
 export type AdminReportExportAuditEventScalarFieldEnum = (typeof AdminReportExportAuditEventScalarFieldEnum)[keyof typeof AdminReportExportAuditEventScalarFieldEnum]
@@ -992,6 +1006,11 @@ export const AdminWebhookReplayCommandScalarFieldEnum = {
   idempotencyKey: 'idempotencyKey',
   deliveryId: 'deliveryId',
   actorId: 'actorId',
+  customerId: 'customerId',
+  operationId: 'operationId',
+  requestDigest: 'requestDigest',
+  reason: 'reason',
+  settledStatus: 'settledStatus',
   expectedStatus: 'expectedStatus',
   expectedAttemptCount: 'expectedAttemptCount',
   approverIds: 'approverIds',
@@ -1004,6 +1023,18 @@ export const AdminWebhookReplayCommandScalarFieldEnum = {
 } as const
 
 export type AdminWebhookReplayCommandScalarFieldEnum = (typeof AdminWebhookReplayCommandScalarFieldEnum)[keyof typeof AdminWebhookReplayCommandScalarFieldEnum]
+
+
+export const AdminCustomerReplayApprovalScalarFieldEnum = {
+  id: 'id',
+  commandId: 'commandId',
+  actorId: 'actorId',
+  digest: 'digest',
+  reason: 'reason',
+  createdAt: 'createdAt'
+} as const
+
+export type AdminCustomerReplayApprovalScalarFieldEnum = (typeof AdminCustomerReplayApprovalScalarFieldEnum)[keyof typeof AdminCustomerReplayApprovalScalarFieldEnum]
 
 
 export const AdminWebhookReplayAuditEventScalarFieldEnum = {
@@ -2145,6 +2176,201 @@ export const GrowthAgentReviewScalarFieldEnum = {
 } as const
 
 export type GrowthAgentReviewScalarFieldEnum = (typeof GrowthAgentReviewScalarFieldEnum)[keyof typeof GrowthAgentReviewScalarFieldEnum]
+
+
+export const AdminSessionScalarFieldEnum = {
+  tokenHash: 'tokenHash',
+  adminId: 'adminId',
+  createdAt: 'createdAt',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt'
+} as const
+
+export type AdminSessionScalarFieldEnum = (typeof AdminSessionScalarFieldEnum)[keyof typeof AdminSessionScalarFieldEnum]
+
+
+export const AdminCommercialAuditScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  action: 'action',
+  resourceId: 'resourceId',
+  details: 'details',
+  createdAt: 'createdAt'
+} as const
+
+export type AdminCommercialAuditScalarFieldEnum = (typeof AdminCommercialAuditScalarFieldEnum)[keyof typeof AdminCommercialAuditScalarFieldEnum]
+
+
+export const AdminOutreachSendAttemptScalarFieldEnum = {
+  id: 'id',
+  campaignId: 'campaignId',
+  leadId: 'leadId',
+  fingerprint: 'fingerprint',
+  actorId: 'actorId',
+  recipients: 'recipients',
+  subject: 'subject',
+  status: 'status',
+  accepted: 'accepted',
+  rejected: 'rejected',
+  providerMessageId: 'providerMessageId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AdminOutreachSendAttemptScalarFieldEnum = (typeof AdminOutreachSendAttemptScalarFieldEnum)[keyof typeof AdminOutreachSendAttemptScalarFieldEnum]
+
+
+export const GrowthAgentSetupScalarFieldEnum = {
+  orgId: 'orgId',
+  requestId: 'requestId',
+  defaultsRevision: 'defaultsRevision',
+  modelProfileId: 'modelProfileId',
+  modelProfileRevision: 'modelProfileRevision',
+  status: 'status',
+  attempts: 'attempts',
+  nextAttemptAt: 'nextAttemptAt',
+  leaseOwner: 'leaseOwner',
+  leaseExpiresAt: 'leaseExpiresAt',
+  generation: 'generation',
+  failureCode: 'failureCode',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  completedAt: 'completedAt'
+} as const
+
+export type GrowthAgentSetupScalarFieldEnum = (typeof GrowthAgentSetupScalarFieldEnum)[keyof typeof GrowthAgentSetupScalarFieldEnum]
+
+
+export const GrowthAgentSourceHandleScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  actorId: 'actorId',
+  actorIssuer: 'actorIssuer',
+  context: 'context',
+  createdAt: 'createdAt'
+} as const
+
+export type GrowthAgentSourceHandleScalarFieldEnum = (typeof GrowthAgentSourceHandleScalarFieldEnum)[keyof typeof GrowthAgentSourceHandleScalarFieldEnum]
+
+
+export const GrowthOAuthClientScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  redirectUris: 'redirectUris',
+  registrationIpHash: 'registrationIpHash',
+  createdAt: 'createdAt'
+} as const
+
+export type GrowthOAuthClientScalarFieldEnum = (typeof GrowthOAuthClientScalarFieldEnum)[keyof typeof GrowthOAuthClientScalarFieldEnum]
+
+
+export const GrowthOAuthRequestScalarFieldEnum = {
+  hash: 'hash',
+  clientId: 'clientId',
+  redirectUri: 'redirectUri',
+  resource: 'resource',
+  scopes: 'scopes',
+  state: 'state',
+  challenge: 'challenge',
+  userId: 'userId',
+  createdAt: 'createdAt',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt'
+} as const
+
+export type GrowthOAuthRequestScalarFieldEnum = (typeof GrowthOAuthRequestScalarFieldEnum)[keyof typeof GrowthOAuthRequestScalarFieldEnum]
+
+
+export const GrowthOAuthCodeScalarFieldEnum = {
+  hash: 'hash',
+  clientId: 'clientId',
+  userId: 'userId',
+  orgId: 'orgId',
+  redirectUri: 'redirectUri',
+  resource: 'resource',
+  scopes: 'scopes',
+  challenge: 'challenge',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt'
+} as const
+
+export type GrowthOAuthCodeScalarFieldEnum = (typeof GrowthOAuthCodeScalarFieldEnum)[keyof typeof GrowthOAuthCodeScalarFieldEnum]
+
+
+export const GrowthOAuthConnectionScalarFieldEnum = {
+  id: 'id',
+  clientId: 'clientId',
+  userId: 'userId',
+  orgId: 'orgId',
+  resource: 'resource',
+  scopes: 'scopes',
+  accessHash: 'accessHash',
+  accessExpiresAt: 'accessExpiresAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  lastUsedAt: 'lastUsedAt'
+} as const
+
+export type GrowthOAuthConnectionScalarFieldEnum = (typeof GrowthOAuthConnectionScalarFieldEnum)[keyof typeof GrowthOAuthConnectionScalarFieldEnum]
+
+
+export const GrowthOAuthRefreshScalarFieldEnum = {
+  hash: 'hash',
+  connectionId: 'connectionId',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt'
+} as const
+
+export type GrowthOAuthRefreshScalarFieldEnum = (typeof GrowthOAuthRefreshScalarFieldEnum)[keyof typeof GrowthOAuthRefreshScalarFieldEnum]
+
+
+export const GrowthOperationReviewScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  userId: 'userId',
+  principalId: 'principalId',
+  principalKind: 'principalKind',
+  operation: 'operation',
+  version: 'version',
+  requestKey: 'requestKey',
+  payloadDigest: 'payloadDigest',
+  input: 'input',
+  snapshot: 'snapshot',
+  state: 'state',
+  result: 'result',
+  errorCode: 'errorCode',
+  taskId: 'taskId',
+  conversationId: 'conversationId',
+  operationId: 'operationId',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthOperationReviewScalarFieldEnum = (typeof GrowthOperationReviewScalarFieldEnum)[keyof typeof GrowthOperationReviewScalarFieldEnum]
+
+
+export const GrowthMediaTransferScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  userId: 'userId',
+  principalId: 'principalId',
+  principalKind: 'principalKind',
+  requestKey: 'requestKey',
+  fileName: 'fileName',
+  mimeType: 'mimeType',
+  byteSize: 'byteSize',
+  expectedChecksum: 'expectedChecksum',
+  checksum: 'checksum',
+  storageKey: 'storageKey',
+  state: 'state',
+  assetId: 'assetId',
+  createdAt: 'createdAt',
+  expiresAt: 'expiresAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GrowthMediaTransferScalarFieldEnum = (typeof GrowthMediaTransferScalarFieldEnum)[keyof typeof GrowthMediaTransferScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -1,20 +1,21 @@
 import { Ajv } from "ajv";
 import addFormats from "ajv-formats";
 import type { FastifyInstance } from "fastify";
-import { parseGrowthAgentContext, type ProductCapabilityInvocation, type ProductCapabilityResult, type ProductReviewReference, type GrowthAgentAction, type GrowthAgentReview } from "@kasitek-labs/contracts";
+import { parseGrowthAgentContext, type ProductCapabilityInvocation, type ProductCapabilityResult, type ProductReviewReference, type GrowthAgentAction, type GrowthDraftReview } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4 } from "./manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7 } from "./manifest.js";
+import { invokeInternalGrowthOperation } from "../operations/internal.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
 const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
-function reviewReference(review:GrowthAgentReview,operationId:string):ProductReviewReference {
+function reviewReference(review:GrowthDraftReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
     state:review.state==="executing"||review.state==="failed"?"uncertain":review.state,expiresAt:review.expiresAt};
 }
@@ -35,6 +36,7 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     const scope={tenantId:authority.tenantId,actor:command.actor};
     await authorizeGrowthAgentScope(core,scope);
     for(const permission of descriptor.requiredAuthority)await requireCapability(core.pool,scope.tenantId,permission);
+    if (["6", "7", "8"].includes(authority.policyRevision)) return invokeInternalGrowthOperation(core, command);
     if(command.control==="authorize") {
       if(command.operation==="analytics.read") {
         try {await reportingDependencies(core);}

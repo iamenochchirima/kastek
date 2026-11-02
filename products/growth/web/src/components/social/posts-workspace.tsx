@@ -1,6 +1,8 @@
 import { useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
 
 import { apiUrl } from "@/lib/server-api";
+import { toast } from "sonner";
+import { scheduledPostTimestamp } from "@/lib/content-schedule";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, Play, Plus, RotateCcw, Smartphone, Sparkles, Upload, X } from "@/components/ui/interface-icons";
@@ -50,6 +52,7 @@ type ComposerMedia = Pick<SocialPostMedia, "assetId" | "kind" | "mimeType" | "fi
 
 type ComposerState = {
   id: string | null;
+  revision: string | null;
   title: string;
   prompt: string;
   content: string;
@@ -109,6 +112,7 @@ const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.
 
 const emptyComposer: ComposerState = {
   id: null,
+  revision: null,
   title: "",
   prompt: "",
   content: "",
@@ -202,8 +206,14 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const agents = useGrowthAgents();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [statusRefreshError, setStatusRefreshError] = useState("");
+  const postsReadVersion = useRef(0);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<SocialPost | null>(null);
+  const [removePublishedPhoto, setRemovePublishedPhoto] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
+  const saveIntent = useRef<{ body: string; key: string } | null>(null);
+  const publishIntent = useRef<{ postId: string; key: string } | null>(null);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
@@ -266,6 +276,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }, []);
 
   async function loadData({ showLoading = true, clearError = true } = {}) {
+    const readVersion = ++postsReadVersion.current;
     if (showLoading) setLoading(true);
     else setRefreshing(true);
     if (clearError) setError("");
@@ -293,7 +304,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         throw new Error(channelsPayload.error || "Failed to load channels");
       }
 
-      setPosts(postsPayload.posts || []);
+      if (readVersion === postsReadVersion.current) {
+        setPosts(postsPayload.posts || []);
+        setStatusRefreshError("");
+      }
       setChannels(channelsPayload.channels || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load posts");
@@ -302,6 +316,62 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       else setRefreshing(false);
     }
   }
+
+  const statusPollDelay = posts.some(post =>
+    post.status !== "SCHEDULED" && post.metadata?.publishOutcome !== "UNKNOWN" && (
+      post.status === "PROCESSING" || post.publishJobs?.some(job => job.status === "PROCESSING" || job.status === "QUEUED")
+    ),
+  ) ? 3_000 : posts.some(post => post.status === "SCHEDULED") ? 30_000 : null;
+
+  useEffect(() => {
+    if (saving || deletingPost || jobActionId || publishingKey) return;
+    let cancelled = false;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    const schedule = () => {
+      if (!cancelled && statusPollDelay !== null && document.visibilityState !== "hidden")
+        timer = setTimeout(() => void refreshStatus(), statusPollDelay);
+    };
+    const refreshStatus = async () => {
+      if (cancelled || running || document.visibilityState === "hidden") return;
+      if (timer !== undefined) clearTimeout(timer);
+      running = true;
+      const readVersion = ++postsReadVersion.current;
+      try {
+        const response = await fetch(apiUrl("/api/social/posts"), {
+          cache: "no-store", credentials: "include", signal: controller.signal,
+        });
+        const payload = await response.json() as { posts?: SocialPost[]; error?: string };
+        if (!response.ok || !Array.isArray(payload.posts)) throw new Error("Status refresh failed");
+        if (!cancelled && readVersion === postsReadVersion.current) {
+          setPosts(payload.posts);
+          setActivityPost(current => current ? { ...current, post: payload.posts!.find(post => post.id === current.post.id) ?? current.post } : current);
+          setStatusRefreshError("");
+        }
+      } catch {
+        if (!cancelled) setStatusRefreshError("Unable to refresh post status.");
+      } finally {
+        running = false;
+        schedule();
+      }
+    };
+    const resume = () => {
+      if (document.visibilityState === "hidden") {
+        if (timer !== undefined) clearTimeout(timer);
+      } else void refreshStatus();
+    };
+    schedule();
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
+    };
+  }, [statusPollDelay, saving, deletingPost, jobActionId, publishingKey]);
 
   const connectedChannels = useMemo(
     () => channels.filter((channel) => channel.status === "CONNECTED"),
@@ -375,6 +445,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }, [composer.channels, composer.media]);
 
   function openNewComposer() {
+    setEditTarget(null);
+    setError("");
+    saveIntent.current = null;
+    publishIntent.current = null;
     setComposer(emptyComposer);
     setBatchPreflight(null);
     setActiveVariantPlatform("FACEBOOK");
@@ -383,11 +457,24 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   const openEditComposer = useCallback((post: SocialPost) => {
+    setRemovePublishedPhoto(false);
+    const published = post.status === "PUBLISHED";
+    if (!["DRAFT", "SCHEDULED", "PUBLISHED"].includes(post.status)) {
+      setError("This post cannot be edited while delivery is unresolved.");
+      return;
+    }
+    if (published && (post.channels.length !== 1 || post.channels[0] !== "FACEBOOK" || !post.publishJobs?.some(job => job.platform === "FACEBOOK" && job.status === "PUBLISHED" && job.externalPostId))) {
+      setError("Published editing is available for confirmed Facebook posts only.");
+      return;
+    }
+    saveIntent.current = null;
+    setError("");
     setComposer({
       id: post.id,
+      revision: post.updatedAt,
       title: post.title || "",
       prompt: post.prompt || "",
-      content: post.content,
+      content: published ? post.variants?.find(variant => variant.platform === "FACEBOOK")?.content ?? post.content : post.content,
       channels: post.channels,
       status: post.status,
       scheduledFor: formatDateInputValue(post.scheduledFor),
@@ -423,7 +510,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setBatchPreflight(null);
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
     setComposerStep(1);
-    setIsComposerOpen(true);
+    setIsComposerOpen(false);
+    setEditTarget(post);
   }, []);
 
   useEffect(() => {
@@ -485,6 +573,17 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       };
     });
     setActiveVariantPlatform(channel.platform);
+  }
+
+  function selectDraftPlatform(platform: SocialPlatform) {
+    setComposer((current) => ({
+      ...current,
+      channels: current.channels.includes(platform) ? current.channels : [...current.channels, platform],
+      variants: current.variants.some((variant) => variant.platform === platform)
+        ? current.variants
+        : [...current.variants, { platform, content: current.content, status: "DRAFT", aiGenerated: false }],
+    }));
+    setActiveVariantPlatform(platform);
   }
 
   function removeChannel(platform: SocialPlatform) {
@@ -622,13 +721,14 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   async function savePost(publishNow = false, requestedStatus?: "DRAFT" | "SCHEDULED") {
+    const requiresDestination = publishNow || (requestedStatus ?? composer.status) === "SCHEDULED";
     if (!composer.channels.length) {
-      setError("Choose at least one connected destination first.");
+      setError("Choose at least one platform.");
       setComposerStep(1);
       return;
     }
 
-    if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
+    if (requiresDestination && composer.channels.some((platform) => !composer.channelSelections[platform])) {
       setError("Choose an account for every selected destination.");
       setComposerStep(1);
       return;
@@ -645,7 +745,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       return;
     }
     const hasTikTokMedia = Boolean(composer.tiktokMediaUrl.trim() || composer.media.some((item) => item.kind === "VIDEO" || item.kind === "IMAGE"));
-    if (composer.channels.includes("TIKTOK") && (!hasTikTokMedia || !composer.tiktokConsent)) {
+    if ((publishNow || requestedStatus === "SCHEDULED") && composer.channels.includes("TIKTOK") && (!hasTikTokMedia || !composer.tiktokConsent)) {
       setError("TikTok requires an attached image/video or verified media URL and explicit publishing consent.");
       setComposerStep(2);
       return;
@@ -669,36 +769,36 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     let savedPost: SocialPost | null = null;
 
     try {
-      const response = await fetch(
-        apiUrl(composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts"),
-        {
-          method: composer.id ? "PATCH" : "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      const scheduledFor = postStatus === "SCHEDULED" ? scheduledPostTimestamp(composer.scheduledFor) : "";
+      const body = JSON.stringify({
             prompt: composer.prompt || null,
             content: composer.content,
             channels: composer.channels,
             status: postStatus,
-            scheduledFor: postStatus === "SCHEDULED" ? composer.scheduledFor || "" : "",
+            scheduledFor,
             primaryChannelId: composer.primaryChannelId || Object.values(composer.channelSelections).find(Boolean) || null,
             channelSelections: composer.channelSelections,
             variants: activeVariants,
-            media: composer.media.map((item) => ({
-              assetId: item.assetId,
-              sortOrder: item.sortOrder,
-              altText: item.altText,
-            })),
+            media: composer.media.map(item => ({ assetId: item.assetId, sortOrder: item.sortOrder, altText: item.altText })),
             metadata: {
               createdFrom: "social-posts-workspace",
-              aiAssistUsed: activeVariants.some((variant) => variant.aiGenerated),
+              aiAssistUsed: activeVariants.some(variant => variant.aiGenerated),
               instagramImageUrl: composer.instagramImageUrl.trim() || null,
               tiktokMediaUrl: composer.tiktokMediaUrl.trim() || null,
               tiktokMediaType: composer.tiktokMediaType,
               tiktokPrivacyLevel: composer.tiktokPrivacyLevel,
               tiktokConsent: composer.tiktokConsent,
             },
-          }),
+      });
+      if (!saveIntent.current || saveIntent.current.body !== body)
+        saveIntent.current = { body, key: `manual-content-save:${crypto.randomUUID()}` };
+      const response = await fetch(
+        apiUrl(composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts"),
+        {
+          method: composer.id ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": saveIntent.current.key, ...(composer.revision ? { "If-Match": composer.revision } : {}) },
+          body,
         },
       );
 
@@ -709,6 +809,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       }
 
       savedPost = payload.post;
+      setComposer(current => ({ ...current, id: payload.post!.id, revision: payload.post!.updatedAt, status: postStatus }));
 
       setPosts((current) => {
         if (composer.id) {
@@ -719,6 +820,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       });
 
       if (publishNow) {
+        if (!publishIntent.current || publishIntent.current.postId !== savedPost.id)
+          publishIntent.current = { postId: savedPost.id, key: `manual-content-publish-batch:${savedPost.id}:${crypto.randomUUID()}` };
         const preflightResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish-batch/preflight`), {
           method: "GET",
           credentials: "include",
@@ -740,10 +843,13 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": `manual-content-publish-batch:${savedPost.id}:${crypto.randomUUID()}`,
+            "Idempotency-Key": publishIntent.current.key,
           },
+          body: JSON.stringify({}),
         });
-        const publishPayload = (await publishResponse.json()) as {
+        const publishPayload = (await publishResponse.json().catch(() => ({
+          error: "Unable to read the publishing response. Check the post status before retrying",
+        }))) as {
           post?: SocialPost;
           batch?: { status?: string; targets?: Array<{ platform?: string; state?: string; message?: string }> };
           error?: string;
@@ -759,18 +865,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       await loadData({ showLoading: false, clearError: !publishNow });
 
       setComposer(emptyComposer);
+      saveIntent.current = null;
+      publishIntent.current = null;
       setBatchPreflight(null);
       setActiveVariantPlatform("FACEBOOK");
       setComposerStep(1);
       setIsComposerOpen(false);
+      if (editTarget) { setEditTarget(null); toast.success("Post updated"); }
     } catch (err) {
-      if (savedPost) {
-        setComposer(emptyComposer);
-        setBatchPreflight(null);
-        setActiveVariantPlatform("FACEBOOK");
-        setComposerStep(1);
-        setIsComposerOpen(false);
-      }
+      if (savedPost) setComposer(current => ({ ...current, id: savedPost!.id, revision: savedPost!.updatedAt, status: savedPost!.status }));
       const message = err instanceof Error ? err.message : "Failed to save post";
       setError(savedPost ? `${message}. The post was saved; retry any failed destination from Posts.` : message);
     } finally {
@@ -778,14 +881,35 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }
 
+  async function updatePublishedPost() {
+    if (!editTarget || !composer.content.trim()) { setError("Add post text."); return; }
+    setSaving(true);
+    setError("");
+    const body = JSON.stringify({ content: composer.content, expectedUpdatedAt: editTarget.updatedAt, ...(removePublishedPhoto ? { removePhoto: true } : {}) });
+    if (!saveIntent.current || saveIntent.current.body !== body)
+      saveIntent.current = { body, key: `manual-content-update-published:${crypto.randomUUID()}` };
+    try {
+      const response = await fetch(apiUrl(`/api/social/posts/${editTarget.id}/update-published`), {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": saveIntent.current.key }, body,
+      });
+      const payload = await response.json().catch(() => ({ error: "Unable to read the update result. Check the post before retrying." })) as { post?: SocialPost; error?: string };
+      if (!response.ok || !payload.post) throw new Error(payload.error || "Failed to update Facebook post");
+      ++postsReadVersion.current;
+      setPosts(current => current.map(post => post.id === payload.post!.id ? payload.post! : post));
+      setEditTarget(null);
+      setComposer(emptyComposer);
+      saveIntent.current = null;
+      toast.success("Facebook post updated");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to update Facebook post");
+    } finally { setSaving(false); }
+  }
+
   function advanceComposerStep() {
     if (composerStep === 1) {
       if (!composer.channels.length) {
-        setError("Choose at least one connected destination first.");
-        return;
-      }
-      if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
-        setError("Choose an account for every selected destination.");
+        setError("Choose at least one platform.");
         return;
       }
     }
@@ -924,7 +1048,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   return (
     <div className="min-w-0">
       <PostsLibraryWorkspace key={view}
-        posts={posts} channels={channels} loading={loading} refreshing={refreshing} error={error}
+        posts={posts} channels={channels} loading={loading} refreshing={refreshing} error={error || statusRefreshError}
         initialStatus={view === "history" ? "PUBLISHED" : "ALL"}
         onCreate={openNewComposer} onEdit={openEditComposer}
         onRefresh={() => void loadData({ showLoading: false })}
@@ -1050,6 +1174,29 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         ) : null}
       </Dialog>
 
+      <Dialog open={Boolean(editTarget)} onOpenChange={open => { if (!open && !saving) { setEditTarget(null); setComposer(emptyComposer); setError(""); } }}>
+        {editTarget ? <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-4 sm:px-6">
+            <DialogTitle>{editTarget.status === "PUBLISHED" ? "Edit Facebook post" : "Edit post"}</DialogTitle>
+            <DialogDescription>{composer.channels.map(platform => {
+              const channel = channels.find(item => item.id === composer.channelSelections[platform]);
+              return channel ? channelLabel(channel) : getPlatformLabel(platform);
+            }).join(" · ")}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
+            {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive">{error}</p> : null}
+            <label className="block space-y-2"><span className="text-sm text-muted-foreground">{editTarget.status === "PUBLISHED" ? "Facebook text" : "Post text"}</span><Textarea value={composer.content} onChange={event => setComposer(current => ({ ...current, content: event.target.value, variants: current.variants.map(variant => variant.content === current.content ? { ...variant, content: event.target.value } : variant) }))} placeholder="Write your post..." className="min-h-[160px] resize-y leading-6" disabled={saving} /></label>
+            {editTarget.status !== "PUBLISHED" ? activeComposerVariants.map(variant => <label key={variant.platform} className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} version</span><Textarea value={variant.content} onChange={event => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[100px] resize-y" disabled={saving} /></label>) : null}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Media</span>{editTarget.status !== "PUBLISHED" ? <><Button type="button" variant="outline" size="sm" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="mr-1.5 h-3.5 w-3.5" />Add media</Button><input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={event => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} /></> : null}</div>
+              {editTarget.status === "PUBLISHED" && removePublishedPhoto ? <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3"><p className="text-sm text-muted-foreground">Photo will be removed</p><Button variant="outline" size="sm" disabled={saving} onClick={() => setRemovePublishedPhoto(false)} aria-label="Undo photo removal">Undo</Button></div> : composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map(item => <div key={item.assetId} className="overflow-hidden rounded-lg border border-border">{item.kind === "VIDEO" ? <video className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} controls preload="metadata" /> : <img className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || "Media"}</span>{editTarget.status !== "PUBLISHED" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-4 w-4" /></Button> : composer.media.length === 1 && item.kind === "IMAGE" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => setRemovePublishedPhoto(true)} aria-label="Remove photo"><X className="h-4 w-4" /></Button> : null}</div></div>)}</div> : <p className="text-sm text-muted-foreground">No media</p>}
+            </div>
+            {editTarget.status === "SCHEDULED" ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule for</span><Input type="datetime-local" value={composer.scheduledFor} onChange={event => setComposer(current => ({ ...current, scheduledFor: event.target.value }))} disabled={saving} /></label> : null}
+          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border px-4 py-4 sm:px-6"><Button variant="outline" disabled={saving} onClick={() => { setEditTarget(null); setComposer(emptyComposer); setError(""); }}>Cancel</Button><Button disabled={saving} onClick={() => void (editTarget.status === "PUBLISHED" ? updatePublishedPost() : savePost(false, editTarget.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT"))}>{saving ? "Saving..." : editTarget.status === "PUBLISHED" ? "Update on Facebook" : "Save changes"}</Button></div>
+        </DialogContent> : null}
+      </Dialog>
+
       <Sheet open={isComposerOpen} onOpenChange={setIsComposerOpen}>
         {isComposerOpen ? (
           <SheetContent className="w-full max-w-[760px] gap-0 border-l border-border bg-card p-0 sm:max-w-[760px]">
@@ -1071,11 +1218,12 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              {error ? <p className="mb-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
               {composerStep === 1 ? (
                 <section className="space-y-5">
                   <div>
                     <h2 className="text-xl font-semibold text-foreground">Choose destinations</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Select the exact connected account for each platform.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Choose platforms for a draft. Connect an account to publish.</p>
                   </div>
                   <div className="space-y-3">
                     {defaultChannels.map((platform) => {
@@ -1097,6 +1245,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                                 {options.length ? "Connect another" : "Connect"}
                               </Button>
                             ) : null}
+                            {!options.length && !selected ? <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => selectDraftPlatform(platform)} aria-label={`Draft for ${getPlatformLabel(platform)}`}>Draft</Button> : null}
                             {selected ? <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => removeChannel(platform)}>Remove</Button> : null}
                           </div>
                           {options.length ? (
@@ -1158,7 +1307,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               {composerStep === 4 ? (
                 <section className="space-y-5">
                   <div><h2 className="text-xl font-semibold text-foreground">Review and publish</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft, schedule, or publish the selected versions now.</p></div>
-                  <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel?.displayName || "Not selected"}</span></div>; })}</div></div>
+                  <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel ? channelLabel(channel) : "Not selected"}</span></div>; })}</div></div>
                   {batchPreflight ? (
                     <div className={`rounded-xl border p-4 ${batchPreflight.status === "READY" ? "border-status-success/30 bg-status-success-soft" : "border-destructive/30 bg-status-danger-soft"}`}>
                       <div className="flex items-center justify-between gap-3">
@@ -1179,13 +1328,13 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               ) : null}
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
               <Button variant="ghost" onClick={() => composerStep === 1 ? setIsComposerOpen(false) : setComposerStep((current) => (current - 1) as ComposerStep)}>{composerStep === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" />Back</>}</Button>
               {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline" disabled={saving} onClick={() => void savePost(false, "DRAFT")}>{saving ? "Saving..." : "Save draft"}</Button>
-                  <Button variant="outline" disabled={saving || !composer.scheduledFor || mediaPublishIssues.length > 0} onClick={() => void savePost(false, "SCHEDULED")}>{saving ? "Saving..." : "Schedule post"}</Button>
-                  <Button disabled={saving || mediaPublishIssues.length > 0} onClick={() => void savePost(true)}>{saving ? "Publishing..." : "Post now"}</Button>
+                  <Button variant="outline" disabled={saving || !composer.scheduledFor || mediaPublishIssues.length > 0 || composer.channels.some((platform) => !composer.channelSelections[platform])} onClick={() => void savePost(false, "SCHEDULED")}>{saving ? "Saving..." : "Schedule post"}</Button>
+                  <Button disabled={saving || mediaPublishIssues.length > 0 || composer.channels.some((platform) => !composer.channelSelections[platform])} onClick={() => void savePost(true)}>{saving ? "Publishing..." : "Post now"}</Button>
                 </div>
               )}
             </div>

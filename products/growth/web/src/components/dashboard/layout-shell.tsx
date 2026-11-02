@@ -12,7 +12,6 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from 
 import { cn } from "@/lib/utils";
 import {
   Cable,
-  CalendarDays,
   CalendarCheck,
   Code2,
   ChevronDown,
@@ -113,7 +112,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Content",
     items: [
       { name: "Posts", href: "/content", icon: Sparkles },
-      { name: "Calendar", href: "/calendar", icon: CalendarDays },
       { name: "Analytics", href: "/content/analytics", icon: Grid2x2 },
     ],
   },

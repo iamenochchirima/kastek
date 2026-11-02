@@ -61,10 +61,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function createDeveloperApiKey(name: string): Promise<CreatedDeveloperApiKey> {
+export function createDeveloperApiKey(name: string, scopes?: string[]): Promise<CreatedDeveloperApiKey> {
   return request<CreatedDeveloperApiKey>("/api/developers/api-keys", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, ...(scopes ? { scopes } : {}) }),
   });
 }
 

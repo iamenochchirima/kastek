@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { oauthPermissionLabels } from "./oauth-consent";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -30,6 +32,7 @@ function ApiKeysPageContent({ embedded }: { embedded: boolean }) {
   const { apiKeys: initialKeys, config } = useDevelopersData();
   const [keys, setKeys] = useState(initialKeys);
   const [keyName, setKeyName] = useState("");
+  const [scopes, setScopes] = useState(["growth:read", "growth:draft"]);
   const [newCredential, setNewCredential] = useState<CreatedDeveloperApiKey | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -37,11 +40,11 @@ function ApiKeysPageContent({ embedded }: { embedded: boolean }) {
   const activeKeys = useMemo(() => keys.filter((key) => key.status === "ACTIVE"), [keys]);
 
   async function createKey() {
-    if (!keyName.trim() || busy) return;
+    if (!keyName.trim() || !scopes.length || busy) return;
     setBusy("create");
     setError("");
     try {
-      const created = await createDeveloperApiKey(keyName.trim());
+      const created = await createDeveloperApiKey(keyName.trim(), scopes);
       setKeys((current) => [created.key, ...current]);
       setNewCredential(created);
       setKeyName("");
@@ -94,8 +97,9 @@ function ApiKeysPageContent({ embedded }: { embedded: boolean }) {
         <MotionReveal>
         <Card>
           <CardContent className="space-y-4 p-5">
-            <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><h2 className="text-base font-semibold">Create an API key</h2><p className="mt-1 text-sm text-muted-foreground">The default test profile includes `api:read` and `api:write`. It does not grant secrets, billing mutations, roles, or workspace deletion.</p></div></div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto]"><Input value={keyName} onChange={(event) => setKeyName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createKey(); }} placeholder="Key name, for example Local development" maxLength={80} /><Button type="button" onClick={() => void createKey()} disabled={!keyName.trim() || busy === "create"}>{busy === "create" ? "Creating…" : "Create API key"}</Button></div>
+            <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><h2 className="text-base font-semibold">Create API key</h2></div>
+            <fieldset disabled={Boolean(busy)} className="grid gap-3 sm:grid-cols-2"><legend className="sr-only">Permissions</legend>{Object.entries(oauthPermissionLabels).map(([scope,label]) => <label key={scope} className="flex items-start gap-3 text-sm"><Checkbox checked={scopes.includes(scope)} onCheckedChange={checked=>setScopes(current=>checked===true?[...current,scope]:current.filter(value=>value!==scope))}/><span>{label}</span></label>)}</fieldset>
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]"><Input aria-label="API key name" value={keyName} disabled={Boolean(busy)} onChange={(event) => setKeyName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createKey(); }} placeholder="Key name" maxLength={80} /><Button type="button" onClick={() => void createKey()} disabled={!keyName.trim() || !scopes.length || Boolean(busy)}>{busy === "create" ? "Creating…" : "Create API key"}</Button></div>
           </CardContent>
         </Card>
         </MotionReveal>

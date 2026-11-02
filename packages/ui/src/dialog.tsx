@@ -42,6 +42,7 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -55,6 +56,16 @@ function DialogContent({
         "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-[var(--z-overlay)] grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border p-4 shadow-lg duration-[var(--v-motion-fast)] outline-none sm:max-w-lg sm:p-6",
           className,
         )}
+        onEscapeKeyDown={(event) => {
+          const disclosure = event.target instanceof Element ? event.target.closest<HTMLDetailsElement>("details[data-dialog-disclosure][open]") : null;
+          if (disclosure) {
+            event.preventDefault();
+            disclosure.open = false;
+            disclosure.querySelector("summary")?.focus();
+            return;
+          }
+          onEscapeKeyDown?.(event);
+        }}
         {...props}
       >
         {children}

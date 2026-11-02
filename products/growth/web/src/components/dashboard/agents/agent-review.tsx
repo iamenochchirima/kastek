@@ -8,8 +8,12 @@ import { growthAgents, getDraftDestinations, safeGrowthRoute, type GrowthAgentRe
 import { useGrowthAgents } from "./agent-provider";
 
 export function AgentDraftReview({ review }: { review: GrowthAgentReview }) {
+  if(review.kind==="operation")return <section className="rounded-lg border border-border bg-card p-4" aria-label="Action review"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Review action</h3><p className="mt-1 break-words text-xs text-muted-foreground">{review.operation.replaceAll("."," ")} · {review.state}</p></div><Button asChild size="sm" variant="outline"><Link to={`/operations/reviews/${encodeURIComponent(review.id)}`}>Review action</Link></Button></div></section>;
+  return <DraftReview key={review.id} review={review} />;
+}
+function DraftReview({review}:{review:Extract<GrowthAgentReview,{kind:"content_draft"}>}) {
   const agents = useGrowthAgents();
-  const [replacement, setReplacement] = useState<GrowthAgentReview | null>(null);
+  const [replacement, setReplacement] = useState<Extract<GrowthAgentReview,{kind:"content_draft"}> | null>(null);
   const current = replacement ?? review;
   const [now, setNow] = useState(() => Date.now());
   const [draft, setDraft] = useState<GrowthDraftProposal>(review.draft);

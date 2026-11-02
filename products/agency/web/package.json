@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build",
+    "dev": "pnpm --filter @kasitek-labs/ui build && vite --host 127.0.0.1",
+    "build": "pnpm --filter @kasitek-labs/ui build && tsc --noEmit && vite build",
     "start": "node scripts/serve.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @kasitek-labs/ui build && tsc -p tsconfig.json --noEmit",
     "lint": "eslint",
     "preview": "vite preview --host 127.0.0.1",
     "test:server": "node --test tests/portal-server.test.mjs"
@@ -66,7 +66,8 @@
     "zod": "^3.25.76",
     "react-router-dom": "^7.0.0",
     "@fontsource/geist": "^5.0.0",
-    "@fontsource/geist-mono": "^5.0.0"
+    "@fontsource/geist-mono": "^5.0.0",
+    "@kasitek-labs/ui": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.19.22",

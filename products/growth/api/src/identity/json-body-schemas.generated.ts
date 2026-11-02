@@ -1376,6 +1376,28 @@ export const GENERATED_SERDE_BODY_SCHEMAS: Record<string, unknown> = {
       }
     }
   },
+  "POST /api/social/posts/:id/update-published": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "content",
+      "expectedUpdatedAt"
+    ],
+    "properties": {
+      "content": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32768
+      },
+      "expectedUpdatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "removePhoto": {
+        "type": "boolean"
+      }
+    }
+  },
   "POST /api/whatsapp/calls/:id/action": {
     "type": "object",
     "properties": {

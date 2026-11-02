@@ -18,6 +18,7 @@
 !packages/**/package.json
 !packages/contracts/**
 !packages/ui/**
+!packages/server-support/**
 !products/agents/**
 # Exclusions always win over the allowlist above.
 **/.git

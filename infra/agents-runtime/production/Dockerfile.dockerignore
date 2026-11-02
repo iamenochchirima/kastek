@@ -1,0 +1,7 @@
+**
+!infra/
+!infra/agents-runtime/
+!infra/agents-runtime/production/
+!infra/agents-runtime/production/Dockerfile
+!infra/agents-runtime/production/entrypoint.sh
+!infra/agents-runtime/production/restate.toml

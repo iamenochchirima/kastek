@@ -10,6 +10,7 @@ import {
 import { transaction } from "../../db.js";
 import { epochMicros } from "../../analytics/facts.js";
 import { SQL } from "./posts-sql.js";
+import { lockReviewedSocialAccounts } from "./account-admission.js";
 import { getSocialChannel } from "./channels.js";
 import {
   bad,
@@ -17,9 +18,9 @@ import {
   internal,
   trimmed,
   isValidPlatform,
-  POST_STATUSES,
   VARIANT_STATUSES,
   parseOptionalDatetime,
+  validatePostSchedule,
 } from "./common.js";
 import type {
   SocialChannel,
@@ -33,6 +34,46 @@ import type {
   SocialMediaInput,
 } from "./types.js";
 const json = (value: unknown) => (value == null ? null : canonicalJson(value));
+function postMetadata(requested: unknown, existing: unknown = null): unknown {
+  if (requested == null) return existing;
+  if (typeof requested !== "object" || Array.isArray(requested) || requested instanceof SerdeFloat)
+    throw bad("Content metadata must be a JSON object");
+  const publicFields = Object.fromEntries(Object.entries(requested).filter(([key]) => !key.startsWith("_kasitek_")));
+  const privateFields = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? Object.fromEntries(Object.entries(existing).filter(([key]) => key.startsWith("_kasitek_"))) : {};
+  return { ...publicFields, ...privateFields };
+}
+export interface PostMutationOptions { expectedPostRevision?: string; expectedAccounts?: Record<string, string> }
+export async function lockSocialPost(tx: PoolClient, orgId: string, postId: string, options: PostMutationOptions = {}) {
+  await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`growth.content.post:${orgId}:${postId}`]);
+  const post = (await tx.query<{ id: string; updated_at: Date; status: string }>(
+    'SELECT id,"updatedAt" AS updated_at,status::text FROM "SocialPost" WHERE id=$1 AND "orgId"=$2 FOR UPDATE', [postId, orgId],
+  )).rows[0];
+  if (!post) throw missing("Post not found");
+  if (options.expectedPostRevision && epochMicros(post.updated_at) !== epochMicros(parseOptionalDatetime(options.expectedPostRevision)!))
+    throw new ApiError(409, "conflict", "The reviewed content changed. Review it again before continuing");
+  return post;
+}
+export async function refreshSocialPostPublishState(query: Pick<Pool, "query">, postId: string): Promise<void> {
+  await query.query(`WITH state AS (
+    SELECT COUNT(*) AS total,
+      COUNT(*) FILTER(WHERE j.status='PUBLISHED' AND j."externalPostId" IS NOT NULL) AS published,
+      COUNT(*) FILTER(WHERE j.status='PROCESSING' OR (j.status='PUBLISHED' AND j."externalPostId" IS NULL) OR (j.metadata->>'_kasitek_outcome'='UNKNOWN' AND NOT(j.status='PUBLISHED' AND j."externalPostId" IS NOT NULL))) AS processing,
+      COUNT(*) FILTER(WHERE j.status='QUEUED') AS queued,
+      COUNT(*) FILTER(WHERE j.status='FAILED') AS failed
+    FROM "SocialPublishJob" j JOIN "SocialPost" p ON p.id=j."postId"
+    WHERE p.id=$1 AND j.platform=ANY(p.channels)
+  ), next AS (SELECT (CASE
+    WHEN state.total>0 AND state.total=state.published THEN 'PUBLISHED'
+    WHEN state.processing>0 THEN 'PROCESSING'
+    WHEN state.queued>0 THEN CASE WHEN p."scheduledFor">NOW() AND state.published=0 AND state.failed=0 THEN 'SCHEDULED' ELSE 'PROCESSING' END
+    WHEN state.failed>0 OR state.published>0 THEN 'FAILED'
+    ELSE 'DRAFT' END)::"SocialPostStatus" AS status FROM state JOIN "SocialPost" p ON p.id=$1)
+  UPDATE "SocialPost" p SET status=next.status,
+    "publishedAt"=CASE WHEN next.status='PUBLISHED' THEN COALESCE(p."publishedAt",NOW()) ELSE p."publishedAt" END,
+    "updatedAt"=NOW() FROM next WHERE p.id=$1
+    AND (p.status IS DISTINCT FROM next.status OR (next.status='PUBLISHED' AND p."publishedAt" IS NULL))`, [postId]);
+}
 export function generatedSocialPostTitle(content: string): string {
   const first =
     content
@@ -132,14 +173,15 @@ async function validateChannelSelections(
   orgId: string,
   channels: string[],
   selections: Record<string, string> | null | undefined,
+  requireSelection: boolean,
 ): Promise<Record<string, string>> {
   const result: Record<string, string> = {};
   for (const platform of channels) {
     const id = trimmed(selections?.[platform]);
-    if (!id)
-      throw bad(
-        `Choose a connected ${platform.toLowerCase()} account before saving`,
-      );
+    if (!id) {
+      if (!requireSelection) continue;
+      throw bad(`Choose a connected ${platform.toLowerCase()} account before scheduling`);
+    }
     const channel = await getSocialChannel(pool, orgId, id);
     if (!channel) throw missing("Selected channel was not found");
     if (channel.status !== "CONNECTED" || channel.platform !== platform)
@@ -255,14 +297,16 @@ export async function createSocialPostIdempotent(
   orgId: string,
   request: SocialPostUpsertRequest,
   idempotencyKey?: string | null,
+  options: PostMutationOptions = {},
 ): Promise<SocialPost> {
   const content = request.content?.trim() ?? "";
   const channels = (request.channels ?? []).filter(isValidPlatform);
   if (!channels.length)
     throw bad("At least one publishing channel is required");
   const status = request.status ?? "DRAFT";
-  if (!POST_STATUSES.includes(status)) throw bad("Invalid post status");
-  const scheduled = parseOptionalDatetime(request.scheduledFor);
+  if (!["DRAFT", "SCHEDULED"].includes(status)) throw bad("New posts must be drafts or scheduled");
+  const scheduled = status === "SCHEDULED" ? parseOptionalDatetime(request.scheduledFor) : null;
+  validatePostSchedule(status, scheduled);
   const primary = await validatePrimaryChannel(
     pool,
     orgId,
@@ -273,6 +317,7 @@ export async function createSocialPostIdempotent(
     orgId,
     channels,
     request.channelSelections,
+    status === "SCHEDULED",
   );
   const media = await validateMedia(pool, orgId, request.media);
   if (!content && !media.length)
@@ -283,7 +328,7 @@ export async function createSocialPostIdempotent(
     status, scheduledFor: scheduled?.toISOString() ?? null, primary, selections,
     media: media.map(item => ({ ...item, metadata: item.metadata ?? null })),
     variants: variants.map(item => ({ ...item, aiGenerated: item.aiGenerated ?? null, metadata: item.metadata ?? null })),
-    title: trimmed(request.title) ?? generatedSocialPostTitle(content), prompt: trimmed(request.prompt), metadata: request.metadata ?? null,
+    title: trimmed(request.title) ?? generatedSocialPostTitle(content), prompt: trimmed(request.prompt), metadata: postMetadata(request.metadata),
   })).digest("hex");
   const assertReplay = (post: SocialPost) => {
     if (!post.metadata || typeof post.metadata !== "object" || Array.isArray(post.metadata) ||
@@ -303,7 +348,7 @@ export async function createSocialPostIdempotent(
       return post;
     }
   }
-  let metadata = request.metadata ?? null;
+  let metadata = postMetadata(request.metadata);
   if (key) {
     metadata = metadata ?? {};
     if (
@@ -317,6 +362,7 @@ export async function createSocialPostIdempotent(
   const title = trimmed(request.title) ?? generatedSocialPostTitle(content);
   const id = createId();
   const createdId = await transaction(pool, async (tx) => {
+    await lockReviewedSocialAccounts(tx, orgId, options.expectedAccounts);
     if (key) {
       await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `kasitek.content.draft:${orgId}:${key}`,
@@ -368,6 +414,7 @@ export async function updateSocialPost(
   orgId: string,
   postId: string,
   request: SocialPostUpsertRequest,
+  options: PostMutationOptions = {},
 ): Promise<SocialPost> {
   const existing = await getSocialPost(pool, orgId, postId);
   if (!existing) throw missing("Post not found");
@@ -378,21 +425,27 @@ export async function updateSocialPost(
   if (!channels.length)
     throw bad("At least one publishing channel is required");
   const status = request.status ?? existing.status;
-  if (!POST_STATUSES.includes(status)) throw bad("Invalid post status");
-  const scheduled =
+  if (!["DRAFT", "SCHEDULED"].includes(status))
+    throw new ApiError(409, "conflict", "Published or processing content cannot be edited. Create a new draft instead");
+  const scheduled = status === "DRAFT" ? null :
     request.scheduledFor != null
       ? parseOptionalDatetime(request.scheduledFor)
       : existing.scheduled_for;
+  validatePostSchedule(status, scheduled);
   const primary = await validatePrimaryChannel(
     pool,
     orgId,
     request.primaryChannelId ?? existing.primary_channel_id,
   );
+  const requestedSelections = request.channelSelections === undefined
+    ? Object.fromEntries(existing.publishJobs.filter(job => job.channel_connection_id).map(job => [job.platform, job.channel_connection_id!]))
+    : request.channelSelections;
   const selections = await validateChannelSelections(
     pool,
     orgId,
     channels,
-    request.channelSelections,
+    requestedSelections,
+    status === "SCHEDULED",
   );
   const media =
     request.media != null
@@ -408,6 +461,17 @@ export async function updateSocialPost(
   const title = trimmed(request.title) ?? generatedSocialPostTitle(content);
   const variants = normalizeVariants(request.variants, channels, content);
   await transaction(pool, async (tx) => {
+    const locked = await lockSocialPost(tx, orgId, postId, options);
+    await lockReviewedSocialAccounts(tx, orgId, options.expectedAccounts);
+    if (epochMicros(locked.updated_at) !== epochMicros(existing.updated_at))
+      throw new ApiError(409, "conflict", "This post changed. Reload it before saving");
+    const jobs = (await tx.query<{ id: string; variant_id: string | null; platform: string; status: string; external_post_id: string | null; metadata: Record<string, unknown> | null }>(
+      'SELECT id,"variantId" AS variant_id,platform::text,status::text,"externalPostId" AS external_post_id,metadata FROM "SocialPublishJob" WHERE "postId"=$1 FOR UPDATE', [postId],
+    )).rows;
+    if (jobs.some(job => job.metadata?._kasitek_delegation != null && job.status !== "CANCELED"))
+      throw new ApiError(409, "conflict", "Unschedule this post before editing");
+    if (jobs.some(job => !["PENDING", "QUEUED", "CANCELED"].includes(job.status) || job.external_post_id || job.metadata?._kasitek_outcome === "UNKNOWN"))
+      throw new ApiError(409, "conflict", "Content with a publishing attempt cannot be edited. Create a new draft instead");
     await tx.query(SQL[13], [
       primary,
       title,
@@ -416,25 +480,30 @@ export async function updateSocialPost(
       channels,
       status,
       scheduled?.toISOString() ?? null,
-      json(request.metadata ?? existing.metadata),
+      json(postMetadata(request.metadata, existing.metadata)),
       postId,
       orgId,
     ]);
-    await tx.query(SQL[14], [postId]);
-    await tx.query(SQL[15], [postId]);
     await tx.query(SQL[16], [postId]);
     await persistMedia(tx, postId, media);
-    await createVariantsAndJobs(
-      tx,
-      userId,
-      orgId,
-      postId,
-      variants,
-      selections,
-      media,
-      status,
-      scheduled,
-    );
+    for (const variant of variants) {
+      const job = jobs.find(candidate => candidate.platform === variant.platform);
+      if (!job) {
+        await createVariantsAndJobs(tx, userId, orgId, postId, [variant], selections, media, status, scheduled);
+        continue;
+      }
+      const variantId = job.variant_id ?? createId();
+      if (job.variant_id) {
+        await tx.query('UPDATE "SocialPostVariant" SET content=$2,status=$3::"SocialVariantStatus","aiGenerated"=$4,metadata=$5,"updatedAt"=NOW() WHERE id=$1 AND "postId"=$6',
+          [variantId, variant.content, variant.status ?? "DRAFT", variant.aiGenerated ?? false, json(variant.metadata), postId]);
+      } else {
+        await tx.query(SQL[6], [variantId, postId, variant.platform, variant.content, variant.status ?? "DRAFT", variant.aiGenerated ?? false, json(variant.metadata)]);
+      }
+      await tx.query('UPDATE "SocialPublishJob" SET "variantId"=$2,"channelConnectionId"=$3,status=$4::"SocialPublishJobStatus","scheduledFor"=$5,"deliverySnapshot"=$6,"errorMessage"=NULL,"updatedAt"=NOW() WHERE id=$1',
+        [job.id, variantId, selections[variant.platform], status === "SCHEDULED" ? "QUEUED" : "PENDING", status === "SCHEDULED" ? scheduled?.toISOString() : null,
+          json({ schema: "kasitek-content-delivery-v1", platform: variant.platform, media: media.map(item => ({ assetId: item.assetId, sortOrder: item.sortOrder ?? null, altText: item.altText ?? null })) })]);
+    }
+    await tx.query('UPDATE "SocialPublishJob" SET status=\'CANCELED\'::"SocialPublishJobStatus","updatedAt"=NOW() WHERE "postId"=$1 AND NOT(platform::text=ANY($2::text[])) AND status IN(\'PENDING\',\'QUEUED\')', [postId, channels]);
   });
   const post = await getSocialPost(pool, orgId, postId);
   if (!post) throw internal("Failed to load updated social post");
@@ -444,8 +513,16 @@ export async function deleteSocialPost(
   pool: Pool,
   orgId: string,
   postId: string,
+  options: PostMutationOptions = {},
 ): Promise<boolean> {
-  return (await pool.query(SQL[17], [postId, orgId])).rowCount === 1;
+  return transaction(pool, async tx => {
+    const found = (await tx.query('SELECT id FROM "SocialPost" WHERE id=$1 AND "orgId"=$2', [postId, orgId])).rows[0];
+    if (!found) return false;
+    await lockSocialPost(tx, orgId, postId, options);
+    if ((await tx.query(`SELECT id FROM "SocialPublishJob" WHERE "postId"=$1 AND (status='PROCESSING' OR COALESCE(metadata->>'_kasitek_outcome','')='UNKNOWN' OR metadata->'_kasitek_delete_intent'->>'state' IN('executing','uncertain') OR metadata->'_kasitek_edit_intent'->>'state' IN('executing','uncertain')) LIMIT 1`, [postId])).rows.length)
+      throw new ApiError(409, "conflict", "Publishing is in progress or its outcome requires reconciliation");
+    return (await tx.query(SQL[17], [postId, orgId])).rowCount === 1;
+  });
 }
 function rfc3339(value: Date) {
   return value.toISOString().replace(/Z$/, "+00:00");

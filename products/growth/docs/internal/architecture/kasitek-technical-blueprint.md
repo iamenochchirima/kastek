@@ -543,7 +543,7 @@ The final event catalogue must define producer, owner, schema, ordering expectat
 
 ## 11. Agents and workflows
 
-Shared Agents execution runs Growth-owned features under bounded product authorization. Standalone Agents owns customer-service configuration and deployments. External clients call Growth's supported REST operations with scoped Developer API keys. Growth product OAuth MCP is unavailable. See [Growth agent execution](./growth-agent-execution.md) for the current product boundary.
+Shared Agents execution runs Growth-owned features under bounded product authorization. Standalone Agents owns customer-service configuration and deployments. External clients call Growth's canonical operations through OAuth MCP or scoped REST credentials when enabled by the deployment. Internal agents invoke the same policy and reviewed dispatcher directly. See [Growth agent execution](./growth-agent-execution.md) for the current product boundary.
 
 ```text
 Human | schedule | business event | approved external agent

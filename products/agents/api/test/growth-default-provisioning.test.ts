@@ -114,7 +114,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect(current.find(row=>row.feature_id==='research').revision).toBe(2);expect(current.find(row=>row.feature_id==='content').enabled).toBe(false);
     expect((await pool.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1",[model.organization_id])).rows[0]).toEqual(model);
   });
-  it("upgrades retained revision4 through revision5 without restoring finite defaults or changing custom agents and model selection",async()=>{
+  it("upgrades retained revision4 through current revision6 without restoring finite defaults or changing custom agents and model selection",async()=>{
     const priorPublication=publication("4");priorPublication.policy.optionalCapabilities.delegation=true;
     const input={...request(),defaultsRevision:"4",publication:priorPublication};
     expect((await service.provision(input)).state).toBe("ready");
@@ -144,7 +144,14 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const versions=after.map(row=>row.version_id).sort();
     expect((await service.provision(upgrade)).state).toBe("ready");
     expect((await read()).map(row=>row.version_id).sort()).toEqual(versions);
-
+    const canonical=publication("6");canonical.policy.optionalCapabilities.delegation=true;
+    expect((await service.provision({...input,requestId:randomUUID(),defaultsRevision:"6",publication:canonical,upgradeDefaults:true})).state).toBe("ready");
+    const canonicalRows=await read(),canonicalAssistant=canonicalRows.find(row=>row.feature_id==='assistant');
+    expect(canonicalAssistant.configuration.capabilities.delegation.policy.maxTasks).toBeNull();
+    for(const binding of canonicalAssistant.configuration.capabilities.delegation.bindings){expect(binding.maxTokens).toBeNull();expect(binding.maxActiveMs).toBeNull();}
+    expect(canonicalRows.find(row=>row.feature_id==='content')).toEqual(customized);
+    expect(canonicalRows.find(row=>row.feature_id==='research').enabled).toBe(false);
+    expect(canonicalAssistant.configuration.model).toEqual(assistant.configuration.model);
   });
   it("never revives tenant or model revocations, rejects implicit profile upgrades",async()=>{
     const input=request();await service.provision(input);await controlGrowthExecution(pool,{tenantId:input.tenantId,action:"tenant.disable"});

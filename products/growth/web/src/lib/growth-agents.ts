@@ -1,7 +1,7 @@
 import { apiUrl } from "@/lib/server-api";
 import type {
   GrowthAgentBootstrap, GrowthAgentCommandOutputs, GrowthAgentContext,
-  GrowthAgentFeatureId, GrowthAgentTask, GrowthAgentReview, GrowthDraftProposal,
+  GrowthAgentFeatureId, GrowthAgentTask, GrowthAgentReview, GrowthDraftReview, GrowthDraftProposal,
 } from "@kasitek-labs/contracts";
 
 export type {
@@ -58,6 +58,8 @@ export const growthAgents = {
   tasks: (options: { conversationId?: string; state?: string; search?: string; cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["tasks.list"]>(`/tasks${query(options)}`, { signal }),
   task: (taskId: string, signal?: AbortSignal) => request<{ task: GrowthAgentTask }>(`/tasks/${id(taskId)}`, { signal }),
+  activity: (taskId: string, options: { childTaskId?: string; cursor?: string; operationCursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
+    request<import("@kasitek-labs/contracts").GrowthAgentObservation>(`/tasks/${id(taskId)}/activity${query(options)}`, { signal }),
   specialistResult: (taskId: string, childTaskId: string, offset = 0, signal?: AbortSignal) =>
     request<{ taskId: string; state: string; available: boolean; output: string | null; nextOffset: number | null }>(`/tasks/${id(taskId)}/specialists/${id(childTaskId)}/result${query({ offset })}`, { signal }),
   events: (taskId: string, cursor?: string, signal?: AbortSignal) =>
@@ -71,8 +73,8 @@ export const growthAgents = {
   reviews: (taskId: string, signal?: AbortSignal) => request<{ reviews: GrowthAgentReview[] }>(`/tasks/${id(taskId)}/reviews`, { signal }),
   decide: (review: GrowthAgentReview, decision: "approve" | "reject", requestId: string, signal?: AbortSignal) =>
     request<GrowthAgentCommandOutputs["reviews.decide"]>(`/tasks/${id(review.taskId)}/reviews/${id(review.id)}/decision`, json({ requestId, payloadDigest: review.payloadDigest, decision }, signal)),
-  revise: (review: GrowthAgentReview, draft: GrowthDraftProposal, requestId: string, signal?: AbortSignal) =>
-    request<{ review: GrowthAgentReview }>(`/tasks/${id(review.taskId)}/reviews/${id(review.id)}`, { ...json({ requestId, payloadDigest: review.payloadDigest, draft }, signal), method: "PATCH" }),
+  revise: (review: GrowthDraftReview, draft: GrowthDraftProposal, requestId: string, signal?: AbortSignal) =>
+    request<{ review: GrowthDraftReview }>(`/tasks/${id(review.taskId)}/reviews/${id(review.id)}`, { ...json({ requestId, payloadDigest: review.payloadDigest, draft }, signal), method: "PATCH" }),
   artifacts: (taskId: string, signal?: AbortSignal) => request<GrowthAgentCommandOutputs["artifacts.list"]>(`/tasks/${id(taskId)}/artifacts`, { signal }),
   artifact: (taskId: string, artifactId: string, signal?: AbortSignal) => request<GrowthAgentCommandOutputs["artifacts.get"]>(`/tasks/${id(taskId)}/artifacts/${id(artifactId)}`, { signal }),
 };

@@ -367,3 +367,9 @@ Diagnostics expose bounded job/error/state and provider attempt/byte/timing data
 They exclude credentials, source bodies, prompts and raw private URLs. Production
 retention, alerting, capacity and key custody remain deployment work. No analytics
 exporter or provider billing system is added by this feature.
+
+## Hosted private runtime
+
+The separate [production packaging](production/README.md) pins the same server image and requires
+outbound request signing, a persistent volume and private listeners. It does not modify the
+unsigned loopback-only local compose profile or grant permission to expose Restate publicly.

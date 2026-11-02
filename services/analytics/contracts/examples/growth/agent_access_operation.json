@@ -1,0 +1,6 @@
+{
+  "kind": "operation",
+  "action": "succeeded",
+  "operation": "content.posts.publish_batch",
+  "outcome": "admitted"
+}

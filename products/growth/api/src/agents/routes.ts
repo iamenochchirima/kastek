@@ -1,3 +1,4 @@
+import { streamGrowthObservation, streamGrowthTask } from "./live.js";
 import { createHash } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
@@ -131,6 +132,20 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
   });
   app.get("/api/agents/tasks", request => invoke(request, "tasks.list", page(request, ["conversationId", "state", "search"])));
   app.get("/api/agents/tasks/:taskId", request => invoke(request, "tasks.get", { taskId: id(request, "taskId") }));
+  app.get("/api/agents/tasks/:taskId/activity", request => {
+    const query=request.query as Record<string,unknown>??{}; strict(query,["childTaskId","cursor","operationCursor","limit"]);
+    return invoke(request,"tasks.observe",{taskId:id(request,"taskId"),
+      ...(query.childTaskId===undefined?{}:{childTaskId:string(query.childTaskId,"childTaskId")}),
+      ...(query.cursor===undefined?{}:{cursor:string(query.cursor,"cursor",2048)}),
+      ...(query.operationCursor===undefined?{}:{operationCursor:string(query.operationCursor,"operationCursor",2048)}),
+      ...(query.limit===undefined?{}:{limit:Number(query.limit)})});
+  });
+  app.get("/api/agents/tasks/:taskId/activity/live", (request,reply) => {
+    const query=request.query as Record<string,unknown>??{}; strict(query,["childTaskId","cursor"]);
+    return streamGrowthObservation(request,reply,{taskId:id(request,"taskId"),
+      ...(query.childTaskId===undefined?{}:{childTaskId:string(query.childTaskId,"childTaskId")}),
+      ...(query.cursor===undefined?{}:{cursor:string(query.cursor,"cursor",2048)}),client,scope:()=>scope(request)});
+  });
   app.get("/api/agents/tasks/:taskId/export", request => invoke(request, "tasks.export", { taskId: id(request, "taskId") }));
   app.get("/api/agents/tasks/:taskId/specialists/:childTaskId/result", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -149,6 +164,11 @@ export function registerGrowthAgentRoutes(app: FastifyInstance, core: CoreContex
     if (typeof child.output !== "string") throw new ApiError(502, "agent_result_invalid", "Specialist result is unavailable");
     const points = Array.from(child.output), output = points.slice(offset, offset + 4096).join("");
     return { taskId: childTaskId, state: child.state, available: true, output, nextOffset: offset + 4096 < points.length ? offset + 4096 : null };
+  });
+  app.get("/api/agents/tasks/:taskId/live", async (request, reply) => {
+    const query = page(request, []);
+    if (query.limit !== undefined) throw new ApiError(400, "agent_request_invalid", "Check the request fields");
+    return streamGrowthTask(request, reply, {taskId: id(request, "taskId"), cursor: query.cursor as string | undefined, scope: () => scope(request), client});
   });
   app.get("/api/agents/tasks/:taskId/events", request => invoke(request, "tasks.events", { ...page(request, []), taskId: id(request, "taskId") }));
   app.post("/api/agents/tasks/:taskId/cancel", request => {

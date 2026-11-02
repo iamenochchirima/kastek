@@ -399,3 +399,33 @@ record the selected model; a clean answer after detailed user coaching is not a 
 to the owned local organization until separately approved. Rollback disables new revision5 upgrades
 and retains compatible publication handlers, accepted versions, receipts and conservative usage.
 Production rollout and post-release review date remain owner decisions.
+
+
+## Live execution reporting release record
+
+Owner: iamenochchirima. Risk: standard. Release identity: `growth-live-reporting-v1`, local only.
+Services: Agents API runtime projection, business-worker scalar timing observation, Growth API
+read-only live connection and Growth chat. Runtime policies, publication revisions, grants, quotas,
+execution receipts, journal call order and business-action permissions do not change.
+
+Contracts: optional version1 runtime task field and authenticated read-only `/tasks/:taskId/live`
+SSE response; no new command authority. Schema/migration: not applicable. Read projections retain
+current tenant/member/task/evidence checks for roots and specialists. Raw provider responses, private
+reasoning, prompts and operation bodies are excluded from runtime telemetry. Timings absent from
+older calls are unavailable. Context estimates and provider observations are separate from accounted
+usage; monitoring does not refund or reset counters.
+
+Existing native operation/context/usage records remain authoritative. A best-effort idempotent
+`model.observed` native event adds bounded scalar timing fields only. Analytics registry, new metrics,
+Collector configuration, OTLP destination and exporter changes: not applicable. Existing registered
+model telemetry continues. No new hosted dashboard or alert is claimed.
+
+Validation: focused native projection, authorization/redaction, HTTP streaming/reconnect and
+responsive UI checks, followed by owner-authorized visible in-app execution and reload. Store actual
+commands, outcomes and screenshot evidence in the local audit trail. A simulated provider cannot
+prove live-provider behavior, and this restoration does not close the separate model-quality gate.
+
+Rollout: owned local services and test organization only until explicitly approved. Rollback removes
+the optional runtime projection/live subscription and retains compatible polling, native events and
+accepted receipts. Stop observation connections without cancelling tasks. Production deployment,
+release tag and post-deployment review date: not applicable until separately authorized.

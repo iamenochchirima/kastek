@@ -49,9 +49,9 @@ export type Organization = { id: string; name: string; role: string };
 export type Session = { account: { id: string; email: string; displayName: string }; organizations: Organization[] };
 export type Memory = { id: string; kind: "semantic" | "episodic"; content: string; status: "candidate" | "accepted" | "forgotten"; revision: number; createdAt: string; updatedAt: string; sourceTaskId: string | null };
 export type Skill = { id: string; name: string; description: string; body: string; revision: number; contentDigest: string; createdAt: string };
-export type TaskOperation = { id?: string; operationId?: string; kind?: string; name?: string; toolName?: string; transport?: "native_http" | "mcp_http" | null; providerOperation?: string | null; state: string; errorCode?: string | null; inputTokens?: number | null; outputTokens?: number | null };
+export type TaskOperation = { startedAt?: string; completedAt?: string | null; id?: string; operationId?: string; kind?: string; name?: string; toolName?: string; transport?: "native_http" | "mcp_http" | null; providerOperation?: string | null; state: string; errorCode?: string | null; inputTokens?: number | null; outputTokens?: number | null };
 export type TaskEvent = { createdAt?: string; sequence: string | number; kind: string; payload?: Record<string, unknown> | null };
-export type ChildTask = { id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; rootTaskId: string; parentTaskId: string };
+export type ChildTask = { createdAt?: string; assignment?: string; input?: string; id: string; agentName: string; versionId: string; versionNumber: number; bindingId: string; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; rootTaskId: string; parentTaskId: string };
 export type TaskResource = { id: string; taskId: string; profile: string; state: string; cleanupState: "active" | "pending" | "completed" | "uncertain"; errorCode?: string | null; expiresAt: string };
 export type TaskArtifact = { id: string; taskId: string; name: string; contentType: string; bytes: number; downloadPath: string };
 export type ConnectionTarget = { id: string; label: string; resource: string };
@@ -86,8 +86,8 @@ export type TaskEvidence = { state: "available" | "unavailable"; code?: string; 
 export type DeliveryAction = { id: string; reviewId: string; reviewerAccountId?: string; accountId?: string; taskId: string; rootTaskId: string; connectionId: string; connectionRevision: number; destination: { label: string; resource: string }; artifactId: string; title: string; payloadDigest: string; reviewDigest: string; state: "pending_review" | "approved" | "rejected" | "expired" | "invalidated" | "claimed" | "delivered" | "failed" | "uncertain"; expiresAt: string; citedPassages?: CitedPassage[]; preview: { name: string; contentType: string; content: string }; receipt?: { id: string; payloadDigest: string; acceptedAt: string }; errorCode?: string };
 export type ToolReview = { id: string; taskId: string; rootTaskId: string; operationId: string; operationName?: string; connectionName?: string; destination?: string | null; effect?: string; bindingId: string; bindingDigest: string; requestDigest: string; arguments: unknown; connectionId: string; reviewerAccountId: string; state: "pending" | "approved" | "rejected" | "claimed" | "completed" | "uncertain" | "expired" | "invalidated"; expiresAt: string };
 export type OrchestrationProgress = { revision: number; record: null | { objective: string; steps: { id: string; title: string; state: "pending" | "in_progress" | "completed" | "blocked" }[]; questions: string[]; evidenceTaskIds: string[] } };
-export type TaskDetail = { orchestration?: OrchestrationProgress; canSteer?: boolean; task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; eventsNextCursor?: string | null; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
-export type Task = { orchestration?: OrchestrationProgress; canSteer?: boolean; id: string; hasToolReviews?: boolean; hasBookings?: boolean; hasEnquiries?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type TaskDetail = { operationsNextCursor?: string | null; updates?: { id: string; text: string; createdAt: string }[]; updatesTruncated?: boolean; orchestration?: OrchestrationProgress; canSteer?: boolean; task: Task; canControl?: boolean; canDownloadArtifacts?: boolean; events?: TaskEvent[]; eventsNextCursor?: string | null; operations?: TaskOperation[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
+export type Task = { createdAt?: string; updatedAt?: string; operationsNextCursor?: string | null; updatesTruncated?: boolean; publicUpdates?: { id: string; text: string; createdAt?: string }[]; orchestration?: OrchestrationProgress; canSteer?: boolean; id: string; hasToolReviews?: boolean; hasBookings?: boolean; hasEnquiries?: boolean; state: string; output: string | null; outputAvailability?: "available" | "unavailable"; errorCode: string | null; conversationId: string; input?: string; requestKey?: string; versionId?: string; turnSequence?: number; eventsNextCursor?: string | null; phase?: string; outcome?: string | null; operations?: TaskOperation[]; events?: TaskEvent[]; children?: ChildTask[]; resources?: TaskResource[]; artifacts?: TaskArtifact[]; actions?: DeliveryAction[] };
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
@@ -104,10 +104,10 @@ export async function api<T>(path: string, body?: unknown, method = body === und
   }
   return data as T;
 }
-export async function loadTaskDetail(path: string, token?: string): Promise<TaskDetail> {
-  const detail = await api<TaskDetail>(path, undefined, "GET", token);
+export async function loadTaskDetail(path: string, token?: string, signal?: AbortSignal): Promise<TaskDetail> {
+  const detail = await api<TaskDetail>(path, undefined, "GET", token, signal);
   if (detail.actions === undefined && (detail.task.state === "waiting_review" || detail.operations?.some(operation => operation.name === "report.prepare"))) {
-    detail.actions = (await api<{ actions: DeliveryAction[] }>(`${path}/actions`, undefined, "GET", token)).actions;
+    detail.actions = (await api<{ actions: DeliveryAction[] }>(`${path}/actions`, undefined, "GET", token, signal)).actions;
   }
   return detail;
 }

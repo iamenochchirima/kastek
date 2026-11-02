@@ -1,3 +1,4 @@
+import { recordEvent } from "../../observability/event-store";
 import { performance } from "node:perf_hooks";
 import { modelIdentitySchema } from "../../contracts/model-transport";
 import { requestDigest } from "../../contracts/contracts";
@@ -43,6 +44,13 @@ export async function invokeObservedTaskModel(input: TaskModelInvocation, depend
       const quote = quoteNormalizedUsage(usage ? { inputTokens: usage.inputTokens ?? null, outputTokens: usage.outputTokens ?? null,
         cacheReadTokens: usage.cachedInputTokens ?? null, cacheWriteTokens: usage.cacheWriteTokens ?? null,
         reasoningTokens: usage.reasoningTokens ?? null } : null, route.model.pricing);
+      try {
+        void recordEvent(input.pool, task.id, `model-observed:${input.operationId}`, "model.observed", {
+          operationId: input.operationId, role: input.role, durationMs: Math.max(0, performance.now() - started),
+          ...(firstVisibleTokenMs === undefined ? {} : { firstTokenMs: firstVisibleTokenMs }),
+          ...(valid(usage?.outputTokens) === undefined ? {} : { outputTokens: valid(usage?.outputTokens) }),
+        }).catch(() => { /* Runtime reporting cannot change a physical model outcome. */ });
+      } catch { /* Runtime reporting cannot change a physical model outcome. */ }
       emitModelInvocation({ event: "model.invocation", traceId: modelTraceId(task.root_task_id),
         organizationId: task.organization_id, rootTaskId: task.root_task_id, taskId: task.id, operationId: input.operationId,
         connectionId: binding.connectionId, providerId: binding.providerId, protocol: binding.protocol, modelId: binding.modelId,

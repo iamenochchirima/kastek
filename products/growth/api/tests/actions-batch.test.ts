@@ -40,7 +40,17 @@ test(
     });
     try {
       await pool.query(
-        `CREATE TYPE "SocialPublishJobStatus" AS ENUM('PENDING','QUEUED','PROCESSING','PUBLISHED','FAILED','CANCELED');CREATE TYPE "SocialPostStatus" AS ENUM('DRAFT','PUBLISHED','PROCESSING','FAILED');CREATE TABLE "SocialPost"(id text PRIMARY KEY,"orgId" text,status "SocialPostStatus","updatedAt" timestamp DEFAULT NOW());CREATE TABLE "SocialPublishJob"(id text PRIMARY KEY,status "SocialPublishJobStatus",metadata jsonb,"errorMessage" text);CREATE TABLE "SocialChannelConnection"(id text PRIMARY KEY,"displayName" text,handle text);CREATE TABLE "SocialPublishBatch"(id text PRIMARY KEY,"postId" text,"orgId" text,status text,"snapshotHash" text,"targetCount" bigint DEFAULT 0,"publishedCount" bigint DEFAULT 0,"processingCount" bigint DEFAULT 0,"unknownCount" bigint DEFAULT 0,"failedCount" bigint DEFAULT 0,"blockedCount" bigint DEFAULT 0,"errorCode" text,"errorMessage" text,"completedAt" timestamp,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW());CREATE TABLE "SocialPublishBatchItem"(id text PRIMARY KEY,"batchId" text,"jobId" text,platform text,"channelConnectionId" text,status text,retryable boolean,"errorCode" text,"errorMessage" text,metadata jsonb,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW());INSERT INTO "SocialPost"(id,"orgId",status)VALUES('post','org','DRAFT');INSERT INTO "SocialPublishBatch"(id,"postId","orgId",status,"snapshotHash")VALUES('batch','post','org','PROCESSING','hash');INSERT INTO "SocialPublishJob"VALUES('one','PUBLISHED','{}',NULL),('two','FAILED','{}','Unauthorized'),('three','FAILED','{"_kasitek_outcome":"UNKNOWN"}','timeout'),('four','PUBLISHED','{}',NULL);INSERT INTO "SocialPublishBatchItem"(id,"batchId","jobId",platform,status,retryable,metadata)VALUES('one','batch','one','X','QUEUED',false,'{}'),('two','batch','two','FACEBOOK','QUEUED',false,'{}'),('three','batch','three','THREADS','QUEUED',false,'{}'),('four','batch','four','LINKEDIN','BLOCKED',false,'{}');`,
+        `CREATE TYPE "SocialPublishJobStatus" AS ENUM('PENDING','QUEUED','PROCESSING','PUBLISHED','FAILED','CANCELED');
+        CREATE TYPE "SocialPostStatus" AS ENUM('DRAFT','SCHEDULED','PUBLISHED','PROCESSING','FAILED');
+        CREATE TABLE "SocialPost"(id text PRIMARY KEY,"orgId" text,status "SocialPostStatus",channels text[],"scheduledFor" timestamp,"publishedAt" timestamp,"updatedAt" timestamp DEFAULT NOW());
+        CREATE TABLE "SocialPublishJob"(id text PRIMARY KEY,"postId" text,platform text,status "SocialPublishJobStatus","externalPostId" text,metadata jsonb,"errorMessage" text);
+        CREATE TABLE "SocialChannelConnection"(id text PRIMARY KEY,"displayName" text,handle text);
+        CREATE TABLE "SocialPublishBatch"(id text PRIMARY KEY,"postId" text,"orgId" text,status text,"snapshotHash" text,"targetCount" bigint DEFAULT 0,"publishedCount" bigint DEFAULT 0,"processingCount" bigint DEFAULT 0,"unknownCount" bigint DEFAULT 0,"failedCount" bigint DEFAULT 0,"blockedCount" bigint DEFAULT 0,"errorCode" text,"errorMessage" text,"completedAt" timestamp,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW());
+        CREATE TABLE "SocialPublishBatchItem"(id text PRIMARY KEY,"batchId" text,"jobId" text,platform text,"channelConnectionId" text,status text,retryable boolean,"errorCode" text,"errorMessage" text,metadata jsonb,"createdAt" timestamp DEFAULT NOW(),"updatedAt" timestamp DEFAULT NOW());
+        INSERT INTO "SocialPost"(id,"orgId",status,channels)VALUES('post','org','DRAFT',ARRAY['X','FACEBOOK','THREADS','LINKEDIN','BLUESKY']);
+        INSERT INTO "SocialPublishBatch"(id,"postId","orgId",status,"snapshotHash")VALUES('batch','post','org','PROCESSING','hash');
+        INSERT INTO "SocialPublishJob" VALUES('one','post','X','PUBLISHED','confirmed-one','{}',NULL),('two','post','FACEBOOK','FAILED',NULL,'{}','Unauthorized'),('three','post','THREADS','FAILED',NULL,'{"_kasitek_outcome":"UNKNOWN"}','timeout'),('four','post','LINKEDIN','PENDING',NULL,'{}',NULL),('five','post','BLUESKY','PUBLISHED',NULL,'{}',NULL);
+        INSERT INTO "SocialPublishBatchItem"(id,"batchId","jobId",platform,status,retryable,metadata)VALUES('one','batch','one','X','QUEUED',false,'{}'),('two','batch','two','FACEBOOK','QUEUED',false,'{}'),('three','batch','three','THREADS','QUEUED',false,'{}'),('four','batch','four','LINKEDIN','BLOCKED',false,'{}'),('five','batch','five','BLUESKY','QUEUED',false,'{}');`,
       );
       await assert.rejects(
         getBatch(pool, context("other-org"), "batch"),
@@ -60,7 +70,9 @@ test(
       assert.equal(batch.publishedCount, 1);
       assert.equal(batch.failedCount, 1);
       assert.equal(batch.blockedCount, 1);
-      assert.equal(batch.unknownCount, 1);
+      assert.equal(batch.unknownCount, 2);
+      assert.equal((await pool.query('SELECT status FROM "SocialPost" WHERE id=\'post\'')).rows[0].status, "PROCESSING");
+      assert.equal(batch.targets.find((target: any) => target.platform === "BLUESKY").status, "UNKNOWN");
       const targets = batch.targets;
       assert.equal(
         targets.find((t: any) => t.platform === "FACEBOOK").remediationMode,
@@ -75,14 +87,19 @@ test(
       );
       const second = await getBatch(pool, context("org"), "batch");
       assert.equal(second.status, "UNKNOWN");
-      assert.equal(second.unknownCount, 1);
+      assert.equal(second.unknownCount, 2);
       assert.equal(await refreshActiveBatches(pool, 0), 1);
       await pool.query(
-        `UPDATE "SocialPublishBatchItem" SET status='FAILED' WHERE id='three'`,
+        `UPDATE "SocialPublishJob" SET "externalPostId"='confirmed-three' WHERE id='three'`,
       );
+      const partiallyConfirmed = await getBatch(pool, context("org"), "batch");
+      assert.equal(partiallyConfirmed.unknownCount, 1);
+      assert.equal(partiallyConfirmed.publishedCount, 2);
+      assert.equal((await pool.query('SELECT status FROM "SocialPost" WHERE id=\'post\'')).rows[0].status, "PROCESSING");
+      await pool.query(`UPDATE "SocialPublishJob" SET "externalPostId"='confirmed-five' WHERE id='five'`);
       const terminal = await getBatch(pool, context("org"), "batch");
       assert.equal(terminal.status, "PARTIAL");
-      assert.equal(terminal.publishedCount, 2);
+      assert.equal(terminal.publishedCount, 3);
       assert.ok(terminal.completedAt instanceof Date);
       assert.equal(
         (
@@ -90,7 +107,7 @@ test(
             "post",
           ])
         ).rows[0].status,
-        "PROCESSING",
+        "FAILED",
       );
     } finally {
       await pool.end();

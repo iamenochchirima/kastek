@@ -13,6 +13,6 @@ limits are documented in `products/agents/README.md` and `products/agents/docs/s
 in the repository. The former `specVersion` request format and version-management endpoints on
 this page belonged to the deleted backend and are no longer supported.
 
-Growth does not yet provide a configuration contract for the shared execution backend. External
-clients can use the supported [Growth REST API](./public-v1.md) with a workspace Developer API key.
-Product OAuth MCP is unavailable.
+Growth product execution and standalone Agents configuration are separate contracts. External
+clients can use the supported [Growth REST API](./public-v1.md) or [OAuth MCP](./mcp-integration.md)
+when enabled by the deployment. Both use Growth's canonical operation schemas and exact-review rules.

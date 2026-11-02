@@ -192,6 +192,14 @@
     {
       "path": "/",
       "source": "products/growth/web/src/app/page.tsx"
+    },
+    {
+      "path": "/oauth/consent",
+      "source": "products/growth/web/src/app/(auth)/oauth/consent/page.tsx"
+    },
+    {
+      "path": "/operations/reviews/:id",
+      "source": "products/growth/web/src/app/(dashboard)/operations/reviews/[id]/page.tsx"
     }
   ]
 }

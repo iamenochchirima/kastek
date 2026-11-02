@@ -287,19 +287,24 @@ for (const width of [1440, 768, 390]) test(`coordinates visible specialist work 
   const task = state.tasks.find((task: { input: string }) => task.input === initial);
   expect(task).toBeTruthy();
   await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, loseInstructionAcknowledgement: true } });
-  const progress = chat.getByRole("region", { name: "Work progress", exact: true });
+  const progress = chat.getByRole("region", { name: "Agent work", exact: true });
+  await progress.getByText("Approach", {exact:true}).click();
   await expect(progress.getByText("Compare specialist drafts", { exact: true })).toBeVisible({ timeout: 12000 });
-  await expect(progress.getByRole("region", { name: "Specialist work", exact: true }).getByText("Research", { exact: true })).toBeVisible();
+  await expect(progress.getByRole("button", { name: "Open Research activity", exact: true })).toBeVisible();
   await expect(chat.getByRole("textbox", { name: "Message agent" })).toBeEnabled();
-  await chat.getByRole("button", { name: "View Research result", exact: true }).click();
-  const result = page.getByRole("dialog", { name: "Research result", exact: true });
+  await chat.getByRole("button", { name: "Open Research activity", exact: true }).click();
+  const result = page.getByRole("dialog", { name: "Research", exact: true });
   await expect(result.getByText(/Verified specialist findings/)).toBeVisible();
-  await result.getByRole("button", { name: "Load more", exact: true }).click();
-  await expect(result.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
-  await expect(result.getByRole("heading", { name: "Research result", exact: true })).toBeInViewport();
+  await expect(result.getByRole("heading", { name: "Research", exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath(`specialist-result-${width}.png`), animations: "disabled" });
   await page.keyboard.press("Escape"); await expect(result).toHaveCount(0);
+  await chat.getByRole("button", {name:"Open Content activity",exact:true}).click();
+  const runningChild = page.getByRole("dialog",{name:"Content",exact:true});
+  await expect(runningChild.getByText("I’ve read the brief and am preparing the findings.",{exact:true})).toBeVisible();
+  await expect(runningChild.getByText("Read launch brief",{exact:true})).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(chat.getByRole("button", {name:"Open Content activity",exact:true})).toBeFocused();
   await chat.getByRole("textbox", { name: "Message agent" }).fill("Focus on existing customers.");
   await chat.getByRole("button", { name: "Send instructions", exact: true }).click();
   await expect(chat.getByRole("button", { name: "Retry message", exact: true })).toBeVisible();
@@ -346,7 +351,7 @@ test("model interruption keeps the conversation usable without implying an exter
   const older = chat.locator(`[data-task-id="${task.id}"]`);
   await expect(older.getByText("The model response was interrupted. Review completed work before continuing.", { exact: true })).toBeVisible();
   const lastMessage = chat.locator('[data-role="user"]').last();
-  expect(await lastMessage.evaluate((element, oldId) => Boolean(document.querySelector(`[data-task-id="${oldId}"]`)?.compareDocumentPosition(element)! & Node.DOCUMENT_POSITION_FOLLOWING), task.id)).toBe(true);
+  expect(await lastMessage.evaluate((element, oldId) => Boolean((document.querySelector(`[data-task-id="${oldId}"]`)?.compareDocumentPosition(element) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING), task.id)).toBe(true);
 });
 
 test("new conversation retries creation instead of reopening the saved conversation", async ({ page }) => {
@@ -518,37 +523,35 @@ for (const width of [1440, 390]) test(`keeps a loading specialist result open wh
   const task = state.tasks.find((item: { input: string }) => item.input === input);
   expect(task).toBeTruthy();
   await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id } });
-  const trigger = chat.getByRole("button", { name: "View Research result", exact: true });
+  const trigger = chat.getByRole("button", { name: "Open Research activity", exact: true });
   await expect(trigger).toBeVisible({ timeout: 12000 });
   await page.evaluate(() => { document.body.style.minHeight = "4000px"; });
   const outerScroll = await page.evaluate(() => window.scrollY);
   const completedOutput = "The root finished while its specialist result was opening." + "\n\nCompleted draft detail.".repeat(100);
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route(`**/api/agents/tasks/${task.id}/specialists/research-child/result?offset=0`, async route => {
+  await page.route(`**/api/agents/tasks/${task.id}/activity?childTaskId=research-child`, async route => {
     const response = await route.fetch();
     await held;
     await route.fulfill({ response });
   });
   try {
     await trigger.click();
-    const result = page.getByRole("dialog", { name: "Research result", exact: true });
-    await expect(result.getByRole("status")).toHaveText("Loading result…");
+    const result = page.getByRole("dialog", { name: "Research", exact: true });
+    await expect(result.getByRole("status", {name:"Loading agent activity"})).toBeVisible();
     expect(await page.evaluate(() => window.scrollY)).toBe(outerScroll);
     await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "completed", output: completedOutput } });
     await expect(page.locator('[data-role="assistant"]').filter({ hasText: "The root finished while its specialist result was opening." })).toHaveCount(1, { timeout: 12000 });
     await expect(result).toBeVisible();
-    await expect(result.getByRole("status")).toHaveText("Loading result…");
+    await expect(result.getByRole("status", {name:"Loading agent activity"})).toBeVisible();
     release();
     await expect(result.getByText(/Verified specialist findings/)).toBeVisible();
-    await result.getByRole("button", { name: "Load more", exact: true }).click();
-    await expect(result.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
     await expect(result.getByText(/Verified specialist findings/)).toHaveText("Verified specialist findings. ".repeat(180));
-    await page.locator("[data-agent-message-scroll]").evaluate(element => { element.scrollTop = 0; });
+    await page.locator('[aria-label="Agent conversation"] [data-agent-message-scroll]').evaluate(element => { element.scrollTop = 0; });
     await page.keyboard.press("Escape");
     await expect(result).toHaveCount(0);
-    await expect(chat.getByRole("button", { name: "View Research result", exact: true })).toBeFocused();
-    await expect(chat.getByRole("button", { name: "View Research result", exact: true })).toBeInViewport();
+    await expect(chat.getByRole("button", { name: "Open Research activity", exact: true })).toBeFocused();
+    await expect(chat.getByRole("button", { name: "Open Research activity", exact: true })).toBeInViewport();
     expect(await page.evaluate(() => window.scrollY)).toBe(outerScroll);
   } finally { release(); }
 });
@@ -605,7 +608,223 @@ for (const [code, description] of [
   expect(task).toBeTruthy();
   await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "failed", errorCode: code, canSteer: false, canContinue: true } });
   const detail = chat.locator(`[data-task-id="${task.id}"]`);
-  await expect(detail.getByRole("status")).toHaveText(description, { timeout: 12000 });
+  await expect(detail.getByRole("status").filter({ hasText: description })).toHaveText(description, { timeout: 12000 });
   await expect(detail.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
   await expect(chat.getByRole("textbox", { name: "Message agent", exact: true })).toBeEnabled();
+});
+
+for (const width of [1440, 768, 390]) for (const theme of ["light", "dark"]) test(`reports native runtime and streamed completion at ${width}px in ${theme}`, async ({ page, request }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.addInitScript(value => localStorage.setItem("kasitek-theme", value), theme);
+  let phase: "working" | "completed" = "working";
+  let releaseStream: () => void = () => {};
+  const ready = new Promise<void>(resolve => { releaseStream = resolve; });
+  const observedAt = () => new Date().toISOString();
+  const runtime = (task: { id: string }) => ({
+    version: 1, observedAt: observedAt(), elapsedMs: phase === "working" ? 2400 : 3900,
+    model: { id: "fixture/free-model", provider: "fixture", latencyMs: phase === "working" ? null : 1400, firstTokenMs: phase === "working" ? null : 600, outputTokensPerSecond: phase === "working" ? null : 30 },
+    context: { estimatedInputTokens: 1200, inputLimitTokens: 8000, windowTokens: 16000, reservedOutputTokens: 2000, safetyTokens: 500, utilizationPercent: 7.5, compactionCount: 1, lastCompactedAt: observedAt(), historyGroups: 2, sourceCount: 1 },
+    usage: { accountedTokens: 1600, inputTokens: 1200, outputTokens: phase === "working" ? null : 400, modelCalls: 1, toolCalls: 1, observedModelCalls: phase === "working" ? 0 : 1 },
+    operations: [{ id: "read", taskId: task.id, agentName: "Growth assistant", kind: "tool", label: "Reading business records", state: phase === "working" ? "started" : "completed", startedAt: observedAt(), completedAt: phase === "working" ? null : observedAt(), durationMs: 900, errorCode: null }], operationsTruncated: false,
+  });
+  await page.route("**/api/agents/tasks?**", async route => {
+    const response = await route.fetch(), body = await response.json();
+    await route.fulfill({ response, json: { ...body, tasks: body.tasks.map((task: { id: string }) => ({ ...task, runtime: runtime(task) })) } });
+  });
+  await page.route("**/api/agents/tasks/*/live*", async route => {
+    await ready;
+    const url = new URL(route.request().url());
+    const taskId = url.pathname.split("/").at(-2);
+    const result = await (await request.get(`http://127.0.0.1:4310/api/agents/tasks/${taskId}`, { headers: { cookie: "kasitek_active_org=growth-fixture-one" } })).json();
+    const task = { ...result.task, runtime: runtime(result.task) };
+    const event = { id: "native-completion", taskId, type: "completed", createdAt: observedAt() };
+    await route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: task\ndata: ${JSON.stringify({ task })}\n\nevent: events\ndata: ${JSON.stringify({ events: [event], nextCursor: "native-completion" })}\n\nevent: end\ndata: {"terminal":true}\n\n` });
+  });
+  try {
+    await page.goto("/agents");
+    await page.getByRole("button", { name: "New conversation", exact: true }).click();
+    await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+    const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+    await chat.getByRole("textbox", { name: "Message agent", exact: true }).fill(`keep working on a runtime report ${width} ${theme}`);
+    await chat.getByRole("button", { name: "Send message", exact: true }).click();
+    const native = chat.locator("[data-agent-context]");
+    await expect(native.getByText("Context · 8%", {exact:true})).toBeVisible();
+    await native.getByText("Context · 8%", {exact:true}).click();
+    await expect(native.getByText("1,200", {exact:true})).toBeVisible();
+    await expect(native.getByText("16,000", {exact:true})).toBeVisible();
+    await native.getByText("Execution details", {exact:true}).click();
+    await expect(native.getByText("Unavailable", {exact:true}).first()).toBeVisible();
+    phase = "completed";
+    const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+    const task = state.tasks.find((value: {input:string}) => value.input === `keep working on a runtime report ${width} ${theme}`);
+    await request.post("http://127.0.0.1:4310/__fixture/orchestration", {data:{taskId:task.id,state:"completed",output:"The native report is complete."}});
+    releaseStream();
+    await expect(native.getByText("1.4 s",{exact:true})).toBeVisible();
+    await expect(chat.getByText("The native report is complete.",{exact:true})).toBeVisible();
+    await expect(native.getByText("1,200",{exact:true})).toBeVisible();
+    const destination = await chat.getByRole("link", {name:"Expand conversation",exact:true}).getAttribute("href");
+    await page.goto(destination!);
+    const restored = page.getByRole("region",{name:"Agent conversation",exact:true});
+    await restored.getByText("Context · 8%",{exact:true}).click();
+    await expect(restored.locator("[data-agent-context]").getByText("1,200",{exact:true})).toBeVisible();
+    await restored.getByRole("button",{name:/Activity/}).click();
+    await expect(restored.getByText("Reading business records",{exact:true})).toBeVisible();
+    await page.screenshot({ path: `../../../.audit/live-reporting-${width}-${theme}.png`, fullPage: false, animations: "disabled" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { releaseStream(); }
+});
+
+
+test("falls back to polling when live transport is unavailable", async ({ page, request }) => {
+  await page.route("**/api/agents/tasks/*/live*", route => route.fulfill({ status: 503, json: { error: "Unavailable" } }));
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  const input = "keep working through a live transport interruption";
+  await chat.getByRole("textbox", { name: "Message agent", exact: true }).fill(input);
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.getByText("Live stream unavailable. Checking updates.", { exact: true })).toBeVisible();
+  const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
+  const task = state.tasks.find((item: { input: string }) => item.input === input);
+  await request.post("http://127.0.0.1:4310/__fixture/orchestration", { data: { taskId: task.id, state: "completed", output: "Finished through the ordinary polling path." } });
+  await expect(chat.getByText("Finished through the ordinary polling path.", { exact: true })).toBeVisible();
+  await expect(chat.getByText("Live stream unavailable. Checking updates.", { exact: true })).toHaveCount(0);
+});
+
+test("clears execution content when live observation authority is rejected", async ({ page }) => {
+  await page.route("**/api/agents/tasks/*/live*", route => route.fulfill({ status: 403, json: { error: "Forbidden" } }));
+  await page.goto("/agents");
+  await page.getByRole("button", { name: "New conversation", exact: true }).click();
+  await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+  const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+  await chat.getByRole("textbox", { name: "Message agent", exact: true }).fill("keep working before observation authority changes");
+  await chat.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(chat.getByRole("alert")).toContainText("Live updates unavailable.");
+  await expect(chat.locator("[data-role=user]")).toHaveCount(0);
+  await expect(chat.locator("[data-task-id]")).toHaveCount(0);
+});
+
+test("withdrawn evidence stays redacted across an older live snapshot and can be restored by a fresh observation", async ({ page, request }) => {
+  let source: "authorized" | "redacted" | "restored" = "authorized";
+  const clock = Date.now();
+  const observedAt = (offset: number) => new Date(clock + offset).toISOString();
+  let release: () => void = () => {};
+  const released = new Promise<void>(resolve => { release = resolve; });
+  const nativeRuntime = {
+    version: 1, observedAt: observedAt(0), elapsedMs: 1000,
+    model: { id: "fixture/private-source-model", provider: "fixture", latencyMs: null, firstTokenMs: null, outputTokensPerSecond: null },
+    context: { estimatedInputTokens: 1200, inputLimitTokens: 8000, windowTokens: 16000, reservedOutputTokens: 2000, safetyTokens: 500, utilizationPercent: 7.5, compactionCount: 0, lastCompactedAt: null, historyGroups: 0, sourceCount: 1 },
+    usage: { accountedTokens: 1200, inputTokens: null, outputTokens: null, modelCalls: 1, toolCalls: 0, observedModelCalls: 0 },
+    operations: [], operationsTruncated: false,
+  };
+  const project = (task: Record<string, unknown>, observation = source) => observation === "redacted"
+    ? { ...task, observedAt: observedAt(1000), errorCode: "EVIDENCE_UNAVAILABLE", output: null, sources: [], results: [], runtime: undefined }
+    : { ...task, observedAt: observedAt(observation === "restored" ? 2000 : 0), errorCode: null, output: "Private source-backed report.", runtime: { ...nativeRuntime, observedAt: observedAt(observation === "restored" ? 2000 : 0) } };
+  await page.route("**/api/agents/tasks?**", async route => {
+    const response = await route.fetch(), body = await response.json();
+    await route.fulfill({ response, json: { ...body, tasks: body.tasks.map((task: Record<string, unknown>) => project(task)) } });
+  });
+  await page.route("**/api/agents/tasks/*/live*", async route => {
+    const taskId = new URL(route.request().url()).pathname.split("/").at(-2);
+    const result = await (await request.get(`http://127.0.0.1:4310/api/agents/tasks/${taskId}`, { headers: { cookie: "kasitek_active_org=growth-fixture-one" } })).json();
+    const old = project(result.task, "authorized");
+    await released;
+    const olderRedaction = { ...project(result.task, "redacted"), observedAt: observedAt(500) };
+    const intermediate = { ...old, observedAt: observedAt(750), runtime: { ...nativeRuntime, observedAt: observedAt(750) } };
+    const frames = [old, olderRedaction, intermediate].map(task => `event: task\ndata: ${JSON.stringify({ task })}\n\n`).join("");
+    await route.fulfill({ contentType: "text/event-stream", body: frames + 'event: end\ndata: {"terminal":true}\n\n' });
+  });
+  try {
+    await page.goto("/agents");
+    await page.getByRole("button", { name: "New conversation", exact: true }).click();
+    await page.getByRole("button", { name: /Growth assistant Guidance/ }).click();
+    const chat = page.getByRole("region", { name: "Agent conversation", exact: true });
+    await chat.getByRole("textbox", { name: "Message agent", exact: true }).fill("keep working on the authorized source report");
+    await chat.getByRole("button", { name: "Send message", exact: true }).click();
+    await expect(chat.getByText("Private source-backed report.", { exact: true })).toBeVisible();
+    await expect(chat.locator("[data-agent-context]")).toBeVisible();
+    source = "redacted";
+    await expect(chat.getByText("Private source-backed report.", { exact: true })).toHaveCount(0);
+    await expect(chat.locator("[data-agent-context]")).toHaveCount(0);
+    await expect(chat.getByText("Sources unavailable", { exact: true })).toBeVisible();
+    const oldFrame = page.waitForResponse(response => response.url().includes("/live") && response.status() === 200);
+    release(); await oldFrame;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(chat.getByText("Private source-backed report.", { exact: true })).toHaveCount(0);
+    await expect(chat.locator("[data-agent-context]")).toHaveCount(0);
+    source = "restored";
+    await expect(chat.getByText("Private source-backed report.", { exact: true })).toBeVisible();
+    await expect(chat.locator("[data-agent-context]")).toBeVisible();
+  } finally { release(); }
+});
+
+test("fixture live transport preserves task scope while reporting unavailable streaming", async ({ request }) => {
+  const origin = "http://127.0.0.1:4310";
+  const headers = { cookie: "kasitek_active_org=growth-fixture-one" };
+  const created = await (await request.post(`${origin}/api/agents/conversations`, { headers, data: { requestId: crypto.randomUUID(), featureId: "assistant" } })).json();
+  const accepted = await (await request.post(`${origin}/api/agents/conversations/${created.conversation.id}/messages`, { headers, data: { requestId: crypto.randomUUID(), text: "keep working on the fixture scope check" } })).json();
+  expect((await request.get(`${origin}/api/agents/tasks/${accepted.task.id}/live`, { headers })).status()).toBe(503);
+  expect((await request.get(`${origin}/api/agents/tasks/${accepted.task.id}/live`, { headers: { cookie: "kasitek_active_org=growth-fixture-two" } })).status()).toBe(404);
+  expect((await request.get(`${origin}/api/agents/tasks/${crypto.randomUUID()}/live`, { headers })).status()).toBe(404);
+});
+
+test("root operation history pages once per cursor and withdraws retained conversation content immediately", async ({ page }) => {
+  await page.setViewportSize({width:1440,height:1100});
+  const clock=Date.now(),at=(offset=0)=>new Date(clock+offset).toISOString();
+  const brief="keep working while I inspect earlier root activity";
+  let rootId="",conversationId="",historyReads=0,hideNextPage=false;
+  const operation=(id:string,taskId:string,index:number,label=id)=>({id,taskId,agentName:"Growth assistant",kind:"tool",label,state:"completed",startedAt:at(index),completedAt:at(index+1),durationMs:1,errorCode:null});
+  const project=(task:Record<string,unknown>)=>({...task,observedAt:at(100),reviewIds:["protected-review"],output:"Retained protected result",sources:[{id:"private-source",title:"Protected source",route:"/analytics"}],results:[{id:"private-result",kind:"report",title:"Protected report result",route:"/analytics"}],
+    runtime:{version:1,observedAt:at(100),elapsedMs:1000,model:{id:"fixture/history",provider:"fixture",latencyMs:null,firstTokenMs:null,outputTokensPerSecond:null},context:{estimatedInputTokens:1000,windowTokens:10000,utilizationPercent:10},usage:{accountedTokens:1000,inputTokens:null,outputTokens:null,modelCalls:1,toolCalls:70,observedModelCalls:0},
+      operations:Array.from({length:60},(_,index)=>operation(`recent-${index}`,String(task.id),index+10)),operationsTruncated:true}});
+  await page.route("**/api/agents/tasks?**",async route=>{
+    const response=await route.fetch(),body=await response.json();
+    const task=body.tasks.find((item:{input:string})=>item.input===brief);
+    if(task){rootId=task.id;conversationId=task.conversationId;}
+    await route.fulfill({response,json:{...body,tasks:body.tasks.map((item:Record<string,unknown>)=>item.input===brief?project(item):item)}});
+  });
+  await page.route("**/api/agents/conversations/*",async route=>{
+    const response=await route.fetch(),body=await response.json();
+    if(route.request().method()==="GET"&&Array.isArray(body.messages)) {
+      const input=body.messages.find((item:{text:string})=>item.text===brief);
+      if(input&&!body.messages.some((item:{role:string;taskId:string})=>item.role==="assistant"&&item.taskId===input.taskId))body.messages.push({id:`${input.taskId}:assistant`,role:"assistant",taskId:input.taskId,text:"Retained protected result",createdAt:at(100)});
+    }
+    await route.fulfill({response,json:body});
+  });
+  await page.route("**/api/agents/tasks/*/reviews",async route=>{
+    const response=await route.fetch(),body=await response.json();
+    const taskId=new URL(route.request().url()).pathname.split("/").at(-2);
+    await route.fulfill({response,json:taskId===rootId?{reviews:[{id:"protected-review",taskId,conversationId,featureId:"assistant",kind:"content_draft",payloadDigest:"a".repeat(64),state:"proposed",draft:{title:"Protected draft",content:"Protected review content",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"fixture-account"}},createdAt:at(100),expiresAt:new Date(clock+3600000).toISOString(),result:null}]}:body});
+  });
+  await page.route("**/api/agents/tasks/*/activity?**",async route=>{
+    historyReads++;const cursor=new URL(route.request().url()).searchParams.get("operationCursor");
+    const response=await route.fetch({url:route.request().url().replace(/\/activity\?.*$/,"")}),body=await response.json();
+    const task=project(body.task);
+    if(hideNextPage){await route.fulfill({status:200,json:{task:{...task,observedAt:at(2000),input:brief,output:null,errorCode:"EVIDENCE_UNAVAILABLE",runtime:undefined,sources:[],results:[],children:[]},rootTaskId:rootId,parentTaskId:null,agentName:"Growth assistant",operations:[],nextOperationCursor:null,updates:[],updatesTruncated:false,events:[],nextCursor:null}});return;}
+    const operations=cursor?[operation("earlier-unique",rootId,0,"Earlier protected tool"),operation("recent-0",rootId,10)]:task.runtime.operations;
+    await route.fulfill({status:200,json:{task,rootTaskId:rootId,parentTaskId:null,agentName:"Growth assistant",operations,nextOperationCursor:cursor?"final-page":"older-page",updates:[],updatesTruncated:false,events:[],nextCursor:null}});
+  });
+  await page.goto("/agents");
+  await page.getByRole("button",{name:"New conversation",exact:true}).click();
+  await page.getByRole("button",{name:/Growth assistant Guidance/}).click();
+  const chat=page.getByRole("region",{name:"Agent conversation",exact:true});
+  await chat.getByRole("textbox",{name:"Message agent",exact:true}).fill(brief);
+  await chat.getByRole("button",{name:"Send message",exact:true}).click();
+  await expect(chat.getByText("Retained protected result",{exact:true})).toBeVisible();
+  await expect(chat.getByRole("region",{name:"Draft review",exact:true})).toBeVisible();
+  await expect(chat.locator("[data-agent-context]")).toBeVisible();
+  const earlier=chat.getByRole("button",{name:"Load earlier activity",exact:true});
+  await earlier.click();await expect.poll(()=>historyReads).toBe(1);
+  await earlier.click();await expect(chat.getByText("Earlier protected tool",{exact:true})).toBeVisible();
+  await expect(chat.locator('[data-operation-id="recent-0"]')).toHaveCount(1);
+  expect(historyReads).toBe(2);
+  hideNextPage=true;
+  await earlier.click();
+  await expect(chat.getByText("Earlier protected tool",{exact:true})).toHaveCount(0);
+  await expect(chat.getByText("Retained protected result",{exact:true})).toHaveCount(0);
+  await expect(chat.getByRole("region",{name:"Draft review",exact:true})).toHaveCount(0);
+  await expect(chat.getByRole("link",{name:"Protected report result",exact:true})).toHaveCount(0);
+  await expect(chat.locator("[data-agent-context]")).toHaveCount(0);
+  await expect(earlier).toHaveCount(0);
 });

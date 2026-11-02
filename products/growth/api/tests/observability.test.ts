@@ -38,7 +38,7 @@ const {
   MeterProvider,
   PeriodicExportingMetricReader,
   InMemoryMetricExporter,
-} = require("@opentelemetry/sdk-metrics");
+} = createRequire(import.meta.url)("@opentelemetry/sdk-metrics");
 test("HTTP/provider/worker telemetry preserves W3C context, bounded correlation and error privacy with real counters", async () => {
   const exporter = new InMemorySpanExporter(),
     provider = new BasicTracerProvider({

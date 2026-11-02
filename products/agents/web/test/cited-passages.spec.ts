@@ -13,7 +13,7 @@ for(const width of [1440,768,390])test(`mock transport: cited passages and revok
   await page.goto(`/app/tasks/${taskId}`);await page.getByText("View sources",{exact:true}).click();
   await page.getByText("Research source",{exact:true}).click();
   await expect(page.getByText("The decisive finding appears on the final page. 🧪",{exact:true})).toBeVisible();
-  await expect(page.getByText(/Retrieved /)).toBeVisible();await expect(page.getByText("Outcome unknown",{exact:true})).toBeVisible();
+  await expect(page.getByText(/Retrieved /)).toBeVisible();await page.getByRole("button",{name:/Activity/}).click();await expect(page.getByText("Outcome unknown",{exact:true})).toBeVisible();await page.getByText("get repository",{exact:true}).click();await page.getByText("get file contents",{exact:true}).click();
   await expect(page.getByText("API",{exact:true})).toBeVisible();await expect(page.getByText("MCP",{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`citations-${width}.png`),fullPage:true});
@@ -35,4 +35,29 @@ test("mock transport: recovery cache cannot display stale derived answers before
  await page.goto(`/chat/${deployment}`);await expect(page.getByText("Owner question",{exact:true})).toHaveCount(0);await expect(page.getByText(secret,{exact:true})).toHaveCount(0);
  release();await expect(page.getByText("Owner question",{exact:true})).toBeVisible();await expect(page.getByText("[Response unavailable]",{exact:true})).toBeVisible();expect(await page.evaluate(key=>sessionStorage.getItem(key),key)).toBeNull();
 
+});
+
+test("mock transport: an earlier-activity read withdraws the answer and public updates immediately", async ({ page }) => {
+  let withdrawn = false;
+  await page.route("**/api/**", async route => {
+    const url = new URL(route.request().url()), path = url.pathname;
+    if (path === "/api/session") return route.fulfill({ json: { account: { id: "owner", email: "owner@example.test", displayName: "Owner" }, organizations: [{ id: org, name: "Research", role: "owner" }] } });
+    if (path.endsWith(`/tasks/${taskId}`)) {
+      if (url.searchParams.has("operationsCursor")) withdrawn = true;
+      return route.fulfill({ json: {
+        task: { id: taskId, state: "completed", input: "Summarize the source", output: withdrawn ? null : "Sensitive finished answer", outputAvailability: withdrawn ? "unavailable" : "available", conversationId: "conversation", errorCode: null },
+        updates: [{ id: "public-update", text: "Sensitive public progress", createdAt: "2026-11-02T10:00:00Z" }],
+        operations: [{ operationId: "read", name: withdrawn ? "WITHDRAWN_OPERATION" : "Read source", state: "completed" }], operationsNextCursor: withdrawn ? null : "older", events: [], actions: [], resources: [], artifacts: [], children: [],
+      } });
+    }
+    return route.fulfill({ status: 404, json: { error: { message: "Unexpected fixture route" } } });
+  });
+  await page.goto(`/app/tasks/${taskId}`);
+  await expect(page.getByText("Sensitive finished answer", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sensitive public progress", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Earlier activity", exact: true }).click();
+  await expect(page.getByText("Activity unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sensitive finished answer", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Sensitive public progress", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("WITHDRAWN_OPERATION", { exact: true })).toHaveCount(0);
 });

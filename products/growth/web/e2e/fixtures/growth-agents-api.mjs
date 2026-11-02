@@ -85,12 +85,23 @@ const server = http.createServer(async (request, response) => {
     if (migration && path === "/api/whatsapp/connections") return json(response, 200, { connections: [fixtureWhatsapp] });
     if (migration && path === "/api/connections") return json(response, 200, { connections: [{ id: fixtureWhatsapp.id, provider: "WHATSAPP", externalAccountId: "fixture-number", displayName: "Fixture WhatsApp", handle: null, status: "CONNECTED", credentialStatus: "VALID", healthStatus: "HEALTHY", webhookStatus: "VERIFIED", metadata: {}, capabilities: [], permissions: [], consumers: ["inbox", "campaigns"], createdAt: now(), updatedAt: now() }] });
     if (migration && path === "/api/email/connections") return json(response, 200, { connections: [] });
-    if (migration && path === "/api/social/channels") return json(response, 200, { channels: [{ id: "fixture-social", platform: "FACEBOOK", status: "CONNECTED", display_name: "Fixture Facebook Page", displayName: "Fixture Facebook Page", handle: "fixture", external_id: "fixture-page", scopes: [], metadata: {} }] });
+    if (migration && path === "/api/social/channels") return json(response, 200, { channels: [{ id: "fixture-social", userId, platform: "FACEBOOK", status: "CONNECTED", displayName: "Fixture Facebook Page", handle: "fixture", externalAccountId: "fixture-page", metadata: {}, lastSyncedAt: now(), createdAt: now(), updatedAt: now() }] });
     if (migration && path === "/api/inbox/conversations") return json(response, 200, { conversations: [migrationInbox] });
     if (migration && path === "/api/inbox/fixture-inbox/read") return json(response, 200, { ok: true });
     if (migration && path === "/api/inbox/fixture-inbox/messages") { if (request.method === "POST") { const input = await payload(request); const message = { id: randomUUID(), sender: "bot", text: input.text, content: input.text, time: now(), status: "SENT", contentType: "TEXT", attachments: [], reactions: [] }; migrationMessages.push(message); migrationInbox.lastMessage = input.text; return json(response, 201, { messageId: message.id, status: "SENT", queued: false }); } return json(response, 200, { messages: migrationMessages, capabilities: { version: 1, text: true, reply: true, reaction: false, attachments: { image: false, video: false, audio: false, document: false, sticker: false }, providerDelete: false, deliveryReceipts: true, readReceipts: true } }); }
-    if (migration && path === "/api/social/posts") { if (request.method === "POST") { const input = await payload(request); const post = { ...input, id: randomUUID(), userId, title: input.content.slice(0, 40), createdAt: now(), updatedAt: now(), scheduledFor: null, publishedAt: null, media: [], publishJobs: [] }; migrationPosts.push(post); return json(response, 201, { post }); } return json(response, 200, { posts: migrationPosts }); }
-    if (migration && path === "/api/social/channels/fixture-social/identity") return json(response, 200, { channel: { display_name: "Fixture Facebook Page", username: "fixture" } });
+    if (migration && path === "/api/social/posts") { if (request.method === "POST") { const input = await payload(request); const post = { ...input, id: randomUUID(), userId, title: input.content.slice(0, 40), createdAt: now(), updatedAt: now(), scheduledFor: input.status === "SCHEDULED" ? input.scheduledFor : null, publishedAt: null, media: [], publishJobs: [] }; migrationPosts.push(post); return json(response, 201, { post }); } return json(response, 200, { posts: migrationPosts }); }
+    if (migration && /^\/api\/social\/posts\/[^/]+$/.test(path)) {
+      const post = migrationPosts.find(item => item.id === path.split("/").at(-1));
+      if (post) {
+        if (request.method === "PATCH") {
+          if (request.headers["if-match"] && request.headers["if-match"] !== post.updatedAt) return json(response, 409, { error: "This post changed. Reload it before saving" });
+          const input = await payload(request);
+          Object.assign(post, input, { title: input.content.slice(0, 40), updatedAt: now(), scheduledFor: input.status === "SCHEDULED" ? input.scheduledFor : null });
+        }
+        return json(response, 200, { post });
+      }
+    }
+    if (migration && path === "/api/social/channels/fixture-social/identity") return json(response, 200, { channel: { id: "fixture-social", userId, platform: "FACEBOOK", status: "CONNECTED", displayName: "Fixture Facebook Page", handle: "fixture", externalAccountId: "fixture-page", metadata: {}, lastSyncedAt: now(), createdAt: now(), updatedAt: now() } });
     if (migration && path === "/api/whatsapp/calls") return json(response, 200, { calls: [] });
     if (migration && path === "/api/billing/checkout" && request.method === "POST") { const input = await payload(request); return json(response, 201, { reference: "fixture-receipt", authorizationUrl: `${process.env.GROWTH_WEB_ORIGIN}/billing?payment=complete&reference=fixture-receipt`, idempotencyKey: input.idempotencyKey }); }
     if (migration && path === "/api/billing/checkout/fixture-receipt/verify") return json(response, 200, { status: "completed" });
@@ -179,12 +190,28 @@ const server = http.createServer(async (request, response) => {
       if (search) result = result.filter((task) => task.input.toLowerCase().includes(search.toLowerCase()));
       return json(response, 200, { tasks: result, nextCursor: null });
     }
+    const activityMatch = /^\/api\/agents\/tasks\/([^/]+)\/activity(\/live)?$/.exec(path);
+    if (activityMatch) {
+      const parent = tasks.get(activityMatch[1]);
+      const childId = url.searchParams.get("childTaskId"), child = parent?.children?.find(value => value.id === childId);
+      if (!parent || parent.businessId !== businessId || childId && !child) return json(response, 404, {error:"Activity unavailable"});
+      if (activityMatch[2]) return json(response,503,{error:"Controlled fixture uses polling"});
+      const input = child ? { ...parent, id:child.id, input:child.assignment || `Prepare ${child.name.toLowerCase()} findings`, state:child.state, children:[], output:child.state === "completed" ? "Verified specialist findings. ".repeat(180) : null } : parent;
+      const operations = [{id:"read-brief",taskId:input.id,agentName:child?.name || "Assistant",kind:"tool",label:"Read launch brief",state:"completed",startedAt:parent.createdAt,completedAt:now(),durationMs:120,errorCode:null}];
+      return json(response,200,{task:{...input,observedAt:now()},rootTaskId:parent.id,parentTaskId:child?parent.id:null,agentName:child?.name || "Assistant",events:[],nextCursor:null,operations,nextOperationCursor:null,updates:child?.state === "working" ? [{id:"public-update",text:"I’ve read the brief and am preparing the findings.",createdAt:now()}] : [],updatesTruncated:false});
+    }
     const specialistMatch = /^\/api\/agents\/tasks\/([^/]+)\/specialists\/([^/]+)\/result$/.exec(path);
     if (specialistMatch) {
       const task = tasks.get(specialistMatch[1]);
       if (!task || task.businessId !== businessId || !task.children?.some(child => child.id === specialistMatch[2])) return json(response, 404, { error: "Result unavailable" });
       const offset = Number(url.searchParams.get("offset") || 0), text = "Verified specialist findings. ".repeat(180);
       return json(response, 200, { taskId: specialistMatch[2], state: "completed", available: true, output: text.slice(offset, offset + 4096), nextOffset: offset + 4096 < text.length ? offset + 4096 : null });
+    }
+    const liveTaskMatch = /^\/api\/agents\/tasks\/([^/]+)\/live$/.exec(path);
+    if (liveTaskMatch) {
+      const task = tasks.get(liveTaskMatch[1]);
+      if (!task || task.businessId !== businessId) return json(response, 404, { error: "Task unavailable" });
+      return json(response, 503, { error: "Live fixture transport unavailable" });
     }
     const taskMatch = /^\/api\/agents\/tasks\/([^/]+)(?:\/(events|reviews|cancel|instructions|continue)(?:\/([^/]+)(?:\/(decision))?)?)?$/.exec(path);
     if (taskMatch) {

@@ -1,3 +1,6 @@
+import { readPublicAgentUpdates } from "./public-agent-activity";
+import { observeGrowthTask } from "./growth-observation";
+import { readGrowthRuntime } from "./growth-runtime-reporting";
 import { orchestrationTools } from "../../contracts/orchestration";
 import { queueOrchestrationInstructionInTransaction, readWorkProgress } from "../../execution/delegation/progress";
 import { continueWorkInTransaction, workLimitBoundary } from "../../execution/lifecycle/work-continuation";
@@ -57,7 +60,7 @@ export class GrowthExecutionService {
         let specialists:import("../../contracts/contracts").AgentConfiguration["capabilities"]["delegation"]|undefined;
         if(feature.id==="assistant"&&publication.policy.optionalCapabilities.delegation){
           const rows=(await db.query("SELECT f.feature_id,f.version_id,a.name,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agents a ON a.id=f.agent_id JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id IN ('research','content','campaigns') ORDER BY f.feature_id",[command.tenantId])).rows;
-          const rolling=["4","5"].includes(publication.policy.revision);
+          const rolling=["4","5","6"].includes(publication.policy.revision);
           specialists={enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:rolling?null:16,maxStalls:3},bindings:rows.map(row=>({id:row.feature_id,label:row.name,description:publication.presets.find(item=>item.id===row.feature_id)?.description??row.name,versionId:row.version_id,sourceRevisionIds:[],connectedToolBindingIds:[],tools:[],maxTokens:rolling?null:48000,maxActiveMs:rolling?null:300000}))};
         }
         const previous=(await db.query("SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.product='growth' AND f.tenant_id=$1 AND f.feature_id=$2 FOR UPDATE OF f",[command.tenantId,feature.id])).rows[0];
@@ -144,10 +147,11 @@ export class GrowthExecutionService {
     if(control)await this.runtime.authorizeControl(id);else await this.runtime.authorizeTask(id);return row;
   }
   async taskDto(row:Record<string,any>):Promise<GrowthAgentTask> {
+    const observedAt=new Date().toISOString();
     try {await assertCurrentEvidence(this.pool,row.id,await taskEvidenceManifest(this.pool,row.id),{requireActiveTask:false});}
     catch(error){
       if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;
-      return {id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:null,errorCode:"EVIDENCE_UNAVAILABLE",
+      return {observedAt,id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:null,errorCode:"EVIDENCE_UNAVAILABLE",
         createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:[],sources:[],results:[]};
     }
     const projections=(await this.pool.query("SELECT p.task_id,p.projection FROM agents_platform.product_review_projections p JOIN agents_platform.tasks t ON t.id=p.task_id WHERE p.product='growth' AND t.root_task_id=$1 ORDER BY p.updated_at,p.review_id",[row.id])).rows;
@@ -158,21 +162,29 @@ export class GrowthExecutionService {
     const admitted=(await this.pool.query("SELECT coalesce(t.effective_configuration,v.configuration) configuration,g.expires_at FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.execution_grants g ON g.id=t.grant_id WHERE t.id=$1",[row.id])).rows[0];
     const configuration=admitted?.configuration;
     const adaptive=configuration?.program?.id==="tool-directed"&&configuration?.program?.version==="4"&&configuration?.capabilities?.delegation?.enabled===true;
-    const children=adaptive?(await this.pool.query("SELECT t.id,a.name,t.state,t.error_code FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.agents a ON a.id=v.agent_id WHERE t.parent_task_id=$1 ORDER BY t.created_at,t.id",[row.id])).rows:[];
+    const children=adaptive?(await this.pool.query("SELECT t.id,a.name,t.state,t.error_code,t.input,t.created_at FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.agents a ON a.id=v.agent_id WHERE t.parent_task_id=$1 ORDER BY t.created_at,t.id",[row.id])).rows:[];
+    const visibleChildren=[];
+    for(const child of children) {
+      try {
+        await assertCurrentEvidence(this.pool,child.id,await taskEvidenceManifest(this.pool,child.id),{requireActiveTask:false});
+        visibleChildren.push({id:child.id,name:child.name,state:state(child.state),errorCode:child.error_code,createdAt:iso(child.created_at),assignment:typeof child.input==="string"?child.input.slice(0,4000):""});
+      } catch(error) {if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;}
+    }
     const closed=adaptive&&Boolean((await this.pool.query("SELECT 1 FROM agents_platform.orchestration_input_closures WHERE task_id=$1",[row.id])).rowCount);
     const limitBoundary=["incomplete","failed"].includes(row.state)?await transaction(this.pool,db=>workLimitBoundary(db,row.id)):null;
     const terminalContinuation=!limitBoundary&&["incomplete","failed"].includes(row.state)&&(row.deadline_at===null||new Date(row.deadline_at).getTime()>Date.now())&&
       !(await this.pool.query(`SELECT 1 FROM agents_platform.tasks t WHERE t.work_id=$1 AND
         (t.prior_task_id=$2 OR t.state NOT IN ('completed','incomplete','refused','failed','cancelled') OR
          EXISTS(SELECT 1 FROM agents_platform.operations o WHERE o.task_id=t.id AND o.state IN ('started','uncertain'))) LIMIT 1`,[row.work_id??row.root_task_id,row.id])).rowCount;
-    return {id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
+    return {...await readPublicAgentUpdates(this.pool,row.id),observedAt,id:row.id,conversationId:row.conversation_id,featureId:row.feature_id,state:state(row.state),input:row.input,output:row.output,errorCode:row.error_code,
+      runtime:await readGrowthRuntime(this.pool,row as Parameters<typeof readGrowthRuntime>[1]),
       workId:row.work_id??row.root_task_id,priorTaskId:row.prior_task_id??null,
       ...(limitBoundary?{boundary:limitBoundary}:row.error_code?{boundary:{reason:row.error_code,scope:row.state==="waiting_authority"?"authority" as const:row.state==="uncertain"?"runtime" as const:"work" as const,policyRevision:null,limit:null,used:null,policySource:null,retryable:terminalContinuation||row.state==="waiting_authority",action:terminalContinuation||row.state==="waiting_authority"?"continue" as const:row.state==="uncertain"?"reconcile" as const:null}}:{}),
       canContinue:terminalContinuation||row.state==="waiting_authority"||row.state==="waiting_children"&&children.some(child=>child.state==="waiting_authority"),
       ...(adaptive?{canSteer:!terminalTaskStates.has(row.state)&&!["cancel_requested","waiting_authority"].includes(row.state)&&new Date(admitted.expires_at).getTime()>Date.now()&&!closed,
-        orchestration:await readWorkProgress(this.pool,row.id),children:children.map(child=>({id:child.id,name:child.name,state:state(child.state),errorCode:child.error_code}))}:{}),
+        orchestration:await readWorkProgress(this.pool,row.id),children:visibleChildren}:{}),
       createdAt:iso(row.created_at),updatedAt:iso(row.updated_at),reviewIds:reviews.map(r=>r.id),sources:row.sources??[],
-      results:[...reviews.flatMap(r=>r.result?.state==="saved"?[{id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision}]:[]),...artifactResults]};
+      results:[...reviews.flatMap(r=>r.kind==="content_draft"&&r.result?.state==="saved"?[{id:r.result.recordId,kind:"draft" as const,title:r.draft.title,route:r.result.route,revision:r.result.revision}]:[]),...artifactResults]};
   }
   async submit(db:PoolClient,command:Extract<GrowthAgentCommand,{operation:"turns.submit"}>,snapshot:GrowthAgentContextEvidence,taskId:string) {
     if(!this.runtime)throw new PlatformError("PRODUCT_ACTIONS_UNAVAILABLE",503,"Growth agent services are unavailable");
@@ -262,7 +274,10 @@ export class GrowthExecutionService {
         const messages=[];
         for(const task of page.items){const t=await this.task(command,task.id);messages.push({id:t.id+":user",role:"user",text:t.input,createdAt:iso(t.created_at),taskId:t.id});
           for(const instruction of (await this.pool.query("SELECT sequence,instruction,created_at FROM agents_platform.orchestration_instructions WHERE task_id=$1 ORDER BY sequence",[t.id])).rows)messages.push({id:t.id+":instruction:"+instruction.sequence,role:"user",text:instruction.instruction,createdAt:iso(instruction.created_at),taskId:t.id});
-          if(t.output)messages.push({id:t.id+":assistant",role:"assistant",text:t.output,createdAt:iso(t.updated_at),taskId:t.id,sources:t.sources??[]});}
+          let visible=true;
+          try {await assertCurrentEvidence(this.pool,t.id,await taskEvidenceManifest(this.pool,t.id),{requireActiveTask:false});}
+          catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;visible=false;}
+          if(t.output&&visible)messages.push({id:t.id+":assistant",role:"assistant",text:t.output,createdAt:iso(t.updated_at),taskId:t.id,sources:t.sources??[]});}
         return {conversation:this.conversationDto(c),messages,nextCursor:page.nextCursor};
       }
       case "tasks.export": {
@@ -273,6 +288,7 @@ export class GrowthExecutionService {
           await this.runtime!.authorizeTask(id);
         });
       }
+      case "tasks.observe":return observeGrowthTask(this,command);
       case "tasks.get":return {task:await this.taskDto(await this.task(command,command.input.taskId))};
       case "tasks.instructions": {
         const task=await this.task(command,command.input.taskId,true);
@@ -341,10 +357,23 @@ export class GrowthExecutionService {
         return {reviews:[...new Map(reviews.map(review=>[review.id,review])).values()]};
       }
       case "reviews.decide": {
-        const task=await this.task(command,command.input.taskId);
-        const owner=(await this.pool.query("SELECT p.task_id FROM agents_platform.product_review_projections p JOIN agents_platform.tasks t ON t.id=p.task_id WHERE p.product='growth' AND t.root_task_id=$1 AND p.review_id=$2",[task.id,command.input.reviewId])).rows[0]??absent();
+        const tenant=await this.tenant(this.pool,command);
+        // Growth callbacks identify the task that proposed the review, which may be a specialist.
+        const owner=(await this.pool.query(`SELECT p.task_id,t.root_task_id
+          FROM agents_platform.tasks t
+          JOIN agents_platform.product_task_contexts context ON context.task_id=t.root_task_id
+          JOIN agents_platform.conversations c ON c.id=t.conversation_id
+          JOIN agents_platform.product_review_projections p ON p.product='growth' AND p.review_id=$2
+          JOIN agents_platform.tasks reviewed ON reviewed.id=p.task_id AND reviewed.root_task_id=t.root_task_id
+          WHERE t.id=$1 AND t.product='growth' AND t.organization_id=$3 AND context.product='growth'
+            AND context.tenant_id=$4 AND t.principal=$5::jsonb AND reviewed.principal=$5::jsonb
+            AND reviewed.organization_id=$3
+            AND c.deleted_at IS NULL AND (t.parent_task_id IS NULL OR p.task_id=t.id)`,
+        [command.input.taskId,command.input.reviewId,tenant.organization_id,command.tenantId,JSON.stringify(this.principal(command))])).rows[0]??absent();
+        await this.task(command,owner.root_task_id);
         const value=await this.runtime!.readReview(owner.task_id,command.input.reviewId);
-        if(value.review.payloadDigest!==command.input.payloadDigest||value.review.state!==(command.input.decision==="approve"?"approved":"rejected")&&value.review.state!=="saved")
+        const decided=value.review.state===(command.input.decision==="approve"?"approved":"rejected") || command.input.decision==="approve" && ["saved","succeeded"].includes(value.review.state);
+        if(value.review.payloadDigest!==command.input.payloadDigest||!decided)
           throw new PlatformError("PRODUCT_REVIEW_CONFLICT",409,"The exact Growth review decision could not be verified");
         await transaction(this.pool,async db=>{
           const current=(await db.query("SELECT control_generation FROM agents_platform.tasks WHERE id=$1 FOR UPDATE",[owner.task_id])).rows[0];

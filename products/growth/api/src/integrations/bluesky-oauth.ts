@@ -299,7 +299,7 @@ async function send(
       signal: AbortSignal.timeout(12000),
     });
   } catch {
-    return bad('Bluesky provider request failed');
+    throw new ApiError(502, 'bad_gateway', 'Bluesky provider request failed');
   }
 }
 async function jsonResponse(
@@ -310,19 +310,20 @@ async function jsonResponse(
   try {
     text = await response.text();
   } catch {
-    throw new ApiError(500, 'internal_error', 'External request failed');
+    throw new ApiError(502, 'provider_confirmation_unreadable', 'External request failed');
   }
+  if (response.status >= 500) throw new ApiError(502, "bad_gateway", `${context}: provider request failed`);
   if (!response.ok)
     bad(`${context}: ${Array.from(text).slice(0, 300).join('')}`);
   try {
     return JSON.parse(text);
   } catch {
-    bad(`${context}: invalid JSON response`);
+    throw new ApiError(502, 'provider_confirmation_unreadable', `${context}: invalid JSON response`);
   }
 }
 function object(value: unknown, context: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    bad(`${context}: invalid JSON response`);
+    throw new ApiError(502, 'provider_confirmation_unreadable', `${context}: invalid JSON response`);
   return value as Record<string, unknown>;
 }
 function requiredString(
@@ -828,7 +829,7 @@ export async function createPost(
       await jsonResponse(response, 'Failed to publish to Bluesky'),
       'Failed to publish to Bluesky',
     );
-  if (typeof value.uri !== 'string') bad('Bluesky did not return a post URI');
+  if (typeof value.uri !== 'string' || !value.uri.trim()) throw new ApiError(502, 'provider_confirmation_missing', 'Bluesky did not return a post URI');
   return [value.uri as string, next];
 }
 export async function deletePost(

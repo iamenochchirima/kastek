@@ -157,7 +157,7 @@ test("submits a template and reloads its pending provider-review state", async (
 
 test("saves a content draft from the complete composer and reloads it", async ({ page, request }) => {
   await page.goto("/content");
-  await page.getByRole("button", { name: "Create post", exact: true }).click();
+  await page.getByRole("button", { name: "Create post", exact: true }).first().click();
   const composer = page.getByRole("dialog");
   await composer.getByRole("button", { name: /Fixture Facebook Page/ }).click();
   await composer.getByRole("button", { name: "Continue", exact: true }).click();
@@ -179,11 +179,140 @@ test("saves a content draft from the complete composer and reloads it", async ({
   const preview = page.getByRole("dialog", { name: "Post preview", exact: true });
   await expect(preview.getByText("Migration draft saved through the composer.", { exact: true })).toBeVisible();
   await preview.getByRole("button", { name: "Edit post", exact: true }).click();
-  // The original composer must receive the selected record, rather than creating a new draft.
+  // Editing opens the selected record directly, rather than the creation wizard.
   const editComposer = page.getByRole("dialog", { name: "Edit post", exact: true });
   await expect(editComposer).toBeVisible();
-  await editComposer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(editComposer.getByRole("button", { name: "Continue", exact: true })).toHaveCount(0);
+  await expect(editComposer.getByRole("button", { name: "Save changes", exact: true })).toBeVisible();
   await expect(editComposer.getByPlaceholder("Write your post...")).toHaveValue("Migration draft saved through the composer.");
+});
+
+for (const width of [390, 768, 1440]) for (const colorScheme of ["light", "dark"] as const) test(`edits an unconnected Facebook draft at ${width}px in ${colorScheme}`, async ({ page, request }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.emulateMedia({ colorScheme });
+  await page.addInitScript(theme => localStorage.setItem("kasitek-theme", theme), colorScheme);
+  await page.route("**/api/social/channels", route => route.fulfill({ json: { channels: [] } }));
+  const text = `Unconnected Facebook draft ${width} ${colorScheme}`;
+  await page.goto("/content");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
+  await page.getByRole("button", { name: "Create post", exact: true }).first().click();
+  const composer = page.getByRole("dialog");
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(composer.getByRole("alert")).toHaveText("Choose at least one platform.");
+  await composer.getByRole("button", { name: "Draft for Facebook", exact: true }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write your post...").fill(text);
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write the Facebook version...").fill(`${text} Facebook copy`);
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(composer.getByRole("button", { name: "Post now", exact: true })).toBeDisabled();
+  await composer.locator('input[type="datetime-local"]').fill("2030-01-01T09:00");
+  await expect(composer.getByRole("button", { name: "Schedule post", exact: true })).toBeDisabled();
+  expect(await composer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("unconnected-draft-review.png"), fullPage: true });
+  await composer.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(composer).toHaveCount(0);
+  const before = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  const saved = before.posts.find((post: { content: string }) => post.content === text);
+  expect(saved.channelSelections).toEqual({});
+  await page.reload();
+  await page.getByRole("tab", { name: /^Drafts/ }).click();
+  await page.getByRole("textbox", { name: "Search posts", exact: true }).fill(text);
+  await page.getByRole("button", { name: /^Preview / }).click();
+  await page.getByRole(width < 1280 ? "dialog" : "complementary", { name: "Post preview", exact: true }).getByRole("button", { name: "Edit post", exact: true }).click();
+  await expect(composer.getByRole("button", { name: "Continue", exact: true })).toHaveCount(0);
+  await expect(composer.getByPlaceholder("Write your post...")).toHaveValue(text);
+  await composer.getByPlaceholder("Write your post...").fill(`${text} edited`);
+  await expect(composer.getByPlaceholder("Write the Facebook version...")).toHaveValue(`${text} Facebook copy`);
+  await composer.getByPlaceholder("Write the Facebook version...").fill(`${text} Facebook copy edited`);
+  expect(await composer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("direct-draft-editor.png"), fullPage: true });
+  await composer.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(composer).toHaveCount(0);
+  await page.reload();
+  const after = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  expect(after.posts.filter((post: { content: string }) => post.content.startsWith(text))).toHaveLength(1);
+  expect(after.posts.find((post: { id: string }) => post.id === saved.id)).toMatchObject({ content: `${text} edited`, variants: [{ platform: "FACEBOOK", content: `${text} Facebook copy edited` }], channelSelections: {}, status: "DRAFT" });
+  await expect(page.getByText(`${text} edited`, { exact: true }).first()).toBeVisible();
+});
+
+test("publishes a selected Page with a valid JSON body and preserves the draft after an unreadable response", async ({ page, request }) => {
+  let publishingRequests = 0;
+  const publishBodies: unknown[] = [];
+  await page.route(/\/api\/social\/posts\/[^/]+\/publish-batch\/preflight$/, async route => {
+    const postId = new URL(route.request().url()).pathname.split("/")[4];
+    await route.fulfill({ json: { postId, status: "READY", snapshotHash: "fixture", mediaCount: 0, targets: [{ platform: "FACEBOOK", accountName: "Fixture Facebook Page", state: "READY", status: "READY" }] } });
+  });
+  await page.route(/\/api\/social\/posts\/[^/]+\/publish-batch$/, async route => {
+    publishingRequests++;
+    publishBodies.push(JSON.parse(route.request().postData() || ""));
+    if (publishingRequests === 1) {
+      await route.fulfill({ status: 400, contentType: "text/plain", body: "Json deserialize error" });
+      return;
+    }
+    const postId = new URL(route.request().url()).pathname.split("/")[4];
+    const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+    const post = state.posts.find((item: { id: string }) => item.id === postId);
+    await route.fulfill({ json: { post: { ...post, status: "PUBLISHED" }, batch: { status: "PUBLISHED", targets: [] } } });
+  });
+  await page.goto("/content");
+  await page.getByRole("button", { name: "Create post", exact: true }).first().click();
+  const composer = page.getByRole("dialog");
+  await composer.getByRole("button", { name: /Fixture Facebook Page/ }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write your post...").fill("Safe publishing body regression");
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(composer.getByText("Fixture Facebook Page", { exact: true })).toBeVisible();
+  await expect(composer.getByText("Not selected", { exact: true })).toHaveCount(0);
+  await composer.getByRole("button", { name: "Post now", exact: true }).click();
+  await expect(composer.getByRole("alert")).toContainText("Unable to read the publishing response. Check the post status before retrying");
+  await expect(composer.getByText("Not selected", { exact: true })).toHaveCount(0);
+  expect(publishBodies).toEqual([{}]);
+  const beforeRetry = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  const saved = beforeRetry.posts.filter((post: { content: string }) => post.content === "Safe publishing body regression");
+  expect(saved).toHaveLength(1);
+  expect(saved[0].status).toBe("DRAFT");
+  await composer.getByRole("button", { name: "Post now", exact: true }).click();
+  await expect(composer).toHaveCount(0);
+  expect(publishBodies).toEqual([{}, {}]);
+  const afterRetry = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  expect(afterRetry.posts.filter((post: { content: string }) => post.content === "Safe publishing body regression")).toHaveLength(1);
+});
+
+test("schedules content with the browser's explicit timezone instant and retains it on reload", async ({ page, request }) => {
+  await page.goto("/content");
+  await page.getByRole("button", { name: "Create post", exact: true }).first().click();
+  const composer = page.getByRole("dialog");
+  await composer.getByRole("button", { name: /Fixture Facebook Page/ }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write your post...").fill("Scheduled timezone journey");
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write the Facebook version...").fill("Scheduled timezone journey");
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.locator('input[type="datetime-local"]').fill("2030-01-01T09:00");
+  const intendedInstant = await page.evaluate(() => new Date("2030-01-01T09:00").toISOString());
+  const sent = page.waitForRequest(request => request.method() === "POST" && new URL(request.url()).pathname === "/api/social/posts");
+  await composer.getByRole("button", { name: "Schedule post", exact: true }).click();
+  const outgoing = await sent;
+  expect(outgoing.postDataJSON().scheduledFor).toBe(intendedInstant);
+  expect(outgoing.headers()["idempotency-key"]).toMatch(/^manual-content-save:/);
+  await expect(composer).toHaveCount(0);
+  await page.reload();
+  const state = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  const scheduled = state.posts.find((post: { content: string }) => post.content === "Scheduled timezone journey");
+  expect(scheduled).toMatchObject({ status: "SCHEDULED", scheduledFor: intendedInstant });
+  await page.getByRole("textbox", { name: "Search posts", exact: true }).fill("Scheduled timezone journey");
+  await page.getByRole("button", { name: "Actions for Scheduled timezone journey", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit post", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Edit post", exact: true });
+  await expect(editor.getByRole("button", { name: "Continue", exact: true })).toHaveCount(0);
+  await expect(editor.locator('input[type="datetime-local"]')).toHaveValue("2030-01-01T09:00");
+  await editor.getByRole("textbox", { name: "Post text", exact: true }).fill("Scheduled timezone journey edited");
+  await editor.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  const editedState = await (await request.get("http://127.0.0.1:4311/__fixture/migration")).json();
+  expect(editedState.posts.find((post: { id: string }) => post.id === scheduled.id)).toMatchObject({ content: "Scheduled timezone journey edited", status: "SCHEDULED", scheduledFor: intendedInstant, channelSelections: scheduled.channelSelections });
 });
 
 test("sends an Inbox reply and reloads its saved message", async ({ page, request }) => {
@@ -288,4 +417,130 @@ test("filters connection accounts and handles an unavailable email authorization
   await page.getByRole("button", { name: "Connect Gmail", exact: true }).click();
   await expect(page.getByText("Email provider not configured", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect Gmail", exact: true })).toBeEnabled();
+});
+
+for (const finalStatus of ["PUBLISHED", "FAILED"] as const) test(`refreshes processing content to ${finalStatus.toLowerCase()} without reloading or replacing composer input`, async ({ page }) => {
+  await page.setViewportSize({ width: finalStatus === "PUBLISHED" ? 1440 : 390, height: 900 });
+  const createdAt = new Date().toISOString();
+  let status: "PROCESSING" | typeof finalStatus = "PROCESSING";
+  let reads = 0;
+  await page.route("**/api/social/posts", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    reads++;
+    if (finalStatus === "FAILED" && reads === 2) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Controlled temporary read failure" }) });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ posts: [{
+      id: "automatic-status-post", userId: "fixture-user", primaryChannelId: "fixture-social",
+      title: "Automatic status journey", content: "Automatic status journey", channels: ["FACEBOOK"],
+      status, createdAt, updatedAt: createdAt, scheduledFor: null,
+      publishedAt: status === "PUBLISHED" ? createdAt : null, variants: [], media: [],
+      publishJobs: [{ id: "automatic-status-job", postId: "automatic-status-post", platform: "FACEBOOK",
+        status: status === "PROCESSING" ? "QUEUED" : status, channelConnectionId: "fixture-social",
+        externalPostId: status === "PUBLISHED" ? "fixture-page_post" : null,
+        errorMessage: status === "FAILED" ? "Controlled provider failure" : null }],
+    }] }) });
+  });
+  await page.goto("/content");
+  await expect(page.getByRole("region", { name: "Posts", exact: true }).getByText("Processing", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  const beforeChange = reads;
+  await page.getByRole("button", { name: "Create post", exact: true }).first().click();
+  const composer = page.getByRole("dialog");
+  await composer.getByRole("button", { name: /Fixture Facebook Page/ }).click();
+  await composer.getByRole("button", { name: "Continue", exact: true }).click();
+  await composer.getByPlaceholder("Write your post...").fill("Keep this unsaved composition");
+  status = finalStatus;
+  await expect.poll(() => reads, { timeout: 10000 }).toBeGreaterThan(beforeChange);
+  await expect(composer.getByPlaceholder("Write your post...")).toHaveValue("Keep this unsaved composition");
+  await composer.getByRole("button", { name: "Close composer", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Posts", exact: true }).getByText(finalStatus === "PUBLISHED" ? "Published" : "Failed", { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
+  if (finalStatus === "FAILED") expect(reads).toBeGreaterThanOrEqual(3);
+  const readsAfterCompletion = reads;
+  await page.waitForTimeout(3500);
+  expect(reads).toBe(readsAfterCompletion);
+});
+
+test("refreshes post details, batch and activity after provider publication without reloading", async ({ page }) => {
+  const createdAt = new Date().toISOString();
+  let published = false;
+  let postReads = 0;
+  await page.route("**/api/social/posts/fixture-post", async route => {
+    postReads++;
+    const status = published ? "PUBLISHED" : "PROCESSING";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ post: {
+      id: "fixture-post", userId: "fixture-user", title: "Detail status journey", content: "Detail status journey",
+      primaryChannelId: "fixture-social", channels: ["FACEBOOK"], status, createdAt, updatedAt: createdAt,
+      scheduledFor: null, publishedAt: published ? createdAt : null, variants: [], media: [],
+      publishJobs: [{ id: "detail-job", postId: "fixture-post", platform: "FACEBOOK", status,
+        channelConnectionId: "fixture-social", publishedAt: published ? createdAt : null,
+        externalPostId: published ? "fixture-page_post" : null }],
+    } }) });
+  });
+  await page.route("**/api/social/posts/fixture-post/publish-batch", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ batch: {
+    batchId: "detail-batch", status: published ? "PUBLISHED" : "PROCESSING", targetCount: 1,
+    publishedCount: published ? 1 : 0, processingCount: published ? 0 : 1, failedCount: 0, blockedCount: 0, unknownCount: 0,
+    targets: [{ platform: "FACEBOOK", accountName: "Fixture Facebook Page", state: published ? "PUBLISHED" : "PROCESSING", remediationMode: "WAIT" }],
+  } }) }));
+  await page.route("**/api/social/posts/fixture-post/activity", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ events: published ? [{
+    id: "detail-published-event", type: "provider.job.published", status: "PUBLISHED", platform: "FACEBOOK", source: "provider",
+    occurredAt: createdAt, message: "Controlled provider publication",
+  }] : [] }) }));
+  await page.goto("/content/posts/fixture-post");
+  await expect(page.getByRole("heading", { name: "Detail status journey", exact: true })).toBeVisible();
+  await expect(page.getByText("0 of 1 published", { exact: true })).toBeVisible();
+  published = true;
+  await expect(page.getByText("1 of 1 published", { exact: true })).toBeVisible({ timeout: 12000 });
+  await expect(page.getByText(/Controlled provider publication/)).toBeVisible();
+  await expect(page.getByText("PUBLISHED", { exact: true }).first()).toBeVisible();
+  const terminalReads = postReads;
+  await page.waitForTimeout(5500);
+  expect(postReads).toBe(terminalReads);
+});
+
+for (const width of [390, 1440]) for (const removePhoto of [false, true]) test(`${removePhoto ? "removes the photo from" : "updates"} a published Facebook caption directly at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const post = { id: "published-edit-fixture", userId: "fixture-user", primaryChannelId: "fixture-social", title: "Published edit test", prompt: null, content: "Original caption", channels: ["FACEBOOK"], status: "PUBLISHED", scheduledFor: null, publishedAt: "2026-11-01T12:00:00Z", createdAt: "2026-11-01T12:00:00Z", updatedAt: "2026-11-01T12:00:00Z", metadata: {}, variants: [{ id: "fixture-variant", platform: "FACEBOOK", content: "Original caption", status: "APPROVED", aiGenerated: false }], media: [{ id: "published-edit-media", assetId: "published-edit-media", kind: "IMAGE", mimeType: "image/png", fileName: "published-image.png", byteSize: 1000, width: 640, height: 360, durationMs: null, altText: "Published image", sortOrder: 0, metadata: null }], publishJobs: [{ id: "published-edit-job", platform: "FACEBOOK", status: "PUBLISHED", channelConnectionId: "fixture-social", externalPostId: "same-facebook-post", errorMessage: null, metadata: {} }] };
+  let updateRequests = 0;
+  await page.route("**/api/social/media/published-edit-media", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#1e293b"/><text x="320" y="190" text-anchor="middle" fill="white" font-size="32">Published image</text></svg>' }));
+  await page.route("**/api/social/posts", route => route.fulfill({ json: { posts: [post] } }));
+  await page.route("**/api/social/posts/published-edit-fixture/update-published", async route => {
+    updateRequests++;
+    expect(route.request().postDataJSON()).toEqual({ content: "Updated caption", expectedUpdatedAt: "2026-11-01T12:00:00Z", ...(removePhoto ? { removePhoto: true } : {}) });
+    expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+    if (updateRequests === 1) { await route.fulfill({ status: 409, json: { error: "Facebook is temporarily unavailable." } }); return; }
+    post.content = "Updated caption";
+    post.variants[0].content = "Updated caption";
+    if (removePhoto) post.media = [];
+    await route.fulfill({ json: { post } });
+  });
+  await page.goto("/content");
+  await page.getByRole("button", { name: "Actions for Published edit test", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit post", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Edit Facebook post", exact: true });
+  await expect(editor.getByText("Fixture Facebook Page", { exact: true })).toBeVisible();
+  await expect(editor.getByRole("button", { name: "Continue", exact: true })).toHaveCount(0);
+  await expect(editor.getByRole("button", { name: "Add media", exact: true })).toHaveCount(0);
+  await expect(editor.getByRole("button", { name: "Remove media", exact: true })).toHaveCount(0);
+  await expect(editor.getByRole("img", { name: "Published image", exact: true })).toBeVisible();
+  if (removePhoto) {
+    await editor.getByRole("button", { name: "Remove photo", exact: true }).click();
+    await expect(editor.getByText("Photo will be removed", { exact: true })).toBeVisible();
+    await expect(editor.getByRole("img", { name: "Published image", exact: true })).toHaveCount(0);
+    await editor.getByRole("button", { name: "Undo photo removal", exact: true }).click();
+    await expect(editor.getByRole("img", { name: "Published image", exact: true })).toBeVisible();
+    await editor.getByRole("button", { name: "Remove photo", exact: true }).click();
+  }
+  await editor.getByRole("textbox", { name: "Facebook text", exact: true }).fill("Updated caption");
+  await editor.getByRole("button", { name: "Update on Facebook", exact: true }).click();
+  await expect(editor.getByRole("alert")).toHaveText("Facebook is temporarily unavailable.");
+  await expect(editor.getByRole("textbox", { name: "Facebook text", exact: true })).toHaveValue("Updated caption");
+  if (removePhoto) {
+    await expect(editor.getByRole("button", { name: "Undo photo removal", exact: true })).toBeVisible();
+    expect(post.media).toHaveLength(1);
+  }
+  expect(await editor.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("direct-published-editor.png"), fullPage: true });
+  await editor.getByRole("button", { name: "Update on Facebook", exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  expect(post.publishJobs[0].externalPostId).toBe("same-facebook-post");
+  expect(updateRequests).toBe(2);
+  expect(post.media).toHaveLength(removePhoto ? 0 : 1);
 });

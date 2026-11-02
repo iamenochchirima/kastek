@@ -1,0 +1,25 @@
+CREATE TABLE "GrowthOperationReview" (
+  id text PRIMARY KEY,
+  "orgId" text NOT NULL,
+  "userId" text NOT NULL,
+  "principalId" text NOT NULL,
+  "principalKind" text NOT NULL,
+  operation text NOT NULL,
+  version text NOT NULL,
+  "requestKey" text NOT NULL,
+  "payloadDigest" text NOT NULL,
+  input jsonb NOT NULL,
+  snapshot jsonb NOT NULL,
+  state text NOT NULL DEFAULT 'proposed',
+  result jsonb,
+  "errorCode" text,
+  "taskId" text,
+  "conversationId" text,
+  "operationId" text,
+  "expiresAt" timestamptz NOT NULL,
+  "createdAt" timestamptz NOT NULL DEFAULT now(),
+  "updatedAt" timestamptz NOT NULL DEFAULT now(),
+  UNIQUE("orgId", "principalKind", "principalId", "requestKey"),
+  CHECK (state IN ('proposed','approved','executing','succeeded','rejected','expired','uncertain','failed'))
+);
+CREATE INDEX "GrowthOperationReview_user_org_idx" ON "GrowthOperationReview"("userId","orgId","createdAt");

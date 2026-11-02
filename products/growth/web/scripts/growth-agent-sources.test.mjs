@@ -65,7 +65,7 @@ const { readFileSync } = await import("node:fs");
 const { checkRouteContract } = await import("./check-canonical-routes.mjs");
 const routeSource = readFileSync(new URL("../src/routes.ts", import.meta.url), "utf8");
 const routeContract = JSON.parse(readFileSync(new URL("./route-contract.json", import.meta.url), "utf8"));
-test("all 48 audited routes are mounted once with their original modules", () => {
+test("all 50 audited routes are mounted once with their original modules", () => {
   assert.deepEqual(checkRouteContract(routeSource, routeContract, () => true), []);
 });
 test("route validation catches missing, duplicate and unrecorded routes", () => {
@@ -79,7 +79,7 @@ test("route validation rejects a wrong module, missing file and incomplete basel
   const wrongModule = routeSource.replace('"app/(dashboard)/calls/page.tsx"', '"app/(dashboard)/inbox/page.tsx"');
   assert.ok(checkRouteContract(wrongModule, routeContract, () => true).includes("route module changed without a contract update: /calls"));
   assert.ok(checkRouteContract(routeSource, routeContract, file => !file.includes("calls/")).includes("route module is missing: app/(dashboard)/calls/page.tsx"));
-  assert.ok(checkRouteContract(routeSource, { routes: routeContract.routes.slice(1) }, () => true).includes("baseline must contain all 48 audited routes"));
+  assert.ok(checkRouteContract(routeSource, { routes: routeContract.routes.slice(1) }, () => true).includes("baseline must contain all 50 audited routes"));
 });
 
 const ts = (await import("typescript")).default;

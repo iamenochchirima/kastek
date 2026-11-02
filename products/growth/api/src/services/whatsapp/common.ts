@@ -329,7 +329,7 @@ export async function getConnectionRowForOrg(
   return row;
 }
 export async function selectListContactRow(
-  pool: Pool,
+  pool: Pick<Pool, "query">,
   orgId: string,
   id: string,
 ): Promise<Row | undefined> {

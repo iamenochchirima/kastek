@@ -15,16 +15,7 @@
 .growth-agents-mobile-meta { display:none; }
 .growth-agents-task-table th:first-child { width:34%; }
 .growth-agents-task-table th:last-child { width:16%; }
-.growth-agent-chat { --agent-chat-bubble:var(--secondary); }
 .growth-agent-chat-header { min-height:76px; }
-.growth-agent-chat-message { display:flex; gap:10px; align-items:flex-start; }
-.growth-agent-chat-message[data-role="user"] { justify-content:flex-end; }
-.growth-agent-chat-avatar { display:grid; width:30px; height:30px; flex-shrink:0; place-items:center; border:1px solid var(--border); border-radius:50%; background:var(--card); color:var(--muted-foreground); }
-.growth-agent-chat-message[data-role="user"] .growth-agent-chat-avatar { order:2; background:var(--secondary); }
-.growth-agent-chat-bubble { min-width:0; border-radius:7px; padding:10px 13px; background:var(--agent-chat-bubble); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
-.growth-agent-chat-message[data-role="user"] .growth-agent-chat-bubble { background:color-mix(in srgb,var(--primary) 10%,var(--card)); }
-.growth-agent-chat-time { display:block; margin-top:5px; color:var(--muted-foreground); font-size:10px; line-height:1.4; }
-.growth-agent-chat-message[data-role="user"] .growth-agent-chat-time { text-align:right; }
 .growth-agent-context-compact { max-width:65%; }
 .growth-agent-context-compact [data-context-action] { min-height:32px; }
 @media (max-width:639px) {

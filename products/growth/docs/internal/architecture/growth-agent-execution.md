@@ -1,7 +1,7 @@
 ---
 title: Growth agent execution
 owner: engineering
-last_reviewed: 2026-10-23
+last_reviewed: 2026-11-01
 ---
 
 # Growth agent execution
@@ -79,9 +79,43 @@ Growth retains /api/quote-requests and /api/waitlist independently.
 
 ## External clients and operations
 
-Developer API keys keep scoped access to supported Growth REST operations, with local audits,
-rate limits, expiry and revocation. Old installation JWTs are rejected without falling back to
-a browser cookie. Product OAuth MCP remains unavailable.
+Growth's `api/src/operations/` owns the canonical operation catalogue, schema validation,
+current credential/membership/entitlement policy, exact reviews, bounded observations and domain
+dispatch. External MCP (`POST /mcp`), canonical REST (`/v1/operations`) and embedded signed
+`operation.invoke` actions use that execution path. Internal execution supplies verified user and
+workspace context directly; it does not make an MCP network request or gain additional scopes.
+Typed content, customer, inbox, booking, campaign and template REST aliases dispatch the same
+operations. Authorized personal fields have the same visibility on each transport; provider
+credential-shaped fields are recursively removed.
+
+`api/src/oauth/` implements Growth-owned public-client OAuth authorization-code flow with PKCE
+S256, consent against the existing verified Keycloak session, dynamic registration and validated
+HTTPS client metadata. Opaque token digests are stored in additive `GrowthOAuth*` tables.
+Connections bind user, organization, client, granted scope and exact `${publicApiUrl}/mcp` audience.
+The resolver rejects other resources; REST accepts this explicitly supported Growth resource too.
+Refresh rotation is serialized per connection, and refresh replay revokes its family. User and
+workspace membership are rechecked at admission and before dispatch. No machine bearer falls
+back to an accompanying browser cookie.
+
+The four operation scopes are `growth:read`, `growth:draft`, `growth:publish` and `growth:manage`.
+Legacy Developer keys retain `api:read` reads and `api:write` drafts; write does not imply publish
+or destructive authority. Non-read operations require a durable review tied to the exact JSON
+payload, request identity, credential and resource snapshot. The browser review is
+`/operations/reviews/:id`; approval alone does not run the effect. Only an approved matching
+resume can claim execution. Completed receipts return their recorded result; unknown outcomes
+require reconciliation. A continuation carries no new authorization and only reads an unchanged
+bounded observation. Staged media controls do not publish content.
+
+**Developers → MCP** displays the configured endpoint and current user's workspace connections,
+with individual revocation. Browser logout preserves independent connections. Verified Keycloak
+backchannel `sid` deletes that browser session only; subject-wide revocation and successful
+account-wide logout revoke delegated grants as well. Invalid identity signals cannot revoke a
+connection. Old installation JWTs remain rejected.
+
+See [agent access operations](../operations/growth-agent-access.md) for controlled migration,
+feature flags, verification and rollback. This implementation supports its catalogue; it does
+not establish that every UI action has an agent operation or that every social provider has
+passed live acceptance.
 
 The central admin Operations page retains Growth webhook recovery and support access. Retired
 remote runtime projections and operator commands are removed. Shared execution monitoring belongs
@@ -97,3 +131,16 @@ deployment, reset an owner database or apply the obsolete widget-table removal m
 The [shared architecture](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
 defines execution categories and authorization responsibilities. Current shared runtime support
 is recorded in its [source boundary](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).
+
+
+## Shared conversation and specialist inspection
+
+Growth and standalone Agents render execution through `@kasitek-labs/ui/agent`. Growth route, dock and mobile hosts share `AgentConversation`; contextual content, campaign, analytics and Inbox launchers retain their existing context and use that same conversation. The shared package owns messages, safe Markdown, composer interaction, compact tool/subagent rows, chronological activity, context disclosure, reading position and the responsive subagent modal. Product adapters retain sessions, current permissions, transport, exact reviews, source resolution and execution commands.
+
+`GET /api/agents/tasks/:taskId/activity` and its `/live` companion read a purpose-built current-authority projection. An optional `childTaskId` must belong to the authorized root tree. A separate `operationCursor` pages safe own-task operation history independently of event replay. The browser does not use execution exports to inspect specialists. Tool detail contains authorized metadata, not arbitrary arguments/results or private reasoning. Public progress comes from retained assistant content accompanying tool calls; missing historical content remains unavailable.
+
+Opening a running specialist observes its assignment, public updates, tool metadata and output in the same conversation body. Close releases observation only; it never cancels or restarts work. Descendants, when supported by runtime policy, navigate within one modal. Mobile uses a full-screen modal. Scope changes and authoritative access/evidence withdrawal clear protected messages, sources, activity and cached history. Terminal observations cannot regress to running when delayed frames arrive. Visible settled history periodically rechecks current access; source restoration requires a newer authorized observation.
+
+Context capacity remains separate from task completion and usage allowances. Diagnostics and history remain available on demand. Execution completion does not establish factual accuracy or delivery; business actions still require their native review and receipt. Customer histories reuse plain message content without receiving internal task visibility.
+
+Verification: shared package tests, Growth agents browser suite and focused `playwright.shared-agent-ui.config.ts` cases cover compact rendering, current-policy withdrawal, replay, operation paging, nested mobile dialogs, tool/context disclosure, keyboard behavior and scroll/focus restoration. Actual in-app model trials are distinct from deterministic fixture evidence. See [shared UI release record](../operations/shared-agent-ui-release.md).

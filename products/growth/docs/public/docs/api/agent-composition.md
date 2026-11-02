@@ -13,4 +13,4 @@ messaging deployments and shared customer Inbox. Its current capability support 
 documented in products/agents/README.md in the repository.
 
 External clients use the [Growth REST API](./public-v1.md) with scoped Developer API keys.
-Product OAuth MCP and retired installation-management endpoints are unavailable.
+Growth [OAuth MCP](./mcp-integration.md) and [canonical REST](./agent-rest.md) use the same operation catalogue and exact-review execution as internal agents when enabled by the deployment. Retired installation-management endpoints remain unavailable.

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { GrowthAgentContractError, parseGrowthDraftProposal, type GrowthDraftProposal, type GrowthDraftReceipt, type GrowthAgentReview, type GrowthAgentAction, type GrowthAgentFeatureId, type GrowthAgentContext } from "@kasitek-labs/contracts";
+import { GrowthAgentContractError, parseGrowthDraftProposal, type GrowthDraftProposal, type GrowthDraftReceipt, type GrowthDraftReview, type GrowthAgentAction, type GrowthAgentFeatureId, type GrowthAgentContext } from "@kasitek-labs/contracts";
 import type { CoreContext } from "../context.js";
 import { transaction } from "../db.js";
 import { ApiError } from "../error.js";
@@ -13,11 +13,11 @@ type ReviewRow = {
   id: string; orgId: string; actorId: string; taskId: string; conversationId: string; featureId: GrowthAgentFeatureId;
   operationId: string; requestDigest: string; payloadDigest: string; draft: GrowthDraftProposal; context: GrowthAgentContext | null;
   contextRevision: string | null; destinationRevisions: Record<string, string>; rootReviewId: string; supersededBy: string | null;
-  state: GrowthAgentReview["state"]; result: GrowthDraftReceipt | null; decisionRequestId: string | null; createdAt: Date; updatedAt: Date; expiresAt: Date;
+  state: GrowthDraftReview["state"]; result: GrowthDraftReceipt | null; decisionRequestId: string | null; createdAt: Date; updatedAt: Date; expiresAt: Date;
 };
 const missing = () => new ApiError(404, "agent_review_missing", "Review is unavailable");
 const conflict = (message: string) => new ApiError(409, "agent_review_conflict", message);
-function dto(row: ReviewRow): GrowthAgentReview {
+function dto(row: ReviewRow): GrowthDraftReview {
   return { id: row.id, taskId: row.taskId, conversationId: row.conversationId, featureId: row.featureId, kind: "content_draft",
     payloadDigest: row.payloadDigest, state: row.state === "proposed" && new Date(row.expiresAt).getTime() <= Date.now() ? "expired" : row.state,
     draft: row.draft, createdAt: new Date(row.createdAt).toISOString(), expiresAt: new Date(row.expiresAt).toISOString(), result: row.result };
@@ -54,12 +54,12 @@ export class GrowthAgentReviewStore {
     while (row.supersededBy) { if (++count > 100) throw conflict("Review revision history is unavailable"); row = await this.row(db, scope, row.supersededBy, taskId, lock); }
     return row;
   }
-  async list(scope: GrowthAgentScope, taskId: string): Promise<GrowthAgentReview[]> {
+  async list(scope: GrowthAgentScope, taskId: string): Promise<GrowthDraftReview[]> {
     await authorizeGrowthAgentScope(this.core, scope, "content");
     const rows = (await this.core.pool.query<ReviewRow>(`SELECT * FROM "GrowthAgentReview" WHERE "orgId"=$1 AND "actorId"=$2 AND "taskId"=$3 AND "supersededBy" IS NULL ORDER BY "createdAt",id LIMIT 100`, [scope.tenantId, scope.actor.subject, taskId])).rows;
     return rows.map(dto);
   }
-  async prepare(action: GrowthAgentAction<"draft.prepare">): Promise<{ review: GrowthAgentReview }> {
+  async prepare(action: GrowthAgentAction<"draft.prepare">): Promise<{ review: GrowthDraftReview }> {
     const scope = { tenantId: action.tenantId, actor: action.actor };
     let draft: GrowthDraftProposal;
     try { draft = parseGrowthDraftProposal(action.input.draft); }
@@ -87,7 +87,7 @@ export class GrowthAgentReviewStore {
       return { review: dto(row) };
     });
   }
-  async revise(scope: GrowthAgentScope, taskId: string, reviewId: string, input: { requestId: string; payloadDigest: string; draft: GrowthDraftProposal }): Promise<{ review: GrowthAgentReview }> {
+  async revise(scope: GrowthAgentScope, taskId: string, reviewId: string, input: { requestId: string; payloadDigest: string; draft: GrowthDraftProposal }): Promise<{ review: GrowthDraftReview }> {
     const draft = parseGrowthDraftProposal(input.draft);
     await authorizeGrowthAgentScope(this.core, scope, "content");
     return transaction(this.core.pool, async db => {
@@ -111,7 +111,7 @@ export class GrowthAgentReviewStore {
       return { review: dto(row) };
     });
   }
-  async decide(scope: GrowthAgentScope, reviewId: string, input: { requestId: string; payloadDigest: string; decision: "approve" | "reject" }, taskId?: string): Promise<{ review: GrowthAgentReview }> {
+  async decide(scope: GrowthAgentScope, reviewId: string, input: { requestId: string; payloadDigest: string; decision: "approve" | "reject" }, taskId?: string): Promise<{ review: GrowthDraftReview }> {
     await authorizeGrowthAgentScope(this.core, scope, "content");
     return transaction(this.core.pool, async db => {
       const row = await this.row(db, scope, reviewId, taskId, true);
@@ -146,7 +146,7 @@ export class GrowthAgentReviewStore {
     await enqueueGrowthAgentDraftSaved(db, updated, result.recordId, result.revision);
     return updated;
   }
-  async reconcile(action: GrowthAgentAction<"draft.reconcile">): Promise<{ review: GrowthAgentReview; result: GrowthDraftReceipt | null }> {
+  async reconcile(action: GrowthAgentAction<"draft.reconcile">): Promise<{ review: GrowthDraftReview; result: GrowthDraftReceipt | null }> {
     const scope = { tenantId: action.tenantId, actor: action.actor };
     await authorizeGrowthAgentScope(this.core, scope, "content");
     return transaction(this.core.pool, async db => {
@@ -156,7 +156,7 @@ export class GrowthAgentReviewStore {
       return { review: dto(row), result: row.result };
     });
   }
-  async commit(action: GrowthAgentAction<"draft.commit">): Promise<{ review: GrowthAgentReview; result: GrowthDraftReceipt | null }> {
+  async commit(action: GrowthAgentAction<"draft.commit">): Promise<{ review: GrowthDraftReview; result: GrowthDraftReceipt | null }> {
     const scope = { tenantId: action.tenantId, actor: action.actor };
     await authorizeGrowthAgentScope(this.core, scope, "content");
     return transaction(this.core.pool, async db => {

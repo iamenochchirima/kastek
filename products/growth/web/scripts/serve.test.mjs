@@ -52,6 +52,27 @@ test('production serves prerendered root, known private routes and accurate miss
   } finally { await app.cleanup(); }
 });
 
+test('same-origin MCP, OAuth discovery and REST proxy to Core while consent remains a page', async () => {
+  const received = [];
+  const app = await fixture((request, response) => {
+    received.push({ url: request.url, authorization: request.headers.authorization });
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ proxied: request.url }));
+  });
+  try {
+    for (const path of ['/mcp','/v1/operations','/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp','/.well-known/oauth-authorization-server','/oauth/authorize?state=preserved','/oauth/token','/oauth/register','/oauth/revoke']) {
+      const response = await raw(app.origin, path, { authorization: 'Bearer fixture' }, path === '/mcp' ? 'POST' : 'GET');
+      assert.equal(response.status, 200);
+      assert.equal(JSON.parse(response.body.toString()).proxied, path);
+      assert.equal(received.at(-1).authorization, 'Bearer fixture');
+    }
+    const count = received.length;
+    assert.match((await raw(app.origin, '/oauth/consent?request=fixture')).body.toString(), /App/);
+    assert.equal(received.length, count);
+    assert.equal((await raw(app.origin, '/oauth/unknown')).status, 404);
+  } finally { await app.cleanup(); }
+});
+
 test('static cache policies cover assets, worker, HTML, manifest and preview hosts', async () => {
   const app = await fixture();
   try {

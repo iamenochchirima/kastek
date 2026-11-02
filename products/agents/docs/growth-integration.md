@@ -300,7 +300,7 @@ Apply recognized Agents additive schemas 070–072 with the explicit setup comma
 new admissions. They store generic review projections, trusted Growth publications and managed
 configuration markers. Adaptive execution additionally requires schemas096–098. Register V21, V23 and V24
 workers and install current product handlers before publishing defaults revision `5`. The Growth
-manifest and product policy revision are `5`; the installed HTTP adapter remains release `2`.
+manifest and product policy revision are `4`; the installed HTTP adapter remains release `2`.
 Exact revision 2 publications remain supported for accepted work and persisted setup retries.
 Unknown schema digests remain rejected. Schemas097/098 store logical work lineage, nullable
 allocations and exact counters. Retain earlier schema registrations and accepted policy snapshots.
@@ -336,3 +336,69 @@ tenant on every handler entry, including replay, so a publication installed afte
 available without treating a process-local registry fill as a journaled business operation.
 
 Empty optional discovery search/status strings mean no filter, matching the published list schema. Nonempty invalid statuses, malformed cursors and foreign-scope handles remain rejected.
+
+
+## Live execution reporting
+
+Growth chat reads an optional version1 runtime projection from each authorized task. The projection
+uses the current root and independently authorized same-principal specialists. Context figures come
+from the latest persisted context snapshot and accepted model policy. They are estimates, not a
+provider token count. The model window, input ceiling, output/safety reserves, compaction threshold
+and completed compactions remain distinct. Accounted usage includes conservative settlement;
+provider-observed input/output usage is shown separately with its observed-call coverage.
+
+`GET /api/agents/tasks/:taskId/live` delivers server-sent `task` and `events` observations through the
+Growth origin. The connection checks current Growth membership, active organization and Agents
+task authority on each observation, and closes on access changes. Event cursors retain the existing
+actor/tenant/task scope. A bounded connection lease reconnects from its cursor; terminal event pages
+are drained before closure. Disconnecting a viewer never cancels execution. Existing task/event
+reads remain the recovery path after interruption and on reload.
+
+The runtime timeline exposes bounded operation labels, agent names, states and durations. Its
+context/usage projection excludes prompts, tool arguments/results, credentials and private model
+reasoning. Native `model.observed` events retain only scalar timing observations under an idempotent
+operation key. Recording is best effort and cannot change a model outcome. First-visible-token
+timing is unavailable for older calls or missing observations; queue timing is not currently
+measured. No zero or estimated timing substitutes for missing measurements.
+
+Each task projection carries an observation timestamp independent of its execution `updatedAt`.
+The client uses it to reject stale stream/poll responses. Withdrawing evidence removes the runtime
+projection, assistant output, source references and results. Conversation reads apply the same
+evidence check; stale responses cannot restore hidden content. A later authorized observation can
+restore visibility without rewriting execution history.
+
+### Shared conversation activity and specialist observation
+
+The product command `tasks.observe` and Growth's session-owned
+`GET /api/agents/tasks/:rootTaskId/activity` return a bounded public observation of the root or
+an authorized descendant selected by `childTaskId`. This is a purpose-built read projection;
+it does not use the evaluation export. Every descendant lookup verifies root ancestry, product,
+organization, initiating principal, enabled feature, conversation availability and current task and
+evidence authority. A child identifier alone grants no access. Missing or withdrawn child activity
+is unavailable, including its derived assignment and output.
+
+The observation contains task state and assignment, safe operation metadata, public updates,
+event history, and separate event and operation cursors. `cursor` advances durable events;
+`operationCursor` loads older own-task operations. Operation pages retain native timestamp precision
+and scope cursors to the actor, tenant, root and inspected task. The runtime summary remains a
+bounded active-first overview; the paginated operation history is the inspection path. Tool inputs
+and raw results are not part of this projection. Unsupported detail remains unavailable.
+
+`GET /api/agents/tasks/:rootTaskId/activity/live` emits `observation` frames and uses the same
+membership checks, bounded lease, disconnect cleanup, terminal-event draining and backpressure
+rules as the task stream. Closing an observer never cancels execution. Reopening reads current
+history and current authority. The UI must invalidate every in-flight history and live request
+when authority is withdrawn so an older response cannot restore protected content.
+
+Public updates are normal assistant message text accompanying tool calls in completed primary
+model receipts. They are persisted action preambles, not private provider reasoning or
+reconstructed summaries of arbitrary tool bodies. They are bounded, guarded by current evidence,
+and excluded from customer-delivery projections and deleted conversations. Models that emit no
+public preamble have no such update; native activity still remains visible. Partial token streaming
+is not fabricated. The root task DTO also carries these optional updates.
+
+Standalone Agents retains its own authorized task detail API. It exposes the same public-update
+projection and bounded safe operation history with `operationsLimit`, `operationsCursor` and
+`operationsNextCursor`. Reviewer-only task views do not expose this history or child transcripts.
+No execution policy, model selection, quota, schema migration, runtime version or product
+membership changes are required for these read projections.

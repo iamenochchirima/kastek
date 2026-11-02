@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.js";
 import { GrowthAgentReviewStore } from "../src/agents/reviews.js";
 import { registerGrowthAgentRoutes } from "../src/agents/routes.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthAgentPublication, growthAgentPublicationV2 } from "../src/agents/manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7 } from "../src/agents/manifest.js";
 import { growthAgentSetupRequest } from "../src/workers/growth-agent-setup.js";
 import type { GrowthAgentSetupJob } from "../src/agents/setup.js";
 import type { CoreContext } from "../src/context.js";
@@ -46,7 +46,18 @@ test("Growth active instructions and continuation retain signed scope, input bou
   } finally { await app.close(); }
 });
 
-test("Growth publication enables adaptive delegation and aligns draft shape with the canonical input", () => {
+test("managed setup pins every retained publication and the current canonical revision", () => {
+  const job = { requestId: "setup", orgId: "business", modelProfileId: "default", modelProfileRevision: "1" } as GrowthAgentSetupJob;
+  for (const publication of [growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublication]) {
+    const request = growthAgentSetupRequest({ ...job, defaultsRevision: publication.manifest.revision });
+    assert.deepEqual(request.publication, publication);
+    assert.equal(request.defaultsRevision, request.publication!.manifest.revision);
+    assert.equal(request.defaultsRevision, request.publication!.policy.revision);
+  }
+});
+
+test("retained Growth V3 publication preserves adaptive delegation and its draft contract", () => {
+  const growthAgentPublication = growthAgentPublicationV3;
   assert.equal(growthAgentPublication.manifest.revision, "3");
   assert.equal(growthAgentPublication.policy.optionalCapabilities.delegation, true);
   const draft = growthAgentPublication.manifest.operations.find(operation => operation.operation === "draft.prepare")!;
@@ -66,7 +77,10 @@ test("Growth publication enables adaptive delegation and aligns draft shape with
   assert.equal(growthAgentPublicationV2.policy.optionalCapabilities.delegation, false);
   const job = { requestId: "setup", orgId: "business", modelProfileId: "default", modelProfileRevision: "1" } as GrowthAgentSetupJob;
   assert.deepEqual(growthAgentSetupRequest({ ...job, defaultsRevision: "2" }).publication, growthAgentPublicationV2);
-  assert.deepEqual(growthAgentSetupRequest({ ...job, defaultsRevision: "3" }).publication, growthAgentPublication);
+  assert.deepEqual(growthAgentSetupRequest({ ...job, defaultsRevision: "3" }).publication, growthAgentPublicationV3);
+  for (const publication of [growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5]) {
+    assert.deepEqual(growthAgentSetupRequest({ ...job, defaultsRevision: publication.manifest.revision }).publication, publication);
+  }
 });
 
 

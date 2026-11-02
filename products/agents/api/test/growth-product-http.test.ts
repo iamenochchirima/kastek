@@ -51,6 +51,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
   let artifactHeld=false,releaseArtifact:()=>void=()=>{};
   const artifactBarrier=new Promise<void>(resolve=>{releaseArtifact=resolve;});
   let adaptiveHold:Promise<void>|null=null,capacityFailureCalls=0;
+  let canonicalPublication:import("@kasitek-labs/contracts").GrowthAgentPublication,canonicalMode=false;
   let modelCalls=0,growthOrigin:string,objects:ReturnType<typeof httpServer>;const artifactBytes=Buffer.alloc(90000,65);const controls:any[]=[];
   async function controlFixture(message:unknown,type:string){growth.stdin.write(JSON.stringify(message)+"\n");await until(async()=>controls.findIndex(item=>item.type===type)>=0?controls.splice(controls.findIndex(item=>item.type===type),1)[0]:false);}
   async function browser(path:string,body?:unknown,method=body===undefined?"GET":"POST"){return fetch(growthOrigin+path,{method,headers:{origin:growthOrigin,...(body===undefined?{}:{"content-type":"application/json"})},...(body===undefined?{}:{body:JSON.stringify(body)})});}
@@ -95,6 +96,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     objects=httpServer((_req,res)=>res.end(artifactBytes));
     const objectOrigin=await listen(objects);
     for(const [name,value] of Object.entries({AGENTS_S3_ENDPOINT:objectOrigin,AGENTS_S3_REGION:"test",AGENTS_S3_BUCKET:"growth-fixture",AGENTS_S3_ACCESS_KEY_ID:"fixture",AGENTS_S3_SECRET_ACCESS_KEY:"fixture"}))vi.stubEnv(name,value);
+    canonicalPublication=ready.canonicalPublication;
     runtime=new GrowthProductRuntime(pool,new GrowthActionClient({origin:growthOrigin,issuer:"https://agents.fixture.test",keyId:"agents-v1",privateKey:await exportPKCS8(workerKeys.privateKey),environment:"test",fetch:async(url,init)=>{
       const response=await fetch(url,init),body=JSON.parse(String(init?.body??"{}"));
       if(loseCommitAcknowledgement&&body.control==="commit"&&response.ok){loseCommitAcknowledgement=false;lostCommitAcknowledgements++;await response.arrayBuffer();throw Error("Controlled lost commit acknowledgement");}
@@ -148,7 +150,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       const find=(prefix:string)=>body.tools?.find((tool:any)=>(tool.function?.description??"").startsWith(prefix))?.function.name;
       const write=/save a draft|prepare reviewed draft/i.test(userText);
       const multi=String(userText).includes("Contract multi-tool"),correct=String(userText).includes("Contract correct arguments")||String(userText).includes("produce a draft recommendation"),zero=String(userText).includes("Contract zero-tool");
-      let prefix=write?"Prepare an exact content draft":"Read the current business profile";
+      let prefix=canonicalMode?(write?"Prepare a new content draft":"Read this workspace"):(write?"Prepare an exact content draft":"Read the current business profile");
       let args:any=write?{draft:{title:"Fixture draft",content:"Reviewed content",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"fixture-account"}}}:{};
       let wantsTool=state.step===0;
       if(multi){
@@ -402,13 +404,52 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     await until(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:restAdmin,runtimeRoutes:runtimeRoutes()});return (await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state='waiting_review'",[task.id])).rowCount===1;},30000);
     const review=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];expect(review.taskId).toBe(task.id);
     const child=(await pool.query("SELECT task_id FROM agents_platform.product_review_projections WHERE review_id=$1",[review.id])).rows[0].task_id;expect(child).not.toBe(task.id);
+    const activity=await browserOk(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}`);
+    expect(activity).toMatchObject({rootTaskId:task.id,parentTaskId:task.id,agentName:"Content",task:{id:child,state:"waiting_review",canSteer:false,canContinue:false}});
+    expect(activity.task.input).toBeTruthy();expect(activity.operations.length).toBeGreaterThan(0);
+    expect(activity.operations.every((operation:any)=>operation.taskId===child)).toBe(true);
+    expect(JSON.stringify(activity)).not.toMatch(/privateModel|nativeState|authorizationHeader|request_digest|requestDigest|tool_calls/);
+    const rootActivity=await browserOk(`/api/agents/tasks/${task.id}/activity`);
+    expect(rootActivity.task.children).toEqual(expect.arrayContaining([expect.objectContaining({id:child,assignment:expect.any(String)})]));
+    const childStream=await browser(`/api/agents/tasks/${task.id}/activity/live?childTaskId=${child}`);
+    expect(childStream.headers.get("content-type")).toContain("text/event-stream");
+    const childReader=childStream.body!.getReader();
+    const childFrame=new TextDecoder().decode((await childReader.read()).value);
+    expect(childFrame).toContain("event: observation");expect(childFrame).toContain(child);
+    await childReader.cancel();
+
     const other=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"assistant"})).conversation;
     const foreign=(await browserOk(`/api/agents/conversations/${other.id}/messages`,{requestId:randomUUID(),text:"Contract zero-tool"})).task;
     expect((await browser(`/api/agents/tasks/${foreign.id}/reviews/${review.id}/decision`,{requestId:randomUUID(),payloadDigest:review.payloadDigest,decision:"approve"})).status).toBe(404);
+    expect((await browser(`/api/agents/tasks/${foreign.id}/activity?childTaskId=${child}`)).status).toBe(404);
+    expect((await send(command("tasks.observe",{taskId:task.id,childTaskId:child},{actor:{...actor,subject:randomUUID()}}))).status).toBe(404);
+
     await browserOk(`/api/agents/tasks/${task.id}/reviews/${review.id}/decision`,{requestId:randomUUID(),payloadDigest:review.payloadDigest,decision:"approve"});
+    const childDecision={taskId:child,reviewId:review.id,payloadDigest:review.payloadDigest,decision:"approve" as const};
+    expect((await send(command("tasks.get",{taskId:child}))).status).toBe(404);
+    expect((await send(command("reviews.decide",childDecision,{actor:{...actor,subject:randomUUID()}}))).status).toBe(404);
+    expect((await ok(command("reviews.decide",childDecision))).reviewId).toBe(review.id);
     expect((await finished(task.id)).state).toBe("completed");
     const saved=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];expect(saved.state).toBe("saved");
     expect((await pool.query("SELECT state FROM agents_platform.tasks WHERE id=$1",[child])).rows[0].state).toBe("completed");
+    const finishedActivity=await browserOk(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}`);
+    expect(finishedActivity.task).toMatchObject({id:child,state:"completed",output:expect.any(String)});
+    const nativeOperationIds=(await pool.query("SELECT id FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at DESC,md5(id) DESC",[child])).rows.map(row=>row.id);
+    const inspectedOperationIds:string[]=[];let operationCursor:string|undefined;
+    do {
+      const inspected=await browserOk(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}&limit=1${operationCursor?`&operationCursor=${encodeURIComponent(operationCursor)}`:""}`);
+      inspectedOperationIds.push(...inspected.operations.map((operation:any)=>operation.id));operationCursor=inspected.nextOperationCursor??undefined;
+    }while(operationCursor&&inspectedOperationIds.length<100);
+    expect(inspectedOperationIds).toEqual(nativeOperationIds);
+    const childConversation=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[child])).rows[0].conversation_id;
+    await pool.query("UPDATE agents_platform.conversations SET deleted_at=now() WHERE id=$1",[childConversation]);
+    try {
+      const unavailable=await browser(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}`);
+      expect([403,404]).toContain(unavailable.status);expect(await unavailable.text()).not.toContain(activity.task.input);
+    }finally {await pool.query("UPDATE agents_platform.conversations SET deleted_at=NULL WHERE id=$1",[childConversation]);}
+
+    if(activity.nextCursor)expect((await browserOk(`/api/agents/tasks/${task.id}/activity?childTaskId=${child}&cursor=${encodeURIComponent(activity.nextCursor)}`)).events.every((event:any)=>BigInt(event.id)>BigInt(activity.events.at(-1).id))).toBe(true);
+
   },60000);
 
   it("lets presets share tools, change read order, correct arguments and answer without tools",async()=>{
@@ -493,5 +534,31 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.accounts")).rows[0].n).toBe(0);
     expect((await pool.query("SELECT count(*)::int n FROM agents_platform.memberships")).rows[0].n).toBe(0);
   },90000);
+
+  it("executes the current canonical catalogue through actual shared worker review commit and replay",async()=>{
+    canonicalMode=true;
+    await controlFixture({type:"configure",frontendOrigin:growthOrigin},"configured");
+    const trust={issuer,actorIssuer:actor.issuer,keys:{fixture:await exportSPKI(keys.publicKey)}};
+    await new GrowthExecutionService(pool,trust,runtime).ensureTenant({tenantId,publication:canonicalPublication,defaultsRevision:"6",upgradeDefaults:true});
+    const before=(await browserOk("/__fixture/posts")).posts.length;
+    const conversation=(await browserOk("/api/agents/conversations",{requestId:randomUUID(),featureId:"content"})).conversation;
+    const task=(await browserOk(`/api/agents/conversations/${conversation.id}/messages`,{requestId:randomUUID(),text:"Save a draft using canonical operations"})).task;
+    await finished(task.id,"waiting_review");
+    const review=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];
+    expect(review.kind).toBe("operation");expect(review.operation).toBe("content.posts.draft.create");
+    expect((await browserOk("/__fixture/posts")).posts).toHaveLength(before);
+    loseCommitAcknowledgement=true;
+    const decision=await fetch(`${growthOrigin}/api/operations/reviews/${review.id}/decision`,{method:"POST",headers:{origin:growthOrigin,"content-type":"application/json",cookie:`kasitek_session=fixture-dashboard-session; kasitek_active_org=${tenantId}`},body:JSON.stringify({decision:"approve",payloadDigest:review.payloadDigest})});
+    expect(decision.status,await decision.text()).toBe(200);
+    const complete=await finished(task.id);expect(complete.state,complete.error_code).toBe("completed");
+    const after=(await browserOk("/__fixture/posts")).posts;
+    expect(after).toHaveLength(before+1);
+    expect(after.at(-1).content).toBe("Reviewed content");
+    const saved=(await browserOk(`/api/agents/tasks/${task.id}/reviews`)).reviews[0];
+    expect(saved.state).toBe("succeeded");
+    expect((await ok(command("reviews.decide",{taskId:task.id,reviewId:review.id,payloadDigest:review.payloadDigest,decision:"approve"}))).reviewId).toBe(review.id);
+    expect((await browserOk("/__fixture/posts")).posts).toHaveLength(before+1);
+    expect((await pool.query("SELECT revision FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision='6'",[tenantId])).rows[0].revision).toBe("6");
+  },60000);
 
 });

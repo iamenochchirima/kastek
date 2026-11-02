@@ -6,18 +6,21 @@ import type { CoreContext } from "../context.js";
 import { ApiError } from "../error.js";
 import {
   resolvePublicCredentialContext,
-  requirePublicAction,
   requireWebhookScope,
 } from "../identity/request-context.js";
 import type { RequestContext } from "../identity/request-context.js";
 import {
-  publicApiPolicy,
   SUPPORTED_PUBLIC_API_PRINCIPALS,
   UNSUPPORTED_PUBLIC_API_PRINCIPALS,
 } from "../identity/principal.js";
 import * as api from "../services/public-api.js";
 import * as webhooks from "../services/public-webhooks.js";
 import { queryI64, queryU64, typedQuery } from "../typed-query.js";
+import { executeGrowthOperation } from "../operations/reviews.js";
+import { growthToolArguments, growthToolInputSchema, requireGrowthAgentAccess } from "../operations/transport.js";
+import { growthOperations } from "../operations/catalog.js";
+import { listGrowthOperations } from "../operations/policy.js";
+import { requireOrigin } from "../identity/session.js";
 type Row = Record<string, unknown>;
 type Page = {
   cursor?: bigint | number;
@@ -85,7 +88,8 @@ function page(request: FastifyRequest): Page {
     cursor?: string;
     limit?: string;
     version?: string;
-  }>(request.query, ["cursor", "limit", "version"]);
+    _continuation?: string;
+  }>(request.query, ["cursor", "limit", "version", "_continuation"]);
   return {
     cursor: queryU64(query.cursor, "cursor"),
     limit: queryU64(query.limit, "limit"),
@@ -98,7 +102,8 @@ function templatePage(request: FastifyRequest): Page {
     cursor?: string;
     limit?: string;
     version?: string;
-  }>(request.query, ["status", "cursor", "limit", "version"]);
+    _continuation?: string;
+  }>(request.query, ["status", "cursor", "limit", "version", "_continuation"]);
   return {
     cursor: queryU64(query.cursor, "cursor"),
     limit: queryU64(query.limit, "limit"),
@@ -119,7 +124,7 @@ const id = (request: FastifyRequest): string =>
 export function registerPublicV1Routes(
   app: FastifyInstance,
   core: CoreContext,
-  domains: api.PublicDomainAdapter,
+  _domains: api.PublicDomainAdapter,
 ): void {
   const states = new WeakMap<
       FastifyRequest,
@@ -213,26 +218,6 @@ export function registerPublicV1Routes(
         state.context = value;
         return value;
       }
-      async function action(
-        request: FastifyRequest,
-        name: string,
-      ): Promise<RequestContext> {
-        const value = await context(request),
-          definition = [...domains.definitions()].find(
-            (item) => item.name === name,
-          );
-        if (
-          definition &&
-          definition.lifecycle === "public" &&
-          definition.supportedRuntimes.includes("direct") &&
-          definition.supportedActors.includes(
-            publicApiPolicy(value.principal).actorKind,
-          )
-        )
-          states.get(request)!.audit!.action = name;
-        await requirePublicAction(value, definition, name);
-        return value;
-      }
       async function webhookContext(request: FastifyRequest, write: boolean) {
         const value = await context(request);
         states.get(request)!.audit!.action = write
@@ -252,7 +237,7 @@ export function registerPublicV1Routes(
         status: "ok",
         service: "kasitek-core",
         apiVersion: "v1",
-        actionCatalogSize: [...domains.definitions()].length,
+        actionCatalogSize: growthOperations.length,
       }));
       routes.get("/openapi.json", async (_request, reply) =>
         reply
@@ -266,11 +251,11 @@ export function registerPublicV1Routes(
       );
       routes.get("/whoami", async (request) => {
         const value = await context(request);
-        if (value.principal.kind !== "workspace_api_key")
+        if (value.principal.kind !== "workspace_api_key" && value.principal.kind !== "oauth_user")
           throw new ApiError(401, "unauthorized", "Unauthorized");
         return {
-          principal: "workspace_api_key",
-          apiKeyId: value.principal.id,
+          principal: value.principal.kind,
+          ...(value.principal.kind === "workspace_api_key" ? {apiKeyId:value.principal.id} : {connectionId:value.principal.id}),
           organizationId: value.organizationId,
           scopes: [...(value.apiScopes ?? [])],
         };
@@ -279,6 +264,7 @@ export function registerPublicV1Routes(
         api.requestMetrics(core.pool, await context(request)),
       );
       routes.get("/capabilities", async (request) => {
+        requireGrowthAgentAccess(core);
         const query = page(request),
           limit = BigInt(query.limit ?? 100),
           cursor = BigInt(query.cursor ?? 0);
@@ -288,39 +274,14 @@ export function registerPublicV1Routes(
           bad("unsupported capabilities version");
         const value = await context(request);
         states.get(request)!.audit!.action = "capabilities.list";
-        const policy = publicApiPolicy(value.principal),
-          entitlements = await api.activeEntitlements(
-            core.pool,
-            value.organizationId,
-          );
-        const grants: Set<string> | null = policy.requiresInstallationCapabilities ? new Set<string>() : null,
-          scopes = value.apiScopes;
-        if (policy.requiresInstallationCapabilities) {
-          throw new ApiError(403, "unsupported_principal", "Installation credentials are unavailable");
-        }
-        const definitions = [...domains.definitions()].filter(
-          (d) =>
-            d.lifecycle === "public" &&
-            d.supportedRuntimes.includes("direct") &&
-            d.supportedActors.includes(policy.actorKind) &&
-            (grants === null || d.requiredGrants.every((g) => grants.has(g))) &&
-            (scopes === null ||
-              scopes.has(d.risk === "read" ? "api:read" : "api:write")) &&
-            d.requiredEntitlements.every((e) => entitlements.has(e)),
-        );
+        const definitions = await listGrowthOperations(core,value);
         if (cursor > BigInt(definitions.length))
           bad("capabilities cursor is past the end of the result");
         const start = Number(cursor), size = Number(limit);
-        const actions = definitions
-          .slice(start, start + size)
-          .map(
-            ({
-              lifecycle: _,
-              supportedActors: __,
-              supportedRuntimes: ___,
-              ...definition
-            }) => definition,
-          );
+        const actions = definitions.slice(start,start+size).map(definition=>({
+          ...definition,inputSchema:growthToolInputSchema(definition),
+          risk:definition.effect,
+        }));
         return {
           version: "v1",
           principal: {
@@ -331,8 +292,8 @@ export function registerPublicV1Routes(
           principalPolicy: {
             supported: SUPPORTED_PUBLIC_API_PRINCIPALS,
             agentInstallationRequirements: [
-              "api:read or api:write",
-              "capability grant",
+              "permitted operation scope",
+              "current workspace access",
             ],
             notYetSupported: UNSUPPORTED_PUBLIC_API_PRINCIPALS,
           },
@@ -354,51 +315,46 @@ export function registerPublicV1Routes(
           },
         };
       });
-      routes.get("/content/posts", async (request) => {
-        const query = page(request),
-          value = await action(request, "content.posts.list");
-        return paginateCollection(
-          { posts: await domains.listContentPosts(value) },
-          "posts",
-          query,
-        );
-      });
+      async function operationRead(request:FastifyRequest,name:string,input:Row):Promise<Row> {
+        requireGrowthAgentAccess(core);
+        const value=await context(request);
+        states.get(request)!.audit!.action=name;
+        const {continuation}=growthToolArguments({_continuation:(request.query as Row)._continuation});
+        const output=await executeGrowthOperation(core,value,{operation:name,input,continuation,requestAudit:states.get(request)!.audit});
+        return output.result as Row;
+      }
+      const contentPage=(request:FastifyRequest):Row=>{
+        const query=page(request);
+        if(query.version!==undefined&&query.version!=="v1")bad("unsupported public API version");
+        return {...(query.limit===undefined?{}:{limit:Number(query.limit)}),...(query.cursor===undefined?{}:{cursor:Number(query.cursor)})};
+      };
+      routes.get("/content/accounts",async request=>operationRead(request,"content.accounts.list",contentPage(request)));
+      routes.get("/content/posts", async request=>operationRead(request,"content.posts.list",contentPage(request)));
       routes.get("/content/posts/:id", async (request) => {
-        const post = await domains.getContentPost(
-          await action(request, "content.posts.list"),
-          id(request),
-        );
-        if (!post)
-          throw new ApiError(404, "not_found", "Content post not found");
-        return { post };
+        return operationRead(request,"content.posts.get",{postId:id(request)});
       });
       routes.get("/content/posts/:id/activity", async (request) => {
-        const activity = await domains.getContentActivity(
-          await action(request, "content.posts.list"),
-          id(request),
-        );
-        if (!activity)
-          throw new ApiError(404, "not_found", "Content post not found");
-        return activity;
+        return operationRead(request,"content.posts.activity",{postId:id(request)});
       });
+      routes.get("/content/media/:id",async request=>operationRead(request,"content.media.get",{assetId:id(request)}));
+      routes.get("/content/media/:id/preview",async request=>operationRead(request,"content.media.preview",{assetId:id(request)}));
       async function contentWrite(
         request: FastifyRequest,
         create: boolean,
       ): Promise<Row> {
-        const value = await action(
-          request,
-          create ? "content.posts.draft.create" : "content.posts.draft.update",
-        );
-        if (create) requireIdempotency(value, "content draft creation");
-        const input = body(request),
+        requireGrowthAgentAccess(core);
+        const value=await context(request);
+        if(value.principal.kind==="direct_user")requireOrigin(request,core);
+        const name=create?"content.posts.draft.create":"content.posts.draft.update";
+        states.get(request)!.audit!.action=name;
+        const args=growthToolArguments(body(request));
+        const input = args.input,
           clean: Row = {};
         for (const key of [
           "title",
           "prompt",
           "content",
           "channels",
-          "status",
-          "scheduledFor",
           "primaryChannelId",
           "channelSelections",
           "variants",
@@ -406,167 +362,40 @@ export function registerPublicV1Routes(
           "metadata",
         ])
           if (key in input) clean[key] = input[key];
-        const post = create
-            ? await domains.createContentDraft(value, clean)
-            : await domains.updateContentDraft(value, id(request), clean),
-          row = (post.row ?? post) as Row;
-        try {
-          await webhooks.enqueueDomainEvent(
-            core.pool,
-            value.organizationId,
-            create
-              ? webhooks.CONTENT_POST_CREATED_EVENT
-              : webhooks.CONTENT_POST_UPDATED_EVENT,
-            {
-              postId: row.id,
-              status: row.status,
-              title: row.title ?? null,
-              updatedAt: row.updatedAt ?? row.updated_at,
-            },
-          );
-        } catch (error) {
-          request.log.warn({
-            event: "queue.item.failed",
-            operation: create
-              ? "content.created.enqueue"
-              : "content.updated.enqueue",
-            error_type: error instanceof Error ? error.name : "unknown",
-          });
-        }
-        return { post };
+        if(input.status!==undefined&&input.status!=="DRAFT")bad("Draft routes cannot publish or schedule content");
+        if(input.scheduledFor)bad("Use the schedule operation to schedule content");
+        const output=await executeGrowthOperation(core,value,{operation:name,input:{draft:clean,...(create?{}:{postId:id(request)})},requestId:args.requestId,reviewId:args.reviewId,continuation:args.continuation,requestAudit:states.get(request)!.audit});
+        if(output.state!=="succeeded")return output;
+        const result=output.result as {post?:Row},post=result.post;
+        if(!post)return output;
+        return {...output,post};
       }
-      routes.post("/content/posts", async (request, reply) =>
-        reply.code(201).send(await contentWrite(request, true)),
-      );
-      routes.patch("/content/posts/:id", async (request) =>
-        contentWrite(request, false),
-      );
-      routes.get("/contacts", async (request) => {
-        const query = typedQuery<{
-          q?: string;
-          optIn?: string;
-          excluded?: string;
-          tag?: string;
-          location?: string;
-          listLabel?: string;
-          limit?: string;
-          cursor?: string;
-          version?: string;
-        }>(request.query, [
-          "q",
-          "optIn",
-          "excluded",
-          "tag",
-          "location",
-          "listLabel",
-          "limit",
-          "cursor",
-          "version",
-        ]),
-          requestedLimit = queryI64(query.limit, "limit") ?? 50n,
-          cursor = queryU64(query.cursor, "cursor") ?? 0n,
-          value = await action(request, "contacts.list");
-        if (query.version !== undefined && query.version !== "v1")
-          bad("unsupported public API version");
-        if (requestedLimit < 1n || requestedLimit > 100n)
-          bad("pagination limit must be between 1 and 100");
-        const limit = Number(requestedLimit),
-          filters: Row = {
-            q: query.q,
-            optIn: query.optIn,
-            excluded: query.excluded,
-            tag: query.tag,
-            location: query.location,
-            listLabel: query.listLabel,
-            limit,
-            cursor:
-              cursor <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cursor) : 0,
-          };
-        const contacts = await domains.listContacts(value, filters),
-          total = Number(
-            (contacts.stats as Row | undefined)?.filteredTotal ?? 0,
-          ),
-          pagination = {
-            ...pageWindow({ cursor, limit, version: query.version }, total),
-            total,
-            version: "v1",
-          };
-        return redactKeys({ ...contacts, pagination }, [
-          "phone",
-          "metadata",
-          "lastMarketingSent",
-        ]);
-      });
-      for (const [path, name, key, hidden, run] of [
-        [
-          "/inbox/conversations",
-          "inbox.conversations.list",
-          "conversations",
-          ["phone", "lastMessage", "customerIdentifier"],
-          (ctx: RequestContext) => domains.listInboxConversations(ctx),
-        ],
-        [
-          "/inbox/conversations/:id/messages",
-          "inbox.messages.list",
-          "messages",
-          ["content", "attachments", "customerIdentifier"],
-          (ctx: RequestContext, request: FastifyRequest) =>
-            domains.listInboxMessages(ctx, id(request)),
-        ],
-        [
-          "/bookings",
-          "bookings.list",
-          "bookings",
-          ["contactPhone", "notes"],
-          (ctx: RequestContext) => domains.listBookings(ctx),
-        ],
-        [
-          "/campaigns",
-          "campaigns.list",
-          "campaigns",
-          [
-            "templateBody",
-            "templateButtons",
-            "recipientPhone",
-            "contactMetadata",
-          ],
-          (ctx: RequestContext) => domains.listCampaigns(ctx),
-        ],
-        [
-          "/templates",
-          "templates.list",
-          "templates",
-          ["body", "buttons", "header", "footer"],
-          (ctx: RequestContext, request: FastifyRequest) =>
-            domains.listTemplates(
-              ctx,
-              ((request.query as Row).status as string) ?? null,
-            ),
-        ],
-      ] as const)
-        routes.get(path, async (request) => {
-          const query =
-              path === "/templates" ? templatePage(request) : page(request),
-            value = await action(request, name);
-          return redactKeys(
-            paginateCollection(await run(value, request), key, query),
-            [...hidden],
-          );
+      routes.post("/content/posts",async(request,reply)=>{const output=await contentWrite(request,true);return reply.code(output.state==="succeeded"?201:202).send(output);});
+      routes.patch("/content/posts/:id",async(request,reply)=>{const output=await contentWrite(request,false);return reply.code(output.state==="succeeded"?200:202).send(output);});
+      routes.get("/contacts", async request => {
+        const query=typedQuery<{q?:string;optIn?:string;excluded?:string;tag?:string;location?:string;listLabel?:string;limit?:string;cursor?:string;version?:string;_continuation?:string}>(request.query,["q","optIn","excluded","tag","location","listLabel","limit","cursor","version","_continuation"]);
+        if(query.version!==undefined&&query.version!=="v1")bad("unsupported public API version");
+        return operationRead(request,"contacts.list",{
+          ...(query.q===undefined?{}:{search:query.q}),...(query.optIn===undefined?{}:{optIn:query.optIn}),...(query.tag===undefined?{}:{tag:query.tag}),...(query.excluded===undefined?{}:{excluded:query.excluded}),...(query.location===undefined?{}:{location:query.location}),...(query.listLabel===undefined?{}:{listLabel:query.listLabel}),
+          ...(query.limit===undefined?{}:{limit:Number(queryI64(query.limit,"limit"))}),...(query.cursor===undefined?{}:{cursor:Number(queryU64(query.cursor,"cursor"))}),
         });
-      routes.get("/campaigns/:id", async (request) =>
-        redactKeys(
-          await domains.getCampaignSummary(
-            await action(request, "campaigns.get"),
-            id(request),
-          ),
-          [
-            "templateBody",
-            "templateButtons",
-            "recipientPhone",
-            "contactMetadata",
-          ],
-        ),
-      );
+      });
+      for(const [path,name] of [
+        ["/inbox/conversations","inbox.conversations.list"],
+        ["/inbox/conversations/:id/messages","inbox.messages.list"],
+        ["/bookings","bookings.list"],
+        ["/campaigns","campaigns.list"],
+        ["/templates","templates.list"],
+      ] as const) routes.get(path,async request=>{
+        if(path==="/templates") {
+          const query=typedQuery<{status?:string;limit?:string;cursor?:string;version?:string;_continuation?:string}>(request.query,["status","limit","cursor","version","_continuation"]);
+          const paging=templatePage(request);
+          if(paging.version!==undefined&&paging.version!=="v1")bad("unsupported public API version");
+          return operationRead(request,name,{...(query.status===undefined?{}:{status:query.status}),...(paging.limit===undefined?{}:{limit:Number(paging.limit)}),...(paging.cursor===undefined?{}:{cursor:Number(paging.cursor)})});
+        }
+        return operationRead(request,name,{...contentPage(request),...(name==="inbox.messages.list"?{conversationId:id(request)}:{})});
+      });
+      routes.get("/campaigns/:id",async request=>operationRead(request,"campaigns.get",{campaignId:id(request)}));
       routes.get("/webhooks/subscriptions", async (request) => {
         const query = page(request),
           value = await webhookContext(request, false);

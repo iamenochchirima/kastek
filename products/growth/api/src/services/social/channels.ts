@@ -18,7 +18,7 @@ export function platformCapabilities(
     "X",
   ].includes(platform);
   const meta = platform === "FACEBOOK" || platform === "INSTAGRAM";
-  const images = ["INSTAGRAM", "TIKTOK", "LINKEDIN"].includes(platform);
+  const images = known;
   const videos = platform === "TIKTOK";
   return {
     canPublish: known,
@@ -34,7 +34,7 @@ export function platformCapabilities(
           media: {
             images: {
               supported: images,
-              maxCount: images ? 1 : platform === "FACEBOOK" ? 1 : 0,
+              maxCount: images ? ["BLUESKY", "X"].includes(platform) ? 4 : 1 : 0,
             },
             videos: { supported: videos, maxCount: videos ? 1 : 0 },
           },

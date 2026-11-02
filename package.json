@@ -8,7 +8,7 @@
   "scripts": {
     "build:shared": "pnpm --filter @kasitek-labs/contracts build && pnpm --filter @kasitek-labs/server-support build && pnpm --filter @kasitek-labs/ui build",
     "build:analytics": "pnpm build:shared && pnpm --filter @kasitek/analytics build",
-    "test:shared": "pnpm --filter @kasitek-labs/server-support test",
+    "test:shared": "pnpm --filter @kasitek-labs/server-support test && pnpm --filter @kasitek-labs/ui build && pnpm --filter @kasitek-labs/ui test",
     "pack:shared": "node packages/server-support/scripts/pack-shared.mjs",
     "publish:shared": "node packages/server-support/scripts/publish-shared.mjs",
     "start:analytics": "pnpm --filter @kasitek/analytics start",

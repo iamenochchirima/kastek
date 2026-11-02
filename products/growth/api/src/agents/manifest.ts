@@ -1,5 +1,6 @@
 import type { ProductCapabilityDescriptor, ProductCapabilityManifest, GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import { growthAgentDigest } from "./security.js";
+import { growthOperationDescriptors } from "../operations/manifest.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
@@ -72,16 +73,37 @@ const currentRoles: Record<GrowthAgentFeatureId, {description: string; instructi
     instructions: "Help staff plan and assess WhatsApp campaigns. Produce a practical proposal and usable message drafts when requested. Choose cadence, audience, timing and measurement for the goal, distinguishing recommendations from observed results. Consider recipient consent and avoid unnecessary repetitive messages. Read existing campaigns or analytics only when they inform this task. Launching, changing recipients and scheduling are unavailable.",
   },
 };
-export const growthAgentPresets = presets.map(preset => ({
+const priorAgentPresets = presets.map(preset => ({
   ...preset,
   description: currentRoles[preset.id].description,
   instructions: currentRoles[preset.id].instructions + "\n\n" + workingInstructions,
 }));
 const currentBody = {...body, revision: "5"};
-export const growthCapabilityManifest: ProductCapabilityManifest = {...currentBody, digest: growthAgentDigest(currentBody)};
-export const growthAgentPublication = {
-  manifest: growthCapabilityManifest,
-  presets: growthAgentPresets,
+export const growthAgentPublicationV5 = {
+  manifest: {...currentBody, digest: growthAgentDigest(currentBody)},
+  presets: priorAgentPresets,
   policy: {...growthAgentPublicationV4.policy, revision: "5"},
 };
-export const growthAgentPublicationV5 = growthAgentPublication;
+function operationPublication(descriptors: typeof growthOperationDescriptors, revision: string, release: string) {
+  const adapter = { ...growthAdapterManifest, release, executableDigest: growthAgentDigest({ release: "growth-operations-v1", handlers: descriptors.map(operation => operation.handlerRef) }) };
+  const manifestBody = { schemaVersion: 1 as const, product: "growth", revision, adapter: { id: adapter.id, release: adapter.release, manifestDigest: growthAgentDigest(adapter) }, operations: descriptors };
+  const manifest: ProductCapabilityManifest = { ...manifestBody, digest: growthAgentDigest(manifestBody) };
+  const currentPresets = priorAgentPresets.map(preset => ({
+    ...preset,
+    operations: descriptors.filter(operation => preset.id === "research" || preset.id === "campaigns" ? operation.policy.effect === "read" : preset.id === "content" ? /^(content\.|operations\.reviews\.|workspace\.|connections\.|analytics\.)/.test(operation.operation) : true).map(operation => operation.operation),
+    instructions: preset.instructions
+      .replaceAll("Publishing and scheduling are unavailable.", "Publishing and scheduling use the same Growth tools available externally. Prepare an exact action review and wait for its approved state before committing; never invent approval or a successful publication.")
+      .replaceAll("Only when saving is explicitly requested, prepare the exact draft for user review.", "Only when a business change is explicitly requested, prepare its exact review and wait for user approval. Preserve request and review identities across retries.") + "\n\nUse the same canonical Growth operation names and schemas as external agents. A review URL is an action for the staff member, not evidence of approval. Unknown results require status and reconciliation, never a fresh request identity. An approved schedule is not a confirmed publication.",
+  }));
+  return { manifest, presets: currentPresets, policy: { ...growthAgentPublicationV4.policy, revision } };
+}
+export const growthAgentPublicationV6 = operationPublication(growthOperationDescriptors.filter(operation => operation.operation !== "content.posts.update_published"), "6", "3");
+const captionOnlyDescriptors = growthOperationDescriptors.map(operation => operation.operation !== "content.posts.update_published" ? operation : ({
+  ...operation,
+  description: "Update the text or caption of a confirmed Facebook Page post after exact review. Preserves its existing provider post, media and account. Unknown outcomes require reconciliation, not another update.",
+  inputSchema: { ...operation.inputSchema, properties: Object.fromEntries(Object.entries(operation.inputSchema.properties as Record<string, unknown>).filter(([key]) => key !== "removePhoto")) },
+}));
+export const growthAgentPublicationV7 = operationPublication(captionOnlyDescriptors, "7", "4");
+export const growthAgentPublication = operationPublication(growthOperationDescriptors, "8", "5");
+export const growthCapabilityManifest = growthAgentPublication.manifest;
+export const growthAgentPresets = growthAgentPublication.presets;

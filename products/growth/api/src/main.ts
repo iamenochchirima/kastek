@@ -37,6 +37,10 @@ import { registerWhatsappWebhookRoutes } from "./routes/whatsapp-webhooks.js";
 import { ingestWebhookCalls } from "./services/whatsapp/calls.js";
 import { registerCommunicationsRoutes } from "./routes/communications.js";
 import { registerDeveloperRoutes } from "./routes/developers.js";
+import { registerGrowthOAuthRoutes } from "./oauth/index.js";
+import { registerGrowthOperationRoutes } from "./operations/routes.js";
+import { registerGrowthMcpRoutes } from "./operations/mcp.js";
+import { registerGrowthMediaTransferRoutes } from "./operations/media-transfers.js";
 import { registerPublicV1Routes } from "./routes/public-v1.js";
 import {
   createPublicDomainAdapter,
@@ -200,6 +204,10 @@ export const CORE_REGISTRARS = [
   registerWhatsappCallbacks,
   registerCommunicationsRoutes,
   registerDeveloperRoutes,
+  registerGrowthOAuthRoutes,
+  registerGrowthOperationRoutes,
+  registerGrowthMediaTransferRoutes,
+  registerGrowthMcpRoutes,
   registerPublicRoutes,
   registerWorkspaceRoutes,
   registerGrowthAgentRoutes,

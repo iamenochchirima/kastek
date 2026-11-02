@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/growth/agent_access/v1.schema.json",
+  "title": "Growth agent access lifecycle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "action",
+    "operation",
+    "outcome"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "operation",
+        "connection"
+      ]
+    },
+    "action": {
+      "enum": [
+        "proposed",
+        "approved",
+        "rejected",
+        "succeeded",
+        "uncertain",
+        "failed",
+        "granted",
+        "revoked"
+      ]
+    },
+    "operation": {
+      "enum": [
+        "workspace.read",
+        "connections.list",
+        "connections.status.update",
+        "content.accounts.list",
+        "content.posts.list",
+        "content.posts.get",
+        "content.posts.activity",
+        "content.posts.draft.create",
+        "content.posts.draft.update",
+        "content.posts.duplicate",
+        "content.media.get",
+        "content.media.preview",
+        "content.media.transfer.prepare",
+        "content.media.upload",
+        "operations.reviews.get",
+        "content.posts.publish_batch.preflight",
+        "content.posts.publish",
+        "content.posts.publish_batch",
+        "content.posts.publish_batch.status",
+        "content.posts.publish_batch.retry",
+        "content.posts.schedule",
+        "content.posts.reschedule",
+        "content.posts.unschedule",
+        "content.jobs.cancel",
+        "content.jobs.retry",
+        "content.posts.delete",
+        "content.posts.delete_published",
+        "content.posts.insights",
+        "content.insights.report",
+        "contacts.list",
+        "customers.get",
+        "contacts.update",
+        "inbox.conversations.list",
+        "inbox.messages.list",
+        "inbox.conversations.update",
+        "inbox.conversations.mark_read",
+        "inbox.messages.send",
+        "bookings.services.list",
+        "bookings.list",
+        "bookings.get",
+        "campaigns.list",
+        "campaigns.get",
+        "templates.list",
+        "analytics.read",
+        null
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "awaiting_review",
+        "approved",
+        "rejected",
+        "completed",
+        "admitted",
+        "unknown",
+        "failed",
+        "granted",
+        "revoked"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "connection"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "type": "null"
+          },
+          "action": {
+            "enum": [
+              "granted",
+              "revoked"
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "granted",
+              "revoked"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "proposed",
+              "approved",
+              "rejected",
+              "succeeded",
+              "uncertain",
+              "failed"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "x-kasitek": {
+    "identity": "growth.agent.access@1",
+    "owner": "growth",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "actor_id",
+      "email",
+      "phone",
+      "prompt",
+      "content",
+      "response",
+      "credential",
+      "token",
+      "draft",
+      "arguments",
+      "result",
+      "payload",
+      "client_name"
+    ]
+  }
+}

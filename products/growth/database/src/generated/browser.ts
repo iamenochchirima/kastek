@@ -267,6 +267,11 @@ export type AdminSupportAccessAuditEvent = Prisma.AdminSupportAccessAuditEventMo
  */
 export type AdminWebhookReplayCommand = Prisma.AdminWebhookReplayCommandModel
 /**
+ * Model AdminCustomerReplayApproval
+ * 
+ */
+export type AdminCustomerReplayApproval = Prisma.AdminCustomerReplayApprovalModel
+/**
  * Model AdminWebhookReplayAuditEvent
  * 
  */
@@ -541,3 +546,63 @@ export type WhatsappSendEvent = Prisma.WhatsappSendEventModel
  * 
  */
 export type GrowthAgentReview = Prisma.GrowthAgentReviewModel
+/**
+ * Model AdminSession
+ * 
+ */
+export type AdminSession = Prisma.AdminSessionModel
+/**
+ * Model AdminCommercialAudit
+ * 
+ */
+export type AdminCommercialAudit = Prisma.AdminCommercialAuditModel
+/**
+ * Model AdminOutreachSendAttempt
+ * 
+ */
+export type AdminOutreachSendAttempt = Prisma.AdminOutreachSendAttemptModel
+/**
+ * Model GrowthAgentSetup
+ * Durable product setup intent. Provider credentials remain exclusively in Agents.
+ */
+export type GrowthAgentSetup = Prisma.GrowthAgentSetupModel
+/**
+ * Model GrowthAgentSourceHandle
+ * 
+ */
+export type GrowthAgentSourceHandle = Prisma.GrowthAgentSourceHandleModel
+/**
+ * Model GrowthOAuthClient
+ * 
+ */
+export type GrowthOAuthClient = Prisma.GrowthOAuthClientModel
+/**
+ * Model GrowthOAuthRequest
+ * 
+ */
+export type GrowthOAuthRequest = Prisma.GrowthOAuthRequestModel
+/**
+ * Model GrowthOAuthCode
+ * 
+ */
+export type GrowthOAuthCode = Prisma.GrowthOAuthCodeModel
+/**
+ * Model GrowthOAuthConnection
+ * 
+ */
+export type GrowthOAuthConnection = Prisma.GrowthOAuthConnectionModel
+/**
+ * Model GrowthOAuthRefresh
+ * 
+ */
+export type GrowthOAuthRefresh = Prisma.GrowthOAuthRefreshModel
+/**
+ * Model GrowthOperationReview
+ * 
+ */
+export type GrowthOperationReview = Prisma.GrowthOperationReviewModel
+/**
+ * Model GrowthMediaTransfer
+ * 
+ */
+export type GrowthMediaTransfer = Prisma.GrowthMediaTransferModel

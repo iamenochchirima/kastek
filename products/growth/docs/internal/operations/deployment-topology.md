@@ -25,3 +25,8 @@ Before a separately authorized hosted rollout, record exact code/schema/worker a
 environment ownership, configured readiness checks, current permission mappings and disable plan.
 Apply source migrations only to the intended environment with a matching source cutover.
 The obsolete Growth widget-table removal must never reset Growth's business database.
+
+The repository's `infra/backend/README.md` defines explicit
+monorepo build arguments, start commands, runtime migration files and health paths for Growth,
+Agency, Analytics and Operations. Agents retains its own backend image. These packaging files
+do not establish hosted deployment readiness or change live service settings.

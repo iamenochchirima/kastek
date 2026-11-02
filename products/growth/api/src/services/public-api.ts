@@ -229,7 +229,11 @@ export async function createApiKey(
   actor: string,
   name: string,
   expiresAt: Date | null,
+  scopes: string[] = ["api:read", "api:write"],
 ): Promise<{ key: Row; secret: string }> {
+  const allowed = new Set(["api:read", "api:write", "growth:read", "growth:draft", "growth:publish", "growth:manage"]);
+  if (!Array.isArray(scopes) || !scopes.length || scopes.length > allowed.size || scopes.some(scope => typeof scope !== "string" || !allowed.has(scope)) || new Set(scopes).size !== scopes.length)
+    throw new ApiError(400, "bad_request", "Choose valid API key permissions");
   name = name.trim();
   if (!name || Buffer.byteLength(name) > 80)
     throw new ApiError(
@@ -251,7 +255,7 @@ export async function createApiKey(
         name,
         prefix,
         digest,
-        ["api:read", "api:write"],
+        scopes,
         actor,
         expiresAt,
       ])
@@ -277,11 +281,11 @@ export async function rotateApiKey(
     if (!previous) missingKey();
     const old = (
         await client.query({
-          text: SQL.key_rotate[1],
+          text: 'SELECT name,"expiresAt" AT TIME ZONE \'UTC\' AS "expiresAt",scopes FROM "DeveloperApiKey" WHERE id=$1',
           values: [id],
           rowMode: "array",
         })
-      ).rows[0] as [string, Date | null],
+      ).rows[0] as [string, Date | null, string[]],
       { secret, prefix, digest } = generateSecret();
     await client.query(SQL.key_rotate[2], [id]);
     const created = (
@@ -291,7 +295,7 @@ export async function rotateApiKey(
         [...`${old[0]} (rotated)`].slice(0, 80).join(""),
         prefix,
         digest,
-        ["api:read", "api:write"],
+        old[2],
         actor,
         old[1],
       ])

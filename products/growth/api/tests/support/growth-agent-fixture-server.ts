@@ -6,8 +6,10 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "../../src/app.js";
 import { readConfig } from "../../src/config.js";
 import { installPgTimestampParsers } from "../../src/db.js";
+import { registerGrowthOperationRoutes } from "../../src/operations/routes.js";
+import { oauthDigest } from "../../src/oauth/index.js";
 import { ApiError } from "../../src/error.js";
-import { growthAgentPublication } from "../../src/agents/manifest.js";
+import { growthAgentPublication, growthAgentPublicationV5 } from "../../src/agents/manifest.js";
 import { registerGrowthAgentActionRoutes } from "../../src/agents/action-routes.js";
 import { registerGrowthAgentRoutes } from "../../src/agents/routes.js";
 import { growthAgentActor } from "../../src/agents/security.js";
@@ -53,20 +55,28 @@ async function start() {
   await admin.query(`CREATE DATABASE "${database}"`); created = true;
   const scoped = new URL(adminUrl); scoped.pathname = `/${database}`;
   installPgTimestampParsers(); pool = new pg.Pool({ connectionString: scoped.href, max: 10, options: "-c timezone=UTC" });
-  await pool.query(`CREATE TABLE "User"(id text PRIMARY KEY,"emailVerified" timestamptz);
-    CREATE TABLE "Organization"(id text PRIMARY KEY,name text,"reportingTimezone" text,"updatedAt" timestamptz DEFAULT now());
+  await pool.query(`CREATE TABLE "User"(id text PRIMARY KEY,"emailVerified" timestamptz,name text,email text,phone text,image text,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
+    CREATE TABLE "Organization"(id text PRIMARY KEY,name text,"reportingTimezone" text,"updatedAt" timestamptz DEFAULT now(),slug text,logo text,"ownerId" text,"createdAt" timestamptz DEFAULT now());
     CREATE TABLE "OrganizationMember"("orgId" text,"userId" text,role text,PRIMARY KEY("orgId","userId"));
     CREATE TABLE "OrganizationOnboardingProfile"("orgId" text,website text,industry text,"primaryGoal" text,"primaryGoals" text[]);
     CREATE TYPE "OrganizationSubscriptionStatus" AS ENUM('TRIAL','ACTIVE','GRACE','CANCELED');
     CREATE TABLE "OrganizationEntitlementGrant"("orgId" text,key text,value jsonb,"startsAt" timestamptz,"endsAt" timestamptz);
     CREATE TABLE "OrganizationSubscription"("orgId" text,"planId" text,status "OrganizationSubscriptionStatus");
     CREATE TABLE "PlanEntitlement"("planId" text,key text,value jsonb);`);
-  await pool.query('INSERT INTO "User" VALUES($1,now())', [userId]);
+  await pool.query('INSERT INTO "User"(id,"emailVerified") VALUES($1,now())', [userId]);
   await pool.query('INSERT INTO "Organization"(id,name,"reportingTimezone") VALUES($1,\'Fixture business\',\'UTC\')', [tenantId]);
   await pool.query('INSERT INTO "OrganizationMember" VALUES($1,$2,\'OWNER\')', [tenantId, userId]);
   await pool.query(`INSERT INTO "OrganizationEntitlementGrant"("orgId",key,value,"startsAt")
     SELECT $1,key,'true'::jsonb,now() FROM unnest(ARRAY['feature.agents.manage','feature.content.manage','feature.campaigns.manage']) key`, [tenantId]);
   await pool.query(growthAgentSocialFixture);
+  await pool.query(`CREATE TABLE "Session"(id text PRIMARY KEY,"sessionToken" text,"userId" text,expires timestamptz,"refreshToken" text,"idToken" text,"lastActivityAt" timestamptz,"identityCheckedAt" timestamptz,"providerRefreshedAt" timestamptz);
+    CREATE TABLE "PublicApiRequest"(id text PRIMARY KEY,"orgId" text,"principalType" text,"principalId" text,route text,method text,"statusCode" integer,"correlationId" text,action text,"createdAt" timestamptz,"updatedAt" timestamptz);
+    CREATE TABLE "UsageEvent"(id text PRIMARY KEY,"orgId" text,"productKey" text,"metricKey" text,quantity bigint,"sourceType" text,"sourceId" text,"idempotencyKey" text,metadata jsonb);
+    CREATE TABLE "PublicApiWebhookSubscription"(id text,"orgId" text,status text,events text[]);
+    CREATE TABLE "SocialPostVariantMedia"(id text PRIMARY KEY,"variantId" text,"assetId" text,"sortOrder" integer,"altText" text,metadata jsonb);`);
+  await pool.query(`INSERT INTO "Session" VALUES('fixture-session',$1,$2,now()+interval '1 day','unused','unused',now(),now(),now())`,[oauthDigest("fixture-dashboard-session"),userId]);
+  await pool.query(await readFile(new URL("../../sql/20261101140000_growth_operation_reviews.sql",import.meta.url),"utf8"));
+
   await pool.query(await readFile(new URL("../../../database/prisma/migrations/20261023183000_growth_agent_source_handles/migration.sql",import.meta.url),"utf8"));
   await pool.query(`UPDATE "SocialChannelConnection" SET id='fixture-account',"orgId"=$1,"userId"=$2,"displayName"='Fixture Facebook account' WHERE id='channel'`, [tenantId, userId]);
   await pool.query(`UPDATE "ContentMediaAsset" SET "orgId"=$1 WHERE "orgId"='org'`, [tenantId]);
@@ -81,6 +91,7 @@ async function start() {
   const core = { config, pool }, scope = { tenantId, actor: growthAgentActor(config, userId) };
   app = await buildApp(core, [
     registerGrowthAgentActionRoutes,
+    registerGrowthOperationRoutes,
     (server, context) => registerGrowthAgentRoutes(server, context, { resolveScope: async () => scope }),
   ]);
   // Only this isolated fixture supplies the dashboard identity. Agent routes remain real.
@@ -102,7 +113,7 @@ async function start() {
   });
   const address = await app.listen({ port: 0, host: "127.0.0.1" });
   config.frontendUrl = address;
-  emit({ type: "ready", port: Number(new URL(address).port), tenantId, userId, allowedOrigin: address, publication: growthAgentPublication });
+  emit({ type: "ready", port: Number(new URL(address).port), tenantId, userId, allowedOrigin: address, publication: growthAgentPublicationV5, canonicalPublication: growthAgentPublication });
   return { core, scope };
 }
 const startup = start();

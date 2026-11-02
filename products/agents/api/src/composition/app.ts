@@ -1,3 +1,4 @@
+import { readPublicAgentUpdates } from "../product/integrations/public-agent-activity";
 import { deadlineMillis } from "../execution/lifecycle/deadline";
 import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
 import { specialistCatalogue } from "../product/assistant/specialists";
@@ -44,7 +45,7 @@ import { queueChildContinuations,requestTreeCancellation } from "../execution/li
 import { MemoryStore } from "../execution/memory/memory";
 import type { PlatformConfig } from "../infrastructure/config";
 import { privateStoreFromEnvironment } from "../infrastructure/object-store";
-import { pageQuery, cursorKeysFromEnvironment } from "../infrastructure/read-pages";
+import { pageQuery, cursorKeysFromEnvironment, readPageCursor, finishPage } from "../infrastructure/read-pages";
 import { PlatformDiscovery } from "../product/agents/discovery";
 import { registerKnowledgeRoutes } from "../product/agents/knowledge-routes";
 import { WebsiteCrawlStore, startWebsiteCrawlDispatcher } from "../product/agents/website-crawls";
@@ -577,7 +578,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   });
   app.get(`${base}/tasks/:taskId`, async (request) => {
     const { task, reviewOnly, authority } = await humanTask(request);
-    const eventQuery=z.object({eventsLimit:pageQuery.shape.limit,eventsCursor:pageQuery.shape.cursor}).strict().parse(request.query);
+    const eventQuery=z.object({eventsLimit:pageQuery.shape.limit,eventsCursor:pageQuery.shape.cursor,operationsLimit:pageQuery.shape.limit,operationsCursor:pageQuery.shape.cursor}).strict().parse(request.query);
     if(reviewOnly){
       const scope={accountId:(await account(request)).id,organizationId:task.organization_id};
       const actions=actionServices?await actionServices.actions.listForTask(scope,task.id):[];
@@ -586,14 +587,22 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
         events:[],eventsNextCursor:null,operations:[],children:[],resources:[],artifacts:reports.map(report=>({...dto(report),downloadPath:`/api/organizations/${task.organization_id}/tasks/${task.id}/artifacts/${report.id}`}))};
     }
     const viewer=await account(request),canControl=task.principal.kind!=="automation"||task.principal.ownerAccountId===viewer.id;
-    const operations = (await pool.query(`SELECT o.id AS operation_id,o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
+    const operationScope={kind:"owner-task-operations",account:viewer.id,organization:task.organization_id,task:task.id};
+    const operationCursor=readPageCursor(eventQuery.operationsCursor,operationScope);
+    if(operationCursor.position&&!Number.isFinite(Date.parse(operationCursor.position)))throw new PlatformError("INVALID_CURSOR",400,"Invalid operation cursor");
+    const operationRows = (await pool.query(`SELECT o.id AS operation_id,md5(o.id) AS cursor_id,
+      to_char(o.started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_position,
+      o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
       b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
       FROM agents_platform.operations o LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
-      WHERE o.task_id=$1 ORDER BY o.started_at,o.id`, [task.id,task.organization_id])).rows;
+      WHERE o.task_id=$1 AND o.started_at<=$3 AND ($4::text='' OR (o.started_at,md5(o.id))<($4::timestamptz,$5::text))
+      ORDER BY o.started_at DESC,md5(o.id) DESC LIMIT $6`, [task.id,task.organization_id,operationCursor.snapshot,operationCursor.position,operationCursor.id,eventQuery.operationsLimit+1])).rows;
+    const operationPage=finishPage(operationRows,eventQuery.operationsLimit,operationScope,operationCursor.snapshot,row=>({position:row.cursor_position,id:row.cursor_id}));
+    const operations=operationPage.items.reverse().map(({cursor_id:_,cursor_position:__,...operation})=>operation);
     const eventPage=await store.getEventPage(authority,task.id,{limit:eventQuery.eventsLimit,cursor:eventQuery.eventsCursor});
     const events=eventPage.items;
     const children = (await pool.query(`SELECT t.id,a.name AS agent_name,t.version_id,v.number AS version_number,d.binding_id,
-      t.state,CASE WHEN c.deleted_at IS NULL THEN t.output ELSE NULL END AS output,t.error_code,t.root_task_id,t.parent_task_id FROM agents_platform.tasks t
+      t.state,t.created_at,CASE WHEN c.deleted_at IS NULL THEN t.input ELSE NULL END AS input,CASE WHEN c.deleted_at IS NULL THEN t.output ELSE NULL END AS output,t.error_code,t.root_task_id,t.parent_task_id FROM agents_platform.tasks t
       JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.agents a ON a.id=v.agent_id
       JOIN agents_platform.conversations c ON c.id=t.conversation_id
       JOIN agents_platform.delegations d ON d.child_task_id=t.id WHERE t.parent_task_id=$1 ORDER BY d.operation_id,d.slot`,[task.id])).rows;
@@ -623,7 +632,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }
     let canSteer=adaptive&&canControl&&task.principal.kind==="human"&&!terminalTaskStates.has(task.state)&&task.state!=="cancel_requested";
     if(canSteer)try{await authorizeOrchestration(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;canSteer=false;}
-    return { orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),children:await Promise.all(children.map(async child=>({...dto(child),...await readableOutput(child.id,child.output)}))),resources:resources.map(dto),artifacts };
+    return { ...await readPublicAgentUpdates(pool,task.id),orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),operationsNextCursor:operationPage.nextCursor,children:await Promise.all(children.map(async child=>{const visible=await readableTask(child);return {...dto(child),input:visible.input,assignment:visible.input,...await readableOutput(child.id,child.output)};})),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);

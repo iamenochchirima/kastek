@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../../.. && corepack pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../../.. && corepack pnpm build:shared && corepack pnpm --filter client build && node scripts/hosting/vercel-output.mjs growth",
+  "git": {
+    "deploymentEnabled": false
+  }
+}

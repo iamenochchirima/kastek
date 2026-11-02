@@ -40,7 +40,7 @@ test(
   },
 );
 test(
-  "TikTok source retry budget stops adding delay at eight but FAILED remains claimable beyond the intended budget",
+  "TikTok webhook failures stop being claimable after the eighth attempt",
   { skip: !database, timeout: 30000 },
   async () => {
     const db = await isolatedDatabase(database!, "tiktok_callback_budget", [
@@ -67,12 +67,11 @@ test(
         if (attempt < 8)
           assert.equal(await processTiktokWebhookEvents(db.pool, 1), 0);
       }
-      // This is an existing Rust/TS defect, not evidence of exhausted retry protection.
-      assert.equal(await processTiktokWebhookEvents(db.pool, 1), 1);
+      assert.equal(await processTiktokWebhookEvents(db.pool, 1), 0);
       assert.equal(
         (await db.pool.query('SELECT attempts FROM "SocialWebhookEvent"'))
           .rows[0].attempts,
-        9,
+        8,
       );
     } finally {
       await db.close();

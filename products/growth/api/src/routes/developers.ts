@@ -9,6 +9,7 @@ import {
   rotateApiKey,
 } from "../services/public-api.js";
 import { ApiError } from "../error.js";
+import { growthAgentAccessEnabled } from "../operations/transport.js";
 export function registerDeveloperRoutes(
   app: FastifyInstance,
   context: CoreContext,
@@ -25,8 +26,9 @@ export function registerDeveloperRoutes(
       apiKeys: await listApiKeys(context.pool, org),
       config: {
         restBaseUrl: `${context.config.publicApiUrl.replace(/\/+$/, "")}/v1`,
-        mcpAvailable: false,
-        mcpEndpoint: null,
+        mcpAvailable: growthAgentAccessEnabled(context),
+        mcpEndpoint: growthAgentAccessEnabled(context) ? `${context.config.publicApiUrl}/mcp` : null,
+        mcpOAuth: true,
         mcpPackage: null,
         clients: [],
       },
@@ -34,7 +36,7 @@ export function registerDeveloperRoutes(
   });
   app.post("/api/developers/api-keys", async (request, reply) => {
     const { org, user } = await admin(request),
-      input = request.body as { name?: unknown; expiresAt?: unknown } | null;
+      input = request.body as { name?: unknown; expiresAt?: unknown; scopes?: unknown } | null;
     if (typeof input?.name !== "string")
       throw new ApiError(400, "bad_request", "API key name is required");
     let expiry: Date | null = null;
@@ -49,7 +51,7 @@ export function registerDeveloperRoutes(
     }
     return reply
       .code(201)
-      .send(await createApiKey(context.pool, org, user.id, input.name, expiry));
+      .send(await createApiKey(context.pool, org, user.id, input.name, expiry, input.scopes as string[] | undefined));
   });
   app.delete("/api/developers/api-keys/:id", async (request, reply) => {
     const { org } = await admin(request);

@@ -2,5 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": false
-  }
+  },
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && corepack pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && corepack pnpm build:shared && corepack pnpm --filter @kasitek/admin-site build"
 }

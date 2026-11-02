@@ -40,10 +40,10 @@ export function parseRequestJson(
 ): unknown {
   const typed = parseLosslessJson(text);
   if (!isSerdeValueBodyBoundary(request)) {
-    const routeKey = request.method + " " + request.routeOptions.url;
+    const routeKey = request.method + " " + (request.routeOptions?.url ?? request.url?.split("?")[0] ?? "");
     assertNoDuplicateSerdeStructFields(
       text,
-      request.routeOptions.schema?.body ??
+      request.routeOptions?.schema?.body ??
         manualTypedJsonBodySchemas[routeKey] ??
         GENERATED_SERDE_BODY_SCHEMAS[routeKey],
     );
@@ -154,7 +154,7 @@ export function normalizeTypedNumberSchema(
 /** Apply the actual Rust DTO integer/f64 token contract even to handlers with manual DTO validation. */
 export function normalizeRustNumericContract(request: FastifyRequest): void {
   const fields =
-    RUST_JSON_NUMERIC_FIELDS[request.method + " " + request.routeOptions.url] ??
+    RUST_JSON_NUMERIC_FIELDS[request.method + " " + (request.routeOptions?.url ?? request.url?.split("?")[0] ?? "")] ??
     [];
   function visit(
     path: readonly string[],
@@ -222,7 +222,7 @@ export function normalizeRustNumericContract(request: FastifyRequest): void {
 
 export function isSerdeValueBodyBoundary(request: FastifyRequest): boolean {
   return RUST_JSON_VALUE_ROUTES.has(
-    request.method + " " + request.routeOptions.url,
+    request.method + " " + (request.routeOptions?.url ?? request.url?.split("?")[0] ?? ""),
   );
 }
 export function normalizeSerdeValueBodyBoundary(request: FastifyRequest): void {
@@ -233,7 +233,7 @@ export function normalizeSerdeValueBodyBoundary(request: FastifyRequest): void {
 /** Restore only fields declared Value in a Rust DTO, including array element metadata. */
 export function normalizeRustValueFields(request: FastifyRequest): void {
   const paths =
-    RUST_JSON_VALUE_FIELDS[request.method + " " + request.routeOptions.url] ??
+    RUST_JSON_VALUE_FIELDS[request.method + " " + (request.routeOptions?.url ?? request.url?.split("?")[0] ?? "")] ??
     [];
   function project(
     path: readonly string[],

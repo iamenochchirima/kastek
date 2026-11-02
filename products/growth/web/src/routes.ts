@@ -2,6 +2,7 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 export default [
   index("app/page.tsx"),
   layout("app/(auth)/layout.tsx", [
+    route("oauth/consent", "app/(auth)/oauth/consent/page.tsx"),
     route("auth-error", "app/(auth)/auth-error/page.tsx"),
     route("invite", "app/(auth)/invite/page.tsx"),
     route("login", "app/(auth)/login/page.tsx"),
@@ -10,6 +11,7 @@ export default [
     route("verify-request", "app/(auth)/verify-request/page.tsx"),
   ]),
   layout("app/(dashboard)/layout.tsx", [
+    route("operations/reviews/:id", "app/(dashboard)/operations/reviews/[id]/page.tsx"),
     route("agents/conversations/:id", "app/(dashboard)/agents/conversations/[id]/page.tsx"),
     route("agents", "app/(dashboard)/agents/page.tsx"),
     route("analytics", "app/(dashboard)/analytics/page.tsx"),

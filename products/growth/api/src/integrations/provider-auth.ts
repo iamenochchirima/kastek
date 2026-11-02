@@ -717,27 +717,54 @@ export async function fetchMetaPages(
   token: string,
   http: HttpFetch = fetch,
 ): Promise<MetaPageAccount[]> {
-  const response = object(
-    await fetchJson(
-      buildUrl(`${META_GRAPH_BASE}/me/accounts`, [
-        [
-          "fields",
-          "id,name,username,access_token,tasks,picture{url},connected_instagram_account{id,username,name,profile_picture_url},instagram_business_account{id,username,name,profile_picture_url}",
-        ],
-      ]),
-      { headers: bearer(token) },
-      "Failed to load connected Meta Pages",
-      http,
-    ),
-  );
-  const data = response.data ?? [];
-  if (!Array.isArray(data))
-    throw new ApiError(
-      500,
-      "internal_error",
-      "Failed to decode provider response",
+  const pages = new Map<string, MetaPageAccount>();
+  const cursors = new Set<string>();
+  let after: string | null = null;
+  for (let batch = 0; batch < 100; batch++) {
+    const response = object(
+      await fetchJson(
+        buildUrl(`${META_GRAPH_BASE}/me/accounts`, [
+          [
+            "fields",
+            "id,name,username,access_token,tasks,picture{url},connected_instagram_account{id,username,name,profile_picture_url},instagram_business_account{id,username,name,profile_picture_url}",
+          ],
+          ["limit", "100"],
+          ...(after === null ? [] : [["after", after] as [string, string]]),
+        ]),
+        { headers: bearer(token) },
+        "Failed to load connected Meta Pages",
+        http,
+      ),
     );
-  return data.map(metaPage);
+    const data = response.data ?? [];
+    if (!Array.isArray(data))
+      throw new ApiError(
+        500,
+        "internal_error",
+        "Failed to decode provider response",
+      );
+    for (const value of data) {
+      const page = metaPage(value);
+      if (!pages.has(page.id)) pages.set(page.id, page);
+    }
+    if (response.paging == null) return [...pages.values()];
+    const paging = object(response.paging);
+    if (paging.next == null) return [...pages.values()];
+    const nextCursor =
+      paging.cursors == null ? null : object(paging.cursors).after;
+    if (
+      typeof paging.next !== "string" ||
+      !paging.next.trim() ||
+      typeof nextCursor !== "string" ||
+      !nextCursor.trim() ||
+      cursors.has(nextCursor)
+    )
+      throw new ApiError(502, "bad_gateway", "Invalid Meta Page pagination");
+    // Rebuild the trusted endpoint; provider next URLs can contain access tokens.
+    cursors.add(nextCursor);
+    after = nextCursor;
+  }
+  throw new ApiError(502, "bad_gateway", "Meta Page pagination limit exceeded");
 }
 export async function fetchPageInstagramAccount(
   token: string,

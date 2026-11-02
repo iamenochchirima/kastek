@@ -48,7 +48,7 @@ type CoreSocialChannel = {
   id: string;
   platform: string;
   status: string;
-  display_name: string;
+  displayName: string;
   handle: string | null;
 };
 
@@ -151,7 +151,7 @@ export default function InboxPage() {
             )
             .map((channel) => ({
               id: channel.id,
-              label: channel.display_name,
+              label: channel.displayName,
               handle: channel.handle,
             })),
           facebook: socialChannels
@@ -160,7 +160,7 @@ export default function InboxPage() {
             )
             .map((channel) => ({
               id: channel.id,
-              label: channel.display_name,
+              label: channel.displayName,
               handle: channel.handle,
             })),
         }}

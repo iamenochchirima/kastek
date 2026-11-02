@@ -14,6 +14,13 @@ import * as oauth from '../src/integrations/social-oauth.js';
 import * as social from '../src/integrations/social-provider-connections.js';
 import { encryptSocialSecret, decryptSocialSecret } from '../src/integrations/crypto.js';
 function state(provider: string, metadata: Record<string, unknown>, key: string) { return permissions.permissionSnapshots(provider, metadata).find(v => v.definition.key === key)!.definition; }
+test('Facebook authorization requests OAuth permissions without Page task names', () => {
+    const config = readConfig({ DATABASE_URL: 'postgres://unused', AUTH_META_APP_ID: 'fixture-app', KASITEK_CORE_PUBLIC_URL: 'https://growth.example.test' });
+    const url = new URL(oauth.buildMetaAuthorizeUrl(config, 'fixture-state', 'facebook', ['SOCIAL_PUBLISH', 'MEDIA_PUBLISH', 'MESSAGING_INBOUND', 'SOCIAL_ANALYTICS', 'COMMENTS_MANAGE']));
+    assert.deepEqual(url.searchParams.get('scope')!.split(',').sort(), ['pages_manage_posts', 'pages_read_engagement', 'pages_messaging', 'read_insights', 'pages_manage_engagement', 'pages_show_list', 'pages_manage_metadata', 'business_management'].sort());
+    assert.equal(state('FACEBOOK', { tasks: ['CREATE_CONTENT'] }, 'SOCIAL_PUBLISH').state, 'GRANTED');
+    assert.equal(state('FACEBOOK', { tasks: ['MESSAGING'] }, 'MESSAGING_INBOUND').state, 'GRANTED');
+});
 test('provider permission evidence, replacement scopes and raw token encryption preserve boundaries', () => {
     assert.equal(state('WHATSAPP', { permissions: ['whatsapp_business_messaging'] }, 'MESSAGING_OUTBOUND').state, 'UNKNOWN');
     assert.equal(state('WHATSAPP', { permissions: ['whatsapp_business_messaging'], capabilityChecks: { MESSAGING_OUTBOUND: true } }, 'MESSAGING_OUTBOUND').state, 'GRANTED');

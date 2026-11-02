@@ -14,8 +14,11 @@ import {
 import { registerSocialOAuthRoutes } from "./social-oauth.js";
 import * as channels from "../services/social/channels.js";
 import * as posts from "../services/social/posts.js";
+import { updatePublishedFacebookPost } from "../capabilities/content-published-edit.js";
+import { authorizeGrowthOperation } from "../operations/policy.js";
 import * as media from "../services/social/media.js";
 import type { SocialPostUpsertRequest } from "../services/social/types.js";
+import { socialChannelResponse, socialPostResponse } from "./social-post-response.js";
 interface InsightsQuery {
   platform?: string;
   metrics?: string;
@@ -201,13 +204,13 @@ export function registerSocialRoutes(
   });
   app.get("/api/social/posts", async (request) => {
     const { org } = await scope(request, context);
-    return { posts: await posts.listSocialPosts(context.pool, org) };
+    return { posts: (await posts.listSocialPosts(context.pool, org)).map(socialPostResponse) };
   });
   app.get("/api/social/posts/:id", async (request) => {
     const { org } = await scope(request, context);
     const post = await posts.getSocialPost(context.pool, org, id(request));
     if (!post) throw missing("Post not found");
-    return { post };
+    return { post: socialPostResponse(post) };
   });
   app.get("/api/social/posts/:id/activity", async (request) => {
     const { org } = await scope(request, context);
@@ -225,12 +228,13 @@ export function registerSocialRoutes(
     async (request, reply) => {
       const { user, org } = await scope(request, context);
       return reply.code(201).send({
-        post: await posts.createSocialPost(
+        post: socialPostResponse(await posts.createSocialPostIdempotent(
           context.pool,
           user.id,
           org,
           request.body as SocialPostUpsertRequest,
-        ),
+          typeof request.headers["idempotency-key"] === "string" ? request.headers["idempotency-key"] : null,
+        )),
       });
     },
   );
@@ -240,16 +244,28 @@ export function registerSocialRoutes(
     async (request) => {
       const { user, org } = await scope(request, context);
       return {
-        post: await posts.updateSocialPost(
+        post: socialPostResponse(await posts.updateSocialPost(
           context.pool,
           user.id,
           org,
           id(request),
           request.body as SocialPostUpsertRequest,
-        ),
+          { expectedPostRevision: typeof request.headers["if-match"] === "string" ? request.headers["if-match"].replace(/^"|"$/g, "") : undefined },
+        )),
       };
     },
   );
+  app.post("/api/social/posts/:id/update-published", {
+    schema: { body: { type: "object", additionalProperties: false, required: ["content", "expectedUpdatedAt"], properties: {
+      content: { type: "string", minLength: 1, maxLength: 32768 }, expectedUpdatedAt: { type: "string", format: "date-time" },
+      removePhoto: { type: "boolean" },
+    } } },
+  }, async request => {
+    const ctx = await resolveProductContext(request, context);
+    await authorizeGrowthOperation(context, ctx, "content.posts.update_published");
+    const post = await updatePublishedFacebookPost(context.pool, context.config, ctx, id(request), request.body as { content: string; expectedUpdatedAt: string; removePhoto?: boolean });
+    return { post: socialPostResponse(post) };
+  });
   app.post("/api/social/media", async (request, reply) => {
     const { user, org } = await scope(request, context);
     return reply.code(201).send({
@@ -320,17 +336,17 @@ export function registerSocialRoutes(
         );
       }
     }
-    return { channels: await channels.listSocialChannels(context.pool, org) };
+    return { channels: (await channels.listSocialChannels(context.pool, org)).map(socialChannelResponse) };
   });
   app.post("/api/social/channels/:id/identity", async (request) => {
     const { org } = await scope(request, context, true);
     return {
-      channel: await auth.refreshSocialChannelIdentity(
+      channel: socialChannelResponse(await auth.refreshSocialChannelIdentity(
         context.pool,
         org,
         context.config,
         id(request),
-      ),
+      )),
     };
   });
   app.get("/api/social/channels/:id/tiktok-creator-info", async (request) => {
@@ -511,9 +527,9 @@ export function registerSocialRoutes(
         job.id,
         { config: context.config, log: request.log },
       );
+      const updatedPost = await posts.getSocialPost(context.pool, org, id(request));
       return {
-        post:
-          (await posts.getSocialPost(context.pool, org, id(request))) ?? null,
+        post: updatedPost ? socialPostResponse(updatedPost) : null,
         result,
       };
     },
@@ -521,9 +537,10 @@ export function registerSocialRoutes(
   app.post("/api/social/posts/:id/publish-batch", async (request, reply) => {
     const ctx = await resolveProductContext(request, context);
     ctx.idempotencyKey ??= `manual:content-publish-batch:${id(request)}:${createId()}`;
+    const result = await batch.publishBatch(context.pool, ctx, id(request));
     return reply
       .code(202)
-      .send(await batch.publishBatch(context.pool, ctx, id(request)));
+      .send({ ...result, post: socialPostResponse(result.post) });
   });
   app.get("/api/social/posts/:id/publish-batch/preflight", async (request) =>
     batch.preflight(
@@ -542,9 +559,10 @@ export function registerSocialRoutes(
   app.post("/api/social/publish-batches/:id/retry", async (request, reply) => {
     const ctx = await resolveProductContext(request, context);
     ctx.idempotencyKey ??= `manual:content-publish-batch-retry:${id(request)}:${createId()}`;
+    const result = await batch.retryFailedBatch(context.pool, ctx, id(request));
     return reply
       .code(202)
-      .send(await batch.retryFailedBatch(context.pool, ctx, id(request)));
+      .send({ ...result, post: socialPostResponse(result.post) });
   });
   app.patch(
     "/api/social/publish-jobs/:id",
@@ -561,20 +579,14 @@ export function registerSocialRoutes(
       ).rows[0];
       if (!job) throw missing("Publish job not found");
       if (action === "cancel")
-        await context.pool.query(
-          `UPDATE "SocialPublishJob" SET status='CANCELED'::"SocialPublishJobStatus","errorMessage"=NULL,"updatedAt"=NOW() WHERE id=$1`,
-          [id(request)],
-        );
+        await publishing.changePublishJobState(context.pool, org, id(request), "cancel");
       else if (action === "retry" || action === "run_now") {
         if (job.metadata?._kasitek_outcome === "UNKNOWN")
           throw conflict(
             "This publish result is unknown; reconcile the provider before retrying",
           );
         if (action === "retry")
-          await context.pool.query(
-            `UPDATE "SocialPublishJob" SET status='QUEUED'::"SocialPublishJobStatus","errorMessage"=NULL,"scheduledFor"=NOW(),metadata=COALESCE(metadata,'{}'::jsonb)-'_kasitek_outcome',"updatedAt"=NOW() WHERE id=$1`,
-            [id(request)],
-          );
+          await publishing.changePublishJobState(context.pool, org, id(request), "retry");
         else {
           if (
             !(await publishing.claimPublishJob(context.pool, id(request), [
@@ -590,9 +602,9 @@ export function registerSocialRoutes(
           });
         }
       } else throw bad("Unsupported action");
+      const updatedPost = await posts.getSocialPost(context.pool, org, job.postId);
       return {
-        post:
-          (await posts.getSocialPost(context.pool, org, job.postId)) ?? null,
+        post: updatedPost ? socialPostResponse(updatedPost) : null,
       };
     },
   );

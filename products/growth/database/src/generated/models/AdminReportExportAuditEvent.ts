@@ -62,6 +62,7 @@ export type AdminReportExportAuditEventCountAggregateOutputType = {
   format: number
   status: number
   createdAt: number
+  scope: number
   _all: number
 }
 
@@ -102,6 +103,7 @@ export type AdminReportExportAuditEventCountAggregateInputType = {
   format?: true
   status?: true
   createdAt?: true
+  scope?: true
   _all?: true
 }
 
@@ -199,6 +201,7 @@ export type AdminReportExportAuditEventGroupByOutputType = {
   format: string
   status: string
   createdAt: Date
+  scope: runtime.JsonValue | null
   _count: AdminReportExportAuditEventCountAggregateOutputType | null
   _avg: AdminReportExportAuditEventAvgAggregateOutputType | null
   _sum: AdminReportExportAuditEventSumAggregateOutputType | null
@@ -232,6 +235,7 @@ export type AdminReportExportAuditEventWhereInput = {
   format?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   status?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"AdminReportExportAuditEvent"> | Date | string
+  scope?: Prisma.JsonNullableFilter<"AdminReportExportAuditEvent">
   admin?: Prisma.XOR<Prisma.AdminUserScalarRelationFilter, Prisma.AdminUserWhereInput>
 }
 
@@ -243,6 +247,7 @@ export type AdminReportExportAuditEventOrderByWithRelationInput = {
   format?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  scope?: Prisma.SortOrderInput | Prisma.SortOrder
   admin?: Prisma.AdminUserOrderByWithRelationInput
 }
 
@@ -257,6 +262,7 @@ export type AdminReportExportAuditEventWhereUniqueInput = Prisma.AtLeast<{
   format?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   status?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"AdminReportExportAuditEvent"> | Date | string
+  scope?: Prisma.JsonNullableFilter<"AdminReportExportAuditEvent">
   admin?: Prisma.XOR<Prisma.AdminUserScalarRelationFilter, Prisma.AdminUserWhereInput>
 }, "id">
 
@@ -268,6 +274,7 @@ export type AdminReportExportAuditEventOrderByWithAggregationInput = {
   format?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  scope?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.AdminReportExportAuditEventCountOrderByAggregateInput
   _avg?: Prisma.AdminReportExportAuditEventAvgOrderByAggregateInput
   _max?: Prisma.AdminReportExportAuditEventMaxOrderByAggregateInput
@@ -286,6 +293,7 @@ export type AdminReportExportAuditEventScalarWhereWithAggregatesInput = {
   format?: Prisma.StringWithAggregatesFilter<"AdminReportExportAuditEvent"> | string
   status?: Prisma.StringWithAggregatesFilter<"AdminReportExportAuditEvent"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"AdminReportExportAuditEvent"> | Date | string
+  scope?: Prisma.JsonNullableWithAggregatesFilter<"AdminReportExportAuditEvent">
 }
 
 export type AdminReportExportAuditEventCreateInput = {
@@ -295,6 +303,7 @@ export type AdminReportExportAuditEventCreateInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   admin: Prisma.AdminUserCreateNestedOneWithoutReportExportEventsInput
 }
 
@@ -306,6 +315,7 @@ export type AdminReportExportAuditEventUncheckedCreateInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUpdateInput = {
@@ -315,6 +325,7 @@ export type AdminReportExportAuditEventUpdateInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   admin?: Prisma.AdminUserUpdateOneRequiredWithoutReportExportEventsNestedInput
 }
 
@@ -326,6 +337,7 @@ export type AdminReportExportAuditEventUncheckedUpdateInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventCreateManyInput = {
@@ -336,6 +348,7 @@ export type AdminReportExportAuditEventCreateManyInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUpdateManyMutationInput = {
@@ -345,6 +358,7 @@ export type AdminReportExportAuditEventUpdateManyMutationInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUncheckedUpdateManyInput = {
@@ -355,6 +369,7 @@ export type AdminReportExportAuditEventUncheckedUpdateManyInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventListRelationFilter = {
@@ -375,6 +390,7 @@ export type AdminReportExportAuditEventCountOrderByAggregateInput = {
   format?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  scope?: Prisma.SortOrder
 }
 
 export type AdminReportExportAuditEventAvgOrderByAggregateInput = {
@@ -454,6 +470,7 @@ export type AdminReportExportAuditEventCreateWithoutAdminInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUncheckedCreateWithoutAdminInput = {
@@ -463,6 +480,7 @@ export type AdminReportExportAuditEventUncheckedCreateWithoutAdminInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventCreateOrConnectWithoutAdminInput = {
@@ -502,6 +520,7 @@ export type AdminReportExportAuditEventScalarWhereInput = {
   format?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   status?: Prisma.StringFilter<"AdminReportExportAuditEvent"> | string
   createdAt?: Prisma.DateTimeFilter<"AdminReportExportAuditEvent"> | Date | string
+  scope?: Prisma.JsonNullableFilter<"AdminReportExportAuditEvent">
 }
 
 export type AdminReportExportAuditEventCreateManyAdminInput = {
@@ -511,6 +530,7 @@ export type AdminReportExportAuditEventCreateManyAdminInput = {
   format?: string
   status?: string
   createdAt?: Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUpdateWithoutAdminInput = {
@@ -520,6 +540,7 @@ export type AdminReportExportAuditEventUpdateWithoutAdminInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUncheckedUpdateWithoutAdminInput = {
@@ -529,6 +550,7 @@ export type AdminReportExportAuditEventUncheckedUpdateWithoutAdminInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 export type AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminInput = {
@@ -538,6 +560,7 @@ export type AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminInput = {
   format?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  scope?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
 }
 
 
@@ -550,6 +573,7 @@ export type AdminReportExportAuditEventSelect<ExtArgs extends runtime.Types.Exte
   format?: boolean
   status?: boolean
   createdAt?: boolean
+  scope?: boolean
   admin?: boolean | Prisma.AdminUserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["adminReportExportAuditEvent"]>
 
@@ -561,6 +585,7 @@ export type AdminReportExportAuditEventSelectCreateManyAndReturn<ExtArgs extends
   format?: boolean
   status?: boolean
   createdAt?: boolean
+  scope?: boolean
   admin?: boolean | Prisma.AdminUserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["adminReportExportAuditEvent"]>
 
@@ -572,6 +597,7 @@ export type AdminReportExportAuditEventSelectUpdateManyAndReturn<ExtArgs extends
   format?: boolean
   status?: boolean
   createdAt?: boolean
+  scope?: boolean
   admin?: boolean | Prisma.AdminUserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["adminReportExportAuditEvent"]>
 
@@ -583,9 +609,10 @@ export type AdminReportExportAuditEventSelectScalar = {
   format?: boolean
   status?: boolean
   createdAt?: boolean
+  scope?: boolean
 }
 
-export type AdminReportExportAuditEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "adminId" | "reportKey" | "days" | "format" | "status" | "createdAt", ExtArgs["result"]["adminReportExportAuditEvent"]>
+export type AdminReportExportAuditEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "adminId" | "reportKey" | "days" | "format" | "status" | "createdAt" | "scope", ExtArgs["result"]["adminReportExportAuditEvent"]>
 export type AdminReportExportAuditEventInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   admin?: boolean | Prisma.AdminUserDefaultArgs<ExtArgs>
 }
@@ -609,6 +636,7 @@ export type $AdminReportExportAuditEventPayload<ExtArgs extends runtime.Types.Ex
     format: string
     status: string
     createdAt: Date
+    scope: runtime.JsonValue | null
   }, ExtArgs["result"]["adminReportExportAuditEvent"]>
   composites: {}
 }
@@ -1040,6 +1068,7 @@ export interface AdminReportExportAuditEventFieldRefs {
   readonly format: Prisma.FieldRef<"AdminReportExportAuditEvent", 'String'>
   readonly status: Prisma.FieldRef<"AdminReportExportAuditEvent", 'String'>
   readonly createdAt: Prisma.FieldRef<"AdminReportExportAuditEvent", 'DateTime'>
+  readonly scope: Prisma.FieldRef<"AdminReportExportAuditEvent", 'Json'>
 }
     
 

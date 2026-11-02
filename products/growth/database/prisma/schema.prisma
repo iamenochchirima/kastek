@@ -2839,3 +2839,119 @@ model GrowthAgentSourceHandle {
   actor User @relation("GrowthAgentSourceActor",fields:[actorId],references:[id],onDelete:Cascade)
   @@index([orgId,actorId])
 }
+
+model GrowthOAuthClient {
+  id String @id
+  name String
+  redirectUris String[]
+  registrationIpHash String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  requests GrowthOAuthRequest[]
+  codes GrowthOAuthCode[]
+  connections GrowthOAuthConnection[]
+  @@index([registrationIpHash, createdAt])
+}
+
+model GrowthOAuthRequest {
+  hash String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  redirectUri String
+  resource String
+  scopes String[]
+  state String
+  challenge String
+  userId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+  @@index([expiresAt])
+}
+
+model GrowthOAuthCode {
+  hash String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  userId String
+  orgId String
+  redirectUri String
+  resource String
+  scopes String[]
+  challenge String
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+}
+
+model GrowthOAuthConnection {
+  id String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  userId String
+  orgId String
+  resource String
+  scopes String[]
+  accessHash String @unique
+  accessExpiresAt DateTime @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  lastUsedAt DateTime? @db.Timestamptz(6)
+  refreshTokens GrowthOAuthRefresh[]
+  @@index([userId, orgId])
+}
+
+model GrowthOAuthRefresh {
+  hash String @id
+  connectionId String
+  connection GrowthOAuthConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+  @@index([connectionId])
+}
+model GrowthOperationReview {
+  id             String   @id
+  orgId          String
+  userId         String
+  principalId    String
+  principalKind  String
+  operation      String
+  version        String
+  requestKey     String
+  payloadDigest  String
+  input          Json
+  snapshot       Json
+  state          String   @default("proposed")
+  result         Json?
+  errorCode      String?
+  taskId         String?
+  conversationId String?
+  operationId    String?
+  expiresAt      DateTime @db.Timestamptz
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @default(now()) @db.Timestamptz
+
+  @@unique([orgId, principalKind, principalId, requestKey])
+  @@index([userId, orgId, createdAt], map: "GrowthOperationReview_user_org_idx")
+}
+
+model GrowthMediaTransfer {
+  id String @id
+  orgId String
+  userId String
+  principalId String
+  principalKind String
+  requestKey String
+  fileName String?
+  mimeType String
+  byteSize BigInt
+  expectedChecksum String?
+  checksum String?
+  storageKey String?
+  state String @default("PENDING")
+  assetId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([orgId,principalKind,principalId,requestKey])
+  @@index([expiresAt],map:"GrowthMediaTransfer_expiry_idx")
+  @@index([orgId,userId,principalKind,principalId],map:"GrowthMediaTransfer_owner_idx")
+}

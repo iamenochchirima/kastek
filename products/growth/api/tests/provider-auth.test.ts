@@ -427,3 +427,69 @@ test(
     }
   },
 );
+
+
+test('Meta Page discovery follows cursors on the trusted endpoint and deduplicates Pages', async () => {
+  const calls: URL[] = [];
+  const http: HttpFetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    calls.push(url);
+    assert.equal(url.origin + url.pathname, provider.META_GRAPH_BASE + '/me/accounts');
+    assert.equal(url.searchParams.has('access_token'), false);
+    assert.equal(new Headers(init.headers).get('authorization'), 'Bearer private-user-token');
+    if (!url.searchParams.has('after')) return new Response(JSON.stringify({
+      data: [{ id: 'one', access_token: 'page-one' }],
+      paging: { cursors: { after: 'cursor +/&' }, next: 'https://untrusted.example/?access_token=do-not-follow' },
+    }));
+    assert.equal(url.searchParams.get('after'), 'cursor +/&');
+    return new Response(JSON.stringify({
+      data: [{ id: 'one', access_token: 'page-one' }, { id: 'two', access_token: 'page-two' }],
+      paging: { cursors: { after: 'terminal' } },
+    }));
+  };
+  assert.deepEqual((await provider.fetchMetaPages('private-user-token', http)).map(page => page.id), ['one', 'two']);
+  assert.equal(calls.length, 2);
+});
+
+test('Meta Page discovery rejects incomplete pagination instead of returning partial connections', async () => {
+  for (const mode of ['missing-cursor', 'repeated-cursor', 'provider-error']) {
+    let calls = 0;
+    const http: HttpFetch = async () => {
+      calls++;
+      if (mode === 'provider-error' && calls === 2) return new Response('{}', { status: 503 });
+      return new Response(JSON.stringify({
+        data: [{ id: 'one' }],
+        paging: { next: 'https://graph.facebook.com/next', cursors: mode === 'missing-cursor' ? {} : { after: 'same' } },
+      }));
+    };
+    await assert.rejects(provider.fetchMetaPages('token', http), ApiError);
+    assert.equal(calls, mode === 'missing-cursor' ? 1 : 2);
+  }
+});
+
+test('Meta Page discovery preserves empty and single-batch results', async () => {
+  for (const data of [[], [{ id: 'one' }, { id: 'two' }]]) {
+    const http: HttpFetch = async () => new Response(JSON.stringify({ data }));
+    assert.deepEqual((await provider.fetchMetaPages('token', http)).map(page => page.id), data.map(page => page.id));
+  }
+});
+
+test('Meta Page discovery bounds pagination and rejects malformed later batches', async () => {
+  let calls = 0;
+  const endless: HttpFetch = async () => {
+    calls++;
+    return new Response(JSON.stringify({
+      data: [],
+      paging: { next: 'next', cursors: { after: String(calls) } },
+    }));
+  };
+  await assert.rejects(provider.fetchMetaPages('token', endless), /pagination limit exceeded/);
+  assert.equal(calls, 100);
+  calls = 0;
+  const malformed: HttpFetch = async () => new Response(JSON.stringify(++calls === 1 ? {
+    data: [{ id: 'one' }],
+    paging: { next: 'next', cursors: { after: 'cursor' } },
+  } : { data: {} }));
+  await assert.rejects(provider.fetchMetaPages('token', malformed), /decode provider response/);
+  assert.equal(calls, 2);
+});

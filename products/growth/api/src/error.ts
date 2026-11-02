@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyError, FastifyRequest } from "fastify";
 import { formatSerdeValidationError } from "@kasitek-labs/server-support/json";
 
 const urlencodedFormRoutes = new Set([
+  "/oauth/token",
+  "/oauth/revoke",
   "/api/auth/backchannel-logout",
   "/api/social/oauth/threads/uninstall",
   "/api/social/oauth/threads/data-deletion",

@@ -73,3 +73,61 @@ branch protection against the actual workflow results before switching the canon
 Do not archive or delete old repositories while source connections, scripts, external consumers,
 branches or local work still depend on them. Hosted access, full artifact smoke checks, independent
 rollbacks and final source reconciliation remain completion gates.
+
+## Vercel frontend release candidate
+
+The 2 November 2026 rollout prepares five separate Vercel projects. Set each project's root to
+its application directory and enable access to workspace files outside that root. Growth,
+Agents and Agency use the checked-in application `vercel.json` to build from the frozen root
+workspace, then run `scripts/hosting/vercel-output.mjs`. That command writes the application's
+`.vercel/output` Build Output API artifact. Admin and Labs use their normal Next.js builds.
+The source configuration does not establish hosted acceptance or change production aliases.
+
+Supply these build-time origins before packaging:
+
+| App | Backend origin | Public frontend origin |
+| --- | --- | --- |
+| Growth | `CORE_API_BASE_URL` | `FRONTEND_URL` |
+| Agents | `AGENTS_API_PROXY_TARGET` | `FRONTEND_URL` |
+| Agency | `TENANT_BACKEND_URL` | `FRONTEND_URL` |
+
+Origins must use HTTPS, with no credentials, path, query or fragment. Generated routing includes
+public origins only; it does not copy backend environment files or secrets. Set `VERCEL_ENV` to
+`production` only for a production artifact; other artifacts receive `X-Robots-Tag: noindex`.
+The Growth organization-switch function also needs `CORE_API_BASE_URL` and `FRONTEND_URL` at
+runtime. A prebuilt promotion must use the same tested origins and environment configuration.
+
+Static assets are served by Vercel. Browser APIs use native external rewrites instead of a
+function proxy, preserving the upload path outside Vercel Functions' payload limit. Only Growth's
+small `/api/orgs/set-active` request uses a Node function; it reuses the existing Growth proxy to
+preserve the exact browser Host and cookie authority checks. Other requests cannot use this
+function. Growth private routes follow the route inventory, unknown routes and missing assets
+return 404, source maps and hidden files remain unavailable, and documents use `no-store`.
+
+MCP clients must connect to the Railway Growth API's canonical public origin. Its OAuth discovery,
+registration, authorization, token and revocation endpoints remain on that API origin. Do not
+advertise the Vercel frontend as the canonical MCP resource: Vercel reserves `/.well-known`
+routing, and a function proxy would introduce payload and invocation-duration restrictions.
+
+Agency accepts its exact `FRONTEND_URL` host and an explicitly configured verified wildcard.
+For the existing deployment, set `FRONTEND_URL=https://portal.kasitek.co.za` and
+`AGENCY_VERIFIED_WILDCARD_DOMAIN=*.portal.kasitek.co.za`. The wildcard must match that frontend's
+hostname. Routing removes caller-supplied `x-kasitek-tenant-host`; the canonical portal route sets
+its fixed host, while valid single-label tenant subdomains retain Vercel's authoritative
+`x-forwarded-host`. This preserves each tenant's hostname instead of replacing it with the portal
+hostname. Unrelated, malformed and unconfigured hosts return 421. Other custom domains remain
+blocked. Native edge host forwarding, spoof resistance and tenant/session isolation must pass a
+hosted preview before the existing wildcard production alias can be promoted.
+
+Before promoting any alias, verify a real Vercel preview: OIDC callback and logout cookies,
+organization switching, multipart upload above 5 MB where supported by the API, media downloads,
+SSE first-chunk delivery/reconnect, query strings, redirect targets, private caching and missing
+asset responses. Verify native edge rewrites and Agency header transforms in the hosted preview;
+local route-contract tests cannot establish Vercel behavior. Canonical-host browser cookies must
+remain separate from preview cookies. Record deployment IDs, source SHA, configuration revision
+and previous alias targets. Roll back by restoring the previous Vercel deployment and matching
+backend configuration; retain database state and do not replay provider effects.
+
+This hosting change adds no analytics event or database migration. Existing API outcome logs and
+telemetry remain authoritative. Hosting-specific validation is
+`node --test scripts/hosting/vercel-output.test.mjs`; hosted preview acceptance remains required.

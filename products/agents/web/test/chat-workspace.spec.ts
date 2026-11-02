@@ -2,8 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222", versionId = "44444444-4444-4444-8444-444444444444";
 const configuration = { executionKind: "business", instructions: "Help briefly.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
+const specialistAssignment = "Find commuter audience insights using the launch brief.\nFocus on commuters who cycle to work.";
 type Task = { id: string; versionId: string; input: string; output: string | null; requestKey: string; conversationId: string; turnSequence: number; state: string; errorCode: string | null };
-async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean; errorCode?: string } = {}) {
+async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean; errorCode?: string; child?: boolean; steer?: boolean } = {}) {
   const tasks: Task[] = [], posts: Record<string, unknown>[] = [];
   let unknown = options.unknown;
   await page.route("**/api/**", async route => {
@@ -21,13 +22,14 @@ async function fixture(page: Page, options: { unknown?: boolean; versions?: bool
     else if (path.endsWith("/tasks") && method === "POST") {
       posts.push(body);
       const existing = tasks.find(t => t.requestKey === body.requestKey);
-      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: options.errorCode ? null : tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId, turnSequence: tasks.length + 1, state: options.errorCode ? "failed" : "completed", errorCode: options.errorCode ?? null };
+      const task = existing ?? { id: `task-${tasks.length + 1}`, input: body.input, output: options.errorCode || options.child ? null : tasks.length ? "Your project is ORCHID-17." : "**Hello.** [Unsafe](javascript:alert(1))\n\n```text\n<script>window.injected=true</script>\n```", requestKey: body.requestKey, conversationId: body.conversationId ?? `conversation-${tasks.length + 1}`, versionId, turnSequence: tasks.length + 1, state: options.errorCode ? "failed" : options.child ? "running" : "completed", errorCode: options.errorCode ?? null };
       if (!existing) tasks.push(task);
       if (unknown) { unknown = false; await route.abort("failed"); return; }
       data = { task };
     }
     else if (path.endsWith("/tasks")) data = { tasks: tasks.map(t => ({ ...t, agentId, agentName: "Research assistant", versionNumber: 1, createdAt: "2026-10-18T12:00:00Z", updatedAt: "2026-10-18T12:00:00Z", canControl: true, reviewOnly: false })), nextCursor: null };
-    else if (/\/tasks\/[^/]+$/.test(path)) data = { task: tasks.find(t => path.endsWith(t.id)), events: [], operations: [], actions: [], children: [], resources: [], artifacts: [] };
+    else if (options.child && path.endsWith("/tasks/child-1")) data = { task: { id: "child-1", input: specialistAssignment, state: tasks[0]?.state === "completed" ? "completed" : "running", output: tasks[0]?.state === "completed" ? "Audience findings ready." : null, errorCode: null, conversationId: "child-conversation", versionId }, updates: [{ id: "update-1", text: "I have read the launch brief and am checking the audience.", createdAt: "2026-11-02T10:00:00Z" }], events: [], operations: url.searchParams.has("operationsCursor") ? [{ operationId: "child-older", name: "Discover audience sources", state: "completed" }] : [{ operationId: "child-read", name: "Read launch brief", state: "completed" }], operationsNextCursor: url.searchParams.has("operationsCursor") ? null : "older", actions: [], children: [], resources: [], artifacts: [] };
+    else if (/\/tasks\/[^/]+$/.test(path)) data = { task: tasks.find(t => path.endsWith(t.id)), canSteer: options.steer === true, events: [], operations: [], actions: [], children: options.child ? [{ id: "child-1", agentName: "Research", state: tasks[0]?.state === "completed" ? "completed" : "running", output: null, parentTaskId: tasks[0]?.id, rootTaskId: tasks[0]?.id, versionId }] : [], resources: [], artifacts: [] };
     else { await route.fulfill({ status: 404, json: { error: { message: "Not found" } } }); return; }
     await route.fulfill({ json: data });
   });
@@ -98,7 +100,7 @@ test("mock transport: inline activity loads cursor-paged task events", async ({ 
   await page.goto(`/app/agents/${agentId}`);
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Inspect activity."); await page.getByRole("button", { name: "Send message" }).click();
   await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
-  await page.getByText("Task details", { exact: true }).click(); await page.getByText("Event history", { exact: true }).click();
+  await page.getByText("Event history", { exact: true }).click();
   await page.getByRole("button", { name: "Load more events" }).click();
   await expect(page.getByText("event page loaded", { exact: true })).toBeVisible(); await expect(page.getByRole("button", { name: "Load more events" })).toHaveCount(0);
 });
@@ -119,7 +121,7 @@ for (const [code, label] of [
     await page.goto(`/app/agents/${agentId}`);
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hi");
     await page.getByRole("button", { name: "Send message" }).click();
-    await expect(page.getByText(`failed · ${label}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
     await expect(page.getByText(/private_provider_text/)).toHaveCount(0);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
@@ -130,3 +132,108 @@ for (const [code, label] of [
     await expect(page.getByText(label, { exact: true })).toBeVisible();
   });
 }
+
+
+test("mock transport: running subagent uses shared modal, retains parent and updates to final output", async ({ page }) => {
+  const { tasks, posts } = await fixture(page, { child: true });
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const open = page.getByRole("button", { name: "Open Research activity", exact: true });
+  await expect(open).toBeVisible();
+  await open.click();
+  const modal = page.getByRole("dialog");
+  await expect(modal.getByRole("heading", { name: "Research", exact: true })).toBeVisible();
+  const assignment = modal.locator("details[data-agent-assignment]");
+  await expect(assignment).not.toHaveAttribute("open", "");
+  await expect(assignment.getByText(specialistAssignment, { exact: true })).not.toBeVisible();
+  await assignment.locator("summary").click();
+  await expect(assignment.getByText(specialistAssignment, { exact: true })).toBeVisible();
+  await expect(modal.getByText("I have read the launch brief and am checking the audience.", { exact: true })).toBeVisible();
+  await modal.getByText("Read launch brief", { exact: true }).click();
+  await expect(modal.getByText("Status", { exact: true })).toBeVisible();
+  await expect(modal.getByRole("textbox")).toHaveCount(0);
+  await modal.getByRole("button", { name: "Earlier activity", exact: true }).click();
+  await expect(modal.getByText("Discover audience sources", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
+  await expect(open).toBeFocused();
+  expect(tasks[0].state).toBe("running"); expect(posts).toHaveLength(1);
+  await open.click();
+  const themeSurfaces = new Map<string, string>();
+  for (const theme of ["light", "dark"]) for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(value => { document.documentElement.classList.toggle("dark", value === "dark"); document.documentElement.dataset.theme = value; document.documentElement.classList.add("v-reduce-motion"); }, theme);
+    const surface = await modal.evaluate(element => getComputedStyle(element).backgroundColor);
+    expect(surface).not.toBe("rgba(0, 0, 0, 0)");
+    themeSurfaces.set(theme, surface);
+    await expect(modal).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await modal.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(modal.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+    await page.screenshot({ path: test.info().outputPath(`running-subagent-${theme}-${width}.png`), animations: "disabled" });
+  }
+  expect(themeSurfaces.get("light")).not.toBe(themeSurfaces.get("dark"));
+  tasks[0].state = "completed"; tasks[0].output = "Launch work ready.";
+  await expect(modal.getByText("Audience findings ready.", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Launch work ready.", { exact: true })).toBeVisible();
+  await expect(open).toBeFocused();
+  expect(posts).toHaveLength(1);
+});
+
+test("mock transport: subagent access withdrawal clears its visible transcript", async ({ page }) => {
+  await fixture(page, { child: true });
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await page.getByRole("button", { name: "Open Research activity", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  const assignment = modal.locator("details[data-agent-assignment]");
+  await assignment.locator("summary").click();
+  await expect(assignment.getByText(specialistAssignment, { exact: true })).toBeVisible();
+  await page.route("**/tasks/child-1", route => route.fulfill({ status: 403, json: { error: { message: "Access withdrawn" } } }));
+  await expect(modal.getByText("Access withdrawn", { exact: true })).toBeVisible();
+  await expect(modal.locator("details[data-agent-assignment]")).toHaveCount(0);
+  await expect(modal.getByText(specialistAssignment, { exact: true })).toHaveCount(0);
+  await expect(modal.getByText("Read launch brief", { exact: true })).toHaveCount(0);
+});
+
+
+test("mock transport: active instructions use the shared composer and preserve retry identity", async ({ page }) => {
+  const { tasks, posts } = await fixture(page, { child: true, steer: true });
+  const instructions: Array<{ instruction: string; requestKey: string }> = [];
+  await page.route("**/tasks/task-1/instructions", async route => {
+    instructions.push(route.request().postDataJSON());
+    await route.fulfill(instructions.length === 1 ? { status: 503, json: { error: { message: "Temporary interruption" } } } : { json: { accepted: true } });
+  });
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const composer = page.getByRole("textbox", { name: "Update instructions", exact: true });
+  await composer.fill("Focus on commuters who travel by train.");
+  await page.getByRole("button", { name: "Queue instructions", exact: true }).click();
+  await expect(page.getByText("Temporary interruption", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("Focus on commuters who travel by train.");
+  await page.getByRole("button", { name: "Queue instructions", exact: true }).click();
+  await expect(composer).toHaveValue("");
+  expect(instructions).toHaveLength(2); expect(instructions[0]).toEqual(instructions[1]);
+  expect(posts).toHaveLength(1); expect(tasks).toHaveLength(1);
+});
+
+
+test("mock transport: specialist modal stays read-only when its work needs review", async ({ page }) => {
+  await fixture(page, { child: true });
+  let reviewRequests = 0;
+  page.on("request", request => { if (request.url().includes("/tasks/child-1/tool-reviews")) reviewRequests++; });
+  await page.route("**/tasks/child-1", route => route.fulfill({ json: { task: { id: "child-1", state: "waiting_review", input: "Check the launch audience.", output: null, errorCode: null, conversationId: "child-conversation", hasToolReviews: true }, operations: [], children: [], events: [], actions: [] } }));
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Help us launch Wheelhouse.");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await page.getByRole("button", { name: "Open Research activity", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  await expect(modal.getByText("Needs review", { exact: true })).toBeVisible();
+  await expect(modal.getByRole("link", { name: "Open task", exact: true })).toHaveAttribute("href", "/app/tasks/child-1");
+  await expect(modal.getByRole("button", { name: /Approve|Reject|Cancel task|Continue task/ })).toHaveCount(0);
+  expect(reviewRequests).toBe(0);
+});

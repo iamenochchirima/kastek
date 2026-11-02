@@ -215,6 +215,7 @@ export type UserWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   externalIdentity?: Prisma.XOR<Prisma.ExternalIdentityNullableScalarRelationFilter, Prisma.ExternalIdentityWhereInput> | null
@@ -254,6 +255,7 @@ export type UserOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   growthAgentReviews?: Prisma.GrowthAgentReviewOrderByRelationAggregateInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleOrderByRelationAggregateInput
   accounts?: Prisma.AccountOrderByRelationAggregateInput
   sessions?: Prisma.SessionOrderByRelationAggregateInput
   externalIdentity?: Prisma.ExternalIdentityOrderByWithRelationInput
@@ -296,6 +298,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewListRelationFilter
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   externalIdentity?: Prisma.XOR<Prisma.ExternalIdentityNullableScalarRelationFilter, Prisma.ExternalIdentityWhereInput> | null
@@ -365,6 +368,7 @@ export type UserCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -404,6 +408,7 @@ export type UserUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -443,6 +448,7 @@ export type UserUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -482,6 +488,7 @@ export type UserUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -965,6 +972,20 @@ export type UserUpdateOneRequiredWithoutGrowthAgentReviewsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutGrowthAgentReviewsInput, Prisma.UserUpdateWithoutGrowthAgentReviewsInput>, Prisma.UserUncheckedUpdateWithoutGrowthAgentReviewsInput>
 }
 
+export type UserCreateNestedOneWithoutGrowthAgentSourceHandlesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGrowthAgentSourceHandlesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutGrowthAgentSourceHandlesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGrowthAgentSourceHandlesInput
+  upsert?: Prisma.UserUpsertWithoutGrowthAgentSourceHandlesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutGrowthAgentSourceHandlesInput, Prisma.UserUpdateWithoutGrowthAgentSourceHandlesInput>, Prisma.UserUncheckedUpdateWithoutGrowthAgentSourceHandlesInput>
+}
+
 export type UserCreateWithoutOwnedOrganizationsInput = {
   id?: string
   name?: string | null
@@ -976,6 +997,7 @@ export type UserCreateWithoutOwnedOrganizationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1014,6 +1036,7 @@ export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1068,6 +1091,7 @@ export type UserUpdateWithoutOwnedOrganizationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1106,6 +1130,7 @@ export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1144,6 +1169,7 @@ export type UserCreateWithoutOrgMembershipsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1182,6 +1208,7 @@ export type UserUncheckedCreateWithoutOrgMembershipsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1236,6 +1263,7 @@ export type UserUpdateWithoutOrgMembershipsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1274,6 +1302,7 @@ export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1312,6 +1341,7 @@ export type UserCreateWithoutSentInvitationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1350,6 +1380,7 @@ export type UserUncheckedCreateWithoutSentInvitationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1404,6 +1435,7 @@ export type UserUpdateWithoutSentInvitationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1442,6 +1474,7 @@ export type UserUncheckedUpdateWithoutSentInvitationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1480,6 +1513,7 @@ export type UserCreateWithoutEmailConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1518,6 +1552,7 @@ export type UserUncheckedCreateWithoutEmailConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1572,6 +1607,7 @@ export type UserUpdateWithoutEmailConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1610,6 +1646,7 @@ export type UserUncheckedUpdateWithoutEmailConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1648,6 +1685,7 @@ export type UserCreateWithoutEmailOAuthStatesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1686,6 +1724,7 @@ export type UserUncheckedCreateWithoutEmailOAuthStatesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1740,6 +1779,7 @@ export type UserUpdateWithoutEmailOAuthStatesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1778,6 +1818,7 @@ export type UserUncheckedUpdateWithoutEmailOAuthStatesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1816,6 +1857,7 @@ export type UserCreateWithoutProductToursInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -1854,6 +1896,7 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -1908,6 +1951,7 @@ export type UserUpdateWithoutProductToursInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -1946,6 +1990,7 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -1984,6 +2029,7 @@ export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -2022,6 +2068,7 @@ export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -2076,6 +2123,7 @@ export type UserUpdateWithoutCreatedDeveloperApiKeysInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -2114,6 +2162,7 @@ export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -2152,6 +2201,7 @@ export type UserCreateWithoutBillingCheckoutsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -2190,6 +2240,7 @@ export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -2244,6 +2295,7 @@ export type UserUpdateWithoutBillingCheckoutsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -2282,6 +2334,7 @@ export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -2320,6 +2373,7 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -2358,6 +2412,7 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -2412,6 +2467,7 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -2450,6 +2506,7 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -2488,6 +2545,7 @@ export type UserCreateWithoutAccountsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
@@ -2526,6 +2584,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
@@ -2580,6 +2639,7 @@ export type UserUpdateWithoutAccountsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
@@ -2618,6 +2678,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
@@ -2656,6 +2717,7 @@ export type UserCreateWithoutSessionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
@@ -2694,6 +2756,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
@@ -2748,6 +2811,7 @@ export type UserUpdateWithoutSessionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
@@ -2786,6 +2850,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
@@ -2824,6 +2889,7 @@ export type UserCreateWithoutExternalIdentityInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
@@ -2862,6 +2928,7 @@ export type UserUncheckedCreateWithoutExternalIdentityInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
@@ -2916,6 +2983,7 @@ export type UserUpdateWithoutExternalIdentityInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
@@ -2954,6 +3022,7 @@ export type UserUncheckedUpdateWithoutExternalIdentityInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
@@ -2992,6 +3061,7 @@ export type UserCreateWithoutBusinessProfileInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3030,6 +3100,7 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3084,6 +3155,7 @@ export type UserUpdateWithoutBusinessProfileInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3122,6 +3194,7 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -3160,6 +3233,7 @@ export type UserCreateWithoutConversationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3198,6 +3272,7 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3252,6 +3327,7 @@ export type UserUpdateWithoutConversationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3290,6 +3366,7 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -3328,6 +3405,7 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3366,6 +3444,7 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3420,6 +3499,7 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3458,6 +3538,7 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -3496,6 +3577,7 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3534,6 +3616,7 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3588,6 +3671,7 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3626,6 +3710,7 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -3664,6 +3749,7 @@ export type UserCreateWithoutSocialChannelConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3702,6 +3788,7 @@ export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3756,6 +3843,7 @@ export type UserUpdateWithoutSocialChannelConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3794,6 +3882,7 @@ export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -3832,6 +3921,7 @@ export type UserCreateWithoutSocialPostsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -3870,6 +3960,7 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -3924,6 +4015,7 @@ export type UserUpdateWithoutSocialPostsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -3962,6 +4054,7 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4000,6 +4093,7 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4038,6 +4132,7 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4092,6 +4187,7 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4130,6 +4226,7 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4168,6 +4265,7 @@ export type UserCreateWithoutSocialPublishBatchesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4206,6 +4304,7 @@ export type UserUncheckedCreateWithoutSocialPublishBatchesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4260,6 +4359,7 @@ export type UserUpdateWithoutSocialPublishBatchesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4298,6 +4398,7 @@ export type UserUncheckedUpdateWithoutSocialPublishBatchesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4336,6 +4437,7 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4374,6 +4476,7 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4428,6 +4531,7 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4466,6 +4570,7 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4504,6 +4609,7 @@ export type UserCreateWithoutWhatsappContactsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4542,6 +4648,7 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4596,6 +4703,7 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4634,6 +4742,7 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4672,6 +4781,7 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4710,6 +4820,7 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4764,6 +4875,7 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4802,6 +4914,7 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -4840,6 +4953,7 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -4878,6 +4992,7 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -4932,6 +5047,7 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -4970,6 +5086,7 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -5008,6 +5125,7 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -5046,6 +5164,7 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -5100,6 +5219,7 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -5138,6 +5258,7 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -5176,6 +5297,7 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -5214,6 +5336,7 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -5268,6 +5391,7 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -5306,6 +5430,7 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -5343,6 +5468,7 @@ export type UserCreateWithoutGrowthAgentReviewsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
@@ -5381,6 +5507,7 @@ export type UserUncheckedCreateWithoutGrowthAgentReviewsInput = {
   phone?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutActorInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
@@ -5435,6 +5562,7 @@ export type UserUpdateWithoutGrowthAgentReviewsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
@@ -5473,6 +5601,179 @@ export type UserUncheckedUpdateWithoutGrowthAgentReviewsInput = {
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutGrowthAgentSourceHandlesInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutActorInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  externalIdentity?: Prisma.ExternalIdentityUncheckedCreateNestedOneWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutUserInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutGrowthAgentSourceHandlesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput>
+}
+
+export type UserUpsertWithoutGrowthAgentSourceHandlesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedUpdateWithoutGrowthAgentSourceHandlesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedCreateWithoutGrowthAgentSourceHandlesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutGrowthAgentSourceHandlesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutGrowthAgentSourceHandlesInput, Prisma.UserUncheckedUpdateWithoutGrowthAgentSourceHandlesInput>
+}
+
+export type UserUpdateWithoutGrowthAgentSourceHandlesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutActorNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  externalIdentity?: Prisma.ExternalIdentityUpdateOneWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutUserNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutGrowthAgentSourceHandlesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutActorNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   externalIdentity?: Prisma.ExternalIdentityUncheckedUpdateOneWithoutUserNestedInput
@@ -5508,6 +5809,7 @@ export type UserUncheckedUpdateWithoutGrowthAgentReviewsInput = {
 
 export type UserCountOutputType = {
   growthAgentReviews: number
+  growthAgentSourceHandles: number
   accounts: number
   sessions: number
   ownedOrganizations: number
@@ -5536,6 +5838,7 @@ export type UserCountOutputType = {
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   growthAgentReviews?: boolean | UserCountOutputTypeCountGrowthAgentReviewsArgs
+  growthAgentSourceHandles?: boolean | UserCountOutputTypeCountGrowthAgentSourceHandlesArgs
   accounts?: boolean | UserCountOutputTypeCountAccountsArgs
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   ownedOrganizations?: boolean | UserCountOutputTypeCountOwnedOrganizationsArgs
@@ -5577,6 +5880,13 @@ export type UserCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensi
  */
 export type UserCountOutputTypeCountGrowthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.GrowthAgentReviewWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountGrowthAgentSourceHandlesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GrowthAgentSourceHandleWhereInput
 }
 
 /**
@@ -5759,6 +6069,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   createdAt?: boolean
   updatedAt?: boolean
   growthAgentReviews?: boolean | Prisma.User$growthAgentReviewsArgs<ExtArgs>
+  growthAgentSourceHandles?: boolean | Prisma.User$growthAgentSourceHandlesArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   externalIdentity?: boolean | Prisma.User$externalIdentityArgs<ExtArgs>
@@ -5827,6 +6138,7 @@ export type UserSelectScalar = {
 export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "emailVerified" | "image" | "password" | "phone" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   growthAgentReviews?: boolean | Prisma.User$growthAgentReviewsArgs<ExtArgs>
+  growthAgentSourceHandles?: boolean | Prisma.User$growthAgentSourceHandlesArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   externalIdentity?: boolean | Prisma.User$externalIdentityArgs<ExtArgs>
@@ -5862,6 +6174,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   name: "User"
   objects: {
     growthAgentReviews: Prisma.$GrowthAgentReviewPayload<ExtArgs>[]
+    growthAgentSourceHandles: Prisma.$GrowthAgentSourceHandlePayload<ExtArgs>[]
     accounts: Prisma.$AccountPayload<ExtArgs>[]
     sessions: Prisma.$SessionPayload<ExtArgs>[]
     externalIdentity: Prisma.$ExternalIdentityPayload<ExtArgs> | null
@@ -6294,6 +6607,7 @@ readonly fields: UserFieldRefs;
 export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   growthAgentReviews<T extends Prisma.User$growthAgentReviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$growthAgentReviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  growthAgentSourceHandles<T extends Prisma.User$growthAgentSourceHandlesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$growthAgentSourceHandlesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GrowthAgentSourceHandlePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   accounts<T extends Prisma.User$accountsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$accountsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AccountPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   externalIdentity<T extends Prisma.User$externalIdentityArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$externalIdentityArgs<ExtArgs>>): Prisma.Prisma__ExternalIdentityClient<runtime.Types.Result.GetResult<Prisma.$ExternalIdentityPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
@@ -6767,6 +7081,30 @@ export type User$growthAgentReviewsArgs<ExtArgs extends runtime.Types.Extensions
   take?: number
   skip?: number
   distinct?: Prisma.GrowthAgentReviewScalarFieldEnum | Prisma.GrowthAgentReviewScalarFieldEnum[]
+}
+
+/**
+ * User.growthAgentSourceHandles
+ */
+export type User$growthAgentSourceHandlesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrowthAgentSourceHandle
+   */
+  select?: Prisma.GrowthAgentSourceHandleSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrowthAgentSourceHandle
+   */
+  omit?: Prisma.GrowthAgentSourceHandleOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrowthAgentSourceHandleInclude<ExtArgs> | null
+  where?: Prisma.GrowthAgentSourceHandleWhereInput
+  orderBy?: Prisma.GrowthAgentSourceHandleOrderByWithRelationInput | Prisma.GrowthAgentSourceHandleOrderByWithRelationInput[]
+  cursor?: Prisma.GrowthAgentSourceHandleWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GrowthAgentSourceHandleScalarFieldEnum | Prisma.GrowthAgentSourceHandleScalarFieldEnum[]
 }
 
 /**

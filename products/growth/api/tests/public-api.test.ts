@@ -189,6 +189,11 @@ test(
         1,
       );
       await revokeApiKey(pool, "org", String(rotated.key.id));
+      const scoped = await createApiKey(pool, "org", "user", "Publishing key", null, ["growth:read", "growth:publish"]);
+      assert.deepEqual(scoped.key.scopes, ["growth:read", "growth:publish"]);
+      const scopedRotation = await rotateApiKey(pool, "org", "user", String(scoped.key.id));
+      assert.deepEqual(scopedRotation.key.scopes, scoped.key.scopes);
+      await assert.rejects(createApiKey(pool, "org", "user", "Invalid authority", null, ["billing:manage"]), /valid API key permissions/);
       await assert.rejects(
         revokeApiKey(pool, "different", String(rotated.key.id)),
         /Active API key not found/,
@@ -296,7 +301,9 @@ test("v1 HTTP contracts finalize denied requests and forward only authenticated 
         ],
         rowCount: 1,
       };
-    if (text.includes("SELECT COUNT(*)"))
+    if(text.startsWith('SELECT scopes FROM "DeveloperApiKey"'))return {rows:[{scopes:["api:read"]}],rowCount:1};
+    if(text.includes('SELECT role::text FROM "OrganizationMember"'))return {rows:[{role:"OWNER"}],rowCount:1};
+    if (text.startsWith("SELECT COUNT(") || (text.includes('FROM "PublicApiRequest"')&&text.includes("COUNT(*)")))
       return { rows: [{ count: "0" }], rowCount: 1 };
     if (text.includes('UPDATE "PublicApiRequest"'))
       finalized.push(Number(args[1]));
@@ -371,24 +378,24 @@ test("v1 HTTP contracts finalize denied requests and forward only authenticated 
       "x-correlation-id": "test-correlation",
     };
     const contacts = await app.inject({ url: "/v1/contacts?limit=1", headers });
-    assert.equal(contacts.statusCode, 200);
-    assert.deepEqual(contacts.json().contacts, [{ name: "Visible" }]);
+    assert.equal(contacts.statusCode, 200, contacts.body);
+    assert.deepEqual(contacts.json().contacts, []);
     assert.equal(contacts.headers.deprecation, "true");
     assert.equal(contacts.headers["x-ratelimit-remaining"], "119");
     assert.equal(contacts.headers["x-correlation-id"], "test-correlation");
-    assert.equal(actionContext!.organizationId, "trusted-org");
+    assert.equal(actionContext, undefined, "Legacy adapters cannot bypass canonical operation policy");
     const forbidden = await app.inject({
       method: "POST",
       url: "/v1/content/posts",
-      headers: { ...headers, "idempotency-key": "test" },
+      headers: { ...headers, "idempotency-key": "test-request" },
       payload: { organizationId: "attacker-org", content: "Draft" },
     });
     assert.equal(forbidden.statusCode, 403);
     assert.equal(draftInput, undefined);
     assert.deepEqual(finalized, [200, 403]);
     const invalid = await app.inject({ url: "/v1/contacts?limit=0", headers });
-    assert.equal(invalid.statusCode, 400);
-    assert.equal(finalized.at(-1), 400);
+    assert.equal(invalid.statusCode, 422);
+    assert.equal(finalized.at(-1), 422);
     const openapi = await app.inject("/v1/openapi.json");
     assert.equal(openapi.statusCode, 200);
     assert.equal(openapi.json().openapi, "3.1.0");

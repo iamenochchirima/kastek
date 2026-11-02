@@ -7,7 +7,7 @@ import { defaultBusinessConfiguration, PlatformError, type AgentConfiguration } 
 import { registerProductManifest, createProductBindings } from "../../capabilities/products/product-capabilities";
 const feature=z.enum(["assistant","research","content","campaigns"]);
 const optional=z.strictObject({knowledge:z.boolean(),skills:z.boolean(),memory:z.boolean(),delegation:z.boolean(),sandbox:z.boolean(),workflows:z.boolean(),connections:z.boolean()});
-const publication=z.strictObject({manifest:z.unknown(),presets:z.array(z.strictObject({id:feature,name:z.string().min(1).max(240),description:z.string().max(512),instructions:z.string().min(1).max(32768),operations:z.array(z.string().min(1).max(128)).max(24)})).length(4),policy:z.strictObject({revision:z.string().min(1).max(128),optionalCapabilities:optional})});
+const publication=z.strictObject({manifest:z.unknown(),presets:z.array(z.strictObject({id:feature,name:z.string().min(1).max(240),description:z.string().max(512),instructions:z.string().min(1).max(32768),operations:z.array(z.string().min(1).max(128)).max(64)})).length(4),policy:z.strictObject({revision:z.string().min(1).max(128),optionalCapabilities:optional})});
 export function validateGrowthPublication(input:unknown):GrowthAgentPublication {
   const result=publication.parse(input);
   if(new Set(result.presets.map(p=>p.id)).size!==4||Object.entries(result.policy.optionalCapabilities).some(([kind,enabled])=>enabled&&kind!=="delegation"))throw new PlatformError("PRODUCT_CAPABILITY_UNAVAILABLE",409,"The requested product authority is not installed");

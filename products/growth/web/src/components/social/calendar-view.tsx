@@ -115,7 +115,10 @@ export function CalendarView() {
   }, [currentMonth, weekStartsMonday]);
 
   const scheduledPosts = posts.filter((post) => post.scheduledFor);
-  const draftPosts = posts.filter((post) => !post.scheduledFor);
+  const upcomingPosts = scheduledPosts
+    .filter(post => post.status === "SCHEDULED" && new Date(post.scheduledFor!).getTime() > Date.now())
+    .sort((a, b) => new Date(a.scheduledFor!).getTime() - new Date(b.scheduledFor!).getTime());
+  const draftPosts = posts.filter((post) => post.status === "DRAFT");
 
   function getPostsForDate(date: Date) {
     return scheduledPosts.filter((post) => {
@@ -329,7 +332,7 @@ export function CalendarView() {
                 <CardDescription>The next few items in the publishing queue.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {scheduledPosts.slice(0, 6).map((post) => (
+                {upcomingPosts.slice(0, 6).map((post) => (
                   <div key={post.id} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
                     <p className="font-medium text-foreground">{post.title || "Untitled post"}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{formatDateTime(post.scheduledFor)}</p>
@@ -338,7 +341,7 @@ export function CalendarView() {
                     </p>
                   </div>
                 ))}
-                {!loading && scheduledPosts.length === 0 ? (
+                {!loading && upcomingPosts.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
                     No scheduled posts yet.
                   </div>

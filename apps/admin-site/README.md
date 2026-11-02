@@ -223,3 +223,11 @@ notification, customer, recovery, and support entries remain available.
 Follow the [operator runbook](../../docs/labs/operations-centre-runbook.md) for migrations, private
 API/worker profiles, flags, and rollback. The [reference](../../docs/operations/incident-centre.md)
 records permissions, thresholds, durable receipts, source limits, telemetry, and retention.
+
+
+### Shared message presentation
+
+Customer conversation histories reuse `@kasitek-labs/ui/agent` plain-text message content.
+The Admin API remains the source and authority; this visual reuse does not add agent task,
+tool, specialist, or diagnostic access. Dev, build and typecheck compile the shared UI first.
+The app stylesheet scans the shared source without replacing the Admin theme.
