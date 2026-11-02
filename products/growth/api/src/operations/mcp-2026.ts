@@ -182,7 +182,7 @@ export async function growthMcpToolList(core: CoreContext, context: RequestConte
   }));
 }
 
-async function callTool(core: CoreContext, context: RequestContext, params: JsonObject, mode: FormMode | null) {
+async function callTool(core: CoreContext, context: RequestContext, params: JsonObject, mode: FormMode | null, log: FastifyRequest["log"]) {
   if (typeof params.name !== "string" || params.name.length > 200 ||
       params.arguments !== undefined && !object(params.arguments)) throw new ApiError(422, "operation_arguments_invalid", "Invalid tool arguments");
   const operation = params.name;
@@ -205,6 +205,18 @@ async function callTool(core: CoreContext, context: RequestContext, params: Json
       return toolResult({ state: "approval_required", review: (await executeGrowthOperation(core, context,
         { operation, ...invocation, requestId: row.requestKey, reviewId: row.id, prepareOnly: true })).review,
         message: "Chat confirmation is unavailable. Review this content action in Growth." });
+    if (object(response) && response.action === "accept" && object(response.content) &&
+        Object.keys(response.content).length === 0 && response.error === undefined && response.result === undefined) {
+      // Some hosts submit the empty core schema without rendering the extended form.
+      // Reauthorize the unchanged owned action, but never consume approval or dispatch an effect.
+      const pending = await executeGrowthOperation(core, context,
+        { operation, ...invocation, requestId: row.requestKey, reviewId: row.id, prepareOnly: true });
+      if (pending.state !== "approval_required") return toolResult(pending);
+      log.warn({ event: "growth.mcp.confirmation.unavailable", protocol_version: MCP_2026_VERSION,
+        reason: "missing_required_answer", confirmation_shape: mcpConfirmationResponseShape(params) },
+      "MCP client did not return required content confirmation");
+      return toolResult({ ...pending, message: "The client did not return the required confirmation. Review this content action in Growth." });
+    }
     const decision = mcpContentConfirmationDecision(response);
     if (decision === "reject") {
       await rejectContentOperationReview(core, context, row.id, row.payloadDigest, "mcp_form");
@@ -267,7 +279,7 @@ export async function handleGrowthMcp2026(core: CoreContext, context: RequestCon
         break;
       case "ping": result = { resultType: "complete" }; break;
       case "tools/list": result = { resultType: "complete", ...await growthMcpToolList(core, context) }; break;
-      case "tools/call": result = await callTool(core, context, params, mode); break;
+      case "tools/call": result = await callTool(core, context, params, mode, request.log); break;
       default: return fail(-32601, "MCP method not supported", 404);
     }
     return reply.send({ jsonrpc: "2.0", id, result });
