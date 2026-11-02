@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Fastify from "fastify";
 import pg from "pg";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { CoreContext } from "../src/context.js";
 import type { RequestContext } from "../src/identity/request-context.js";
@@ -32,7 +32,7 @@ const args = { postId: "post-a", platform: "FACEBOOK", _requestId: "stable-reque
 
 test("confirmation diagnostics contain only fixed categorical structure", () => {
   const shape=mcpConfirmationResponseShape({requestState:"do-not-log",inputResponses:{secretKey:{action:"unexpected-secret",content:{confirm:"secret-content",private:"secret"},error:{message:"secret"}}}});
-  assert.deepEqual(shape,{state_present:true,responses_object:true,responses_count:1,response_object:true,response_error:true,response_result:false,response_action:"other",content_object:true,content_count:2,confirm_boolean:false});
+  assert.deepEqual(shape,{state_present:true,responses_object:true,responses_count:1,response_object:true,response_error:true,response_result:false,response_action:"other",content_object:true,content_count:2,confirm_boolean:false,decision_string:false});
   assert.equal(JSON.stringify(shape).includes("secret"),false);
   const sealed=sealMcpContentConfirmation(core,context,review,args,now);
   assert.throws(()=>readMcpContentConfirmation(core,context,sealed,"content.posts.publish",{...args,postId:"changed"},now),
@@ -83,6 +83,21 @@ test("confirmation protocol state binds exact input, principal, workspace, reque
   assert.throws(() => readMcpContentConfirmation(rotated, context, token, review.operation, args, now));
 });
 
+test("signed answer schema revision rejects old or different form interpretation", () => {
+  const token=sealMcpContentConfirmation(core,context,review,args,now);
+  const encoded=token.split(".")[0]!;
+  const payload=JSON.parse(Buffer.from(encoded,"base64url").toString("utf8"));
+  assert.equal(payload.answerSchema,"choice_v1");
+  for (const revision of [{...payload,version:1},{...payload,answerSchema:"boolean_v1"}]) {
+    const replacement=Buffer.from(JSON.stringify(revision)).toString("base64url");
+    const mac=createHmac("sha256",core.config.rawEnv.GROWTH_MCP_CONFIRMATION_SECRET!).update("growth-content-mcp-form-v1\0"+replacement).digest("base64url");
+    assert.throws(()=>readMcpContentConfirmation(core,context,replacement+"."+mac,"content.posts.publish",args,now),
+      error=>(error as {confirmationReason:string}).confirmationReason==="state_payload");
+  }
+  assert.throws(()=>mcpContentConfirmationDecision({action:"accept",content:{confirm:true}}));
+  assert.throws(()=>mcpContentConfirmationDecision({action:"accept",content:{decision:"true"}}));
+});
+
 test("confirmation state cannot outlive the owned preview or use an absent production secret", () => {
   const short = {...review, expiresAt: new Date(now + 1000)};
   const token = sealMcpContentConfirmation(core, context, short, args, now);
@@ -93,13 +108,13 @@ test("confirmation state cannot outlive the owned preview or use an absent produ
   }
 });
 
-test("only an explicit host form boolean confirms; cancellation and forged flags never approve", () => {
-  assert.equal(mcpContentConfirmationDecision({action:"accept",content:{confirm:true}}), "approve");
-  assert.equal(mcpContentConfirmationDecision({action:"accept",content:{confirm:false}}), "reject");
+test("only an explicit host form choice confirms; cancellation and forged flags never approve", () => {
+  assert.equal(mcpContentConfirmationDecision({action:"accept",content:{decision:"confirm"}}), "approve");
+  assert.equal(mcpContentConfirmationDecision({action:"accept",content:{decision:"cancel"}}), "reject");
   assert.equal(mcpContentConfirmationDecision({action:"decline"}), "reject");
   assert.equal(mcpContentConfirmationDecision({action:"cancel",content:null}), "reject");
   for (const value of [{approved:true}, {action:"accept"}, {action:"accept",content:{approved:true}},
-    {action:"accept",content:{confirm:"true"}}, {action:"accept",content:{confirm:true,changedContent:"other"}}])
+    {action:"accept",content:{confirm:"true"}}, {action:"accept",content:{decision:"confirm",changedContent:"other"}}])
     assert.throws(() => mcpContentConfirmationDecision(value));
 });
 
@@ -142,7 +157,7 @@ test("MCP2026 JSON discovery and validation preserve stateless round trips", asy
     assert.equal((await send("ping",{})).statusCode,400);
     assert.equal((await send("ping",{_meta:{...meta,"io.modelcontextprotocol/clientCapabilities":[]}})).statusCode,400);
     assert.equal((await send("ping",{_meta:{...meta,"io.modelcontextprotocol/protocolVersion":"2027-01-01"}},"2027-01-01")).json().error.code,-32022);
-    const forged = await send("tools/call",{_meta:meta,name:"content.posts.publish",arguments:args,requestState:"forged",inputResponses:{confirm:{action:"accept",content:{confirm:true}}}});
+    const forged = await send("tools/call",{_meta:meta,name:"content.posts.publish",arguments:args,requestState:"forged",inputResponses:{confirm:{action:"accept",content:{decision:"confirm"}}}});
     assert.equal(forged.json().result.isError,true);
     assert.equal(forged.json().result.structuredContent.code,"content_confirmation_invalid");
   } finally { await app.close(); }
@@ -219,9 +234,11 @@ test("real MCP2026 host forms confirm an exact owned content action once and fai
     const formId = Object.keys(proposed.inputRequests)[0]!;
     const form = proposed.inputRequests[formId].params;
     assert.deepEqual(form.requestedSchema,{type:"object",properties:{}});
-    assert.equal(form._meta["openai/elicitation"].requestedSchema.properties.confirm.type,"boolean");
+    assert.equal(form._meta["openai/elicitation"].requestedSchema.properties.decision.type,"string");
+    assert.deepEqual(form._meta["openai/elicitation"].requestedSchema.properties.decision.enum,["confirm","cancel"]);
+    assert.equal(form._meta["openai/elicitation"].requestedSchema.properties.decision.default,"cancel");
     assert.ok(form.message.includes("Exact test text") && form.message.includes("Fixture Page"));
-    const approve = {requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{confirm:true}}}};
+    const approve = {requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{decision:"confirm"}}}};
     const hostUnsupported=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{error:{code:-32602,message:"unsupported host form"}}}});
     assert.equal(hostUnsupported.structuredContent.state,"approval_required");
     assert.equal(hostUnsupported.structuredContent.review.state,"proposed");
@@ -251,13 +268,13 @@ test("real MCP2026 host forms confirm an exact owned content action once and fai
     const cancelArgs = {postId,_requestId:"mcp-delete-cancelled"};
     const cancel = await invoke("content.posts.delete",cancelArgs);
     const cancelId = Object.keys(cancel.inputRequests)[0]!;
-    assert.equal((await invoke("content.posts.delete",cancelArgs,{requestState:cancel.requestState,inputResponses:{[cancelId]:{action:"cancel"}}})).structuredContent.state,"rejected");
+    assert.equal((await invoke("content.posts.delete",cancelArgs,{requestState:cancel.requestState,inputResponses:{[cancelId]:{action:"accept",content:{decision:"cancel"}}}})).structuredContent.state,"rejected");
     assert.equal(await draftCount(),1);
     const staleArgs = {postId,_requestId:"mcp-delete-stale-preview"};
     const stale = await invoke("content.posts.delete",staleArgs);
     const staleId = Object.keys(stale.inputRequests)[0]!;
     await pool.query('UPDATE "SocialPost" SET content=\'Changed after preview\',"updatedAt"=now() WHERE id=$1',[postId]);
-    const changedPreview = await invoke("content.posts.delete",staleArgs,{requestState:stale.requestState,inputResponses:{[staleId]:{action:"accept",content:{confirm:true}}}});
+    const changedPreview = await invoke("content.posts.delete",staleArgs,{requestState:stale.requestState,inputResponses:{[staleId]:{action:"accept",content:{decision:"confirm"}}}});
     assert.equal(changedPreview.structuredContent.code,"operation_review_conflict");
     assert.equal(await draftCount(),1,"content changed after the preview cannot be confirmed");
     const boundPreview = await invoke("content.actions.preview",{action:"content.posts.delete",input:{postId},requestId:"mcp-delete-approved"});
@@ -267,7 +284,7 @@ test("real MCP2026 host forms confirm an exact owned content action once and fai
     const finalArgs = {postId,_previewId:previewId};
     const final = await invoke("content.posts.delete",finalArgs);
     const finalId = Object.keys(final.inputRequests)[0]!;
-    const response = {requestState:final.requestState,inputResponses:{[finalId]:{action:"accept",content:{confirm:true}}}};
+    const response = {requestState:final.requestState,inputResponses:{[finalId]:{action:"accept",content:{decision:"confirm"}}}};
     const accepted = await invoke("content.posts.delete",finalArgs,response);
     assert.equal(accepted.structuredContent.state,"succeeded",JSON.stringify(accepted));
     assert.equal(await draftCount(),0);

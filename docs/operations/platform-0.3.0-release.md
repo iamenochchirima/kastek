@@ -129,3 +129,12 @@ the preview. A PostgreSQL-backed regression covers preview, preparation, human U
 commit receipt, plus repeated preparation and cross-task, cross-chat, stale and unbound denials.
 The combined core/protocol rerun passed 20 tests without skips, and the Growth API build passed.
 No migration, analytics event, manifest revision, frontend or secret change is needed for this fix.
+
+## Native confirmation compatibility probe
+
+The owner rejected the browser detour as the intended chat workflow. Native form requests now
+use an explicit required confirm/cancel string choice, default cancel. Signed state binds the
+answer-schema revision; outstanding boolean states expire safely. Ten protocol tests passed
+without skips and the API build passed. This is a compatibility probe, not evidence of native
+rendering. Fixed capability telemetry additionally records declared/supported MCP App MIME
+support without dumping client metadata. Actual in-chat confirmation remains release acceptance.
