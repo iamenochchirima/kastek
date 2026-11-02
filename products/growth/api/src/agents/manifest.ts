@@ -106,13 +106,14 @@ const captionOnlyDescriptors = retainedGrowthOperationDescriptorsV8.map(operatio
 }));
 export const growthAgentPublicationV7 = operationPublication(captionOnlyDescriptors, "7", "4");
 export const growthAgentPublicationV8 = operationPublication(retainedGrowthOperationDescriptorsV8, "8", "5");
-const nextPublication = operationPublication(growthOperationDescriptors, "9", "6");
+export { growthAgentPublicationV9 } from "./retained-publication-v9.js";
+const nextPublication = operationPublication(growthOperationDescriptors, "10", "7");
 export const growthAgentPublication = { ...nextPublication, presets: nextPublication.presets.map(preset => ({ ...preset,
   instructions: preset.instructions
     .replaceAll("Prepare a draft review only when saving is explicitly requested.", "Save a private draft directly only when saving is explicitly requested.")
     .replaceAll("Only when a business change is explicitly requested, prepare its exact review and wait for user approval. Preserve request and review identities across retries.", "Create, edit and duplicate private drafts directly when requested. Preserve request identities and wait for an authoritative saved receipt.")
-    .replaceAll("Publishing and scheduling use the same Growth tools available externally. Prepare an exact action review and wait for its approved state before committing; never invent approval or a successful publication.", "For publishing, scheduling, edits or deletions of public content, call content.actions.preview for the exact requested action first, show its destinations, text, media and timing, and obtain user confirmation before execution. Internal public effects keep the trusted exact-review boundary; never invent approval or a successful publication.")
-    .replaceAll("A review URL is an action for the staff member, not evidence of approval.", "A preview or review ID is not evidence of user confirmation. Use the confirmation mechanism provided by the current interface; clients without chat confirmation retain the in-app review fallback.")
+    .replaceAll("Publishing and scheduling use the same Growth tools available externally. Prepare an exact action review and wait for its approved state before committing; never invent approval or a successful publication.", "Use the ordinary Growth content tools to publish, schedule, edit or delete content only when requested and within current permissions. Use content.actions.preview when an exact preview helps the user decide. A separate Growth approval is not required; follow the current interface's confirmation settings. Never invent a successful publication.")
+    .replaceAll("A review URL is an action for the staff member, not evidence of approval.", "A preview is an optional read-only snapshot, not evidence of human approval.")
 })) };
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

@@ -151,13 +151,13 @@ export const publicRepositoryMcpReadOperationSchema = z.enum(["read_wiki_structu
 export const stashReadOperationSchema = z.enum(["get_item", "read_project_document"]);
 
 export const capabilityPolicySchema = z.strictObject({
-  effect: z.enum(["read", "draft_write", "reviewed_write", "idempotent_memory", "delegation", "resource"]),
+  effect: z.enum(["read", "draft_write", "authorized_write", "reviewed_write", "idempotent_memory", "delegation", "resource"]),
   disclosure: z.enum(["none", "public_identifiers", "approved_resource_identifiers", "exact_requested_payload", "exact_reviewed_payload"]),
   retry: z.enum(["safe_read", "status_only", "idempotent_receipt", "stable_children", "adapter_reconcile", "never"]),
   approval: z.enum(["none", "exact_single_use"]), cancel: z.enum(["stop_admission", "dependent_children", "adapter_cleanup", "reconcile_claimed"]),
 }).superRefine((policy, ctx) => {
   if (policy.effect === "reviewed_write" && (policy.approval !== "exact_single_use" || policy.retry !== "status_only" || policy.disclosure !== "exact_reviewed_payload" || policy.cancel !== "reconcile_claimed")) ctx.addIssue({ code: "custom", message: "Writes require exact review and status-only recovery" });
-  if (policy.effect === "draft_write" && (policy.approval !== "none" || policy.retry !== "status_only" || policy.disclosure !== "exact_requested_payload" || policy.cancel !== "reconcile_claimed")) ctx.addIssue({ code: "custom", message: "Private product writes require exact requested payload and status-only recovery" });
+  if (["draft_write", "authorized_write"].includes(policy.effect) && (policy.approval !== "none" || policy.retry !== "status_only" || policy.disclosure !== "exact_requested_payload" || policy.cancel !== "reconcile_claimed")) ctx.addIssue({ code: "custom", message: "Direct product writes require exact requested payload and status-only recovery" });
   if (policy.retry === "safe_read" && policy.effect !== "read") ctx.addIssue({ code: "custom", message: "Only reads may use safe-read retry" });
 });
 export const productCapabilityAuthoritySchema = z.strictObject({
@@ -184,7 +184,7 @@ export const capabilityBindingSchema = z.strictObject(bindingFields).superRefine
   if (binding.alias !== createModelAlias(binding.id)) ctx.addIssue({ code: "custom", message: "Alias must match the immutable binding identity" });
   if (binding.authority ? binding.transport !== "native_http" || binding.connection !== null || binding.protocolVersion !== null : transportIssue({ ...binding, connectionId: binding.connection?.id ?? null })) ctx.addIssue({ code: "custom", message: "Invalid transport connection or protocol" });
   if (new Set(binding.resources.map(resourceKey)).size !== binding.resources.length) ctx.addIssue({ code: "custom", message: "Duplicate resource handle" });
-  if (binding.policy.effect === "draft_write" && !binding.authority) ctx.addIssue({ code: "custom", message: "Direct draft writes require installed product authority" });
+  if (["draft_write", "authorized_write"].includes(binding.policy.effect) && !binding.authority) ctx.addIssue({ code: "custom", message: "Direct product writes require installed product authority" });
   const publicRepository = binding.connection?.profileId === "public-repository-read-v1";
   if(publicRepository && (!(binding.transport === "native_http" ? githubOperationSchema.safeParse(binding.definition.providerOperation).success : binding.transport === "mcp_http" && publicRepositoryMcpReadOperationSchema.safeParse(binding.definition.providerOperation).success) || binding.resources.some(resource=>resource.kind !== "github.repository" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(resource.id) || [".",".."].includes(resource.id.split("/")[1]!)))) ctx.addIssue({code:"custom",message:"Public repository bindings require approved native or MCP reads"});
   const stash = binding.connection?.profileId === "stash-read-v1";

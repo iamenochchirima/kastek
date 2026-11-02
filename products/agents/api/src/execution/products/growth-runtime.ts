@@ -62,7 +62,8 @@ const operationAdapter=(release:string,selected:readonly string[])=>({...growthI
 export const growthOperationAdapterManifest=operationAdapter("3",retainedOperationHandlers.filter(handler=>handler!=="growth.operation.content.posts.update_published@1"));
 export const growthOperationAdapterManifestV7=operationAdapter("4",retainedOperationHandlers);
 export const growthOperationAdapterManifestV8=operationAdapter("5",retainedOperationHandlers);
-export const growthCurrentOperationAdapterManifest=operationAdapter("6",operationHandlers);
+export const growthOperationAdapterManifestV9=operationAdapter("6",[...retainedOperationHandlers.slice(0,16),"growth.operation.content.actions.preview@1",...retainedOperationHandlers.slice(16)]);
+export const growthCurrentOperationAdapterManifest=operationAdapter("7",operationHandlers);
 const clients=new WeakMap<GrowthActionClient,{handlers:readonly string[];invoke:GrowthActionClient["invoke"]}>();
 export class GrowthProductRuntime extends ProductRuntime {
   constructor(pool:Pool,readonly client:GrowthActionClient,evidence=new EvidenceStore(pool)) {
@@ -74,6 +75,7 @@ export class GrowthProductRuntime extends ProductRuntime {
       [growthOperationAdapterManifest,retainedOperationHandlers.filter(handler=>handler!=="growth.operation.content.posts.update_published@1")],
       [growthOperationAdapterManifestV7,retainedOperationHandlers],
       [growthOperationAdapterManifestV8,retainedOperationHandlers],
+      [growthOperationAdapterManifestV9,[...retainedOperationHandlers.slice(0,16),"growth.operation.content.actions.preview@1",...retainedOperationHandlers.slice(16)]],
       [growthCurrentOperationAdapterManifest,operationHandlers],
     ] as const)this.registerAdapter(manifest,{handlers:selected,invoke:client.invoke.bind(client)});
     this.registerOriginAuthorizer("growth",async (taskId,db)=>{

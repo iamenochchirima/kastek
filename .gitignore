@@ -84,4 +84,3 @@ __pycache__/
 *.pyo
 
 # Bundled inline MCP App UI
-/products/growth/api/src/operations/content-mcp-app-ui.generated.ts

@@ -28,8 +28,8 @@ export function growthToolInputSchema(operation: GrowthOperationDefinition): Rec
     ...(operation.effect === "read" ? {} : {
       _requestId: { type: "string", minLength: 8, maxLength: 240, description: "Stable request identity. Reuse it when resuming this exact action; never change it to retry an uncertain result." },
       _reviewId: { type: "string", minLength: 1, maxLength: 256, description: "Legacy review ID for the exact unchanged action or receipt." },
-      ...(operation.name.startsWith("content.") && operation.review === "required" ? {
-        _previewId: { type: "string", minLength: 1, maxLength: 256, description: "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity." },
+      ...(operation.name.startsWith("content.") && ["external_effect", "destructive"].includes(operation.effect) ? {
+        _previewId: { type: "string", minLength: 1, maxLength: 256, description: "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity." },
       } : {}),
     }),
   };

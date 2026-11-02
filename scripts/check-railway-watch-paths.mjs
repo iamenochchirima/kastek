@@ -14,8 +14,6 @@ for (const patterns of Object.values(matrix.services)) {
   assert.ok(patterns.length > 0);
   assert.ok(patterns.every(pattern => pattern.startsWith('/') && !pattern.includes('VERSION')));
 }
-expect('products/growth/api/mcp-app/content-review.ts', ['growth-api', 'growth-analytics-worker']);
-expect('products/growth/api/scripts/build-content-mcp-app.mjs', ['growth-api', 'growth-analytics-worker']);
 expect('products/growth/api/src/operations/mcp.ts', ['growth-api', 'growth-analytics-worker']);
 expect('products/growth/api/sql/20261102190000_content_agent_workflows.sql', ['growth-api', 'growth-analytics-worker']);
 expect('products/growth/database/prisma/migrations/example/migration.sql', ['growth-api', 'growth-analytics-worker']);

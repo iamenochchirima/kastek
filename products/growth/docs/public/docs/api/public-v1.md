@@ -44,10 +44,10 @@ receipt; it does not establish success. Reconcile uncertain outcomes using the s
 request identity, rather than admitting a new write. `_reviewId` remains supported for retained
 reviews. These aliases reject publication and scheduling fields.
 
-For public/destructive content actions, use the canonical `content.actions.preview` operation and
-its bound `_previewId`, then approve the exact action through the Growth review page. MCP clients
-with supported form capabilities can present that confirmation in chat. See
-[agent REST](./agent-rest.md) for preview input, unchanged-action resume and current authority rules.
+Public/destructive content actions execute through canonical operation tools under current scopes
+and validation, without a separate Growth approval. `content.actions.preview` is optional; passing
+its `_previewId` binds execution to unchanged content and the same request identity. See
+[agent REST](./agent-rest.md) for exact inputs, receipts and recovery rules.
 
 ## Organization read routes
 

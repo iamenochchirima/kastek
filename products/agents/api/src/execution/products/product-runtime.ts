@@ -65,8 +65,8 @@ export class ProductRuntime implements ProductRuntimePort {
   }
   async invoke(taskId:string,operationId:string,binding:CapabilityBinding,args:unknown,signal?:AbortSignal,statusOnly=false):Promise<ProductCapabilityResult>{
     await validateProductArguments(binding,args);
-    const direct=binding.policy.effect==="draft_write";
-    if(statusOnly&&!direct)throw new PlatformError("PRODUCT_CONTROL_DENIED",403,"Status-only draft recovery requires direct product write authority");
+    const direct=["draft_write","authorized_write"].includes(binding.policy.effect);
+    if(statusOnly&&!direct)throw new PlatformError("PRODUCT_CONTROL_DENIED",403,"Status-only write recovery requires direct product write authority");
     let result:ProductCapabilityResult;
     try { result=await this.dispatch(this.pool,taskId,operationId,binding,direct&&statusOnly?"review":"invoke",args,undefined,signal); }
     catch(error) {
@@ -77,7 +77,7 @@ export class ProductRuntime implements ProductRuntimePort {
       const input=args&&typeof args==="object"&&!Array.isArray(args)?Object.fromEntries(Object.entries(args).filter(([key])=>!["_requestId","_reviewId","_previewId","_continuation"].includes(key))):args;
       const expected=requestDigest({operation:binding.definition.providerOperation,version:binding.definition.product!.revision,input});
       if(!result.receipt||typeof result.receipt.id!=="string"||!result.receipt.id||result.receipt.id.length>256||result.receipt.state!=="saved"||result.receipt.operationId!==operationId||result.receipt.payloadDigest!==expected)
-        throw new PlatformError("PRODUCT_EFFECT_UNCERTAIN",409,"The private product write has no matching saved receipt");
+        throw new PlatformError("PRODUCT_EFFECT_UNCERTAIN",409,"The product write has no matching saved receipt");
     }
     if(binding.definition.outputSchema){const {AjvJsonSchemaValidator}=await import("@modelcontextprotocol/client/validators/ajv");if(!new AjvJsonSchemaValidator().getValidator(binding.definition.outputSchema as Record<string,unknown>)(result.value).valid)throw new PlatformError("PRODUCT_RESULT_INVALID",502,"The product result does not match the published schema");}
     return this.observe(taskId,operationId,binding,result);

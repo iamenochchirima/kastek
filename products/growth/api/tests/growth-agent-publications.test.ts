@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  growthAgentPublication, growthAgentPublicationV8, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
+  growthAgentPublication, growthAgentPublicationV9, growthAgentPublicationV8, growthAgentPublicationV7, growthAgentPublicationV6, growthAgentPublicationV5, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
 } from "../src/agents/manifest.js";
 import { growthAgentDigest } from "../src/agents/security.js";
 
@@ -39,8 +39,8 @@ test("revised Growth instructions change behavior without expanding product auth
 
 test("current Growth publication derives the canonical callable contract", async () => {
   const {growthOperationDescriptors}=await import("../src/operations/manifest.js");
-  assert.equal(growthAgentPublication.manifest.revision,"9");
-  assert.equal(growthAgentPublication.policy.revision,"9");
+  assert.equal(growthAgentPublication.manifest.revision,"10");
+  assert.equal(growthAgentPublication.policy.revision,"10");
   assert.deepEqual(growthAgentPublication.manifest.operations,growthOperationDescriptors);
   assert(growthAgentPublication.presets.every(preset=>preset.operations.every(name=>growthOperationDescriptors.some(operation=>operation.operation===name))));
   assert(growthAgentPublication.presets.find(preset=>preset.id==="content")!.operations.includes("content.posts.draft.create"));
@@ -55,7 +55,7 @@ test("current Growth publication derives the canonical callable contract", async
 
 
 test("private content writes remain writes and only revision 9 receives the new preview contract", () => {
-  assert.equal(growthAgentPublication.manifest.adapter.release, "6");
+  assert.equal(growthAgentPublication.manifest.adapter.release, "7");
   const direct = ["content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare"];
   for (const name of direct) {
     const operation = growthAgentPublication.manifest.operations.find(item => item.operation === name)!;
@@ -67,6 +67,14 @@ test("private content writes remain writes and only revision 9 receives the new 
       assert(!preset.operations.includes(name), `${preset.id} must not gain ${name}`);
   }
   assert(growthAgentPublication.manifest.operations.some(item => item.operation === "content.actions.preview"));
+  assert.equal(growthAgentPublicationV9.manifest.revision,"9");
+  assert.equal(growthAgentPublicationV9.manifest.adapter.release,"6");
+  for (const name of ["content.posts.publish","content.posts.schedule","content.posts.delete","content.posts.update_published"]) {
+    const operation=growthAgentPublication.manifest.operations.find(item=>item.operation===name)!;
+    assert.equal(operation.policy.effect,"authorized_write");
+    assert.equal(operation.policy.approval,"none");
+    assert.equal(growthAgentPublicationV9.manifest.operations.find(item=>item.operation===name)!.policy.effect,"reviewed_write");
+  }
   for (const publication of [growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8]) {
     assert(!publication.manifest.operations.some(item => item.operation === "content.actions.preview"));
     for (const descriptor of publication.manifest.operations) assert.equal((descriptor.inputSchema.properties as Record<string, unknown>)._previewId, undefined);

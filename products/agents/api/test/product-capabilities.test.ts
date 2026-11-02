@@ -7,9 +7,9 @@ import {createDependencyManifest} from "../src/contracts/source-contracts";
 import {ProductRuntime,validateProductArguments} from "../src/execution/products/product-runtime";
 import {capabilityBindingSchema,capabilityPolicySchema} from "../src/contracts/capability-catalog";
 import {compilePublishedComposition} from "../src/execution/programs/publication";
-function fixture(effect: "read" | "draft_write" = "read"){
+function fixture(effect: "read" | "draft_write" | "authorized_write" = "read"){
  const adapter=registerProductAdapter({schemaVersion:1,id:"neutral-test-"+randomUUID(),release:"1",executableDigest:"a".repeat(64),transports:["native_http"],protocolVersions:[],boundedSchemaValidation:true},{handlers:["records.read@1","records.other@1"],invoke:async()=>({value:{}})});
- const descriptor:ProductCapabilityDescriptor={operation:"records.read",revision:"1",handlerRef:"records.read@1",description:"Read records available to the current destination actor",inputSchema:{type:"object",properties:{id:{type:"string",minLength:1,maxLength:128}},required:["id"],additionalProperties:false},outputSchema:null,policy:effect==="read"?{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"}:{effect:"draft_write",disclosure:"exact_requested_payload",retry:"status_only",approval:"none",cancel:"reconcile_claimed"},requiredAuthority:["records.read"],evidence:"versioned_sources",limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192}};
+ const descriptor:ProductCapabilityDescriptor={operation:"records.read",revision:"1",handlerRef:"records.read@1",description:"Read records available to the current destination actor",inputSchema:{type:"object",properties:{id:{type:"string",minLength:1,maxLength:128}},required:["id"],additionalProperties:false},outputSchema:null,policy:effect==="read"?{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"}:{effect,disclosure:"exact_requested_payload",retry:"status_only",approval:"none",cancel:"reconcile_claimed"},requiredAuthority:["records.read"],evidence:"versioned_sources",limits:{timeoutMs:30000,maxPhysicalAttempts:1,maxResponseBytes:32768,maxModelResultBytes:8192}};
  const content={schemaVersion:1 as const,product:"fixture-product",revision:"1",adapter,operations:[descriptor]},manifest:ProductCapabilityManifest={...content,digest:requestDigest(content)};
  const bindings=createProductBindings(manifest,randomUUID(),{originProduct:"growth",originTenantId:"origin-business",tenantId:"destination-workspace",mappingRef:"explicit-destination-map",policyRevision:"1"},[descriptor.operation]);
  return {manifest,descriptor,bindings};
@@ -54,7 +54,7 @@ describe("direct private product writes", () => {
   const {authority:_,digest:__,...rest}=binding, forged={...rest,digest:requestDigest(rest)};
   const parsed=capabilityBindingSchema.safeParse(forged);
   expect(parsed.success).toBe(false);
-  if(!parsed.success)expect(parsed.error.issues.some(issue=>issue.message==="Direct draft writes require installed product authority")).toBe(true);
+  if(!parsed.success)expect(parsed.error.issues.some(issue=>issue.message==="Direct product writes require installed product authority")).toBe(true);
  });
  it("requires product.write even though no separate draft review is needed", () => {
   const {bindings}=fixture("draft_write"),config=defaultBusinessConfiguration();config.program={id:"tool-directed",version:"3"};config.productBindings=bindings;
@@ -63,13 +63,23 @@ describe("direct private product writes", () => {
   expect(()=>assertGrantAuthority(grant,authority,versionId,config)).toThrowError(expect.objectContaining({code:"GRANT_PRODUCT_DENIED"}));
   expect(()=>assertGrantAuthority({...grant,operations:[...grant.operations,"product.write"]},authority,versionId,config)).not.toThrow();
  });
- function runtimeFixture() {
-  const {bindings}=fixture("draft_write"),binding=bindings[0]!,operationId="tool:"+randomUUID(),args={id:"one"};
+ function runtimeFixture(effect: "draft_write" | "authorized_write" = "draft_write") {
+  const {bindings}=fixture(effect),binding=bindings[0]!,operationId="tool:"+randomUUID(),args={id:"one"};
   const receipt={id:randomUUID(),operationId,payloadDigest:requestDigest({operation:binding.definition.providerOperation,version:"1",input:args}),state:"saved" as const};
   const runtime=Object.create(ProductRuntime.prototype) as ProductRuntime;
   Object.assign(runtime,{observe:vi.fn(async(_task:unknown,_operation:unknown,_binding:unknown,value:unknown)=>value)});
   return {runtime,binding,operationId,args,receipt,taskId:randomUUID()};
  }
+ it("executes delegated public writes directly and reconciles interrupted calls without a second mutation", async () => {
+  const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture("authorized_write");
+  expect(binding.policy.effect).toBe("authorized_write");
+  const dispatch=vi.fn(async(..._input:unknown[])=>({value:{state:"succeeded"},receipt}));Object.assign(runtime,{dispatch});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke"]);
+  dispatch.mockReset();dispatch.mockRejectedValueOnce(new PlatformError("PRODUCT_UNAVAILABLE",503,"Unavailable")).mockResolvedValueOnce({value:{state:"succeeded"},receipt});
+  await expect(runtime.invoke(taskId,operationId,binding,args)).resolves.toMatchObject({receipt});
+  expect(dispatch.mock.calls.map(call=>call[4])).toEqual(["invoke","review"]);
+ });
  it("invokes requested private writes directly and requires their exact saved receipt", async () => {
   const {runtime,binding,operationId,args,receipt,taskId}=runtimeFixture();
   const dispatch=vi.fn(async(..._input:unknown[])=>({value:{postId:"saved-post"},receipt}));Object.assign(runtime,{dispatch});

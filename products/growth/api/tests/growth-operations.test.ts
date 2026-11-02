@@ -17,7 +17,7 @@ test("canonical Growth catalogue separates direct private content writes from re
   assert.ok(growthOperations.length >= 40);
   for (const operation of growthOperations) {
     assert.equal(operation.version, "1");
-    assert.equal(operation.review, operation.effect === "read" || operation.stagingControl || operation.effect === "draft" && operation.name.startsWith("content.") ? "none" : "required");
+    assert.equal(operation.review, operation.effect === "read" || operation.stagingControl || operation.name.startsWith("content.") ? "none" : "required");
     assert.equal(operation.idempotency, operation.effect === "read" ? "not_applicable" : "required");
     assert.equal(operation.inputSchema.additionalProperties, false);
     assert.equal(growthOperationHasScope(context([operation.scope]), operation), true);
@@ -45,7 +45,7 @@ test("published Facebook updates require publishing authority and exact content 
   const definition = getGrowthOperation("content.posts.update_published");
   assert.equal(definition.effect, "external_effect");
   assert.equal(definition.scope, "growth:publish");
-  assert.equal(definition.review, "required");
+  assert.equal(definition.review, "none");
   assert.equal(definition.idempotency, "required");
   assert.equal(growthOperationHasScope(context(["growth:draft", "api:write"]), definition), false);
   assert.equal(growthOperationHasScope(context(["growth:publish"]), definition), true);

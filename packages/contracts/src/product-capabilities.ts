@@ -1,6 +1,6 @@
 /** Product capability publication is data selecting installed handlers, never executable code or endpoints. */
 export interface ProductCapabilityPolicy {
-  effect: "read" | "draft_write" | "reviewed_write";
+  effect: "read" | "draft_write" | "authorized_write" | "reviewed_write";
   disclosure: "approved_resource_identifiers" | "exact_requested_payload" | "exact_reviewed_payload";
   retry: "safe_read" | "status_only";
   approval: "none" | "exact_single_use";

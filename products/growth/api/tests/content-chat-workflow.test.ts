@@ -12,6 +12,8 @@ import type {ProductCapabilityInvocation} from "@kasitek-labs/contracts";
 import {executeGrowthOperation,confirmContentOperationReview,rejectContentOperationReview,getOperationReview,decideOperationReview} from "../src/operations/reviews.js";
 import {invokeInternalGrowthOperation} from "../src/operations/internal.js";
 import {contentActionNames} from "../src/operations/content-preview.js";
+import {syncOrgConnections} from "../src/services/connections.js";
+import {syncPermissionInventory} from "../src/integrations/connection-permissions.js";
 
 const database=process.env.CORE_OPERATIONS_TEST_DATABASE_URL;
 test("content agent drafts, immutable previews and protocol confirmation preserve exact authority and receipts",{skip:!database,timeout:60000},async t=>{
@@ -30,7 +32,7 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
     // Match the production SQL migration; Prisma's @updatedAt alone does not add a database default.
     await pool.query('ALTER TABLE "SocialPostMedia" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP');
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql",import.meta.url),"utf8"));
-    for(const name of ["20261101130000_growth_oauth.sql","20261101140000_growth_operation_reviews.sql","20261101150000_growth_media_transfers.sql","20261102190000_content_agent_workflows.sql"]) await pool.query(await readFile(new URL(`../sql/${name}`,import.meta.url),"utf8"));
+    for(const name of ["20261101130000_growth_oauth.sql","20261101140000_growth_operation_reviews.sql","20261101150000_growth_media_transfers.sql","20261102190000_content_agent_workflows.sql","20261102200000_content_mcp_app_confirmation.sql","20261102210000_content_requested_actions.sql"]) await pool.query(await readFile(new URL(`../sql/${name}`,import.meta.url),"utf8"));
     await pool.query(`INSERT INTO "User"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('alice','Alice','alice@example.test',NOW(),NOW(),NOW()),('bob','Bob','bob@example.test',NOW(),NOW(),NOW());
       INSERT INTO "Organization"(id,name,slug,"ownerId","createdAt","updatedAt") VALUES('org-a','Business','content-chat-a','alice',NOW(),NOW()),('org-b','Other','content-chat-b','bob',NOW(),NOW());
       INSERT INTO "OrganizationMember"(id,"orgId","userId",role,"updatedAt") VALUES('member','org-a','alice','OWNER',NOW()),('member-b','org-b','bob','OWNER',NOW());
@@ -85,7 +87,7 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
       const foreign={...context,principal:{...context.principal,id:"different-connection"}};
       await assert.rejects(getOperationReview(core,foreign,view.previewId),/not found/);
       await pool.query('UPDATE "SocialPost" SET content=\'Changed\',"updatedAt"=NOW() WHERE id=$1',[postId]);
-      await assert.rejects(confirmContentOperationReview(core,context,view.previewId,view.payloadDigest,"mcp_form"),/changed/);
+      await assert.rejects(call("content.posts.publish",{postId,platform:"FACEBOOK"},undefined,view.previewId),/changed/);
     });
     await t.test("all public content shapes have bounded previews with exact schedule and published edit changes",async()=>{
       const job=(await pool.query('SELECT id FROM "SocialPublishJob" WHERE "postId"=$1 ORDER BY id LIMIT 1',[postId])).rows[0].id;
@@ -105,7 +107,7 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
       const keyed:RequestContext={...context,principal:{kind:"workspace_api_key",id:"key",subjectUserId:"alice",clientId:"key"},apiScopes:new Set(["growth:read","growth:manage"])};
       const response=await executeGrowthOperation(core,keyed,{operation:"content.actions.preview",input:{action:"content.posts.delete",input:{postId},requestId:"key-delete-preview"}}) as any;
       await pool.query(`UPDATE "DeveloperApiKey" SET scopes=ARRAY['growth:read'] WHERE id='key'`);
-      await assert.rejects(confirmContentOperationReview(core,keyed,response.result.preview.previewId,response.result.preview.payloadDigest,"mcp_form"),/does not permit/);
+      await assert.rejects(executeGrowthOperation(core,keyed,{operation:"content.posts.delete",input:{postId},reviewId:response.result.preview.previewId}),/does not permit/);
     });
     await t.test("long previews continue using one stable preview without changing content",async()=>{
       const long="A".repeat(12000);
@@ -137,7 +139,7 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
         assert.deepEqual(preview.targets.map((target:any)=>target.platform),[platform]);
       }
     });
-    await t.test("internal preview prepares a distinct task-bound review and UI approval commits its exact action",async()=>{
+    await t.test("internal preview prepares a distinct task-bound artifact and its requested action needs no human approval",async()=>{
       const command={operation:"content.posts.draft.create",control:"invoke",input:{draft:{content:"Task-specific draft",channels:["FACEBOOK"],channelSelections:{FACEBOOK:"facebook"}}},actor:{subject:"alice"},authority:{tenantId:"org-a",policyRevision:"9"},operationId:"parity-draft",requestId:"parity-call",taskId:"d31ca63f-9a25-47fa-8b3c-ad4795126eac",conversationId:"e51ca63f-9a25-47fa-8b3c-ad4795126eac"} as ProductCapabilityInvocation;
       const created=await invokeInternalGrowthOperation(core,command);
       const jobId=(created.value as any).result.post.publishJobs[0].id;
@@ -150,19 +152,31 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
       const prepared=await invokeInternalGrowthOperation(core,action);
       assert.notEqual(prepared.review!.id,preview.previewId);assert.equal(prepared.review!.taskId,command.taskId);assert.equal(prepared.review!.operationId,action.operationId);
       assert.equal(prepared.review!.state,"proposed");
+      assert.equal((prepared.value as any).state,"prepared");
       const repeated=await invokeInternalGrowthOperation(core,action);assert.equal(repeated.review!.id,prepared.review!.id);
       const internal=await import("../src/operations/internal.js");const internalContext=internal.internalOperationContext(command);
       const unbound=await executeGrowthOperation(core,internalContext,{operation:"content.actions.preview",input:{action:"content.jobs.cancel",input:{jobId},requestId:"public-unbound-preview"}}) as any;
       await assert.rejects(invokeInternalGrowthOperation(core,{...action,operationId:"borrow-unbound",input:{jobId,_previewId:unbound.result.preview.previewId}}),/another task or conversation/);
       assert.equal((await pool.query('SELECT status FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0].status,"PENDING");
-      const human:RequestContext={...internalContext,principal:{kind:"direct_user",id:"alice",subjectUserId:"alice",clientId:"growth"}};
-      await decideOperationReview(core,human,prepared.review!.id,"approve",prepared.review!.payloadDigest);
       await assert.rejects(invokeInternalGrowthOperation(core,{...action,control:"commit",conversationId:"different-chat",input:{},review:prepared.review}),/another operation/);
       const committed=await invokeInternalGrowthOperation(core,{...action,control:"commit",input:{},review:prepared.review});
       assert.equal(committed.receipt!.state,"saved");assert.equal(committed.receipt!.operationId,action.operationId);
+      const replay=await invokeInternalGrowthOperation(core,{...action,control:"invoke"});assert.deepEqual(replay.receipt,committed.receipt);
+      assert.equal((await getOperationReview(core,internalContext,prepared.review!.id)).decisionSource,"requested_action");
       assert.equal((await pool.query('SELECT status FROM "SocialPublishJob" WHERE id=$1',[jobId])).rows[0].status,"CANCELED");
       assert.equal((await getOperationReview(core,internalContext,preview.previewId)).state,"proposed","source preview approval is never borrowed or reassigned");
       await assert.rejects(invokeInternalGrowthOperation(core,{...action,operationId:"stale-action"}),/changed/);
+    });
+    await t.test("current internal public actions invoke directly and status recovery never admits a write",async()=>{
+      const base={control:"invoke",actor:{subject:"alice"},authority:{tenantId:"org-a",policyRevision:"10"},requestId:"direct-public-call",taskId:"direct-task",conversationId:"direct-chat"} as ProductCapabilityInvocation;
+      const created=await invokeInternalGrowthOperation(core,{...base,operation:"content.posts.draft.create",operationId:"direct-public-draft",input:{draft}});
+      const jobId=(created.value as any).result.post.publishJobs[0].id;
+      const command={...base,operation:"content.jobs.cancel",operationId:"direct-public-cancel",input:{jobId}};
+      const saved=await invokeInternalGrowthOperation(core,command);assert.equal(saved.receipt?.state,"saved");
+      const replay=await invokeInternalGrowthOperation(core,command);assert.deepEqual(replay.receipt,saved.receipt);
+      const status=await invokeInternalGrowthOperation(core,{...command,control:"review"});assert.deepEqual(status.receipt,saved.receipt);
+      const missing=await invokeInternalGrowthOperation(core,{...command,operationId:"not-admitted-public",control:"review"});assert.equal(missing.receipt,undefined);
+      assert.equal((missing.value as any).state,"uncertain");
     });
     await t.test("current internal drafts return exact receipts; status recovery never admits a missing write",async()=>{
       const command={operation:"content.posts.draft.create",control:"invoke",input:{draft},actor:{subject:"alice"},authority:{tenantId:"org-a",policyRevision:"9"},operationId:"new-internal-draft",requestId:"internal-call",taskId:"task",conversationId:"chat"} as ProductCapabilityInvocation;
@@ -173,8 +187,8 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
       assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count,count);
       const retained=await invokeInternalGrowthOperation(core,{...command,authority:{...command.authority,policyRevision:"8"},operationId:"old-reviewed-draft",control:"prepare"});
       assert.equal(retained.review?.state,"proposed");
-      const premature=await invokeInternalGrowthOperation(core,{...command,authority:{...command.authority,policyRevision:"8"},operationId:"old-reviewed-draft",control:"commit",review:retained.review});assert.equal(premature.receipt,undefined);
-      assert.equal((premature.value as any).state,"approval_required");
+      const resumed=await invokeInternalGrowthOperation(core,{...command,authority:{...command.authority,policyRevision:"8"},operationId:"old-reviewed-draft",control:"commit",review:retained.review});assert.equal(resumed.receipt?.state,"saved");
+      assert.equal((resumed.value as any).state,"succeeded");
       const staging=await invokeInternalGrowthOperation(core,{...command,operation:"content.media.transfer.prepare",input:{mimeType:"video/mp4",byteSize:128},authority:{...command.authority,policyRevision:"8"},operationId:"retained-transfer-prepare"});
       assert.equal((staging.value as any).state,"succeeded");assert.equal(staging.receipt?.state,"saved");
       assert.ok((staging.value as any).result.transferId);

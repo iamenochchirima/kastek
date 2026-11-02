@@ -47,11 +47,13 @@ artifact. The additive migrations are:
 - `20261101150000_growth_media_transfers`: scoped, expiring media transfer state;
 - `20261102190000_content_agent_workflows`: nullable, constrained `decisionSource` audit column.
 
-Configure a dedicated `GROWTH_MCP_CONFIRMATION_SECRET` on Growth API. Production requires at least
-32 bytes; do not reuse OAuth, session or another service's key. Rotation invalidates outstanding
-sealed chat confirmations, so users must prepare fresh previews; it does not revoke OAuth grants.
-The 0.3.0 production secret was staged separately; migration and deployed-artifact evidence belongs
-in `docs/operations/platform-0.3.0-release.md`, not in an environment export committed to Git.
+- `20261102200000_content_mcp_app_confirmation`: retained historical `mcp_app` source;
+- `20261102210000_content_requested_actions`: adds `requested_action` for authorized content execution.
+
+Apply each migration once using the existing ledger procedure. The former
+`GROWTH_MCP_CONFIRMATION_SECRET` is no longer consumed by the MCP route. Retain historical receipts
+and additive schema during rollback. Deployment evidence belongs in
+`docs/operations/platform-0.3.0-release.md`; never commit an environment export.
 
 Analytics separately requires `services/analytics/migrations/20261101160000_growth_agent_access.sql`
 to permit the existing `core-customer-analytics` producer's Growth namespace. Its registry version
@@ -93,47 +95,23 @@ MCP connection is not evidence of working provider publishing, comments, message
 
 ## Reviews, recovery and observations
 
-Requested private content drafts, duplication, media upload and transfer preparation execute
-directly with stable idempotency and durable receipts. Their ledger decision source is
-`requested_draft`; Growth page approvals use `growth_ui`, and protocol form confirmations use
-`mcp_form`; embedded MCP App decisions use `mcp_app`. Existing null values retain their historical meaning. Other effects keep exact review.
+All authorized content writes execute through the durable operation ledger without mandatory
+Growth human approval. Private drafts/media record `requested_draft`; public/destructive content
+execution records `requested_action`. Neither value means a human approval was observed. Historical
+`growth_ui`, `mcp_form`, `mcp_app` and null provenance remains intact. Non-content reviews are unchanged.
 
-Public/destructive content actions first use `content.actions.preview` and its bound `_previewId`.
-The `2026-07-28` MCP route prefers an embedded MCP App for clients declaring the supported MIME
-type, with exact preview metadata and app-only controls. Its expiring HMAC token binds the current
-credential, workspace, client, action, request and payload. It is delivered only in result `_meta`,
-never model-visible text or structured content. The static resource bundles the official App SDK,
-uses a strict CSP and renders user content as text. The card never approves on mount. Status reads
-may reconcile existing receipts but cannot admit a new effect; nonce refresh does not extend the
-review's original deadline. Ready owned media previews use the existing scoped signing operation.
+`content.actions.preview` is an optional normal model-readable operation. It freezes exact input,
+content/media/account revisions, destinations, timing and readiness. Preview-only calls return
+`prepared` and never contact providers. A supplied `_previewId` is checked against current authority,
+unchanged input and expiry before execution; execution without one validates the current snapshot.
+The MCP adapters use ordinary tools with accurate write/destructive annotations. There is no
+mandatory form, embedded approval card, app-only confirm control or browser approval detour.
 
-The `20261102200000_content_mcp_app_confirmation` migration adds `mcp_app` to the decision-source
-constraint. Apply its API SQL or Prisma mirror once through the existing ledger procedure before
-rollout. Build/dev/test generate the ignored UI module via `mcp-app:build`; production runs the
-already bundled artifact. The shared lockfile is an actual build input and remains watched by Node
-backends; ordinary UI-source changes watch only the Growth roles.
-
-Other capable modern clients use a required protocol form with an exact, untruncated preview.
-Registered ChatGPT clients also require the OpenAI form extension. Missing or incomplete in-chat
-confirmation returns `confirmation_unavailable` without a browser detour. The authenticated review
-page remains an explicit manual/team operation. Preserve legacy read and direct-draft support;
-legacy app controls additionally require declared per-request UI capabilities.
-
-Controlled fixtures establish transport, authorization, replay and responsive rendering behavior.
-Native acceptance separately verifies that this host loads the resource, displays the exact preview
-and records a genuine user button click. Inspect bounded `app_ui_declared`/`app_ui_supported` logs;
-never log raw capabilities, content, signed media links, tokens or hidden result metadata.
-
-Every write retains the same stable idempotency path. Operation state is
-separate from embedded draft-review state. Human review renders the persisted copy/variants, scheduled time, selected account identities,
-media filenames and target identity where applicable, with the exact request under an expandable
-disclosure. The preview participates in the immutable snapshot checked before execution.
-The human review API uses the current signed-in user,
-workspace and exact payload digest. The review page polls approved and executing actions until a terminal state or review expiry,
-shows a saved-post link when available, and keeps raw results collapsed. Polling only reads state.
-Approved external calls resume from the agent using their
-original identity; signed embedded actions use verified product context. Direct UI editing keeps
-its established explicit-human-action flow.
+Existing manual review pages still inspect their persisted requests. Their polling only reads
+state. Internal content actions use the same canonical handlers, current authority and receipts
+without a public MCP round trip. Ordinary calls do not fabricate approved events. Verify direct
+MCP content execution, optional preview, duplicate/unknown outcomes and revoked/stale denials rather
+than requiring a custom card render or button click.
 
 An executing or uncertain receipt must be reconciled before retry; do not mint a fresh request
 identity to force another effect. A succeeded receipt returns the stored result. Revocation or
@@ -197,7 +175,7 @@ Final full-suite and cross-product runtime evidence belongs in the implementatio
 
 Start with disabled flags, apply the additive schema in a controlled environment, configure
 issuer/frontend/origins, and enable access for an owned test workspace. Exercise discovery,
-real OAuth authorization/refresh, scoped tool listing, exact review, approved resume, independent
+real OAuth authorization/refresh, scoped tool listing, optional exact previews, direct authorized content execution, independent
 revocation and actual internal/REST/MCP result comparison. Verify user/workspace separation and
 capture the deployed release/config identity. Enable effects separately only after reviewing
 provider fixtures and required provider approval.

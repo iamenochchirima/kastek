@@ -15,11 +15,11 @@ The current workspace membership, entitlements, credential status and operation 
 checked at execution. `api:read` keys permit reads; `api:write` permits requested private content draft/media writes and reviewed internal record changes and does
 not grant publication. Use the explicit `growth:*` scopes for other operation classes.
 
-Requested private content draft creation/update, duplication, media upload and transfer preparation
-execute directly with a stable `_requestId`. They retain current authority checks, idempotency and
-durable receipts. Other writes require exact user approval.
+Authorized content writes execute directly with a stable `_requestId`, current authority,
+validation and durable receipts. This covers drafts/media and public/destructive content actions.
+No separate Growth human approval or MCP card is required. Other writes retain exact user review.
 
-For public or destructive content actions, first invoke `content.actions.preview`:
+Optionally invoke `content.actions.preview` before an action:
 
 ```json
 {
@@ -30,12 +30,10 @@ For public or destructive content actions, first invoke `content.actions.preview
 ```
 
 The result includes `preview.previewId`, exact copy/media/account/timing details and readiness.
-Previewing does not contact providers or execute the action. Submit the action's unchanged
-business input with `_previewId` and the same `_requestId`. REST returns the Growth review link
-when approval is needed; native chat forms belong to the [MCP protocol](./mcp-integration.md).
-After approval, resume with that same input and preview/review ID. `_reviewId` remains supported.
-Changed content, media, accounts or timing requires a new preview and approval. This common
-boundary applies across all seven social platforms without adding unsupported provider actions.
+Previewing does not contact providers or execute the action. To use that frozen snapshot, submit
+the unchanged action input with `_previewId` and the same `_requestId`. A changed or expired
+preview is rejected. Calling the action without a preview validates its current snapshot instead.
+This shared execution boundary covers all seven platforms without adding provider capabilities.
 
 Do not retry an uncertain outcome with a fresh identity. Read receipts through
 `GET /v1/operation-reviews/{id}`. Large results return bounded JSON chunks; repeat unchanged
@@ -49,10 +47,10 @@ Agents gateway are unsupported.
 ## Update published Facebook text
 
 Use `content.posts.update_published` with `postId`, `content` and `expectedUpdatedAt` from
-the current post. This requires `growth:publish` and exact review. It updates the text or
+the current post. This requires `growth:publish` and current validation. It updates the text or
 caption of the existing confirmed Facebook post, retaining its external identity. Add
-`removePhoto: true` to detach its single image after exact review. Omit the flag to retain
+`removePhoto: true` to detach its single image with the same revision checks. Omit the flag to retain
 media. Replacement and additional media are unsupported.
-Only Facebook-only posts are supported. A stale revision or changed account requires a new
-review. Reuse the same request identity to reconcile an uncertain result; never publish a
+Only Facebook-only posts are supported. A stale revision or changed account requires a fresh
+read. Reuse the same request identity to reconcile an uncertain result; never publish a
 replacement as an edit.
