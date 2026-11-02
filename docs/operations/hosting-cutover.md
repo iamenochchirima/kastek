@@ -114,9 +114,10 @@ Agency accepts its exact `FRONTEND_URL` host and an explicitly configured verifi
 For the existing deployment, set `FRONTEND_URL=https://portal.kasitek.co.za` and
 `AGENCY_VERIFIED_WILDCARD_DOMAIN=*.portal.kasitek.co.za`. The wildcard must match that frontend's
 hostname. Routing removes caller-supplied `x-kasitek-tenant-host`; the canonical portal route sets
-its fixed host, while valid single-label tenant subdomains retain Vercel's authoritative
-`x-forwarded-host`. This preserves each tenant's hostname instead of replacing it with the portal
-hostname. Unrelated, malformed and unconfigured hosts return 421. Other custom domains remain
+its fixed host, while valid single-label tenant subdomains capture the matched public hostname
+and set `x-kasitek-tenant-host` from that capture. Railway overwrites standard forwarded-host
+headers, so tenant identity must use this separately sanitized header. This preserves each
+tenant's hostname instead of replacing it with the portal hostname. Unrelated, malformed and unconfigured hosts return 421. Other custom domains remain
 blocked. Native edge host forwarding, spoof resistance and tenant/session isolation must pass a
 hosted preview before the existing wildcard production alias can be promoted.
 

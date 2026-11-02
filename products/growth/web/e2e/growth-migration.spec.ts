@@ -72,7 +72,7 @@ test("creates a booking service and reloads its controlled API state", async ({ 
 
 test("creates a developer key and reloads its controlled API state", async ({ page, request }) => {
   await page.goto("/developers/api-keys");
-  await page.getByPlaceholder("Key name, for example Local development").fill("Migration browser key");
+  await page.getByRole("textbox", { name: "API key name", exact: true }).fill("Migration browser key");
   await page.getByRole("button", { name: "Create API key", exact: true }).click();
   await expect(page.getByText("Copy this API key now", { exact: true })).toBeVisible();
   await page.reload();

@@ -30,7 +30,14 @@ test('verified Agency wildcard retains each tenant host and denies lookalike or 
   for (const host of ['alpha.portal.kasitek.co.za', 'beta-2.portal.kasitek.co.za']) {
     const rule = route(config, '/api/tenant/api/client/me', 'GET', host);
     assert.equal(rule.dest, 'https://backend.example/$1');
-    assert.deepEqual(rule.transforms.filter(item => item.target.key === 'x-kasitek-tenant-host'), [{ type: 'request.headers', op: 'delete', target: { key: 'x-kasitek-tenant-host' } }]);
+    const capturedHost = new RegExp(`^(?:${rule.has[0].value})$`).exec(host).groups.tenantHost;
+    assert.equal(capturedHost, host);
+    const headers = { 'x-kasitek-tenant-host': 'attacker.example' };
+    for (const transform of rule.transforms) {
+      if (transform.op === 'delete') delete headers[transform.target.key];
+      if (transform.op === 'set') headers[transform.target.key] = transform.args.replace('$tenantHost', capturedHost);
+    }
+    assert.equal(headers['x-kasitek-tenant-host'], host);
     assert.equal(rule.transforms.some(item => item.target.key === 'x-forwarded-host'), false);
   }
   for (const host of ['evil.example', 'alpha.portal.kasitek.co.za.evil.example', 'alpha.other.kasitek.co.za', '-alpha.portal.kasitek.co.za', 'nested.alpha.portal.kasitek.co.za']) assert.equal(route(config, '/api/tenant/api/client/me', 'GET', host).status, 421, host);
