@@ -1,0 +1,149 @@
+{
+  "configurationRevision": "production-email-and-references-2026-11-02",
+  "platformBaseline": "0.2.0",
+  "verifiedAt": "2026-11-02T17:23:11.119757+00:00",
+  "identity": {
+    "deploymentId": "05e8425e-f483-429e-95ea-827e44ab3011",
+    "sourceCommit": "d457868e8e60c824cdf1219eda7c99c5caf5baaf",
+    "railwayImageDigest": "sha256:eca086eda25712a4bda89e85e3b79c8e6c5a48c912feab09dc505cbed397f60d",
+    "transport": "Resend HTTPS",
+    "keycloakSendVerificationStatus": 204,
+    "providerDeliveryEvent": "delivered",
+    "providerDeliveryAt": "2026-11-02T17:22:32.657925+00:00",
+    "userEmailVerifiedManually": false,
+    "localProviderChecks": 13,
+    "existingIdentityConfigurationChecks": 12
+  },
+  "references": {
+    "all19DeploymentsSuccessful": true,
+    "resolvedValuesUnchanged": true,
+    "serviceReferenceCount": 12,
+    "sharedReferenceCount": 22
+  },
+  "sharedVariables": {
+    "NODE_ENV": "production",
+    "KASITEK_ENVIRONMENT": "production"
+  },
+  "loginFormsPassed": true,
+  "deployments": [
+    {
+      "service": "growth-db",
+      "deploymentId": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "analytics-db",
+      "deploymentId": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "otel-collector",
+      "deploymentId": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "operations-worker",
+      "deploymentId": "897eba45-62c6-45c3-9917-050fa5a3a5ba",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "agents-api",
+      "deploymentId": "803fb161-43e0-4c7b-9c0d-01dd65154d23",
+      "status": "SUCCESS",
+      "sourceCommit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7"
+    },
+    {
+      "service": "agency-api",
+      "deploymentId": "a87ada62-8036-4c13-b754-1d83781d8ccc",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "operations-db",
+      "deploymentId": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "agency-db",
+      "deploymentId": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "analytics-api",
+      "deploymentId": "52dc1b2f-a1f8-4556-a67e-b732f165e7ce",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "identity-db",
+      "deploymentId": "f8477a21-77bc-45f7-8379-488bb94e431c",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "agents-db",
+      "deploymentId": "6a213b45-e5bd-4ad7-9fe5-ff87301a4b90",
+      "status": "SUCCESS",
+      "sourceCommit": null
+    },
+    {
+      "service": "growth-analytics-worker",
+      "deploymentId": "e94b7610-32ac-4152-8f5a-004a1f9e4e45",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "operations-api",
+      "deploymentId": "805762e9-944e-4063-b80d-261e99ea6325",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "agents-worker",
+      "deploymentId": "69bfeb6f-62d4-4d63-9793-395c96358988",
+      "status": "SUCCESS",
+      "sourceCommit": "1a8df568a3b0999bcce47b9553075cbea0cbd8c7"
+    },
+    {
+      "service": "analytics-worker",
+      "deploymentId": "b7ca0ebc-bd18-4aab-9ace-fe7a7451d7d3",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "growth-api",
+      "deploymentId": "43f1839b-0fea-414e-bcb5-7ed30edad733",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "identity",
+      "deploymentId": "05e8425e-f483-429e-95ea-827e44ab3011",
+      "status": "SUCCESS",
+      "sourceCommit": "d457868e8e60c824cdf1219eda7c99c5caf5baaf"
+    },
+    {
+      "service": "restate",
+      "deploymentId": "3f5e2711-9f57-485f-8d9f-611d0c419acc",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    },
+    {
+      "service": "agency-analytics-worker",
+      "deploymentId": "31576ea2-331c-48d6-b3b2-26ad216c0ab6",
+      "status": "SUCCESS",
+      "sourceCommit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1"
+    }
+  ],
+  "limits": [
+    "Provider delivered event confirms receiving-server acceptance, not inbox placement.",
+    "The user must click their verification link; completed verification/login was not performed by the agent.",
+    "Existing platform CI limitations still apply."
+  ]
+}

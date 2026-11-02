@@ -63,3 +63,12 @@ configuration. The final Identity container built successfully, and its persiste
 selects the `resend` provider. Twelve existing Identity configuration tests, product import
 boundaries and whitespace checks passed. Hosted email acceptance is verified after deployment;
 completed human verification and inbox delivery must be reported separately.
+
+Hosted acceptance completed at 2026-11-02 17:22 UTC: Identity deployment
+`05e8425e-f483-429e-95ea-827e44ab3011` runs merged source `d457868e8e60c824cdf1219eda7c99c5caf5baaf`.
+A verification email requested through Keycloak for the existing pending registration returned
+204, and Resend subsequently reported `delivered`. This confirms recipient-server acceptance;
+it does not prove inbox placement or that the user clicked the link. No manual email-verification
+bypass occurred. Four product login forms and Growth registration passed after deployment.
+The old registration session expired during restart; a fresh sign-in page was opened.
+See the [sanitized deployment and delivery evidence](./releases/production-email-and-references-2026-11-02.json).
