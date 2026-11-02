@@ -2252,7 +2252,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_connections_status_update",
-        "description": "Update the local status of a connected account after exact review. Does not perform a new provider authorization.",
+        "description": "Update the local status of a connected account under current authorization. Does not perform a new provider authorization.",
         "x-growth-operation": "connections.status.update",
         "x-growth-review": "required",
         "x-growth-effect": "destructive",
@@ -2360,7 +2360,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_contacts_update",
-        "description": "Update an authorized contact's details after exact review. Consent changes must reflect actual customer permission.",
+        "description": "Update an authorized contact's details under current authorization. Consent changes must reflect actual customer permission.",
         "x-growth-operation": "contacts.update",
         "x-growth-review": "required",
         "x-growth-effect": "draft",
@@ -2468,7 +2468,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_actions_preview",
-        "description": "Preview an exact content action without changing content or contacting a provider. Repeat the same requestId and business input when reading continuation chunks. Returns a bound preview ID for confirmation; publishing, scheduling, retries and deletion remain separate actions.",
+        "description": "Preview an exact content action without changing content or contacting a provider. Repeat the same requestId and business input when reading continuation chunks. Returns an optional bound preview ID; publishing, scheduling, retries and deletion remain separate actions.",
         "x-growth-operation": "content.actions.preview",
         "x-growth-review": "none",
         "x-growth-effect": "read",
@@ -2578,7 +2578,7 @@
         "operationId": "invoke_content_jobs_cancel",
         "description": "Cancel an eligible pending or queued publication job. Already-started provider effects cannot be silently undone.",
         "x-growth-operation": "content.jobs.cancel",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -2632,7 +2632,7 @@
         "operationId": "invoke_content_jobs_retry",
         "description": "Retry an eligible confirmed failed publication job. Published, active and unknown jobs are rejected.",
         "x-growth-operation": "content.jobs.retry",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -2954,9 +2954,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_delete",
-        "description": "Delete an unpublished draft after exact review. This does not delete a published provider copy.",
+        "description": "Delete an unpublished draft under current authorization. This does not delete a published provider copy.",
         "x-growth-operation": "content.posts.delete",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "destructive",
         "x-growth-scope": "growth:manage",
         "requestBody": {
@@ -3008,9 +3008,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_delete_published",
-        "description": "Delete a recorded provider copy on a supported platform after exact review, retaining failure details for reconciliation.",
+        "description": "Delete a recorded provider copy on a supported platform under current authorization, retaining failure details for reconciliation.",
         "x-growth-operation": "content.posts.delete_published",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "destructive",
         "x-growth-scope": "growth:manage",
         "requestBody": {
@@ -3386,9 +3386,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_publish",
-        "description": "Publish the exact reviewed post to one selected platform. Observe its authoritative result before retrying.",
+        "description": "Publish the selected post to one selected platform. Observe its authoritative result before retrying.",
         "x-growth-operation": "content.posts.publish",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3440,9 +3440,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_publish_batch",
-        "description": "Admit the reviewed content to all configured destinations and return a durable batch result.",
+        "description": "Admit the authorized content to all configured destinations and return a durable batch result.",
         "x-growth-operation": "content.posts.publish_batch",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3550,7 +3550,7 @@
         "operationId": "invoke_content_posts_publish_batch_retry",
         "description": "Retry only confirmed failed destinations from the exact reviewed existing batch. Never retry an unknown outcome.",
         "x-growth-operation": "content.posts.publish_batch.retry",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3658,7 +3658,7 @@
         "operationId": "invoke_content_posts_reschedule",
         "description": "Move a still-unclaimed scheduled post to a future RFC3339 timestamp, preserving its publication history.",
         "x-growth-operation": "content.posts.reschedule",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3710,9 +3710,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_schedule",
-        "description": "Schedule a reviewed draft for a future RFC3339 timestamp with explicit timezone offset.",
+        "description": "Schedule an authorized draft for a future RFC3339 timestamp with explicit timezone offset.",
         "x-growth-operation": "content.posts.schedule",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3764,9 +3764,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_unschedule",
-        "description": "Return an unclaimed scheduled post to draft after exact review.",
+        "description": "Return an unclaimed scheduled post to draft under current authorization.",
         "x-growth-operation": "content.posts.unschedule",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3818,9 +3818,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_update_published",
-        "description": "Update a confirmed Facebook Page post after exact review. Edit text or caption and optionally remove its existing photo while preserving the provider post, link and account. Unknown outcomes require reconciliation, not another update.",
+        "description": "Update a confirmed Facebook Page post under current authorization. Edit text or caption and optionally remove its existing photo while preserving the provider post, link and account. Unknown outcomes require reconciliation, not another update.",
         "x-growth-operation": "content.posts.update_published",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "external_effect",
         "x-growth-scope": "growth:publish",
         "requestBody": {
@@ -3980,7 +3980,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_inbox_conversations_mark_read",
-        "description": "Mark an authorized conversation read after exact review.",
+        "description": "Mark an authorized conversation read under current authorization.",
         "x-growth-operation": "inbox.conversations.mark_read",
         "x-growth-review": "required",
         "x-growth-effect": "draft",
@@ -4034,7 +4034,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_inbox_conversations_update",
-        "description": "Set an authorized conversation's starred state after exact review.",
+        "description": "Set an authorized conversation's starred state under current authorization.",
         "x-growth-operation": "inbox.conversations.update",
         "x-growth-review": "required",
         "x-growth-effect": "draft",
@@ -4687,8 +4687,8 @@
             "scopes": {
               "growth:read": "Read authorized workspace and customer data",
               "growth:draft": "Save requested private content drafts/media; review other record edits",
-              "growth:publish": "Publish, schedule and send after exact review",
-              "growth:manage": "Delete and manage records after exact review"
+              "growth:publish": "Publish and schedule content; review non-content sends",
+              "growth:manage": "Delete content; review non-content management"
             }
           }
         }
@@ -5552,7 +5552,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5590,7 +5590,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5858,7 +5858,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5908,7 +5908,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6473,7 +6473,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6512,7 +6512,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6570,7 +6570,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6636,7 +6636,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6680,7 +6680,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6719,7 +6719,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6771,7 +6771,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; client confirmation follows the client settings. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -7033,6 +7033,7 @@
             "type": "string",
             "enum": [
               "succeeded",
+              "prepared",
               "approval_required",
               "uncertain",
               "expired",
@@ -7098,12 +7099,13 @@
             ],
             "enum": [
               "requested_draft",
+              "requested_action",
               "growth_ui",
               "mcp_form",
               "mcp_app",
               null
             ],
-            "description": "Recorded decision authority; null for historical rows"
+            "description": "Execution provenance; requested_action is delegated execution, not human approval; null for historical rows"
           },
           "requestId": {
             "type": "string",

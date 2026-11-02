@@ -31,51 +31,33 @@ permissions and supported account type for the requested operation.
 | --- | --- |
 | `growth:read` | Authorized workspace records, including content and customer data permitted by the operation. |
 | `growth:draft` | Requested private content drafts/media; reviewed changes to other internal records. |
-| `growth:publish` | Reviewed publication, scheduling, message sending and other external effects. |
-| `growth:manage` | Reviewed destructive or account-management operations. |
+| `growth:publish` | Content publication and scheduling; reviewed message sending and other external effects. |
+| `growth:manage` | Authorized content deletion; reviewed non-content destructive or account-management operations. |
 
-`tools/list` returns currently permitted business operations. App-capable clients also receive an
-app-only confirmation control, hidden from the model. Current membership,
-credential scope and entitlements are rechecked when a tool runs. The same operations, schemas,
-results and review rules serve [REST](./agent-rest.md) and internal Growth agents; internal agents
-call the application directly rather than making an MCP request. The standalone Agents product
-retains separate identity, storage and configuration.
+`tools/list` returns currently permitted business operations. Current membership, credential
+scope and entitlements are rechecked when a tool runs. MCP, [REST](./agent-rest.md) and internal
+Growth agents share the same handlers and content execution rules. Internal agents call the
+application directly; the standalone Agents product retains separate identity and storage.
 
-## Drafts and exact content confirmation
+## Content actions and optional previews
 
-An explicit request to save or change a private content draft can execute directly. This covers
-`content.posts.draft.create`, `content.posts.draft.update`, `content.posts.duplicate`,
-`content.media.upload` and `content.media.transfer.prepare`. These remain writes: they require
-draft scope, current authority and a stable `_requestId`, and return durable receipts. A request
-for suggested copy alone does not authorize saving it.
+Authorized content writes execute directly with a stable `_requestId`. This includes private
+drafts/media, publication, scheduling, retries, cancellation, deletion and supported published-post
+updates. Growth does not require a separate approval page, form, card or approval token. Client
+confirmation follows the MCP client's settings. A client tool call is delegated execution authority,
+not evidence that Growth observed a human approval.
 
-Before publishing, scheduling, retrying, canceling, deleting or editing published content, call
-`content.actions.preview` with the action name, exact business `input` and a stable `requestId`.
-It returns a bound preview ID, copy and platform variants, media, selected account identities,
-timing/timezone, targets and readiness errors. Previewing does not publish or contact providers.
-Use `_previewId` with the unchanged action input; `_reviewId` remains supported for existing
-reviews. Changing saved content, account state, media or the requested action requires a fresh
-preview and confirmation. Provider permissions and format support still apply separately for
-Facebook, Instagram, Threads, TikTok, LinkedIn, X and Bluesky.
+Use `content.actions.preview` when you need to inspect exact content before execution. Supply the
+action name, business `input` and a stable `requestId`. The model-readable result includes saved
+copy and platform variants, ordered media, selected accounts, timing/timezone, proposed changes
+and readiness errors. Previewing does not change content or contact a provider. It is optional.
 
-Clients declaring `text/html;profile=mcp-app` support receive an embedded exact-preview card.
-Approve or reject in that card. Its app-only control uses a short-lived token delivered only in
-hidden UI metadata; the agent never receives an approval token or an `approved` argument. The
-card shows current readiness, expiry and publication status. Accepted queued work is distinguished
-from confirmed provider publication. Refreshing a token preserves the original review deadline.
-
-Other capable `2026-07-28` clients can use a required Confirm/Cancel form. Registered ChatGPT
-clients also need the OpenAI form extension. Growth binds either client response to the saved
-preview and rechecks authority and content before execution. An empty answer is not approval.
-Clients without working in-chat confirmation receive `confirmation_unavailable`; content remains
-pending. MCP content actions do not send users to an external review page. Manual/team reviews
-and non-content operations retain their existing application review flow.
-
-The static `ui://growth/content-review-v1.html` resource contains no user content or credentials.
-The app-only `content.actions.confirm` control is not a model tool or a general REST operation.
-Clients must hide tool-result UI metadata from model context and enforce app-only visibility.
-Capability declarations alone do not establish that a client rendered the card; operators verify
-resource loading and a genuine button click during acceptance.
+To bind an action to that preview, pass its `_previewId`, unchanged business input and the same
+`_requestId`. Changed content, media, account state or input invalidates that preview. Without a
+preview, execution validates the current snapshot. Both paths enforce current scopes, workspace
+membership, entitlements, provider readiness, durable receipts and duplicate prevention.
+Provider permissions and supported formats still differ across Facebook, Instagram, Threads,
+TikTok, LinkedIn, X and Bluesky. Non-content operations retain their existing review rules.
 
 Never create a new request identity to retry an uncertain result. Tool results are bounded;
 follow `_continuation` with unchanged business arguments to read further JSON chunks. Large media

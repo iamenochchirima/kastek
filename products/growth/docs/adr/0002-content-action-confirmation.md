@@ -1,6 +1,6 @@
 # 0002: Content action confirmation and requested private writes
 
-Date: 2026-11-02. Status: accepted. Owner: Enoch Chirima.
+Date: 2026-11-02. Status: superseded by [ADR 0003](0003-direct-authorized-content-actions.md). Owner: Enoch Chirima.
 
 ## Context
 

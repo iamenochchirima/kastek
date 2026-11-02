@@ -11,7 +11,7 @@ defines 46 version-1 operations. MCP tools and signed internal descriptors use t
 identities and schemas; REST exposes `POST /v1/operations/{operation}`. `GET /v1/operations`
 filters discovery by the current credential, workspace membership and entitlements. Typed REST
 aliases delegate to the same handlers. There are no additional internal business operations in
-the current publication (manifest/policy revision 9, adapter release 6).
+the current publication (manifest/policy revision 10, adapter release 7).
 
 This table accounts for the historical tool families without reinstating their removed gateway,
 installation credentials or executor. Historical names are not compatibility aliases.
@@ -38,8 +38,8 @@ installation credentials or executor. Historical names are not compatibility ali
 ## Authority and effect boundary
 
 `growth:read` permits reads. `growth:draft` permits requested private content draft/media writes and reviewed edits to other records.
-`growth:publish` permits reviewed publication, scheduling and message delivery.
-`growth:manage` permits reviewed destructive/management operations, with current workspace
+`growth:publish` permits content publication/scheduling and reviewed message delivery.
+`growth:manage` permits content deletion and reviewed non-content management, with current workspace
 administrator checks for destructive actions. Legacy `api:read` and `api:write` remain read and
 draft equivalents. Developer key creation selects explicit scopes, and rotation preserves them.
 Each descriptor also declares its actual entitlement and resource requirements.
@@ -54,16 +54,17 @@ generic connected tools cannot opt into this product-only policy.
 synchronizing providers. It binds action/version/input, content/media revisions, selected account
 identity/permissions and publishing-job state. The common preview includes platform copy, media,
 requested schedule and organization timezone, target receipts, update/removal details and readiness.
-Execution requires confirmation of that immutable artifact and rechecks current authority.
-`2026-07-28` MCP clients with form capabilities can return a sealed, scoped protocol input response;
-legacy/incapable clients and REST retain the Growth review page. A model-supplied approval field
-cannot grant authority. See [ADR 0002](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0002-content-action-confirmation.md).
+The preview is optional. Execution under current grants validates its current snapshot or, when
+`_previewId` is supplied, the unchanged frozen preview. Content writes use durable receipts without
+a Growth human approval requirement. MCP clients may apply their own confirmations. No app-only
+confirmation tool, form or card is needed. See [ADR 0003](../../adr/0003-direct-authorized-content-actions.md).
 
-Other non-read business changes retain exact persisted reviews. Internal agents invoke these same
-business operations directly, without MCP, and retain trusted internal review for public actions.
-Revisions 2–8 retain their original descriptors, policies and adapter releases; existing workspace
-selections do not silently upgrade. Continuations only retrieve an unchanged observation. A
-succeeded scheduling or batch-admission receipt is not confirmed provider publication.
+Other non-read business changes retain exact persisted reviews. Internal agents invoke the same
+content handlers directly, without MCP. The current product-only `authorized_write` policy preserves
+write classification, payload disclosure, grant checks and status-only recovery. Revisions 2–9
+retain their descriptors and policies; existing workspace selections do not silently upgrade.
+Continuations only retrieve unchanged observations. A succeeded schedule or batch admission is
+not confirmed provider publication.
 
 Human UI commands retain their existing explicit-action flow and use the same domain guards.
 Presentation controls, navigation, draft editor state and OAuth browser consent are not model
@@ -143,24 +144,9 @@ rollout flags, migrations, status-only recovery, evidence and rollback.
 
 ## Internal preview admission
 
-Internal previews carry trusted task, conversation and invocation identifiers outside the model's
-business input. Preparing an action with `_previewId` validates that source artifact and creates
-an action-specific proposed review for the current command. It preserves the source snapshot and
-never transfers its approval. The agent presents the action review returned by preparation.
-Current task/conversation authority and the frozen payload are checked again for review and commit.
-External MCP continues to confirm its existing owned preview directly. Neither path can borrow
-another task's preview or turn a read-only preview into execution authority.
-
-## MCP App confirmation
-
-The MCP adapters link exact content previews/public actions to the versioned static review resource.
-The model receives a bounded summary; hidden UI metadata supplies the full preview and scoped
-short-lived token. App-only approve/reject controls reuse the same current-grant, snapshot and
-durable execution path with `mcp_app` provenance. Status cannot admit an effect and may reconcile
-known receipts. Refresh renews the nonce only within the original deadline. The static UI has no
-user data, strict CSP, keyboard controls and responsive themes. Media uses the existing authorized
-preview-signing operation and stays outside model output.
-
-Clients without working Apps or form confirmation receive a clear unavailable state without an
-automatic browser review link. Existing manual/team review routes and REST business contracts are
-unchanged. Transport UI controls are not new product execution capabilities or model authority.
+Internal previews carry trusted task, conversation and invocation identifiers outside model input.
+When supplied, `_previewId` binds execution to the source artifact and unchanged snapshot without
+transferring human approval. Other tasks or conversations cannot borrow that artifact. Optional
+preparation never executes; the current internal publication admits ordinary authorized content
+writes directly and returns durable receipts. Status checks observe existing receipts and never
+admit a new write. Non-content review/commit operations retain their existing policy.

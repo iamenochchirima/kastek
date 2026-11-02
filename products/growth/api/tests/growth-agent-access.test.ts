@@ -45,7 +45,7 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
   try {
     await pool.query('ALTER TABLE "SocialPost" ALTER COLUMN channels TYPE "SocialPlatform"[] USING channels::text[]::"SocialPlatform"[]');
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
-    for (const migration of ["20261101130000_growth_oauth.sql", "20261101140000_growth_operation_reviews.sql", "20261101150000_growth_media_transfers.sql", "20261102190000_content_agent_workflows.sql"])
+    for (const migration of ["20261101130000_growth_oauth.sql", "20261101140000_growth_operation_reviews.sql", "20261101150000_growth_media_transfers.sql", "20261102190000_content_agent_workflows.sql", "20261102200000_content_mcp_app_confirmation.sql", "20261102210000_content_requested_actions.sql"])
       await pool.query(await readFile(new URL(`../sql/${migration}`, import.meta.url), "utf8"));
     await pool.query(`INSERT INTO "User"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('alice','Alice','alice@example.test',NOW(),NOW(),NOW());
       INSERT INTO "Organization"(id,name,slug,"ownerId","createdAt","updatedAt") VALUES('org-a','Fixture business','fixture-business','alice',NOW(),NOW());
@@ -229,10 +229,10 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.deepEqual(committed, draftSaved);
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "1");
     const reviewed=async(name:string,input:Record<string,unknown>,requestId:string)=>{
-      const proposal=await toolCall(name,{...input,_requestId:requestId});assert.equal(proposal.state,"confirmation_unavailable",JSON.stringify(proposal));assert.equal(proposal.review.reviewUrl,undefined);
-      const decision=await request(`/api/operations/reviews/${proposal.review.id}/decision`,{decision:"approve",payloadDigest:proposal.review.payloadDigest},human);
-      assert.equal(decision.status,200,JSON.stringify(decision.body));
-      const args={...input,_requestId:requestId,_reviewId:proposal.review.id};const outcome=await toolCall(name,args);assert.equal(outcome.state,"succeeded",JSON.stringify(outcome));return {outcome,args};
+      const args={...input,_requestId:requestId};
+      const outcome=await toolCall(name,args);assert.equal(outcome.state,"succeeded",JSON.stringify(outcome));
+      assert.equal(outcome.review.decisionSource,"requested_action");
+      return {outcome,args};
     };
     const flowId=committed.result.post.id;
     const firstSchedule=new Date(Date.now()+3600000).toISOString(),secondSchedule=new Date(Date.now()+7200000).toISOString();
@@ -262,23 +262,22 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPublishBatch" WHERE "postId"=$1',[flowId])).rows[0].count,"1");
     const editable = await toolCall("content.posts.get", { postId: flowId });
     const editInput = { postId: flowId, content: "Exact corrected Facebook caption", expectedUpdatedAt: editable.result.post.updated_at };
-    const editProposal = await toolCall("content.posts.update_published", { ...editInput, _requestId: "published-edit-review" });
-    assert.equal(editProposal.state, "confirmation_unavailable");
-    assert.equal(editProposal.review.preview.content, editInput.content);
-    assert.equal(editProposal.review.preview.previousContent, draft.content);
-    assert.equal(editProposal.review.preview.accounts[0].externalAccountId, "fixture-page");
-    const removePhotoProposal = await toolCall("content.posts.update_published", { ...editInput, removePhoto: true, _requestId: "published-remove-photo-review" });
-    assert.equal(removePhotoProposal.state, "confirmation_unavailable");
-    assert.equal(removePhotoProposal.review.preview.removePhoto, true);
-    assert.match(removePhotoProposal.review.preview.targetLabel, /remove photo/);
-    assert.deepEqual(removePhotoProposal.review.preview.media, []);
-    assert.notEqual(removePhotoProposal.review.payloadDigest, editProposal.review.payloadDigest);
+    const editProposal = (await toolCall("content.actions.preview", {action:"content.posts.update_published",input:editInput,requestId:"published-edit-review"})).result.preview;
+    assert.equal(editProposal.state, "proposed");
+    assert.equal(editProposal.preview.content, editInput.content);
+    assert.equal(editProposal.preview.previousContent, draft.content);
+    assert.equal(editProposal.preview.accounts[0].externalAccountId, "fixture-page");
+    const removePhotoProposal = (await toolCall("content.actions.preview", {action:"content.posts.update_published",input:{...editInput,removePhoto:true},requestId:"published-remove-photo-review"})).result.preview;
+    assert.equal(removePhotoProposal.state, "proposed");
+    assert.equal(removePhotoProposal.preview.removePhoto, true);
+    assert.match(removePhotoProposal.preview.targetLabel, /remove photo/);
+    assert.deepEqual(removePhotoProposal.preview.media, []);
+    assert.notEqual(removePhotoProposal.payloadDigest, editProposal.payloadDigest);
     assert.equal((await pool.query('SELECT metadata FROM "SocialPublishJob" WHERE id=$1', [admittedJob.id])).rows[0].metadata?._kasitek_edit_intent, undefined);
     const internalEdit = await invokeInternalGrowthOperation(core, { operation: "content.posts.update_published", control: "prepare", input: { ...editInput, _requestId: "internal-published-edit-review" }, actor: { subject: "alice" }, authority: { tenantId: "org-a" }, operationId: "internal-published-edit-review", requestId: "internal-published-edit-review", taskId: "fixture-task", conversationId: "fixture-chat" } as ProductCapabilityInvocation);
     assert.equal((internalEdit.value as any).review.preview.content, editInput.content);
-    assert.equal((await request(`/api/operations/reviews/${editProposal.review.id}/decision`, { decision: "approve", payloadDigest: editProposal.review.payloadDigest }, human)).status, 200);
     await pool.query('UPDATE "SocialPost" SET "updatedAt"="updatedAt"+interval \'1 second\' WHERE id=$1', [flowId]);
-    const staleEdit = await client.callTool({ name: "content.posts.update_published", arguments: { ...editInput, _requestId: "published-edit-review", _reviewId: editProposal.review.id } });
+    const staleEdit = await client.callTool({ name: "content.posts.update_published", arguments: { ...editInput, _requestId: "published-edit-review", _reviewId: editProposal.id } });
     assert.equal(staleEdit.isError, true);
     assert.equal((staleEdit.structuredContent as any).code, "operation_review_conflict");
     assert.equal((await pool.query('SELECT content FROM "SocialPost" WHERE id=$1', [flowId])).rows[0].content, draft.content);
@@ -375,7 +374,8 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     const rejectedReplay = await toolCall("content.posts.delete", {postId:largeId,_previewId:rejectedProposal.id});
     assert.equal(rejectedReplay.state, "rejected");
     const accessEvents = (await pool.query(`SELECT envelope->'data' AS data FROM analytics_outbox WHERE contract_name='growth.agent.access@1'`)).rows.map(row => row.data);
-    for (const action of ["proposed", "approved", "rejected", "succeeded"]) assert(accessEvents.some(event => event.action === action), action);
+    assert(!accessEvents.some(event=>event.action === "approved" && ["content.posts.schedule","content.posts.reschedule","content.posts.unschedule","content.posts.publish_batch","content.jobs.cancel"].includes(event.operation)),"direct actions must not fabricate approval events");
+    for (const action of ["rejected", "succeeded"]) assert(accessEvents.some(event => event.action === action), action);
     assert(accessEvents.every(event => Object.keys(event).sort().join(",") === "action,kind,operation,outcome"));
     for(const event of accessEvents.filter(event=>event.action==="succeeded")) assert.equal(event.outcome,["content.posts.publish","content.posts.publish_batch","content.posts.publish_batch.retry","content.posts.schedule","content.posts.reschedule","content.jobs.retry"].includes(event.operation)?"admitted":"completed");
 

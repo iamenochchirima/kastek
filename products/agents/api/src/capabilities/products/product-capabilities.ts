@@ -25,7 +25,7 @@ export function registerProductManifest(input:ProductCapabilityManifest):Product
   if(requestDigest(content)!==hash||new Set(parsed.operations.map(op=>op.operation)).size!==parsed.operations.length)throw invalid();
   const adapter=productAdapterRegistry.resolve({adapter:parsed.adapter,transport:"native_http",protocolVersion:null});
   for(const operation of parsed.operations){
-    if(!adapter.handlers.includes(operation.handlerRef)||!["read","draft_write","reviewed_write"].includes(operation.policy.effect))throw invalid();
+    if(!adapter.handlers.includes(operation.handlerRef)||!["read","draft_write","authorized_write","reviewed_write"].includes(operation.policy.effect))throw invalid();
     preflightToolSchema(operation.inputSchema);if(operation.outputSchema)preflightToolSchema(operation.outputSchema);
     if(operation.inputSchema.type!=="object")throw invalid();
   }

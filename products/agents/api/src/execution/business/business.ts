@@ -718,7 +718,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                       if(!productReview)throw new PlatformError("PRODUCT_REVIEW_REQUIRED",409,"Review the exact operation before continuing");
                       return {value:await options.product.commit(taskId,id,productBinding,productReview,ctx.request().attemptCompletedSignal,recovering),tokens:0};
                     }
-                    return {value:await options.product.invoke(taskId,id,productBinding,args,ctx.request().attemptCompletedSignal,productBinding.policy.effect==="draft_write"&&recovering),tokens:0};
+                    return {value:await options.product.invoke(taskId,id,productBinding,args,ctx.request().attemptCompletedSignal,["draft_write","authorized_write"].includes(productBinding.policy.effect)&&recovering),tokens:0};
                   }
                   if (binding) {
                     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE",503,"Connected reads are unavailable");

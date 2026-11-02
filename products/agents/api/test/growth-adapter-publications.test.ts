@@ -4,7 +4,7 @@ import type { GrowthActionClient } from "../src/adapters/products/growth-action-
 import { requestDigest } from "../src/contracts/contracts";
 import { productAdapterRegistry } from "../src/capabilities/products/product-capabilities";
 import { GrowthProductRuntime, growthOperationAdapterManifest, growthOperationAdapterManifestV7,
-  growthOperationAdapterManifestV8, growthCurrentOperationAdapterManifest } from "../src/execution/products/growth-runtime";
+  growthOperationAdapterManifestV8, growthOperationAdapterManifestV9, growthCurrentOperationAdapterManifest } from "../src/execution/products/growth-runtime";
 
 describe("Growth installed operation releases", () => {
   it("keeps retained adapter identities stable and installs revision 9 separately", () => {
@@ -19,8 +19,9 @@ describe("Growth installed operation releases", () => {
       const installed = productAdapterRegistry.resolve({adapter:{id:manifest.id,release:manifest.release,manifestDigest:digest},transport:"native_http",protocolVersion:null});
       expect(installed.handlers).not.toContain("growth.operation.content.actions.preview@1");
     }
+    expect(requestDigest(growthOperationAdapterManifestV9)).toBe("8465b3e82957e5584fe45585c356c849b85aa7a445f91ae8557d7724c96aef70");
     const current = growthCurrentOperationAdapterManifest;
-    expect(current.release).toBe("6");
+    expect(current.release).toBe("7");
     const installed = productAdapterRegistry.resolve({adapter:{id:current.id,release:current.release,manifestDigest:requestDigest(current)},transport:"native_http",protocolVersion:null});
     expect(installed.handlers).toContain("growth.operation.content.actions.preview@1");
   });

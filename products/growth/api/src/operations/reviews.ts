@@ -21,14 +21,14 @@ export interface OperationReviewRow {
   id: string; orgId: string; userId: string; principalId: string; principalKind: string;
   operation: string; version: string; requestKey: string; payloadDigest: string;
   input: Record<string, unknown>; snapshot: Record<string, string>; state: string; result: unknown;
-  decisionSource?: "requested_draft" | "growth_ui" | "mcp_form" | "mcp_app" | null;
+  decisionSource?: "requested_draft" | "requested_action" | "growth_ui" | "mcp_form" | "mcp_app" | null;
   errorCode: string | null; createdAt: Date; updatedAt: Date; expiresAt: Date; taskId: string | null; conversationId: string | null; operationId: string | null;
 }
 export interface OperationInvocation {
   operation: string; input: Record<string, unknown>; requestId?: string; reviewId?: string;
   taskId?: string; conversationId?: string; operationId?: string;
   prepareOnly?: boolean;
-  /** Set only by the retained signed internal publication, never by a tool argument. */
+  /** Retained transport field; content requests no longer require a separate Growth approval. */
   forceReviewed?: boolean;
   continuation?: string;
   requestAudit?: RequestAuditHandle;
@@ -240,7 +240,7 @@ export async function observeGrowthOperationReceipt(core:CoreContext,ctx:Request
   });
 }
 
-/** Shared entry point: private content writes execute on request; public effects consume exact approval. */
+/** Content requests use durable admission; non-content effects retain their existing review policy. */
 async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: OperationInvocation): Promise<Record<string, unknown>> {
   const definition = getGrowthOperation(call.operation);
   validateGrowthOperationInput(call.operation, call.input);
@@ -248,8 +248,8 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
   const context = { ...ctx, idempotencyKey: call.requestId ?? owned?.requestKey ?? ctx.idempotencyKey };
   await authorizeGrowthOperation(core, context, definition);
   const directContentWrite = directContentOperations.has(definition.name);
-  const requestedContentWrite = directContentWrite && !call.forceReviewed;
-  if (definition.review === "none" && !directContentWrite) {
+  const requestedContentWrite = directContentWrite || isContentAction(definition.name);
+  if (definition.review === "none" && !requestedContentWrite) {
     if (call.continuation && definition.effect !== "read") throw new ApiError(409, "operation_continuation_changed", "A continuation can only observe an existing result");
     return { state: "succeeded", result: await invokeGrowthOperation(core, context, call.operation, call.input, {previewBinding:{taskId:call.taskId,conversationId:call.conversationId,operationId:call.operationId}}) };
   }
@@ -263,7 +263,7 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
     if (previous) return previous;
     const snapshot = await resourceSnapshot(core, context, call.input, call.operation);
     const created = (await db.query<OperationReviewRow>(`INSERT INTO "GrowthOperationReview"(id,"orgId","userId","principalId","principalKind",operation,version,"requestKey","payloadDigest",input,snapshot,"expiresAt","taskId","conversationId","operationId","decisionSource") VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now()+interval '30 minutes',$12,$13,$14,$15) RETURNING *`,
-      [randomUUID(), ctx.organizationId, ctx.userId, ctx.principal.id, ctx.principal.kind, definition.name, definition.version, context.idempotencyKey, payloadDigest, canonicalJson(call.input), canonicalJson(snapshot), call.taskId ?? null, call.conversationId ?? null, call.operationId ?? null,requestedContentWrite ? "requested_draft" : null])).rows[0]!;
+      [randomUUID(), ctx.organizationId, ctx.userId, ctx.principal.id, ctx.principal.kind, definition.name, definition.version, context.idempotencyKey, payloadDigest, canonicalJson(call.input), canonicalJson(snapshot), call.taskId ?? null, call.conversationId ?? null, call.operationId ?? null,directContentWrite ? "requested_draft" : null])).rows[0]!;
     if (!requestedContentWrite) await enqueueGrowthAgentAccess(db, { orgId: created.orgId, subjectId: created.id, kind: "operation", action: "proposed", operation: created.operation, time: created.createdAt });
     return created;
   });
@@ -275,17 +275,18 @@ async function runGrowthOperation(core: CoreContext, ctx: RequestContext, call: 
     return { state: "uncertain", review: operationReviewView(core, row), message: "The result needs reconciliation. Do not repeat this action with a new request identity." };
   }
   if (["rejected", "failed", "expired"].includes(row.state) || +new Date(row.expiresAt) <= Date.now()) return { state: row.state === "proposed" || row.state === "approved" ? "expired" : row.state, review: operationReviewView(core, row) };
-  const requestedDraft = requestedContentWrite && row.state === "proposed";
-  if (row.state !== "approved" && !requestedDraft) return { state: "approval_required", review: operationReviewView(core, row) };
-  if (call.prepareOnly || call.continuation) return { state: "approval_required", review: operationReviewView(core, row) };
+  const requestedAction = requestedContentWrite && row.state === "proposed";
+  if (row.state !== "approved" && !requestedAction) return { state: "approval_required", review: operationReviewView(core, row) };
+  if (call.prepareOnly || call.continuation) return { state: requestedContentWrite ? "prepared" : "approval_required", review: operationReviewView(core, row) };
   if (+new Date(row.expiresAt) <= Date.now()) throw conflict("This review expired");
   const snapshot = await resourceSnapshot(core, context, call.input, call.operation);
   if (digest(snapshot) !== digest(row.snapshot)) throw conflict("The content, account or record changed. Prepare a new review.");
   if (isContentAction(call.operation) && snapshot.preview && JSON.parse(snapshot.preview).validation?.ready === false)
     throw conflict("Resolve the preview validation issues before executing");
-  const claimed = await core.pool.query(`UPDATE "GrowthOperationReview" SET state='executing',"decisionSource"=CASE WHEN $3::boolean THEN 'requested_draft' ELSE "decisionSource" END,"updatedAt"=now() WHERE id=$1 AND state=$2`, [row.id,requestedDraft ? "proposed" : "approved",requestedDraft]);
+  const requestSource=requestedAction?(directContentWrite?"requested_draft":"requested_action"):null;
+  const claimed = await core.pool.query(`UPDATE "GrowthOperationReview" SET state='executing',"decisionSource"=COALESCE($3::text,"decisionSource"),"updatedAt"=now() WHERE id=$1 AND state=$2`, [row.id,requestedAction ? "proposed" : "approved",requestSource]);
   if (!claimed.rowCount) return { state: "uncertain", review: operationReviewView(core, { ...row, state: "executing" }) };
-  if (requestedDraft) row = {...row,decisionSource:"requested_draft"};
+  if (requestSource) row = {...row,decisionSource:requestSource};
   try {
     const result = await invokeGrowthOperation(core, { ...context, operationReviewId: row.id, idempotencyKey: operationDomainKey(row.id) }, call.operation, call.input, {
       expectedPostRevision: snapshot.postRevision, expectedSnapshotHash: snapshot.snapshotHash,
