@@ -51,3 +51,11 @@ Final local verification: 14 current-source checks passed without skips across O
 operations, SDK MCP and resource safety. The real ChatGPT CIMD fixture passed four checks
 (including its full consent/code/token flow) without skips. No real business workspace was
 granted and no social post was published by these tests.
+
+Hosted verification at 2026-11-02 17:42 UTC: both Growth API and its analytics worker deployed
+merged source `efcb4f115a6a4bad4b1bf628925f084b04ec4405` successfully. The same synthetic
+ChatGPT authorization request now returns 302 to `https://app.kasitek.co.za/oauth/consent`,
+replacing the reproduced400 metadata rejection. No real workspace grant was approved by the
+agent. Native ChatGPT consent completion remains with the user. The
+[sanitized deployment record](./releases/growth-chatgpt-cimd-2026-11-02.json) records exact artifacts
+and verification limits.
