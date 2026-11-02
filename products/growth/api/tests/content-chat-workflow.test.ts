@@ -102,6 +102,22 @@ test("content agent drafts, immutable previews and protocol confirmation preserv
         if(action==="content.posts.update_published"){assert.equal(view.preview.content,"New exact caption");assert.equal(view.preview.removePhoto,true);assert.deepEqual(view.preview.media,[]);assert.equal(view.preview.removedMedia[0].assetId,assetId);}
       }
     });
+    await t.test("Threads edit previews explain the API limitation and preserve the actual destination",async()=>{
+      const created=await call("content.posts.draft.create",{draft:{content:"Threads original",channels:["THREADS"],channelSelections:{THREADS:"threads"}}},"threads-edit-error-draft");
+      const id=created.result.post.id;
+      await pool.query(`UPDATE "SocialPost" SET status='PUBLISHED' WHERE id=$1`,[id]);
+      await pool.query(`UPDATE "SocialPublishJob" SET status='PUBLISHED',"externalPostId"='threads-post' WHERE "postId"=$1`,[id]);
+      const before=(await pool.query('SELECT content,"updatedAt" FROM "SocialPost" WHERE id=$1',[id])).rows[0];
+      const response=await call("content.actions.preview",{action:"content.posts.update_published",input:{postId:id,content:"Threads changed",expectedUpdatedAt:before.updatedAt.toISOString()},requestId:"threads-edit-error-preview"});
+      const preview=response.result.preview.preview;
+      assert.equal(preview.validation.ready,false);
+      assert.deepEqual(preview.validation.errors,[{code:"platform_edit_unsupported",message:"The Threads API does not support editing published posts."}]);
+      assert.deepEqual(preview.variants.map((variant:any)=>variant.platform),["THREADS"]);
+      assert.deepEqual(preview.targets.map((target:any)=>target.platform),["THREADS"]);
+      assert.deepEqual(preview.accounts.map((account:any)=>account.id),["threads"]);
+      assert.ok(!preview.targetLabel.includes("Facebook"));
+      assert.deepEqual((await pool.query('SELECT content,"updatedAt" FROM "SocialPost" WHERE id=$1',[id])).rows[0],before);
+    });
     await t.test("revoked or narrowed credentials cannot consume an existing preview",async()=>{
       await pool.query(`INSERT INTO "DeveloperApiKey"(id,"orgId",name,prefix,"keyHash",scopes,status,"createdById","updatedAt") VALUES('key','org-a','Fixture','test','unused',ARRAY['growth:read','growth:manage'],'ACTIVE','alice',NOW())`);
       const keyed:RequestContext={...context,principal:{kind:"workspace_api_key",id:"key",subjectUserId:"alice",clientId:"key"},apiScopes:new Set(["growth:read","growth:manage"])};
