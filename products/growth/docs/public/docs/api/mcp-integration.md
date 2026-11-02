@@ -34,7 +34,8 @@ permissions and supported account type for the requested operation.
 | `growth:publish` | Reviewed publication, scheduling, message sending and other external effects. |
 | `growth:manage` | Reviewed destructive or account-management operations. |
 
-`tools/list` returns only currently permitted canonical operations. Current membership,
+`tools/list` returns currently permitted business operations. App-capable clients also receive an
+app-only confirmation control, hidden from the model. Current membership,
 credential scope and entitlements are rechecked when a tool runs. The same operations, schemas,
 results and review rules serve [REST](./agent-rest.md) and internal Growth agents; internal agents
 call the application directly rather than making an MCP request. The standalone Agents product
@@ -57,17 +58,24 @@ reviews. Changing saved content, account state, media or the requested action re
 preview and confirmation. Provider permissions and format support still apply separately for
 Facebook, Instagram, Threads, TikTok, LinkedIn, X and Bluesky.
 
-A capable `2026-07-28` client can present the exact action as an in-chat confirmation form.
-Growth accepts the client's protocol-level form response bound to the saved preview; a model
-argument such as `approved: true` is not approval. The client must advertise form elicitation
-on the current request. Registered ChatGPT clients additionally need the OpenAI form extension.
-Native host rendering remains subject to client support and deployment acceptance checks.
+Clients declaring `text/html;profile=mcp-app` support receive an embedded exact-preview card.
+Approve or reject in that card. Its app-only control uses a short-lived token delivered only in
+hidden UI metadata; the agent never receives an approval token or an `approved` argument. The
+card shows current readiness, expiry and publication status. Accepted queued work is distinguished
+from confirmed provider publication. Refreshing a token preserves the original review deadline.
 
-Other clients receive `state: "approval_required"` with a payload digest and `review.reviewUrl`.
-Open that Growth page to inspect and approve/reject the exact action, then resume with unchanged
-arguments, `_requestId` and `_reviewId`. The same fallback applies when the exact preview cannot
-fit in the confirmation form. Approval alone does not execute an action. Other non-content
-writes retain their existing Growth review flow.
+Other capable `2026-07-28` clients can use a required Confirm/Cancel form. Registered ChatGPT
+clients also need the OpenAI form extension. Growth binds either client response to the saved
+preview and rechecks authority and content before execution. An empty answer is not approval.
+Clients without working in-chat confirmation receive `confirmation_unavailable`; content remains
+pending. MCP content actions do not send users to an external review page. Manual/team reviews
+and non-content operations retain their existing application review flow.
+
+The static `ui://growth/content-review-v1.html` resource contains no user content or credentials.
+The app-only `content.actions.confirm` control is not a model tool or a general REST operation.
+Clients must hide tool-result UI metadata from model context and enforce app-only visibility.
+Capability declarations alone do not establish that a client rendered the card; operators verify
+resource loading and a genuine button click during acceptance.
 
 Never create a new request identity to retry an uncertain result. Tool results are bounded;
 follow `_continuation` with unchanged business arguments to read further JSON chunks. Large media

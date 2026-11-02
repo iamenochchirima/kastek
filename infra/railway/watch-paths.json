@@ -20,7 +20,11 @@
       "/pnpm-workspace.yaml",
       "/tsconfig.shared.json",
       "/infra/backend/Dockerfile",
-      "/infra/backend/Dockerfile.dockerignore"
+      "/infra/backend/Dockerfile.dockerignore",
+      "/products/growth/api/mcp-app/**/*.ts",
+      "/products/growth/api/mcp-app/**/*.html",
+      "/products/growth/api/mcp-app/**/*.css",
+      "/products/growth/api/scripts/build-content-mcp-app.mjs"
     ],
     "growth-analytics-worker": [
       "/products/growth/api/src/**",
@@ -40,7 +44,11 @@
       "/pnpm-workspace.yaml",
       "/tsconfig.shared.json",
       "/infra/backend/Dockerfile",
-      "/infra/backend/Dockerfile.dockerignore"
+      "/infra/backend/Dockerfile.dockerignore",
+      "/products/growth/api/mcp-app/**/*.ts",
+      "/products/growth/api/mcp-app/**/*.html",
+      "/products/growth/api/mcp-app/**/*.css",
+      "/products/growth/api/scripts/build-content-mcp-app.mjs"
     ],
     "agents-api": [
       "/products/agents/api/src/**",

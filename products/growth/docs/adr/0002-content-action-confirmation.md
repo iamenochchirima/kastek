@@ -25,26 +25,32 @@ review ledger. It does not synchronize providers or imply support for an unavail
 Execution rechecks that binding, current authority and action-specific readiness. An edit to the
 proposal requires a new preview and confirmation. Unknown outcomes remain reconciliation work.
 
-MCP protocol `2026-07-28` clients can present that exact artifact through form elicitation. Growth
-uses per-request capabilities, including the OpenAI extension for registered ChatGPT clients, and
-accepts only a matching protocol input response carrying a scoped, expiring HMAC-authenticated
-request state. The dedicated confirmation secret never enters model input. This authenticates the
-interaction binding; it is not independent cryptographic proof of a human click. Growth trusts the
-authorized client to render the requested confirmation and report its user's response.
+MCP App-capable clients receive a static embedded exact-preview card. A short-lived HMAC token
+bound to the preview, action, identity, workspace, client and request travels only in hidden UI
+metadata. Explicit buttons call an app-only transport control, which reuses the existing decision
+and execution handlers. The model does not receive the token or an approval argument. Static HTML
+contains no user data, and the app renders saved copy as text with a strict content policy.
 
-Legacy clients, missing capabilities and oversized exact forms retain the authenticated Growth
-review page. REST and internal agents use the same business operations, ledger and guards; internal
-agents avoid MCP latency and retain their trusted review mechanism for public actions. No parallel
-executor, approval engine or browser component is introduced.
+Other MCP protocol `2026-07-28` clients can use a required form with a scoped signed request state.
+Both mechanisms trust the authorized host to hide UI metadata, render the requested interface and
+report the user's action. They are not independent cryptographic proof of a human click. Current
+membership, grants, expiry, snapshot and single-use claims remain server-side requirements.
 
-The nullable `decisionSource` column distinguishes `requested_draft`, `growth_ui` and `mcp_form`.
+Live testing found a host that advertised form support but returned an empty accepted answer for
+both boolean and enum schemas. The owner rejected the browser detour as the intended UX. MCP content
+actions now require working in-chat confirmation; unsupported clients remain blocked instead of
+being directed to another page. Manual/team review pages remain available outside that flow.
+REST and internal agents share the business operations and durable ledger. Internal agents use
+task-bound reviews directly. No parallel business executor or approval engine is introduced.
+
+The nullable `decisionSource` column distinguishes `requested_draft`, `growth_ui`, `mcp_form` and `mcp_app`.
 Current manifest/policy revision 9 and adapter release 6 publish this behavior. Revisions 2–8 and
 their descriptors/digests remain unchanged; customized workspace selections never auto-upgrade.
 
 ## Consequences and verification
 
-Private saves become direct while public actions retain exact confirmation. Hosts without native
-forms remain usable through the app. Tests must cover write classification, scope and membership,
+Private saves become direct while public actions retain exact confirmation. Clients without working in-chat
+confirmation retain reads/private writes but cannot confirm a new public action in chat. Tests must cover write classification, scope and membership,
 immutable snapshots, replay, stale confirmation, protocol capability negotiation and uncertain
 outcomes. Controlled protocol fixtures do not establish native host rendering or provider delivery.
 Those remain explicit production acceptance checks in the release record.

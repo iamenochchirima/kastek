@@ -7100,6 +7100,7 @@
               "requested_draft",
               "growth_ui",
               "mcp_form",
+              "mcp_app",
               null
             ],
             "description": "Recorded decision authority; null for historical rows"

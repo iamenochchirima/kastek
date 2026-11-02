@@ -23,6 +23,11 @@ export const isDirectContentOperation = (name:string):boolean => directContentOp
 const hash = (value: unknown) => createHash("sha256").update(canonicalJson(JSON.parse(apiJson(value)))).digest("hex");
 const plain = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
+export async function contentPreviewMediaAssetsDigest(core:CoreContext,ctx:RequestContext,assetIds:string[]):Promise<string> {
+  const assets=assetIds.length?(await core.pool.query(`SELECT id,checksum,"updatedAt","byteSize","processingStatus"::text,"scanStatus"::text FROM "ContentMediaAsset" WHERE "orgId"=$1 AND id=ANY($2::text[]) ORDER BY id`,[ctx.organizationId,assetIds])).rows:[];
+  return hash(assets);
+}
+
 /** Reads saved content and readiness only. Previewing never synchronizes provider connections. */
 export async function contentActionSnapshot(core: CoreContext, ctx: RequestContext, input: Record<string, unknown>, action: string): Promise<Record<string, string>> {
   let postId = typeof input.postId === "string" ? input.postId : undefined;
@@ -49,8 +54,7 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
   const targetPlatform = action === "content.posts.update_published" ? "FACEBOOK" : typeof input.platform === "string" ? input.platform : undefined;
   const jobs = saved.publishJobs.filter(job => (!targetPlatform || job.platform === targetPlatform) && (!input.jobId || job.id === input.jobId) && (!retryJobIds || retryJobIds.has(job.id))).sort((a,b) => a.id.localeCompare(b.id));
   const media = saved.media.map(item => ({assetId:item.asset_id, fileName:item.file_name, mimeType:item.mime_type, kind:item.kind, altText:item.alt_text, sortOrder:item.sort_order, byteSize:String(item.byte_size), width:item.width, height:item.height, durationMs:item.duration_ms, processingStatus:item.processing_status, scanStatus:item.scan_status})).sort((a,b) => a.sortOrder-b.sortOrder || a.assetId.localeCompare(b.assetId));
-  const assets = saved.media.length ? (await core.pool.query(`SELECT id,checksum,"updatedAt","byteSize","processingStatus"::text,"scanStatus"::text FROM "ContentMediaAsset" WHERE "orgId"=$1 AND id=ANY($2::text[]) ORDER BY id`,[ctx.organizationId,saved.media.map(item=>item.asset_id)])).rows : [];
-  snapshot.mediaAssets = hash(assets);
+  snapshot.mediaAssets = await contentPreviewMediaAssetsDigest(core,ctx,saved.media.map(item=>item.asset_id));
   const variants = saved.variants.filter(variant => !targetPlatform || variant.platform === targetPlatform).map(variant => ({platform:variant.platform, content:variant.content, status:variant.status})).sort((a,b) => a.platform.localeCompare(b.platform));
   snapshot.content = hash({content:saved.content, title:saved.title, status:saved.status, channels:saved.channels, scheduledFor:saved.scheduled_for, variants:saved.variants, media, metadata: Object.fromEntries(["instagramImageUrl","tiktokMediaUrl","tiktokMediaType","tiktokPrivacyLevel","tiktokConsent"].map(key => [key, plain(saved.metadata)[key] ?? null]))});
   snapshot.jobs = hash(jobs.map(job => ({id:job.id,platform:job.platform,status:job.status,updatedAt:job.updated_at,externalPostId:job.external_post_id,accountId:job.channel_connection_id,scheduledFor:job.scheduled_for,metadata:job.metadata})));

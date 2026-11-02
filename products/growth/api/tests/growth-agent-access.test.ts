@@ -229,7 +229,7 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     assert.deepEqual(committed, draftSaved);
     assert.equal((await pool.query('SELECT count(*) FROM "SocialPost"')).rows[0].count, "1");
     const reviewed=async(name:string,input:Record<string,unknown>,requestId:string)=>{
-      const proposal=await toolCall(name,{...input,_requestId:requestId});assert.equal(proposal.state,"approval_required",JSON.stringify(proposal));
+      const proposal=await toolCall(name,{...input,_requestId:requestId});assert.equal(proposal.state,"confirmation_unavailable",JSON.stringify(proposal));assert.equal(proposal.review.reviewUrl,undefined);
       const decision=await request(`/api/operations/reviews/${proposal.review.id}/decision`,{decision:"approve",payloadDigest:proposal.review.payloadDigest},human);
       assert.equal(decision.status,200,JSON.stringify(decision.body));
       const args={...input,_requestId:requestId,_reviewId:proposal.review.id};const outcome=await toolCall(name,args);assert.equal(outcome.state,"succeeded",JSON.stringify(outcome));return {outcome,args};
@@ -263,12 +263,12 @@ test("real OAuth, SDK MCP, REST aliases and internal operations share contracts,
     const editable = await toolCall("content.posts.get", { postId: flowId });
     const editInput = { postId: flowId, content: "Exact corrected Facebook caption", expectedUpdatedAt: editable.result.post.updated_at };
     const editProposal = await toolCall("content.posts.update_published", { ...editInput, _requestId: "published-edit-review" });
-    assert.equal(editProposal.state, "approval_required");
+    assert.equal(editProposal.state, "confirmation_unavailable");
     assert.equal(editProposal.review.preview.content, editInput.content);
     assert.equal(editProposal.review.preview.previousContent, draft.content);
     assert.equal(editProposal.review.preview.accounts[0].externalAccountId, "fixture-page");
     const removePhotoProposal = await toolCall("content.posts.update_published", { ...editInput, removePhoto: true, _requestId: "published-remove-photo-review" });
-    assert.equal(removePhotoProposal.state, "approval_required");
+    assert.equal(removePhotoProposal.state, "confirmation_unavailable");
     assert.equal(removePhotoProposal.review.preview.removePhoto, true);
     assert.match(removePhotoProposal.review.preview.targetLabel, /remove photo/);
     assert.deepEqual(removePhotoProposal.review.preview.media, []);

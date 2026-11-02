@@ -21,7 +21,7 @@ export interface OperationReviewRow {
   id: string; orgId: string; userId: string; principalId: string; principalKind: string;
   operation: string; version: string; requestKey: string; payloadDigest: string;
   input: Record<string, unknown>; snapshot: Record<string, string>; state: string; result: unknown;
-  decisionSource?: "requested_draft" | "growth_ui" | "mcp_form" | null;
+  decisionSource?: "requested_draft" | "growth_ui" | "mcp_form" | "mcp_app" | null;
   errorCode: string | null; createdAt: Date; updatedAt: Date; expiresAt: Date; taskId: string | null; conversationId: string | null; operationId: string | null;
 }
 export interface OperationInvocation {
@@ -192,8 +192,8 @@ export async function prepareInternalContentActionFromPreview(core:CoreContext,c
 }
 
 /** Trusted transport boundary. A model-supplied approval field is never accepted here. */
-async function decideContentOperationReview(core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form",decision:"approve"|"reject") {
-  if (source !== "mcp_form") throw new ApiError(403,"forbidden","Unsupported content confirmation source");
+async function decideContentOperationReview(core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form"|"mcp_app",decision:"approve"|"reject") {
+  if (source !== "mcp_form" && source !== "mcp_app") throw new ApiError(403,"forbidden","Unsupported content confirmation source");
   const row = await getOperationReview(core,ctx,id);
   if (!isContentAction(row.operation)) throw new ApiError(403,"forbidden","This confirmation is only valid for content actions");
   await authorizeGrowthOperation(core,{...ctx,idempotencyKey:row.requestKey},row.operation);
@@ -214,8 +214,18 @@ async function decideContentOperationReview(core:CoreContext,ctx:RequestContext,
     return saved;
   });
 }
-export const confirmContentOperationReview = (core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form") => decideContentOperationReview(core,ctx,id,payloadDigest,source,"approve");
-export const rejectContentOperationReview = (core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form") => decideContentOperationReview(core,ctx,id,payloadDigest,source,"reject");
+export const confirmContentOperationReview = (core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form"|"mcp_app") => decideContentOperationReview(core,ctx,id,payloadDigest,source,"approve");
+export const rejectContentOperationReview = (core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string,source:"mcp_form"|"mcp_app") => decideContentOperationReview(core,ctx,id,payloadDigest,source,"reject");
+
+/** Refresh may issue another UI nonce, but never extends the original review deadline. */
+export async function refreshContentOperationPreview(core:CoreContext,ctx:RequestContext,id:string,payloadDigest:string) {
+  const row=await getOperationReview(core,ctx,id);
+  if (!isContentAction(row.operation) || row.payloadDigest!==payloadDigest || row.state!=="proposed" || +new Date(row.expiresAt)<=Date.now()) throw conflict("Only an unexpired unchanged proposed preview can be refreshed");
+  await authorizeGrowthOperation(core,{...ctx,idempotencyKey:row.requestKey},row.operation);
+  const current=await resourceSnapshot(core,ctx,row.input,row.operation);
+  if (digest(current)!==digest(row.snapshot)) throw conflict("The content, account or record changed. Prepare a new preview.");
+  return row;
+}
 
 /** Observes an existing admission only; it never invokes a new business action. */
 export async function observeGrowthOperationReceipt(core:CoreContext,ctx:RequestContext,row:OperationReviewRow):Promise<OperationReviewRow> {

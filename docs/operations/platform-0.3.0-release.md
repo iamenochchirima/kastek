@@ -138,3 +138,34 @@ answer-schema revision; outstanding boolean states expire safely. Ten protocol t
 without skips and the API build passed. This is a compatibility probe, not evidence of native
 rendering. Fixed capability telemetry additionally records declared/supported MCP App MIME
 support without dumping client metadata. Actual in-chat confirmation remains release acceptance.
+
+## Embedded MCP App refinement
+
+The owner explicitly rejected the browser fallback as the intended workflow. The host declares
+MCP App MIME support, so the adapters now serve a versioned static preview card and app-only
+approval control. Full immutable content and scoped nonce stay in hidden UI metadata; the model
+gets a bounded summary. Approve/reject use the existing current-grant/snapshot/CAS/receipt path
+with `mcp_app` provenance. Status only observes/reconciles existing admissions; nonce refresh
+preserves the original review deadline. No action runs on mount. Unsupported content confirmation
+stays blocked in chat without an external review detour. Manual/team review routes remain intact.
+
+The card renders saved per-destination copy once, selected and removed media visuals, account
+identity, timing, validation and delivery status. It escapes content and uses a strict CSP and
+locally bundled official SDK. Signed media previews require existing read permission and unchanged
+asset revisions. Resource reads and all app controls consume the existing durable access budget.
+No raw UI metadata, nonce or signed URL is logged.
+
+Migration `20261102200000_content_mcp_app_confirmation` adds the audit-source constraint value;
+apply once before deploying the new code. Documentation and OpenAPI provenance were updated.
+The SDK/build dependencies change the shared lockfile, which is a legitimate watched build input
+for Node backends. Ordinary future card-source edits trigger only Growth API/worker. The watch
+inventory includes the card source and bundler and has been read back on both live roles.
+
+The actual bundled SDK passed six owned browser combinations at 360, 768 and 1280 pixels in both
+themes, including keyboard choice, no mount execution, single-copy rendering, real image/video
+loading, malformed/stale/expired denial, escaped content, confirmed delivery and lost-acknowledgement
+status recovery without a write retry. Owned database/SDK protocol checks cover hidden nonce,
+foreign/revoked/stale denial, real single-use approval/replay and status-only reconciliation. Native
+resource rendering and a genuine user click remain required acceptance; fixtures do not prove them.
+Rollback retains additive audit schema/receipts and restores prior images. No new analytics registry
+event, Collector configuration or Next.js frontend artifact is needed.

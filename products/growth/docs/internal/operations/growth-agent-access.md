@@ -96,16 +96,33 @@ MCP connection is not evidence of working provider publishing, comments, message
 Requested private content drafts, duplication, media upload and transfer preparation execute
 directly with stable idempotency and durable receipts. Their ledger decision source is
 `requested_draft`; Growth page approvals use `growth_ui`, and protocol form confirmations use
-`mcp_form`. Existing null values retain their historical meaning. Other effects keep exact review.
+`mcp_form`; embedded MCP App decisions use `mcp_app`. Existing null values retain their historical meaning. Other effects keep exact review.
 
 Public/destructive content actions first use `content.actions.preview` and its bound `_previewId`.
-The `2026-07-28` MCP route uses current-request form capabilities and host protocol input responses,
-with HMAC state bound to the exact preview, credential, workspace, client and expiry. Registered
-ChatGPT clients also require the OpenAI form extension. Missing capabilities, legacy clients or
-previews exceeding the 64 KiB exact-form limit use the Growth review URL; never truncate approval
-content. Inspect the protocol/capability response before diagnosing a missing chat form. Controlled
-fixtures verify protocol exchanges; native client rendering and final production acceptance remain
-separate release checks. No frontend component change is part of this release.
+The `2026-07-28` MCP route prefers an embedded MCP App for clients declaring the supported MIME
+type, with exact preview metadata and app-only controls. Its expiring HMAC token binds the current
+credential, workspace, client, action, request and payload. It is delivered only in result `_meta`,
+never model-visible text or structured content. The static resource bundles the official App SDK,
+uses a strict CSP and renders user content as text. The card never approves on mount. Status reads
+may reconcile existing receipts but cannot admit a new effect; nonce refresh does not extend the
+review's original deadline. Ready owned media previews use the existing scoped signing operation.
+
+The `20261102200000_content_mcp_app_confirmation` migration adds `mcp_app` to the decision-source
+constraint. Apply its API SQL or Prisma mirror once through the existing ledger procedure before
+rollout. Build/dev/test generate the ignored UI module via `mcp-app:build`; production runs the
+already bundled artifact. The shared lockfile is an actual build input and remains watched by Node
+backends; ordinary UI-source changes watch only the Growth roles.
+
+Other capable modern clients use a required protocol form with an exact, untruncated preview.
+Registered ChatGPT clients also require the OpenAI form extension. Missing or incomplete in-chat
+confirmation returns `confirmation_unavailable` without a browser detour. The authenticated review
+page remains an explicit manual/team operation. Preserve legacy read and direct-draft support;
+legacy app controls additionally require declared per-request UI capabilities.
+
+Controlled fixtures establish transport, authorization, replay and responsive rendering behavior.
+Native acceptance separately verifies that this host loads the resource, displays the exact preview
+and records a genuine user button click. Inspect bounded `app_ui_declared`/`app_ui_supported` logs;
+never log raw capabilities, content, signed media links, tokens or hidden result metadata.
 
 Every write retains the same stable idempotency path. Operation state is
 separate from embedded draft-review state. Human review renders the persisted copy/variants, scheduled time, selected account identities,

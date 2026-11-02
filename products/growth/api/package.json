@@ -7,16 +7,18 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "tsx watch --include .env src/bootstrap.ts",
+    "build": "pnpm mcp-app:build && tsc -p tsconfig.json",
+    "typecheck": "pnpm mcp-app:build && tsc -p tsconfig.json --noEmit",
+    "dev": "pnpm mcp-app:build && tsx watch --include .env src/bootstrap.ts",
     "start": "node dist/bootstrap.js",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "pnpm mcp-app:build && tsx --test tests/*.test.ts",
     "agents:setup": "tsx scripts/agent-setup.ts",
     "contracts:check": "tsx scripts/refresh-route-contracts.ts",
     "contracts:refresh": "tsx scripts/refresh-route-contracts.ts --write",
     "openapi:check": "tsx scripts/refresh-openapi.ts",
-    "openapi:refresh": "tsx scripts/refresh-openapi.ts --write"
+    "openapi:refresh": "tsx scripts/refresh-openapi.ts --write",
+    "mcp-app:build": "pnpm mcp-app:typecheck && node scripts/build-content-mcp-app.mjs",
+    "mcp-app:typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --lib es2022,dom mcp-app/content-review.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^10.0.1",
@@ -45,11 +47,13 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@opentelemetry/sdk-metrics": "2.10.0",
     "@types/node": "^24.6.0",
     "@types/pg": "^8.15.5",
     "@types/semver": "7.7.0",
     "@types/web-push": "^3.6.4",
+    "esbuild": "0.28.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
