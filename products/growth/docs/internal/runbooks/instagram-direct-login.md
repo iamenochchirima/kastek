@@ -23,13 +23,13 @@ In the Meta app dashboard, enable **Instagram API with Instagram Login** and con
 
 Add the exact OAuth callback for each environment:
 
-- Development: `https://curtis-pastureless-sickerly.ngrok-free.dev/api/social/oauth/instagram/callback`
-- Production: `https://app.kasitek.co.za/api/social/oauth/instagram/callback`
+- Development: `https://dev-client.kasitek.co.za/api/social/oauth/instagram/callback`
+- Production: `https://api.kasitek.co.za/api/social/oauth/instagram/callback`
 
-Configure the webhook callback:
+Configure the webhook callback for the intended deployment. An existing app-host webhook URL can continue through the `/api` proxy; verify deliveries before changing a registered URL:
 
-- Development: `https://curtis-pastureless-sickerly.ngrok-free.dev/api/webhooks/meta`
-- Production: `https://app.kasitek.co.za/api/webhooks/meta`
+- Development: `https://dev-client.kasitek.co.za/api/webhooks/meta`
+- Production: `https://api.kasitek.co.za/api/webhooks/meta`
 
 The webhook verify token must match `META_WEBHOOK_VERIFY_TOKEN` or
 `AUTH_META_WEBHOOK_VERIFY_TOKEN` on the server.
@@ -59,7 +59,7 @@ Restart the server after changing environment variables.
 ## Test flow
 
 1. Add the Instagram professional account as an app tester while the app is in development mode.
-2. Open **Connections** and select **Connect Instagram**.
+2. Open **Connections** → **Connect Instagram**, then choose **Connect Instagram** under **Instagram Login**. The **Continue to Meta** action is the separate Page-linked flow.
 3. Sign in with the Instagram Business or Creator account.
 4. Confirm the account appears under the Instagram section.
 5. Send a message to the professional account from another Instagram account and confirm it reaches the Inbox.
@@ -68,3 +68,21 @@ Restart the server after changing environment variables.
 
 Accounts without an app role require the relevant permissions to have Advanced
 Access through App Review.
+
+## Hosted verification and limits
+
+On 2026-11-02 the live Instagram app ID matched the Instagram Login product, and its allowed
+redirect already matched the current public API callback. No Meta settings or credentials were
+changed. Starting the direct flow from the authenticated live Connections page reached
+Instagram's own login screen with the Instagram-specific client ID and business scopes.
+This does not establish completed authorization until an eligible account signs in and is imported.
+
+Meta's dashboard currently labels this Instagram Login setup as legacy and states that it still
+works. This restoration preserves that existing integration; a Unified Login migration is separate
+work. The credential fields being populated does not prove the stored secret is valid.
+
+Direct Instagram long-lived-token refresh is not implemented in the current runtime. Initial
+connection and explicit reconnect must be verified separately from long-term unattended operation.
+Source tests cover the direct short/long-token/profile path without Page discovery, direct
+publishing and webhook signature validation; they do not establish live delivery or publishing.
+See `docs/operations/instagram-direct-restoration.md` for release evidence and remaining acceptance.
