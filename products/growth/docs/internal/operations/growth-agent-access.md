@@ -15,8 +15,8 @@ are [MCP integration](https://docs.kasitek.co.za/api/mcp-integration) and
 
 The [coverage matrix](../architecture/growth-operations.md) records implemented operation families
 and exclusions. [ADR 0001](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0001-growth-owned-delegation-and-operation-parity.md) records
-the ownership decision. Managed defaults and publication both target revision `8` (adapter release `5`); retained
-requests at revisions `2`–`7` keep their matching publication. Upgrade an existing workspace
+the ownership decision. Managed defaults and publication both target revision `9` (adapter release `6`); retained
+requests at revisions `2`–`8` keep their matching publication. Upgrade an existing workspace
 explicitly with `pnpm --filter @kasitek/growth-core agents:setup upgrade-defaults <organization-id>`;
 the setup worker must be running. Customized selections and existing task versions remain pinned.
 
@@ -33,7 +33,7 @@ remains required for consent; OAuth creates no separate login credentials.
 
 `GROWTH_AGENT_ACCESS_ENABLED` and `GROWTH_AGENT_EFFECTS_ENABLED` must explicitly equal `true` in
 production. Agent access gates MCP, canonical REST, typed canonical aliases and discovery.
-External effects can be disabled while leaving reads and reviewed drafts available. Local nonproduction environments allow
+External effects can be disabled while leaving reads and requested private drafts available. Local nonproduction environments allow
 access/effects unless explicitly disabled. `GROWTH_MCP_ALLOWED_ORIGINS` is a comma-separated
 allowlist of additional browser client origins. Exact Growth frontend origin is always allowed;
 nonbrowser clients need not send Origin. Do not use wildcard origins for bearer access.
@@ -44,7 +44,14 @@ artifact. The additive migrations are:
 - `20261101130000_growth_oauth`: client registration, consent requests, authorization codes,
   independently revocable connections and refresh-token families;
 - `20261101140000_growth_operation_reviews`: durable exact-input reviews and results;
-- `20261101150000_growth_media_transfers`: scoped, expiring media transfer state.
+- `20261101150000_growth_media_transfers`: scoped, expiring media transfer state;
+- `20261102190000_content_agent_workflows`: nullable, constrained `decisionSource` audit column.
+
+Configure a dedicated `GROWTH_MCP_CONFIRMATION_SECRET` on Growth API. Production requires at least
+32 bytes; do not reuse OAuth, session or another service's key. Rotation invalidates outstanding
+sealed chat confirmations, so users must prepare fresh previews; it does not revoke OAuth grants.
+The 0.3.0 production secret was staged separately; migration and deployed-artifact evidence belongs
+in `docs/operations/platform-0.3.0-release.md`, not in an environment export committed to Git.
 
 Analytics separately requires `services/analytics/migrations/20261101160000_growth_agent_access.sql`
 to permit the existing `core-customer-analytics` producer's Growth namespace. Its registry version
@@ -86,7 +93,21 @@ MCP connection is not evidence of working provider publishing, comments, message
 
 ## Reviews, recovery and observations
 
-Every effect goes through the same exact review and stable idempotency path. Operation state is
+Requested private content drafts, duplication, media upload and transfer preparation execute
+directly with stable idempotency and durable receipts. Their ledger decision source is
+`requested_draft`; Growth page approvals use `growth_ui`, and protocol form confirmations use
+`mcp_form`. Existing null values retain their historical meaning. Other effects keep exact review.
+
+Public/destructive content actions first use `content.actions.preview` and its bound `_previewId`.
+The `2026-07-28` MCP route uses current-request form capabilities and host protocol input responses,
+with HMAC state bound to the exact preview, credential, workspace, client and expiry. Registered
+ChatGPT clients also require the OpenAI form extension. Missing capabilities, legacy clients or
+previews exceeding the 64 KiB exact-form limit use the Growth review URL; never truncate approval
+content. Inspect the protocol/capability response before diagnosing a missing chat form. Controlled
+fixtures verify protocol exchanges; native client rendering and final production acceptance remain
+separate release checks. No frontend component change is part of this release.
+
+Every write retains the same stable idempotency path. Operation state is
 separate from embedded draft-review state. Human review renders the persisted copy/variants, scheduled time, selected account identities,
 media filenames and target identity where applicable, with the exact request under an expandable
 disclosure. The preview participates in the immutable snapshot checked before execution.
