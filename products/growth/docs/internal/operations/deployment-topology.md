@@ -41,3 +41,12 @@ Growth, Agents, Agency and Operations API issuer settings reference
 issuer change to discard cached discovery. Product command-signing issuers are independent.
 Vercel frontends proxy authentication through their own backend and need no Identity issuer
 variable. See `infra/identity/HOSTED.md` for realm configuration and hostname migration limits.
+
+## Shared production settings
+
+Analytics ingestion and reporting URLs on Growth, Agents and Agency use direct Railway
+references to `analytics-api.RAILWAY_PUBLIC_DOMAIN`. Production shared variables `NODE_ENV`
+and `KASITEK_ENVIRONMENT` centralize environment labels only. Service keys, database credentials,
+client secrets and release identities remain independently configured. The Collector endpoint
+continues to use its direct service reference. See
+`docs/operations/production-email-and-references.md` for rollout and rollback evidence.
