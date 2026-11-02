@@ -1,8 +1,6 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { useNavigate, useRevalidator } from "react-router";
+
 import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loginUrl } from "@/lib/shared-login";
@@ -25,7 +23,8 @@ export function AcceptInviteClient({
   invitation: InvitationPreview | null;
   isLoggedIn: boolean;
 }) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
@@ -39,7 +38,7 @@ export function AcceptInviteClient({
           <p className="text-sm text-muted-foreground">
             This invitation link is invalid or has expired.
           </p>
-          <Button onClick={() => router.push("/workspace")} className="w-full">
+          <Button onClick={() => navigateTo("/workspace")} className="w-full">
             Go to workspace
           </Button>
         </div>
@@ -56,7 +55,7 @@ export function AcceptInviteClient({
           <p className="text-sm text-muted-foreground">
             This invitation has already been accepted.
           </p>
-          <Button onClick={() => router.push("/workspace")} className="w-full">
+          <Button onClick={() => navigateTo("/workspace")} className="w-full">
             Go to workspace
           </Button>
         </div>
@@ -77,7 +76,7 @@ export function AcceptInviteClient({
             {new Date(invitation.expiresAt).toLocaleDateString()}. Ask an admin to
             send a new one.
           </p>
-          <Button onClick={() => router.push("/workspace")} className="w-full">
+          <Button onClick={() => navigateTo("/workspace")} className="w-full">
             Go to workspace
           </Button>
         </div>
@@ -87,7 +86,7 @@ export function AcceptInviteClient({
 
   async function handleAccept() {
     if (!isLoggedIn) {
-      router.push(`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`);
+      navigateTo(`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`);
       return;
     }
 
@@ -104,8 +103,8 @@ export function AcceptInviteClient({
         throw new Error(data.error ?? "Failed to accept invitation");
       }
       setAccepted(true);
-      router.push("/workspace");
-      router.refresh();
+      navigateTo("/workspace");
+      revalidator.revalidate();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to accept invitation");
     } finally {
@@ -133,7 +132,7 @@ export function AcceptInviteClient({
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/40 text-lg font-bold text-primary">
             {invitation.orgLogo ? (
-              <Image unoptimized width={56} height={56} src={invitation.orgLogo} alt={invitation.orgName} className="h-full w-full rounded-xl object-cover" />
+              <img width={56} height={56} src={invitation.orgLogo} alt={invitation.orgName} className="h-full w-full rounded-xl object-cover" />
             ) : (
               invitation.orgName[0]?.toUpperCase()
             )}

@@ -1,7 +1,5 @@
-"use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { Bell, CheckCircle2, CircleAlert, Info, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
@@ -137,7 +135,7 @@ export function NotificationPopover({ className, buttonClassName }: { className?
           {items.length || unreadCount > 0 ? (
             <div className="divide-y divide-border">
               {items.length ? items.map((item) => (
-                <Link key={item.id} href={item.href} onClick={() => setOpen(false)} className="flex gap-3 px-4 py-3 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                <Link key={item.id} to={item.href} onClick={() => setOpen(false)} className="flex gap-3 px-4 py-3 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                   <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary"><ToneIcon tone={item.tone} /></span>
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] font-medium">{item.title}</span>
@@ -146,7 +144,7 @@ export function NotificationPopover({ className, buttonClassName }: { className?
                   </span>
                 </Link>
               )) : (
-                <Link href="/inbox" onClick={() => setOpen(false)} className="flex gap-3 px-4 py-4 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                <Link to="/inbox" onClick={() => setOpen(false)} className="flex gap-3 px-4 py-4 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                   <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary"><Info className="size-3.5 text-primary" aria-hidden="true" /></span>
                   <span><span className="block text-[13px] font-medium">Unread inbox messages</span><span className="mt-0.5 block text-xs text-muted-foreground">{unreadCount} conversation{unreadCount === 1 ? "" : "s"} need attention.</span><span className="mt-1 block text-[10px] text-muted-foreground">now</span></span>
                 </Link>
@@ -157,7 +155,7 @@ export function NotificationPopover({ className, buttonClassName }: { className?
           )}
 
           <footer className="border-t border-border px-4 py-2.5">
-            <Link href="/workspace/settings?section=notifications" onClick={() => setOpen(false)} className="text-xs font-medium text-primary hover:underline">Notification settings</Link>
+            <Link to="/workspace/settings?section=notifications" onClick={() => setOpen(false)} className="text-xs font-medium text-primary hover:underline">Notification settings</Link>
           </footer>
         </section>
       ) : null}

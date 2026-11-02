@@ -13,7 +13,8 @@ This is the canonical home for private Kasitek documentation.
 
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
 - [Credit Billing Coverage](./architecture/credit-billing-coverage.md)
-- [Audio Input and Transcription](./architecture/audio-transcription.md)
+- [Growth agent execution](./architecture/growth-agent-execution.md)
+- [Audio input support](./architecture/audio-transcription.md)
 - [Admin Analytics and Reporting](./architecture/admin-analytics.md)
 - [Customer Analytics Display Semantics](./architecture/customer-analytics.md)
 - [Access Control](./access-control.md)
@@ -23,10 +24,10 @@ This is the canonical home for private Kasitek documentation.
 - [Environments](./operations/environments.md)
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
-- [Agent Platform technical docs](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/README.md)
+- [Agents technical docs](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/README.md)
+- [Agents target architecture](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/architecture/agent-platform-architecture.md)
+- [Agents implementation status](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
-- [Agent Platform implementation plan](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/plans/agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md)
-- [Agent runtime host boundary](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/architecture/agent-runtime-host-boundary.md)
 - [Shared workspace email connections](./architecture/shared-workspace-email-connections.md)
 
 ## Structure
@@ -36,8 +37,8 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: Growth planning material and historical records; Agent Platform plans live in the
-  [Agents repository](https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents)
+- `docs/plans/`: Growth planning material and historical records. Current Agents planning lives
+  in the Kasitek Agents Stash project; the repository retains its architecture and status summary.
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
@@ -45,4 +46,4 @@ This is the canonical home for private Kasitek documentation.
 - This site contains current Growth technical and operational guidance only.
 - Work items and short checklists belong in the selected issue tracker and linked pull requests.
   Former active plans are preserved under `docs/plans/parked/`. Agent runtime behavior and its
-  current architecture index belong to the Agents repository.
+  current architecture summary belongs to `products/agents/docs/`.

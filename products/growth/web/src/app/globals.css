@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@kasitek-labs/ui/theme.css";
+@source "../../../../../packages/ui/src";
 @import "@xyflow/react/dist/style.css";
 
 .react-flow__edge.observatory-edge-dashed .react-flow__edge-path { stroke-dasharray: 6 5; }
@@ -17,252 +19,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  /* Vantage design tokens — light */
-  --canvas: #F6F7F9;
-  --surface: #FFFFFF;
-  --surface-2: #F0F2F5;
-  --surface-3: #E7EAEF;
-  --line: #E4E7ED;
-  --line-strong: #D3D8E2;
-  --ink-1: #0B1020;
-  --ink-2: #566180;
-  --ink-3: #8B94AB;
-  --brand: #5B5BF0;
-  --brand-strong: #4A46E8;
-  --brand-soft: rgba(91, 91, 240, 0.10);
-  --brand-2: #8B5CF6;
-  --success: #0EA968;
-  --warning: #D97706;
-  --danger: #E11D48;
-  --info: #0284C7;
-  --v-shadow-card: 0 1px 2px rgba(16, 24, 40, .05);
-  --v-shadow-pop: 0 12px 32px -8px rgba(16, 24, 40, .18);
-  --v-shadow-glow: 0 0 24px rgba(91, 91, 240, .18);
-  --v-card-gradient: none;
-
-  --background: var(--canvas);
-  --foreground: var(--ink-1);
-  --card: var(--surface);
-  --card-foreground: var(--ink-1);
-  --popover: var(--surface);
-  --popover-foreground: var(--ink-1);
-  --primary: var(--brand);
-  --primary-foreground: #ffffff;
-  --secondary: var(--surface-2);
-  --secondary-foreground: var(--ink-1);
-  --muted: var(--surface-2);
-  --muted-foreground: var(--ink-2);
-  --accent: var(--brand-soft);
-  --accent-foreground: var(--brand);
-  --destructive: var(--danger);
-  --destructive-foreground: #ffffff;
-  --border: var(--line);
-  --input: var(--line-strong);
-  --ring: var(--brand);
-  --status-attention: var(--warning);
-  --status-attention-soft: color-mix(in srgb, var(--warning) 10%, transparent);
-  --status-success: var(--success);
-  --status-success-soft: color-mix(in srgb, var(--success) 10%, transparent);
-  --status-info: var(--info);
-  --status-info-soft: color-mix(in srgb, var(--info) 10%, transparent);
-  --status-danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
-  --chart-1: #6366F1;
-  --chart-2: #22D3EE;
-  --chart-3: #A78BFA;
-  --chart-4: #34D399;
-  --chart-5: #FBBF24;
-  --chart-6: #FB7185;
-  --radius: 0.875rem;
-  --sidebar: var(--surface);
-  --sidebar-foreground: var(--ink-1);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--brand-soft);
-  --sidebar-accent-foreground: var(--brand);
-  --sidebar-border: var(--line);
-  --sidebar-ring: var(--brand);
-  --shadow-panel: var(--v-shadow-card);
-  --shadow-floating: var(--v-shadow-pop);
-  --overlay: rgba(0, 0, 0, 0.40);
-  --z-topbar: 30;
-  --z-mobile-topbar: 40;
-  --z-overlay: 50;
-  --z-popover: 60;
-  --z-floating: 70;
-  --z-toast: 80;
-  --z-tour: 90;
-  --density-card-padding: 20px;
-  --density-table-row: 44px;
-  --density-control-height: 36px;
-
-  /* Vantage motion contract */
-  --v-motion-fast: 150ms;
-  --v-motion-theme: 220ms;
-  --v-motion-shell: 250ms;
-  --v-motion-content: 400ms;
-  --v-motion-ease: ease;
-  --v-motion-page-ease: cubic-bezier(0.16, 1, 0.3, 1);
-
-  color-scheme: light;
-}
-
-.dark,
-:root[data-theme="dark"] {
-  /* Vantage design tokens — dark */
-  --canvas: #090B11;
-  --surface: #10131C;
-  --surface-2: #171B28;
-  --surface-3: #1F2433;
-  --line: #1E2432;
-  --line-strong: #2B3247;
-  --ink-1: #F3F5F9;
-  --ink-2: #A4AEC4;
-  --ink-3: #5E6880;
-  --brand: #818CF8;
-  --brand-strong: #6366F1;
-  --brand-soft: rgba(129, 140, 248, 0.12);
-  --brand-2: #A78BFA;
-  --success: #34D399;
-  --warning: #FBBF24;
-  --danger: #FB7185;
-  --info: #38BDF8;
-  --v-shadow-card: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 8px 24px rgba(0, 0, 0, .35);
-  --v-shadow-pop: 0 16px 48px rgba(0, 0, 0, .55);
-  --v-shadow-glow: 0 0 24px rgba(129, 140, 248, .22);
-  --v-card-gradient: linear-gradient(180deg, rgba(255, 255, 255, .03), transparent 40%);
-
-  --background: var(--canvas);
-  --foreground: var(--ink-1);
-  --card: var(--surface);
-  --card-foreground: var(--ink-1);
-  --popover: var(--surface);
-  --popover-foreground: var(--ink-1);
-  --primary: var(--brand);
-  --primary-foreground: #ffffff;
-  --secondary: var(--surface-2);
-  --secondary-foreground: var(--ink-1);
-  --muted: var(--surface-2);
-  --muted-foreground: var(--ink-2);
-  --accent: var(--brand-soft);
-  --accent-foreground: var(--brand);
-  --destructive: var(--danger);
-  --destructive-foreground: #ffffff;
-  --border: var(--line);
-  --input: var(--line-strong);
-  --ring: var(--brand);
-  --status-attention: var(--warning);
-  --status-attention-soft: color-mix(in srgb, var(--warning) 12%, transparent);
-  --status-success: var(--success);
-  --status-success-soft: color-mix(in srgb, var(--success) 12%, transparent);
-  --status-info: var(--info);
-  --status-info-soft: color-mix(in srgb, var(--info) 12%, transparent);
-  --status-danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
-  --chart-1: #6366F1;
-  --chart-2: #22D3EE;
-  --chart-3: #A78BFA;
-  --chart-4: #34D399;
-  --chart-5: #FBBF24;
-  --chart-6: #FB7185;
-  --sidebar: var(--surface);
-  --sidebar-foreground: var(--ink-1);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--brand-soft);
-  --sidebar-accent-foreground: var(--brand);
-  --sidebar-border: var(--line);
-  --sidebar-ring: var(--brand);
-  --shadow-panel: var(--v-shadow-card);
-  --shadow-floating: var(--v-shadow-pop);
-  --overlay: rgba(0, 0, 0, 0.40);
-  --density-card-padding: 20px;
-  --density-table-row: 44px;
-  --density-control-height: 36px;
-  color-scheme: dark;
-}
-
-:root[data-density="compact"] {
-  --density-card-padding: 14px;
-  --density-table-row: 36px;
-  --density-control-height: 34px;
-}
+:root { --font-geist: "Geist Variable"; --font-geist-mono: "Geist Mono Variable"; }
 
 @theme inline {
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-serif: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-overlay: var(--overlay);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-chart-6: var(--chart-6);
-  --radius-sm: calc(var(--radius) - 8px);
-  --radius-md: calc(var(--radius) - 4px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 6px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-status-attention: var(--status-attention);
-  --color-status-attention-soft: var(--status-attention-soft);
-  --color-status-success: var(--status-success);
-  --color-status-success-soft: var(--status-success-soft);
-  --color-status-info: var(--status-info);
-  --color-status-info-soft: var(--status-info-soft);
-  --color-status-danger-soft: var(--status-danger-soft);
-
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-ink-1: var(--ink-1);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-brand: var(--brand);
-  --color-brand-strong: var(--brand-strong);
-  --color-brand-soft: var(--brand-soft);
-  --color-brand-2: var(--brand-2);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --color-info: var(--info);
-  --shadow-card: var(--v-shadow-card);
-  --shadow-pop: var(--v-shadow-pop);
-  --shadow-glow: var(--v-shadow-glow);
-
-  --animate-pulse-dot: pulse-dot 2s infinite;
-  --animate-live-pulse: live-pulse 2s ease-out infinite;
-  --animate-shimmer: shimmer 1.6s linear infinite;
+ --animate-pulse-dot: pulse-dot 2s infinite;
+ --animate-live-pulse: live-pulse 2s ease-out infinite;
+ --animate-shimmer: shimmer 1.6s linear infinite;
 }
 
 @layer base {
@@ -348,8 +110,7 @@
 }
 
 @layer components {
-  /* Shared Vantage surface treatment. Keep this on the primitive so every
-     page gets the same depth hierarchy without repeating gradient classes. */
+  /* Product surfaces consume the shared theme. */
   .v-card {
     background-color: var(--card);
     background-image: var(--v-card-gradient);
@@ -380,34 +141,16 @@
     animation: shimmer 1.6s linear infinite;
   }
 
-  .v-brand-gradient {
-    background-image: linear-gradient(135deg, #6366F1 0%, #8B5CF6 55%, #D946EF 100%);
-  }
+  .v-brand-gradient { background: var(--primary); }
 
-  .calendar-surface {
-    background-image:
-      radial-gradient(78% 110% at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 68%),
-      radial-gradient(70% 100% at 100% 100%, color-mix(in srgb, var(--brand-2) 18%, transparent), transparent 72%),
-      linear-gradient(145deg, color-mix(in srgb, var(--card) 82%, var(--primary)), var(--card) 62%);
-  }
+  .calendar-surface { background: var(--card); }
 
   .v-aurora {
     position: relative;
     overflow: hidden;
   }
 
-  .v-aurora::before {
-    content: "";
-    position: absolute;
-    inset: -20%;
-    background:
-      radial-gradient(38% 42% at 24% 30%, rgba(99, 102, 241, .4), transparent 70%),
-      radial-gradient(34% 38% at 74% 24%, rgba(34, 211, 238, .32), transparent 70%),
-      radial-gradient(40% 44% at 58% 78%, rgba(167, 139, 250, .38), transparent 70%);
-    filter: blur(80px);
-    animation: aurora-drift 24s ease-in-out infinite alternate;
-    pointer-events: none;
-  }
+  .v-aurora::before { display: none; }
 
   [data-slot="card"] {
     padding-top: var(--density-card-padding);
@@ -472,7 +215,7 @@
   70%, 100% { transform: scale(1.9); opacity: 0; }
 }
 
-@keyframes kasiai-wave {
+@keyframes assistant-wave {
   0%, 100% {
     transform: translate3d(-13%, -9%, 0) rotate(-12deg) scale(1.08);
     border-radius: 44% 56% 53% 47%;
@@ -483,7 +226,7 @@
   }
 }
 
-@keyframes kasiai-wave-secondary {
+@keyframes assistant-wave-secondary {
   0%, 100% {
     transform: translate3d(14%, 8%, 0) rotate(18deg) scale(1.12);
     border-radius: 54% 46% 42% 58%;

@@ -1,19 +1,20 @@
+import { useLoaderData } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchOrgs, fetchOrgMembers, fetchOrgInvitations, getActiveOrgId } from "@/lib/orgs";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { TeamPageClient } from "./team-page-client";
 import type { Org, OrgMember, OrgInvitation } from "@/lib/orgs";
 
-export const metadata = { title: "Team | KasiTek" };
+export function meta() { return [{ title: "Team | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export default async function TeamPage() {
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
+  if (!session?.user?.id) throw redirect("/login");
 
-  const orgs = await fetchOrgs();
-  if (orgs.length === 0) redirect("/workspace");
+  const orgs = await fetchOrgs(request);
+  if (orgs.length === 0) throw redirect("/workspace");
 
-  const activeId = await getActiveOrgId();
+  const activeId = await getActiveOrgId(request);
   const activeOrg: Org = (activeId ? orgs.find((o) => o.id === activeId) : null) ?? orgs[0]!;
 
   const [members, invitations] = await Promise.all([
@@ -24,6 +25,11 @@ export default async function TeamPage() {
   const currentMember = members.find((m) => m.userId === session.user.id);
   const currentRole = currentMember?.role ?? "MEMBER";
 
+  return { session, orgs, activeOrg, members, invitations, currentRole };
+}
+
+export default function TeamPage() {
+  const { session, orgs, activeOrg, members, invitations, currentRole } = useLoaderData<typeof clientLoader>();
   return (
     <TeamPageClient
       org={activeOrg}

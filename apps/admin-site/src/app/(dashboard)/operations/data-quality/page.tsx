@@ -1,5 +1,2 @@
-import { AdminDataQualityView } from "@/components/admin/admin-operations-views";
-
-export const metadata = { title: "Data quality | KasiTek Labs" };
-
-export default function DataQualityPage() { return <AdminDataQualityView />; }
+import { redirect } from "next/navigation";
+export default function RetiredOperationsPage() { redirect("/operations"); }

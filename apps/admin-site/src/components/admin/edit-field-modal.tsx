@@ -13,6 +13,7 @@ export default function EditFieldModal({
   placeholder,
   type = "text",
   loading,
+  error,
   onSave,
   onCancel,
 }: {
@@ -22,6 +23,7 @@ export default function EditFieldModal({
   placeholder?: string;
   type?: string;
   loading?: boolean;
+  error?: string | null;
   onSave: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -64,6 +66,7 @@ export default function EditFieldModal({
             data-dialog-autofocus
           />
         )}
+        {error ? <p role="alert" className="text-sm text-status-danger">{error}</p> : null}
         <DialogFooter>
           <button onClick={onCancel} disabled={loading} className={buttonClassName({ variant: "ghost", size: "md" })}>Cancel</button>
           <button onClick={() => onSave(input)} disabled={loading} className={buttonClassName({ size: "md" })}>{loading ? "Saving..." : "Save"}</button>

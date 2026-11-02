@@ -1,5 +1,8 @@
 "use client";
 
+import OutreachRecovery from "./outreach-recovery";
+import { allOutreachPages } from "@/lib/outreach-pages";
+import { adminRequest } from "@/lib/admin-request";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import ConfirmModal from "./confirm-modal";
@@ -115,20 +118,21 @@ export default function OutreachLeadsTable({
     setAllLeadsError(null);
     try {
       // Persist matched draft data into DB first so bulk send uses real lead records.
-      await fetch(`/api/outreach/sync-drafts`, {
+      const syncResponse = await adminRequest(`/api/outreach/sync-drafts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ campaignId }),
       });
 
-      const [resLeads, resMerge] = await Promise.all([
-        fetch(`/api/outreach/${campaignId}/leads`),
+      const syncResult=await syncResponse.json();
+      if (!syncResult.ok) throw new Error("Some drafts failed to import");
+      const [leadsData, resMerge] = await Promise.all([
+        allOutreachPages<Lead>(`/api/outreach/${campaignId}/leads`,fetch),
         fetch(`/api/outreach/sync-drafts?debug=1&campaignId=${campaignId}&limit=2000&includeDraftData=1`),
       ]);
-      const leadsData = await resLeads.json().catch(() => []);
       const mergeData = await resMerge.json().catch(() => null);
 
-      if (!resLeads.ok || !Array.isArray(leadsData)) {
+      if (!Array.isArray(leadsData)) {
         setAllLeadsError("Failed to load full campaign leads.");
         setAllCampaignLeads(null);
         return;
@@ -208,36 +212,28 @@ export default function OutreachLeadsTable({
     if (emailStatus === "sent") {
       data.emailSentAt = new Date().toISOString();
     }
-    await fetch(`/api/outreach/${campaignId}/leads/${leadId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    router.refresh();
-    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    try {
+      await adminRequest(`/api/outreach/${campaignId}/leads/${leadId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      router.refresh();
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
+      return true;
+    } catch (failure) { showToast("error", failure instanceof Error ? failure.message : "Unable to update lead"); return false; }
   }
 
   async function bulkUpdateStatus(status: string) {
     setUpdating(true);
-    await Promise.all(
-      Array.from(selected).map((id) => updateStatus(id, status))
-    );
-    setSelected(new Set());
-    setSelectMode(false);
+    const outcomes = await Promise.all(Array.from(selected).map((id) => updateStatus(id, status)));
+    if (outcomes.every(Boolean)) { setSelected(new Set()); setSelectMode(false); }
     setUpdating(false);
     router.refresh();
   }
 
   async function handleBulkDelete() {
     setUpdating(true);
-    await Promise.all(
-      Array.from(selected).map((id) =>
-        fetch(`/api/outreach/${campaignId}/leads/${id}`, { method: "DELETE" })
-      )
-    );
-    setSelected(new Set());
-    setSelectMode(false);
-    setShowDeleteModal(false);
+    const results = await Promise.allSettled(Array.from(selected).map((id) => adminRequest(`/api/outreach/${campaignId}/leads/${id}`, { method: "DELETE" })));
+    const failed = results.filter((result) => result.status === "rejected").length;
+    if (failed) showToast("error", `${failed} deletion(s) failed. Refresh and retry the remaining leads.`);
+    else { setSelected(new Set()); setSelectMode(false); setShowDeleteModal(false); }
     setUpdating(false);
     router.refresh();
   }
@@ -617,6 +613,7 @@ export default function OutreachLeadsTable({
                       value={lead.emailStatus}
                       onChange={(status) => updateStatus(lead.id, status)}
                     />
+                    <OutreachRecovery campaignId={campaignId} leadId={lead.id} subject={getLeadSubject(lead)} text={lead.emailTemplate ?? ""} />
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {lead.emailSentAt
@@ -769,7 +766,7 @@ function hasVerifiedDraft(lead: Lead) {
 }
 
 function isAlreadySent(lead: Lead) {
-  return String(lead.emailStatus || "").toLowerCase() === "sent";
+  return ["sent","accepted","partial","submitting","uncertain"].includes(String(lead.emailStatus || "").toLowerCase());
 }
 
 function BulkSendModal({
@@ -1261,19 +1258,23 @@ function EditableField({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save(newValue: string) {
     setSaving(true);
+    setError(null);
+    try {
     const scrollY = window.scrollY;
-    await fetch(`/api/outreach/${campaignId}/leads/${leadId}`, {
+    await adminRequest(`/api/outreach/${campaignId}/leads/${leadId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: newValue || null }),
     });
-    setSaving(false);
     setOpen(false);
     router.refresh();
     requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save field"); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -1291,6 +1292,7 @@ function EditableField({
         placeholder={placeholder}
         type={field === "notes" ? "textarea" : type}
         loading={saving}
+        error={error}
         onSave={save}
         onCancel={() => setOpen(false)}
       />

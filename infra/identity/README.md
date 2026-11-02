@@ -42,6 +42,16 @@ OIDC_ADMIN_CLIENT_SECRET=<same GROWTH_SESSION_ADMIN_SECRET>
 
 The callback goes through Growth's existing same-origin API proxy to Core on port 4000. The logout return URL is exactly `http://localhost:3000/login`. The backchannel endpoint is Core's `http://localhost:4000/api/auth/backchannel-logout`. The separate revocation service account has realm-management/manage-users permission to end provider sessions. This is a privileged backend-only credential; never expose it to the browser. It is restricted to the shared account realm, not the master administration realm. Each production product gets its own OIDC client and exact callbacks; there are no wildcard redirects or shared parent-domain product cookies.
 
+## Agents contract
+
+Agents uses the confidential `agents` browser client. The Vite web app runs on port 3100 and proxies `/api` to the Agents API on port 4100. Its callback is exactly `http://localhost:3100/api/auth/callback`, its logout return is `http://localhost:3100/login`, and its backchannel endpoint is `http://localhost:4100/api/auth/backchannel-logout`. Authorization code login requires PKCE S256. Password and implicit grants are disabled. Copy `AGENTS_OIDC_CLIENT_SECRET` from the ignored identity `.env` into the Agents API's ignored environment with the same name.
+
+The independent `agents-execution` confidential service client uses `AGENTS_EXECUTION_CLIENT_SECRET` and client credentials. Its access token has audience `agents-execution` and the client role `execute`. Browser flows, wildcard redirects, optional scopes and full scope access are disabled. It receives no realm-management permissions. The `configure` command creates missing Agents clients, reconciles their callbacks and scopes, and updates their independent secrets. It preserves Growth and Agency registrations.
+
+Service authentication identifies a caller. An application execution grant separately authorizes a product, organization, resource, initiating principal, immutable agent version, capabilities and lifetime. Admission and subsequent actions must check current grant validity. Provider token exchange is not the application grant or its revocation mechanism. Agents memberships remain in the Agents product database; shared login alone grants no product access.
+
+These registrations configure the identity provider. They do not prove that the application's login, backchannel logout or execution API has been implemented or verified. Validate provider configuration offline with `python3 -m unittest discover -s infra/identity -p 'test_*.py'` from the repository root. Exercise the real application login and logout paths before release.
+
 ## Agency partner contract
 
 Agency uses a separate confidential client named `agency-partner`. Its local callback is `http://localhost:3010/api/tenant/api/partner/auth/callback`, its post-logout return is `http://localhost:3010/login?audience=partner`, and its backchannel logout endpoint is Agency's `http://localhost:8090/api/partner/auth/backchannel-logout`. Set the same independent `AGENCY_PARTNER_OIDC_CLIENT_SECRET` in this ignored identity `.env` and Agency's ignored Tenant API `.env` as `TENANT_PARTNER_OIDC_CLIENT_SECRET`. The `agency-partner-session-admin` service account uses a separate `AGENCY_PARTNER_SESSION_ADMIN_SECRET` in identity and `TENANT_PARTNER_OIDC_ADMIN_CLIENT_SECRET` in Agency; its realm-management permission revokes this user's shared-provider sessions for all-device logout. Then run `./identity.sh configure`. The API validates issuer, audience, nonce and PKCE, and enforces its own 7-day inactivity and 30-day absolute session limits. Agency owner identities and memberships remain in the Agency database; Keycloak login alone grants no business access.
@@ -96,3 +106,32 @@ Check readiness/discovery and use the actual Growth browser code flow. Test fres
 - [Keycloak administration, passkeys, recovery codes and session settings](https://www.keycloak.org/docs/latest/server_admin/index.html)
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)
 - [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html)
+
+## Labs admin contract
+
+Labs administration uses the independent confidential `labs-admin` client. Its callback is
+`http://localhost:3001/api/operations-auth/callback`; its logout return is
+`http://localhost:3001/login`. Backchannel logout goes through
+`http://localhost:3001/api/operations-auth/backchannel-logout` to Operations.
+PKCE S256 is required. Password, implicit and service-account grants are disabled.
+The client receives no customer membership or realm-management roles.
+
+Set an independent `LABS_ADMIN_OIDC_CLIENT_SECRET` in the ignored identity `.env` and run
+`./identity.sh configure`. Copy that secret into the Operations service's private profile as
+`OPS_OIDC_CLIENT_SECRET`, alongside `OPS_OIDC_ISSUER`, `OPS_OIDC_CLIENT_ID=labs-admin`,
+`OPS_PUBLIC_URL=http://localhost:3001`, the exact `OPS_OIDC_REDIRECT_URI`, and
+`OPS_SESSION_ENCRYPTION_KEY` (32 random bytes encoded as 64 hex characters).
+Production requires HTTPS and separately reviewed client registration and operator grants.
+
+Identity login grants no administrator access. Provision an explicit issuer, provider subject
+and stable administrator ID in the Operations database with the service's `provision-admin`
+command. The operator ID, reason and resulting grant are audited. Name and email are display
+metadata; neither assigns roles or links customer accounts. Existing IDs cannot be reassigned
+to a different identity. Principal disable or role changes revoke existing sessions through
+an incremented grant revision.
+
+Operations stores only hashed opaque cookies and encrypts provider refresh tokens server-side.
+Sessions have a 30-minute inactivity deadline and an 8-hour absolute deadline. Provider refresh
+is required at most every 60 seconds; unavailable or revoked refresh credentials invalidate the
+session. Local logout remains effective during provider outages. A Growth outage does not
+prevent existing Operations sessions or new shared-provider logins.

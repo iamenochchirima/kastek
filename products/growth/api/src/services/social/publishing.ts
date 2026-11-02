@@ -6,6 +6,10 @@ import { transaction } from "../../db.js";
 import { ApiError } from "../../error.js";
 import { JOB_STATUSES, bad } from "./common.js";
 import { SQL } from "./publishing-sql.js";
+import { assertSocialPublicationAccount, lockReviewedSocialAccounts, stampSocialPublicationAccounts } from "./account-admission.js";
+import { assertDelegatedSocialAuthority } from "../../operations/delegation.js";
+import { lockSocialPost, refreshSocialPostPublishState, type PostMutationOptions } from "./posts.js";
+import type { SocialPublishJob } from "./types.js";
 export interface PublishExecutionResult {
   jobId: string;
   postId: string;
@@ -44,9 +48,43 @@ export async function claimPublishJob(
 ): Promise<boolean> {
   if (statuses.some((status) => !JOB_STATUSES.includes(status)))
     throw bad("Invalid publish job status");
-  return (
-    (await pool.query(SQL.claim_publish_job[0], [id, statuses])).rowCount === 1
+  return transaction(pool, async tx => {
+    const job = (await tx.query<{ org_id: string; post_id: string }>('SELECT "orgId" AS org_id,"postId" AS post_id FROM "SocialPublishJob" WHERE id=$1', [id])).rows[0];
+    if (!job?.org_id) return false;
+    await lockSocialPost(tx, job.org_id, job.post_id);
+    const claimed = (await tx.query(SQL.claim_publish_job[0], [id, statuses])).rowCount === 1;
+    if (claimed) await refreshSocialPostPublishState(tx, job.post_id);
+    return claimed;
+  });
+}
+
+export async function changePublishJobState(pool: Pool, org: string, id: string, action: "retry" | "cancel", options: PostMutationOptions & { delegation?: Record<string, unknown> | null; actorUserId?: string } = {}): Promise<void> {
+  const status = action === "retry" ? "QUEUED" : "CANCELED";
+  const eligible = action === "retry" ? ["FAILED"] : ["PENDING", "QUEUED", "FAILED"];
+  await transaction(pool, async tx => {
+  const job = (await tx.query<{ post_id: string }>('SELECT "postId" AS post_id FROM "SocialPublishJob" WHERE id=$1 AND "orgId"=$2', [id, org])).rows[0];
+  if (!job) throw missing("Publish job not found");
+  await lockSocialPost(tx, org, job.post_id, options);
+  if (action === "retry") await lockReviewedSocialAccounts(tx, org, options.expectedAccounts);
+  if (action === "retry" && options.delegation === undefined && (await tx.query('SELECT id FROM "SocialPublishJob" WHERE id=$1 AND metadata->\'_kasitek_delegation\' IS NOT NULL AND metadata->\'_kasitek_delegation\' <> \'null\'::jsonb', [id])).rowCount)
+    throw new ApiError(409, "conflict", "Review this post again before retrying");
+  const result = await tx.query(
+    `UPDATE "SocialPublishJob" SET status=$3::"SocialPublishJobStatus","errorMessage"=NULL,
+       "scheduledFor"=CASE WHEN $3='QUEUED' THEN NOW() ELSE "scheduledFor" END,"updatedAt"=NOW()
+     WHERE id=$1 AND "orgId"=$2 AND status::text=ANY($4::text[])
+       AND "externalPostId" IS NULL AND COALESCE(metadata->>'_kasitek_outcome','') <> 'UNKNOWN'`,
+    [id, org, status, eligible],
   );
+  if (!result.rowCount) throw new ApiError(409, "conflict", "The publishing job changed or its outcome requires reconciliation");
+  if (action === "cancel")
+    await tx.query('UPDATE "SocialPublishJob" SET metadata=metadata-\'_kasitek_delegation\' WHERE id=$1', [id]);
+  if (action === "retry" && options.delegation !== undefined) {
+    if (!options.actorUserId) throw new ApiError(400, "bad_request", "The retry actor is required");
+    await tx.query('UPDATE "SocialPublishJob" SET "userId"=$2,metadata=COALESCE(metadata,\'{}\'::jsonb)||$3::jsonb WHERE id=$1', [id, options.actorUserId, canonicalJson({ _kasitek_delegation: options.delegation })]);
+    await stampSocialPublicationAccounts(tx, org, job.post_id, [id]);
+  }
+  await refreshSocialPostPublishState(tx, job.post_id);
+  });
 }
 export function isIndeterminatePublishError(error: unknown): boolean {
   return (
@@ -88,6 +126,7 @@ export async function markJobFailed(
       outcome ?? "FAILED",
       postId,
     ]);
+    await refreshSocialPostPublishState(tx, postId);
   });
 }
 import { readConfig, type CoreConfig } from "../../config.js";
@@ -110,10 +149,31 @@ export interface SocialExecutionOptions extends providers.ProviderOptions {
   config?: CoreConfig;
   blueskyTransport?: bluesky.BlueskyTransport;
   log?: { error(fields: Record<string, unknown>, message?: string): void };
+  deleteAdmission?: SocialDeletionAdmission;
+}
+export interface SocialDeletionAdmission extends PostMutationOptions {
+  idempotencyKey: string;
+  actorId: string;
+}
+interface DeletionIntent {
+  idempotencyKey: string;
+  actorId: string | null;
+  externalPostId: string | null;
+  channelConnectionId: string | null;
+  state: "executing" | "confirmed" | "failed" | "uncertain";
+  message?: string | null;
+}
+function readDeletionIntent(job: SocialPublishJob): DeletionIntent | undefined {
+  if (!job.metadata || typeof job.metadata !== "object" || Array.isArray(job.metadata)) return;
+  const intent = (job.metadata as Record<string, unknown>)._kasitek_delete_intent;
+  return intent && typeof intent === "object" ? intent as DeletionIntent : undefined;
 }
 interface PrivateChannel {
   id: string;
   external_account_id: string | null;
+  owner_user_id: string;
+  org_id: string;
+  platform: string;
   access_token: string | null;
   refresh_token: string | null;
   metadata: Record<string, unknown> | null;
@@ -129,7 +189,7 @@ export function tokenExpiresWithin(
   );
 }
 const PRIVATE_COLUMNS =
-  'id,"externalAccountId" AS external_account_id,"accessToken" AS access_token,"refreshToken" AS refresh_token,metadata';
+  'id,"userId" AS owner_user_id,"orgId" AS org_id,platform::text,"externalAccountId" AS external_account_id,"accessToken" AS access_token,"refreshToken" AS refresh_token,metadata';
 export async function resolveConnectedChannelForPlatform(
   pool: Pool,
   org: string,
@@ -269,6 +329,8 @@ export async function executeSocialPublishJob(
   const org = job.org_id,
     config = options.config ?? readConfig();
   if (job.status === "CANCELED") throw bad("Publish job is canceled");
+  if (job.status === "PUBLISHED" && job.external_post_id === null || job.job_metadata?._kasitek_outcome === "UNKNOWN")
+    throw new ApiError(409, "conflict", "This publish result is unknown; reconcile the provider before retrying");
   if (!isValidPlatform(job.platform)) throw bad("Unsupported social platform");
   const result = (
     status: string,
@@ -283,16 +345,30 @@ export async function executeSocialPublishJob(
   if (job.status === "PUBLISHED" && job.external_post_id !== null)
     return result("PUBLISHED", job.external_post_id);
   const text = trimmed(job.variant_content) ?? job.post_content.trim();
-  let external: string | null,
-    channel: PrivateChannel,
+  let external: string | null = null;
+  let channel: PrivateChannel,
     provider: string,
     published: string;
+  let admittedAccount: Awaited<ReturnType<typeof assertSocialPublicationAccount>>;
+  try {
+    await assertDelegatedSocialAuthority({ pool, config }, org, job.user_id, job.job_metadata);
+    admittedAccount = await assertSocialPublicationAccount(pool, org, job.channel_connection_id, job.platform, job.job_metadata);
+  } catch (error) {
+    await markJobFailed(pool, job.id, job.post_id, error instanceof Error ? error.message : String(error), null);
+    throw error;
+  }
+  const resolveAdmittedChannel = async (pool: Pool, org: string, platform: string, id: string | null) => {
+    const channel = await resolveConnectedChannelForPlatform(pool, org, platform, id);
+    if (admittedAccount && (channel.id !== admittedAccount.connectionId || channel.external_account_id !== admittedAccount.externalAccountId || channel.owner_user_id !== admittedAccount.userId || channel.org_id !== admittedAccount.orgId || channel.platform !== admittedAccount.platform))
+      throw new ApiError(409, "publishing_account_changed", "The publishing account changed. Review this post again.");
+    return channel;
+  };
   try {
     switch (job.platform) {
       case "FACEBOOK": {
         if (job.media.length > 1)
           throw bad("The current Facebook adapter accepts one image per post");
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "FACEBOOK",
@@ -323,7 +399,7 @@ export async function executeSocialPublishJob(
           throw bad(
             "Attach an image or add a public HTTPS image URL before publishing to Instagram",
           );
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "INSTAGRAM",
@@ -347,7 +423,7 @@ export async function executeSocialPublishJob(
         const image = attachedUrl(job.media, config, "IMAGE");
         if (job.media.length && !image)
           throw bad("Threads posts currently support image attachments only");
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "THREADS",
@@ -390,7 +466,7 @@ export async function executeSocialPublishJob(
           throw bad(
             "The current TikTok adapter accepts one uploaded image or video per post",
           );
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "TIKTOK",
@@ -446,7 +522,7 @@ export async function executeSocialPublishJob(
           throw bad("Bluesky posts can include at most 4 images");
         if (Array.from(text).length > 300)
           throw bad("Bluesky posts are limited to 300 characters");
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "BLUESKY",
@@ -550,7 +626,7 @@ export async function executeSocialPublishJob(
           throw bad("X posts can include at most 4 images");
         if (Array.from(text).length > 280)
           throw bad("X posts are currently limited to 280 characters");
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "X",
@@ -571,7 +647,7 @@ export async function executeSocialPublishJob(
           throw bad("The current LinkedIn adapter accepts one image per post");
         if (Array.from(text).length > 3000)
           throw bad("LinkedIn posts are currently limited to 3000 characters");
-        channel = await resolveConnectedChannelForPlatform(
+        channel = await resolveAdmittedChannel(
           pool,
           org,
           "LINKEDIN",
@@ -600,7 +676,7 @@ export async function executeSocialPublishJob(
       job.id,
       job.post_id,
       detail,
-      isIndeterminatePublishError(error) ? "UNKNOWN" : null,
+      external !== null || isIndeterminatePublishError(error) ? "UNKNOWN" : null,
     );
     throw error;
   }
@@ -636,6 +712,7 @@ export async function executeSocialPublishJob(
       }),
       job.post_id,
     ]);
+    await refreshSocialPostPublishState(tx, job.post_id);
   });
   try {
     await recordMeterUsage(
@@ -837,19 +914,43 @@ async function deletePlatforms(
   platform: string | null,
   options: SocialExecutionOptions,
 ): Promise<SocialPostDeletionResult> {
-  const post = await getSocialPost(pool, org, id);
-  if (!post) throw missing("Post not found");
-  const jobs = post.publishJobs.filter(
-    (job) =>
-      job.status === "PUBLISHED" &&
-      (platform === null || job.platform.toUpperCase() === platform),
-  );
-  if (platform !== null && !jobs.length)
-    throw missing(
-      "No published post was found for the requested social platform",
-    );
+  const key = options.deleteAdmission?.idempotencyKey ?? createId();
+  const plans = await transaction(pool, async tx => {
+    await lockSocialPost(tx, org, id);
+    const post = await getSocialPost(pool, org, id);
+    if (!post) throw missing("Post not found");
+    const jobs = post.publishJobs.filter(job =>
+      (job.status === "PUBLISHED" || readDeletionIntent(job)?.idempotencyKey === key) &&
+      (platform === null || job.platform.toUpperCase() === platform));
+    if (platform !== null && !jobs.length) throw missing("No published post was found for the requested social platform");
+    const replay = jobs.every(job => readDeletionIntent(job)?.idempotencyKey === key);
+    if (!replay) await lockSocialPost(tx, org, id, options.deleteAdmission);
+    const admitted: { job: SocialPublishJob; intent: DeletionIntent; replay: boolean }[] = [];
+    for (const job of jobs) {
+      const edit = job.metadata && typeof job.metadata === "object" && !Array.isArray(job.metadata)
+        ? (job.metadata as Record<string, unknown>)._kasitek_edit_intent as { state?: string } | undefined : undefined;
+      if (edit && ["executing", "uncertain"].includes(edit.state ?? ""))
+        throw new ApiError(409, "conflict", "A published update is in progress or requires reconciliation");
+      const prior = readDeletionIntent(job);
+      if (prior?.idempotencyKey === key && options.deleteAdmission && prior.actorId !== options.deleteAdmission.actorId)
+        throw new ApiError(409, "conflict", "This deletion request identity belongs to a different actor");
+      if (prior && ["executing", "uncertain"].includes(prior.state))
+        throw new ApiError(409, "conflict", "A deletion is in progress or its outcome requires reconciliation");
+      if (prior?.idempotencyKey === key) {
+        admitted.push({ job, intent: prior, replay: true });
+        continue;
+      }
+      const intent: DeletionIntent = { idempotencyKey: key, actorId: options.deleteAdmission?.actorId ?? null,
+        externalPostId: job.external_post_id, channelConnectionId: job.channel_connection_id, state: "executing" };
+      await tx.query(`UPDATE "SocialPublishJob" SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{_kasitek_delete_intent}',$2::jsonb,true),"updatedAt"=NOW() WHERE id=$1`, [job.id, canonicalJson(intent)]);
+      admitted.push({ job, intent, replay: false });
+    }
+    return admitted;
+  });
+  const jobs = plans.map(plan => plan.job);
   const results: ProviderDeletionResult[] = [];
-  for (const job of jobs) {
+  for (const plan of plans) {
+    const { job } = plan;
     const result: ProviderDeletionResult = {
       platform: job.platform,
       externalPostId: job.external_post_id,
@@ -857,27 +958,32 @@ async function deletePlatforms(
       message: null,
     };
     results.push(result);
+    if (plan.replay) {
+      result.status = plan.intent.state === "confirmed" ? "DELETED" : "FAILED";
+      result.message = plan.intent.message ?? null;
+      continue;
+    }
+    let uncertain = false;
     if (job.external_post_id === null) {
       result.message = "No provider post ID was saved for this published job";
-      continue;
     }
     if (job.channel_connection_id === null) {
       result.message = "The published job has no channel connection";
-      continue;
     }
     try {
+      if (result.message) throw bad(result.message);
       const channel = await deletionChannel(
         pool,
         org,
         job.platform,
-        job.channel_connection_id,
+        job.channel_connection_id!,
       );
       if (job.platform === "BLUESKY")
         await deleteBlueskyPost(
           pool,
           config,
           channel,
-          job.external_post_id,
+          job.external_post_id!,
           options,
         );
       else {
@@ -885,18 +991,23 @@ async function deletePlatforms(
           throw bad(
             `Reconnect the ${job.platform.toLowerCase()} account before deleting its post`,
           );
+        const deletionTarget = job.platform === "FACEBOOK"
+          ? providers.facebookPublishedMutationTarget(job.external_post_id!, job.metadata) : job.external_post_id!;
+        if (job.platform === "FACEBOOK" && deletionTarget !== job.external_post_id && !deletionTarget.startsWith(`${channel.external_account_id}_`))
+          throw bad("The Facebook Page story does not belong to the connected account");
         await providers.deletePostFromProvider(
           config,
           job.platform,
           channel.access_token,
           channel.external_account_id,
           channel.metadata,
-          job.external_post_id,
+          deletionTarget,
           options,
         );
       }
       result.status = "DELETED";
     } catch (error) {
+      uncertain = isIndeterminatePublishError(error) || !(error instanceof ApiError);
       result.message = errorMessage(error);
       options.log?.error(
         {
@@ -918,7 +1029,7 @@ async function deletePlatforms(
               pool,
               org,
               job.platform,
-              job.channel_connection_id,
+              job.channel_connection_id!,
             )
           ).metadata;
         } catch {}
@@ -927,13 +1038,17 @@ async function deletePlatforms(
           metadata,
           "SOCIAL_POST_DELETE",
         );
-        if (required)
+        if (required && job.channel_connection_id)
           result.authorization = {
             ...required,
             connectionId: job.channel_connection_id,
           };
       }
     }
+    const intent: DeletionIntent = { ...plan.intent, state: result.status === "DELETED" ? "confirmed" : uncertain ? "uncertain" : "failed", message: result.message };
+    await pool.query(`UPDATE "SocialPublishJob" SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{_kasitek_delete_intent}',$2::jsonb,true),
+      status=CASE WHEN $3 THEN 'CANCELED'::"SocialPublishJobStatus" ELSE status END,"updatedAt"=NOW()
+      WHERE id=$1 AND metadata->'_kasitek_delete_intent'->>'idempotencyKey'=$4`, [job.id, canonicalJson(intent), result.status === "DELETED", key]);
   }
   if (results.some((result) => result.status !== "DELETED")) {
     const required = results.find(
@@ -945,6 +1060,10 @@ async function deletePlatforms(
       providerResults: results,
       ...(required ? { authorizationRequired: required } : {}),
     };
+  }
+  if (options.deleteAdmission) {
+    await refreshSocialPostPublishState(pool, id);
+    return { success: true, localDeleted: false, providerResults: results };
   }
   if (platform !== null) {
     for (const job of jobs)
@@ -1063,6 +1182,7 @@ async function processTiktokWebhookEvent(
           canonicalJson({ failedAt: nowRfc3339(), failureReason: reason }),
           updated.postId,
         ]);
+        await refreshSocialPostPublishState(tx, updated.postId);
         return true;
       });
     }
@@ -1088,6 +1208,7 @@ async function processTiktokWebhookEvent(
         }),
         row.postId,
       ]);
+      await refreshSocialPostPublishState(tx, row.postId);
       return true;
     });
     if (updated)
@@ -1223,6 +1344,7 @@ export async function reconcileTiktokPublishJobs(
           }),
           job.post_id,
         ]);
+        await refreshSocialPostPublishState(tx, job.post_id);
         return true;
       });
       if (!updated) continue;
@@ -1256,6 +1378,7 @@ export async function processDueSocialPublishJobs(
   limit: number,
   options: SocialExecutionOptions = {},
 ): Promise<number> {
+  await recoverStalledSocialPublishJobs(pool, limit);
   const webhooks = await processTiktokWebhookEvents(pool, limit),
     reconciled = await reconcileTiktokPublishJobs(pool, limit, options);
   const due = (
@@ -1273,4 +1396,27 @@ export async function processDueSocialPublishJobs(
   }
   await refreshActiveBatches(pool, limit);
   return count + webhooks + reconciled;
+}
+
+export async function recoverStalledSocialPublishJobs(pool: Pool, limit: number): Promise<number> {
+  const candidates = (await pool.query<{ id: string; post_id: string }>(
+    `SELECT id,"postId" AS post_id FROM "SocialPublishJob"
+     WHERE status='PROCESSING' AND "updatedAt" < NOW()-INTERVAL '15 minutes'
+       AND NOT(platform='TIKTOK' AND "externalPostId" IS NOT NULL)
+     ORDER BY "updatedAt" LIMIT $1`, [Math.max(1, Math.min(100, limit))],
+  )).rows;
+  let count = 0;
+  for (const job of candidates) await transaction(pool, async tx => {
+    await tx.query('SELECT id FROM "SocialPost" WHERE id=$1 FOR UPDATE', [job.post_id]);
+    const changed = await tx.query(`UPDATE "SocialPublishJob" SET status='FAILED',
+      "errorMessage"='Publishing was interrupted. Reconcile the provider before retrying.',
+      metadata=COALESCE(metadata,'{}'::jsonb)||'{"_kasitek_outcome":"UNKNOWN","recoveryReason":"abandoned_processing"}'::jsonb,
+      "updatedAt"=NOW() WHERE id=$1 AND status='PROCESSING' AND "updatedAt"<NOW()-INTERVAL '15 minutes'
+      AND NOT(platform='TIKTOK' AND "externalPostId" IS NOT NULL)`, [job.id]);
+    if (changed.rowCount) {
+      await tx.query(`UPDATE "SocialPost" SET status='PROCESSING',metadata=COALESCE(metadata,'{}'::jsonb)||'{"publishOutcome":"UNKNOWN"}'::jsonb,"updatedAt"=NOW() WHERE id=$1`, [job.post_id]);
+      count++;
+    }
+  });
+  return count;
 }

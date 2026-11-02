@@ -1,104 +1,107 @@
 ---
 id: admin-analytics
-title: Admin Analytics and Reporting
+title: Admin analytics and reporting
 slug: /architecture/admin-analytics
 sidebar_position: 6
 owner: engineering
-last_reviewed: 2026-08-27
+last_reviewed: 2026-10-23
 ---
 
-# Admin Analytics and Reporting
+# Admin analytics and reporting
 
-## Scope
+## Boundary
 
-Admin Analytics provides platform-level aggregates and investigation surfaces. It is separate
-from customer workspace analytics and must not expose raw message bodies, prompts, attachments,
-provider payloads, credentials, payment secrets, or unrestricted database access.
-
-The browser uses the Admin Next.js routes as a same-origin proxy. Core remains the authorization
-and data boundary:
+The central admin reads Growth, Agents, and Agency through product-owned HTTP interfaces.
+Each product retains its database, organization identifiers, permissions, and migrations.
+The admin has no direct product database access.
 
 ```text
-Admin browser -> Admin Next.js API route -> Core Admin API -> authoritative Core records
+Admin browser -> same-origin Next.js reporting routes -> product reporting APIs
+                                                     -> Labs Analytics projections
 ```
+
+Product reads supply authoritative current state and financial facts. Registered Analytics
+projections supply event-derived trends. The two remain separately labelled and are never added
+together. The [administrative reporting reference](https://github.com/Kasitek-Labs/kastek/blob/main/docs/operations/admin-reporting.md)
+defines source coverage, metric semantics, configuration, migrations, and rollback.
 
 ## Surfaces
 
 | Surface | Route | Responsibility |
 | --- | --- | --- |
-| Overview | `/analytics` | Platform KPIs, period comparison, coverage, and top-level trends |
-| Usage | `/analytics/usage` | Operations, messages, campaigns, and credit usage trends |
-| Revenue | `/analytics/revenue` | Collections, subscriptions, payment outcomes, and credit lifecycle |
-| Customers | `/analytics/customers` | Organization lifecycle, plan mix, and activity ranking |
-| Activity | `/activity` | Cursor-paginated cross-domain event investigation and optional SSE updates |
-| Reports | `/reports` | Approved report definitions, saved definitions, bounded CSV exports, and export status |
-| Operations | `/operations/health`, `/operations/data-quality`, `/operations/audit` | Health, source freshness/coverage, and security/audit evidence |
+| Overview | `/analytics` | Product summaries with source coverage |
+| Customers | `/analytics/customers` | Product-owned organizations, memberships, plans, and safe customer records |
+| Adoption | `/analytics/adoption` | Recorded activity and supported active-user metrics |
+| Usage | `/analytics/usage` | Product usage, shared execution attribution, tokens, and model cost |
+| Revenue | `/analytics/revenue` | Currency-separated invoice facts and unsupported financial coverage |
+| Reliability | `/analytics/reliability` | Root outcomes, backlog, latency, retries, deliveries, and human intervention |
+| Activity | `/activity` | Growth's cursor-paginated safe activity feed and bounded SSE updates |
+| Reports | `/reports` | Private saved scopes, existing definitions, and audited CSV exports |
+| Operations | `/operations` | Read-only reporting diagnostics across products and Analytics; Growth webhook recovery and separately authorized support grants |
 
-`/dashboard` remains a compatibility route and redirects to `/analytics`.
+`/dashboard` redirects to `/analytics`. The old health, data-quality, and audit pages redirect to
+`/operations`; they are not independent monitoring panels. Activity remains Growth-scoped.
 
-## Core API boundary
+## HTTP interfaces
 
-Core exposes the following Admin-only endpoints under the existing authenticated Admin session:
+The admin uses `GET /api/analytics/cross-product` and
+`POST /api/analytics/cross-product/export`. Product filters select Growth, Agents, Agency, or all.
+An organization filter requires a selected product. The UI retains period, timezone, pagination,
+and supported metric detail dimensions in the URL. Customer search accepts up to 100 characters
+and filters paginated name/ID records only; aggregate metrics keep the original scope. Selecting
+a customer applies its owning product and organization without equating IDs across products.
 
-- `GET /api/admin/analytics/overview`
-- `GET /api/admin/analytics/usage`
-- `GET /api/admin/analytics/revenue`
-- `GET /api/admin/analytics/customers`
-- `GET /api/admin/activity`
-- `GET /api/admin/activity/stream`
-- `GET /api/admin/reports`
-- `POST /api/admin/reports`
-- `POST /api/admin/reports/export`
-- `DELETE /api/admin/reports/{reportId}`
+All three products expose `GET /api/admin/reporting`. Growth authenticates the admin session.
+Agents and Agency verify short-lived assertions bound to actor, capability, audience, method,
+and exact path. Growth or Agency selection also requests Agents execution attributed to that
+consumer through verified product tenant mappings. Equal IDs establish no cross-product relationship.
 
-Analytics queries have bounded date ranges, page sizes, and CSV output. Responses identify the
-requested range and timezone and include freshness/coverage metadata where the source can provide
-it. Current-state billing values come from Core billing records; delayed trend values must not be
-described as exact real-time financial reporting.
+All-organization trends and standalone Agents trends use Analytics `GET /v1/admin/reporting` with a
+request-bound admin assertion. Scoped Growth and Agency trends reuse the scope resolver and signed
+reporting grants. Only registered additive integer metrics are supported. Existing Growth-only
+`/api/admin/analytics/*`, activity, and report-definition APIs remain for their current callers;
+they do not establish cross-product source coverage.
 
-The activity feed combines safe indexed fields from Core event/audit sources. Its cursor is the
-pagination boundary and its live stream is bounded and deduplicated; the database remains the
-source of truth. A reconnecting client must be able to fall back to the query endpoint.
+Operations reads `GET /api/operations/reporting` with the selected service or all four sources.
+Product diagnostics expose configuration presence, bounded source reads, pending/retrying/quarantined
+outbox counts and accepted publication time. Agents adds pending event receipts. Analytics exposes
+aggregate queue, checkpoint and promotion metadata. These observations do not prove worker liveness,
+remote credential acceptance or global completeness, and the panel performs no recovery mutations.
 
-## Authorization and privacy
+Analytics optionally uses `ANALYTICS_REPORTING_DATABASE_URL` for a separate non-owner reporting pool.
+Ingestion and the projection worker retain the main writer connection. The reader has explicit
+projection SELECTs, bounded metadata-function execution, audit INSERT and a narrowly authorized
+reporting-grant INSERT; it cannot write source facts or projections. The operations reference lists
+all role grants and migration requirements.
 
-Core checks the Admin session and `admin:read` before returning analytics. Aggregate analytics is
-available to the approved Admin read roles. Saving, deleting, and exporting report definitions is
-restricted to the approved administrative roles. Support-grant access and security/audit access
-remain distinct operational concerns.
+## State, precision, and permissions
 
-Report definitions are private to their creating Admin. Export requests create an
-`AdminReportExportAuditEvent` record and record success or failure without storing sensitive report
-payloads in the audit row.
+Reports distinguish response generation, latest source observation, and projection completeness.
+Unknown watermarks stay null. Partial, stale, unsupported, unavailable, and genuine zero values
+remain distinct. One source failure does not blank successful product results. Product reads use
+read-only repeatable-read transactions; trends read promoted projection generations.
 
-## Data and schema changes
+Integer and monetary values remain decimal strings across transport and CSV. Charts do not round
+values beyond JavaScript's exact integer range; tables retain exact values. Money remains in its
+source currency. Credits, estimated provider cost, and revenue remain separate units.
 
-The saved-report and export-audit tables are additive:
+Safe records include IDs, scope, state, timestamps, correlation IDs, and an optional product-owned
+organization or workspace name. They exclude messages, prompts, attachments, tool arguments,
+credentials, and raw provider payloads. Only metrics with an implemented record query advertise detail.
 
-- `20260826180000_add_admin_saved_reports`
-- `20260826181000_add_admin_report_export_audit`
+`admin:report` permits reads, `admin:export` permits exports, and `admin:write` permits saved-definition
+changes. Every receiving boundary rechecks authority. Support-content access is separate. Saved
+reports belong to their creating admin and retain definition version, product, domain, and filters.
 
-Do not remove either table as part of a rollback. Reverting the UI and routes is safe while the
-tables remain unused. Any later metric-definition change must preserve report-definition version
-interpretability or mark the saved definition for review.
+Exports retain the same scope, values, and selected record page as the screen. They do not silently
+fetch every page. Growth records export status in `AdminReportExportAuditEvent`; Analytics separately
+audits admin projection queries. Browser responses never expose service credentials.
 
-## Chart and reporting rules
+## Verification
 
-Charts use the selected date range and explicit UTC aggregation. Daily discrete activity is shown
-as bars with readable date ticks, a visible zero baseline, human-readable units, exact hover values,
-and no-data/unavailable states. Long ranges aggregate to readable monthly buckets. Comparisons are
-visually subordinate and must not be confused with the current period. Cash values are primary on
-Revenue; credits remain a separate usage unit.
-
-## Release and verification
-
-Release-specific evidence for this surface follows the [feature and platform release
-process](../operations/release-process.md) and belongs in the associated change or release
-record. This page remains the current technical reference for the boundary, migrations, and
-verification requirements.
-
-Admin TypeScript, lint, production build, and diff checks pass. Authenticated Core smoke checks,
-database verification, and end-to-end activity/report export checks must be rerun when the shared
-Core worktree compiles. The current pending dependency is a concurrent observability change that
-references an out-of-scope `result` value, plus a concurrent organization-scope publisher change
-that must be reconciled before Core can start.
+The [reporting operations reference](https://github.com/Kasitek-Labs/kastek/blob/main/docs/operations/admin-reporting.md#verification)
+lists repeatable checks and rollout responsibilities. The dedicated development profile connects the actual four APIs, publishers, projection worker and
+admin, with independent databases and explicit process ownership. Engineering tests exercise isolated source
+reconciliation, HTTP authority, projection replay, source outages, exact quantities, saved filters,
+exports, and responsive reporting pages. Model evaluations and live provider acceptance remain
+owner-run. Local verification does not establish production deployment.

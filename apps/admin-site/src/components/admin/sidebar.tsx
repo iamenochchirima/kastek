@@ -16,24 +16,21 @@ type NavItem = { href: string; label: string; icon: typeof Gauge };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navigation: NavGroup[] = [
-  { label: "Overview", items: [
-    { href: "/dashboard", label: "Dashboard", icon: Gauge },
-  ] },
   { label: "Analytics", items: [
     { href: "/analytics", label: "Overview", icon: Gauge },
-    { href: "/analytics/usage", label: "Usage", icon: BarChart3 },
+    { href: "/analytics/adoption", label: "Adoption", icon: Users },
+    { href: "/analytics/usage", label: "Usage and cost", icon: BarChart3 },
     { href: "/analytics/revenue", label: "Revenue", icon: ReceiptText },
     { href: "/analytics/customers", label: "Customers", icon: Users },
+    { href: "/analytics/reliability", label: "Reliability", icon: Activity },
   ] },
   { label: "Activity", items: [
     { href: "/activity", label: "Live activity", icon: Activity },
     { href: "/reports", label: "Reports", icon: FileText },
   ] },
   { label: "Operations", items: [
-    { href: "/operations", label: "Agent operations", icon: Activity },
-    { href: "/operations/health", label: "System health", icon: Gauge },
-    { href: "/operations/data-quality", label: "Data quality", icon: BarChart3 },
-    { href: "/operations/audit", label: "Audit", icon: FileText },
+    { href: "/customers", label: "Customers", icon: Users },
+    { href: "/operations", label: "Operations", icon: Activity },
     { href: "/leads", label: "Leads", icon: Users },
     { href: "/conversations", label: "Conversations", icon: Inbox },
   ] },
@@ -43,7 +40,7 @@ const navigation: NavGroup[] = [
     { href: "/billing", label: "Product billing", icon: Handshake },
   ] },
   { label: "Outreach", items: [
-    { href: "/outreach", label: "AI services", icon: Send },
+    { href: "/outreach", label: "Campaigns", icon: Send },
     { href: "/outreach/drafts", label: "Email drafts", icon: Mail },
     { href: "/outreach/delivery", label: "Delivery log", icon: Inbox },
     { href: "/web-services", label: "Web services", icon: Globe2 },
@@ -56,7 +53,7 @@ const navigation: NavGroup[] = [
 ];
 
 function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathname === href || (href !== "/analytics" && pathname.startsWith(`${href}/`));
 }
 
 function Navigation({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {

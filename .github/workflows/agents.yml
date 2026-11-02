@@ -5,7 +5,6 @@ on:
     paths:
       - ".github/workflows/agents.yml"
       - "products/agents/**"
-      - "products/agents/mcp/**"
       - "products/agents/api/scripts/**"
       - "products/agents/api/src/**"
       - "products/agents/api/package.json"
@@ -14,14 +13,12 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "products/agents/api/tsconfig.json"
-      - "products/agents/api/tsconfig.scripts.json"
       - "products/agents/api/vitest.config.ts"
   push:
     branches: [main]
     paths:
       - ".github/workflows/agents.yml"
       - "products/agents/**"
-      - "products/agents/mcp/**"
       - "products/agents/api/scripts/**"
       - "products/agents/api/src/**"
       - "products/agents/api/package.json"
@@ -30,7 +27,6 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "products/agents/api/tsconfig.json"
-      - "products/agents/api/tsconfig.scripts.json"
       - "products/agents/api/vitest.config.ts"
 
 concurrency:
@@ -42,6 +38,19 @@ jobs:
     name: Build Agents source
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector@sha256:cd4ccfdaf62cbfeb5c6ee19ef0dd663406d4ed740c320b324d016a90e85385b3
+        env:
+          POSTGRES_USER: agents_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U agents_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -59,20 +68,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared contracts
-        run: pnpm --filter @kasitek-labs/contracts build
+      - name: Build shared dependencies
+        run: pnpm build:shared
 
       - name: Type-check Agents source
         run: pnpm --dir products/agents/api exec tsc -p tsconfig.json --noEmit
 
-      - name: Type-check repository scripts
-        run: pnpm --dir products/agents/api exec tsc -p tsconfig.scripts.json
+      - name: Verify platform contracts, fresh database and HTTP boundaries
+        env:
+          AGENTS_TEST_DATABASE_URL: postgresql://agents_test:local-test-only@127.0.0.1:5432/postgres
+        run: pnpm --filter @kasitek/agents test --maxWorkers=2
 
-      - name: Verify API health when Collector is unavailable
-        run: pnpm --dir products/agents/api run test:telemetry:collector-unavailable
+      - name: Build platform and interface
+        run: pnpm build:agents
 
-      - name: Verify independent deployment descriptors
-        run: pnpm --dir products/agents/api exec vitest run test/deployment-config.test.ts
-
-      - name: Build local MCP package
-        run: pnpm --dir products/agents/api run build:mcp
+      - name: Verify Restate recovery and cancellation contracts
+        run: bash infra/agents-runtime/verify.sh

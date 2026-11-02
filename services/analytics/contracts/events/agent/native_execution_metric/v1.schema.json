@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/native_execution_metric/v1.schema.json",
+  "title": "Durable native execution metric observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider",
+    "provider_account_ref",
+    "connection_ref",
+    "metric_key",
+    "numeric_value",
+    "unit",
+    "reporting_window_start",
+    "reporting_window_end",
+    "observed_at",
+    "synchronization_run_id",
+    "dimensions",
+    "source_evidence"
+  ],
+  "properties": {
+    "provider": {
+      "const": "agents-native"
+    },
+    "provider_account_ref": {
+      "type": "null"
+    },
+    "connection_ref": {
+      "type": "null"
+    },
+    "metric_key": {
+      "enum": [
+        "agent.native.root_tasks.completed",
+        "agent.native.root_tasks.failed",
+        "agent.native.model.input_tokens",
+        "agent.native.model.output_tokens",
+        "agent.native.model.unknown_usage"
+      ]
+    },
+    "numeric_value": {
+      "type": "number",
+      "minimum": 0
+    },
+    "unit": {
+      "enum": [
+        "count",
+        "tokens"
+      ]
+    },
+    "reporting_window_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reporting_window_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "synchronization_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "source_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "root_task_id"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "root_task_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "operation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "x-kasitek": {
+    "identity": "agent.native.execution.metric@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "prompt",
+      "response",
+      "credential",
+      "token",
+      "body",
+      "arguments"
+    ]
+  }
+}

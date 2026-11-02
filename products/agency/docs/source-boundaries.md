@@ -2,7 +2,7 @@
 
 This note records the source-only relocation covered by [Agency #2](https://github.com/Kasitek-Labs/kasitek-agency/issues/2)
 and [Agency #3](https://github.com/Kasitek-Labs/kasitek-agency/issues/3), with the later Growth
-cleanup tracked in [Growth #8](https://github.com/Kasitek-Labs/kasitek-growth/issues/8). The source
+cleanup tracked in [Growth #8](https://github.com/Kasitek-Labs/kastek/issues/8). The source
 was read from Growth's tracked `growth/main` at `0ae32bf350a074cf3c643dcf221e47f53ddb4f63`.
 Growth's active worktree was left untouched.
 

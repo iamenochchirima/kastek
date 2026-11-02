@@ -303,7 +303,7 @@ export const LIST_CONNECTIONS_0 = `SELECT connection.id, connection.provider,
             CASE connection.status WHEN 'NEEDS_ATTENTION' THEN 0 WHEN 'CONNECTED' THEN 1 ELSE 2 END,
             connection.provider, connection."displayName"`;
 
-export const UPDATE_STATUS_0 = `SELECT status::text FROM "ExternalConnection" WHERE id = $1 AND "orgId" = $2 FOR UPDATE`;
+export const UPDATE_STATUS_0 = `SELECT status::text,"updatedAt" FROM "ExternalConnection" WHERE id = $1 AND "orgId" = $2 FOR UPDATE`;
 
 export const UPDATE_STATUS_1 = `UPDATE "ExternalConnection"
         SET "statusOverride" = CAST($1 AS "ExternalConnectionStatus"),

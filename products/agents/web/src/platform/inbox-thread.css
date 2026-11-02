@@ -1,0 +1,23 @@
+.inbox-messages { display: flex; flex-direction: column; gap: 20px; }
+.inbox-message { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.inbox-message--assistant, .inbox-message--human { flex-direction: row-reverse; }
+.inbox-message-avatar { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: var(--muted); color: var(--muted-foreground); font-size: 11px; font-weight: 600; }
+.inbox-message--assistant .inbox-message-avatar { border-radius: 9px; background: var(--brand-soft); color: var(--brand); }
+.inbox-message-content { min-width: 0; max-width: min(80%, 640px); }
+.inbox-message-meta { display: flex; align-items: baseline; gap: 8px; margin: 0 2px 5px; color: var(--foreground); font-size: 11px; font-weight: 500; }
+.inbox-message-meta time { color: var(--muted-foreground); font-weight: 400; white-space: nowrap; }
+.inbox-message--assistant .inbox-message-meta, .inbox-message--human .inbox-message-meta { justify-content: flex-end; }
+.inbox-message-bubble { padding: 11px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--muted); }
+.inbox-message--assistant .inbox-message-bubble, .inbox-message--human .inbox-message-bubble { border-color: transparent; background: var(--brand-soft); }
+.inbox-message-delivery { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 4px 2px 0; color: var(--muted-foreground); font-size: 11px; }
+.inbox-thread .inbox-composer { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.inbox-composer textarea { min-height: 58px; padding: 4px; resize: vertical; border: 0; background: transparent; box-shadow: none; }
+.inbox-composer textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; box-shadow: none; }
+.inbox-composer-actions { display: flex; justify-content: flex-end; }
+@media (max-width: 767px) { .inbox-message-content { max-width: calc(100% - 44px); } }
+
+@media (min-width: 1051px) and (min-height: 700px) {
+  .inbox-channel-controls { flex: 0 1 auto; min-height: 0; max-height: 45%; overflow-y: auto; overscroll-behavior: contain; }
+  .inbox-thread .inbox-composer { flex: none; }
+}
+.inbox-detail-header h2, .inbox-message-meta span { min-width: 0; overflow-wrap: anywhere; }

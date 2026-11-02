@@ -79,7 +79,6 @@ test(
       LOG_LEVEL: 'info',
       OTEL_SDK_DISABLED: 'true',
       AGENTS_API_URL: providerUrl,
-      AGENTS_INTERNAL_AUTH_SECRET: 'fixture',
       ANALYTICS_INGESTION_URL: providerUrl,
       ANALYTICS_CORE_INGESTION_TOKEN: 'fixture',
       PAYSTACK_MODE: 'test',

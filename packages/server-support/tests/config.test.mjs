@@ -75,3 +75,19 @@ test("shared config helpers preserve Rust parsing, origin and loopback rules", (
     }
   }
 });
+
+test('an explicit service environment file cannot inherit product or working-directory files', async()=>{
+ const {loadServiceEnvironment}=await import('../dist/config.js');
+ const {mkdtempSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {parseEnv}=await import('node:util');
+ const dir=mkdtempSync(join(tmpdir(),'kasitek-env-isolation-'));
+ try{
+  const product=join(dir,'product.env'),cwd=join(dir,'cwd.env'),profile=join(dir,'profile.env');
+  writeFileSync(product,'UNRELATED_PROVIDER_KEY=product-only\n');writeFileSync(cwd,'UNRELATED_PROVIDER_KEY=cwd-only\n');writeFileSync(profile,'DATABASE_NAME=isolated-development\n');
+  function loader(target,calls){return path=>{calls.push(path);try{Object.assign(target,parseEnv(readFileSync(path??cwd,'utf8')));return {};}catch(error){return {error};}};}
+  const target={},calls=[];loadServiceEnvironment(product,loader(target,calls),{KASITEK_ENV_FILE:profile});assert.deepEqual(calls,[profile]);assert.deepEqual(target,{DATABASE_NAME:'isolated-development'});
+  const absent={},missingCalls=[];assert.throws(()=>loadServiceEnvironment(product,loader(absent,missingCalls),{KASITEK_ENV_FILE:join(dir,'missing.env')}),/explicit service environment/);assert.deepEqual(absent,{});assert.equal(missingCalls.length,1);
+  assert.throws(()=>loadServiceEnvironment(product,loader({},[]),{KASITEK_ENV_FILE:' '}),/must name/);
+  const defaults={},defaultCalls=[];loadServiceEnvironment(product,loader(defaults,defaultCalls),{});assert.deepEqual(defaultCalls,[product]);assert.equal(defaults.UNRELATED_PROVIDER_KEY,'product-only');
+  const fallback={},fallbackCalls=[];loadServiceEnvironment(join(dir,'missing.env'),loader(fallback,fallbackCalls),{});assert.deepEqual(fallbackCalls,[join(dir,'missing.env'),undefined]);assert.equal(fallback.UNRELATED_PROVIDER_KEY,'cwd-only');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 
-export const metadata = {
-  title: "Notifications | KasiTek",
-};
+export function meta() { return [{ title: "Notifications | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export default function WorkspaceNotificationsPage() {
-  redirect("/workspace/settings?section=notifications");
+export function clientLoader() {
+  throw redirect("/workspace/settings?section=notifications");
 }
+
+export default function WorkspaceNotificationsPage() { return null; }

@@ -1,12 +1,10 @@
-"use client";
-
 import type { Org } from "@/lib/orgs";
 import type { BillingCredits, BillingSummary, AvailablePlan, BillingUsage } from "@/lib/billing";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
 import { BarChart3, Bell, Building2, CreditCard, ImagePlus, Palette, Upload, UserRound, X } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router";
+import { useNavigate, useRevalidator } from "react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
@@ -63,7 +61,8 @@ export function WorkspaceSettingsClient({
   billingUsage: BillingUsage | null;
   billingQuery: { payment?: string; reference?: string; trxref?: string };
 }) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const appearance = useAppearance();
   const [tab, setTab] = useState<LocalSettingsTab>(initialTab);
   const [name, setName] = useState(org.name);
@@ -76,7 +75,7 @@ export function WorkspaceSettingsClient({
   function selectTab(nextTab: LocalSettingsTab) {
     setTab(nextTab);
     const query = `?section=${nextTab}`;
-    router.push(`/workspace/settings${query}`, { scroll: false });
+    navigateTo(`/workspace/settings${query}`, { preventScrollReset: true });
   }
 
   useEffect(() => {
@@ -137,7 +136,7 @@ export function WorkspaceSettingsClient({
       setLogo(nextLogo || "");
       setLogoFile(null);
       toast.success("Settings saved");
-      router.refresh();
+      revalidator.revalidate();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to update workspace");
     } finally {
@@ -183,7 +182,7 @@ export function WorkspaceSettingsClient({
                 <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                   <h2 className="text-base font-semibold text-foreground">Workspace access</h2>
                   <p className="mt-0.5 text-xs text-muted-foreground">Manage the people in this workspace.</p>
-                  <Button asChild variant="outline" className="mt-4"><Link href="/workspace/team">Team</Link></Button>
+                  <Button asChild variant="outline" className="mt-4"><Link to="/workspace/team">Team</Link></Button>
                 </section>
               </div>
             ) : tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} billingCredits={billingCredits} query={billingQuery} /> : tab === "usage" ? <UsagePanel embedded usage={billingUsage} credits={billingCredits} /> : tab === "organization" ? (

@@ -22,6 +22,7 @@ export type RecordCategory =
   | "scope_definition"
   | "manifest";
 export type ScopeKind =
+  | "agents_organization"
   | "core_organization"
   | "tenant_workspace"
   | "tenant_client";
@@ -293,3 +294,23 @@ export interface ReportQueryRequest {
 export interface ComparisonRequest {
   kind: string;
 }
+
+export * from "./growth-agents.js";
+
+export * from "./admin-reporting.js";
+
+export * from "./admin-reporting-diagnostics.js";
+
+export * from "./growth-agent-provisioning.js";
+
+export * from "./admin-customers.js";
+
+export * from "./product-capabilities.js";
+
+export * from "./product-capability-transport.js";
+
+export * from "./operations.js";
+
+export * from "./growth-operations.js";
+
+export type { GrowthAgentRuntime, GrowthAgentRuntimeOperation } from "./growth-agent-runtime.js";

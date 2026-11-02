@@ -1,119 +1,57 @@
-import type { ReactNode } from "react";
-import { createBrowserRouter, Navigate, Link, useLoaderData, useRouteLoaderData, useRouteError, isRouteErrorResponse, type LoaderFunctionArgs } from "react-router-dom";
-import { AppShell } from "@/components/platform/app-shell";
-import { LiveInbox } from "@/components/platform/live-inbox";
-import { PersonalDeployments } from "@/components/platform/personal-deployments";
-import { Overview, PlannedFeature } from "@/components/platform/overview";
-import { Landing, SignIn } from "@/components/platform/landing";
-import { WorkspaceAccess, AccountSettings } from "@/components/platform/workspace-access";
-import { getSession, type Session } from "@/lib/session";
-import { ApiError } from "@/lib/api-client";
-import { redirect } from "@/lib/navigation";
-type PageController = (props: { params: Promise<Record<string, string | undefined>>; searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
-function LoadedScreen() { return useLoaderData() as ReactNode; }
-function PageNotFound() {
-  return <main className="dashboard-theme min-h-dvh bg-background"><div className="mx-auto max-w-xl px-6 py-20"><h1 className="text-2xl font-semibold">Page not found</h1><p className="mt-4 text-sm leading-6 text-muted-foreground">Check the address, or return to your workspace.</p><div className="mt-7 flex gap-5"><Link className="text-sm text-primary" to="/app">Open workspace</Link><Link className="text-sm text-primary" to="/">Back to home</Link></div></div></main>;
+import { lazy, Suspense } from "react";
+import { createBrowserRouter, Navigate, Link } from "react-router-dom";
+import { WorkspaceShell } from "@/platform/shell";
+import { AgentEditor } from "@/platform/agents";
+import { KnowledgePage } from "@/platform/knowledge";
+import { WebsiteChat } from "@/platform/website";
+
+import { AutomationsPage } from "@/platform/automations";
+import { TaskPage } from "@/platform/task";
+import { Landing } from "@/platform/landing";
+import { Login, Signup } from "@/platform/login";
+import { AgentDirectory, AgentWelcome } from "@/platform/agent-directory";
+import { TasksPage } from "@/platform/tasks";
+import { SettingsPage } from "@/platform/settings";
+import { ConnectionsPage } from "@/platform/connections";
+import { CustomersPage } from "@/platform/customer-records";
+import { InboxPage } from "@/platform/inbox";
+import { OverviewPage } from "@/platform/overview";
+import { AssistantPage } from "@/platform/assistant";
+import { CustomerReturn } from "@/platform/customer-return";
+
+const LandingV2 = lazy(() => import("@/platform/landing-v2").then(module => ({ default: module.LandingV2 })));
+
+function LandingV2Route() {
+  return <Suspense fallback={<main aria-busy="true" aria-label="Loading Agents" style={{ minHeight: "100dvh", background: "#fefefd" }} />}><LandingV2 /></Suspense>;
 }
-function RouteError() {
-  const error = useRouteError();
-  const status = error instanceof ApiError ? error.status : isRouteErrorResponse(error) ? error.status : undefined;
-  const title = status === 404 ? "This page or resource isn't available" : status === 403 ? "Workspace access required" : "We couldn't open this page";
-  const detail = status === 404 ? "Check the address, or return to your workspace." : status === 403 ? "Choose a workspace you have access to, or sign in with another account." : "We couldn't load your workspace. Please try again shortly.";
-  return <main className="dashboard-theme min-h-dvh bg-background"><div className="mx-auto max-w-xl px-6 py-20"><h1 className="text-2xl font-semibold">{title}</h1><p role="status" className="mt-4 text-sm leading-6 text-muted-foreground">{detail}</p><div className="mt-7 flex gap-5"><button className="text-sm text-primary" onClick={() => window.location.reload()}>Try again</button>{status === 403 ? <Link className="text-sm text-primary" to="/onboarding">Choose workspace</Link> : null}<Link className="text-sm text-primary" to="/">Back to home</Link></div></div></main>;
+
+function NotFound() {
+  return <main className="dashboard-theme min-h-dvh bg-background px-6 py-16 text-foreground"><div className="mx-auto max-w-xl space-y-5"><h1 className="text-2xl font-semibold">Page not found</h1><Link to="/app/agents" className="text-sm underline underline-offset-4">Open Agents</Link></div></main>;
 }
-async function requireSession() {
-  try { const session = await getSession(); if (!session?.user?.id) redirect("/login"); return session; }
-  catch (error) { if (error instanceof ApiError && error.status === 401) redirect("/login"); throw error; }
-}
-async function requireWorkspace() {
-  const session = await requireSession();
-  if (!session?.activeOrganizationId || !session.organizations?.some(org => org.id === session.activeOrganizationId)) redirect("/onboarding");
-  return session;
-}
-async function loadPage(page: PageController, { params, request }: LoaderFunctionArgs) {
-  await requireWorkspace();
-  return page({ params: Promise.resolve(params), searchParams: Promise.resolve(Object.fromEntries(new URL(request.url).searchParams)) });
-}
-function SettingsScreen() { return <AccountSettings session={useRouteLoaderData("workspace") as Session} />; }
 export const router = createBrowserRouter([
   { path: "/", Component: Landing },
-  { path: "/login", Component: SignIn },
-  { path: "/signup", element: <SignIn signup /> },
-  { path: "/onboarding", Component: WorkspaceAccess, loader: requireSession, errorElement: <RouteError /> },
-  { id: "workspace", path: "/app", Component: AppShell, loader: requireWorkspace, errorElement: <RouteError />, children: [
-    { index: true, Component: Overview },
-    { path: "agents/personal", Component: PersonalDeployments },
-    { path: "agents/:agentId/appearance", lazy: async () => {
-      const page = await import("./screens/agents/[agentId]/appearance/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/:agentId", lazy: async () => {
-      const page = await import("./screens/agents/[agentId]/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/:agentId/workflow", lazy: async () => {
-      const page = await import("./screens/agents/[agentId]/workflow/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/activity/:runId", lazy: async () => {
-      const page = await import("./screens/agents/activity/[runId]/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/activity", lazy: async () => {
-      const page = await import("./screens/agents/activity/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/analytics", lazy: async () => {
-      const page = await import("./screens/agents/analytics/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/connect", lazy: async () => {
-      const page = await import("./screens/agents/connect/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/conversations", lazy: async () => {
-      const page = await import("./screens/agents/conversations/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/new/general", lazy: async () => {
-      const page = await import("./screens/agents/new/general/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/new", lazy: async () => {
-      const page = await import("./screens/agents/new/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents", lazy: async () => {
-      const page = await import("./screens/agents/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "agents/templates", lazy: async () => {
-      const page = await import("./screens/agents/templates/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "playground", lazy: async () => {
-      const page = await import("./screens/playground/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "studio/new", lazy: async () => {
-      const page = await import("./screens/studio/new/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "studio", lazy: async () => {
-      const page = await import("./screens/studio/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "inbox", Component: LiveInbox },
-    { path: "knowledge", lazy: async () => {
-      const page = await import("./screens/knowledge/page");
-      return { loader: (args: LoaderFunctionArgs) => loadPage(page.default as unknown as PageController, args), Component: LoadedScreen };
-    } },
-    { path: "connections", element: <PlannedFeature title="Connections" description="Connect channels, external tools and product capabilities to your agents." /> },
-    { path: "usage", element: <PlannedFeature title="Usage" description="Review model usage, runtime costs and workspace budgets." /> },
-    { path: "settings", Component: SettingsScreen },
+  { path: "/landingv2", Component: LandingV2Route },
+  { path: "/signup", Component: Signup },
+  { path: "/login", Component: Login },
+  { path: "/chat/:deploymentId", Component: WebsiteChat },
+  { path: "/support/return/:deploymentId", Component: CustomerReturn },
+  { path: "/app", Component: WorkspaceShell, children: [
+    { index: true, element: <Navigate to="overview" replace /> },
+    { path: "overview", Component: OverviewPage },
+    { path: "assistant", Component: AssistantPage },
+    { path: "agents", Component: AgentDirectory, children: [
+      { index: true, Component: AgentWelcome },
+      { path: ":agentId", Component: AgentEditor },
+      { path: ":agentId/conversations/:conversationId", Component: AgentEditor },
+    ] },
+    { path: "tasks", Component: TasksPage },
+    { path: "inbox", Component: InboxPage },
+    { path: "customers", Component: CustomersPage },
+    { path: "settings", Component: SettingsPage },
+    { path: "knowledge", Component: KnowledgePage },
+    { path: "connections", Component: ConnectionsPage },
+    { path: "automations", Component: AutomationsPage },
+    { path: "tasks/:taskId", Component: TaskPage },
   ] },
-  { path: "/agents/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
-  { path: "/studio/*", loader: ({ request }) => { const url = new URL(request.url); redirect(`/app${url.pathname}${url.search}`); } },
-  { path: "/playground", element: <Navigate to="/app/playground" replace /> },
-  { path: "*", Component: PageNotFound },
+  { path: "*", Component: NotFound },
 ]);

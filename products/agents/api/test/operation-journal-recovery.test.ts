@@ -1,0 +1,49 @@
+import {dropClosedTestDatabase} from "./support/database-cleanup";
+import {randomUUID} from 'node:crypto';
+import {execFileSync,spawn,type ChildProcess} from 'node:child_process';
+import {createServer} from 'node:http';
+import {createServer as reservePort} from 'node:net';
+import {resolve} from 'node:path';
+import {Pool,type PoolClient} from 'pg';
+import {afterAll,beforeAll,describe,expect,it} from 'vitest';
+import {setupPlatformSchema} from '../src/composition/setup';
+import {PlatformStore} from '../src/product/agents/store';
+import {defaultBusinessConfiguration,terminalTaskStates,type ExecutionGrant} from '../src/contracts/contracts';
+import {dispatchTasksOnce} from '../src/execution/lifecycle/dispatcher';
+const enabled=process.env.AGENTS_TEST_DATABASE_URL&&process.env.AGENTS_OPERATION_RECOVERY==='1';
+(enabled?describe:describe.skip)('durable physical outcome before native receipt persistence',()=>{
+ let admin:Pool,pool:Pool,worker:ChildProcess|undefined,model:ReturnType<typeof createServer>,databaseUrl='',port=0,ingress='',runtimeAdmin='',modelUrl='',started=false;
+ let calls=0,holdModel=false,releaseModel:(()=>void)|undefined;
+ const database=`agents_receipt_recovery_${randomUUID().replaceAll('-','')}`,container=`agents-receipt-recovery-${randomUUID()}`,pids:number[]=[];
+ const root=resolve(__dirname,'../../../..'),docker=(...args:string[])=>execFileSync('docker',args,{encoding:'utf8',timeout:60000}).trim();
+ async function eventually(check:()=>Promise<boolean>,timeout=30000){const until=Date.now()+timeout;while(Date.now()<until){if(await check())return;await new Promise(resolve=>setTimeout(resolve,75));}throw Error('Owned operation journal recovery checkpoint timed out');}
+ async function stop(){const child=worker;if(child&&child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await new Promise<void>(resolve=>child.once('exit',()=>resolve()));}}
+ async function start(){worker=spawn(process.execPath,['--import','tsx',resolve(__dirname,'customer-inbox-recovery-worker.ts')],{cwd:resolve(root,'products/agents/api'),env:{PATH:process.env.PATH,HOME:process.env.HOME,NODE_ENV:'test',OTEL_SDK_DISABLED:'true',AGENTS_DATABASE_URL:databaseUrl,CHANNEL_RECOVERY_MODEL_URL:modelUrl,CHANNEL_RECOVERY_ORIGIN:'http://localhost:3100',CHANNEL_RECOVERY_PORT:String(port)},stdio:['ignore','pipe','pipe']});const child=worker;let output='';child.stdout!.on('data',chunk=>{output=(output+String(chunk)).slice(-2000);});child.stderr!.on('data',()=>{});await eventually(async()=>{if(child.exitCode!==null)throw Error('Owned journal worker exited');return output.includes('CHANNEL_RECOVERY_WORKER_READY');});pids.push(child.pid!);}
+ beforeAll(async()=>{
+  admin=new Pool({connectionString:process.env.AGENTS_TEST_DATABASE_URL});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(process.env.AGENTS_TEST_DATABASE_URL!);url.pathname='/'+database;databaseUrl=url.href;pool=new Pool({connectionString:databaseUrl,max:10});await setupPlatformSchema(pool);
+  model=createServer(async(request,response)=>{for await(const _chunk of request){}calls++;if(holdModel)await new Promise<void>(resolve=>{releaseModel=resolve;});response.setHeader('content-type','application/json');response.end(JSON.stringify({id:'owned-journal-model',choices:[{finish_reason:'stop',message:{role:'assistant',content:'Known physical response'}}],usage:{prompt_tokens:20,completion_tokens:8}}));});await new Promise<void>(resolve=>model.listen(0,'127.0.0.1',resolve));modelUrl=`http://127.0.0.1:${(model.address() as {port:number}).port}`;
+  const reservation=reservePort();await new Promise<void>(resolve=>reservation.listen(0,'127.0.0.1',resolve));port=(reservation.address() as {port:number}).port;await new Promise<void>(resolve=>reservation.close(()=>resolve()));await start();
+  docker('run','-d','--name',container,'--cpus','2','--memory','768m','--add-host','host.docker.internal:host-gateway','-p','127.0.0.1::8080','-p','127.0.0.1::9070','-v',`${resolve(__dirname,'scheduling-restate.toml')}:/etc/restate-load.toml:ro`,'docker.restate.dev/restatedev/restate:1.7.13@sha256:adf7bca9d89b8c868be682e1a2e1d42043613e988a17bfaad28753ac8d780742','-c','/etc/restate-load.toml');started=true;
+  ingress='http://'+docker('port',container,'8080/tcp');runtimeAdmin='http://'+docker('port',container,'9070/tcp');await eventually(async()=>{try{return(await fetch(runtimeAdmin+'/health')).ok;}catch{return false;}});const registered=await fetch(runtimeAdmin+'/deployments',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uri:`http://host.docker.internal:${port}`,force:false})});expect(registered.ok,await registered.text()).toBe(true);
+ },90000);
+ afterAll(async()=>{releaseModel?.();await stop();if(started)docker('rm','-f',container);if(model)await new Promise<void>(resolve=>model.close(()=>resolve()));await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}},30000);
+ async function fixture(){const store=new PlatformStore(pool),account=await store.ensureAccount({issuer:'https://receipt.fixture.test',subject:randomUUID(),email:'fixture@example.com',displayName:'Receipt fixture'}),org=await store.createOrganization(account.id,'Disposable receipt fixture'),configuration=defaultBusinessConfiguration();configuration.tools=[];
+  const agent=await store.createAgent({accountId:account.id,organizationId:org.id,name:'Receipt fixture',configuration}),version=await store.createVersion({accountId:account.id,organizationId:org.id,agentId:agent.id,expectedRevision:1});
+  const authority={product:'agents' as const,organizationId:org.id,resourceId:agent.id,callerClientId:'agents-execution',principal:{kind:'human' as const,issuer:account.issuer,subject:account.subject}};
+  const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:['model.reply'],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};await store.createGrant({accountId:account.id,grant});return(await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:'Answer briefly'})).task;
+ }
+ async function terminal(id:string){let result:any;await eventually(async()=>{await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin});result=(await pool.query('SELECT * FROM agents_platform.tasks WHERE id=$1',[id])).rows[0];return terminalTaskStates.has(result.state);});return result;}
+ it('recovers a journaled model result after SIGKILL and repeated receipt failures without another physical call',async()=>{
+  const task=await fixture(),before=calls,key=Math.floor(Math.random()*1000000000),sequence=`journal_retry_${task.id.replaceAll('-','')}`,fn=`journal_receipt_${task.id.replaceAll('-','')}`;let lock:PoolClient|undefined;
+  await pool.query(`CREATE SEQUENCE agents_platform.${sequence};CREATE FUNCTION agents_platform.${fn}() RETURNS trigger LANGUAGE plpgsql AS $f$ DECLARE attempt bigint;BEGIN IF NEW.operation_id='model:${task.id}:0' THEN attempt:=nextval('agents_platform.${sequence}');IF attempt=1 THEN PERFORM pg_advisory_xact_lock(${key});ELSIF attempt<=5 THEN RAISE EXCEPTION 'Injected receipt retry' USING ERRCODE='40001';END IF;END IF;RETURN NEW;END $f$;CREATE TRIGGER ${fn} BEFORE INSERT ON agents_platform.operation_usage FOR EACH ROW EXECUTE FUNCTION agents_platform.${fn}();`);
+  try{lock=await pool.connect();await lock.query('SELECT pg_advisory_lock($1)',[key]);await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin});
+   // This trigger can run only inside the second durable step, after Restate acknowledged the physical-result journal entry.
+   await eventually(async()=>Number((await pool.query("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'")).rows[0].n)>0);expect(calls-before).toBe(1);await stop();await lock.query('SELECT pg_advisory_unlock($1)',[key]);lock.release();lock=undefined;await start();
+   expect(await terminal(task.id)).toMatchObject({state:'completed',output:'Known physical response'});expect(calls-before).toBe(1);expect(new Set(pids).size).toBe(pids.length);
+   expect((await pool.query('SELECT state,accounted_tokens FROM agents_platform.operations WHERE task_id=$1',[task.id])).rows).toEqual([{state:'completed',accounted_tokens:28}]);expect((await pool.query('SELECT count(*)::int n FROM agents_platform.operation_usage WHERE task_id=$1',[task.id])).rows[0].n).toBe(1);expect(Number((await pool.query(`SELECT last_value FROM agents_platform.${sequence}`)).rows[0].last_value)).toBeGreaterThanOrEqual(6);
+  }finally{if(lock){await lock.query('SELECT pg_advisory_unlock($1)',[key]);lock.release();}await pool.query(`DROP TRIGGER ${fn} ON agents_platform.operation_usage;DROP FUNCTION agents_platform.${fn}();DROP SEQUENCE agents_platform.${sequence};`);}
+ },60000);
+ it('keeps a crash before physical-result journaling uncertain and never reissues the model',async()=>{
+  const task=await fixture(),before=calls;holdModel=true;await dispatchTasksOnce(pool,{ingressUrl:ingress,adminUrl:runtimeAdmin});await eventually(async()=>calls-before===1);await stop();holdModel=false;releaseModel?.();await start();expect(await terminal(task.id)).toMatchObject({state:'uncertain',error_code:'OPERATION_OUTCOME_UNCERTAIN'});expect(calls-before).toBe(1);expect((await pool.query("SELECT state FROM agents_platform.operations WHERE task_id=$1 AND kind='model'",[task.id])).rows).toEqual([{state:'uncertain'}]);
+ },60000);
+});

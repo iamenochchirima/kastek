@@ -1,7 +1,7 @@
-import { AdminUsageAnalytics } from "@/components/admin/admin-usage-analytics";
+import { ProductReportingPage } from "@/components/admin/product-reporting-page";
 
-export const metadata = { title: "Usage analytics | KasiTek Labs" };
+export const metadata = { title: "Usage and cost | KasiTek Labs" };
 
-export default function UsagePage() {
-  return <div className="admin-page"><AdminUsageAnalytics /></div>;
+export default function Page() {
+  return <ProductReportingPage domain="usage" />;
 }

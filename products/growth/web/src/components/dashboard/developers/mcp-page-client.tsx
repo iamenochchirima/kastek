@@ -1,57 +1,70 @@
-"use client";
-
-import Link from "next/link";
-import { useState } from "react";
-import { Check, Copy, ExternalLink, KeyRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import { MotionReveal } from "@/components/ui/motion-reveal";
-import { useDevelopersData } from "./developers-data";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { PageHeader, PageHeaderContent, PageHeaderTitle } from "@/components/ui/page-header";
+import { oauthPermissionLabels } from "./oauth-consent";
 
-type ClientId = "claude" | "chatgpt" | "claude-code" | "cursor" | "other";
-
-const clients: Record<ClientId, { label: string; body: string; local: boolean }> = {
-  claude: { label: "Claude", body: "Open Settings → Connectors, choose Add custom connector, paste the endpoint, and approve the connection.", local: false },
-  chatgpt: { label: "ChatGPT", body: "Open the connector or MCP settings, add the endpoint, and complete the approval step before testing a safe read.", local: false },
-  "claude-code": { label: "Claude Code", body: "Use the local adapter when Claude Code needs a command-launched server. Keep your Developer API key in the client environment.", local: true },
-  cursor: { label: "Cursor", body: "Use a remote MCP server when supported, or configure the local adapter as a command-based server.", local: false },
-  other: { label: "Other MCP client", body: "Use the hosted Streamable HTTP endpoint or the local stdio adapter, depending on what your client supports.", local: false },
-};
-
-function copy(value: string) {
-  void navigator.clipboard?.writeText(value);
-}
+type Connection = {id:string;clientName:string;scopes:string[];revokedAt:string|null;createdAt:string;accessExpiresAt:string};
+type DeveloperConfig = {mcpAvailable:boolean;mcpEndpoint:string|null;mcpOAuth:unknown;restBaseUrl:string};
 
 export function McpPageClient() {
-  const { config } = useDevelopersData();
-  const [selected, setSelected] = useState<ClientId>("claude");
-  const client = clients[selected];
-  const localSetup = `export KASITEK_MCP_URL="${config.mcpEndpoint}"\nexport KASITEK_API_KEY="<developer-api-key>"\nnpx -y ${config.mcpPackage}`;
-
+  const [config,setConfig]=useState<DeveloperConfig|null>(null);
+  const [connections,setConnections]=useState<Connection[]>([]);
+  const [connectionsLoaded,setConnectionsLoaded]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [target,setTarget]=useState<Connection|null>(null);
+  const [revoking,setRevoking]=useState(false);
+  const revokeTrigger=useRef<HTMLButtonElement|null>(null);
+  const connectionsHeading=useRef<HTMLHeadingElement|null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const [settings,list]=await Promise.all([fetch("/api/developers",{credentials:"include",cache:"no-store",signal:controller.signal}),fetch("/api/oauth/connections",{credentials:"include",cache:"no-store",signal:controller.signal})]);
+        if(!settings.ok)throw new Error(settings.status === 403 ? "You do not have access to developer settings." : "Could not load MCP settings");
+        const payload=await settings.json() as {config:DeveloperConfig};setConfig(payload.config);
+        if(!list.ok)throw new Error("Could not load agent connections");
+        setConnections(((await list.json()) as {connections:Connection[]}).connections);
+        setConnectionsLoaded(true);
+      } catch(caught) { if(!controller.signal.aborted)setError(caught instanceof Error?caught.message:"Could not load MCP settings"); }
+      finally { if(!controller.signal.aborted)setLoading(false); }
+    })();
+    return () => controller.abort();
+  },[]);
+  async function revoke() {
+    if(!target||revoking)return;
+    setRevoking(true);
+    try {
+      const response=await fetch(`/api/oauth/connections/${encodeURIComponent(target.id)}`,{method:"DELETE",credentials:"include"});
+      if(!response.ok)throw new Error("Could not revoke access");
+      setConnections(current=>current.map(connection=>connection.id===target.id?{...connection,revokedAt:new Date().toISOString()}:connection));
+      setTarget(null);toast.success("Access revoked");
+    } catch(caught) { toast.error(caught instanceof Error?caught.message:"Could not revoke access"); }
+    finally {setRevoking(false);}
+  }
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
-        <PageHeader><PageHeaderContent><PageHeaderTitle>MCP</PageHeaderTitle><PageHeaderDescription>Connect an AI client.</PageHeaderDescription></PageHeaderContent></PageHeader>
-
-        <MotionReveal>
+        <PageHeader><PageHeaderContent><PageHeaderTitle>MCP</PageHeaderTitle></PageHeaderContent></PageHeader>
+        {loading ? <div aria-label="Loading MCP settings" className="space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-48 w-full" /></div> : <>
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
         <Card>
-          <CardContent className="space-y-5 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Choose your client</h2><p className="mt-1 text-sm text-muted-foreground">Each path uses the same endpoint, API key, and capability policy.</p></div><Button asChild variant="outline"><Link href="/developers/api-keys"><KeyRound className="mr-2 h-4 w-4" />Create API key</Link></Button></div>
-            <div className="flex gap-5 overflow-x-auto border-b border-border" role="tablist" aria-label="MCP clients">{(Object.keys(clients) as ClientId[]).map((id) => <button key={id} type="button" role="tab" aria-selected={selected === id} onClick={() => setSelected(id)} className={`whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium ${selected === id ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{clients[id].label}</button>)}</div>
-            <p className="text-sm leading-6 text-foreground">{client.body}</p>
-            <div className="rounded-lg border border-border bg-secondary/30 p-4"><p className="text-xs font-medium text-muted-foreground">MCP endpoint</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-background px-3 py-2 text-xs text-foreground">{config.mcpEndpoint}</code><Button type="button" variant="outline" size="icon-sm" onClick={() => copy(config.mcpEndpoint)} aria-label="Copy MCP endpoint"><Copy className="h-3.5 w-3.5" /></Button></div></div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Check className="h-4 w-4 text-primary" />Use the same Developer API key for MCP and REST. Keep it in the client environment or secret settings.</div>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{config?.mcpAvailable ? "Agent connection" : "MCP unavailable"}</h2>{config?.mcpAvailable ? <Badge variant="secondary">OAuth</Badge> : null}</div>
+            {config?.mcpAvailable && config.mcpEndpoint ? <><p className="text-sm text-muted-foreground">Add this server in your agent, then sign in to Growth.</p><div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center"><code className="min-w-0 flex-1 break-all rounded-md border border-border bg-muted px-3 py-2 text-xs">{config.mcpEndpoint}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard.writeText(config.mcpEndpoint!).then(()=>toast.success("Endpoint copied"),()=>toast.error("Could not copy endpoint"))}>Copy endpoint</Button></div></> : <p className="text-sm text-muted-foreground">Use the REST API with a Developer API key.</p>}
+            <Button asChild variant="outline"><Link to="/developers/api">View API</Link></Button>
           </CardContent>
         </Card>
-        </MotionReveal>
-
-        <MotionReveal delay={0.08}>
-        <Card>
-          <CardContent className="space-y-4 p-5"><div><h2 className="text-base font-semibold">Local stdio setup</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Use this only when the client requires a local command-launched MCP server. Create one Developer API key, set it in the client environment, and let the package forward MCP messages.</p></div><pre className="overflow-x-auto rounded-lg bg-secondary/50 p-4 text-xs leading-6 text-foreground">{localSetup}</pre><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => copy(localSetup)}><Copy className="mr-2 h-3.5 w-3.5" />Copy setup</Button><Button asChild variant="ghost"><Link href="/developers/cli">View CLI setup <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button></div></CardContent>
-        </Card>
-        </MotionReveal>
+        <section className="space-y-3"><h2 ref={connectionsHeading} tabIndex={-1} className="text-base font-semibold">Connected agents</h2>{!connectionsLoaded ? <p className="text-sm text-muted-foreground">Connections unavailable</p> : connections.length ? <div className="divide-y divide-border rounded-lg border border-border">{connections.map(connection=><div key={connection.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="break-words text-sm font-medium">{connection.clientName}</p><Badge variant="secondary">{connection.revokedAt?"Revoked":"Active"}</Badge></div><p className="mt-1 break-words text-xs text-muted-foreground">{connection.scopes.map(scope=>oauthPermissionLabels[scope]??scope).join(" · ")}</p></div>{!connection.revokedAt?<Button type="button" variant="outline" size="sm" className="self-start sm:self-auto" onClick={event=>{revokeTrigger.current=event.currentTarget;setTarget(connection);}}>Revoke access</Button>:null}</div>)}</div>:<p className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">No connected agents</p>}</section>
+        </>}
       </div>
+      <Dialog open={Boolean(target)} onOpenChange={open=>{if(!open&&!revoking)setTarget(null);}}><DialogContent onCloseAutoFocus={event=>{event.preventDefault();if(revokeTrigger.current?.isConnected)revokeTrigger.current.focus();else connectionsHeading.current?.focus();}}><DialogHeader><DialogTitle>Revoke access?</DialogTitle><DialogDescription>{target?.clientName} will lose access to this workspace.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" disabled={revoking} onClick={()=>setTarget(null)}>Cancel</Button><Button type="button" variant="destructive" disabled={revoking} onClick={()=>void revoke()}>{revoking?"Revoking…":"Revoke access"}</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

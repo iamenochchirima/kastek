@@ -24,7 +24,7 @@ FRONTEND_URL=https://app.example.com
 KASITEK_CORE_PUBLIC_URL=https://api.example.com
 ```
 
-Do not expose the secret key through Next.js public variables. Product plans must have an active internal `ProductPlan` record and a matching `paystackPlanCode`. Prices and plan codes belong in database records, not application code.
+Do not expose the secret key through browser-exposed build variables. Product plans must have an active internal `ProductPlan` record and a matching `paystackPlanCode`. Prices and plan codes belong in database records, not application code.
 
 `PAYSTACK_MODE` selects which key is loaded. It defaults to `test`. The legacy `PAYSTACK_SECRET_KEY` remains a fallback for local compatibility, but deployments should use the mode-specific variables so a test process cannot silently pick up the live key.
 

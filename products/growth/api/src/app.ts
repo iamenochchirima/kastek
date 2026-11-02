@@ -1,3 +1,4 @@
+import { adminAuditActors, adminRawBodies } from "./identity/admin-session.js";
 import { installHttpObservability } from "./observability/http.js";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
@@ -45,6 +46,7 @@ export async function buildApp(
       redact: [
         "req.headers.authorization",
         "req.headers.cookie",
+        'req.headers["x-kasitek-admin-authority"]',
         'res.headers["set-cookie"]',
       ],
       hooks: {
@@ -89,6 +91,7 @@ export async function buildApp(
     { parseAs: "string" },
     (request, body, done) => {
       const text = typeof body === "string" ? body : body.toString("utf8");
+      adminRawBodies.set(request,text);
       let parsed: unknown;
       try {
         parsed = parseRequestJson(request, text);
@@ -132,11 +135,13 @@ export async function buildApp(
     delegator: (request, callback) => {
       const value = request.headers.origin;
       let allowed = value === context.config.frontendUrl;
+      const machinePath = request.url.split("?")[0] ?? "";
+      const machineOrigin = machinePath === "/mcp" || machinePath.startsWith("/oauth/") || machinePath.startsWith("/.well-known/") || machinePath.startsWith("/v1/");
+      if (value && machineOrigin && (context.config.env.GROWTH_MCP_ALLOWED_ORIGINS ?? "").split(",").includes(value)) allowed = true;
       if (value) {
         try {
           const parsed = new URL(value);
           const http = ["http:", "https:"].includes(parsed.protocol);
-          if (http && request.url.startsWith("/api/widget/v1/")) allowed = true;
           const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
           const loopback =
             hostname === "localhost" ||
@@ -169,13 +174,22 @@ export async function buildApp(
           "Content-Type",
           "Authorization",
           "Idempotency-Key",
+          "MCP-Protocol-Version",
+          "Mcp-Session-Id",
+          "Mcp-Method",
+          "Mcp-Name",
           "X-Audio-Idempotency-Key",
           "X-Audio-File-Name",
           "X-Audio-Caption",
           "X-Audio-Display-Name",
         ],
+        exposedHeaders: ["WWW-Authenticate", "MCP-Protocol-Version", "Mcp-Session-Id", "X-Request-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
       });
     },
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const actor = adminAuditActors.get(request);
+    if (actor && (!['GET','HEAD','OPTIONS'].includes(request.method) || /export/.test(request.routeOptions.url ?? ''))) request.log.info({event:'admin.action', service:'growth', actor_id:actor.id, actor_role:actor.role, request_id:request.id, route:request.routeOptions.url, method:request.method, status_code:reply.statusCode}, 'Admin action');
   });
   const health = () => ({
     service: "kasitek-core",

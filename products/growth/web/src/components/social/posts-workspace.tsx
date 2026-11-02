@@ -1,32 +1,23 @@
-"use client";
+import { useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
 
 import { apiUrl } from "@/lib/server-api";
-import NextImage from "next/image";
+import { toast } from "sonner";
+import { scheduledPostTimestamp } from "@/lib/content-schedule";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, LayoutGrid, List, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, Play, Plus, RotateCcw, Smartphone, Sparkles, Upload, X } from "@/components/ui/interface-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  PageHeader,
-  PageHeaderActions,
-  PageHeaderContent,
-  PageHeaderDescription,
-  PageHeaderTitle,
-} from "@/components/ui/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
-import { SocialPostsLibrary } from "@/components/social/social-posts-library";
-import { MotionReveal } from "@/components/ui/motion-reveal";
+import { PostsLibraryWorkspace } from "@/components/social/posts-library-workspace";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -44,7 +35,6 @@ import {
   getPlatformIconClass,
   getPlatformLabel,
   getPlatformTone,
-  getPostStatusMeta,
   getPublishJobStatusMeta,
 } from "@/components/social/social-shared";
 
@@ -62,6 +52,7 @@ type ComposerMedia = Pick<SocialPostMedia, "assetId" | "kind" | "mimeType" | "fi
 
 type ComposerState = {
   id: string | null;
+  revision: string | null;
   title: string;
   prompt: string;
   content: string;
@@ -80,14 +71,6 @@ type ComposerState = {
 };
 
 type ComposerStep = 1 | 2 | 3 | 4;
-
-type GeneratedIdea = {
-  title: string;
-  angle: string;
-  hook: string;
-  draft: string;
-  suggestedChannels?: SocialPlatform[];
-};
 
 type SocialPostActivityEvent = {
   id: string;
@@ -121,10 +104,6 @@ type PublishBatchPreflight = {
   }>;
 };
 
-type AiGenerationTarget =
-  | { kind: "shared" }
-  | { kind: "variant"; platform: SocialPlatform };
-
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "TIKTOK", "BLUESKY", "LINKEDIN", "X"];
 const COMPOSER_DRAFT_STORAGE_KEY = "kasitek:content-composer";
 const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.filter((platform) =>
@@ -133,6 +112,7 @@ const supportedManualPublishPlatforms: SocialPlatform[] = SOCIAL_PLATFORM_ORDER.
 
 const emptyComposer: ComposerState = {
   id: null,
+  revision: null,
   title: "",
   prompt: "",
   content: "",
@@ -223,25 +203,19 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [channels, setChannels] = useState<SocialChannelConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const agents = useGrowthAgents();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
-  const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState<"ALL" | SocialPlatform>("ALL");
-  const [historyViewMode, setHistoryViewMode] = useState<"grid" | "table">("grid");
+  const [statusRefreshError, setStatusRefreshError] = useState("");
+  const postsReadVersion = useRef(0);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<SocialPost | null>(null);
+  const [removePublishedPhoto, setRemovePublishedPhoto] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
+  const saveIntent = useRef<{ body: string; key: string } | null>(null);
+  const publishIntent = useRef<{ postId: string; key: string } | null>(null);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
-  const [generatingCaption, setGeneratingCaption] = useState(false);
-  const [generatingVariantPlatform, setGeneratingVariantPlatform] = useState<SocialPlatform | null>(null);
-  const [aiGenerationTarget, setAiGenerationTarget] = useState<AiGenerationTarget | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [generatingIdeas, setGeneratingIdeas] = useState(false);
-  const [ideaTopic, setIdeaTopic] = useState("");
-  const [ideaObjective, setIdeaObjective] = useState("");
-  const [generatedIdeas, setGeneratedIdeas] = useState<GeneratedIdea[]>([]);
-  const [isIdeasOpen, setIsIdeasOpen] = useState(false);
   const [activeVariantPlatform, setActiveVariantPlatform] = useState<SocialPlatform>("FACEBOOK");
   const [composerStep, setComposerStep] = useState<ComposerStep>(1);
   const [tiktokPrivacyOptions, setTiktokPrivacyOptions] = useState<ComposerState["tiktokPrivacyLevel"][]>([]);
@@ -302,6 +276,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }, []);
 
   async function loadData({ showLoading = true, clearError = true } = {}) {
+    const readVersion = ++postsReadVersion.current;
     if (showLoading) setLoading(true);
     else setRefreshing(true);
     if (clearError) setError("");
@@ -329,7 +304,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         throw new Error(channelsPayload.error || "Failed to load channels");
       }
 
-      setPosts(postsPayload.posts || []);
+      if (readVersion === postsReadVersion.current) {
+        setPosts(postsPayload.posts || []);
+        setStatusRefreshError("");
+      }
       setChannels(channelsPayload.channels || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load posts");
@@ -339,18 +317,61 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }
 
-  const filteredPosts = useMemo(() => {
-    const allowedStatuses = view === "history" ? ["PUBLISHED", "FAILED"] : ["DRAFT", "SCHEDULED", "PROCESSING"];
-    return posts.filter((post) => {
-      if (!allowedStatuses.includes(post.status)) return false;
-      if (activeFilter !== "ALL" && post.status !== activeFilter) return false;
-      if (platformFilter !== "ALL" && !post.channels.includes(platformFilter)) return false;
-      const needle = search.trim().toLowerCase();
-      return !needle || `${post.title || ""} ${post.content || ""}`.toLowerCase().includes(needle);
-    });
-  }, [activeFilter, platformFilter, posts, search, view]);
+  const statusPollDelay = posts.some(post =>
+    post.status !== "SCHEDULED" && post.metadata?.publishOutcome !== "UNKNOWN" && (
+      post.status === "PROCESSING" || post.publishJobs?.some(job => job.status === "PROCESSING" || job.status === "QUEUED")
+    ),
+  ) ? 3_000 : posts.some(post => post.status === "SCHEDULED") ? 30_000 : null;
 
-  const filters = view === "history" ? ["ALL", "PUBLISHED", "FAILED"] as const : ["ALL", "DRAFT", "SCHEDULED", "PROCESSING"] as const;
+  useEffect(() => {
+    if (saving || deletingPost || jobActionId || publishingKey) return;
+    let cancelled = false;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    const schedule = () => {
+      if (!cancelled && statusPollDelay !== null && document.visibilityState !== "hidden")
+        timer = setTimeout(() => void refreshStatus(), statusPollDelay);
+    };
+    const refreshStatus = async () => {
+      if (cancelled || running || document.visibilityState === "hidden") return;
+      if (timer !== undefined) clearTimeout(timer);
+      running = true;
+      const readVersion = ++postsReadVersion.current;
+      try {
+        const response = await fetch(apiUrl("/api/social/posts"), {
+          cache: "no-store", credentials: "include", signal: controller.signal,
+        });
+        const payload = await response.json() as { posts?: SocialPost[]; error?: string };
+        if (!response.ok || !Array.isArray(payload.posts)) throw new Error("Status refresh failed");
+        if (!cancelled && readVersion === postsReadVersion.current) {
+          setPosts(payload.posts);
+          setActivityPost(current => current ? { ...current, post: payload.posts!.find(post => post.id === current.post.id) ?? current.post } : current);
+          setStatusRefreshError("");
+        }
+      } catch {
+        if (!cancelled) setStatusRefreshError("Unable to refresh post status.");
+      } finally {
+        running = false;
+        schedule();
+      }
+    };
+    const resume = () => {
+      if (document.visibilityState === "hidden") {
+        if (timer !== undefined) clearTimeout(timer);
+      } else void refreshStatus();
+    };
+    schedule();
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
+    };
+  }, [statusPollDelay, saving, deletingPost, jobActionId, publishingKey]);
 
   const connectedChannels = useMemo(
     () => channels.filter((channel) => channel.status === "CONNECTED"),
@@ -424,6 +445,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }, [composer.channels, composer.media]);
 
   function openNewComposer() {
+    setEditTarget(null);
+    setError("");
+    saveIntent.current = null;
+    publishIntent.current = null;
     setComposer(emptyComposer);
     setBatchPreflight(null);
     setActiveVariantPlatform("FACEBOOK");
@@ -431,47 +456,25 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setIsComposerOpen(true);
   }
 
-  function openIdeaAsDraft(idea: GeneratedIdea) {
-    const requestedChannels =
-      idea.suggestedChannels?.length
-        ? idea.suggestedChannels.filter((platform) => defaultChannels.includes(platform))
-        : defaultChannels;
-    const nextChannels = requestedChannels.length ? requestedChannels : defaultChannels;
-    const nextVariants = buildComposerVariants(nextChannels, undefined, idea.draft);
-
-    setComposer({
-      id: null,
-      title: idea.title,
-      prompt: [idea.angle, idea.hook].filter(Boolean).join(" | "),
-      content: idea.draft,
-      channels: nextChannels,
-      status: "DRAFT",
-      scheduledFor: "",
-      primaryChannelId: "",
-      channelSelections: {},
-      instagramImageUrl: "",
-      tiktokMediaUrl: "",
-      tiktokMediaType: "VIDEO",
-      tiktokPrivacyLevel: "SELF_ONLY",
-      tiktokConsent: false,
-      media: [],
-      variants: nextVariants.map((variant) => ({
-        ...variant,
-        status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
-      })),
-    });
-    setBatchPreflight(null);
-    setActiveVariantPlatform(nextChannels[0] || "FACEBOOK");
-    setComposerStep(1);
-    setIsComposerOpen(true);
-  }
-
   const openEditComposer = useCallback((post: SocialPost) => {
+    setRemovePublishedPhoto(false);
+    const published = post.status === "PUBLISHED";
+    if (!["DRAFT", "SCHEDULED", "PUBLISHED"].includes(post.status)) {
+      setError("This post cannot be edited while delivery is unresolved.");
+      return;
+    }
+    if (published && (post.channels.length !== 1 || post.channels[0] !== "FACEBOOK" || !post.publishJobs?.some(job => job.platform === "FACEBOOK" && job.status === "PUBLISHED" && job.externalPostId))) {
+      setError("Published editing is available for confirmed Facebook posts only.");
+      return;
+    }
+    saveIntent.current = null;
+    setError("");
     setComposer({
       id: post.id,
+      revision: post.updatedAt,
       title: post.title || "",
       prompt: post.prompt || "",
-      content: post.content,
+      content: published ? post.variants?.find(variant => variant.platform === "FACEBOOK")?.content ?? post.content : post.content,
       channels: post.channels,
       status: post.status,
       scheduledFor: formatDateInputValue(post.scheduledFor),
@@ -507,7 +510,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setBatchPreflight(null);
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
     setComposerStep(1);
-    setIsComposerOpen(true);
+    setIsComposerOpen(false);
+    setEditTarget(post);
   }, []);
 
   useEffect(() => {
@@ -569,6 +573,17 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       };
     });
     setActiveVariantPlatform(channel.platform);
+  }
+
+  function selectDraftPlatform(platform: SocialPlatform) {
+    setComposer((current) => ({
+      ...current,
+      channels: current.channels.includes(platform) ? current.channels : [...current.channels, platform],
+      variants: current.variants.some((variant) => variant.platform === platform)
+        ? current.variants
+        : [...current.variants, { platform, content: current.content, status: "DRAFT", aiGenerated: false }],
+    }));
+    setActiveVariantPlatform(platform);
   }
 
   function removeChannel(platform: SocialPlatform) {
@@ -698,186 +713,22 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }));
   }
 
-  function openAiGenerator(target: AiGenerationTarget) {
-    setAiPrompt(target.kind === "shared" ? composer.prompt : "");
-    setAiGenerationTarget(target);
-  }
-
-  async function generateWithAi(promptOverride = composer.prompt): Promise<boolean> {
-    const prompt = promptOverride.trim();
-    if (!prompt && !composer.content.trim()) {
-      setError("Add a prompt or rough draft before generating.");
-      return false;
-    }
-
-    setGeneratingCaption(true);
-    setError("");
-
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/caption"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          title: composer.title,
-          currentContent: composer.content,
-          channels: composer.channels,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        draft?: {
-          title?: string;
-          content?: string;
-          suggestedChannels?: SocialPlatform[];
-          variants?: Array<{
-            platform: SocialPlatform;
-            content: string;
-          }>;
-        };
-        error?: string;
-      };
-
-      if (!response.ok || !payload.draft?.content) {
-        throw new Error(payload.error || "Failed to generate caption");
-      }
-
-      const nextChannels = composer.channels;
-
-      setComposer((current) => ({
-        ...current,
-        title: payload.draft?.title || current.title,
-        prompt,
-        content: payload.draft?.content || current.content,
-        channels: nextChannels,
-        variants: buildComposerVariants(
-          nextChannels,
-          payload.draft?.variants?.map((variant) => ({
-            id: `${variant.platform}`,
-            postId: current.id || "draft",
-            platform: variant.platform,
-            content: variant.content,
-            status: (variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT") as SocialVariantStatus,
-            aiGenerated: true,
-            metadata: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })),
-          payload.draft?.content || current.content,
-        ),
-      }));
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate caption");
-      return false;
-    } finally {
-      setGeneratingCaption(false);
-    }
-  }
-
-  async function generateVariantWithAi(platform: SocialPlatform, promptOverride: string): Promise<boolean> {
-    const variant = composer.variants.find((item) => item.platform === platform);
-    const prompt = promptOverride.trim();
-    const currentContent = variant?.content.trim() || composer.content.trim();
-    if (!prompt && !currentContent) {
-      setError("Add a prompt or shared post text before generating this version.");
-      return false;
-    }
-
-    setGeneratingVariantPlatform(platform);
-    setError("");
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/caption"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          currentContent,
-          channels: [platform],
-        }),
-      });
-      const payload = (await response.json()) as {
-        draft?: {
-          content?: string;
-          variants?: Array<{ platform: SocialPlatform; content: string }>;
-        };
-        error?: string;
-      };
-      const generated = payload.draft?.variants?.find((item) => item.platform === platform)?.content
-        || payload.draft?.content;
-      if (!response.ok || !generated?.trim()) {
-        throw new Error(payload.error || `Failed to generate the ${getPlatformLabel(platform)} version`);
-      }
-      updateVariant(platform, { content: generated.trim(), aiGenerated: true });
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to generate the ${getPlatformLabel(platform)} version`);
-      return false;
-    } finally {
-      setGeneratingVariantPlatform(null);
-    }
-  }
-
-  async function runAiGeneration() {
-    if (!aiGenerationTarget) return;
-    const target = aiGenerationTarget;
-    const generated = target.kind === "shared"
-      ? await generateWithAi(aiPrompt)
-      : await generateVariantWithAi(target.platform, aiPrompt);
-    if (generated) {
-      setAiGenerationTarget(null);
-      setAiPrompt("");
-    }
-  }
-
-  async function generateIdeas() {
-    if (!ideaTopic.trim() && !ideaObjective.trim()) {
-      setError("Add a topic or objective before generating ideas.");
-      return;
-    }
-
-    setGeneratingIdeas(true);
-    setError("");
-
-    try {
-      const response = await fetch(apiUrl("/api/social/ai/ideas"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: ideaTopic,
-          objective: ideaObjective,
-          channels: composer.channels,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        ideas?: GeneratedIdea[];
-        error?: string;
-      };
-
-      if (!response.ok || !payload.ideas?.length) {
-        throw new Error(payload.error || "Failed to generate ideas");
-      }
-
-      setGeneratedIdeas(payload.ideas);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate ideas");
-    } finally {
-      setGeneratingIdeas(false);
-    }
+  function openContentAgent(platform?: SocialPlatform) {
+    setIsComposerOpen(false);
+    const content = platform ? composer.variants.find((variant) => variant.platform === platform)?.content || composer.content : composer.content;
+    const brief = [platform ? `Improve this ${getPlatformLabel(platform)} draft.` : "Help me draft content.", composer.title, content, composer.prompt].filter(Boolean).join("\n\n");
+    void agents.start("content", composer.id ? { kind: "content_post", resourceId: composer.id } : { kind: "workspace" }, brief);
   }
 
   async function savePost(publishNow = false, requestedStatus?: "DRAFT" | "SCHEDULED") {
+    const requiresDestination = publishNow || (requestedStatus ?? composer.status) === "SCHEDULED";
     if (!composer.channels.length) {
-      setError("Choose at least one connected destination first.");
+      setError("Choose at least one platform.");
       setComposerStep(1);
       return;
     }
 
-    if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
+    if (requiresDestination && composer.channels.some((platform) => !composer.channelSelections[platform])) {
       setError("Choose an account for every selected destination.");
       setComposerStep(1);
       return;
@@ -894,7 +745,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       return;
     }
     const hasTikTokMedia = Boolean(composer.tiktokMediaUrl.trim() || composer.media.some((item) => item.kind === "VIDEO" || item.kind === "IMAGE"));
-    if (composer.channels.includes("TIKTOK") && (!hasTikTokMedia || !composer.tiktokConsent)) {
+    if ((publishNow || requestedStatus === "SCHEDULED") && composer.channels.includes("TIKTOK") && (!hasTikTokMedia || !composer.tiktokConsent)) {
       setError("TikTok requires an attached image/video or verified media URL and explicit publishing consent.");
       setComposerStep(2);
       return;
@@ -918,36 +769,36 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     let savedPost: SocialPost | null = null;
 
     try {
-      const response = await fetch(
-        apiUrl(composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts"),
-        {
-          method: composer.id ? "PATCH" : "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      const scheduledFor = postStatus === "SCHEDULED" ? scheduledPostTimestamp(composer.scheduledFor) : "";
+      const body = JSON.stringify({
             prompt: composer.prompt || null,
             content: composer.content,
             channels: composer.channels,
             status: postStatus,
-            scheduledFor: postStatus === "SCHEDULED" ? composer.scheduledFor || "" : "",
+            scheduledFor,
             primaryChannelId: composer.primaryChannelId || Object.values(composer.channelSelections).find(Boolean) || null,
             channelSelections: composer.channelSelections,
             variants: activeVariants,
-            media: composer.media.map((item) => ({
-              assetId: item.assetId,
-              sortOrder: item.sortOrder,
-              altText: item.altText,
-            })),
+            media: composer.media.map(item => ({ assetId: item.assetId, sortOrder: item.sortOrder, altText: item.altText })),
             metadata: {
               createdFrom: "social-posts-workspace",
-              aiAssistUsed: activeVariants.some((variant) => variant.aiGenerated),
+              aiAssistUsed: activeVariants.some(variant => variant.aiGenerated),
               instagramImageUrl: composer.instagramImageUrl.trim() || null,
               tiktokMediaUrl: composer.tiktokMediaUrl.trim() || null,
               tiktokMediaType: composer.tiktokMediaType,
               tiktokPrivacyLevel: composer.tiktokPrivacyLevel,
               tiktokConsent: composer.tiktokConsent,
             },
-          }),
+      });
+      if (!saveIntent.current || saveIntent.current.body !== body)
+        saveIntent.current = { body, key: `manual-content-save:${crypto.randomUUID()}` };
+      const response = await fetch(
+        apiUrl(composer.id ? `/api/social/posts/${composer.id}` : "/api/social/posts"),
+        {
+          method: composer.id ? "PATCH" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": saveIntent.current.key, ...(composer.revision ? { "If-Match": composer.revision } : {}) },
+          body,
         },
       );
 
@@ -958,6 +809,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       }
 
       savedPost = payload.post;
+      setComposer(current => ({ ...current, id: payload.post!.id, revision: payload.post!.updatedAt, status: postStatus }));
 
       setPosts((current) => {
         if (composer.id) {
@@ -968,6 +820,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       });
 
       if (publishNow) {
+        if (!publishIntent.current || publishIntent.current.postId !== savedPost.id)
+          publishIntent.current = { postId: savedPost.id, key: `manual-content-publish-batch:${savedPost.id}:${crypto.randomUUID()}` };
         const preflightResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish-batch/preflight`), {
           method: "GET",
           credentials: "include",
@@ -989,10 +843,13 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": `manual-content-publish-batch:${savedPost.id}:${crypto.randomUUID()}`,
+            "Idempotency-Key": publishIntent.current.key,
           },
+          body: JSON.stringify({}),
         });
-        const publishPayload = (await publishResponse.json()) as {
+        const publishPayload = (await publishResponse.json().catch(() => ({
+          error: "Unable to read the publishing response. Check the post status before retrying",
+        }))) as {
           post?: SocialPost;
           batch?: { status?: string; targets?: Array<{ platform?: string; state?: string; message?: string }> };
           error?: string;
@@ -1008,18 +865,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       await loadData({ showLoading: false, clearError: !publishNow });
 
       setComposer(emptyComposer);
+      saveIntent.current = null;
+      publishIntent.current = null;
       setBatchPreflight(null);
       setActiveVariantPlatform("FACEBOOK");
       setComposerStep(1);
       setIsComposerOpen(false);
+      if (editTarget) { setEditTarget(null); toast.success("Post updated"); }
     } catch (err) {
-      if (savedPost) {
-        setComposer(emptyComposer);
-        setBatchPreflight(null);
-        setActiveVariantPlatform("FACEBOOK");
-        setComposerStep(1);
-        setIsComposerOpen(false);
-      }
+      if (savedPost) setComposer(current => ({ ...current, id: savedPost!.id, revision: savedPost!.updatedAt, status: savedPost!.status }));
       const message = err instanceof Error ? err.message : "Failed to save post";
       setError(savedPost ? `${message}. The post was saved; retry any failed destination from Posts.` : message);
     } finally {
@@ -1027,14 +881,35 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
   }
 
+  async function updatePublishedPost() {
+    if (!editTarget || !composer.content.trim()) { setError("Add post text."); return; }
+    setSaving(true);
+    setError("");
+    const body = JSON.stringify({ content: composer.content, expectedUpdatedAt: editTarget.updatedAt, ...(removePublishedPhoto ? { removePhoto: true } : {}) });
+    if (!saveIntent.current || saveIntent.current.body !== body)
+      saveIntent.current = { body, key: `manual-content-update-published:${crypto.randomUUID()}` };
+    try {
+      const response = await fetch(apiUrl(`/api/social/posts/${editTarget.id}/update-published`), {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": saveIntent.current.key }, body,
+      });
+      const payload = await response.json().catch(() => ({ error: "Unable to read the update result. Check the post before retrying." })) as { post?: SocialPost; error?: string };
+      if (!response.ok || !payload.post) throw new Error(payload.error || "Failed to update Facebook post");
+      ++postsReadVersion.current;
+      setPosts(current => current.map(post => post.id === payload.post!.id ? payload.post! : post));
+      setEditTarget(null);
+      setComposer(emptyComposer);
+      saveIntent.current = null;
+      toast.success("Facebook post updated");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to update Facebook post");
+    } finally { setSaving(false); }
+  }
+
   function advanceComposerStep() {
     if (composerStep === 1) {
       if (!composer.channels.length) {
-        setError("Choose at least one connected destination first.");
-        return;
-      }
-      if (composer.channels.some((platform) => !composer.channelSelections[platform])) {
-        setError("Choose an account for every selected destination.");
+        setError("Choose at least one platform.");
         return;
       }
     }
@@ -1171,205 +1046,14 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   return (
-    <div className="min-h-[100dvh] p-4 sm:p-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <div className="space-y-4 border-b border-border pb-4">
-          <PageHeader>
-            <PageHeaderContent>
-              <PageHeaderTitle>{view === "history" ? "Posts" : "Create"}</PageHeaderTitle>
-              <PageHeaderDescription>{view === "history" ? "Published posts and retries." : "Draft and schedule posts."}</PageHeaderDescription>
-            </PageHeaderContent>
-            <PageHeaderActions>
-              {view === "posts" ? (
-                <Button variant="outline" className="gap-2" onClick={() => setIsIdeasOpen(true)}>
-                  <Sparkles className="h-4 w-4" />
-                  Generate ideas
-                </Button>
-              ) : null}
-              <Button className="gap-2" onClick={openNewComposer}>
-                <Plus className="h-4 w-4" />
-                Create post
-              </Button>
-            </PageHeaderActions>
-          </PageHeader>
-
-          <ContentWorkspaceNavigation active={view} />
-        </div>
-
-        {error ? (
-          <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <MotionReveal delay={0.08}>
-        <Card>
-          <CardHeader className="flex flex-col gap-4 border-b border-border lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>{view === "history" ? "Published posts" : "Drafts and scheduled posts"}</CardTitle>
-              <CardDescription>{view === "history" ? "Review outcomes, failures, and retry work." : "Posts ready for review and publishing."}</CardDescription>
-            </div>
-            <Tabs value={activeFilter} onValueChange={(value) => setActiveFilter(value as "ALL" | SocialPostStatus)}>
-              <TabsList className="bg-secondary/50">
-                {filters.map((status) => (
-                  status === "ALL" ? <TabsTrigger key={status} value="ALL">All</TabsTrigger> :
-                  <TabsTrigger key={status} value={status}>
-                    {getPostStatusMeta(status).label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <TabsContent value={activeFilter}>
-                <span />
-              </TabsContent>
-            </Tabs>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search posts" />
-              </div>
-              <Select
-                value={platformFilter}
-                onValueChange={(value) => setPlatformFilter(value as "ALL" | SocialPlatform)}
-              >
-                <SelectTrigger className="h-10 w-[10rem]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">All channels</SelectItem>{SOCIAL_PLATFORM_ORDER.map((platform) => <SelectItem key={platform} value={platform}>{getPlatformLabel(platform)}</SelectItem>)}</SelectContent>
-              </Select>
-              {view === "history" ? (
-                <div className="inline-flex h-10 items-center rounded-md border border-border bg-card p-1" role="group" aria-label="Posts display options">
-                  <Button
-                    type="button"
-                    variant={historyViewMode === "grid" ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label="Show posts as cards"
-                    aria-pressed={historyViewMode === "grid"}
-                    title="Card view"
-                    onClick={() => setHistoryViewMode("grid")}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={historyViewMode === "table" ? "secondary" : "ghost"}
-                    size="icon-sm"
-                    aria-label="Show posts as table rows"
-                    aria-pressed={historyViewMode === "table"}
-                    title="Table view"
-                    onClick={() => setHistoryViewMode("table")}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
-              <Button variant="outline" className="gap-2" onClick={() => void loadData({ showLoading: false })} disabled={refreshing} aria-label="Refresh posts">
-                <RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Refreshing..." : "Refresh"}
-              </Button>
-            </div>
-            {loading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Skeleton className="h-6 w-48" />
-                        <Skeleton className="h-6 w-24 rounded-full" />
-                      </div>
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-5/6" />
-                      <div className="flex flex-wrap gap-2">
-                        {Array.from({ length: 3 }).map((__, badgeIndex) => (
-                          <Skeleton key={badgeIndex} className="h-6 w-20 rounded-full" />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid w-full gap-2 sm:flex sm:flex-wrap lg:w-auto">
-                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
-                      <Skeleton className="h-9 w-full rounded-md sm:w-24" />
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : filteredPosts.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-                No posts match the current filter yet.
-              </div>
-            ) : view === "history" ? (
-              <SocialPostsLibrary posts={filteredPosts} viewMode={historyViewMode} />
-            ) : (
-              filteredPosts.map((post) => {
-                const status = getPostStatusMeta(post.status);
-                const StatusIcon = status.icon;
-                const publishJobs =
-                  post.publishJobs?.filter((job) => supportedManualPublishPlatforms.includes(job.platform)) || [];
-
-                return (
-                  <div key={post.id} className="rounded-xl border border-border/70 bg-secondary/30 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {post.title || "Untitled social post"}
-                          </h3>
-                          <Badge className={status.className}>
-                            <StatusIcon className="mr-1 h-3.5 w-3.5" />
-                            {status.label}
-                          </Badge>
-                        </div>
-                        <p className="max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                          {post.content}
-                        </p>
-                        {post.media?.length ? <div className="flex flex-wrap gap-2">{post.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.id} className="relative overflow-hidden rounded-lg border border-border"><video className="h-20 w-28 object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"><Play className="h-2.5 w-2.5" />{formatDuration(item.durationMs)}</span></div> : <NextImage unoptimized width={112} height={80} key={item.id} className="h-20 w-28 rounded-lg border border-border object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />)}</div> : null}
-                        <div className="flex flex-wrap gap-2">
-                          {post.variants?.map((variant) => {
-                            const Icon = getPlatformIcon(variant.platform);
-                            return (
-                              <Badge key={variant.id} className={getPlatformTone(variant.platform)}>
-                                <Icon className={`mr-1 h-3.5 w-3.5 ${getPlatformIconClass(variant.platform)}`} />
-                                {getPlatformLabel(variant.platform)}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {post.scheduledFor
-                            ? `Scheduled for ${formatDateTime(post.scheduledFor)}`
-                            : `Saved ${formatDateTime(post.createdAt)}`}
-                        </div>
-                        {publishJobs.length ? (
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Destinations</p>
-                            <div className="grid gap-2 md:grid-cols-2">
-                            {publishJobs.map((job) => {
-                              const jobMeta = getPublishJobStatusMeta(job.status);
-                              const JobIcon = jobMeta.icon;
-                              const PlatformIcon = getPlatformIcon(job.platform);
-                              return (
-                                <div key={job.id} className="rounded-lg border border-border/60 bg-background/45 px-3 py-2.5">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                                      <PlatformIcon className={`h-4 w-4 shrink-0 ${getPlatformIconClass(job.platform)}`} />
-                                      <span className="truncate">{getPlatformLabel(job.platform)}</span>
-                                    </div>
-                                    <Badge className={`shrink-0 ${jobMeta.className}`}>
-                                      {JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}
-                                      {jobMeta.label}
-                                    </Badge>
-                                  </div>
-                                  {job.scheduledFor ? (
-                                    <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(job.scheduledFor)}</p>
-                                  ) : null}
-                                  {job.errorMessage ? (
-                                    <p className="mt-2 text-xs text-destructive">{job.errorMessage}</p>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center lg:w-auto">
+    <div className="min-w-0">
+      <PostsLibraryWorkspace key={view}
+        posts={posts} channels={channels} loading={loading} refreshing={refreshing} error={error || statusRefreshError}
+        initialStatus={view === "history" ? "PUBLISHED" : "ALL"}
+        onCreate={openNewComposer} onEdit={openEditComposer}
+        onRefresh={() => void loadData({ showLoading: false })}
+        onActivity={(post) => void openActivity(post)} onDelete={openDeleteModal}
+        renderPublishActions={(post) => <div className="flex flex-wrap gap-2">
                         {supportedManualPublishPlatforms.map((platform) => {
                           if (!post.channels.includes(platform)) return null;
 
@@ -1433,95 +1117,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                             </div>
                           );
                         })}
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditComposer(post)}>
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => void openActivity(post)}>
-                          <Activity className="h-4 w-4" />
-                          Activity
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openDeleteModal(post)} disabled={deletingPost}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-        </MotionReveal>
-      </div>
-
-      <Dialog open={isIdeasOpen} onOpenChange={setIsIdeasOpen}>
-          <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto p-0">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <DialogHeader><DialogTitle>Generate ideas</DialogTitle><DialogDescription>Start with a topic and objective.</DialogDescription></DialogHeader>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input value={ideaTopic} onChange={(event) => setIdeaTopic(event.target.value)} placeholder="Topic or offer" />
-                <Input value={ideaObjective} onChange={(event) => setIdeaObjective(event.target.value)} placeholder="Objective" />
-              </div>
-              <Button className="gap-2" disabled={generatingIdeas} onClick={() => void generateIdeas()}>
-                <Sparkles className="h-4 w-4" />
-                {generatingIdeas ? "Generating..." : "Generate ideas"}
-              </Button>
-              {generatedIdeas.length ? (
-                <div className="space-y-3">
-                  {generatedIdeas.map((idea, index) => (
-                    <div key={`${idea.title}-${index}`} className="rounded-lg border border-border p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{idea.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{idea.angle}</p>
-                        </div>
-                        <Button size="sm" onClick={() => { openIdeaAsDraft(idea); setIsIdeasOpen(false); }}>
-                          Use idea
-                        </Button>
-                      </div>
-                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{idea.draft}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(aiGenerationTarget)} onOpenChange={(open) => { if (!open && !generatingCaption && !generatingVariantPlatform) setAiGenerationTarget(null); }}>
-        {aiGenerationTarget ? (
-          <DialogContent className="max-w-lg p-0">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <DialogHeader>
-                <DialogTitle>
-                  {aiGenerationTarget.kind === "shared" ? "Generate post text" : `Generate ${getPlatformLabel(aiGenerationTarget.platform)} text`}
-                </DialogTitle>
-                <DialogDescription>
-                  {aiGenerationTarget.kind === "shared" ? "Describe what you want, or ask AI to improve the current post." : "Describe the angle or change you want for this destination."}
-                </DialogDescription>
-              </DialogHeader>
-            </div>
-            <div className="space-y-4 p-5">
-              {error ? <p className="rounded-md border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-foreground">Prompt <span className="font-normal text-muted-foreground">(optional)</span></span>
-                <Textarea autoFocus value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="For example: make it warmer, clearer, and more concise" className="min-h-[130px]" />
-              </label>
-              <p className="text-xs text-muted-foreground">The result will be added to the editor so you can change it before saving or publishing.</p>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setAiGenerationTarget(null)} disabled={Boolean(generatingCaption || generatingVariantPlatform)}>Cancel</Button>
-                <Button className="gap-2" onClick={() => void runAiGeneration()} disabled={Boolean(generatingCaption || generatingVariantPlatform || (!aiPrompt.trim() && !composer.content.trim() && aiGenerationTarget.kind === "shared"))}>
-                  <Sparkles className="h-4 w-4" />
-                  {generatingCaption || generatingVariantPlatform ? "Generating..." : "Generate"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        ) : null}
-      </Dialog>
+        </div>}
+      />
 
       <Dialog open={Boolean(activityPost)} onOpenChange={(open) => { if (!open) setActivityPost(null); }}>
         {activityPost ? (
@@ -1577,12 +1174,35 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         ) : null}
       </Dialog>
 
+      <Dialog open={Boolean(editTarget)} onOpenChange={open => { if (!open && !saving) { setEditTarget(null); setComposer(emptyComposer); setError(""); } }}>
+        {editTarget ? <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-4 sm:px-6">
+            <DialogTitle>{editTarget.status === "PUBLISHED" ? "Edit Facebook post" : "Edit post"}</DialogTitle>
+            <DialogDescription>{composer.channels.map(platform => {
+              const channel = channels.find(item => item.id === composer.channelSelections[platform]);
+              return channel ? channelLabel(channel) : getPlatformLabel(platform);
+            }).join(" · ")}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
+            {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive">{error}</p> : null}
+            <label className="block space-y-2"><span className="text-sm text-muted-foreground">{editTarget.status === "PUBLISHED" ? "Facebook text" : "Post text"}</span><Textarea value={composer.content} onChange={event => setComposer(current => ({ ...current, content: event.target.value, variants: current.variants.map(variant => variant.content === current.content ? { ...variant, content: event.target.value } : variant) }))} placeholder="Write your post..." className="min-h-[160px] resize-y leading-6" disabled={saving} /></label>
+            {editTarget.status !== "PUBLISHED" ? activeComposerVariants.map(variant => <label key={variant.platform} className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} version</span><Textarea value={variant.content} onChange={event => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[100px] resize-y" disabled={saving} /></label>) : null}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Media</span>{editTarget.status !== "PUBLISHED" ? <><Button type="button" variant="outline" size="sm" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="mr-1.5 h-3.5 w-3.5" />Add media</Button><input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={event => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} /></> : null}</div>
+              {editTarget.status === "PUBLISHED" && removePublishedPhoto ? <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3"><p className="text-sm text-muted-foreground">Photo will be removed</p><Button variant="outline" size="sm" disabled={saving} onClick={() => setRemovePublishedPhoto(false)} aria-label="Undo photo removal">Undo</Button></div> : composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map(item => <div key={item.assetId} className="overflow-hidden rounded-lg border border-border">{item.kind === "VIDEO" ? <video className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} controls preload="metadata" /> : <img className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || "Media"}</span>{editTarget.status !== "PUBLISHED" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-4 w-4" /></Button> : composer.media.length === 1 && item.kind === "IMAGE" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => setRemovePublishedPhoto(true)} aria-label="Remove photo"><X className="h-4 w-4" /></Button> : null}</div></div>)}</div> : <p className="text-sm text-muted-foreground">No media</p>}
+            </div>
+            {editTarget.status === "SCHEDULED" ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule for</span><Input type="datetime-local" value={composer.scheduledFor} onChange={event => setComposer(current => ({ ...current, scheduledFor: event.target.value }))} disabled={saving} /></label> : null}
+          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border px-4 py-4 sm:px-6"><Button variant="outline" disabled={saving} onClick={() => { setEditTarget(null); setComposer(emptyComposer); setError(""); }}>Cancel</Button><Button disabled={saving} onClick={() => void (editTarget.status === "PUBLISHED" ? updatePublishedPost() : savePost(false, editTarget.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT"))}>{saving ? "Saving..." : editTarget.status === "PUBLISHED" ? "Update on Facebook" : "Save changes"}</Button></div>
+        </DialogContent> : null}
+      </Dialog>
+
       <Sheet open={isComposerOpen} onOpenChange={setIsComposerOpen}>
         {isComposerOpen ? (
           <SheetContent className="w-full max-w-[760px] gap-0 border-l border-border bg-card p-0 sm:max-w-[760px]">
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
-                <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</p>
+                <SheetTitle className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</SheetTitle>
                 <p className="mt-1 text-sm text-muted-foreground">Step {composerStep} of 4</p>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setIsComposerOpen(false)} aria-label="Close composer">
@@ -1598,11 +1218,12 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+              {error ? <p className="mb-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
               {composerStep === 1 ? (
                 <section className="space-y-5">
                   <div>
                     <h2 className="text-xl font-semibold text-foreground">Choose destinations</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Select the exact connected account for each platform.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Choose platforms for a draft. Connect an account to publish.</p>
                   </div>
                   <div className="space-y-3">
                     {defaultChannels.map((platform) => {
@@ -1624,6 +1245,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                                 {options.length ? "Connect another" : "Connect"}
                               </Button>
                             ) : null}
+                            {!options.length && !selected ? <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => selectDraftPlatform(platform)} aria-label={`Draft for ${getPlatformLabel(platform)}`}>Draft</Button> : null}
                             {selected ? <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => removeChannel(platform)}>Remove</Button> : null}
                           </div>
                           {options.length ? (
@@ -1656,7 +1278,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
               {composerStep === 2 ? (
                 <section className="space-y-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openAiGenerator({ kind: "shared" })}><Sparkles className="h-4 w-4" />Generate with AI</Button></div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openContentAgent()}><Sparkles className="h-4 w-4" />Draft with agent</Button></div>
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post text (optional)</span><Textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] resize-y leading-6" /></label>
                   <div className="space-y-3 rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -1664,7 +1286,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                       <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button>
                       <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
                     </div>
-                  {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <NextImage unoptimized width={640} height={320} className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : null}
+                  {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img width={640} height={320} className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : null}
                   </div>
                   {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Required when publishing to Instagram.</span></label> : null}
                   {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok publishing</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Optional verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Use this only when the media is hosted on a TikTok-verified HTTPS domain. Uploaded media can be used instead.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type for URL</span><Select value={composer.tiktokMediaType} onValueChange={(value) => setComposer((current) => ({ ...current, tiktokMediaType: value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="VIDEO">Video</SelectItem><SelectItem value="PHOTO">Photo</SelectItem></SelectContent></Select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><Select value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onValueChange={(value) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{tiktokPrivacyOptions.map((option) => <SelectItem key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</SelectItem>)}</SelectContent></Select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><Checkbox className="mt-1" checked={composer.tiktokConsent} onCheckedChange={(checked) => setComposer((current) => ({ ...current, tiktokConsent: checked === true }))} /><span>I consent to send the selected media and caption to TikTok for direct publishing.</span></label></div> : null}
@@ -1676,16 +1298,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   <div><h2 className="text-xl font-semibold text-foreground">Tailor versions</h2><p className="mt-1 text-sm text-muted-foreground">Adjust the text for each selected destination.</p></div>
                   <Tabs value={activeVariantPlatform} onValueChange={(value) => setActiveVariantPlatform(value as SocialPlatform)}>
                     <TabsList className="flex w-full flex-wrap bg-secondary/50">{activeComposerVariants.map((variant) => <TabsTrigger key={variant.platform} value={variant.platform}>{getPlatformLabel(variant.platform)}</TabsTrigger>)}</TabsList>
-                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} text</span><Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={() => openAiGenerator({ kind: "variant", platform: variant.platform })} disabled={Boolean(generatingCaption || generatingVariantPlatform)}><Sparkles className="h-3.5 w-3.5" />{generatingVariantPlatform === variant.platform ? "Generating..." : "Generate with AI"}</Button></div><Textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] resize-y leading-6" /><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><Select value={variant.status} onValueChange={(value) => updateVariant(variant.platform, { status: value as SocialVariantStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DRAFT">Draft</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="NEEDS_EDITS">Needs edits</SelectItem></SelectContent></Select></label></div></TabsContent>)}
+                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} text</span><Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={() => openContentAgent(variant.platform)}><Sparkles className="h-3.5 w-3.5" />Improve with agent</Button></div><Textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] resize-y leading-6" /><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><Select value={variant.status} onValueChange={(value) => updateVariant(variant.platform, { status: value as SocialVariantStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DRAFT">Draft</SelectItem><SelectItem value="APPROVED">Approved</SelectItem><SelectItem value="NEEDS_EDITS">Needs edits</SelectItem></SelectContent></Select></label></div></TabsContent>)}
                   </Tabs>
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4"><div className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">Mobile composition preview</p><p className="text-xs text-muted-foreground">A layout preview using the exact copy and media. Provider UI may differ.</p></div></div><div className="mt-4 flex justify-center"><div className="w-[250px] overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 bg-background shadow-xl"><div className="flex items-center justify-between border-b border-border px-4 py-2 text-[10px] text-muted-foreground"><span>9:41</span><span>{getPlatformLabel(activeVariantPlatform)}</span><span>•••</span></div><div className="p-3"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">KT</span><span className="text-[11px] font-medium">KasiTek</span></div><p className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-foreground">{activeComposerVariants.find((variant) => variant.platform === activeVariantPlatform)?.content || composer.content}</p>{composer.media.length ? <div className="mt-3 space-y-2">{composer.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.assetId} className="relative overflow-hidden rounded-lg bg-black"><video className="h-36 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute inset-0 flex items-center justify-center"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"><Play className="h-4 w-4 fill-current" /></span></span></div> : <NextImage unoptimized width={640} height={360} key={item.assetId} className="max-h-40 w-full rounded-lg object-cover" src={mediaUrl(item.assetId)} alt={item.altText || "Attached image"} />)}</div> : <div className="mt-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground"><FileImage className="mr-1.5 h-3.5 w-3.5" />No media</div>}<div className="mt-3 flex gap-4 text-[10px] text-muted-foreground"><span>♡ 24</span><span>◌ 8</span><span>↗ Share</span></div></div></div></div></div>
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4"><div className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">Mobile composition preview</p><p className="text-xs text-muted-foreground">A layout preview using the exact copy and media. Provider UI may differ.</p></div></div><div className="mt-4 flex justify-center"><div className="w-[250px] overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 bg-background shadow-xl"><div className="flex items-center justify-between border-b border-border px-4 py-2 text-[10px] text-muted-foreground"><span>9:41</span><span>{getPlatformLabel(activeVariantPlatform)}</span><span>•••</span></div><div className="p-3"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">KT</span><span className="text-[11px] font-medium">KasiTek</span></div><p className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-foreground">{activeComposerVariants.find((variant) => variant.platform === activeVariantPlatform)?.content || composer.content}</p>{composer.media.length ? <div className="mt-3 space-y-2">{composer.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.assetId} className="relative overflow-hidden rounded-lg bg-black"><video className="h-36 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute inset-0 flex items-center justify-center"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"><Play className="h-4 w-4 fill-current" /></span></span></div> : <img width={640} height={360} key={item.assetId} className="max-h-40 w-full rounded-lg object-cover" src={mediaUrl(item.assetId)} alt={item.altText || "Attached image"} />)}</div> : <div className="mt-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground"><FileImage className="mr-1.5 h-3.5 w-3.5" />No media</div>}<div className="mt-3 flex gap-4 text-[10px] text-muted-foreground"><span>♡ 24</span><span>◌ 8</span><span>↗ Share</span></div></div></div></div></div>
                 </section>
               ) : null}
 
               {composerStep === 4 ? (
                 <section className="space-y-5">
                   <div><h2 className="text-xl font-semibold text-foreground">Review and publish</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft, schedule, or publish the selected versions now.</p></div>
-                  <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel?.displayName || "Not selected"}</span></div>; })}</div></div>
+                  <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel ? channelLabel(channel) : "Not selected"}</span></div>; })}</div></div>
                   {batchPreflight ? (
                     <div className={`rounded-xl border p-4 ${batchPreflight.status === "READY" ? "border-status-success/30 bg-status-success-soft" : "border-destructive/30 bg-status-danger-soft"}`}>
                       <div className="flex items-center justify-between gap-3">
@@ -1706,13 +1328,13 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               ) : null}
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-4 sm:px-6">
               <Button variant="ghost" onClick={() => composerStep === 1 ? setIsComposerOpen(false) : setComposerStep((current) => (current - 1) as ComposerStep)}>{composerStep === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" />Back</>}</Button>
               {composerStep < 4 ? <Button onClick={advanceComposerStep}>Continue<ArrowRight className="ml-2 h-4 w-4" /></Button> : (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline" disabled={saving} onClick={() => void savePost(false, "DRAFT")}>{saving ? "Saving..." : "Save draft"}</Button>
-                  <Button variant="outline" disabled={saving || !composer.scheduledFor || mediaPublishIssues.length > 0} onClick={() => void savePost(false, "SCHEDULED")}>{saving ? "Saving..." : "Schedule post"}</Button>
-                  <Button disabled={saving || mediaPublishIssues.length > 0} onClick={() => void savePost(true)}>{saving ? "Publishing..." : "Post now"}</Button>
+                  <Button variant="outline" disabled={saving || !composer.scheduledFor || mediaPublishIssues.length > 0 || composer.channels.some((platform) => !composer.channelSelections[platform])} onClick={() => void savePost(false, "SCHEDULED")}>{saving ? "Saving..." : "Schedule post"}</Button>
+                  <Button disabled={saving || mediaPublishIssues.length > 0 || composer.channels.some((platform) => !composer.channelSelections[platform])} onClick={() => void savePost(true)}>{saving ? "Publishing..." : "Post now"}</Button>
                 </div>
               )}
             </div>

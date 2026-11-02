@@ -1,17 +1,14 @@
+import { useLoaderData } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { MotionReveal } from "@/components/ui/motion-reveal";
-import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-analytics-overview";
 
-export const metadata = { title: "Overview | KasiTek" };
+export function meta() { return [{ title: "Overview | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type WorkspaceSummary = {
   socialPostCount: number;
+  attention?: { unreadConversations: number; socialAttention: number; connectionAttention: number; campaignFailures: number };
   connections: Array<{
     id: string;
     phoneDisplayNumber: string | null;
@@ -50,9 +47,9 @@ type WorkspaceSummary = {
   }>;
 };
 
-export default async function WorkspacePage() {
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
+  if (!session?.user?.id) throw redirect("/login");
 
   const response = await fetchCoreJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
   const summary = response.summary;
@@ -60,18 +57,14 @@ export default async function WorkspacePage() {
     earlyAccess: { status: string; endsAt: string | null } | null;
   }>("/api/early-access/status").catch(() => null);
 
+  return { summary, earlyAccessResponse };
+}
+
+export default function WorkspacePage() {
+  const { summary, earlyAccessResponse } = useLoaderData<typeof clientLoader>();
   return (
     <div className="px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-[1440px]">
-        <PageHeader>
-          <PageHeaderContent>
-            <PageHeaderDescription>Workspace</PageHeaderDescription>
-            <PageHeaderTitle>Overview</PageHeaderTitle>
-          </PageHeaderContent>
-          <PageHeaderActions>
-            <Button asChild><Link href="/campaigns/create">New campaign</Link></Button>
-          </PageHeaderActions>
-        </PageHeader>
 
         {earlyAccessResponse?.earlyAccess ? (
           <section className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
@@ -83,18 +76,8 @@ export default async function WorkspacePage() {
           </section>
         ) : null}
 
-        <WorkspaceAnalyticsOverview />
-
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" delay={0.16} />
-          <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} delay={0.2} />
-          <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} delay={0.28} />
-        </section>
+        <WorkspaceAnalyticsOverview summary={summary} />
       </div>
     </div>
   );
-}
-
-function OperationalLink({ href, icon: Icon, label, detail, delay }: { href: string; icon: LucideIcon; label: string; detail: string; delay: number }) {
-  return <MotionReveal delay={delay} hoverLift className="h-full"><Link href={href} className="v-card group flex h-full min-h-32 flex-col p-4 no-underline transition-[border-color,background-color] duration-[150ms] hover:border-line-strong hover:bg-secondary"><Icon className="size-4 text-muted-foreground transition-colors duration-[150ms] group-hover:text-primary" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link></MotionReveal>;
 }

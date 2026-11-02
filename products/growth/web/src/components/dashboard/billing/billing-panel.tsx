@@ -1,5 +1,3 @@
-"use client";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PaymentReturnStatus } from "@/components/dashboard/billing/payment-return-status";
@@ -8,7 +6,7 @@ import { SubscriptionActionButton } from "@/components/dashboard/billing/subscri
 import type { AvailablePlan, BillingCredits, BillingSummary, ProductAccess } from "@/lib/billing";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { MotionReveal } from "@/components/ui/motion-reveal";
-import Link from "next/link";
+import { Link } from "react-router";
 
 function productStateLabel(product: ProductAccess) {
   if (product.subscriptionStatus === "TRIAL") return "Trial";
@@ -103,7 +101,7 @@ export function BillingPanel({
                           : "Choose a plan when your workspace needs more credits."}
                       </p>
                     </div>
-                    <Button asChild><Link href="/upgrade">Change plan</Link></Button>
+                    <Button asChild><Link to="/upgrade">Change plan</Link></Button>
                   </div>
                 </div>
 

@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnalyticsCoverageBadge, AnalyticsEmptyState, AnalyticsErrorState, AnalyticsFreshnessBadge, AnalyticsLoadingState } from "@/components/analytics/analytics-feedback";
 import { AnalyticsMetricSeriesTable, AnalyticsTrendChart } from "@/components/analytics/analytics-visualizations";

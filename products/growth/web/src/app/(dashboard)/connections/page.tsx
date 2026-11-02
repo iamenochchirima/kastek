@@ -1,26 +1,18 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import WhatsappEmbeddedSignupCard from "@/components/dashboard/settings/whatsapp-embedded-signup-card";
 import WhatsappManualConnectionCard from "@/components/dashboard/settings/whatsapp-manual-connection-card";
-import { ConnectionsManager } from "@/components/dashboard/connections/connections-manager";
+import { ConnectionsManager, type MailboxConnection } from "@/components/dashboard/connections/connections-manager";
 import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connections";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
-import {
-  PageHeader,
-  PageHeaderContent,
-  PageHeaderDescription,
-  PageHeaderTitle,
-} from "@/components/ui/page-header";
+import { redirect } from "react-router";
 import { CONNECTION_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
 
-export const metadata = {
-  title: "Connections | KasiTek",
-};
+export function meta() { return [{ title: "Connections | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export default async function ConnectionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as {
     connected?: string;
     facebook_count?: string;
     instagram_count?: string;
@@ -31,31 +23,30 @@ export default async function ConnectionsPage({
     provider?: string;
     connectionId?: string;
     capabilities?: string;
-  }>;
-}) {
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+  });
 
-  const params = await searchParams;
+  const session = await getWorkspaceSession(route.request);
+  if (!session?.user?.id) throw redirect("/login");
+
+  const params = searchParams;
   const requestedCapabilities = params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
 
-  const [sharedResponse, whatsappResponse] = await Promise.all([
+  const [sharedResponse, emailResponse, whatsappResponse] = await Promise.all([
     fetchCoreJson<{ connections: WorkspaceConnection[] }>("/api/connections")
       .then((response) => ({ ...response, loadFailed: false }))
       .catch(() => ({ connections: [], loadFailed: true })),
+    fetchCoreJson<{ connections: MailboxConnection[] }>("/api/email/connections").then(response => ({ ...response, loadFailed: false })).catch(() => ({ connections: [], loadFailed: true })),
     fetchCoreJson<{ connections: WhatsappConnectionView[] }>("/api/whatsapp/connections").catch(() => ({ connections: [] })),
   ]);
 
-  return (
-    <div className="min-h-[100dvh] p-4 sm:p-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <PageHeader>
-          <PageHeaderContent>
-            <PageHeaderTitle>Connections</PageHeaderTitle>
-            <PageHeaderDescription>Connected workspace accounts.</PageHeaderDescription>
-          </PageHeaderContent>
-        </PageHeader>
+  return { params, requestedCapabilities, sharedResponse, whatsappResponse, emailResponse };
+}
 
+export default function ConnectionsPage() {
+  const { params, requestedCapabilities, sharedResponse, whatsappResponse, emailResponse } = useLoaderData<typeof clientLoader>();
+  return (
+    <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         {params.connected === "meta" && params.instagram_count === "0" ? (
           <div className="flex items-start justify-between gap-3 rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention">
             <span>
@@ -120,7 +111,6 @@ export default async function ConnectionsPage({
           </div>
         ) : null}
 
-        <FeatureAnalyticsPanel title="Connection" description="Lifecycle and health reporting." metricKeys={CONNECTION_ANALYTICS_METRICS} />
 
         <WhatsappEmbeddedSignupCard
           connections={whatsappResponse.connections}
@@ -132,6 +122,8 @@ export default async function ConnectionsPage({
         />
 
         <ConnectionsManager
+          emailConnections={emailResponse.connections}
+          emailLoadFailed={emailResponse.loadFailed}
           connections={sharedResponse.connections}
           loadFailed={sharedResponse.loadFailed}
           initialAccessRequest={params.connectionId ? {
@@ -143,6 +135,8 @@ export default async function ConnectionsPage({
             provider: params.provider,
           } : undefined}
         />
+
+        <details id="connection-reporting" className="rounded-lg border border-border"><summary className="cursor-pointer p-4 text-sm font-medium">Connection reporting</summary><div className="border-t border-border p-4"><FeatureAnalyticsPanel title="Connection" description="Lifecycle and health reporting." metricKeys={CONNECTION_ANALYTICS_METRICS} /></div></details>
 
         <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
           <details className="rounded-xl border border-border bg-card">

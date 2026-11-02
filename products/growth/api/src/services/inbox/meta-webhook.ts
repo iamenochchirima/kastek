@@ -1,7 +1,6 @@
 import type { Pool } from 'pg';
 import { apiJson } from '../../json.js';
 import { createId } from '@paralleldrive/cuid2';
-import { forwardIncomingChannelMessage } from '../agent-channel-forwarding.js';
 import { sendPushNotificationToUser } from '../notifications.js';
 import * as sql from './inbox-sql.js';
 import { transaction, enqueueMetaSourceManifest } from './send.js';
@@ -26,48 +25,6 @@ import {
 import { createAttachment, createReference } from './message-domain.js';
 import { publishMessageCreated, publishConversationUpdated } from './read.js';
 import { obj, arr, str, type MetaChannel, type InboxOptions } from './types.js';
-async function forwardMetaMessageToAgent(
-  channel: MetaChannel,
-  conversationId: string,
-  sender: string,
-  name: string | null,
-  object: string,
-  providerMessageId: string | null,
-  timestamp: unknown,
-  text: string,
-  options: InboxOptions,
-) {
-  const messageId = providerMessageId?.trim()
-      ? providerMessageId
-      : `meta:${object}:${channel.id}:${sender}:${typeof timestamp === 'bigint' || (typeof timestamp === 'number' && Number.isInteger(timestamp)) ? timestamp : 0}`,
-    payload = {
-      channelType: channelName(channel),
-      channelKey: channel.external_connection_id,
-      provider: 'meta',
-      providerEventId: messageId,
-      providerMessageId: messageId,
-      externalIdentity: sender,
-      externalConversationId: conversationId,
-      messageType: 'text',
-      content: { text },
-      occurredAt: new Date().toISOString().replace(/Z$/, '+00:00'),
-      ...(name?.trim() ? { displayName: name.trim() } : {}),
-    };
-  if (options.forwardMessage)
-    await options.forwardMessage({
-      organizationId: channel.org_id ?? '',
-      actorId: channel.user_id,
-      payload,
-    });
-  else
-    await forwardIncomingChannelMessage(
-      options.config,
-      channel.org_id ?? '',
-      channel.user_id,
-      payload,
-      options.fetch,
-    );
-}
 export async function processMetaWebhookPayload(
   pool: Pool,
   raw: unknown,
@@ -210,22 +167,6 @@ export async function processMetaWebhookPayload(
         options,
       );
       if (echo) continue;
-      if (content)
-        try {
-          await forwardMetaMessageToAgent(
-            channel,
-            conversation.id,
-            sender,
-            name,
-            object,
-            providerId,
-            event.timestamp,
-            content,
-            options,
-          );
-        } catch {
-          /* Provider persistence is authoritative even when the Agent Platform is unavailable. */
-        }
       try {
         await sendPushNotificationToUser(
           { pool, config: options.config },

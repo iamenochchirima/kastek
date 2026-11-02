@@ -1,13 +1,12 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRevalidator } from "react-router";
+import { useEffect, useEffectEvent, useState } from "react";
 
 type VerificationState = "verifying" | "completed" | "pending" | "failed" | "error";
 
 export function PaymentReturnStatus({ reference }: { reference: string }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
+  const refreshBilling = useEffectEvent(() => { void revalidator.revalidate(); });
   const [state, setState] = useState<VerificationState>("verifying");
   const [message, setMessage] = useState("Verifying the payment with Paystack...");
 
@@ -26,7 +25,7 @@ export function PaymentReturnStatus({ reference }: { reference: string }) {
         if (body.status === "completed") {
           setState("completed");
           setMessage("Payment verified. Product access has been updated.");
-          router.refresh();
+          refreshBilling();
           return;
         }
         if (body.status === "failed") {
@@ -45,7 +44,7 @@ export function PaymentReturnStatus({ reference }: { reference: string }) {
 
     void verify();
     return () => controller.abort();
-  }, [reference, router]);
+  }, [reference]);
 
   const tone = state === "completed"
     ? "border-primary/30 bg-primary/10"

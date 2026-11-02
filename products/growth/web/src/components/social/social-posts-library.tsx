@@ -1,8 +1,6 @@
-"use client";
+import { Link } from "react-router";
 
-import Link from "next/link";
-import Image from "next/image";
-import { ArrowUpRight, CalendarDays, FileImage, Play } from "lucide-react";
+import { ArrowUpRight, CalendarDays, FileImage, Play } from "@/components/ui/interface-icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { apiUrl } from "@/lib/server-api";
@@ -39,7 +37,7 @@ function SocialPostsTable({ posts }: { posts: SocialPost[] }) {
           return (
             <Link
               key={post.id}
-              href={`/content/posts/${encodeURIComponent(post.id)}`}
+              to={`/content/posts/${encodeURIComponent(post.id)}`}
               className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-foreground/30 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="flex items-start justify-between gap-3">
@@ -79,7 +77,7 @@ function SocialPostsTable({ posts }: { posts: SocialPost[] }) {
             return (
               <tr key={post.id} className="bg-card transition-colors hover:bg-secondary/20">
                 <td className="max-w-[360px] px-4 py-3">
-                  <Link href={`/content/posts/${encodeURIComponent(post.id)}`} className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Link to={`/content/posts/${encodeURIComponent(post.id)}`} className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-foreground group-hover:underline">{post.title || "Untitled social post"}</span>
                       {post.media?.length ? <FileImage className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={`${post.media.length} media assets`} /> : null}
@@ -103,7 +101,7 @@ function SocialPostsTable({ posts }: { posts: SocialPost[] }) {
                   {publishedJobs ? <div className="mt-1">{publishedJobs} published</div> : null}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/content/posts/${encodeURIComponent(post.id)}`} className="inline-flex rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Open ${post.title || "post"}`}>
+                  <Link to={`/content/posts/${encodeURIComponent(post.id)}`} className="inline-flex rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Open ${post.title || "post"}`}>
                     <ArrowUpRight className="h-4 w-4" />
                   </Link>
                 </td>
@@ -137,7 +135,7 @@ export function SocialPostsLibrary({
         return (
           <Link
             key={post.id}
-            href={`/content/posts/${encodeURIComponent(post.id)}`}
+            to={`/content/posts/${encodeURIComponent(post.id)}`}
             className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <Card className="h-full gap-0 overflow-hidden border-border/70 bg-secondary/20 py-0 transition-colors group-hover:border-foreground/30 group-hover:bg-secondary/35">
@@ -152,8 +150,7 @@ export function SocialPostsLibrary({
                       preload="metadata"
                     />
                   ) : (
-                    <Image
-                      unoptimized
+                    <img
                       width={640}
                       height={360}
                       className="h-full w-full object-cover"

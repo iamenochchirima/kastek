@@ -1,11 +1,10 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import CampaignDetailPageClient from "@/components/dashboard/campaigns/campaign-detail-page-client";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { fetchCoreJson } from "@/lib/core-server-api";
-import { notFound, redirect } from "next/navigation";
+import { ApiError, fetchCoreJson } from "@/lib/core-server-api";
+import { redirect } from "react-router";
 
-export const metadata = {
-  title: "Campaign Details | KasiTek",
-};
+export function meta() { return [{ title: "Campaign Details | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type CampaignDetailResponse = {
   campaign?: {
@@ -98,26 +97,32 @@ type CampaignDetailResponse = {
   };
 };
 
-export default async function ReachCampaignDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const params = (route.params as { id: string });
 
-  const { id } = await params;
+  const session = await getWorkspaceSession(route.request);
+  if (!session?.user?.id) throw redirect("/login");
+
+  const { id } = params;
 
   const response: CampaignDetailResponse | null = await fetchCoreJson<CampaignDetailResponse>(
     `/api/whatsapp/campaigns/${id}`,
-  ).catch(() => null);
+  ).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) throw new Response("Not found", { status: 404 });
+    throw error;
+  });
 
   if (!response?.campaign) {
-    notFound();
+    throw new Response("Not found", { status: 404 });
   }
 
   const campaign = response.campaign.campaign;
 
+  return { recipients: response.campaign.recipients, campaign };
+}
+
+export default function ReachCampaignDetailPage() {
+  const { recipients, campaign } = useLoaderData<typeof clientLoader>();
   return (
     <CampaignDetailPageClient
       campaign={{
@@ -149,7 +154,7 @@ export default async function ReachCampaignDetailPage({
         listLabel: campaign.listLabel ?? campaign.list_label ?? null,
         defaultBatchSize: campaign.defaultBatchSize ?? campaign.default_batch_size ?? null,
       }}
-      recipients={(response.campaign.recipients ?? []).map((recipient) => ({
+      recipients={(recipients ?? []).map((recipient) => ({
         id: recipient.id,
         contactId: recipient.contactId ?? recipient.contact_id ?? "",
         status: recipient.status,

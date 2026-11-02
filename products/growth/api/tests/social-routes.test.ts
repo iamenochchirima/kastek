@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 import { readConfig } from "../src/config.js";
 import { buildApp } from "../src/app.js";
 import { registerSocialRoutes } from "../src/routes/social.js";
-import { registerAiRoutes } from "../src/routes/ai.js";
 import { sha256 } from "../src/identity/session.js";
 
 test("Social registration matches authoritative Rust route inventory including provider callback boundaries", async () => {
@@ -22,7 +21,6 @@ test("Social registration matches authoritative Rust route inventory including p
           if (method !== "HEAD") observed.add(`${method} ${route.url}`);
       });
       registerSocialRoutes(app, ctx);
-      registerAiRoutes(app, ctx);
     },
   ]);
   try {
@@ -35,8 +33,7 @@ test("Social registration matches authoritative Rust route inventory including p
         .filter(
           (row: { handler: string; owner: string }) =>
             row.owner === "growth" &&
-            (row.handler.startsWith("social::") ||
-              row.handler.startsWith("ai::")),
+            row.handler.startsWith("social::"),
         )
         .map(
           (row: { method: string; path: string }) =>
@@ -44,7 +41,8 @@ test("Social registration matches authoritative Rust route inventory including p
         ),
     );
     assert.ok(expected.size > 40);
-    assert.deepEqual([...observed].sort(), [...expected].sort());
+    const additiveRoutes = ["POST /api/social/posts/:id/update-published"];
+    assert.deepEqual([...observed].sort(), [...expected, ...additiveRoutes].sort());
     const publicResponse = await app.inject(
       "/api/social/oauth/bluesky/client-metadata",
     );

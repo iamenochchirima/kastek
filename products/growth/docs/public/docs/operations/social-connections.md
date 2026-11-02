@@ -4,6 +4,30 @@ title: Social Connections
 
 # Social Connections
 
+## Facebook Pages
+
+Choose **Connect Facebook**, select the access needed, then continue to Meta to choose
+the Pages for this workspace. Publishing requests Page publishing and engagement-read
+permissions. Page tasks such as `CREATE_CONTENT` are account evidence and are not sent
+as OAuth permission names. Completing sign-in alone does not establish Page publishing
+access; check the returned Page and its permissions after connection.
+
+Facebook connection also requests `business_management` for business asset discovery.
+Existing connections need reauthorisation to add this permission.
+
+Each authorised Page appears as a separate connection. Growth reads every result batch
+returned by Meta. To add Pages, choose **Connect Facebook** again and use **Edit settings**
+in Meta to review the Page selection. Continuing with previous settings keeps the existing
+authorisation. Pages without a usable Page access token cannot be imported.
+
+### Editing content
+
+Choose **Edit post** for a draft or scheduled post to change its text and media, then
+**Save changes**. Published Facebook-only posts have a separate text/caption editor with
+**Update on Facebook**. This updates the existing Facebook post. A single photo can be removed with **Remove photo**;
+**Undo** restores it before saving. Replacing or adding published media is not supported, and
+the destination remains unchanged. Other published platforms and processing posts cannot be edited here.
+
 ## LinkedIn Company Pages
 
 Open **Connections** and select **Connect** under LinkedIn. After one LinkedIn authorization, KasiTek
@@ -71,19 +95,42 @@ publishing uses `video.publish`; draft upload uses `video.upload`; profile stati
 
 ## Multi-destination publishing
 
+You can save and edit a platform draft before connecting an account. Choose **Draft for Facebook**
+(or another platform) in the composer. Select a connected account for every destination before
+scheduling or publishing.
+
 In **Content**, a draft can target multiple connected accounts. The Agent or composer checks every
 selected account first, shows any missing access, unsupported capability, connection issue, content
 limit, or media issue, and asks for one approval covering the complete target set. Platform-specific
 variants must be prepared before approval; Core does not silently rewrite an approved variant.
 
-The publish result is tracked per account. After approval, the Agent waits for the durable batch
-result and reports confirmed publications plus every target that failed or needs attention. A
+The publish result is tracked per account. After approval, the client or Agent reads the durable
+batch status and reports confirmed publications plus every target that failed or needs attention. A
 provider timeout is shown as unconfirmed rather than as a safe retry; check the batch status or
 provider record before trying again. Accounts already confirmed as published are excluded from a
 later retry. For a confirmed failure, use the batch retry action to retry the failed destinations
 together; unconfirmed outcomes require provider reconciliation first.
 The first release supports immediate batch publishing; scheduled cross-provider batches remain
 separate.
+
+## Current publishing formats
+
+These are the formats implemented by Growth's current adapters, subject to account permissions
+and preflight. They do not describe every format a provider may support.
+
+| Destination | Growth formats |
+| --- | --- |
+| Facebook | Text; one image |
+| Instagram | One image with caption |
+| Threads | Text; one image |
+| TikTok | Video or photo through the supported upload/HTTPS media flow |
+| LinkedIn | Text; one image |
+| X | Text; up to four images |
+| Bluesky | Text; up to four images |
+
+Use preflight for actual text/media limits and account readiness. A successful connection does
+not verify publication, analytics, comments or messages. Live provider acceptance is recorded
+separately for each platform and format.
 
 ## Production Meta configuration
 

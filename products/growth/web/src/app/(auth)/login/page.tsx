@@ -1,20 +1,26 @@
+import { type ClientLoaderFunctionArgs } from "react-router";
 import LoginForm from "@/components/auth/login-form";
 import { getCoreSession } from "@/lib/core-auth";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { Suspense } from "react";
 import { safeReturnTo } from "@/lib/shared-login";
 
-export const metadata = {
-  title: "Sign In | KasiTek",
-};
+export function meta() { return [{ title: "Sign In | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; callbackUrl?: string }> }) {
-  const params = await searchParams;
-  const session = await getCoreSession();
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as { returnTo?: string; callbackUrl?: string });
+
+  const params = searchParams;
+  const session = await getCoreSession(route.request);
   if (session?.user?.id) {
-    redirect(safeReturnTo(params.returnTo ?? params.callbackUrl));
+    throw redirect(safeReturnTo(params.returnTo ?? params.callbackUrl));
   }
 
+  return {  };
+}
+
+export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="text-center">

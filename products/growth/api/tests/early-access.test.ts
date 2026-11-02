@@ -1,3 +1,5 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
@@ -126,6 +128,7 @@ test('isolated early-access approval, activation, retries, revocation and expiry
         'AdminUser', 'NotificationEvent', 'Notification']) {
         await pool.query(`CREATE TABLE "${name}" (LIKE public."${name}" INCLUDING ALL)`);
       }
+      await pool.query(await readFile(new URL("../../database/prisma/migrations/20261023170000_growth_agent_setup/migration.sql",import.meta.url),"utf8"));
       const enumColumns = (await admin.query(`SELECT table_name,column_name,udt_name FROM information_schema.columns
         WHERE table_schema=$1 AND udt_schema='public' AND udt_name=ANY($2::text[])`, [schema, enumNames])).rows;
       for (const column of enumColumns) {
@@ -139,7 +142,8 @@ test('isolated early-access approval, activation, retries, revocation and expiry
           VALUES('operator','Operator','operator@example.test','synthetic','admin',NOW(),NOW());
         INSERT INTO "ProductWaitlistEntry"(id,"contactPerson",email,products,"createdAt","updatedAt")
           VALUES('application','Owner','owner@example.test','{}',NOW(),NOW())`);
-      const headers = { cookie: 'kasitek_admin_session=operator' };
+      await seedAdminFixtureSessions(pool);
+      const headers = adminFixtureHeaders("operator");
       const unauthorized = await app.inject({ url: '/api/admin/early-access/application' });
       assert.equal(unauthorized.statusCode, 401);
       await pool.query(`UPDATE "AdminUser" SET role='support' WHERE id='operator'`);
@@ -166,6 +170,7 @@ test('isolated early-access approval, activation, retries, revocation and expiry
       assert.equal(first.status, 'active');
       assert.equal(first.organizationId, repeated.organizationId);
       assert.equal((await pool.query('SELECT COUNT(*) FROM "Organization"')).rows[0].count, '1');
+      assert.equal((await pool.query('SELECT COUNT(*) FROM "GrowthAgentSetup"')).rows[0].count, '1');
       assert.equal((await pool.query('SELECT COUNT(*) FROM "OrganizationEntitlementGrant"')).rows[0].count, '5');
       assert.equal((await pool.query('SELECT SUM(amount) AS amount FROM "CreditGrant"')).rows[0].amount, '1000');
       assert.equal((await statusForOrg(pool, String(first.organizationId)))?.status, 'active');

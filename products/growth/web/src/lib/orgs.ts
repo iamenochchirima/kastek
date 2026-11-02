@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { getWorkspaceContext } from "@/lib/core-auth";
 import { fetchCoreJson } from "@/lib/core-server-api";
 
 export type OrgRole = "OWNER" | "ADMIN" | "MEMBER";
@@ -51,18 +51,16 @@ export type InvitationPreview = {
 
 export const ACTIVE_ORG_COOKIE = "kasitek_active_org";
 
-export async function getActiveOrgId(): Promise<string | null> {
-  const store = await cookies();
-  return store.get(ACTIVE_ORG_COOKIE)?.value ?? null;
+export async function getActiveOrgId(request?: Request): Promise<string | null> {
+  if (request) return (await getWorkspaceContext(request)).activeOrgId;
+  const data = await fetchCoreJson<{ activeOrgId: string | null }>("/api/orgs");
+  return data.activeOrgId;
 }
 
-export async function fetchOrgs(): Promise<Org[]> {
-  try {
-    const data = await fetchCoreJson<{ orgs: Org[] }>("/api/orgs");
-    return data.orgs;
-  } catch {
-    return [];
-  }
+export async function fetchOrgs(request?: Request): Promise<Org[]> {
+  if (request) return (await getWorkspaceContext(request)).orgs;
+  const data = await fetchCoreJson<{ orgs: Org[] }>("/api/orgs");
+  return data.orgs;
 }
 
 

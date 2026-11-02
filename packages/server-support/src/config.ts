@@ -55,3 +55,18 @@ export function isLoopbackOrigin(value: string): boolean {
     /^127\.\d+\.\d+\.\d+$/.test(host)
   );
 }
+
+/** An explicit service profile must never fall through to another environment file. */
+export function loadServiceEnvironment(
+  defaultPath: string,
+  load: (path?: string) => { error?: unknown },
+  environment: NodeJS.ProcessEnv = process.env,
+): void {
+  const explicit = environment.KASITEK_ENV_FILE;
+  if (explicit !== undefined) {
+    if (!explicit.trim()) throw new Error("KASITEK_ENV_FILE must name an environment file");
+    if (load(explicit).error) throw new Error("The explicit service environment file could not be loaded");
+    return;
+  }
+  if (load(defaultPath).error) load();
+}

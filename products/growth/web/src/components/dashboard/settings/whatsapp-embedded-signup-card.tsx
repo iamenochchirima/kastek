@@ -1,8 +1,6 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 
 type WhatsappConnectionView = {
@@ -141,7 +139,8 @@ export default function WhatsappEmbeddedSignupCard({
   hidden?: boolean;
   accessRequest?: WhatsappAccessRequest;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [sdkReady, setSdkReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -156,8 +155,8 @@ export default function WhatsappEmbeddedSignupCard({
   const startSignupRef = useRef<() => void>(() => undefined);
   const autoStartedAccessRequestRef = useRef<string | null>(null);
 
-  const appId = process.env.NEXT_PUBLIC_META_APP_ID || "";
-  const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
+  const appId = import.meta.env.VITE_META_APP_ID || "";
+  const configId = import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
   const accessRequestKey = accessRequest
     ? `${accessRequest.connectionId || ""}:${(accessRequest.capabilities || []).join(",")}`
     : "";
@@ -168,8 +167,8 @@ export default function WhatsappEmbeddedSignupCard({
 
   const envMissing = useMemo(() => {
     const missing: string[] = [];
-    if (!appId) missing.push("NEXT_PUBLIC_META_APP_ID");
-    if (!configId) missing.push("NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID");
+    if (!appId) missing.push("VITE_META_APP_ID");
+    if (!configId) missing.push("VITE_META_EMBEDDED_SIGNUP_CONFIG_ID");
     return missing;
   }, [appId, configId]);
 
@@ -283,9 +282,9 @@ export default function WhatsappEmbeddedSignupCard({
       if (accessRequest.capabilities?.length) {
         params.set("capabilities", accessRequest.capabilities.join(","));
       }
-      router.push(`/connections?${params.toString()}`);
+      navigate(`/connections?${params.toString()}`);
     } else {
-      router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
+      navigate(`/connections/whatsapp-onboarding?${params.toString()}`);
     }
   }
 
@@ -347,7 +346,7 @@ export default function WhatsappEmbeddedSignupCard({
           ? "Connection details refreshed."
           : `Template sync completed. Synced ${body.synced || 0} WhatsApp templates.`
       );
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     } finally {
@@ -406,7 +405,7 @@ export default function WhatsappEmbeddedSignupCard({
                 },
               ]),
             });
-            router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
+            navigate(`/connections/whatsapp-onboarding?${params.toString()}`);
           })
           .finally(() => {
             setLoading(false);

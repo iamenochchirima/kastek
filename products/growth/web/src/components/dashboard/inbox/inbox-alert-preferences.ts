@@ -1,8 +1,8 @@
 "use client";
 
-export const DESKTOP_ALERTS_KEY = "kasiai:inbox-desktop-alerts";
-export const SOUND_ALERTS_KEY = "kasiai:inbox-sound-alerts";
-export const ALERT_SETTINGS_EVENT = "kasiai:inbox-alert-settings";
+export const DESKTOP_ALERTS_KEY = "growth:inbox-desktop-alerts";
+export const SOUND_ALERTS_KEY = "growth:inbox-sound-alerts";
+export const ALERT_SETTINGS_EVENT = "growth:inbox-alert-settings";
 
 export type InboxAlertPreferences = {
   desktopAlertsEnabled: boolean;

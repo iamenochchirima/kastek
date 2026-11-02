@@ -1,3 +1,4 @@
+import { registerAdminCommercialRoutes } from './admin-commercial.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CoreContext } from '../context.js';
 import {registerAdminAnalyticsRoutes} from './admin-analytics.js';
@@ -22,6 +23,7 @@ export function registerAdminOperationsRoutes(
   app: FastifyInstance,
   context: CoreContext,
 ) {
+  registerAdminCommercialRoutes(app,context);
   const pool = context.pool;
   const param = (request: FastifyRequest, key = 'id') =>
     String(obj(request.params)[key]);
@@ -106,7 +108,7 @@ export function registerAdminOperationsRoutes(
       search?: string;
     }>(r.query, ['callStatus', 'category', 'search']);
     await extractAdmin(r, context);
-    return web.listWebServices(pool, query('web_services.ListQuery', q));
+    return web.listWebServices(pool, { ...query('web_services.ListQuery', q), ...typedQuery(r.query, ['page', 'limit', 'paginate']) });
   });
   app.get('/api/admin/web-services/:id', async (r) => {
     await extractAdmin(r, context);
@@ -141,26 +143,27 @@ export function registerAdminOperationsRoutes(
     return invoices.getInvoice(pool, param(r));
   });
   app.post('/api/admin/invoices', async (r, reply) => {
-    await extractAdmin(r, context);
+    const admin = await extractAdmin(r, context);
     return reply
       .code(201)
-      .send(await invoices.createInvoice(pool, body('invoices.CreateBody', r)));
+      .send(await invoices.createInvoice(pool, body('invoices.CreateBody', r), admin.id));
   });
   app.patch('/api/admin/invoices/:id', async (r) => {
-    await extractAdmin(r, context);
+    const admin = await extractAdmin(r, context);
     return invoices.updateInvoice(
       pool,
       param(r),
       body('invoices.UpdateBody', r),
+      admin.id,
     );
   });
   app.delete('/api/admin/invoices/:id', async (r) => {
-    await extractAdmin(r, context);
-    return invoices.deleteInvoice(pool, param(r));
+    const admin = await extractAdmin(r, context);
+    return invoices.deleteInvoice(pool, param(r), admin.id);
   });
   app.get('/api/admin/outreach', async (r) => {
     await extractAdmin(r, context);
-    return outreach.listCampaigns(pool);
+    return outreach.listCampaigns(pool, obj(typedQuery<{ page?: string; limit?: string; paginate?: string }>(r.query, ['page', 'limit', 'paginate'])));
   });
   app.get('/api/admin/outreach/:id', async (r) => {
     await extractAdmin(r, context);
@@ -227,13 +230,16 @@ export function registerAdminOperationsRoutes(
       param(r),
     ),
   );
+  app.post('/api/admin/invoices/:id/materialize', async r => invoices.materializeInvoiceRuns(pool,(await extractAdmin(r,context)).id,param(r)));
+  app.post('/api/admin/invoices/materialize', async (r) => invoices.materializeInvoiceRuns(pool, (await extractAdmin(r, context)).id));
   app.post('/api/admin/invoices/:id/runs/:run_id/actions', async (r) => {
-    await extractAdmin(r, context);
+    const admin = await extractAdmin(r, context);
     return invoices.invoiceRunAction(
       pool,
       param(r),
       param(r, 'run_id'),
       body('invoices.RunActionBody', r).action as string,
+      admin.id,
     );
   });
   app.delete('/api/admin/outreach', async (r) => {
@@ -272,7 +278,7 @@ export function registerAdminOperationsRoutes(
       ]),
       parsedLimit = queryI64(queryValues.limit, 'limit');
     await extractAdmin(r, context);
-    const q: ObjectValue = { ...queryValues, limit: parsedLimit ?? null };
+    const q: ObjectValue = { ...queryValues, limit: parsedLimit ?? null, ...typedQuery(r.query, ['page', 'paginate']) };
     const result = await outreach.listDeliveryLogs(pool, q);
     return typeof result === 'string'
       ? reply
@@ -304,7 +310,7 @@ export function registerAdminOperationsRoutes(
     return outreach.listOutreachLeads(
       pool,
       param(r),
-      query('outreach.LeadQuery', q),
+      { ...query('outreach.LeadQuery', q), ...typedQuery(r.query, ['page', 'limit', 'paginate']) },
     );
   });
   app.post('/api/admin/outreach/:id/leads', async (r, reply) => {

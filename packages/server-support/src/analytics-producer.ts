@@ -97,7 +97,7 @@ type Common = Pick<
   | "idempotency_key"
 >;
 function validate(config: ProducerConfig, input: Common, data: unknown): void {
-  if (!["core", "tenant-platform"].includes(config.source_service))
+  if (!["core", "agent-platform", "tenant-platform"].includes(config.source_service))
     fail(
       "unsupported_source_service",
       `unsupported producer service ${config.source_service}`,

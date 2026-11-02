@@ -11,35 +11,20 @@ and the intended product-wide credit model. Its behavior conclusions date from 2
 links below point to the local TypeScript counterparts, but this is not a post-migration parity
 audit, pricing approval, or claim that the TypeScript service has been deployed.
 
-## Bottom line
+## Agents reset impact
 
-Credits are not currently consumed by most product functionality.
+The 2026-09-10 findings below describe the retired Agents implementation. The platform reset
+removed its Temporal worker and Growth credit calls. The new Agents product owns bounded
+execution reservations and usage accounting independently of Growth; commercial integration
+remains separate work. See the [current Agents implementation](https://github.com/Kasitek-Labs/kastek/blob/main/products/agents/docs/source-boundary.md).
+Growth still owns its existing credit ledger operations in
+[`credits.ts`](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/api/src/services/credits.ts). Their presence alone does not establish
+active customer-usage charging.
 
-The implemented customer-usage debit path is platform-funded model calls in the Agents worker:
+The current Growth assistant uses shared execution model accounting. The removed direct ideas/caption
+path is historical. A new retail credit conversion is separate from execution usage settlement.
 
-```text
-Agent Temporal activity
-  -> Core internal reserve endpoint
-  -> provider model call
-  -> Core capture or release endpoint
-  -> CreditAccount, CreditLedgerEntry, CreditUsageEvent
-```
-
-The worker charges only when the call uses KasiTek-funded credentials. BYOK model calls do not
-create a Core credit debit. The worker's `CREDIT_BILLING_MODE` is now `enforced` by default; it can
-still be set to `shadow` or `disabled` for a controlled rollout. See the
-[Agents repository README](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/README.md) and
-[credit pricing implementation](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/src/model/credit-pricing.ts)
-for the worker configuration and pricing decision.
-
-Core owns the credit ledger and exposes reserve, capture, and release operations, but the only
-customer-usage call sites found are the internal Agents endpoints in
-[`agent-internal.ts`](../../../api/src/routes/agent-internal.ts). Ledger
-operations are implemented in
-[`credits.ts`](../../../api/src/services/credits.ts). The ledger does not
-charge a feature merely because that feature exists in Core.
-
-## Current charging matrix
+## Historical charging audit, 2026-09-10
 
 | Functionality | What the code does today | Credit status |
 | --- | --- | --- |
@@ -47,7 +32,7 @@ charge a feature merely because that feature exists in Core.
 | Agents model calls using BYOK | Preserves `fundingSource = user` and skips the KasiTek credit reservation. | **Not charged by design.** |
 | Agent read tools | No direct credit reservation or capture. | **Not charged.** |
 | Agent outbound tool effects | The tool itself does not use the credit ledger. A downstream action may use a separate meter or provider-specific policy. | **No general credit charge.** |
-| Core social ideas and captions | Core calls OpenRouter directly from [`ai.ts`](../../../api/src/services/ai.ts). No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
+| Core social ideas and captions | Core calls OpenRouter directly from the retired ai.ts source. No credit reserve, capture, or provider-usage settlement is present in that path. | **Not charged. This is an implementation gap.** |
 | Website chat | The intended plan says to charge AI response usage through the Agent boundary, but the credit implementation checklist still marks website-chat enforcement incomplete. | **Not confirmed as a complete credit contract.** Platform-funded model calls may be charged after reaching the worker; anonymous and end-to-end behavior need explicit tests. |
 | WhatsApp campaign recipients | Checks and records the monthly `campaign_recipients` meter around accepted sends. | **Not charged as credits.** Uses a separate monthly meter. |
 | Social publishing | Records the monthly `social_publishes` meter after successful publication. | **Not charged as credits.** |
@@ -66,7 +51,7 @@ limit.
 
 These are separate systems and should not be described as if they were the same charge:
 
-| System | Purpose | Current examples |
+| System | Purpose | Examples from the historical audit |
 | --- | --- | --- |
 | Credit ledger | Variable usage balance with reservations, captures, releases, grant lots, and debits. | Agents platform-funded model calls. |
 | Monthly usage meter | Plan or feature limit enforced with `require_meter_available` and recorded with `record_meter_usage`. It writes `UsageEvent`; it does not debit the credit ledger. | Campaign recipients and social publishes. |
@@ -92,12 +77,11 @@ That plan is not yet a current-state contract:
 - Pricing action keys, units, provider-cost rules, versioning, failure behavior, and reconciliation
   are still open or incomplete.
 - The plan still describes AI billing rollout as `disabled`, then `shadow`, then `enforced`, while
-  the Agents worker now defaults to `enforced`. The configuration and the plan need to be reconciled.
+  the retired Agents worker defaulted to `enforced`. That worker has since been removed.
 
-The [Agent Temporal recovery runbook](https://github.com/Kasitek-Labs/kasitek-agents/blob/main/docs/runbooks/temporal-recovery.md)
-documents model-call reconciliation and the rule that BYOK calls should not create Core credit events. The
-[audio transcription architecture](./audio-transcription.md) explicitly leaves credit treatment as
-a release gate. Neither document covers product-wide charging.
+The retired Agents recovery notes no longer describe the platform. The
+[audio transcription architecture](./audio-transcription.md) also requires review before
+reconnecting Growth to the replacement execution service.
 
 ## Intended target policy already present in the plan
 

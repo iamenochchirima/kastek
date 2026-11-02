@@ -4,13 +4,15 @@ import { createId } from "@paralleldrive/cuid2";
 import { canonicalJson, wireInteger } from "@kasitek-labs/server-support/json";
 import type { RequestContext } from "../identity/request-context.js";
 import type { SocialPost } from "../services/social/types.js";
-import { getSocialPost } from "../services/social/posts.js";
+import { getSocialPost, lockSocialPost, refreshSocialPostPublishState } from "../services/social/posts.js";
 import { syncOrgConnections } from "../services/connections.js";
 import { syncPermissionInventory } from "../integrations/connection-permissions.js";
 import { transaction } from "../db.js";
 import { ApiError } from "../error.js";
 import { SUPPORTED_PLATFORMS } from "./content-adapter.js";
 import { SQL } from "./content-batch-sql.js";
+import { lockReviewedSocialAccounts, lockSocialPublicationAccounts, stampSocialPublicationAccounts } from "../services/social/account-admission.js";
+import { delegatedSocialAuthority } from "../operations/delegation.js";
 type Row = Record<string, any>;
 export interface PublishBatchTarget {
   platform: string;
@@ -26,6 +28,8 @@ export interface PublishBatchTarget {
 export interface TargetPlan extends PublishBatchTarget {
   jobId: string;
   channelConnectionId: string | null;
+  accountRevision?: string | null;
+  externalAccountId?: string | null;
 }
 const bad = (message: string) => new ApiError(400, "bad_request", message),
   conflict = (message: string) => new ApiError(409, "conflict", message);
@@ -175,13 +179,15 @@ export function aggregateBatchStatus(
 }
 export function postSnapshotHash(
   post: SocialPost,
-  targets: Pick<TargetPlan, "jobId" | "platform" | "channelConnectionId">[],
+  targets: (Pick<TargetPlan, "jobId" | "platform" | "channelConnectionId"> & Partial<Pick<TargetPlan, "accountRevision" | "externalAccountId">>)[],
 ): string {
   const snapshot = targets
-    .map(({ jobId, platform, channelConnectionId }) => ({
+    .map(({ jobId, platform, channelConnectionId, accountRevision, externalAccountId }) => ({
       jobId,
       platform,
       channelConnectionId,
+      accountRevision: accountRevision ?? null,
+      externalAccountId: externalAccountId ?? null,
     }))
     .sort((a, b) =>
       canonicalJson(a) < canonicalJson(b)
@@ -195,6 +201,7 @@ export function postSnapshotHash(
       canonicalJson({
         postId: post.id,
         content: post.content,
+        publishingOptions: Object.fromEntries(["instagramImageUrl", "tiktokMediaUrl", "tiktokMediaType", "tiktokPrivacyLevel", "tiktokConsent"].map(key => [key, metadata(post.metadata)[key] ?? null])),
         channels: post.channels,
         variants: post.variants.map((v) => ({
           id: v.id,
@@ -287,6 +294,7 @@ export async function preflightInternal(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  options: { syncConnections?: boolean } = {},
 ): Promise<{
   post: SocialPost;
   status: string;
@@ -294,8 +302,10 @@ export async function preflightInternal(
   mediaCount: number;
   targets: TargetPlan[];
 }> {
-  await syncOrgConnections(pool, ctx.organizationId);
-  await syncPermissionInventory(pool, ctx.organizationId);
+  if (options.syncConnections !== false) {
+    await syncOrgConnections(pool, ctx.organizationId);
+    await syncPermissionInventory(pool, ctx.organizationId);
+  }
   const post = await requirePost(pool, ctx, id);
   const jobs = post.publishJobs
     .filter((job) => post.channels.includes(job.platform))
@@ -358,7 +368,7 @@ export async function preflightInternal(
     if (job.status === "PUBLISHED" && job.external_post_id !== null) {
       state = "ALREADY_PUBLISHED";
       status = "PUBLISHED";
-    } else if (metadata(job.metadata)._kasitek_outcome === "UNKNOWN") {
+    } else if (job.status === "PUBLISHED" || metadata(job.metadata)._kasitek_outcome === "UNKNOWN") {
       state = status = "UNKNOWN";
       reasonCode = "provider_outcome_unknown";
       message =
@@ -418,6 +428,8 @@ export async function preflightInternal(
     return {
       jobId: job.id,
       channelConnectionId: job.channel_connection_id,
+      accountRevision: channel?.updated_at?.toISOString() ?? null,
+      externalAccountId: channel?.external_account_id ?? null,
       platform: job.platform,
       accountName: channel?.display_name ?? `${job.platform} account`,
       handle: channel?.handle ?? null,
@@ -560,7 +572,8 @@ export async function refreshBatchStatus(
       counts[6],
       orgId,
     ]);
-    await tx.query(SQL.refresh_batch_status[3], [id, status, orgId]);
+    const post = (await tx.query<{ postId: string }>('SELECT "postId" FROM "SocialPublishBatch" WHERE id=$1 AND "orgId"=$2', [id, orgId])).rows[0];
+    if (post) await refreshSocialPostPublishState(tx, post.postId);
   });
   return summary(pool, await loadBatch(pool, orgId, id));
 }
@@ -592,17 +605,24 @@ export async function publishBatch(
   ctx: RequestContext,
   id: string,
   expectedSnapshotHash?: string | null,
+  options: import("../services/social/posts.js").PostMutationOptions & { platform?: string } = {},
 ): Promise<Row> {
-  const key = idempotency(ctx, "batch content publishing"),
-    plan = await preflightInternal(pool, ctx, id);
-  if (
-    expectedSnapshotHash != null &&
-    expectedSnapshotHash !== plan.snapshotHash
-  )
-    throw conflict(
-      "The approved content changed before publishing; review and approve the updated batch",
-    );
+  const key = idempotency(ctx, "batch content publishing");
+  await syncOrgConnections(pool, ctx.organizationId);
+  await syncPermissionInventory(pool, ctx.organizationId);
+  let plan!: Awaited<ReturnType<typeof preflightInternal>>;
   const batchId = await transaction(pool, async (tx) => {
+    await lockSocialPost(tx, ctx.organizationId, id, options);
+    await lockSocialPublicationAccounts(tx, ctx.organizationId, id);
+    await lockReviewedSocialAccounts(tx, ctx.organizationId, options.expectedAccounts);
+    plan = await preflightInternal(pool, ctx, id, { syncConnections: false });
+    if (expectedSnapshotHash != null && expectedSnapshotHash !== plan.snapshotHash)
+      throw conflict("The approved content changed before publishing; review and approve the updated batch");
+    if (options.platform) {
+      plan.targets = plan.targets.filter(target => target.platform === options.platform);
+      if (!plan.targets.length) throw bad("The selected platform is not configured for this post");
+      plan.status = plan.targets.every(target => ["READY", "ALREADY_PUBLISHED"].includes(target.state)) ? "READY" : "BLOCKED";
+    }
     await tx.query(SQL.publish_batch[0], [
       `kasitek.content.publish_batch:${ctx.organizationId}:${id}`,
     ]);
@@ -611,10 +631,12 @@ export async function publishBatch(
     ).rows[0];
     if (existing) {
       const row = (await tx.query(SQL.publish_batch[2], [existing.id])).rows[0];
+      const selection = (await tx.query<{ metadata: { requestedPlatform?: string | null } | null }>('SELECT metadata FROM "SocialPublishBatch" WHERE id=$1', [existing.id])).rows[0]?.metadata?.requestedPlatform ?? null;
       if (row.post_id !== id || row.snapshot_hash !== plan.snapshotHash)
         throw conflict(
           "This idempotency key was already used for a different content revision",
         );
+      if (selection !== (options.platform ?? null)) throw conflict("This idempotency key was already used for different publishing destinations");
       return existing.id as string;
     }
     const batchId = createId(),
@@ -634,6 +656,7 @@ export async function publishBatch(
         (t) => !["READY", "ALREADY_PUBLISHED", "UNKNOWN"].includes(t.state),
       ).length,
     ]);
+    await tx.query('UPDATE "SocialPublishBatch" SET metadata=COALESCE(metadata,\'{}\'::jsonb)||$2::jsonb WHERE id=$1', [batchId, canonicalJson({ requestedPlatform: options.platform ?? null })]);
     for (const t of plan.targets) {
       const status =
         t.state === "ALREADY_PUBLISHED"
@@ -663,10 +686,13 @@ export async function publishBatch(
       if (allowed && t.state === "READY")
         await tx.query(SQL.publish_batch[5], [
           t.jobId,
-          canonicalJson({ _kasitek_batch_id: batchId }),
+          canonicalJson({ _kasitek_batch_id: batchId, _kasitek_delegation: delegatedSocialAuthority(ctx, options.platform ? "content.posts.publish" : "content.posts.publish_batch") }),
           ctx.organizationId,
         ]);
+      if (allowed && t.state === "READY")
+        await tx.query('UPDATE "SocialPublishJob" SET "userId"=$2 WHERE id=$1', [t.jobId, ctx.userId]);
     }
+    await stampSocialPublicationAccounts(tx, ctx.organizationId, id, plan.targets.filter(t => allowed && t.state === "READY").map(t => t.jobId));
     if (allowed && plan.targets.some((t) => t.state === "READY"))
       await tx.query(SQL.publish_batch[6], [id, ctx.organizationId]);
     return batchId;
@@ -681,16 +707,20 @@ export async function retryFailedBatch(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  options: import("../services/social/posts.js").PostMutationOptions = {},
 ): Promise<Row> {
   const key = idempotency(ctx, "batch content retry"),
     batch = await loadBatch(pool, ctx.organizationId, id);
   await refreshBatchStatus(pool, id, ctx.organizationId);
-  const plan = await preflightInternal(pool, ctx, batch.post_id);
-  if (plan.snapshotHash !== batch.snapshot_hash)
-    throw conflict(
-      "The content changed after this batch was admitted; update the draft and publish a new batch",
-    );
+  await syncOrgConnections(pool, ctx.organizationId);
+  await syncPermissionInventory(pool, ctx.organizationId);
   await transaction(pool, async (tx) => {
+    await lockSocialPost(tx, ctx.organizationId, batch.post_id, options);
+    await lockSocialPublicationAccounts(tx, ctx.organizationId, batch.post_id);
+    await lockReviewedSocialAccounts(tx, ctx.organizationId, options.expectedAccounts);
+    const plan = await preflightInternal(pool, ctx, batch.post_id, { syncConnections: false });
+    if (plan.snapshotHash !== batch.snapshot_hash)
+      throw conflict("The content changed after this batch was admitted; update the draft and publish a new batch");
     await tx.query(SQL.retry_failed_batch[0], [
       `kasitek.content.publish_batch.retry:${ctx.organizationId}:${id}`,
     ]);
@@ -717,6 +747,7 @@ export async function retryFailedBatch(
             item.job_id,
             canonicalJson({
               _kasitek_batch_id: id,
+              _kasitek_delegation: delegatedSocialAuthority(ctx, "content.posts.publish_batch.retry"),
               lastRetryIdempotencyKey: key,
             }),
             ctx.organizationId,
@@ -726,6 +757,7 @@ export async function retryFailedBatch(
         throw conflict(
           "This destination changed while it was being prepared for retry",
         );
+      await tx.query('UPDATE "SocialPublishJob" SET "userId"=$2 WHERE id=$1', [item.job_id, ctx.userId]);
       await tx.query(SQL.retry_failed_batch[4], [
         item.id,
         canonicalJson({ lastRetryIdempotencyKey: key }),

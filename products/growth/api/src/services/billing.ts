@@ -1845,6 +1845,7 @@ export async function getBillingSummary(
       name: d.name,
       description: d.description,
       used: wireInteger(meterUsage.get(d.key) ?? 0n),
+      configuredLimit: limit == null ? null : wireInteger(limit),
       limit: enforced && limit != null ? wireInteger(limit) : null,
     };
   });

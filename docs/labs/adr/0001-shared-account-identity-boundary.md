@@ -1,7 +1,10 @@
 # Shared account identity and product authorization boundary
 
-Status: Accepted for Labs and Growth local implementation. Agency, Agents, and Admin adoption remain later work.
+Status: Accepted for the original Labs and Growth local implementation. Later admin adoption is recorded in ADR 0002.
 Date: 2026-10-02.
+
+Admin adoption is now defined by [ADR 0002](0002-labs-operations-and-admin-identity.md).
+The original source inventory below records the earlier decision context.
 
 ## Decision
 
@@ -36,8 +39,7 @@ This is a source/schema inventory only. No live account rows, credentials, or pr
 
 ## References
 
-- [Local identity setup and contract](../../infra/identity/README.md).
-- [Shared login implementation checklist](../../../plans/shared-login/IMPLEMENTATION.md).
+- [Local identity setup and contract](../../../infra/identity/README.md).
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html).
 - [OAuth security, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html).
 - [Keycloak administration](https://www.keycloak.org/docs/latest/server_admin/index.html).

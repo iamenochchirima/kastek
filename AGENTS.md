@@ -29,15 +29,14 @@ Before editing, inspect the relevant code and name the intended outcome, scope, 
 For ordinary work, keep a short checklist in the current session. Do not create a committed plan
 file merely because a change spans files or layers.
 
-Use a settled spec issue for substantial requirements, then split multi-session work into
-independently verifiable implementation issues. Each issue should be understandable to a fresh
-agent. Keep its acceptance criteria in the issue, its code and verification evidence in the pull
-request, and current shipped behavior in the feature map.
+Use a settled Linear spec document for substantial requirements, then split multi-session work
+into independently verifiable Linear issues. Each issue should be understandable to a fresh agent.
+Keep its acceptance criteria in the issue, its code and verification evidence in the pull request,
+and current shipped behavior in the feature map.
 
 A separate program plan is warranted only when several dependent changes need one shared
 sequence, ownership boundary, and verification rule. Link it to the tracker items and agree its
-location before creating it. Do not use `products/growth/docs/plans/active/` or the uninstalled
-`long-running-work` skill as a default workflow.
+location before creating it. Do not use `products/growth/docs/plans/active/` as a default workflow. Use `long-running-work` for sustained implementation from approved Linear issues.
 
 ## Execution Order
 
@@ -64,7 +63,12 @@ Avoid delegating trivial tasks where coordination overhead exceeds the benefit.
 ## Implementation Discipline
 
 - Do not invent structure unnecessarily when an existing flow can be reused.
-- Prefer extending the real implementation over building parallel placeholder logic.
+- Follow the agreed target architecture first. During the Agents reset, use
+  [`products/agents/docs/architecture/agent-platform-architecture.md`](products/agents/docs/architecture/agent-platform-architecture.md).
+  Reuse existing implementation only where it fits; legacy identity schemas, hosting modes,
+  protected KasiAi, and product coupling are not target requirements. Agents is a fresh product
+  build; do not add legacy data migration, preservation, or backward-compatibility prerequisites.
+- Prefer extending real behavior over parallel placeholders when that behavior fits the agreed architecture.
 - Keep styling and functionality migrations separate when possible.
 - When restoring broken work, first re-establish the correct architecture, then polish.
 - Avoid silent scope creep; reflect meaningful scope changes in the issue or approved spec.
@@ -164,6 +168,10 @@ Instead of:
 - Descriptions should normally be one short sentence or omitted.
 
 ## Frontend / UX Rules
+
+For a Next.js app, read the version-specific documentation under that app's
+`node_modules/next/dist/docs/` before changing code. Keep any Next-managed agent guidance in
+`CLAUDE.md`; do not add a nested `AGENTS.md`.
 
 ### Native Browser UI — Forbidden
 
@@ -367,20 +375,23 @@ The project-local skill revisions and notices are in
 [`products/growth/docs/agents/skill-sources.md`](products/growth/docs/agents/skill-sources.md).
 The root [`products/growth/CONTEXT.md`](products/growth/CONTEXT.md) is intentionally empty at the owner's direction. Do not fill
 it with guessed or generic terms; add domain language only after it is agreed.
+This is the only `AGENTS.md` for the repository. Do not add nested `AGENTS.md` files. Put shared
+agent rules here, and use tool-specific files such as `CLAUDE.md` only to import this guide or hold
+tool-managed instructions.
 
 ## KEEP PROJECT RECORDS CURRENT
 
 Treat the code and verified product behavior as evidence. Before changing a feature, read its
-implementation issue when one exists, Project status, feature-map entry, and relevant technical
-docs. If they disagree, identify the discrepancy before proceeding; do not copy an unverified
-claim forward.
+Linear implementation issue when one exists, linked Linear Project status when applicable,
+feature-map entry, and relevant technical docs. If they disagree, identify the discrepancy before
+proceeding; do not copy an unverified claim forward.
 
 Update affected records in the same pull request:
 
-- Keep requirements, acceptance criteria, dependencies, and blockers on the GitHub Issue.
-- Keep approval, assignee, and work status in the Growth Project linked below.
-  Only the owner moves an implementation issue to `Ready`. Agents must not infer approval from
-  a label, a parent spec, or an unblocked dependency.
+- Keep requirements, acceptance criteria, dependencies, and blockers on the Linear issue.
+- Keep approval, assignee, and work status on the Linear issue. Use a linked Linear Project when
+  one exists. Only the owner approves the issue's scope. Agents must not infer approval from a
+  status, label, parent spec, or unblocked dependency.
 - Update [the feature map](products/growth/docs/features/README.md) when shipped user behavior, entry points,
   or verification paths change. It describes what exists, not planned features.
 - Update architecture, contracts, development instructions, and runbooks when the change makes
@@ -391,30 +402,39 @@ Update affected records in the same pull request:
 Before requesting review, state in the pull request which records changed, link the changes,
 and explain which records were unaffected. Include evidence for claims about the running product.
 Do not mark an issue `Done` until its change is merged and verified. After merge, confirm the
-issue and Project status agree with what landed.
+issue and linked Project status, when present, agree with what landed.
 
 If a record cannot be verified or updated, report the gap in the pull request. Do not silently
 declare the work complete.
 
 ## SPECS AND ISSUES
 
-Store specs, tasks, and bugs in [GitHub Issues](https://github.com/Kasitek-Labs/kastek/issues).
-The [Kasitek Growth Project](https://github.com/orgs/Kasitek-Labs/projects/1) owns approval,
-assignee, and work status; pull requests hold changes and review evidence. Query the live issue
-list and Project before choosing work. Do not copy their current contents into repository docs.
-Use `gh issue list --repo Kasitek-Labs/kastek --state open` and
-`gh project item-list 1 --owner Kasitek-Labs --format json` to inspect them.
+Store settled specifications as Linear documents and implementation tasks or bugs as Linear issues
+in the KasiTek (`KAS`) team. Pull requests hold code changes and review evidence. Search Linear for
+an existing specification or issue before creating one. Keep exploratory research in Stash and
+current technical behavior in repository documentation. Do not copy Linear issue contents into
+repository docs.
 
-Use `to-spec` for settled multi-session work and `to-tickets` when a split is useful. Get owner
-approval before publishing the split. Do not create multiple tickets for a small change. Begin
-an implementation issue only after the owner approves it and sets Project status to `Ready`;
-a parent spec or `ready-for-agent` label is not approval. Keep issue cards assigned to
-`iamenochchirima` while the owner works solo. After an issue is closed as `not planned`, archive
-its Project card rather than counting it as `Done`; verify the resulting status.
+For Agents research and design, use `project-notes` with the verified Stash project
+`Kasitek Agents` (`94dbceef-2e58-4c34-ac6f-cb6b7744aacf`). Keep working drafts there and agreed
+specifications in the KasiTek Linear team. The [multi-product foundation](https://linear.app/kasitek/document/agents-multi-product-execution-foundation-and-architecture-reset-01fcce619f68)
+is separate from the downstream support-delivery specification.
+
+Use `to-spec` for settled multi-session work and `to-tickets` when a breakdown is useful. Get the
+owner's approval of a proposed ticket breakdown before publishing it. Do not create multiple
+tickets for a small change. Attach work to an existing Linear Project only when it is the agreed
+destination; do not create a project or change workflow settings as a planning shortcut. If no
+project exists, keep the document or issue at the team level.
+
+Begin implementation only after the owner explicitly approves the issue's defined scope. Do not
+infer approval from an issue status, label, parent spec, or cleared dependency. The KasiTek team
+currently has no `Ready` status, so do not invent or configure one. Keep status aligned with actual
+work. Keep issues assigned to `iamenochchirima` while the owner works solo. Do not mark an issue
+`Done` until its change is merged and verified.
 
 ## AGENT WORKFLOW
 
-For an owner-approved pilot task, use the project-installed `enoch-mode` skill and read only the
+For an owner-approved pilot task, use the available `e-mode` skill and read only the
 playbook for the current task. Follow this repository's issue approval, verification, and release
 rules first. The pilot does not authorize unrelated backlog work, pushing, opening a pull request,
 merging, or deploying.
@@ -436,13 +456,16 @@ Spec findings separately. If no issue or spec exists, say the Spec review was sk
 
 ## Monorepo ownership
 
-Read `MONOREPO_MIGRATION_PLAN.md` and root `ARCHITECTURE.md` for the current source layout.
-Products use `web/` and `api/`; Growth also owns `database/`, Agents `mcp/`, and Agency
-`api-client/`. Agents backend source, tests, migrations and scripts are inside `products/agents/api/`.
-Product instructions remain under `products/growth/AGENTS.md` and existing scoped site files.
+Read root `ARCHITECTURE.md` for the current source layout. `MONOREPO_MIGRATION_PLAN.md`
+records the completed source consolidation; its former preservation rules do not constrain the
+separately approved fresh Agents implementation.
+Products use `web/` and `api/`; Growth also owns `database/`, and Agency owns
+`api-client/`. Agents backend source, tests and fresh schema are inside `products/agents/api/`.
+Agents business execution uses Restate. Its obsolete MCP gateway, Temporal implementation,
+protected KasiAi and hosting modes have been removed. Keep unavailable capabilities explicit.
 Run commands from the root Node 24/pnpm workspace unless a documented isolated tool requires
 otherwise. Keep product databases, sessions, permissions and deployment lifecycles separate.
 Use shared package exports; never import another product's private runtime source.
 Run `pnpm verify:boundaries` and focused affected checks before handing back changes.
-The owner directly authorized this source migration in chat; this does not require inventing
-Ready status for an issue or imply authorization to delete source repositories.
+The owner directly authorized this source migration in chat. That authorization does not extend to
+deleting source repositories or implementing unrelated work.

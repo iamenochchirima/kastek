@@ -1,119 +1,195 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { CapabilityCatalog, type CapabilityDescriptor, type CapabilityToolsetDescriptor } from "../src/capabilities/catalog";
+import { requestDigest } from "../src/contracts/contracts";
+import {
+  adapterManifestSchema, assertCapabilityGrant, buildPublishedBindings, capabilityBindingSchema,
+  capabilityCatalogSchema, createBinding, createCatalog, createModelAlias, digestToolSchema,
+  ExecutableAdapterRegistry, intersectCapabilityGrants, preflightToolSchema, resolveModelAlias,
+  routeCapabilityOperation, type AdapterManifest, type CapabilityBinding, type CapabilityGrant,
+} from "../src/contracts/capability-catalog";
 
-const source = {
-  kind: "builtin" as const,
-  id: "agents",
-  version: "1.0.0",
-  trust: "platform" as const,
-};
-
-function descriptor(overrides: Partial<CapabilityDescriptor> = {}): CapabilityDescriptor {
-  return {
-    id: "platform.current_time",
-    version: "1.0.0",
-    kind: "builtin_tool",
-    name: "Current time",
-    description: "Read the current UTC time.",
-    category: "platform",
-    tags: ["time"],
-    source,
-    toolsetIds: ["platform"],
-    runtime: {
-      execution: "native",
-      riskClass: "read",
-      requiresApproval: false,
-      timeoutMs: 1_000,
-      requiredScopes: ["platform.time.read"],
-      credentialRequirements: [],
-    },
-    ...overrides,
-  };
+const organizationId = randomUUID(), connectionId = randomUUID();
+const manifest: AdapterManifest = { schemaVersion: 1, id: "provider-read", release: "1.0.0", executableDigest: "a".repeat(64),
+  transports: ["native_http", "mcp_http"], protocolVersions: ["2026-07-28", "2025-11-25"], boundedSchemaValidation: true };
+const executor = Object.freeze({ invoke: "actual-adapter-handler" });
+function fixtures(names = ["repo.read"]) {
+  const registry = new ExecutableAdapterRegistry<typeof executor>();
+  const adapter = registry.register(manifest, executor);
+  const inputSchema = { type: "object", properties: { repository: { type: "string", maxLength: 100 } }, required: ["repository"], additionalProperties: false };
+  const catalog = createCatalog({ schemaVersion: 1, id: randomUUID(), organizationId, connectionId, revision: 1,
+    transport: "mcp_http", protocolVersion: "2026-07-28", adapter,
+    tools: names.map(providerOperation => ({ providerOperation, description: "Read an approved repository", inputSchema,
+      outputSchema: null, inputDigest: digestToolSchema(inputSchema), outputDigest: null })) });
+  const bindings = catalog.tools.map(definition => createBinding({ schemaVersion: 1, id: randomUUID(), organizationId,
+    catalog: { id: catalog.id, revision: catalog.revision, digest: catalog.digest }, definition, adapter,
+    transport: "mcp_http", protocolVersion: "2026-07-28", connection: { id: connectionId, profileId: "fixture-read-v1", policyRevision: 1 },
+    resources: [{ kind: "repository", id: "approved/repo" }], policy: { effect: "read", disclosure: "public_identifiers", retry: "safe_read", approval: "none", cancel: "stop_admission" },
+    limits: { timeoutMs: 30000, maxPhysicalAttempts: 3, maxResponseBytes: 262144, maxModelResultBytes: 8192 },
+  }, catalog));
+  const binding = bindings[0]!;
+  const grant: CapabilityGrant = { organizationId, principal: { kind: "automation", id: randomUUID(), ownerAccountId: randomUUID() },
+    bindingIds: bindings.map(item => item.id), connections: [{ id: connectionId, policyRevision: 1, resources: [...binding.resources] }] };
+  return { registry, adapter, catalog, bindings, binding, grant };
 }
 
-function toolset(overrides: Partial<CapabilityToolsetDescriptor> = {}): CapabilityToolsetDescriptor {
-  return {
-    id: "platform",
-    version: "1.0.0",
-    name: "Platform",
-    description: "Built-in platform tools.",
-    source,
-    capabilityIds: ["platform.current_time"],
-    includes: [],
-    ...overrides,
-  };
-}
-
-describe("CapabilityCatalog", () => {
-  it("normalizes and filters a mixed capability directory", () => {
-    const catalog = new CapabilityCatalog();
-    catalog.register(descriptor({ tags: ["time", " platform ", "time"] }));
-    catalog.register(descriptor({
-      id: "google.calendar.list",
-      kind: "connector_tool",
-      name: "List Google Calendar events",
-      category: "productivity",
-      source: { kind: "connector", id: "google.calendar", version: "1.0.0", trust: "verified" },
-      provider: { id: "google.calendar", name: "Google Calendar" },
-    }));
-
-    expect(catalog.list({ sourceKinds: ["connector"] })).toHaveLength(1);
-    expect(catalog.list({ query: "GOOGLE calendar" })[0]).toMatchObject({ id: "google.calendar.list" });
-    expect(catalog.get("platform.current_time")?.tags).toEqual(["platform", "time"]);
+describe("immutable capability publication", () => {
+  it("keeps ambiguous provider names and same-named tools separate with explicit aliases", () => {
+    const { bindings } = fixtures(["repo.read", "repo_read", "repo-read"]);
+    const otherServer = fixtures(["repo.read"]);
+    const published = buildPublishedBindings([...bindings, otherServer.binding]);
+    expect(new Set(published.map(binding => binding.alias)).size).toBe(4);
+    for (const binding of published) expect(resolveModelAlias(published, binding.alias).definition.providerOperation).toBe(binding.definition.providerOperation);
+    for (const invented of ["repo_read", "repo.read", "t_" + "0".repeat(32)]) expect(() => resolveModelAlias(published, invented)).toThrowError(expect.objectContaining({ code: "TOOL_ALIAS_UNAVAILABLE" }));
+    expect(() => buildPublishedBindings([...bindings, bindings[0]!])).toThrowError(expect.objectContaining({ code: "DUPLICATE_TOOL_ALIAS" }));
   });
 
-  it("registers built-in tool metadata without moving its handler", () => {
-    const catalog = new CapabilityCatalog();
-    const registered = catalog.registerTool({
-      name: "kasitek.core.customer_get",
-      version: "1.0.0",
-      description: "Read one customer.",
-      riskClass: "read",
-      requiresApproval: false,
-      timeoutMs: 12_000,
-      inputSchema: { type: "object" },
-      outputSchema: { type: "object" },
-    }, {
-      category: "customers",
-      toolsetIds: ["workspace", "workspace", " platform "],
-    });
-
-    expect(registered).toMatchObject({
-      id: "kasitek.core.customer_get",
-      kind: "builtin_tool",
-      category: "customers",
-      runtime: { execution: "native", riskClass: "read" },
-      source: { kind: "builtin", id: "agents", trust: "platform" },
-    });
-    expect(catalog.get("kasitek.core.customer_get")?.toolsetIds).toEqual(["platform", "workspace"]);
+  it("pins exact schema content and defensively freezes published revisions", () => {
+    const { catalog, binding } = fixtures();
+    expect(digestToolSchema({ type: "object", properties: { b: { type: "number" }, a: { type: "string" } } }))
+      .toBe(digestToolSchema({ properties: { a: { type: "string" }, b: { type: "number" } }, type: "object" }));
+    expect(Object.isFrozen(binding.definition.inputSchema)).toBe(true);
+    expect(() => { binding.resources[0]!.id = "another/repo"; }).toThrow();
+    const tampered = structuredClone(catalog);
+    tampered.tools[0]!.inputSchema = { type: "object", additionalProperties: true };
+    const { digest: _, ...content } = tampered;
+    expect(capabilityCatalogSchema.safeParse({ ...content, digest: requestDigest(content) }).success).toBe(false);
+    expect(capabilityBindingSchema.safeParse({ ...binding, adapter: { ...binding.adapter, release: "latest" } }).success).toBe(false);
+    expect(capabilityBindingSchema.safeParse({ ...binding, alias: createModelAlias(randomUUID()) }).success).toBe(false);
   });
 
-  it("resolves nested toolsets deterministically and rejects cycles", () => {
-    const catalog = new CapabilityCatalog();
-    catalog.register(descriptor());
-    catalog.register(descriptor({ id: "kasitek.core.customer_get", name: "Customer", toolsetIds: ["workspace"] }));
-    catalog.registerToolset(toolset({ id: "workspace", name: "Workspace", capabilityIds: ["kasitek.core.customer_get"], includes: ["platform"] }));
-    catalog.registerToolset(toolset({ id: "platform", capabilityIds: ["platform.current_time"] }));
-
-    expect(catalog.resolveToolsets(["workspace"])).toEqual(["kasitek.core.customer_get", "platform.current_time"]);
-
-    const cyclic = new CapabilityCatalog();
-    cyclic.registerToolset(toolset({ id: "a", includes: ["b"], capabilityIds: [] }));
-    cyclic.registerToolset(toolset({ id: "b", includes: ["a"], capabilityIds: [] }));
-    expect(() => cyclic.resolveToolsets(["a"])).toThrow("CAPABILITY_TOOLSET_CYCLE:a");
+  it("refuses publication against another catalog or undiscovered definition", () => {
+    const { binding, catalog } = fixtures();
+    const { digest: _, alias: __, ...input } = binding;
+    expect(() => createBinding({ ...input, definition: { ...input.definition, providerOperation: "write.hidden" } }, catalog))
+      .toThrowError(expect.objectContaining({ code: "CATALOG_BINDING_MISMATCH" }));
+    expect(() => createBinding(input, fixtures().catalog)).toThrowError(expect.objectContaining({ code: "CATALOG_BINDING_MISMATCH" }));
+    const write = { ...input, policy: { effect: "reviewed_write", approval: "exact_single_use", retry: "status_only", disclosure: "exact_reviewed_payload", cancel: "reconcile_claimed" } } as typeof input;
+    expect(() => createBinding(write, catalog)).toThrow("read-only");
   });
 
-  it("creates a stable immutable snapshot from capabilities and toolsets", () => {
-    const catalog = new CapabilityCatalog();
-    catalog.register(descriptor());
-    catalog.registerToolset(toolset());
+  it("keeps private Stash item disclosure distinct from public GitHub identifiers",()=>{
+    const f=fixtures(["get_item"]), {digest,alias,...input}=f.binding;
+    const stash={...input,connection:{id:connectionId,profileId:"stash-read-v1",policyRevision:1},resources:[{kind:"stash.item",id:randomUUID()}],
+      policy:{...input.policy,disclosure:"approved_resource_identifiers" as const}};
+    expect(createBinding(stash,f.catalog).policy.disclosure).toBe("approved_resource_identifiers");
+    expect(()=>createBinding({...stash,policy:{...stash.policy,disclosure:"public_identifiers"}},f.catalog)).toThrow("read-only");
+    expect(()=>createBinding({...stash,resources:[{kind:"github.repository",id:"approved/repo"}]},f.catalog)).toThrow("Stash");
+    const wrong=fixtures(["update_item"]),{digest:otherDigest,alias:otherAlias,...wrongInput}=wrong.binding;
+    expect(()=>createBinding({...wrongInput,connection:stash.connection,resources:stash.resources,policy:stash.policy},wrong.catalog)).toThrow("Stash");
+    expect(()=>createBinding({...input,connection:{id:connectionId,profileId:"github-public-read-v1",policyRevision:1},policy:stash.policy},f.catalog)).toThrow("read-only");
+  });
 
-    const first = catalog.snapshot({ agentVersionId: "agent-version-1", toolsetIds: ["platform"] });
-    const second = catalog.snapshot({ agentVersionId: "agent-version-1", toolsetIds: ["platform"] });
+  it("limits public repository bindings by transport, operation and selected repository handles",()=>{
+    const f=fixtures(["read_wiki_contents"]),{digest,alias,...base}=f.binding;
+    const input={...base,connection:{id:connectionId,profileId:"public-repository-read-v1",policyRevision:1},resources:[{kind:"github.repository",id:"approved/repo"}]};
+    expect(createBinding(input,f.catalog).policy.disclosure).toBe("public_identifiers");
+    expect(()=>createBinding({...input,resources:[{kind:"stash.item",id:randomUUID()}]},f.catalog)).toThrow("Public repository");
+    expect(()=>createBinding({...input,resources:[{kind:"github.repository",id:"https://github.com/approved/repo?question=secret"}]},f.catalog)).toThrow("Public repository");
+    const question=fixtures(["ask_question"]),{digest:otherDigest,alias:otherAlias,...other}=question.binding;
+    expect(()=>createBinding({...other,connection:input.connection,resources:input.resources},question.catalog)).toThrow("Public repository");
+  });
 
-    expect(first).toEqual(second);
-    expect(first.descriptorIds).toEqual(["platform.current_time"]);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(() => catalog.snapshot({ agentVersionId: "agent-version-1", capabilityIds: ["missing"] })).toThrow("CAPABILITY_NOT_FOUND:missing");
+  it("rejects entire oversized or duplicate discovery rather than silently selecting tools", () => {
+    expect(() => fixtures(Array.from({ length: 501 }, (_, i) => `read${i}`))).toThrow();
+    expect(() => fixtures(["read", "read"])).toThrow("Duplicate provider operation");
+    const {catalog:base}=fixtures();
+    const {digest:baseDigest,...baseContent}=base;
+    const catalog=createCatalog({...baseContent,tools:Array.from({length:500},(_,i)=>({...base.tools[0]!,providerOperation:`read${i}`}))});
+    const { digest: _, ...content } = catalog;
+    expect(() => createCatalog({ ...content, tools: content.tools.map(tool => ({ ...tool, description: "x".repeat(4096) })) })).toThrow("Catalog exceeds byte limit");
+    expect(() => buildPublishedBindings(Array.from({ length: 9 }, () => fixtures().binding))).toThrow("Too many");
+  });
+
+  it("supports pinned builtins without granting connection authority", () => {
+    const { catalog, adapter } = fixtures();
+    const { digest: oldDigest, ...catalogContent } = catalog;
+    const builtin = createCatalog({ ...catalogContent, id: randomUUID(), connectionId: null, transport: "builtin", protocolVersion: null });
+    const { digest: oldBindingDigest, alias: oldAlias, ...source } = fixtures().binding;
+    const binding = createBinding({ ...source, id: randomUUID(), catalog: { id: builtin.id, revision: builtin.revision, digest: builtin.digest },
+      definition: builtin.tools[0]!, adapter, transport: "builtin", protocolVersion: null, connection: null,
+      resources: [], policy: { effect: "resource", disclosure: "none", retry: "adapter_reconcile", approval: "none", cancel: "adapter_cleanup" },
+      limits: { ...source.limits, timeoutMs: 240000 } }, builtin);
+    expect(binding.connection).toBeNull();
+  });
+});
+
+describe("bounded schema preflight", () => {
+  it("accepts the bounded Stash draft-07 UUID subset and refuses other formats",()=>{
+    expect(()=>preflightToolSchema({$schema:"http://json-schema.org/draft-07/schema#",type:"object",properties:{id:{type:"string",format:"uuid"}},required:["id"],additionalProperties:false})).not.toThrow();
+    for(const unsupported of [{type:"array",prefixItems:[{type:"string"}]},{type:"object",$defs:{id:{type:"string"}}}]) expect(()=>preflightToolSchema({$schema:"http://json-schema.org/draft-07/schema#",...unsupported})).toThrow("Unsupported keyword in draft-07");
+    expect(()=>preflightToolSchema({type:"object",properties:{id:{$schema:"http://json-schema.org/draft-07/schema#",type:"string"}}})).toThrow("Nested schema dialects");
+    expect(()=>preflightToolSchema({type:"string",format:"uri"})).toThrow("Only UUID");
+    expect(()=>preflightToolSchema({type:"string",format:"uuid",pattern:".*"})).toThrow("Unsupported schema keyword");
+  });
+
+  it("supports acyclic local definitions and ordinary data containing keyword names", () => {
+    expect(() => preflightToolSchema({ type: "object", $defs: { name: { type: "string" }, allowed: true }, properties: { name: { $ref: "#/$defs/name" }, extra: { $ref: "#/$defs/allowed" } },
+      examples: [{ pattern: "metadata is data" }], additionalProperties: false })).not.toThrow();
+  });
+
+  it("rejects recursive, remote, unsupported and pathological schema structures before SDK registration", () => {
+    const cycle: Record<string, unknown> = { type: "object" }; cycle.properties = { self: cycle };
+    const accessor = Object.defineProperty({}, "type", { enumerable: true, get() { throw new Error("Getter was executed"); } });
+    const invalid = [cycle, accessor, { type: "invalid" }, { type: "object", required: [1] }, { type: "number", maximum: "10" }, { type: "array", maxItems: -1 }, { type: "string", pattern: "(a+)+$" }, { type: "string", format: "remote-validator" },
+      { $ref: "https://attacker.example/schema" }, { $defs: { a: { $ref: "#/$defs/b" }, b: { $ref: "#/$defs/a" } }, type: "object" },
+      { type: "object", $defs: { node: { type: "object", properties: { self: { $ref: "#/$defs/node" } } } } },
+      { type: "object", properties: { x: { $ref: "#/$defs/missing" } } }, { type: "object", description: "x".repeat(32769) },
+      { type: "object", enum: Array.from({ length: 4096 }, () => 1) },
+    ];
+    for (const schema of invalid) expect(() => preflightToolSchema(schema)).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_TOOL_SCHEMA" }));
+    let deep: unknown = { type: "string" };
+    for (let i = 0; i < 20; i++) deep = { type: "object", properties: { next: deep } };
+    expect(() => preflightToolSchema(deep)).toThrow("structural limits");
+  });
+});
+
+describe("exact executable routing and replay", () => {
+  it("requires the exact registered executable release and protocol", () => {
+    const { registry, binding, adapter } = fixtures();
+    expect(registry.resolve(binding)).toBe(executor);
+    expect(registry.register(manifest, executor)).toEqual(adapter);
+    expect(() => registry.register({ ...manifest, executableDigest: "b".repeat(64) }, executor)).toThrowError(expect.objectContaining({ code: "ADAPTER_RELEASE_CONFLICT" }));
+    for (const changed of [{ release: "2.0.0" }, { manifestDigest: "b".repeat(64) }]) expect(() => registry.resolve({ ...binding, adapter: { ...binding.adapter, ...changed } })).toThrowError(expect.objectContaining({ code: "ADAPTER_RELEASE_UNAVAILABLE" }));
+    expect(adapterManifestSchema.safeParse({ ...manifest, boundedSchemaValidation: false }).success).toBe(false);
+  });
+
+  it("replays a completed old-catalog operation without resolving changed or missing executors", () => {
+    const { binding } = fixtures();
+    const empty = new ExecutableAdapterRegistry<unknown>();
+    const receipt = { bindingDigest: binding.digest, requestDigest: "d".repeat(64), state: "completed" as const, result: { value: "recorded" } };
+    expect(routeCapabilityOperation(binding, { requestDigest: receipt.requestDigest, started: true, receipt }, empty)).toEqual({ kind: "recorded", receipt });
+    expect(() => routeCapabilityOperation(binding, { requestDigest: "e".repeat(64), started: true, receipt }, empty)).toThrowError(expect.objectContaining({ code: "OPERATION_BINDING_CONFLICT" }));
+    expect(() => routeCapabilityOperation(binding, { requestDigest: receipt.requestDigest, started: false }, empty)).toThrowError(expect.objectContaining({ code: "ADAPTER_RELEASE_UNAVAILABLE" }));
+  });
+
+  it("distinguishes safe reads, status reconciliation and unresolved uncertainty", () => {
+    const { registry, binding } = fixtures();
+    expect(routeCapabilityOperation(binding, { requestDigest: "d".repeat(64), started: false }, registry)).toMatchObject({ kind: "invoke", requiresCurrentAuthority: true });
+    expect(routeCapabilityOperation(binding, { requestDigest: "d".repeat(64), started: true }, registry)).toMatchObject({ kind: "retry_read", requiresCurrentAuthority: true });
+    const write = { ...binding, policy: { ...binding.policy, retry: "status_only" } } as CapabilityBinding;
+    expect(routeCapabilityOperation(write, { requestDigest: "d".repeat(64), started: true }, registry)).toMatchObject({ kind: "reconcile", requiresCurrentAuthority: false, maySend: false });
+    expect(routeCapabilityOperation({ ...write, policy: { ...write.policy, retry: "never" } }, { requestDigest: "d".repeat(64), started: true }, new ExecutableAdapterRegistry())).toEqual({ kind: "uncertain" });
+  });
+});
+
+describe("capability authority intersections", () => {
+  it("narrows specialist/automation scope to common exact resources and pinned policy revision", () => {
+    const { binding, grant } = fixtures();
+    const broad = { ...grant, bindingIds: [...grant.bindingIds, randomUUID()], connections: [{ ...grant.connections[0]!, resources: [...binding.resources, { kind: "repository", id: "private/repo" }] }] };
+    const effective = intersectCapabilityGrants(broad, grant);
+    expect(effective).toEqual(grant);
+    expect(() => assertCapabilityGrant(binding, effective, binding.resources)).not.toThrow();
+    for (const resources of [[], [{ kind: "repository", id: "private/repo" }], [{ kind: "url", id: "https://public.example/?leak=private" }]]) expect(() => assertCapabilityGrant(binding, effective, resources)).toThrowError(expect.objectContaining({ code: "CAPABILITY_SCOPE_DENIED" }));
+    const revoked = intersectCapabilityGrants(grant, { ...grant, connections: [{ ...grant.connections[0]!, policyRevision: 2 }] });
+    expect(revoked.connections).toEqual([]);
+    expect(() => assertCapabilityGrant(binding, revoked, binding.resources)).toThrow("authorized scope");
+  });
+
+  it("never merges different principals, organizations or unauthorized binding identities", () => {
+    const { binding, grant } = fixtures();
+    expect(() => intersectCapabilityGrants()).toThrow();
+    for (const changed of [{ organizationId: randomUUID() }, { principal: { ...grant.principal, id: randomUUID() } }]) expect(() => intersectCapabilityGrants(grant, { ...grant, ...changed } as CapabilityGrant)).toThrow("authorized scope");
+    expect(() => assertCapabilityGrant(binding, { ...grant, bindingIds: [] }, binding.resources)).toThrow("authorized scope");
+    expect(intersectCapabilityGrants(grant, { ...grant, bindingIds: [] }).bindingIds).toEqual([]);
   });
 });

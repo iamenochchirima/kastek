@@ -1,12 +1,16 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { AnalyticsPlayground } from "@/components/analytics/analytics-playground";
 import { getWorkspaceSession } from "@/lib/core-auth";
 
-export const metadata = { title: "Analytics Playground | KasiTek" };
+export function meta() { return [{ title: "Analytics Playground | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
-export default async function AnalyticsPlaygroundPage() {
-  if (process.env.NODE_ENV !== "development") notFound();
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+export async function clientLoader({ request }: { request: Request }) {
+  if (!import.meta.env.DEV) throw new Response("Not found", { status: 404 });
+  const session = await getWorkspaceSession(request);
+  if (!session?.user?.id) throw redirect("/login");
+  return {  };
+}
+
+export default function AnalyticsPlaygroundPage() {
   return <AnalyticsPlayground />;
 }

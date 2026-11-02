@@ -1,8 +1,8 @@
-"use client";
+import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
-import Link from "next/link";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router";
+
+import { useNavigate } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
@@ -91,7 +91,7 @@ function platformInsightStatus(platform: { dataStatus: string; syncStatus: strin
 }
 
 export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [post, setPost] = useState(initialPost);
   const [events, setEvents] = useState<SocialPostActivityEvent[]>([]);
   const [insights, setInsights] = useState<SocialPostInsights | null>(null);
@@ -100,6 +100,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   const [publishBatch, setPublishBatch] = useState<SocialPublishBatch | null>(null);
   const [publishBatchLoading, setPublishBatchLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteScope, setDeleteScope] = useState<"local" | "platforms">("local");
@@ -116,66 +117,83 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
     [post.publishJobs],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setActivityLoading(true);
-    void fetch(apiUrl(`/api/social/posts/${post.id}/activity`), {
-      credentials: "include",
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const payload = await response.json() as { events?: SocialPostActivityEvent[]; error?: string };
-        if (!response.ok) throw new Error(payload.error || "Failed to load post activity");
-        if (!cancelled) setEvents(payload.events || []);
-      })
-      .catch((caught) => {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : "Failed to load post activity");
-      })
-      .finally(() => {
-        if (!cancelled) setActivityLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [post.id]);
+  const publishingActive = publishBatch?.status === "PROCESSING"
+    || post.status === "PROCESSING"
+    || Boolean(post.publishJobs?.some(job => job.status === "PROCESSING"));
 
   useEffect(() => {
     let cancelled = false;
-    let firstLoad = true;
+    let inFlight = false;
     let timer: number | undefined;
+    const controller = new AbortController();
 
-    const loadBatch = async () => {
+    const load = async () => {
+      if (cancelled || inFlight || document.hidden) return;
+      if (timer !== undefined) window.clearTimeout(timer);
+      inFlight = true;
+      let pollAgain = false;
       try {
-        const response = await fetch(apiUrl(`/api/social/posts/${post.id}/publish-batch`), {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const payload = await response.json() as { batch?: SocialPublishBatch | null; error?: string };
-        if (!response.ok) throw new Error(payload.error || "Failed to load batch status");
+        const read = async <T,>(path: string): Promise<T> => {
+          const response = await fetch(apiUrl(`/api/social/posts/${post.id}${path}`), {
+            credentials: "include",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          const payload = await response.json() as T & { error?: string };
+          if (!response.ok) throw new Error(payload.error || "Failed to refresh post status");
+          return payload;
+        };
+        const [batchResult, postResult, activityResult] = await Promise.allSettled([
+          read<{ batch?: SocialPublishBatch | null }>("/publish-batch"),
+          read<{ post?: SocialPost }>(""),
+          read<{ events?: SocialPostActivityEvent[] }>("/activity"),
+        ]);
         if (cancelled) return;
-        const nextBatch = payload.batch ?? null;
-        setPublishBatch(nextBatch);
-        // UNKNOWN is a terminal safety state until a provider reconciliation
-        // changes the durable job outcome. Polling it forever makes the view
-        // look active while no safe automatic action is possible.
-        if (nextBatch?.status === "PROCESSING") {
-          timer = window.setTimeout(() => void loadBatch(), 5_000);
+        const nextBatch = batchResult.status === "fulfilled" ? batchResult.value.batch ?? null : null;
+        const nextPost = postResult.status === "fulfilled" ? postResult.value.post : null;
+        if (batchResult.status === "fulfilled") setPublishBatch(nextBatch);
+        if (nextPost) setPost(nextPost);
+        if (activityResult.status === "fulfilled") setEvents(activityResult.value.events || []);
+        const failure = [batchResult, postResult, activityResult].find(result => result.status === "rejected");
+        if (failure?.status === "rejected") {
+          setRefreshError(failure.reason instanceof Error ? failure.reason.message : "Failed to refresh post status");
+          pollAgain = true;
+        } else {
+          setRefreshError("");
+          // UNKNOWN requires reconciliation, rather than continuous automatic polling.
+          pollAgain = nextBatch?.status !== "UNKNOWN" && nextPost?.metadata?.publishOutcome !== "UNKNOWN"
+            && (nextBatch?.status === "PROCESSING" || nextPost?.status === "PROCESSING"
+            || Boolean(nextPost?.publishJobs?.some(job => job.status === "PROCESSING")));
         }
       } catch (caught) {
-        if (!cancelled && firstLoad) setError(caught instanceof Error ? caught.message : "Failed to load batch status");
+        if (!cancelled) {
+          setRefreshError(caught instanceof Error ? caught.message : "Failed to refresh post status");
+          pollAgain = true;
+        }
       } finally {
-        if (!cancelled && firstLoad) setPublishBatchLoading(false);
-        firstLoad = false;
+        inFlight = false;
+        if (!cancelled) {
+          setPublishBatchLoading(false);
+          setActivityLoading(false);
+          if (pollAgain && !document.hidden) timer = window.setTimeout(() => void load(), 5_000);
+        }
       }
     };
-
-    void loadBatch();
+    const resume = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (!document.hidden) void load();
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
+    void load();
     return () => {
       cancelled = true;
+      controller.abort();
       if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
     };
-  }, [post.id]);
+  }, [post.id, publishingActive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,7 +339,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
         setDeleteProviderResults(payload.providerResults || []);
         throw new Error(payload.error || "Failed to delete post");
       }
-      router.push("/content/posts");
+      navigate("/content/posts");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to delete post");
       setBusyKey(null);
@@ -331,7 +349,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
-        <Link href="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <Link to="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           Back to Posts
         </Link>
@@ -360,7 +378,8 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               </div>
             </PageHeaderContent>
             <PageHeaderActions>
-              <Button variant="outline" className="gap-2" onClick={() => router.push(`/content?edit=${encodeURIComponent(post.id)}`)}>
+              <AskGrowthAgent featureId="content" context={{ kind: "content_post", resourceId: post.id }}>Improve draft</AskGrowthAgent>
+              <Button variant="outline" className="gap-2" onClick={() => navigate(`/content?edit=${encodeURIComponent(post.id)}`)}>
                 <Pencil className="h-4 w-4" />
                 Edit
               </Button>
@@ -369,7 +388,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               </Button>
             </PageHeaderActions>
           </PageHeader>
-          {error ? <p className="mt-5 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+          {error || refreshError ? <p className="mt-5 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error || refreshError}</p> : null}
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
@@ -410,7 +429,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                           </span>
                         </div>
                       ) : (
-                        <Image unoptimized width={960} height={560} className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
+                        <img width={960} height={560} className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
                       )}
                       <div className="flex items-center justify-between gap-3 p-3 text-xs text-muted-foreground">
                         <span className="min-w-0 truncate">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")}</span>

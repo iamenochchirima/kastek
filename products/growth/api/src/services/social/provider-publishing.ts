@@ -27,7 +27,7 @@ export async function providerJson(
   options: ProviderOptions = {},
 ): Promise<Record<string, any>> {
   const response = await providerResponse(url, init, options);
-  const body = await response.text();
+  const body = await response.text().catch(() => { throw new ApiError(502, "provider_confirmation_unreadable", "Provider response could not be read"); });
   let parsed: Record<string, any> | null;
   try {
     parsed = parseSerdeValueJson(body) as Record<string, any>;
@@ -49,8 +49,8 @@ export async function providerJson(
   }
   if (parsed === null)
     throw new ApiError(
-      500,
-      "internal_error",
+      502,
+      "provider_confirmation_unreadable",
       "Failed to decode provider response",
     );
   return parsed;
@@ -67,7 +67,7 @@ function httpsUrl(value: string, label: string): void {
     throw bad(`${label} requires a public HTTPS image URL`);
 }
 function requireId(value: unknown, message: string): string {
-  if (typeof value !== "string") throw bad(message);
+  if (typeof value !== "string" || !value.trim()) throw new ApiError(502, "provider_confirmation_missing", message);
   return value;
 }
 export async function publishPostToX(
@@ -155,6 +155,60 @@ export async function publishPostToFacebook(
     requireId(result.id, "Facebook publish did not return a post id"),
     text,
   ];
+}
+/** Photo publishing returns a photo id; edits target its existing Page story. */
+export async function resolveFacebookPostForUpdate(
+  config: CoreConfig, encrypted: string, accountId: string, externalId: string,
+  photo: boolean, options: ProviderOptions = {},
+): Promise<string> {
+  if (!/^\d+(?:_\d+)?$/.test(externalId)) throw bad("Facebook post identifier is invalid");
+  if (!photo) return externalId;
+  const result = await providerJson(`${META_GRAPH}/${externalId}?fields=id,page_story_id`, {
+    headers: headers(decryptSocialSecret(config, encrypted)), signal: AbortSignal.timeout(20_000),
+  }, "Failed to resolve the Facebook photo post", options);
+  const story = result.page_story_id;
+  if (typeof story !== "string" || !/^\d+_\d+$/.test(story) || !story.startsWith(`${accountId}_`))
+    throw bad("Facebook did not return the Page post for this photo");
+  return story;
+}
+export async function readFacebookPostMessage(
+  config: CoreConfig, encrypted: string, postId: string, options: ProviderOptions = {}, requireNoPhoto = false,
+): Promise<string> {
+  const result = await providerJson(`${META_GRAPH}/${encodeURIComponent(postId)}?fields=${requireNoPhoto ? "id,message,attachments{type,target}" : "id,message"}`, {
+    headers: headers(decryptSocialSecret(config, encrypted)), signal: AbortSignal.timeout(20_000),
+  }, "Failed to verify the Facebook post", options);
+  if (result.id !== postId || typeof result.message !== "string")
+    throw new ApiError(502, "provider_confirmation_missing", "Facebook did not confirm the post text");
+  if (requireNoPhoto && result.attachments != null && (!Array.isArray(result.attachments.data) || result.attachments.data.length > 0))
+    throw new ApiError(502, "provider_confirmation_missing", "Facebook has not confirmed photo removal");
+  return result.message;
+}
+export async function updateFacebookPostMessage(
+  config: CoreConfig, encrypted: string, postId: string, content: string, options: ProviderOptions = {}, removePhoto = false,
+): Promise<void> {
+  const result = await providerJson(`${META_GRAPH}/${encodeURIComponent(postId)}`, {
+    method: "POST", headers: headers(decryptSocialSecret(config, encrypted)),
+    body: new URLSearchParams({ message: content, ...(removePhoto ? { attached_media: "[]" } : {}) }), signal: AbortSignal.timeout(20_000),
+  }, "Failed to update the Facebook post", options);
+  if ((result as unknown) !== true && result.success !== true && result.id !== postId)
+    throw new ApiError(502, "provider_confirmation_missing", "Facebook did not confirm the update");
+  try {
+    if (await readFacebookPostMessage(config, encrypted, postId, options, removePhoto) !== content)
+      throw new Error("Unconfirmed text");
+  } catch {
+    throw new ApiError(502, "provider_confirmation_missing", "Facebook has not confirmed the updated text");
+  }
+}
+/** Detaching a photo preserves its Page story; the original photo receipt remains immutable. */
+export function facebookPublishedMutationTarget(externalId: string, metadata: unknown): string {
+  const raw = metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    ? (metadata as Record<string, unknown>)._kasitek_facebook_story : null;
+  if (raw == null) return externalId;
+  if (typeof raw !== "object" || Array.isArray(raw)) throw bad("The saved Facebook Page story identity is invalid");
+  const story = raw as Record<string, unknown>;
+  if (story.photoDetached !== true || story.originalExternalPostId !== externalId || typeof story.id !== "string" || !/^\d+_\d+$/.test(story.id))
+    throw bad("The saved Facebook Page story identity is invalid");
+  return story.id;
 }
 export async function publishPostToThreads(
   config: CoreConfig,
@@ -451,7 +505,8 @@ export async function publishPostToLinkedin(
     },
     options,
   );
-  const body = await response.text();
+  const body = await response.text().catch(() => { throw new ApiError(502, "provider_confirmation_unreadable", "Provider response could not be read"); });
+  if (response.status >= 500) throw new ApiError(502, "bad_gateway", "Provider request failed");
   if (!response.ok) throw bad(body);
   let id = response.headers.get("x-restli-id");
   if (!image && !id) {
@@ -460,7 +515,7 @@ export async function publishPostToLinkedin(
       if (typeof parsed.id === "string") id = parsed.id;
     } catch {}
   }
-  return [id, text];
+  return [requireId(id, "LinkedIn publish did not return a post id"), text];
 }
 export function instagramDeleteGraphBase(
   metadata: Record<string, unknown> | null,

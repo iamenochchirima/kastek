@@ -85,6 +85,25 @@ export type ExternalConnectionAuthorizationAttempt = Prisma.ExternalConnectionAu
  */
 export type ExternalConnectionConsumer = Prisma.ExternalConnectionConsumerModel
 /**
+ * Model EmailConnection
+ * Workspace-owned provider account. Product surfaces bind to the projected
+ * ExternalConnection; OAuth material is never stored in Agents or exposed to
+ * browser/model responses.
+ */
+export type EmailConnection = Prisma.EmailConnectionModel
+/**
+ * Model EmailInboxBinding
+ * Inbox's explicit binding to a workspace email account. The account and
+ * credentials remain owned by EmailConnection; this row owns sync/readiness
+ * state for the Inbox surface only.
+ */
+export type EmailInboxBinding = Prisma.EmailInboxBindingModel
+/**
+ * Model EmailOAuthState
+ * 
+ */
+export type EmailOAuthState = Prisma.EmailOAuthStateModel
+/**
  * Model Product
  * 
  */
@@ -170,21 +189,6 @@ export type PublicApiRequest = Prisma.PublicApiRequestModel
  */
 export type DeveloperApiKey = Prisma.DeveloperApiKeyModel
 /**
- * Model AgentWebsiteDeployment
- * 
- */
-export type AgentWebsiteDeployment = Prisma.AgentWebsiteDeploymentModel
-/**
- * Model AgentWebsiteVisitorSession
- * 
- */
-export type AgentWebsiteVisitorSession = Prisma.AgentWebsiteVisitorSessionModel
-/**
- * Model AgentWebsiteDeliveryEvent
- * 
- */
-export type AgentWebsiteDeliveryEvent = Prisma.AgentWebsiteDeliveryEventModel
-/**
  * Model PublicApiWebhookSubscription
  * 
  */
@@ -235,6 +239,21 @@ export type Account = Prisma.AccountModel
  */
 export type Session = Prisma.SessionModel
 /**
+ * Model ExternalIdentity
+ * 
+ */
+export type ExternalIdentity = Prisma.ExternalIdentityModel
+/**
+ * Model OidcTransaction
+ * 
+ */
+export type OidcTransaction = Prisma.OidcTransactionModel
+/**
+ * Model OidcLogoutReplay
+ * 
+ */
+export type OidcLogoutReplay = Prisma.OidcLogoutReplayModel
+/**
  * Model VerificationToken
  * 
  */
@@ -269,6 +288,11 @@ export type AdminSupportAccessAuditEvent = Prisma.AdminSupportAccessAuditEventMo
  * 
  */
 export type AdminWebhookReplayCommand = Prisma.AdminWebhookReplayCommandModel
+/**
+ * Model AdminCustomerReplayApproval
+ * 
+ */
+export type AdminCustomerReplayApproval = Prisma.AdminCustomerReplayApprovalModel
 /**
  * Model AdminWebhookReplayAuditEvent
  * 
@@ -539,3 +563,68 @@ export type WhatsappCampaignRecipient = Prisma.WhatsappCampaignRecipientModel
  * 
  */
 export type WhatsappSendEvent = Prisma.WhatsappSendEventModel
+/**
+ * Model GrowthAgentReview
+ * 
+ */
+export type GrowthAgentReview = Prisma.GrowthAgentReviewModel
+/**
+ * Model AdminSession
+ * 
+ */
+export type AdminSession = Prisma.AdminSessionModel
+/**
+ * Model AdminCommercialAudit
+ * 
+ */
+export type AdminCommercialAudit = Prisma.AdminCommercialAuditModel
+/**
+ * Model AdminOutreachSendAttempt
+ * 
+ */
+export type AdminOutreachSendAttempt = Prisma.AdminOutreachSendAttemptModel
+/**
+ * Model GrowthAgentSetup
+ * Durable product setup intent. Provider credentials remain exclusively in Agents.
+ */
+export type GrowthAgentSetup = Prisma.GrowthAgentSetupModel
+/**
+ * Model GrowthAgentSourceHandle
+ * 
+ */
+export type GrowthAgentSourceHandle = Prisma.GrowthAgentSourceHandleModel
+/**
+ * Model GrowthOAuthClient
+ * 
+ */
+export type GrowthOAuthClient = Prisma.GrowthOAuthClientModel
+/**
+ * Model GrowthOAuthRequest
+ * 
+ */
+export type GrowthOAuthRequest = Prisma.GrowthOAuthRequestModel
+/**
+ * Model GrowthOAuthCode
+ * 
+ */
+export type GrowthOAuthCode = Prisma.GrowthOAuthCodeModel
+/**
+ * Model GrowthOAuthConnection
+ * 
+ */
+export type GrowthOAuthConnection = Prisma.GrowthOAuthConnectionModel
+/**
+ * Model GrowthOAuthRefresh
+ * 
+ */
+export type GrowthOAuthRefresh = Prisma.GrowthOAuthRefreshModel
+/**
+ * Model GrowthOperationReview
+ * 
+ */
+export type GrowthOperationReview = Prisma.GrowthOperationReviewModel
+/**
+ * Model GrowthMediaTransfer
+ * 
+ */
+export type GrowthMediaTransfer = Prisma.GrowthMediaTransferModel

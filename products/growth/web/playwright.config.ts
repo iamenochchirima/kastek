@@ -48,7 +48,7 @@ export default defineConfig({
   webServer: process.env.ANALYTICS_PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "pnpm exec next start --hostname 127.0.0.1 --port 3100",
+        command: "node scripts/serve.mjs --hostname 127.0.0.1 --port 3100",
         cwd: ".",
         url: `${baseURL}/login`,
         reuseExistingServer: !process.env.CI,

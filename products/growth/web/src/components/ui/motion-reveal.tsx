@@ -1,5 +1,3 @@
-"use client";
-
 import { motion, MotionConfig } from "framer-motion";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { useAppearance } from "@/lib/appearance";

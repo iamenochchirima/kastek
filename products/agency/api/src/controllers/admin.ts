@@ -1,3 +1,4 @@
+import { requireServiceAdmin } from "../admin-authority.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { TenantContext } from "../context.js";
 import { createId } from "@paralleldrive/cuid2";
@@ -29,16 +30,7 @@ export function normalizeReportingTimezone(value: string | null | undefined) {
     throw bad("reportingTimezone must be a valid timezone identifier");
   return timezone;
 }
-export function requireAdminSecret(
-  request: FastifyRequest,
-  context: TenantContext,
-) {
-  if (
-    context.config.admin_secret === null ||
-    request.headers["x-admin-secret"] !== context.config.admin_secret
-  )
-    throw forbidden();
-}
+export const requireAdminSecret = requireServiceAdmin;
 export async function resolveWorkspaceId(context: TenantContext, id: string) {
   const result = (
     await context.pool.query(
@@ -103,11 +95,11 @@ export function registerAdminRoutes(
   context: TenantContext,
 ) {
   const workspace = async (r: FastifyRequest) => {
-    requireAdminSecret(r, context);
+    await requireAdminSecret(r, context);
     return resolveWorkspaceId(context, (r.params as { id: string }).id);
   };
   app.get("/api/admin/workspaces", async (r) => {
-    requireAdminSecret(r, context);
+    await requireAdminSecret(r, context);
     return {
       workspaces: (
         await context.pool.query(
@@ -126,7 +118,7 @@ export function registerAdminRoutes(
   app.get<{ Params: { id: string } }>(
     "/api/admin/workspaces/:id",
     async (r) => {
-      requireAdminSecret(r, context);
+      await requireAdminSecret(r, context);
       return getAdminWorkspace(context, r.params.id);
     },
   );
@@ -418,7 +410,7 @@ export function registerAdminRoutes(
       },
     },
     async (r) => {
-      requireAdminSecret(r, context);
+      await requireAdminSecret(r, context);
       const b = r.body,
         name = b.workspaceName.trim(),
         slug = asciiLower(b.slug.trim()),

@@ -1,3 +1,4 @@
+import { AgentMessageContent } from "@kasitek-labs/ui/agent";
 import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -77,7 +78,7 @@ export default async function ConversationDetailPage({
                     : "rounded-br-sm bg-primary/15 text-foreground"
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <AgentMessageContent text={msg.content} format="plain" />
                 <p
                   className={`text-[10px] mt-1 ${
                     msg.role === "user" ? "text-muted-foreground" : "text-primary"

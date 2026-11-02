@@ -5,7 +5,7 @@
     "dockerfilePath": "products/agents/api/Dockerfile"
   },
   "deploy": {
-    "startCommand": "node dist/temporal/worker.js",
+    "startCommand": "node dist/composition/worker.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

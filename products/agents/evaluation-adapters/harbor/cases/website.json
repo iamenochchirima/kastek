@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "kasitek-channel-owner-cases.v1",
+  "kind": "website",
+  "modes": [
+    "website"
+  ],
+  "execution": "owner-run; not executed by implementation",
+  "existingSuites": [
+    "suites/inbox-takeover",
+    "suites/faq-paraphrase"
+  ],
+  "prerequisites": [
+    "fresh prepared website scope",
+    "published exact agent version",
+    "allowed origin",
+    "current website channel option"
+  ],
+  "cases": [
+    "publication and origin/session rejection",
+    "grounded knowledge",
+    "permitted tool policy",
+    "duplicate requestKey",
+    "human takeover and explicit return",
+    "widget appearance and responsive launch",
+    "revoked deployment denies ingress"
+  ],
+  "evidence": [
+    "native-channel-history.json",
+    "native-export.json",
+    "evaluation-result.json"
+  ],
+  "unsupported": [
+    "provider delivered/read receipt; website uses canonical publication state"
+  ]
+}

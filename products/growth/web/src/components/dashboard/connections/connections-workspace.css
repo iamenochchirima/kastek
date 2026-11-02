@@ -1,0 +1,47 @@
+.connections-workspace { max-width: 1400px; margin-inline: auto; font-size: 13px; }
+.connections-workspace [data-slot="page-header-title"] { font-size: 26px; line-height: 34px; letter-spacing: -.035em; }
+.connections-search { display: flex; width: 250px; align-items: center; gap: 8px; padding-inline: 10px; border: 1px solid var(--border); border-radius: 6px; }
+.connections-search input { height: 36px; border: 0; box-shadow: none; padding-inline: 0; }
+.connections-status-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); }
+.connections-status-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 10px 14px; color: var(--muted-foreground); border-bottom: 2px solid transparent; }
+.connections-status-tabs button[aria-pressed="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+.connections-status-tabs button span { padding: 1px 6px; background: var(--muted); color: var(--muted-foreground); border-radius: 8px; font-size: 11px; }
+.connections-status-tabs button[aria-pressed="true"] span { color: var(--primary); background: var(--accent); }
+.connections-table-scroll { position: relative; width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; }
+.connections-account-table { width: 100%; min-width: 700px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.connections-account-table th { text-align: left; background: var(--muted); color: var(--muted-foreground); padding: 9px 16px; font-size: 12px; font-weight: 500; }
+.connections-account-table th:first-child { width: 29%; }
+.connections-account-table th:nth-child(2) { width: 17%; }
+.connections-account-table th:nth-child(3) { width: 22%; }
+.connections-account-table th:nth-child(4) { width: 19%; }
+.connections-account-table th:last-child { width: 13%; }
+.connections-account-table td { height: 62px; padding: 10px 16px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.connections-account-table tr:hover td { background: color-mix(in srgb, var(--muted) 40%, transparent); }
+.connections-account-name { display: flex; width: 100%; align-items: center; gap: 12px; text-align: left; min-height: 40px; }
+.connections-provider-mark { flex-shrink: 0; display: grid; width: 36px; height: 36px; place-items: center; }
+.connections-status { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; font-size: 12px; white-space: nowrap; }
+.connections-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.connections-categories button { border: 1px solid var(--border); border-radius: 16px; color: var(--muted-foreground); padding: 5px 12px; font-size: 12px; }
+.connections-categories button[aria-pressed="true"] { background: var(--accent); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 25%, var(--border)); }
+.connections-catalogue { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 32px; }
+.connections-platform-row { display: flex; align-items: center; gap: 12px; padding: 14px 6px; min-height: 72px; border-top: 1px solid var(--border); }
+.connections-platform-row:last-child { border-bottom: 1px solid var(--border); }
+.connections-add-button { width: 30px; height: 30px; flex-shrink: 0; border-radius: 6px; }
+.connections-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); padding: 12px; margin-bottom: 12px; border-radius: 6px; }
+.connections-empty { padding: 36px 16px; text-align: center; color: var(--muted-foreground); }
+.connections-add-dialog { width: min(700px,calc(100vw - 24px)); max-width: 700px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.connections-workspace button:focus-visible, .connections-workspace a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+@media (max-width: 1023px) { .connections-account-table { min-width: 650px; } .connections-catalogue { column-gap: 20px; } }
+@media (max-width: 639px) {
+  .connections-workspace [data-slot="page-header-title"] { font-size: 22px; line-height: 30px; }
+  .connections-workspace [data-slot="page-header-actions"] { align-items: stretch; }
+  .connections-search { width: auto; flex: 1; min-width: 140px; }
+  .connections-workspace [data-slot="page-header-actions"] > button { min-height: 44px; }
+  .connections-status-tabs { gap: 6px; overflow-x: auto; }
+  .connections-status-tabs button { white-space: nowrap; padding-inline: 7px; }
+  .connections-catalogue { grid-template-columns: minmax(0,1fr); }
+  .connections-categories button, .connections-add-button { min-height: 44px; min-width: 44px; }
+  .connections-platform-row { min-height: 76px; }
+  .connections-account-table button { min-height: 44px; }
+  .connections-feedback { align-items: flex-start; }
+}

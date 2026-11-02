@@ -1,34 +1,43 @@
-"use client";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
-import { MotionReveal } from "@/components/ui/motion-reveal";
+import { Link } from "react-router";
+import { FaMicrosoft } from "react-icons/fa";
+import { Search, Plus, MoreHorizontal, ArrowRight, Clock } from "@/components/ui/interface-icons";
+import { PageHeader, PageHeaderTitle, PageHeaderContent, PageHeaderActions } from "@/components/ui/page-header";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import "./connections-workspace.css";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import {
-  Ban,
   Bot,
-  CircleAlert,
-  CircleCheck,
   Check,
-  LoaderCircle,
   LockKeyhole,
   MessageCircle,
   Radio,
   RefreshCw,
-  Trash2,
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+
+export type MailboxConnection = {
+  id: string; provider: string; emailAddress: string; displayName: string; status: string;
+  healthStatus: string; syncStatus: string; inboxStatus: string; inboundStatus: string; outboundStatus: string;
+};
+const providerPurposes: Record<string, string> = { WHATSAPP: "Customer messages", FACEBOOK: "Pages and messages", INSTAGRAM: "Messages and publishing", LINKEDIN: "Profiles and company publishing", THREADS: "Social publishing", TIKTOK: "Video publishing", X: "Posts and replies", BLUESKY: "Social publishing" };
+function MailBrand({ provider }: { provider: string }) {
+  if (provider === "google") return <img src="/images/integrations/google-gmail.svg" width={28} height={28} alt="" />;
+  return <FaMicrosoft className="size-7 text-blue-600" />;
+}
 
 const WHATSAPP_SIGNUP_STATUS_EVENT = "kasitek:whatsapp-embedded-signup-status";
 
@@ -186,21 +195,6 @@ function statusPresentation(status: WorkspaceConnection["status"]) {
   }
 }
 
-function statusIcon(status: WorkspaceConnection["status"]) {
-  switch (status) {
-    case "CONNECTED":
-      return CircleCheck;
-    case "NEEDS_ATTENTION":
-      return CircleAlert;
-    case "CONNECTING":
-      return LoaderCircle;
-    case "REVOKED":
-      return Ban;
-    default:
-      return Unplug;
-  }
-}
-
 function readableStatus(value: string) {
   return value.toLowerCase().replaceAll("_", " ");
 }
@@ -286,12 +280,21 @@ export function ConnectionsManager({
   connections,
   loadFailed = false,
   initialAccessRequest,
+  emailConnections = [],
+  emailLoadFailed = false,
 }: {
   connections: WorkspaceConnection[];
   loadFailed?: boolean;
   initialAccessRequest?: InitialAccessRequest;
+  emailConnections?: MailboxConnection[];
+  emailLoadFailed?: boolean;
 }) {
-  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [addOpen, setAddOpen] = useState(false);
+  const [mailbox, setMailbox] = useState<MailboxConnection | null>(null);
+  const revalidator = useRevalidator();
   const { confirm } = useConfirmationDialog();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -341,13 +344,51 @@ export function ConnectionsManager({
     );
   }, [connections, initialAccessRequest?.capabilities, initialAccessRequest?.connectionId, initialAccessRequest?.provider]);
 
-  const groupedConnections = Object.entries(providerDetails)
-    .map(([provider, detail]) => ({
-      provider,
-      detail,
-      connections: shownConnections.filter((connection) => connection.provider === provider),
-    }))
-    .filter((group) => group.connections.length > 0);
+  const query = search.trim().toLocaleLowerCase();
+  const matchesSearch = (values: (string | null | undefined)[]) => !query || values.some(value => value?.toLocaleLowerCase().includes(query));
+  const attention = (status: string) => status === "NEEDS_ATTENTION" || status === "REVOKED";
+  const emailStatus = (connection: MailboxConnection) => connection.status === "CONNECTED" && connection.healthStatus !== "HEALTHY" ? "NEEDS_ATTENTION" : connection.status;
+  const matchesStatus = (status: string) => statusFilter === "all" || (statusFilter === "connected" ? status === "CONNECTED" : attention(status));
+  const filteredConnections = shownConnections.filter(connection => matchesSearch([connection.displayName, connection.handle, connection.provider]) && matchesStatus(connection.status));
+  const filteredMailboxes = emailConnections.filter(connection => matchesSearch([connection.displayName, connection.emailAddress, connection.provider]) && matchesStatus(emailStatus(connection)));
+  const statuses = [...shownConnections.map(connection => connection.status), ...emailConnections.map(emailStatus)];
+  const counts = { all: statuses.length, connected: statuses.filter(status => status === "CONNECTED").length, attention: statuses.filter(attention).length };
+  const catalogue = Object.entries(providerDetails).filter(([provider, detail]) => matchesSearch([provider, detail.label]) && (category === "all" || category === "messaging" && ["WHATSAPP", "FACEBOOK", "INSTAGRAM", "X"].includes(provider) || category === "publishing" && provider !== "WHATSAPP"));
+
+  function connectProvider(provider: string) {
+    setAddOpen(false);
+    if (provider === "WHATSAPP") { beginWhatsappEmbeddedSignup(); return; }
+    if (provider === "FACEBOOK" || provider === "INSTAGRAM") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setConnectionPicker(provider); return; }
+    if (provider === "BLUESKY") { setSelectedAccess(DEFAULT_ACCESS_KEYS); setBlueskyOpen(true); return; }
+    setSelectedAccess(defaultAccessKeysForProvider(provider)); setPermissionConnectProvider(provider);
+  }
+
+  async function connectEmail(provider: "google" | "microsoft") {
+    setPending(`email:${provider}`); setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/email/oauth/${provider}/start?returnTo=/connections`), { credentials: "include", cache: "no-store" });
+      const body = await response.json().catch(() => ({})) as { authorizationUrl?: string; error?: string };
+      if (!response.ok || !body.authorizationUrl) throw new Error(body.error || "Unable to connect email");
+      window.location.assign(body.authorizationUrl);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to connect email"); setPending(null); }
+  }
+
+  function renderCatalogue() {
+    return <div className="connections-catalogue">
+      {(addOpen ? Object.entries(providerDetails) : catalogue).map(([provider, detail]) => {
+        const Icon = detail.icon;
+        return <div key={provider} className="connections-platform-row">
+          <span className="connections-provider-mark"><Icon className={`size-7 ${detail.iconClass}`} /></span>
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium">{detail.label}</p><p className="mt-0.5 text-xs text-muted-foreground">{providerPurposes[provider]}</p></div>
+          <Button variant="outline" size="icon" className="connections-add-button" onClick={() => connectProvider(provider)} aria-label={`Connect ${detail.label}`}><Plus className="size-4" /></Button>
+        </div>;
+      })}
+      {addOpen || category === "all" || category === "email" ? ([{ provider: "google" as const, name: "Gmail", purpose: "Email conversations" }, { provider: "microsoft" as const, name: "Outlook", purpose: "Email conversations" }].filter(item => addOpen || matchesSearch([item.name, item.provider])).map(item => <div className="connections-platform-row" key={item.provider}>
+        <span className="connections-provider-mark"><MailBrand provider={item.provider} /></span><div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.purpose}</p></div>
+        <Button variant="outline" size="icon" className="connections-add-button" disabled={pending !== null} onClick={() => void connectEmail(item.provider)} aria-label={`Connect ${item.name}`}><Plus className="size-4" /></Button>
+      </div>)) : null}
+    </div>;
+  }
 
   async function setStatus(connection: WorkspaceConnection, status: "DISCONNECTED" | "REVOKED") {
     setPending(`${connection.id}:${status}`);
@@ -367,7 +408,7 @@ export function ConnectionsManager({
         setShownConnections((current) => current.filter((item) => item.id !== connection.id));
       }
       toast.success(status === "DISCONNECTED" ? "Account removed" : "Connection marked revoked");
-      router.refresh();
+      revalidator.revalidate();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection update failed");
     } finally {
@@ -455,7 +496,7 @@ export function ConnectionsManager({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="connections-workspace space-y-7">
       {error ? (
         <div className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <span>{error}</span>
@@ -472,188 +513,49 @@ export function ConnectionsManager({
         </div>
       ) : null}
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">Connect accounts</h2>
-          <p className="text-sm text-muted-foreground">
-            Add the channels your workspace will use. You can connect more accounts at any time.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Object.entries(providerDetails).map(([provider, detail], index) => {
-            const Icon = detail.icon;
-            const providerConnections = shownConnections.filter((item) => item.provider === provider);
-            const connected = providerConnections.filter((item) => item.status === "CONNECTED").length;
-            const canConnect = Boolean(detail.connectPath);
-            const actionLabel = connected > 0
-              ? provider === "FACEBOOK"
-                ? "Add Pages"
-                : provider === "LINKEDIN"
-                  ? "Sync Pages"
-                : "Add another"
-              : detail.connectLabel ?? "Connect";
-
-            return (
-              <MotionReveal key={provider} delay={0.08 + index * 0.05} hoverLift className="h-full">
-              <Card className="h-full gap-0 py-0">
-                <CardContent className="flex items-center justify-between gap-4 p-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${detail.iconClass}`} /></div>
-                    <div className="min-w-0">
-                      <p className="font-medium">{detail.label}</p>
-                      {connected > 0 || detail.availableLabel ? (
-                        <p className="text-xs text-muted-foreground">
-                          {connected > 0 ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-                              {connected}
-                            </span>
-                            connected
-                          </span>
-                          ) : detail.availableLabel}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {provider === "WHATSAPP" ? (
-                    <Button variant={connected > 0 ? "outline" : "default"} size="sm" onClick={beginWhatsappEmbeddedSignup}>
-                      {actionLabel}
-                    </Button>
-                  ) : provider === "FACEBOOK" || provider === "INSTAGRAM" ? (
-                    <Button
-                      variant={connected > 0 ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => {
-                        setSelectedAccess(DEFAULT_ACCESS_KEYS);
-                        setConnectionPicker(provider);
-                      }}
-                    >
-                      {actionLabel}
-                    </Button>
-                  ) : provider === "BLUESKY" ? (
-                    <Button variant={connected > 0 ? "outline" : "default"} size="sm" onClick={() => { setSelectedAccess(DEFAULT_ACCESS_KEYS); setBlueskyOpen(true); }}>
-                      {actionLabel}
-                    </Button>
-                  ) : canConnect ? (
-                    <Button
-                      variant={connected > 0 ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => {
-                        setSelectedAccess(defaultAccessKeysForProvider(provider));
-                        setPermissionConnectProvider(provider);
-                      }}
-                    >
-                      {actionLabel}
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" disabled>Planned</Button>
-                  )}
-                </CardContent>
-              </Card>
-              </MotionReveal>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">Connected accounts</h2>
-          <p className="text-sm text-muted-foreground">Manage the accounts already available to your workspace.</p>
-        </div>
-
-        {loadFailed ? (
-          <Card>
-            <CardContent className="flex items-center justify-between gap-3 py-6 text-sm text-destructive">
-              <span>Unable to load connected accounts.</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Retry</Button>
-            </CardContent>
-          </Card>
-        ) : shownConnections.length === 0 ? (
-          <Card><CardContent className="py-6 text-sm text-muted-foreground">No accounts connected yet.</CardContent></Card>
-        ) : (
-          <div className="divide-y divide-border/70">
-            {groupedConnections.map((group) => {
-              const GroupIcon = group.detail.icon;
-
-              return (
-                <section key={group.provider} className="space-y-3 py-6 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-md border bg-secondary p-1.5"><GroupIcon className={`h-4 w-4 ${group.detail.iconClass}`} /></div>
-                    <h3 className="font-medium">{group.detail.label}</h3>
-                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
-                      {group.connections.length}
-                    </span>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {group.connections.map((connection, index) => {
-                      const detail = group.detail;
-                      const Icon = detail?.icon ?? Radio;
-                      const status = statusPresentation(connection.status);
-                      const StatusIcon = statusIcon(connection.status);
-                      const isLinkedInPage = connection.provider === "LINKEDIN"
-                        && connection.metadata?.accountType === "organization";
-
-                      return (
-                        <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift>
-                        <Card
-                          className="group cursor-pointer gap-0 rounded-lg border-primary/20 bg-secondary/10 !py-0 shadow-none transition-colors hover:border-primary/50 hover:bg-secondary/20"
-                          onClick={() => {
-                            setRequestedPermissionKeys([]);
-                            setSelectedConnection(connection);
-                          }}
-                        >
-                          <CardContent className="flex min-h-10 items-center gap-2 !p-1.5">
-                            <div className="rounded-md border bg-background p-1"><Icon className={`size-3.5 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs">
-                                <span className="font-medium">{connection.displayName}</span>
-                                {isLinkedInPage ? (
-                                  <span className="text-muted-foreground"> · Company Page</span>
-                                ) : connection.handle ? (
-                                  <span className="text-muted-foreground"> · {connection.handle}</span>
-                                ) : null}
-                              </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-1">
-                              <span
-                                className={`inline-flex size-6 items-center justify-center rounded-full border ${status.className}`}
-                                aria-label={status.label}
-                                title={status.label}
-                              >
-                                <StatusIcon className={`size-3 ${connection.status === "CONNECTING" ? "animate-spin" : ""}`} />
-                              </span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:size-3.5"
-                                disabled={pending !== null}
-                                aria-label={`Remove ${connection.displayName}`}
-                                title={`Remove ${connection.displayName}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void confirmStatusUpdate(connection, "DISCONNECTED");
-                                }}
-                              >
-                                <Trash2 className={pending === `${connection.id}:DISCONNECTED` ? "animate-pulse" : ""} />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        </MotionReveal>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
+      <PageHeader>
+        <PageHeaderContent><PageHeaderTitle>Connections</PageHeaderTitle></PageHeaderContent>
+        <PageHeaderActions><label className="connections-search"><Search className="size-4 text-muted-foreground" /><Input aria-label="Search connections" placeholder="Search connections…" value={search} onChange={event => setSearch(event.target.value)} /></label><Button onClick={() => setAddOpen(true)}><Plus className="size-4" />Add connection</Button></PageHeaderActions>
+      </PageHeader>
+      <div className="connections-status-tabs" role="group" aria-label="Connection status">
+        {([{ id: "all", label: "All", count: counts.all }, { id: "connected", label: "Connected", count: counts.connected }, { id: "attention", label: "Needs attention", count: counts.attention }]).map(tab => <button key={tab.id} type="button" aria-pressed={statusFilter === tab.id} onClick={() => setStatusFilter(tab.id)}>{tab.label}<span>{tab.count}</span></button>)}
+      </div>
+      <section aria-labelledby="connected-accounts-heading">
+        <h2 id="connected-accounts-heading" className="mb-4 text-base font-semibold">Connected accounts</h2>
+        {loadFailed ? <div role="alert" className="connections-feedback">Unable to load connected accounts.<Button variant="outline" size="sm" onClick={() => revalidator.revalidate()}>Retry</Button></div> : null}
+        {emailLoadFailed ? <div role="alert" className="connections-feedback">Unable to load email accounts.<Button variant="outline" size="sm" onClick={() => revalidator.revalidate()}>Retry</Button></div> : null}
+        <div className="connections-table-scroll" role="region" aria-label="Connected accounts" tabIndex={0}>
+          <table className="connections-account-table"><thead><tr><th>Account</th><th>Platform</th><th>Access</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+            {filteredConnections.map(connection => {
+              const detail = providerDetails[connection.provider as keyof typeof providerDetails];
+              const Icon = detail?.icon ?? Radio;
+              const status = statusPresentation(connection.status);
+              const access = [...new Set(connection.permissions.filter(item => item.state === "GRANTED").map(item => item.group === "MESSAGING" ? "Messages" : item.group === "PUBLISHING" ? "Publishing" : readableStatus(item.group)))];
+              return <tr key={connection.id}>
+                <td><button type="button" className="connections-account-name" onClick={() => { setRequestedPermissionKeys([]); setSelectedConnection(connection); }}><span className="connections-provider-mark"><Icon className={`size-7 ${detail?.iconClass ?? "text-muted-foreground"}`} /></span><span className="min-w-0"><span className="block truncate font-medium">{connection.displayName}</span>{connection.handle ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{connection.handle}</span> : null}</span></button></td>
+                <td><span className="inline-flex items-center gap-2"><Icon className={`size-4 ${detail?.iconClass ?? ""}`} />{detail?.label ?? connection.provider}</span></td>
+                <td className="text-muted-foreground">{access.join(", ") || "Not verified"}</td>
+                <td><span className={`connections-status ${status.className}`}><span className="size-1.5 rounded-full bg-current" />{status.label}</span></td>
+                <td><div className="flex items-center justify-end gap-2">{connection.status === "NEEDS_ATTENTION" ? <Button variant="outline" size="sm" onClick={() => setSelectedConnection(connection)}>Reconnect</Button> : null}<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${connection.displayName}`}><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => { setRequestedPermissionKeys([]); setSelectedConnection(connection); }}>Manage account</DropdownMenuItem><DropdownMenuItem disabled={pending !== null} onSelect={() => void confirmStatusUpdate(connection, "DISCONNECTED")} className="text-destructive">Disconnect</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></td>
+              </tr>;
             })}
-          </div>
-        )}
+            {filteredMailboxes.map(connection => {
+              const provider = connection.provider === "GOOGLE" ? "google" : "microsoft";
+              const status = statusPresentation(emailStatus(connection) as WorkspaceConnection["status"]);
+              return <tr key={`email:${connection.id}`}><td><button type="button" className="connections-account-name" onClick={() => setMailbox(connection)}><span className="connections-provider-mark"><MailBrand provider={provider} /></span><span className="min-w-0"><span className="block truncate font-medium">{connection.displayName || connection.emailAddress}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{connection.emailAddress}</span></span></button></td><td>{provider === "google" ? "Gmail" : "Outlook"}</td><td className="text-muted-foreground">Email</td><td><span className={`connections-status ${status.className}`}><span className="size-1.5 rounded-full bg-current" />{status.label}</span></td><td className="text-right"><Button variant="ghost" size="icon" aria-label={`Manage ${connection.emailAddress}`} onClick={() => setMailbox(connection)}><MoreHorizontal className="size-4" /></Button></td></tr>;
+            })}
+          </tbody></table>
+          {!filteredConnections.length && !filteredMailboxes.length ? <div className="connections-empty">{query || statusFilter !== "all" ? "No matching accounts" : "No accounts connected"}</div> : null}
+        </div>
       </section>
+      <section aria-labelledby="platform-catalogue-heading">
+        <h2 id="platform-catalogue-heading" className="mb-3 text-base font-semibold">Add a platform</h2>
+        <div className="connections-categories" role="group" aria-label="Platform category">{[["all", "All platforms"], ["messaging", "Messaging"], ["publishing", "Publishing"], ["email", "Email"]].map(([id, label]) => <button key={id} type="button" aria-pressed={category === id} onClick={() => setCategory(id)}>{label}</button>)}</div>
+        {renderCatalogue()}
+      </section>
+      <a href="#connection-reporting" className="inline-flex min-h-9 items-center gap-2 text-xs font-medium text-primary"><Clock className="size-4" />Connection reporting<ArrowRight className="size-3.5" /></a>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}><DialogContent className="connections-add-dialog"><DialogHeader><DialogTitle>Add connection</DialogTitle><DialogDescription className="sr-only">Choose an account provider</DialogDescription></DialogHeader>{renderCatalogue()}</DialogContent></Dialog>
+      <Dialog open={Boolean(mailbox)} onOpenChange={open => !open && setMailbox(null)}><DialogContent><DialogHeader><DialogTitle>{mailbox?.emailAddress}</DialogTitle><DialogDescription>Email account</DialogDescription></DialogHeader>{mailbox ? <><dl className="space-y-3 text-sm">{[["Health", mailbox.healthStatus], ["Sync", mailbox.syncStatus], ["Inbox", mailbox.inboxStatus], ["Inbound", mailbox.inboundStatus], ["Outbound", mailbox.outboundStatus]].map(([label,value]) => <div key={label} className="flex justify-between gap-4"><dt className="text-muted-foreground">{label}</dt><dd>{readableStatus(value)}</dd></div>)}</dl><DialogFooter><Button variant="outline" asChild><Link to="/inbox?channel=email">View inbox</Link></Button><Button disabled={pending !== null} onClick={() => void connectEmail(mailbox.provider === "GOOGLE" ? "google" : "microsoft")}>Reconnect</Button></DialogFooter></> : null}</DialogContent></Dialog>
 
       <Sheet
         open={permissionConnectProvider !== null}

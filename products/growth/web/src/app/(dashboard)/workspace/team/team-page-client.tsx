@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import {
   Crown,
   Mail,
@@ -67,7 +65,7 @@ export function TeamPageClient({
   currentUserId: string;
   currentRole: OrgRole;
 }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const [, startTransition] = useTransition();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
@@ -79,7 +77,7 @@ export function TeamPageClient({
   const pendingInvitations = invitations.filter((i) => !i.acceptedAt);
 
   function refresh() {
-    startTransition(() => router.refresh());
+    startTransition(() => revalidator.revalidate());
   }
 
   async function handleInvite(e: React.FormEvent) {

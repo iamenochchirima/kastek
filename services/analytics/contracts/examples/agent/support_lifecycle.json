@@ -1,0 +1,8 @@
+{
+  "agent_definition_id": "10000000-0000-4000-8000-000000000001",
+  "agent_version_id": "10000000-0000-4000-8000-000000000002",
+  "channel_type": "website",
+  "action": "handoff_requested",
+  "outcome": "accepted",
+  "occurred_at": "2026-10-29T10:00:00Z"
+}

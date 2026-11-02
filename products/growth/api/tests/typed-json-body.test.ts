@@ -89,7 +89,6 @@ test("source-shaped fallback checks schema-less DTOs and preserves map values", 
         DATABASE_URL: "postgres://unused",
         FRONTEND_URL: "http://localhost:3000",
         AGENTS_API_URL: "http://127.0.0.1:4100",
-        AGENTS_INTERNAL_AUTH_SECRET: "fixture",
         LOG_LEVEL: "silent",
       }),
       pool: {} as Pool,
@@ -130,7 +129,7 @@ test("source-shaped fallback checks schema-less DTOs and preserves map values", 
 
     const duplicateRootField = await app.inject({
       method: "POST",
-      url: "/api/internal/agents/v1/content/posts",
+      url: "/api/social/posts",
       headers: { "content-type": "application/json" },
       payload: '{"title":"first","title":"second"}',
     });
@@ -139,7 +138,7 @@ test("source-shaped fallback checks schema-less DTOs and preserves map values", 
 
     const duplicateNestedField = await app.inject({
       method: "POST",
-      url: "/api/internal/agents/v1/content/posts",
+      url: "/api/social/posts",
       headers: { "content-type": "application/json" },
       payload:
         '{"variants":[{"platform":"instagram","content":"caption","aiGenerated":true,"aiGenerated":false}]}',
@@ -149,7 +148,7 @@ test("source-shaped fallback checks schema-less DTOs and preserves map values", 
 
     const repeatedMapKey = await app.inject({
       method: "POST",
-      url: "/api/internal/agents/v1/content/posts",
+      url: "/api/social/posts",
       headers: { "content-type": "application/json" },
       payload:
         '{"channelSelections":{"instagram":"first","instagram":"last"}}',

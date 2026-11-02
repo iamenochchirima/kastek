@@ -42,7 +42,6 @@ export function createWhatsappInboxPorts(
 export * from "./inbox-read.js";
 export * from "./inbox-mutations.js";
 export * from "./inbox-queue.js";
-export * from "./inbox-agent.js";
 export * from "./inbox-media.js";
 export * from "./inbox-messages.js";
 export * from "./inbox-start.js";

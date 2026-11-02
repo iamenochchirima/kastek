@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,7 +68,7 @@ export default function PushNotificationReminder() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button asChild><Link href="/workspace/settings?section=notifications">Enable</Link></Button>
+          <Button asChild><Link to="/workspace/settings?section=notifications">Enable</Link></Button>
           <Button
             type="button"
             variant="outline"

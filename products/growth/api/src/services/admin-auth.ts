@@ -38,9 +38,9 @@ export async function resetAdminPassword(context: CoreContext, values: { email?:
   if (!admin) throw bad('Invalid or expired password reset token');
   const valid = await context.pool.query<{ token: string }>('DELETE FROM "VerificationToken" WHERE identifier=$1 AND token=$2 AND expires>NOW() RETURNING token', [resetIdentifier(admin.id), token]);
   if (!valid.rows[0]) throw bad('Invalid or expired password reset token');
-  // The current Rust route consumes the token before hashing/updating; retain that ordering.
   const passwordHash = await hash(password, 12);
   await context.pool.query('UPDATE "AdminUser" SET password=$1,"updatedAt"=NOW() WHERE id=$2', [passwordHash, admin.id]);
+  await context.pool.query('UPDATE \"AdminSession\" SET \"revokedAt\"=NOW() WHERE \"adminId\"=$1 AND \"revokedAt\" IS NULL', [admin.id]);
 }
 
 export async function changeAdminPassword(context: CoreContext, admin: AdminUser, current: string | undefined, next: string | undefined): Promise<void> {
@@ -51,4 +51,5 @@ export async function changeAdminPassword(context: CoreContext, admin: AdminUser
   if (!await compare(currentPassword, admin.password)) throw bad('Current password is incorrect');
   const passwordHash = await hash(nextPassword, 12);
   await context.pool.query('UPDATE "AdminUser" SET password=$1,"updatedAt"=NOW() WHERE id=$2', [passwordHash, admin.id]);
+  await context.pool.query('UPDATE \"AdminSession\" SET \"revokedAt\"=NOW() WHERE \"adminId\"=$1 AND \"revokedAt\" IS NULL', [admin.id]);
 }

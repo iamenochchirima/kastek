@@ -1,8 +1,6 @@
-"use client";
-
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "react-router";
+import { useLocation } from "react-router";
 import { motion } from "framer-motion";
 import { Code2 } from "lucide-react";
 import type { DevelopersBootstrap } from "@/lib/developers";
@@ -31,7 +29,7 @@ export function DevelopersPortalShell({
   initial: DevelopersBootstrap;
   children: ReactNode;
 }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   return (
     <DevelopersDataProvider value={initial}>
@@ -42,7 +40,7 @@ export function DevelopersPortalShell({
               <Code2 className="size-5 text-primary" aria-hidden="true" />
               <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-foreground">Developers</h1>
             </div>
-            <p className="mt-1 text-[13px] text-muted-foreground">API, MCP, and CLI setup.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">REST API and terminal setup.</p>
           </header>
 
           <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
@@ -55,7 +53,7 @@ export function DevelopersPortalShell({
               return (
                 <Link
                   key={section.href}
-                  href={section.href}
+                  to={section.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex h-10 shrink-0 items-center rounded-md px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -72,7 +70,7 @@ export function DevelopersPortalShell({
               </nav>
 
               <Link
-                href="/developers/api"
+                to="/developers/api"
                 className="mt-4 hidden h-10 items-center justify-center rounded-md border border-border px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-secondary md:flex"
               >
                 Full docs

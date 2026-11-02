@@ -1,8 +1,7 @@
-"use client";
-
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Plus, Settings } from "lucide-react";
+import { toast } from "sonner";
+import { useRevalidator } from "react-router";
+import { Check, ChevronDown, Plus, Settings } from "@/components/ui/interface-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,19 +24,25 @@ export function OrgSwitcher({
   collapsed?: boolean;
   variant?: "panel" | "header";
 }) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const [, startTransition] = useTransition();
   const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
 
   async function switchOrg(orgId: string) {
-    await fetch("/api/orgs/set-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orgId }),
-    });
-    startTransition(() => {
-      router.refresh();
-    });
+    if (orgId === activeOrgId) return;
+    window.dispatchEvent(new Event("kasitek:business-changing"));
+    try {
+      const response = await fetch("/api/orgs/set-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      });
+      if (!response.ok) throw new Error("Business switch failed");
+      startTransition(() => { revalidator.revalidate(); });
+    } catch {
+      window.dispatchEvent(new Event("kasitek:business-change-failed"));
+      toast.error("Unable to switch business");
+    }
   }
 
   if (!activeOrg) return null;
@@ -86,7 +91,7 @@ export function OrgSwitcher({
             <>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground">{activeOrg.name}</p>
-                {variant === "panel" ? <p className="truncate text-[11px] text-muted-foreground">Workspace</p> : null}
+
               </div>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </>

@@ -1,0 +1,18 @@
+schema_version = "1.4"
+
+[metadata]
+name = "kasitek-faq-paraphrase-v3"
+category = "authorized-native-knowledge"
+
+[agent]
+timeout_sec = 120
+
+[verifier]
+timeout_sec = 30
+environment_mode = "separate"
+
+[environment]
+docker_image = "python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c"
+network_mode = "no-network"
+cpus = 1
+memory_mb = 256

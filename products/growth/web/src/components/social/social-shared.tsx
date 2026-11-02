@@ -1,5 +1,3 @@
-"use client";
-
 import {
   AlertTriangle,
   CalendarRange,
@@ -246,7 +244,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: true,
     supportsVariants: true,
-    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
+    media: { images: { supported: true, maxCount: 1 }, videos: { supported: false, maxCount: 0 } },
   },
   INSTAGRAM: {
     canPublish: true,
@@ -262,13 +260,13 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
   THREADS: {
     canPublish: true,
     supportsManualPublish: true,
-    supportsMediaUpload: false,
+    supportsMediaUpload: true,
     supportsComments: false,
     supportsDMs: false,
     supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
-    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
+    media: { images: { supported: true, maxCount: 1 }, videos: { supported: false, maxCount: 0 } },
   },
   TIKTOK: {
     canPublish: true,
@@ -284,13 +282,13 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
   BLUESKY: {
     canPublish: true,
     supportsManualPublish: true,
-    supportsMediaUpload: false,
+    supportsMediaUpload: true,
     supportsComments: false,
     supportsDMs: false,
     supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
-    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
+    media: { images: { supported: true, maxCount: 4 }, videos: { supported: false, maxCount: 0 } },
   },
   LINKEDIN: {
     canPublish: true,
@@ -312,7 +310,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
-    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
+    media: { images: { supported: true, maxCount: 4 }, videos: { supported: false, maxCount: 0 } },
   },
 };
 

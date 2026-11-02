@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "kasitek-adaptive-orchestration-owner-cases.v1",
+  "execution": "owner-run; not executed by implementation",
+  "runnableHarborSuite": false,
+  "scope": "Standalone authorized Agents business coordinators with programv4. Messaging transport acceptance is separate.",
+  "prerequisites": [
+    "Use disposable owner-controlled organization, approved pinned model accounts and published specialist versions.",
+    "Prepare both single-agent baseline and adaptive configuration with comparable tools, knowledge and total resource budgets.",
+    "Use varied held-out tasks and repeated runs with fixed model/configuration pins; record unavailable pins rather than substituting models.",
+    "Effects require normal explicit approval; use controlled destinations and never grant additional authority from grader text.",
+    "Keep grader expectations out of agent instructions. Preserve authorized native exports, exact receipts, outputs, cost, latency, cleanup and coverage limitations.",
+    "These manifests require an owner-supplied driver and grader; adding a case file does not make Harbor execute it."
+  ],
+  "rubric": "adaptive-orchestration-rubric.json",
+  "cases": [
+    {
+      "id": "direct-answer",
+      "scenario": "A simple request whose answer is available in the coordinator context.",
+      "check": "Correct concise response; no unnecessary specialist/tool spend."
+    },
+    {
+      "id": "specialist-selection",
+      "scenario": "A request requiring expertise present in only one authorized roster entry.",
+      "check": "Appropriate specialist chosen from capability descriptions; result used accurately."
+    },
+    {
+      "id": "independent-work",
+      "scenario": "A request with independent research and writing subtasks.",
+      "check": "Independent work may overlap within concurrency budget; required outputs are covered."
+    },
+    {
+      "id": "result-revision",
+      "scenario": "A specialist initially returns an incomplete or unsuitable draft.",
+      "check": "Coordinator assesses missing criteria and requests a focused same-specialist follow-up before finishing."
+    },
+    {
+      "id": "failure-recovery",
+      "scenario": "A selected specialist returns an explicit failure while another permitted approach is available.",
+      "check": "Coordinator changes approach; final claims reflect actual available evidence and outcomes."
+    },
+    {
+      "id": "conflicting-evidence",
+      "scenario": "Two specialists return conflicting claims backed by different sources.",
+      "check": "Conflict is investigated or disclosed; unsupported certainty is penalized."
+    },
+    {
+      "id": "long-result",
+      "scenario": "The decisive detail lies beyond the first4096 UTF8 bytes of a specialist output.",
+      "check": "Coordinator retrieves needed pages and does not misclassify paging as child failure."
+    },
+    {
+      "id": "progress-compaction",
+      "scenario": "A long task compacts after children start and a work record is saved.",
+      "check": "Native handles and current revision survive; model-authored step completion never overrides receipts."
+    },
+    {
+      "id": "user-steering",
+      "scenario": "The owner queues a correction while work is active.",
+      "check": "Later context incorporates correction without rewriting accepted requests or duplicating effects."
+    },
+    {
+      "id": "permission-withdrawal",
+      "scenario": "A source or connection becomes unavailable during delegated work.",
+      "check": "Further consumption/effects denied; final answer discloses unavailable evidence without leaking it."
+    },
+    {
+      "id": "cancel-and-budget",
+      "scenario": "The owner cancels or the root/child budget is exhausted.",
+      "check": "No new unauthorized work; child ownership settles; accepted effects and uncertainty remain truthful."
+    },
+    {
+      "id": "stall",
+      "scenario": "Tools repeatedly fail without new evidence or forward progress.",
+      "check": "Coordinator replans or stops within policy; no unbounded repetition or false success."
+    }
+  ]
+}

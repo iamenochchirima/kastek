@@ -8,17 +8,21 @@ import type {
 import type { PublishExecutionResult } from "../services/social/publishing.js";
 import * as insights from "../services/social/insights.js";
 import * as posts from "../services/social/posts.js";
+import { lockSocialPost, type PostMutationOptions } from "../services/social/posts.js";
 import {
   claimPublishJob,
   executeSocialPublishJob,
   deleteSocialPostFromPlatform,
   type SocialExecutionOptions,
+  type SocialDeletionAdmission,
 } from "../services/social/publishing.js";
 import { transaction } from "../db.js";
 import { canonicalJson } from "@kasitek-labs/server-support/json";
 import { ApiError } from "../error.js";
 import { parseOptionalDatetime } from "../services/social/common.js";
 import { SQL } from "./content-adapter-sql.js";
+import { lockReviewedSocialAccounts, stampSocialPublicationAccounts } from "../services/social/account-admission.js";
+import { delegatedSocialAuthority } from "../operations/delegation.js";
 export const SUPPORTED_PLATFORMS = [
   "FACEBOOK",
   "INSTAGRAM",
@@ -39,6 +43,7 @@ export interface ContentExecutionPorts {
     orgId: string,
     postId: string,
     platform: string,
+    admission?: SocialDeletionAdmission,
   ): Promise<unknown>;
 }
 /** Bind execution to the actual publishing service and the current Core configuration. */
@@ -49,10 +54,11 @@ export function liveContentExecutionPorts(
   return {
     executeSocialPublishJob: (pool, id) =>
       executeSocialPublishJob(pool, id, { ...options, config }),
-    deleteSocialPostFromPlatform: (pool, coreConfig, orgId, postId, platform) =>
+    deleteSocialPostFromPlatform: (pool, coreConfig, orgId, postId, platform, admission) =>
       deleteSocialPostFromPlatform(pool, coreConfig, orgId, postId, platform, {
         ...options,
         config: coreConfig,
+        deleteAdmission: admission,
       }),
   };
 }
@@ -222,6 +228,7 @@ export async function createDraft(
   pool: Pool,
   ctx: RequestContext,
   request: SocialPostUpsertRequest,
+  options: PostMutationOptions = {},
 ): Promise<SocialPost> {
   const prepared = await prepareAgentContentRequest(
     pool,
@@ -234,6 +241,7 @@ export async function createDraft(
     ctx.organizationId,
     prepared,
     ctx.idempotencyKey,
+    options,
   );
 }
 export async function updateDraft(
@@ -241,6 +249,7 @@ export async function updateDraft(
   ctx: RequestContext,
   id: string,
   request: SocialPostUpsertRequest,
+  options: PostMutationOptions = {},
 ): Promise<SocialPost> {
   if (request.status != null && request.status !== "DRAFT")
     throw bad("Agent content updates must keep DRAFT status");
@@ -255,6 +264,7 @@ export async function updateDraft(
     ctx.organizationId,
     id,
     prepared,
+    options,
   );
 }
 async function requirePost(
@@ -340,6 +350,7 @@ export async function schedule(
   ctx: RequestContext,
   id: string,
   scheduledFor: string,
+  options: PostMutationOptions = {},
 ): Promise<unknown> {
   let when: Date;
   try {
@@ -352,18 +363,24 @@ export async function schedule(
     throw bad("scheduledFor must be in the future");
   const key = requiredKey(ctx, "content scheduling");
   const existing = await transaction(pool, async (tx) => {
+    await lockSocialPost(tx, ctx.organizationId, id, options);
+    await lockReviewedSocialAccounts(tx, ctx.organizationId, options.expectedAccounts);
     await tx.query(SQL.schedule[0], [
       `kasitek.content.schedule:${ctx.organizationId}:${key}`,
     ]);
-    const existing = (
-      await tx.query<{
-        id: string;
-      }>(SQL.schedule[1], [ctx.organizationId, key])
-    ).rows[0]?.id;
-    if (existing) return existing;
+    const existing = (await tx.query<{ id: string; scheduled_for: Date | null }>(
+      'SELECT id,"scheduledFor" AS scheduled_for FROM "SocialPost" WHERE "orgId"=$1 AND metadata->>\'_kasitek_agent_schedule_idempotency_key\'=$2 LIMIT 1', [ctx.organizationId, key],
+    )).rows[0];
+    if (existing) {
+      if (existing.id !== id || existing.scheduled_for?.getTime() !== when.getTime())
+        throw conflict("This idempotency key was already used for a different schedule");
+      return existing.id;
+    }
     const post = await requirePost(pool, ctx, id);
     if (!["DRAFT", "SCHEDULED"].includes(post.status))
       throw conflict("Only draft content can be scheduled");
+    if (post.publishJobs.some(job => !["PENDING", "QUEUED", "CANCELED"].includes(job.status) || job.external_post_id || object(job.metadata)._kasitek_outcome === "UNKNOWN"))
+      throw conflict("Content with a publishing attempt cannot be scheduled again");
     if (
       post.metadata !== null &&
       (typeof post.metadata !== "object" || Array.isArray(post.metadata))
@@ -380,6 +397,8 @@ export async function schedule(
       ctx.organizationId,
     ]);
     await tx.query(SQL.schedule[3], [id, when.toISOString()]);
+    await tx.query('UPDATE "SocialPublishJob" SET "userId"=$2, metadata=COALESCE(metadata,\'{}\'::jsonb)||$3::jsonb WHERE "postId"=$1 AND status=\'QUEUED\'', [id, ctx.userId, canonicalJson({ _kasitek_delegation: delegatedSocialAuthority(ctx, "content.posts.schedule") })]);
+    await stampSocialPublicationAccounts(tx, ctx.organizationId, id);
     return id;
   });
   return { post: await requirePost(pool, ctx, existing), status: "SCHEDULED" };
@@ -388,9 +407,12 @@ export async function unschedule(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  options: PostMutationOptions = {},
 ): Promise<unknown> {
   const key = requiredKey(ctx, "content unscheduling");
   await transaction(pool, async (tx) => {
+    await lockSocialPost(tx, ctx.organizationId, id, options);
+    await lockReviewedSocialAccounts(tx, ctx.organizationId, options.expectedAccounts);
     await tx.query(SQL.unschedule[0], [
       `kasitek.content.unschedule:${ctx.organizationId}:${id}`,
     ]);
@@ -410,6 +432,8 @@ export async function unschedule(
     if (metadata._kasitek_agent_unschedule_idempotency_key === key) return;
     if (row.status !== "SCHEDULED")
       throw conflict("Only scheduled content can be unscheduled");
+    if ((await tx.query(`SELECT id FROM "SocialPublishJob" WHERE "postId"=$1 AND (status IN('PROCESSING','PUBLISHED') OR COALESCE(metadata->>'_kasitek_outcome','')='UNKNOWN') LIMIT 1`, [id])).rows.length)
+      throw conflict("Publishing has already started; the schedule cannot be canceled");
     delete metadata._kasitek_agent_schedule_idempotency_key;
     metadata._kasitek_agent_unschedule_idempotency_key = key;
     await tx.query(SQL.unschedule[2], [
@@ -418,6 +442,7 @@ export async function unschedule(
       canonicalJson(metadata),
     ]);
     await tx.query(SQL.unschedule[3], [id]);
+    await tx.query('UPDATE "SocialPublishJob" SET metadata=metadata-\'_kasitek_delegation\' WHERE "postId"=$1 AND status=\'PENDING\'', [id]);
   });
   return { post: await requirePost(pool, ctx, id), status: "DRAFT" };
 }
@@ -425,6 +450,7 @@ export async function deletePost(
   pool: Pool,
   ctx: RequestContext,
   id: string,
+  options: PostMutationOptions = {},
 ): Promise<unknown> {
   requiredKey(ctx, "content deletion");
   const row = (
@@ -437,7 +463,7 @@ export async function deletePost(
     throw conflict("Published content is immutable and cannot be deleted");
   return {
     postId: id,
-    deleted: await posts.deleteSocialPost(pool, ctx.organizationId, id),
+    deleted: await posts.deleteSocialPost(pool, ctx.organizationId, id, options),
   };
 }
 export async function deletePublishedPost(
@@ -447,19 +473,16 @@ export async function deletePublishedPost(
   id: string,
   target: string,
   ports: ContentExecutionPorts,
+  options: PostMutationOptions = {},
 ): Promise<unknown> {
-  requiredKey(ctx, "published content deletion");
-  const post = await requirePost(pool, ctx, id);
-  if (!post.publishJobs.some((job) => job.status === "PUBLISHED"))
-    throw conflict(
-      "This content post has no published social-platform copy to delete",
-    );
+  const key = requiredKey(ctx, "published content deletion");
   return ports.deleteSocialPostFromPlatform(
     pool,
     config,
     ctx.organizationId,
     id,
     target,
+    { ...options, idempotencyKey: key, actorId: ctx.principal.id },
   );
 }
 export const getActivity = getPostActivity;

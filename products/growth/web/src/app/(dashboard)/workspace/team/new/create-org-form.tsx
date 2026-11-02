@@ -1,31 +1,15 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
 
 export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }: { nextPath?: string; initial?: boolean }) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugManual, setSlugManual] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function autoSlug(value: string) {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48);
-  }
-
-  function handleNameChange(value: string) {
-    setName(value);
-    if (!slugManual) setSlug(autoSlug(value));
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +21,7 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), slug: slug.trim() || undefined }),
+        body: JSON.stringify({ name: name.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Failed to create organisation");
@@ -48,8 +32,8 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         body: JSON.stringify({ orgId: data.org.id }),
       });
       if (!active.ok) throw new Error("Organisation created. Could not select it. Reload to continue.");
-      router.push(nextPath);
-      router.refresh();
+      navigateTo(nextPath);
+      revalidator.revalidate();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create organisation");
     } finally {
@@ -65,31 +49,12 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         </label>
         <Input
           id="org-name"
-          placeholder="Acme Corp"
+          placeholder="Your business name"
           value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
           required
           maxLength={80}
         />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="org-slug">
-          URL slug
-        </label>
-        <Input
-          id="org-slug"
-          placeholder="acme-corp"
-          value={slug}
-          onChange={(e) => {
-            setSlugManual(true);
-            setSlug(autoSlug(e.target.value));
-          }}
-          maxLength={48}
-        />
-        <p className="text-xs text-muted-foreground">
-          Used in URLs. Only lowercase letters, numbers, and hyphens.
-        </p>
       </div>
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
@@ -101,7 +66,7 @@ export function CreateOrgForm({ nextPath = "/workspace/team", initial = false }:
         {!initial && <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={() => navigateTo(-1)}
         >
           Cancel
         </Button>}

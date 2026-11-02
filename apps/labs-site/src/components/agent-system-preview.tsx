@@ -98,7 +98,7 @@ const workspaceTools = [
 
 export function AgentSystemPreview() {
   return (
-    <div className="agent-network" aria-label="KasiAI connected agent system">
+    <div className="agent-network" aria-label="Agents connected system">
       <AgentConnections />
 
       <div className="agent-network-channels">
@@ -131,7 +131,7 @@ export function AgentSystemPreview() {
           <span className="agent-runtime-logo">
             <Image src="/logo.png" width={64} height={64} alt="" />
           </span>
-          <span className="agent-runtime-name"><strong>KasiAI</strong></span>
+          <span className="agent-runtime-name"><strong>Agents</strong></span>
           <span className="agent-runtime-state"><i /> Active</span>
         </header>
 

@@ -95,7 +95,7 @@ export async function transaction<T>(
   }
 }
 export async function updateFields(
-  pool: Pool,
+  pool: Pick<PoolClient, "query">,
   table: string,
   id: string,
   columns: string,

@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "kasitek-channel-owner-cases.v1",
+  "kind": "whatsapp",
+  "modes": [
+    "cloud_api"
+  ],
+  "liveAcceptance": "not run",
+  "fixtureAcceptance": "not run",
+  "suite": "suites/channel-native-receipts",
+  "fixtureOptions": {
+    "kind": "whatsapp",
+    "mode": "cloud_api",
+    "outcomes": [
+      "accepted"
+    ]
+  },
+  "cases": [
+    {
+      "id": "setup-and-explicit-asset",
+      "driver": "live_owner_ui",
+      "prerequisites": [
+        "operator provider setup",
+        "dedicated real provider account",
+        "owner authorization"
+      ],
+      "expectedEvidence": "Connections verified identity and binding",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "knowledge-grounding",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh owner prepared FAQ scope",
+        "approved public knowledge"
+      ],
+      "expectedEvidence": "native-export.json evidence references and purpose grader",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "permitted-tools",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh customer-service scope",
+        "approved public tool binding; no private customer scope"
+      ],
+      "expectedEvidence": "native-export.json native tool receipts and purpose grader",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "duplicate-ingress",
+      "driver": "fixture_http",
+      "prerequisites": [
+        "prepared channel fixture",
+        "persisted raw envelope"
+      ],
+      "expectedEvidence": "channel-history ingress one event/message/root, changed payload conflict",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "takeover-and-return",
+      "driver": "fixture_http_staff_commands",
+      "prerequisites": [
+        "prepared channel fixture",
+        "canonical Inbox assignment and ownership revision"
+      ],
+      "expectedEvidence": "channel-history commands and deliveries; stale automation suppressed, no backlog replay",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "policy-block",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh customer scope with restricted tool policy"
+      ],
+      "expectedEvidence": "native-export.json denied capability with no effect receipt",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "reconnect",
+      "driver": "live_owner_ui",
+      "prerequisites": [
+        "dedicated real provider asset",
+        "operator credentials",
+        "owner authorization"
+      ],
+      "expectedEvidence": "stable Inbox identity, new credential revision, deliberate binding",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "accepted-send",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh prepared scope",
+        "outcomes=[accepted]"
+      ],
+      "expectedEvidence": "native-channel-history.json effects and accepted canonical delivery; not delivered/read",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "known-rejection",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh prepared scope",
+        "outcomes=[rejected]"
+      ],
+      "expectedEvidence": "native-channel-history.json rejected effect and failed canonical delivery",
+      "execution": "owner-run; not executed by implementation"
+    },
+    {
+      "id": "uncertain-delivery",
+      "driver": "native_fixture_harbor",
+      "prerequisites": [
+        "fresh prepared scope",
+        "outcomes=[lost_ack]"
+      ],
+      "expectedEvidence": "native-channel-history.json one simulated acceptance and unknown canonical delivery; no resend",
+      "execution": "owner-run; not executed by implementation"
+    }
+  ],
+  "unsupported": [
+    "real provider delivery inferred from fixture transport",
+    "cross-channel private identity merge",
+    "bulk/campaign publishing",
+    "template or media fixture transport outside canonical delivery queue"
+  ]
+}

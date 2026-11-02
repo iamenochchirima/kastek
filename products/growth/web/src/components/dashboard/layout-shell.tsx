@@ -1,5 +1,4 @@
-"use client";
-
+import "./growth-workspace.css";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +12,6 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from 
 import { cn } from "@/lib/utils";
 import {
   Cable,
-  CalendarDays,
   CalendarCheck,
   Code2,
   ChevronDown,
@@ -37,12 +35,12 @@ import {
   Sun,
   UserRound,
   Users,
-} from "lucide-react";
-import Image from "next/image";
+} from "@/components/ui/interface-icons";
+
 import { AccountMenuItems } from "@/components/auth/account-menu-items";
-import Link from "next/link";
+import { Link } from "react-router";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
@@ -55,8 +53,9 @@ import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
-import { KasiAiChat } from "@/components/dashboard/kasiai/kasiai-chat";
-import { KasiAiLauncher } from "@/components/dashboard/kasiai/kasiai-launcher";
+import { GrowthAgentProvider, useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
+import { GrowthAssistantLauncher } from "@/components/dashboard/agents/assistant-launcher";
+import { GrowthAssistantDock } from "@/components/dashboard/agents/assistant-dock";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import {
   applyTheme,
@@ -98,7 +97,7 @@ function tourTarget(href: string) {
 const navigationGroups: NavigationGroup[] = [
   {
     label: "Home",
-    items: [{ name: "Overview", href: "/workspace", icon: LayoutGrid }],
+    items: [{ name: "Overview", href: "/workspace", icon: LayoutGrid }, { name: "Agents", href: "/agents", icon: Sparkles }],
   },
   {
     label: "Customer",
@@ -113,7 +112,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Content",
     items: [
       { name: "Posts", href: "/content", icon: Sparkles },
-      { name: "Calendar", href: "/calendar", icon: CalendarDays },
       { name: "Analytics", href: "/content/analytics", icon: Grid2x2 },
     ],
   },
@@ -190,36 +188,28 @@ function DesktopTopbar({
   organizationName,
   sectionLabel,
   user,
-  orgs,
-  activeOrgId,
   onOpenCommand,
 }: {
   organizationName: string;
   sectionLabel: string;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
-  orgs: Org[];
-  activeOrgId: string | null;
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   onOpenCommand: () => void;
 }) {
   const accountName = user?.name ?? "Account";
   const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "KT";
 
   return (
-    <header className="sticky top-0 z-[var(--z-topbar)] hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
+    <header className="sticky top-0 z-[var(--z-topbar)] hidden h-14 items-center gap-3 border-b border-line bg-surface px-4 [&_svg]:stroke-[1.5] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
-        {orgs.length > 0 ? (
-          <div className="min-w-0 max-w-[190px]" data-tour="workspace-switcher">
-            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
-          </div>
-        ) : <span className="truncate">{organizationName}</span>}
+        <span title={organizationName}>Growth</span>
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
         <span className="truncate font-medium text-ink-1">{sectionLabel}</span>
       </nav>
 
       <div className="mx-auto w-full max-w-sm flex-1 px-2">
-        <button type="button" onClick={onOpenCommand} className="flex h-9 w-full items-center gap-2 rounded-full border border-line bg-surface px-3.5 text-[13px] text-ink-3 transition-colors duration-150 hover:border-line-strong hover:text-ink-2">
+        <button type="button" onClick={onOpenCommand} className="flex h-8 w-full items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink-3 transition-colors duration-150 hover:border-line-strong hover:text-ink-2">
           <Search className="size-3.5" />
-          <span className="flex-1 text-left">Search or jump to…</span>
+          <span className="flex-1 text-left">Search…</span>
           <kbd className="rounded-sm border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-2">⌘K</kbd>
         </button>
       </div>
@@ -230,17 +220,17 @@ function DesktopTopbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" aria-label="Account" data-tour="profile" className="rounded-full">
-              <Avatar className="size-9 ring-2 ring-brand-soft">
+              <Avatar className="size-8 ring-1 ring-line">
                 {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-                <AvatarFallback className="bg-primary text-[11px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-surface-2 text-[11px] font-medium text-ink-2">{initials}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <div className="flex items-center gap-2 px-2 py-2">
-              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-line">
                 {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-                <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p>
@@ -248,10 +238,10 @@ function DesktopTopbar({
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 size-4" />Upgrade</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/upgrade"><Sparkles className="mr-2 size-4" />Upgrade</Link></DropdownMenuItem>
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
@@ -275,7 +265,7 @@ function MobileTopbar({
   onOpenCommand,
 }: {
   sectionLabel: string;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   onOpenCommand: () => void;
 }) {
   const accountName = user?.name ?? "Account";
@@ -287,18 +277,18 @@ function MobileTopbar({
     .join("") || "KT";
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-[12px] md:hidden">
+    <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center gap-2 border-b border-line bg-surface px-3 [&_svg]:stroke-[1.5] md:hidden">
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Open menu">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
 
-      <Link href="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
-        <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
+      <Link to="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
+        <img src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></p>
-          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sectionLabel}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">Growth</p>
+          <p className="truncate text-[11px] text-muted-foreground">{sectionLabel}</p>
         </div>
       </Link>
 
@@ -311,17 +301,17 @@ function MobileTopbar({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label="Account" data-tour="profile" className="shrink-0 rounded-full">
-            <Avatar className="h-8 w-8 ring-2 ring-brand-soft">
+            <Avatar className="h-8 w-8 ring-1 ring-line">
               {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <div className="flex items-center gap-2 px-2 py-2">
-            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-line">
               {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
-              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-surface-2 text-[10px] font-medium text-ink-2">{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-foreground">{accountName}</p>
@@ -329,10 +319,10 @@ function MobileTopbar({
             </div>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
-          <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 h-4 w-4" />Upgrade</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/upgrade"><Sparkles className="mr-2 h-4 w-4" />Upgrade</Link></DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
@@ -372,7 +362,7 @@ function NavigationSection({
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-          className="flex w-full items-center justify-between px-2.5 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground"
+          className="flex w-full items-center justify-between px-2.5 pb-1.5 pt-3 text-[11px] font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground"
           aria-expanded={isOpen}
           aria-controls={`sidebar-section-${group.label.toLowerCase()}`}
         >
@@ -392,17 +382,17 @@ function NavigationSection({
         return (
           <motion.div key={item.href} variants={VANTAGE_LIST_ITEM_VARIANTS} initial="hidden" animate="visible" custom={index}>
           <Link
-            href={href}
+            to={href}
             data-tour={tourTarget(item.href)}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             aria-label={collapsed ? item.name : undefined}
             title={collapsed ? item.name : undefined}
             className={cn(
-              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors duration-[150ms]",
+              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors duration-[150ms] [&_svg]:stroke-[1.5]",
               collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               active
-                ? "text-sidebar-accent-foreground after:absolute after:left-0 after:top-1/2 after:h-5 after:w-[3px] after:-translate-y-1/2 after:rounded-r-full after:bg-primary"
+                ? "font-medium text-sidebar-accent-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
             >
@@ -438,35 +428,49 @@ function SidebarContent({
   setCollapsed,
   onNavigate,
   billingSummary = null,
+  orgs = [],
+  activeOrgId = null,
+  user,
+  onOpenCommand,
 }: {
+  orgs?: Org[];
+  activeOrgId?: string | null;
+  user?: { name?: string | null; email?: string | null; image?: string | null };
+  onOpenCommand?: () => void;
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
   onNavigate?: () => void;
   billingSummary?: BillingSummary | null;
 }) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
+  const accountName = user?.name || "Account";
+  const accountInitials = accountName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]).join("").toUpperCase();
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <div className="growth-sidebar flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-16 items-center border-b border-line",
+          "flex h-14 items-center border-b border-line",
           collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
         <Link
-          href="/workspace"
+          to="/workspace"
           onClick={onNavigate}
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
-          <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
-          {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></span> : null}
+          <span className="growth-brand-mark" aria-hidden="true">K</span>
+          {!collapsed ? <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">Growth</span> : null}
         </Link>
 
       </div>
 
-      <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
+      <div className={cn("shrink-0 space-y-3 p-3", collapsed && "px-2")}>
+        {orgs.length ? <div data-tour="workspace-switcher"><OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} /></div> : null}
+        <button type="button" onClick={onOpenCommand} aria-label="Quick search" className={cn("growth-quick-search", collapsed && "justify-center px-0")}><Search className="size-4 shrink-0" />{!collapsed ? <><span className="flex-1 text-left">Quick search</span><kbd>⌘K</kbd></> : null}</button>
+      </div>
+      <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-2.5 py-2", collapsed && "px-2")}>
         {navigationGroups.map((group) => (
           <NavigationSection
             key={group.label}
@@ -480,6 +484,10 @@ function SidebarContent({
         ))}
       </nav>
 
+      <div className="growth-sidebar-footer shrink-0 border-t border-border p-2">
+        <Link to="/workspace/settings" onClick={onNavigate} className={cn("flex min-h-10 items-center gap-3 rounded-md px-2.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground", collapsed && "justify-center px-0")} aria-label="Settings"><Settings className="size-4" />{!collapsed ? "Settings" : null}</Link>
+        <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label="Workspace account" className={cn("flex min-h-12 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-secondary",collapsed && "justify-center px-0")}><Avatar className="size-8 shrink-0">{user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}<AvatarFallback className="text-xs">{accountInitials}</AvatarFallback></Avatar>{!collapsed ? <><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium">{accountName}</span><span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{user?.email}</span></span><ChevronDown className="size-3.5 text-muted-foreground" /></> : null}</button></DropdownMenuTrigger><DropdownMenuContent side="top" align="start" className="w-56"><DropdownMenuItem asChild><Link to="/workspace/settings?section=profile">Profile</Link></DropdownMenuItem><DropdownMenuItem asChild><Link to="/workspace/team">Team</Link></DropdownMenuItem><DropdownMenuSeparator /><AccountMenuItems /></DropdownMenuContent></DropdownMenu>
+      </div>
       {setCollapsed ? (
         <div className="shrink-0 border-t border-border p-2">
           <Button
@@ -529,7 +537,7 @@ function PwaUpdateBanner({
   );
 }
 
-export function LayoutShell({
+function WorkspaceShell({
   children,
   user,
   inboxUnreadCount = 0,
@@ -539,7 +547,7 @@ export function LayoutShell({
   productTourStatus = null,
 }: {
   children: React.ReactNode;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string; name?: string | null; email?: string | null; image?: string | null };
   inboxUnreadCount?: number;
   orgs?: Org[];
   activeOrgId?: string | null;
@@ -549,10 +557,10 @@ export function LayoutShell({
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+  const agents = useGrowthAgents();
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const sectionLabel = getSectionLabel(pathname);
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
   const setSidebarCollapsed = useCallback((value: boolean) => {
@@ -600,9 +608,13 @@ export function LayoutShell({
     <MotionConfig reducedMotion={appearance.interface.reduceMotion ? "always" : "user"}>
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
-        <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
-          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
+        <div className={cn("dashboard-theme flex min-h-[100dvh] bg-canvas", pathname === "/inbox" && "h-dvh overflow-hidden")}>
+          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[64px]" : "w-[256px]")}>
               <SidebarContent
+                orgs={orgs}
+                activeOrgId={activeOrgId}
+                user={user}
+                onOpenCommand={() => setCommandOpen(true)}
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
                 billingSummary={billingSummary}
@@ -613,13 +625,12 @@ export function LayoutShell({
             <SheetContent side="left" className="flex w-64 flex-col gap-0 overflow-hidden p-0">
               <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
               <SheetDescription className="sr-only">Navigate between KasiTek workspace sections.</SheetDescription>
-              {orgs.length > 0 ? (
-                <div className="shrink-0 border-b border-line p-3" data-tour="workspace-switcher">
-                  <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
-                </div>
-              ) : null}
               <div className="min-h-0 flex-1">
                 <SidebarContent
+                  orgs={orgs}
+                  activeOrgId={activeOrgId}
+                  user={user}
+                  onOpenCommand={() => { setMobileSheetOpen(false); setCommandOpen(true); }}
                   collapsed={false}
                   billingSummary={billingSummary}
                   onNavigate={() => setMobileSheetOpen(false)}
@@ -627,33 +638,39 @@ export function LayoutShell({
               </div>
             </SheetContent>
           </Sheet>
-          <KasiAiLauncher
-            open={assistantOpen}
-            hidden={mobileSheetOpen}
+          <GrowthAssistantLauncher
+            open={agents.panelOpen}
+            hidden={mobileSheetOpen || pathname === "/inbox" || pathname.startsWith("/agents/conversations/")}
+            bottomInset={pathname === "/inbox" ? 128 : 0}
             reduceMotion={appearance.interface.reduceMotion}
-            onOpen={() => setAssistantOpen(true)}
+            onOpen={() => void agents.openGeneral()}
           />
-          <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[68px]" : "md:pl-[264px]")}>
+          <main className={cn("flex min-h-0 min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[64px]" : "md:pl-[256px]")}>
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
               user={user}
-              orgs={orgs}
-              activeOrgId={activeOrgId}
               onOpenCommand={() => setCommandOpen(true)}
             />
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
-            <div key={pathname} className="v-route-enter min-w-0 flex-1">
+            <div className="flex min-h-0 min-w-0 flex-1">
+            <div key={pathname} className={cn("v-route-enter min-w-0 flex-1", pathname === "/inbox" && "flex min-h-0 flex-col")}>
               {children}
+            </div>
+            <GrowthAssistantDock />
             </div>
           </main>
           <ProductTour status={productTourStatus} />
-          <KasiAiChat open={assistantOpen} onOpenChange={setAssistantOpen} leftOffset={collapsed ? 68 : 264} />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
         </>
       </WhatsappRealtimeProvider>
     </MotionConfig>
   );
+}
+
+export function LayoutShell(props: React.ComponentProps<typeof WorkspaceShell>) {
+  const business = props.orgs?.find((org) => org.id === props.activeOrgId) ?? props.orgs?.[0];
+  return <GrowthAgentProvider key={`${props.user?.id ?? ""}:${business?.id ?? ""}`} userId={props.user?.id ?? ""} businessId={business?.id ?? ""} businessName={business?.name ?? "Workspace"}><WorkspaceShell {...props} /></GrowthAgentProvider>;
 }

@@ -1,7 +1,5 @@
-"use client"
-
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router"
 import { Bell, Cable, CalendarDays, ChartColumn, Code2, FileText, LayoutGrid, Moon, PhoneCall, Send, Settings, Sparkles, Sun, Users } from "lucide-react"
 
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command"
@@ -12,6 +10,7 @@ type CommandPaletteProps = { open: boolean; onOpenChange: (open: boolean) => voi
 
 const routes = [
   { group: "Workspace", label: "Overview", href: "/workspace", icon: LayoutGrid },
+  { group: "Workspace", label: "Agents", href: "/agents", icon: Sparkles },
   { group: "Customer", label: "Inbox", href: "/inbox", icon: Bell },
   { group: "Customer", label: "Calls", href: "/calls", icon: PhoneCall },
   { group: "Customer", label: "Contacts", href: "/contacts", icon: Users },
@@ -26,7 +25,7 @@ const routes = [
 ] as const
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
   const theme = useSyncExternalStore(subscribeToThemeChange, resolveStoredTheme, serverThemeSnapshot)
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const go = (href: string) => {
     onOpenChange(false)
-    router.push(href)
+    navigate(href)
   }
 
   return (

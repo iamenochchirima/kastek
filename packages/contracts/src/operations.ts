@@ -1,0 +1,16 @@
+export type OperationsSource = "growth" | "agents" | "agency" | "analytics";
+export type OperationsMeasurementStatus = "available" | "unknown" | "unsupported" | "not_configured" | "no_activity";
+export interface OperationsEvidence { product: OperationsSource; customerId?: string; resourceType: string; resourceId: string; operationId?: string; code?: string }
+export interface OperationsSignal { key: string; group: string; status: OperationsMeasurementStatus; value: string | null; unit: "count" | "seconds" | "basis_points"; denominator?: string | null; expectedIntervalSeconds?: number; windowStart?: string; windowEnd?: string; coverage: "complete" | "partial" | "unknown"; evidence: OperationsEvidence[]; code?: string }
+export interface OperationsSnapshot { contractVersion:"1"; source: OperationsSource; environment: string; observedAt: string; release: string; signals: OperationsSignal[] }
+export interface OperationsAuditEntry { id: string; source: OperationsSource | "operations"; environment: string; occurredAt: string; actorId: string | null; action: string; status: string; customerId: string | null; resourceType: string; resourceId: string; operationId: string | null; code: string | null }
+export interface OperationsAuditPage { entries: OperationsAuditEntry[]; nextCursor: string | null }
+export interface OperationsActor { id: string; role: string; name: string; email: string }
+export type OperationsSeverity = "warning" | "critical";
+export interface OperationsRule { id: string; source: OperationsSource | "operations"; signalKey: string; enabled: boolean; threshold: string; minimumSamples: number; breachCount: number; recoveryCount: number; severity: OperationsSeverity; revision: number }
+export interface OperationsIncident { id: string; fingerprint: string; environment: string; source: OperationsSource | "operations"; signalKey: string; group: string; severity: OperationsSeverity; status: "open" | "acknowledged" | "resolved"; condition: "breached" | "healthy" | "unknown"; assignedTo: string | null; revision: number; openedAt: string; updatedAt: string; resolvedAt: string | null; previousIncidentId: string | null; evidence: OperationsEvidence[]; value: string | null; ruleRevision: number; observedAt: string | null }
+export interface OperationsTransition { id: string; incidentId: string; action: string; actorId: string | null; reason: string | null; createdAt: string; revision: number }
+export interface OperationsIncidentDetail { incident: OperationsIncident; transitions: OperationsTransition[] }
+export interface OperationsNotification { id: string; incidentId: string; transition: "opened" | "escalated" | "assigned" | "resolved"; severity: "warning" | "critical" | "info"; recipients: string[]; title: string; message: string; link: string }
+export interface OperationsMeasurementSummary { total:number; available:number; unknown:number; unsupported:number; notConfigured:number; noActivity:number; readReady:'ready'|'unavailable'|'unknown' }
+export interface OperationsMonitor { id: string; source: OperationsSource; origin: string; enabled: boolean; intervalSeconds: number; lastObservedAt: string | null; lastError: string | null; nextPollAt: string; leaseUntil: string | null; measurementSummary:OperationsMeasurementSummary }

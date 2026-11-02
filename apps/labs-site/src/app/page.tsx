@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+import { AgentsWebsiteWidget } from "@/components/agents-website-widget";
 import { LabsLanding } from "@/components/landing/landing-page";
-import { widgetLoaderUrl } from "@/lib/site-config";
+import { websiteWidgetConfiguration } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "KasiTek Labs | Good ideas. Real working tools.",
@@ -19,11 +19,7 @@ export default function LabsLandingPage() {
   return (
     <>
       <LabsLanding />
-      <Script
-        async
-        src={widgetLoaderUrl}
-        data-kasitek-deployment="wdg_lr8zeyraon00iopnp4sozil8"
-      />
+      <AgentsWebsiteWidget src={websiteWidgetConfiguration(process.env)?.src ?? null} />
     </>
   );
 }

@@ -21,8 +21,9 @@ export type DeveloperClient = {
 
 export type DevelopersConfig = {
   restBaseUrl: string;
-  mcpEndpoint: string;
-  mcpPackage: string;
+  mcpAvailable: boolean;
+  mcpEndpoint: string | null;
+  mcpPackage: string | null;
   clients: DeveloperClient[];
 };
 
@@ -33,15 +34,10 @@ export type DevelopersBootstrap = {
 
 export const fallbackDevelopersConfig: DevelopersConfig = {
   restBaseUrl: "http://localhost:8080/v1",
-  mcpEndpoint: "http://127.0.0.1:4200/mcp",
-  mcpPackage: "@kasitek/mcp",
-  clients: [
-    { id: "claude", label: "Claude" },
-    { id: "chatgpt", label: "ChatGPT" },
-    { id: "claude-code", label: "Claude Code" },
-    { id: "cursor", label: "Cursor" },
-    { id: "other", label: "Other MCP client" },
-  ],
+  mcpAvailable: false,
+  mcpEndpoint: null,
+  mcpPackage: null,
+  clients: [],
 };
 
 export type CreatedDeveloperApiKey = {
@@ -65,10 +61,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function createDeveloperApiKey(name: string): Promise<CreatedDeveloperApiKey> {
+export function createDeveloperApiKey(name: string, scopes?: string[]): Promise<CreatedDeveloperApiKey> {
   return request<CreatedDeveloperApiKey>("/api/developers/api-keys", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, ...(scopes ? { scopes } : {}) }),
   });
 }
 

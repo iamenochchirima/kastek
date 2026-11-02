@@ -1,8 +1,6 @@
 import { DevelopersPageClient } from "@/components/dashboard/developers/developers-page-client";
 
-export const metadata = {
-  title: "Developers | KasiTek",
-};
+export function meta() { return [{ title: "Developers | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export default function DevelopersPage() {
   return <DevelopersPageClient />;

@@ -1,6 +1,6 @@
 # Admin
 
-Central admin UI. It calls Growth Core for Growth operations and the Agency service over HTTP for tenant administration; it has no direct database dependency.
+Central admin UI. It calls Growth, Agents, and Agency over HTTP for scoped reporting, and retains Growth commercial operations and Agency administration. It has no direct product database dependency.
 
 Copy `.env.example` to `.env.local`, then run:
 
@@ -28,3 +28,206 @@ Core proxy requests forward the browser cancellation signal, including activity
 streams. Quotation PDF downloads map Core's snake_case quotation record into
 the existing renderer's draft fields. Invoice records use Core's camelCase
 response and go directly to the existing invoice renderer.
+
+
+Operations exposes read-only reporting diagnostics across Growth, Agents, Agency and Analytics,
+plus Growth webhook recovery and support grants. Old Agents runtime
+operator panels, projections and installation commands are removed. The old health, data-quality
+and audit page links redirect to Operations. Shared execution monitoring belongs to Agents.
+
+## Admin route and list behavior
+
+Analytics is the primary reporting entry. `/dashboard` remains a redirect without a second
+navigation item. Outreach campaigns, drafts and delivery history stay grouped separately from
+Operations and Commercial. Operations contains reporting diagnostics, Growth webhook recovery and support grants;
+retired Agents operator panels remain removed.
+
+Growth organization links open `/organizations?q=<id>`. This searches the existing Growth
+organization lookup and shows at most 25 matches. Agency workspace identifiers are separate.
+
+Web services, outreach campaign leads and delivery history filter and page in Growth SQL.
+List callers request `paginate=true&page=1&limit=50` for `{ items, total, page, limit }`.
+Delivery list metadata also includes `sent` and `failed` matching the full filter. Normal pages
+are capped at 200 records; CSV exports are capped at 20,000 attempts and labelled accordingly.
+The bounded array response remains available to existing list callers without `paginate=true`.
+Campaign and Web service summary cards explicitly describe the current page where appropriate.
+
+Page read failures render an error with Retry, including failed catalogue reads. Billing editing
+controls do not mount until the authoritative catalogue loads. Route transitions show a skeleton.
+The unsupported Web services Delete All control and collection DELETE proxy are removed. Bulk
+lead actions retain failed selections; field and add-lead forms retain input and show errors.
+SMTP acceptance is distinct from confirmed delivery.
+
+## Commercial workflow safety
+
+Set `OUTREACH_DRAFTS_DIR` to a readable draft directory. Discovery is recursive;
+preview and import accept the same snake_case and camelCase fields. Missing configuration
+and invalid files are errors, not empty successful imports. Import reports per-record failures.
+
+Outreach submission claims a durable attempt in Growth before SMTP. `accepted` means SMTP
+accepted the recipient; it does not mean delivery. Partial rejection is retained per recipient.
+Transport ambiguity or a database failure after SMTP leaves the attempt blocked. Open **Send
+attempts** on the lead, verify the provider evidence, then record the outcome. Retry is available
+only after confirmed non-submission or rejection. Never resolve uncertainty based only on a
+client timeout. Preserve accepted recipients when reconciling a partial outcome.
+
+Invoice GET requests only read records. **Update cycle** explicitly materializes the current
+invoice's recurring cycle and reminder notifications. Saving an invoice also updates its cycle.
+Recording sent/reminded/paid is manual bookkeeping; these buttons do not send email.
+All invoice mutations and send reconciliation record the authenticated administrator.
+
+Apply migration `20261023095000_admin_commercial_safety` before enabling these routes.
+The migration adds the send-attempt and commercial-audit tables; it preserves existing records.
+Rollback disables SMTP submission and invoice mutation controls before reverting application code;
+keep attempt/audit rows for reconciliation. No database migration or provider submission is part
+of development verification.
+
+Focused checks (mocked SMTP and an isolated disposable PostgreSQL database only):
+
+```sh
+CORE_COMMERCIAL_TEST_DATABASE_URL=postgres://... products/growth/api/node_modules/.bin/tsx --test products/growth/api/tests/admin-commercial.test.ts
+products/growth/api/node_modules/.bin/tsx --test apps/admin-site/scripts/admin-commercial.test.ts
+```
+
+The SQL tests create and remove their own random schema. Do not point them at a customer database.
+
+## Cross-product reporting
+
+The Analytics routes use one shared reporting view:
+
+- `/analytics`: product overview.
+- `/analytics/customers`: customers and access.
+- `/analytics/adoption`: recorded adoption.
+- `/analytics/usage`: usage and model cost.
+- `/analytics/revenue`: invoiced, paid, refunded and outstanding coverage.
+- `/analytics/reliability`: failures, backlog, delivery and intervention coverage.
+
+Product, product-owned organization/workspace ID, UTC start and exclusive end, reporting timezone,
+and record page are retained in the URL. Choose a product before applying an organization ID.
+Growth or Agency scopes also expose Agents execution attributed to that consumer, without
+adding those execution costs to another product total. Product metrics remain separate.
+
+Each source shows its availability, latest observed source record and completeness checkpoint.
+Unknown checkpoints remain Unknown. Unsupported, stale, partial and unavailable values retain
+their source state and reason; unavailable values do not display zero. Current-state metrics are
+labelled Current. Metric definitions and paginated safe source records are available through
+native disclosures; monetary values preserve their source currency and exact integer precision.
+Source records identify their kind and are not a claim that every metric has a matching detail row.
+Customer records show their product-owned organization/workspace name and ID. Search accepts
+at most 100 characters and filters those records by case-insensitive name or exact ID; it does not
+filter aggregate metrics and cannot combine with metric detail. Selecting one
+keeps the current period and timezone and applies that product and organization scope.
+Event projection trends remain separate from authoritative totals. Each series retains its domain,
+source, availability, scope coverage and completeness checkpoint. Gaps remain unknown. Exact bucket
+values remain available in a table; values beyond the JavaScript safe integer range do not render
+a rounded chart. There is no cross-product unique-user total.
+
+Export CSV posts to the audited reporting export route with the same scope and domain as the
+screen. Only sessions with `admin:export` see the action. Saving requires `admin:write` and stores
+a private versioned cross-product definition through the existing Reports API. Reports can reopen
+that scope or request the same bounded export. The server independently rechecks permissions.
+
+Focused UI regressions are in `tests/admin-report-format.test.ts`. Run them with the workspace
+TypeScript loader, then typecheck and lint the app. Browser acceptance must exercise all six
+routes at desktop, tablet and mobile widths, a source outage, filter/pagination preservation,
+private save/open, CSV export and viewer permissions. Model evals and live provider acceptance
+remain owner-run.
+
+The [reporting operations reference](../../docs/operations/admin-reporting.md) records source
+coverage, authorization, server-only configuration, per-owner migrations, runtime grants, and
+rollback. Activation, previous-period comparisons, refund facts, and cross-product unique people
+are unavailable where no authoritative measurement exists. Global trend coverage describes
+instrumented scopes rather than every current organization.
+
+## Development reporting processes
+
+From the repository root with Node 24, `pnpm reporting:dev` manages the dedicated local
+reporting profile. Prepare private `.runtime/admin-reporting/{growth,agency,agents,analytics,admin}.env`
+files (directory mode 700, file mode 600), build the affected services and admin, and apply
+reviewed migrations before starting. The profile accepts only loopback PostgreSQL databases
+whose names end in `_reporting_dev`; it never provisions databases or generates credentials.
+Managed Growth, Agency and Analytics processes receive `KASITEK_ENV_FILE` for the selected profile
+and do not fill missing settings from older service-local environment files.
+
+```sh
+pnpm reporting:dev preflight
+pnpm reporting:dev start --allow-startup-migrations
+pnpm reporting:dev status
+pnpm reporting:dev stop
+```
+
+Commands also accept service names: `analytics`, `analytics-worker`, `growth`, `agency`,
+`agents`, `growth-publisher`, `agency-publisher`, and `admin`. Ports are respectively 4300,
+4000, 8090, 14100 and 3001 for HTTP services. Existing Agents on 4100 remains separate.
+The Growth API disables unrelated background workers; the two dedicated product publishers
+run the existing publication and backfill entry points. The Agents API owns its native publisher.
+Agency startup applies its normal additive migrations, so starting it requires the explicit
+`--allow-startup-migrations` option against the reviewed development database.
+
+Preflight checks private configuration, dedicated database addresses, database TCP connectivity,
+entry point/build presence, configured reporting endpoints, ingestion credentials and port
+collisions. It does not prove database authentication, schema readiness or durable publication;
+use the reporting diagnostics and the development acceptance flow for those checks. Worker
+status confirms process identity, while HTTP status also probes service health.
+
+An occupied port fails rather than terminating or silently reusing another process. To record
+an intentionally external service, use `pnpm reporting:dev adopt SERVICE PID`; its entry point,
+working directory, listener ownership and health must match. `stop` leaves adopted processes
+running. Managed shutdown checks PID, process birth time, working directory and command hash
+before signalling; it never kills a process selected only by port. A stale identity is left
+untouched. Status exits nonzero if a selected service is stopped or unhealthy.
+
+Process identities are stored in the ignored private `processes.json` manifest. Operations use
+an exclusive `process.lock` directory; remove a stale lock only after confirming no reporting
+command is active. No child stdout/stderr is captured or printed, to avoid exposing credentials
+through startup errors. For service-specific debugging, run its normal entry point locally with
+that profile after stopping the managed instance. Do not paste private configuration or raw
+service output into tickets. Startup failure preserves already started managed services;
+inspect `status` and stop selected services explicitly.
+
+Run `pnpm test:reporting-dev` for process ownership, listener collision and secret-output checks.
+
+
+The [development reporting reference](../../docs/operations/admin-reporting.md#dedicated-development-profile)
+lists the current dedicated databases, owner migration steps, reader-role grants and recovery path.
+`/operations` shows incidents and monitor coverage while retaining aggregate source/projection
+status. Monitoring cannot replay or rebuild product data. Existing human recovery controls remain
+separately authorized.
+Quarantined publication takes precedence over pending outbox/Agents receipts; an empty queue with
+no accepted publication is no activity. Source, ingestion, checkpoint and promotion timestamps
+remain separate, and global complete-through stays Unknown. Diagnostics require `admin:report`;
+viewers can inspect them but cannot obtain export or save privileges through this surface.
+
+## Customer operations
+
+`/customers` provides product-qualified customer lookup and current account investigation.
+The customer workspace adds product-owned recovery previews and durable receipts. Configure
+metadata and action flags independently; production access remains disabled. See the
+[customer operations runbook](../../docs/operations/admin-customer-operations.md) for permissions,
+migrations, supported actions, focused verification and rollback. Evals remain owner-run.
+
+## Incident and operations centre
+
+Set `OPS_BACKEND_URL` to the dedicated Operations API to use independent Labs administrator login.
+The managed development profile uses port `14400`. Explicit issuer/subject grants and current
+role revisions govern access. The BFF never replaces a failed Operations session with Growth
+authority. Product permissions and customer recovery remain independently checked.
+Password settings use the shared identity provider in Operations mode; the BFF rejects legacy
+Growth password changes. The old password form is available only without `OPS_BACKEND_URL`.
+
+`/operations` lists incidents and coverage. `/operations/incidents/:id` shows investigation state
+and evidence. `/operations/settings` manages permitted rules and maintenance. `/operations/audit`
+federates safe product-owned audit metadata for `admin:security` roles. Existing health, reporting,
+notification, customer, recovery, and support entries remain available.
+
+Follow the [operator runbook](../../docs/labs/operations-centre-runbook.md) for migrations, private
+API/worker profiles, flags, and rollback. The [reference](../../docs/operations/incident-centre.md)
+records permissions, thresholds, durable receipts, source limits, telemetry, and retention.
+
+
+### Shared message presentation
+
+Customer conversation histories reuse `@kasitek-labs/ui/agent` plain-text message content.
+The Admin API remains the source and authority; this visual reuse does not add agent task,
+tool, specialist, or diagnostic access. Dev, build and typecheck compile the shared UI first.
+The app stylesheet scans the shared source without replacing the Admin theme.

@@ -33,13 +33,13 @@ export function capability(adapter: ProviderAdapter, key: string): CapabilityRul
     switch (adapter) {
         case 'MetaFacebook':
             if (['MESSAGING_INBOUND', 'MESSAGING_OUTBOUND'].includes(key))
-                return rule('pages_messaging', true, false, ['pages_messaging', 'MESSAGING']);
+                return rule('pages_messaging', true, false, ['pages_messaging', 'MESSAGING'], ['pages_messaging']);
             if ([...publishing, 'SOCIAL_POST_DELETE'].includes(key))
-                return rule('pages_manage_posts', true, false, ['pages_manage_posts', 'CREATE_CONTENT']);
+                return rule('pages_manage_posts', true, false, ['pages_manage_posts', 'CREATE_CONTENT'], ['pages_manage_posts', 'pages_read_engagement']);
             if (key === 'SOCIAL_ANALYTICS')
-                return rule('read_insights', true, false, ['read_insights', 'VIEW_INSIGHTS']);
+                return rule('read_insights', true, false, ['read_insights', 'VIEW_INSIGHTS'], ['read_insights']);
             if (key === 'COMMENTS_MANAGE')
-                return rule('pages_manage_engagement', true, false, ['pages_manage_engagement', 'MODERATE', 'COMMUNITY']);
+                return rule('pages_manage_engagement', true, false, ['pages_manage_engagement', 'MODERATE', 'COMMUNITY'], ['pages_manage_engagement']);
             break;
         case 'MetaInstagram':
             if (['MESSAGING_INBOUND', 'MESSAGING_OUTBOUND'].includes(key))
@@ -148,7 +148,7 @@ export function requiredScopes(adapter: ProviderAdapter, requested: string[], co
         for (const scope of capability(adapter, key).requestScopes)
             if (!scopes.includes(scope))
                 scopes.push(scope);
-    for (const scope of adapter === 'MetaFacebook' ? ['pages_show_list', 'pages_manage_metadata'] : adapter === 'MetaInstagram' ? ['instagram_basic'] : [])
+    for (const scope of adapter === 'MetaFacebook' ? ['pages_show_list', 'pages_manage_metadata', 'business_management'] : adapter === 'MetaInstagram' ? ['instagram_basic'] : [])
         if (!scopes.includes(scope))
             scopes.push(scope);
     return scopes;

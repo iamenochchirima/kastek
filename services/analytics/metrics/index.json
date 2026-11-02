@@ -1,6 +1,6 @@
 {
   "$schema": "https://kasitek.co.za/analytics/metrics/registry.schema.json",
-  "registry_version": "20260824.1",
+  "registry_version": "20261101.1",
   "files": [
     "domains/agents/runtime.yaml",
     "domains/campaigns/delivery.yaml",
@@ -9,6 +9,9 @@
     "domains/tenants/leads.yaml",
     "dimensions/core.yaml",
     "metric-sets/overview.summary.yaml",
-    "metric-sets/agent.performance.yaml"
+    "metric-sets/agent.performance.yaml",
+    "domains/agents/native.yaml",
+    "domains/agents/support.yaml",
+    "metric-sets/agent.support.yaml"
   ]
 }

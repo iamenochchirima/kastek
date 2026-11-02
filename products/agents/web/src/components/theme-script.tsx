@@ -20,7 +20,9 @@ const appearanceInitScript = `
   const resolvedTheme = themeMode === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : themeMode;
   const accents = ${JSON.stringify(bootstrapAccents)};
   const storedAccent = read(keys.accent);
-  const accent = Object.prototype.hasOwnProperty.call(accents, storedAccent) ? storedAccent : "indigo";
+  // Indigo was the previous application default. No accent picker currently exists;
+  // retain other stored preferences while moving that legacy default to blue.
+  const accent = storedAccent === "indigo" ? "blue" : Object.prototype.hasOwnProperty.call(accents, storedAccent) ? storedAccent : "blue";
   const tokens = accents[accent][resolvedTheme];
   const density = read(keys.density) === "compact" ? "compact" : "comfortable";
   const rootStyle = root.style;
@@ -41,6 +43,15 @@ const appearanceInitScript = `
 })();
 `;
 
-export function bootstrapAppearance() {
+function applyAppearance() {
   const script = document.createElement("script"); script.textContent = appearanceInitScript; document.head.append(script); script.remove();
+}
+let listening = false;
+export function bootstrapAppearance() {
+  applyAppearance();
+  if (listening) return;
+  listening = true;
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (document.documentElement.dataset.themeMode === "system") applyAppearance();
+  });
 }

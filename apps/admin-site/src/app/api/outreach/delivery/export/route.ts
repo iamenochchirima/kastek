@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   // Forward all query params plus force CSV format
   const { searchParams } = new URL(req.url);
   searchParams.set("format", "csv");
+  searchParams.set("limit", "20000");
+  searchParams.delete("page");
+  searchParams.delete("paginate");
   const res = await fetchFromCore(`/api/admin/outreach/delivery?${searchParams.toString()}`);
 
   const text = await res.text();

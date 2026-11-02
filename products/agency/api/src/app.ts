@@ -1,3 +1,4 @@
+import { adminRawBodies, verifiedAdminActors } from "./admin-authority.js";
 import Fastify, {LogController,type FastifyInstance} from 'fastify';
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
@@ -29,7 +30,7 @@ export function originMatchesPlatformDomain(origin:string,base:string):boolean {
 export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]=[]):Promise<FastifyInstance> {
  const app=Fastify({bodyLimit:2097152,exposeHeadRoutes:false,
   ajv:{customOptions:{coerceTypes:false,removeAdditional:false,useDefaults:false}},
-  logger:{level:context.config.env.LOG_LEVEL??'info',redact:['req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}}},logController:new LogController({disableRequestLogging:true})});
+  logger:{level:context.config.env.LOG_LEVEL??'info',redact:['req.headers["x-kasitek-admin-authority"]','req.headers.authorization','req.headers.cookie','res.headers["set-cookie"]'],hooks:{logMethod(args,method){return method.apply(this,redactTelemetryLogArguments(args));}}},logController:new LogController({disableRequestLogging:true})});
  installHttpObservability(app);installErrorHandler(app);
  app.setReplySerializer(apiJson);
  app.addHook('preParsing',async(request,_reply,payload)=>{
@@ -45,6 +46,7 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
  app.addContentTypeParser(/^application\/(?:[a-z0-9.-]+\+)?json$/i,{parseAs:'string'},(request,body,done)=>{
   if(bodylessRequest(request.method,request.routeOptions.url??''))return done(null,undefined);
   const text=typeof body==='string'?body:body.toString('utf8');
+  if (request.url.startsWith('/api/admin/')) adminRawBodies.set(request, text);
   safeJson(request,text,(error,value)=>{
    if(error){
     try { JSON.parse(text); }
@@ -84,6 +86,10 @@ export async function buildApp(context:TenantContext,registrars:RouteRegistrar[]
   (!!config.platform_base_domain&&originMatchesPlatformDomain(origin,config.platform_base_domain)))),
   credentials:config.cors_allow_credentials,methods:['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
   allowedHeaders:['Content-Type','Authorization','x-admin-secret'],maxAge:3600});
+ app.addHook('onResponse', async (request, reply) => {
+  const actor = verifiedAdminActors.get(request);
+  if (actor && (!['GET','HEAD','OPTIONS'].includes(request.method) || /export/.test(request.routeOptions.url ?? ''))) request.log.info({event:'admin.action', service:'agency', actor_id:actor.id, actor_role:actor.role, capability:actor.capability, request_id:request.id, route:request.routeOptions.url, method:request.method, status_code:reply.statusCode}, 'Admin action');
+ });
  const health=()=>({status:'ok',service:'tenant-server',timestamp:new Date()});
  app.get('/',health);app.get('/health',health);
  for(const register of registrars)await register(app,context);

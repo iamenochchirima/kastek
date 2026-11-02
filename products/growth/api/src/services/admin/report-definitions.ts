@@ -1,4 +1,5 @@
 export const REPORT_DEFINITIONS = [
+  {key:"cross-product",name:"Cross-product reporting",description:"Scoped Growth, Agents and Agency metrics.",source:"Product-owned APIs and Labs Analytics",version:1},
   {
     key: "platform-overview",
     name: "Platform overview",

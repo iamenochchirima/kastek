@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/growth/agent_review/v1.schema.json",
+  "title": "Growth agent review transition",
+  "properties": {
+    "feature_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "assistant",
+        "research",
+        "content",
+        "campaigns",
+        null
+      ]
+    },
+    "conversation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "review_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "revised",
+        "approved",
+        "rejected"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "approved",
+        "rejected"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "feature_id",
+    "conversation_id",
+    "task_id",
+    "review_id",
+    "action",
+    "state",
+    "occurred_at"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "x-kasitek": {
+    "identity": "growth.agent.review@1",
+    "owner": "growth",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "installation_id",
+      "actor_id",
+      "email",
+      "phone",
+      "prompt",
+      "content",
+      "response",
+      "credential",
+      "token",
+      "draft",
+      "arguments",
+      "result",
+      "payload"
+    ]
+  }
+}

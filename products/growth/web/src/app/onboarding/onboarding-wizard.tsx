@@ -1,9 +1,7 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import type { OnboardingProfile } from "@/lib/onboarding";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -46,7 +44,8 @@ function destination(goal: string) {
 }
 
 export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const appearance = useAppearance();
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState(profile.orgName);
@@ -77,8 +76,8 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "We could not save your workspace setup.");
-      router.replace(skip ? "/workspace" : destination(primaryGoals[0]));
-      router.refresh();
+      navigateTo(skip ? "/workspace" : destination(primaryGoals[0]), { replace: true });
+      revalidator.revalidate();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not save your workspace setup.");
       setSaving(false);

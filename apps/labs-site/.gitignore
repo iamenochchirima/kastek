@@ -6,3 +6,6 @@ build/
 next-env.d.ts
 .vercel/
 .env*
+
+# Keep non-secret widget configuration documentation.
+!.env.example

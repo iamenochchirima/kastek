@@ -1,488 +1,756 @@
-# KasiTek Agent Platform
-
-Development model policy, agreed 2026-10-07: use OpenRouter
-`nvidia/nemotron-3-super-120b-a12b:free` for synthetic local checks. Local
-`KASIAI_MODEL` selects this exact endpoint. Do not use paid models or paid
-fallbacks for development checks without the user's approval. Free endpoint
-availability and limits can change; fail visibly rather than substitute a paid model.
-Historical runs retain the model they actually used.
-
-This is the separately deployable Agent Platform service. It owns agent definitions,
-durable run orchestration, conversations, memory, and operational records for the direct
-KasiTek product. It does not query or mutate `kasitek-core` tables; consequential product
-actions will go through authenticated internal contracts exposed by `kasitek-core`.
-
-## Product direction and current status
-
-The platform supports two planned delivery tracks: hosted API-based agents with short-run or durable execution, and deployment/management of our own filesystem-based personal runtime.
-
-Use the [current architecture](docs/architecture/agent-platform-architecture.md) and [delivery checklist](docs/plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md). They replace the older broad rewrite roadmap. Personal runtime development has a [linked checklist](docs/plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md).
-
-This repository owns the API, database migrations, Temporal worker, MCP gateway, knowledge/memory modules, channel adapters and management UI. The local standalone journey now supports shared sign-in, agent configuration, real model replies, knowledge retrieval, approved tools, website publication and inbox teammate replies. External provider/channel acceptance remains explicit; see [client integration status](docs/source-boundary.md) and the [end-to-end checklist](docs/plans/agents/END_TO_END_IMPLEMENTATION_PLAN.md).
-
-Growth and Agency are optional product-tool integrations through authenticated interfaces, not runtime or database dependencies for every agent. Shared login comes from Labs Keycloak; Analytics uses its configured ingestion endpoint, and telemetry uses the Labs Collector. Agents owns its organization authorization and sessions.
-
-## Source layout
-
-- `api/`: backend source, migrations, tests, process scripts and environment templates.
-- `web/`: management UI.
-- `mcp/`: stdio MCP bridge package.
-- `docs/` and `examples/`: product documentation and integration examples.
-
-Use the root Node 24/pnpm workspace to install and build dependencies. From the repository root,
-`pnpm dev:agents` starts the UI and `pnpm dev:agents-api` starts the API with its local migration
-step. Keep backend secrets in `api/.env`, using `api/.env.example` as the template.
-
-## Processes
-
-The backend commands below run from `products/agents/api/` unless otherwise specified.
-The stdio bridge command runs from `products/agents/mcp/`; UI commands run from
-`products/agents/web/`.
-
-- `pnpm run dev:api` applies pending local migrations, then starts the HTTP API.
-- `pnpm run dev:gateway` starts the stateless external MCP gateway.
-- `pnpm run dev:stdio` starts the local line-delimited stdio bridge to that gateway.
-- `pnpm run dev:worker` starts the Temporal worker.
-- `pnpm run migrate` applies PostgreSQL migrations.
-- `pnpm run test:e2e:local` exercises a real local installation through REST, Temporal, and MCP.
-- `pnpm run test:telemetry:collector-unavailable` checks API liveness and readiness when OTLP returns HTTP 503 or the Collector connection is refused.
-- `pnpm run bootstrap:kasiai` idempotently creates the protected KasiAi definition and initial
-  published version after migrations are applied.
-- `pnpm run build` compiles the API, worker, and gateway entry points to `dist/`.
-- `RUN_AGENTS_DB_INTEGRATION_TESTS=true AGENTS_DATABASE_URL=... pnpm test` enables the
-  opt-in PostgreSQL isolation/deletion tests; the normal test command never mutates a database.
-
-The Core public-v1 conformance check consumes the Growth product source. From the API package,
-run `KASITEK_GROWTH_REPO_ROOT=../../growth pnpm exec vitest run test/rest-mcp-conformance.test.ts`.
-
-The API and worker are separate process types. The default local-stack mode connects them to a
-dedicated Temporal Cloud development namespace. Set `TEMPORAL_MODE=local`,
-`TEMPORAL_ADDRESS=localhost:7233`, and `TEMPORAL_NAMESPACE=default` when a completely local
-Temporal Server is needed. A hosted runtime needs a dedicated namespace and task queue; configuring
-or changing that runtime is separate work.
-
-For the local management app, start PostgreSQL and Labs identity, then the local
-Temporal server, API, worker and `pnpm dev` in separate terminals. The current
-Playground setup uses Temporal namespace `default` and queue
-`kasitek-agents-initial-ui`. Keep local secrets in the ignored `api/.env`. Use
-`http://localhost:3100` consistently with `AGENTS_PUBLIC_URL`; starting login on
-`127.0.0.1` and returning to `localhost` loses the login transaction cookie.
-Check API `/health/live` and `/health/ready` before opening Studio.
-
-For a fully local durable setup, configure these non-secret values in `api/.env`:
-
-```dotenv
-HOST=127.0.0.1
-PORT=4100
-AUTH_MODE=hmac
-AGENTS_PUBLIC_URL=http://localhost:3100
-TEMPORAL_ENABLED=true
-TEMPORAL_MODE=local
-TEMPORAL_ADDRESS=127.0.0.1:7233
-TEMPORAL_NAMESPACE=default
-TEMPORAL_TASK_QUEUE=kasitek-agents-initial-ui
-CREDIT_BILLING_MODE=disabled
-```
-
-Also configure the separate Agents PostgreSQL URL, internal authentication secret,
-credential encryption key and Labs OIDC client settings listed in `api/.env.example`.
-Use each model provider's own key. The disabled billing setting above is for local
-development only. Start PostgreSQL and Labs Keycloak using their existing setup.
-
-Run Temporal in its own terminal. From the repository root, start each application process in
-a separate terminal:
-
-```bash
-temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233
-```
-
-```bash
-pnpm dev:agents-api
-```
-
-```bash
-pnpm --dir products/agents/api run dev:worker
-```
-
-```bash
-pnpm dev:agents
-```
-
-The API command applies Agents migrations. Open `http://localhost:3100`, sign in,
-and select the workspace. Simple agents run inside the API; durable agents require
-the Temporal server and worker. The MCP gateway is needed only for external MCP
-clients. Website chat and Discord have separate startup instructions below.
-
-Agent Knowledge creates agent-scoped sources, so the same facts are available in
-Playground and separately published website installations. Conversation memory
-keeps its own scope. Add page reads one URL through the existing bounded fetch
-and indexing path without a crawler key. To try it with the included sample, add
-`http://localhost:3200/faq.txt`, then ask website chat about the return period.
-
-Full website knowledge crawling uses `FIRECRAWL_API_KEY` and optionally
-`FIRECRAWL_API_BASE_URL`. Without a configured crawler the screen explains the
-setup and disables crawl submission. While a crawl runs, the source displays the
-provider's processed/total page counts when available. A completed crawl with no
-readable pages is a failed source, not ready knowledge.
-
-The gateway is a separate process. It owns no database, Temporal, Core, or product state:
-`POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API, and `/health`
-reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and `/metrics`
-exposes redacted in-process request counters and latency. Local development binds the gateway to
-loopback by default. Hosted routing and production deployment are separate work.
-
-The gateway applies bounded in-process fixed-window limits before forwarding requests. Set
-`MCP_GATEWAY_ENABLED=false` for an emergency transport disable, and tune the authenticated and
-pre-authentication windows with the `MCP_GATEWAY_*` variables. These controls are transport-local;
-installation grants, capability policy, approvals, usage, and audit remain owned by the Agent API.
-`MCP_STATELESS_ENABLED` controls the Agent API's 2026 stateless path and
-`MCP_GATEWAY_STATELESS_ENABLED` controls the gateway adapter. Both default on for local
-development/test and off for production unless explicitly enabled. Turning either switch off
-returns an unsupported-version response for 2026 requests while leaving the pre-2026 path intact,
-so rollback does not disable existing clients.
-The gateway supports the MCP `2026-07-28` stateless path and retains the pre-2026 `2025-06-18`
-initialize-based compatibility path during migration. The 2026 path uses per-request metadata,
-header/body validation, `server/discover`, deterministic/cacheable tool lists, and optional Tasks
-handles for clients that advertise the extension. It currently uses JSON responses for ordinary POST
-Streamable HTTP and does not claim standalone GET streaming or resumable session support. Set
-`MCP_GATEWAY_ALLOWED_ORIGINS` to a comma-separated allowlist when browser-originated MCP requests
-are expected; presented Origins not on the allowlist are rejected.
-Gateway metrics include redacted protocol-era, safe method-bucket, result-class, error, in-flight,
-and latency counters; they never include tokens, arguments, organization identifiers, or tool
-catalog contents.
-
-The machine-readable integration guide for external MCP clients is in
-[`docs/mcp-integration.md`](docs/mcp-integration.md).
-The rollout-focused migration note is in
-[`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
-The runtime/Core ownership seam is documented in
-[`docs/architecture/agent-runtime-host-boundary.md`](docs/architecture/agent-runtime-host-boundary.md).
-The [technical documentation index](docs/README.md) links to the Agent architecture, operations,
-and runbooks.
-
-Clients that only support local MCP stdio can run `pnpm run start:stdio` with
-`MCP_STDIO_API_KEY` set to a Developer API key and, when needed,
-`MCP_STDIO_URL` pointed at the hosted `/mcp` endpoint. The bridge owns no state; it forwards one
-JSON-RPC message per input line, selects the 2026 HTTP revision for messages carrying 2026 metadata,
-retains the pre-2026 flow for older clients, bounds messages/responses, preserves notifications, and
-never logs the bearer token. Before forwarding an old-client message it probes `server/discover`
-once (configurable with `MCP_STDIO_PROBE=false`); a modern-only endpoint produces a bounded local
-unsupported-version error instead of sending an incompatible initialize request.
-
-The publishable package boundary is being prepared in [`mcp`](mcp). Build its
-standalone local adapter with `pnpm run build:mcp`. It is intentionally separate from the Agent API
-runtime and does not contain tools, authorization, product data, or a REST client; publication is
-blocked until the Developers authentication/setup flow is wired and tested.
-
-The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
-descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
-the checked-in catalog with `pnpm generate:capabilities`; the output is
-[`docs/generated-capabilities.md`](docs/generated-capabilities.md).
-
-Approval decisions have a separate bounded per-organization/run/actor fixed-window guard. Tune it
-with `APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW`, `APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS`, and
-`APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS`; PostgreSQL remains the authoritative compare-and-set and
-duplicate-decision boundary. When Temporal is unavailable in a development environment, only read
-manifests that explicitly declare `execution: immediate` may execute directly; the run and tool
-evidence are still persisted. Durable writes and all approval-required capabilities continue to
-require Temporal.
-
-## Local end-to-end smoke test
-
-After migrations, start the API, worker, and gateway in separate terminals:
-
-```bash
-pnpm dev:agents-api
-pnpm --dir products/agents/api run dev:worker
-pnpm run dev:gateway
-```
-
-Set a dedicated development ES256 `INSTALLATION_TOKEN_PRIVATE_KEY` in `.env` before starting
-the API, and use a non-production `AGENT_GATEWAY_SHARED_SECRET` when the gateway and API communicate
-over a non-private local network. Then run `pnpm run test:e2e:local`. The smoke test creates an
-isolated organization, agent, installation, credential, and two durable runs. It verifies REST
-credential exchange, filtered discovery, idempotent execution, MCP authentication, protocol
-negotiation, and MCP tool acceptance; it archives its agent fixture afterwards. Set
-`AGENTS_E2E_KEEP_FIXTURES=true` only when investigating a failed run.
-
-Cloud mode requires `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` in
-`.env` (or the environment used to launch the processes). Never commit the API key.
-
-KasiAi uses `KASIAI_MODEL_PROVIDER` and `KASIAI_MODEL` for its pinned initial model target. The
-matching provider key is resolved only inside worker activities and is never stored in an agent
-definition or workflow input. The Agents model gateway supports independent OpenRouter, OpenAI,
-Anthropic, Gemini, DeepSeek, GLM, Kimi, MiniMax, xAI, OpenCode Go and OpenCode Zen credentials.
-For local managed credentials, configure only the corresponding key from `.env.example`. An
-organization can instead save a provider-specific BYOK key in Agents > Models. A key for one
-provider does not enable another provider; OpenRouter is only the sample workspace default.
-The model list is discovered from each provider's own catalog when its key is available. Saved
-organization keys are resolved server-side for that provider only; when a catalog is unavailable,
-the UI keeps that provider's preset models available.
-OpenCode Go and Zen route Chat Completions, Responses, Anthropic Messages and Gemini models through
-the matching runtime adapter. Typed System One models and unclassified model IDs remain hidden
-from the chat picker until their protocol is supported.
-
-Credit settlement is enforced by default. Set `CREDIT_BILLING_MODE=shadow` to calculate pricing
-without debiting, or `CREDIT_BILLING_MODE=disabled` to skip credit settlement. User-funded BYOK
-credentials do not consume KasiTek credits.
-
-The relocated root `Dockerfile` builds the API and worker package and includes `migrations/`. It
-defaults to the API entry point; the gateway and worker entry points are `dist/gateway/server.js`
-and `dist/temporal/worker.js`. The root-level `railway.api.json`, `railway.gateway.json`, and
-`railway.worker.json` files hold service-specific start commands; the API and gateway configs also
-define readiness checks. Moving these files does not change hosted Railway settings or deploy a
-service.
-
-Run requests may include an `idempotencyKey`; retries within an organization return the original
-run and do not start a second Temporal workflow. Run inspection is available at
-`GET /v1/runs/:runId/timeline`, which joins lifecycle events, ordered run steps, and audited tool
-invocations. The timeline is organization-scoped and backed by PostgreSQL, so it does not rely
-on API process memory or sticky sessions.
-
-For a plain external REST-client check, use the dependency-free Python harness after creating an
-installation credential and starting the Agent API:
-
-```bash
-AGENTS_REST_SMOKE_INSTALLATION_ID=... \\
-AGENTS_REST_SMOKE_SECRET=... \\
-python3 scripts/rest-client-smoke.py
-```
-
-Set `AGENTS_REST_SMOKE_TOKEN` instead when a public-API token has already been exchanged. The
-harness verifies discovery, a durable tool acceptance, idempotent retry, and operation inspection;
-it does not claim the n8n or hosted-client gates.
-
-Platform chat clients first call
-`POST /v1/installations/:installationId/platform/conversation` to resolve the authenticated
-user's durable conversation. They send text through
-`POST /v1/installations/:installationId/platform/messages` with a client-generated
-`idempotencyKey`. The latter stores the inbound message and run atomically, then dispatches the
-idempotently named Temporal workflow. Assistant output is committed as an outbound message in
-the same transaction that completes the run. Clients can read durable history from
-`GET /v1/conversations/:conversationId` and stream run events from
-`GET /v1/runs/:runId/events/stream`.
-
-Model selection follows the conversation boundary. A version's model policy supplies the default
-when a new conversation is created; after that, `conversations.model_provider` and
-`conversations.model` are authoritative for every run in that conversation. Existing-conversation
-message payloads must not be used to switch models per message. Each accepted run snapshots the
-conversation model into `agent_runs.resolved_model_provider` and `agent_runs.resolved_model`.
-
-## kasitek-core read boundary
-
-The worker can expose explicitly granted read-only core tools when the core URL and one of these
-authentication modes are present:
-
-- `KASITEK_CORE_URL` — the private base URL of `kasitek-core`.
-- `KASITEK_CORE_INTERNAL_TOKEN` — a dedicated bearer token configured in core as
-  `KASITEK_AGENTS_INTERNAL_TOKEN`.
-- `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
-- `KASITEK_CORE_DELEGATION_KEY_ID` — optional active signing-key identifier during a core
-  delegation-key rotation; it must match core's trusted key map.
-
-Growth's existing `scripts/run_local_stack.sh` supplies `KASITEK_CORE_URL` and the matching local
-Core credential to both services, but still loads the Growth checkout's `agents/.env`. For a
-standalone Agents checkout, configure `KASITEK_CORE_URL` and either
-`KASITEK_CORE_INTERNAL_TOKEN` or `KASITEK_CORE_DELEGATION_PRIVATE_KEY`; Core must retain its
-corresponding authentication configuration. If the Agent-side URL or credential is missing, the
-tool fails before making an HTTP request with `CORE_UNAVAILABLE`.
-
-The core capability boundary currently includes customer/workspace reads and the first content
-vertical. Content tools call `GET /api/internal/agents/v1/content/posts` and
-`GET /api/internal/agents/v1/content/posts/:id` for scoped reads, `POST
-/api/internal/agents/v1/content/posts` for idempotent drafts, and approval-bound publish/schedule
-routes for later rollout. Every request carries organization, actor, run, correlation, and (for
-writes) idempotency context. Core scopes all queries and writes by organization and returns only
-the typed read/write result; the Agent Platform never receives core database credentials.
-The Agent Platform never receives core database credentials. Rotate this service token as a
-deployment secret; do not reuse the n8n callback token or a user session token.
-
-When configured, `KASITEK_CORE_DELEGATION_PRIVATE_KEY` signs a short-lived ES256 delegation per
-core invocation. Core verifies it with its legacy `AGENTS_DELEGATION_PUBLIC_KEY` or the rotating
-`AGENTS_DELEGATION_PUBLIC_KEYS_JSON` map, issuer, audience, run, installation, capability, and
-correlation claims. The static internal token remains only as a development compatibility path.
-
-External-effect tools reserve an idempotency-derived effect receipt before execution. Provider
-success/failure is persisted separately from the tool result; ambiguous outcomes are surfaced by
-`GET /v1/operations/effects/reconciliation` and must be reconciled before retrying.
-
-User-owned model credentials are stored through `/v1/credentials` as encrypted vault records.
-Set `AGENTS_CREDENTIAL_ENCRYPTION_KEY` to a random 32-byte hex or base64 key in every API and
-worker process. API responses contain only opaque credential IDs; revoke the ID to prevent future
-model calls.
-
-Agent integrations use the same encrypted-secret boundary without adding provider-specific
-credential tables. The catalog in `api/src/integrations/catalog.ts` describes each provider, the
-connection API stores installation-scoped state, and `api/src/integrations/tools.ts` exposes provider
-operations through the existing capability registry and approval policy. OAuth-backed Google
-connections use `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
-`GOOGLE_OAUTH_REDIRECT_URI`; each catalog entry supplies its own requested scopes through the
-shared Google OAuth boundary. Add a provider by adding one catalog entry, an adapter in
-`IntegrationToolService`, and its connection form; do not add a new tool execution path. The first
-adapters are KasiTek Calendar, Google Calendar, Gmail, Google Drive, Tavily Search, and an Apple Tools local bridge.
-
-## Management UI
-
-The Next.js app is in `web` and contains the `/agents/**`, `/studio`,
-`/studio/new`, and `/playground` routes. Growth retains its copy until the separate cleanup is
-completed. Authentication and API integrations in the relocated app remain transitional; this
-source move does not configure a standalone production service. See [the source boundary](docs/source-boundary.md).
-
-Use Node `24.15.0` from the repository `.nvmrc` and pnpm `10.30.1`.
-
-```bash
-pnpm install
-pnpm dev:agents
-```
-
-Focused UI commands:
-
-```bash
-pnpm typecheck
-pnpm test:studio
-pnpm build:ui
-```
-
-`pnpm build` builds the API and worker. The UI's `pnpm lint:ui` command is available, while
-the relocated source currently reports existing React-hook lint errors.
-
-## Simple and durable agent runs
-
-In Studio Settings → Runtime, choose Simple or Durable, save the version, then
-use that version in Playground. The version keeps the execution choice. Simple
-Playground and authenticated `/v1/runs` requests use the shared agent harness
-inside the API process, without a Temporal workflow. Durability remains explicit
-for approvals, waits and workflow graphs. Both paths save their run evidence.
-
-Simple runs honor configured model/tool/token limits and `maxWallTimeMs`, capped
-at five minutes, and support cancellation. A graceful API shutdown records an
-interrupted failure. On startup and every 30 seconds, the API checks persisted
-simple dispatches whose deadlines passed with an additional 30-second grace.
-It records an interrupted failure and releases the conversation lease. It never
-restarts the request automatically. Check external actions before retrying.
-Agent Settings provides server-side API keys for one custom hosted installation.
-The public API always attaches messages to a saved conversation. Internal `/v1/runs`
-remains a separate service-token interface with runs:write and runs:read. Never give the signing secret to browsers
-or customer websites. Agents-owned website replies use the shared simple/durable dispatcher; other channel adapters still need their own end-to-end acceptance.
-
-
-### Invoke an agent from your server
-
-In Agent details → Settings → Agent API keys, create a labelled key and choose
-its expiry. Copy it immediately; refresh/hiding clears the displayed value.
-The default expiry is 90 days, with a maximum of 365. Save the key in your server's
-secret configuration. It is never a model-provider key and never belongs in a
-browser widget. Revoking it stops new requests and closes admitted event streams
-at their next authorization check. Accepted runs continue unless separately cancelled.
-
-Send a first message, then reuse the returned `conversation.id` as `conversationId`
-on subsequent messages. Use a fresh idempotency key for each new message and reuse
-that same key when retrying its delivery. The agent uses its pinned installation
-version, model and execution choice.
+# Kasitek Agents
+
+Owner: Agents engineering. Last reviewed: 2026-10-23.
+
+The standalone product creates customer-service agents with configurable question answering, support,
+appointments and native enquiries for websites and messaging channels, with a shared staff inbox. Research
+and campaign experiences belong in Growth or Agencies using the shared execution backend.
+The website/widget path includes a shared staff Inbox, assignment, human replies, takeover and
+explicit return to automation. Google and Microsoft Calendar appointments use explicit organization service access, a pinned booking policy, and
+exact customer confirmation. Configured messaging adapters share the same Inbox. Live provider
+acceptance remains owner-run. See the
+[product and inbox contracts](docs/architecture/agent-platform-architecture.md#standalone-agents-product).
+
+The standalone application creates customer agents with approved knowledge, simple chat, website
+publication and Inbox support. The shared harness also implements reviewed memory, pinned skills,
+bounded specialist tasks, optional isolated analysis and reviewed report workflows for developer
+and product contract fixtures. Skills expose scoped connection repair with explicit tool adoption;
+compatible tool-directed versions can open a contextual Analysis control. Grounded customer versions
+cannot enable analysis or silently switch programs. These capabilities do not define new standalone offerings.
+Restate workflow `AgentsBusinessRunV21` and harness `product-capabilities-v11` coordinate durable execution.
+The technical kinds remain `business` and `workspace`; workspace
+execution is unavailable until its separate Lina adapter is implemented.
+
+The [architecture](docs/architecture/agent-platform-architecture.md) defines the target.
+The [implementation boundary](docs/source-boundary.md) records current behavior and limits.
+Growth embeds the shared business harness through a signed product contract. Its general assistant,
+Research, Content and WhatsApp Campaigns features use Growth-owned permissions and records.
+[Configure the Growth integration](docs/growth-integration.md) separately from standalone Agents.
+Agencies integration remains future work. Neither integration is required to run Agents.
+
+Live provider acceptance is owned by the project owner. Optional native-provider and MCP
+OAuth settings are listed in [api/.env.example](api/.env.example); keep credentials in the private
+`api/.env`. Follow [connection setup](docs/mcp-integration.md) to connect accounts, select agent
+access, publish a version and test it. Controlled acceptance results do not certify live providers.
+
+## Model selection
+
+Connect a provider account in **Settings > Model providers**, refresh its models,
+and choose an organization default. New agents use that default. A key in the
+server environment does not create a workspace connection or authorize agent use.
+
+Use the model picker in chat to select a connected account and model. The selection
+saves the agent configuration in the background and applies to new messages,
+including connected customer channels. Changes affecting those channels or model
+access require confirmation. In-progress work keeps its accepted route. Unsaved
+Configure edits must be saved or discarded before switching from chat.
+
+**Configure > Model** exposes the same selection and advanced limits. The displayed
+input budget is separate from the model's advertised context window. Admission
+checks model capacity, saved limits, grants and shared execution policy; changing
+only the form does not grant additional authority. There is no silent model or
+account fallback.
+
+## Start locally
+
+Use Node 24 and the repository's pnpm workspace. Install dependencies from the root:
 
 ```sh
-AGENTS_ORIGIN='http://127.0.0.1:4100'
-# Supply AGENT_API_KEY through your server's secret configuration.
-curl "$AGENTS_ORIGIN/api/v1/agent/messages" \
-  -H "Authorization: Bearer $AGENT_API_KEY" \
+pnpm install
+```
+
+Configure [local identity](../../infra/identity/README.md). Its Keycloak 26.6.0
+registration includes the separate `agents` client. Copy `api/.env.example` to
+`api/.env`, set independent local secrets, and use the matching Agents client secret.
+Keep that file private. Use `http://localhost:3100` consistently for the browser.
+
+Provision a fresh, dedicated PostgreSQL 17 database with pgvector 0.8.7 and set `AGENTS_DATABASE_URL`.
+The setup command rejects a database containing other application tables. It does
+not migrate or delete an existing product database.
+
+The verified local database image is
+`pgvector/pgvector@sha256:cd4ccfdaf62cbfeb5c6ee19ef0dd663406d4ed740c320b324d016a90e85385b3`,
+which contains PostgreSQL 17.11 and pgvector 0.8.7. Schema setup requires permission to create
+the `vector` extension in this dedicated database.
+
+For document imports, configure private S3-compatible storage, prepare the isolated document
+runtime, and set `AGENTS_DOCUMENT_RUNTIME_ENABLED=1`:
+
+```sh
+bash infra/agents-runtime/document-prepare.sh
+```
+
+This setup downloads pinned public runtime/model artifacts. Import processing and embeddings
+run without guest network access. From `products/agents/api`, run the independent cleanup
+processes alongside the worker:
+
+```sh
+pnpm dev:document-reaper
+pnpm dev:source-object-reaper
+```
+
+The document reaper needs the Agents database and runtime, and the source-object reaper needs
+the database and private storage. Storage outages do not stop physical resource cleanup.
+
+Start Restate from the repository root:
+
+```sh
+docker compose -f infra/agents-runtime/compose.yaml up -d
+```
+
+The worker defaults to loopback. For the private Docker bridge above, set these
+values in your local `api/.env` so Restate can reach it:
+
+```dotenv
+RESTATE_WORKER_HOST=0.0.0.0
+AGENTS_ALLOW_UNSIGNED_WORKER=1
+```
+
+Restrict that development listener with host network controls. Production requires
+`RESTATE_REQUEST_IDENTITY_KEYS` even when the unsigned development override is set.
+Use the cluster's `publickeyv1_` keys and keep the worker private. The
+[environment example](api/.env.example) lists these settings.
+
+From `products/agents/api`, initialize the schema, then run the API and worker in
+separate terminals. Each command loads the local environment file:
+
+```sh
+node --env-file-if-exists=.env --import tsx src/composition/setup.ts
+node --env-file-if-exists=.env --import tsx --watch src/composition/server.ts
+node --env-file-if-exists=.env --import tsx --watch src/composition/worker.ts
+```
+
+After the worker starts on port 9080, register its HTTP/2 endpoint with Restate.
+Run this local registration from the repository root:
+
+```sh
+curl --fail-with-body -X POST http://127.0.0.1:19070/deployments \
   -H 'Content-Type: application/json' \
-  -d '{"message":"Hello","createNew":true,"idempotencyKey":"first-request-001"}'
-
-# Replace RUN_ID with the returned runId to read status and the completed answer.
-curl "$AGENTS_ORIGIN/api/v1/agent/runs/RUN_ID" \
-  -H "Authorization: Bearer $AGENT_API_KEY"
+  -d '{"uri":"http://host.docker.internal:9080","use_http_11":false,"force":false}'
 ```
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/v1/agent/messages` | Send `message`, `idempotencyKey`, and either `conversationId` or `createNew:true`; returns 202 with conversation and run |
-| `POST /api/v1/agent/conversations` | Create an empty saved conversation with `{}` |
-| `GET /api/v1/agent/conversations/:conversationId` | Read the saved chat for this installation |
-| `GET /api/v1/agent/runs/:runId` | Read persisted run status, output/error and events |
-| `GET /api/v1/agent/runs/:runId/events/stream?after=0` | Stream recorded events; reconnect with the last event cursor |
-| `POST /api/v1/agent/runs/:runId/cancel` | Cancel an active run with `{}` |
+Start the management app from the repository root:
 
-Ordinary errors are 400 for invalid input, 401 for an invalid/expired/revoked key
-or inactive installation/member, 403 for browser use, and 404 for a run/conversation
-outside the key's installation. A 202 response means accepted; inspect persisted
-run status for completion or failure. Provider errors belong to the run outcome.
-Keys cannot override model settings, manage agents, authorize tools or call the
-internal `/v1` interface. Website customer sessions use their separate scoped
-visitor admission below.
-
-
-Studio shows a durable workflow's saved wait state and offers Send event for its
-expected event key. Workspace write permission is required. A mismatched key
-returns 409 and does not signal the run. A real local workflow survived worker
-restart and resumed through this control; its model reply and terminal state
-remained available after reload. Tool-specific approval setup/acceptance remains
-part of the tools implementation stage.
-
-### Local website chat and inbox
-
-For a custom customer-service agent, publish its Playground version, open Agent
-details → Website chat, add the sample website origin `http://localhost:3200`,
-then copy the embed. Each website has an independent live installation pinned to
-that published version. Pause/resume acts on backend state. Later draft edits do
-not change the live version.
-
-Run the included sample separately from the management app:
-
-```bash
-python3 -m http.server 3200 --bind 127.0.0.1 --directory products/agents/examples/website-chat
+```sh
+pnpm dev:agents
 ```
 
-Open `http://localhost:3200`, paste the public deployment ID and open chat.
-`AGENTS_PUBLIC_URL` must be the management origin (`http://localhost:3100` locally);
-the sample's loader uses that origin. Apply migrations 182/183 to the Agents DB.
-Public visitor capabilities expire after one day, are origin/session scoped and
-are stored as hashes on the server. No model key belongs in an embed.
+Open `http://localhost:3100`. The web server proxies `/api` to port 4100.
+API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
+Connect a provider in **Settings > Model providers** before using agent chat.
+The API and worker use encrypted workspace credentials, not an environment-key fallback.
 
-Open `/app/inbox` to view the same customer conversation, take over, reply, add a
-private note, resolve/reopen or return replies to the agent. Notes remain internal.
-Known successful human writes are deduplicated. Live updates reconnect using
-lifecycle cursors and saved history. Real visitor API/SSE replies, browser teammate
-controls, embedded browser submission, refresh continuity and private-note
-isolation passed locally. Temporary failures display a readable error; bounded
-streams and periodic history reload recover replies after an interruption. Share links, voice and uploads
-are not enabled by this slice. See the end-to-end checklist for external setup and
-remaining acceptance.
+Private storage is required for knowledge, connected evidence and isolated analysis. Conversations without those capabilities can run without it. Configure all five `AGENTS_S3_*` settings
+from the environment example and provision a private S3-compatible bucket.
+Without them, artifact storage remains unavailable. Context snapshots and memory
+revisions remain in private PostgreSQL records.
 
-### Reviewed remote MCP tool results
+## Enable local analysis
 
-Open Agent Tools → Remote MCP, discover a provider and check its health. Before
-publishing the discovered revision, enter only the top-level result fields the
-agent needs, such as `reference,status`. Publication stores those selections in
-that immutable provider revision. Pin the published revision to a new agent
-version and publish it. Existing live versions keep their earlier pins.
+The analysis profile requires Linux x86_64, user namespaces, a working systemd user
+manager with delegated CPU/memory/process controls, and the pinned gVisor runtime.
+Prepare and verify the local backend from the repository root:
 
-The raw response stays redacted. Reviewed results support bounded JSON scalar
-fields, including a JSON object in MCP text or structuredContent. Nested objects
-and credential-shaped fields are excluded. A tool reporting isError fails its
-attempt instead of producing a success answer. Remote arguments still pass
-through the existing grants and approval policy.
-
-### Discord setup prerequisites
-
-The retained Discord dialog and channel list now use scoped Agents browser
-endpoints. Use a dedicated bot and an authorized test account. Put the bot token
-in the dialog or server credential store; never in a public widget or document.
-Enable Message Content Intent for the bot. Configure explicit allowed user and
-server-channel IDs; empty server-channel IDs deny server traffic. The default
-server policy requires a mention.
-
-Alongside the API, start the retained gateway with its matching Agents database
-and internal authentication configuration:
-
-```bash
-DISCORD_GATEWAY_ENABLED=true pnpm --dir products/agents/api run dev:discord
+```sh
+bash infra/agents-runtime/prepare-sandbox.sh
+bash infra/agents-runtime/verify-sandbox.sh
 ```
 
-`DISCORD_GATEWAY_PLATFORM_URL` points to the API, locally
-`http://127.0.0.1:4100`. Saving a verified token creates a connection with
-`waiting_for_gateway` status. A saved connection alone does not prove inbound
-messages or outbound delivery. Check the gateway status, then perform the real
-incoming message → reply → inbox takeover → human reply journey before claiming
-Discord acceptance. Inbox teammate replies use the matching Discord bot credential
-and the retained Discord API adapter directly; they do not depend on Growth. Growth's shared social-account connection contract remains
-pending and is not called by this screen.
+Configure private S3 storage and set `AGENTS_SANDBOX_ENABLED=1` in the local API
+`.env`. From `products/agents/api`, run the independent cleanup process alongside
+the worker:
+
+```sh
+pnpm dev:sandbox-reaper
+```
+
+The reaper shares the private allocation directory with the worker. Generated code
+receives no credentials or network. Select the analysis capability in an immutable
+agent version. Missing storage or a missing backend blocks analysis admission.
+This runtime is temporary compute; it does not create a persistent workspace.
+
+A coordinator using `tool-directed` program version 4 can select up to 32 pinned business
+specialist versions with explicit source/tool subsets and child allocations. Its model can
+discover permitted specialists, start independent work, inspect full results and request
+follow-ups through the shared Restate loop. Concurrency defaults to two (configurable 1–8),
+with a separate total-task limit. Specialists retain their own authorized reviewed skills;
+shared sandbox access requires an explicit matching scope. Personal memory and further
+delegation are unavailable to children. Parent and children share the original root budget.
+Earlier programs retain their two-binding behavior. See the
+[adaptive orchestration reference](docs/operations/adaptive-orchestration.md) for contracts,
+policy, progress, queued instructions and controlled verification.
+
+## Reviewed reports and automation
+
+This setup verifies shared runtime capabilities. It does not add research or campaign offerings
+to the standalone client. Those customer experiences belong in Growth or Agencies.
+
+Configure the connection keyring and destination allowlist in `api/.env` using
+`api/.env.example`. Keys contain 32 random bytes encoded as base64; keep them
+outside Git and PostgreSQL. Every destination names one HTTPS `/deliveries`
+endpoint and resource. Loopback HTTP is restricted to local development.
+
+Create a scoped connection in **Connections**, enable **Report delivery** on an
+agent, select its connection and artifact name, and publish an immutable version.
+**Automations** binds that version to a one-shot UTC time, fixed UTC interval, or
+authenticated event. Each occurrence has its own task and exact human report
+review. Automation authorization is finite and does not preapprove any delivery.
+
+The first adapter implements ReportDeliveryHTTP, with a persistent acceptance
+receiver for local verification. It does not configure a third-party provider,
+OAuth or external MCP connection. See the [implementation boundary](docs/source-boundary.md#connected-reports-and-automation)
+for policy, expiry and uncertainty behavior.
+
+## Platform interface
+
+This section describes the current management interface. Shared Inbox and guided customer-service
+creation are implemented. Runtime research/report fixtures do not define the Agents
+client catalogue.
+
+The public root restores the landing page. Sign in and Get started use the configured
+identity provider; registration requires email verification. A signed, transaction-bound
+return destination preserves internal application links through login.
+
+The workspace sidebar contains Agents, Inbox, Customers, Tasks, Knowledge, Connections,
+Automations and Settings. Creation exposes one customer-service offering with selectable
+responsibilities.
+The conditional appointment step binds an authorized Google or Microsoft calendar policy.
+Every runnable business agent opens Chat,
+with Activity and Configure tabs.
+The organization Assistant opens at `/app/assistant`. Configure can explicitly enable adaptive
+coordination and select published specialists. Chat and task activity show model-authored work
+progress alongside actual child task states. Active root tasks accept queued instructions;
+child tasks link to their own exact-effect reviews. The controlled API/runtime and responsive
+browser paths are recorded in the [verification skill](../../.agents/skills/verify-agents/SKILL.md).
+Customer configuration exposes instructions, approved knowledge/revision pins, a curated Tools
+catalogue and a Skills library with reviewed KasiTek procedures, private SKILL.md/ZIP imports,
+and public GitHub packages pinned to an exact commit and package path.
+Installing a skill preserves its complete immutable package. Add the selected skill
+and use Save changes to apply it. Owner review checks the exact package digest before execution. Website
+publication permits enabled, reviewed server-curated instruction packages. Private or repository
+skills and generic personal connection bindings remain unavailable to website visitors.
+Owners can compare skill revisions and explicitly select an update or rollback within the same
+publisher/source family. Disable and removal retain immutable history. Import never runs scripts.
+Tool-directed versions can explicitly enable the existing isolated analysis capability to run reviewed
+Python package entries through `skills_run` after activation. Script source reads are optional.
+The package remains read-only, with bundled helpers and resources, no network, no credentials and
+no dependency installation. Other languages remain unavailable. Execution receipts and generated
+artifacts retain exact package/script digests and current withdrawal checks.
+See [approved package execution](docs/source-boundary.md#customer-agent-configuration) for limits.
+Connections includes custom MCP discovery/selection, native OpenAPI import, and shared Google,
+Microsoft Calendar and HubSpot setup. Tools opens optional appointment setup without changing the agent program. Connect saves an
+unsaved draft before navigation and preserves input if saving fails.
+Rich harness configurations use developer/product fixtures. In the ordinary client,
+Save changes validates the configuration and creates its immutable execution snapshot
+in one transaction. No numbered-version action or selector is required. The collapsed
+Configuration history control can load an earlier configuration into the editor;
+Save changes applies it as a new snapshot after current permissions are validated.
+
+New chat turns use the latest saved configuration, including in existing conversations.
+Accepted turns retain their own settings. Retry recovers the original task and snapshot,
+even if a save happened after its submission. Permission reductions revoke affected old
+grants immediately. Changes expanding permissions or affecting live customer channels
+require confirmation. Invalid channel configurations roll back the entire save. Website
+URLs, visitor sessions, Inbox ownership and history remain stable.
+
+Connection setup can persist an incomplete draft while authorization is in progress.
+Save changes applies the completed configuration. Product and evaluation contracts
+retain explicit snapshot IDs. Existing scheduled workflows retain their separately
+authorized configuration; creating a new schedule uses the latest saved configuration.
+
+Conversation history comes from authorized server records and survives cleared
+browser storage. New chat starts a separate conversation; unresolved admission must
+be retried with its original request key first. Ordinary navigation does not cancel
+accepted work. The initial composer accepts text, with Enter to send and Shift+Enter
+for a new line. File imports remain in Knowledge.
+
+Tasks lists authorized root work and links to its conversation or report review.
+Inline progress, sources, files and exact report decisions use the same task APIs as
+the standalone task page. Refresh conversation, window focus and visibility return
+revalidate history against current policy. Older messages and events load in bounded
+pages. Settings exposes actual account/workspace identity and persisted appearance.
+
+Desktop uses separate navigation, agent/history and chat panes. Tablet collapses
+global navigation; mobile exposes accessible navigation/history drawers and keeps the
+composer within the viewport.
+
+
+## Connect business providers
+
+Google Calendar, Microsoft 365 Calendar and HubSpot Contacts use the same owner-managed
+connection flow. Configure each provider's registered OAuth client and callback, plus the
+encrypted connection keyring. Missing configuration keeps that provider unavailable. See
+[native business providers](docs/mcp-integration.md#native-business-providers) for exact variables,
+permissions, supported actions and recovery rules.
+
+In **Connections**, choose an account and actions. Calendar connections require a writable
+calendar and explicit customer-service sharing before a calendar policy can be selected in
+agent settings. Choose availability only or also allow bookings. Google and Microsoft use the
+same booking workflow and exact confirmation for writes.
+
+HubSpot supports exact-email lookup for staff and confirmed contact intake. An owner must
+explicitly allow customer intake and add only the intake action to a customer-deployed agent.
+Website cards and messaging buttons collect exact customer confirmation. Customer agents cannot
+look up contact records. Customer responses contain an intake outcome,
+not the provider contact ID or existing private record fields.
+
+Focused checks use signed OAuth fixtures, isolated databases and controlled provider servers.
+Live account registration, consent, reconnect acceptance and model evaluations remain owner-run.
+
+## Customer channels
+
+In **Connections → Customer channels**, connect an account, choose its asset and bind an
+existing saved agent. WhatsApp defaults to embedded signup; manual token setup is advanced.
+Telegram checks the bot and asks before replacing an existing webhook. Facebook and Instagram
+use explicit account selection. One agent can serve several authorized channels.
+
+The operator configures the existing credential vault and a reachable HTTPS callback origin
+in `AGENTS_CHANNEL_WEBHOOK_ORIGIN`. Meta profiles are private server records in
+`AGENTS_META_CHANNEL_PROFILES`, validated by `metaSetupProfileSchema`. Supply the reviewed app
+ID/secret, verification secret, API version, scopes and subscribed fields. WhatsApp also needs
+its embedded configuration ID. OAuth redirect URI is the application origin followed by
+`/app/connections`. Never put app secrets in browser configuration or commit environment files.
+For direct Instagram Login, set `humanAgentApproved` only after Meta has approved the app's
+Human Agent permission. Changing this profile requires reconnecting the affected channel. The
+catalogue shows setup unavailable when these prerequisites are absent.
+
+| Channel | Customer input | Staff output | Important boundary |
+| --- | --- | --- | --- |
+| Website | Text and existing booking decisions | Text | Origin/session checks; optional files/speech are unavailable. |
+| WhatsApp | Text/captions; private media references | Text, supported received-media replies, approved text templates | Standard24h window; out-of-window templates require recorded opt-in and current approval. |
+| Telegram | Text/captions, media, rejected unsupported callbacks | Text and supported received-media replies | Bot/chat identity; acceptance does not prove delivery/read. |
+| Messenger | Text, attachments, native receipts | Text and supported received-media replies | Standard reply window; no inferred human-policy exemption. |
+| Instagram | DMs, attachments, available native receipts | Text and received image/audio/video replies through approved CDN URLs | Direct and Page-linked modes stay distinct; an approved direct-Instagram profile permits text-only human replies with `HUMAN_AGENT` up to seven days; documents/reusable IDs are unsupported. |
+
+Media-only inputs request staff assistance; no transcription or image understanding is implied.
+Staff downloads use authenticated, bounded private routes. Replying with an attachment reuses an
+authorized attachment already received in that conversation. New arbitrary file uploads, media
+templates/buttons remain unsupported. The direct-Instagram `HUMAN_AGENT` tag is restricted to an
+assigned human replying to the active customer inquiry, with approved permission and a verified
+customer message inside the seven-day provider window. It is never used for automated waiting or
+status messages, Page-linked Instagram or Messenger. WhatsApp still requires an approved opted-in
+template outside its 24-hour window. Direct-Instagram refresh is disabled unless the operator
+explicitly reviews and enables its profile.
+
+Inbox supports assignment, takeover, human reply, resolution and explicit return. Ownership and
+credential checks apply immediately before dispatch. An unknown delivery is never automatically
+resent: the assigned human can review it and continue later messages while retaining uncertainty.
+A failed multipart send suppresses its remaining parts. Check connection health after permission
+or subscription loss. Setup uncertainty requires explicit native-state reconciliation; elapsed
+time alone never proves success. Quarantined ingress is visible in connection details and can be
+retried deliberately after correcting the displayed failure. Repeated ingress retains its identity.
+
+### Support waiting and staff alerts
+
+Enabling Human support asks for support hours and an editable timezone. Requests use the workspace
+Inbox; outside-hours replies, staff alerts and bounded waiting updates use product defaults.
+
+New customer-support configurations give the agent a structured handoff tool. It can record a
+reason and brief for authorized Inbox staff. The original handoff tool remains available to
+previously published configurations. New configurations permit one agent-written acknowledgement
+after the request commits. If it cannot be published within five seconds, a factual receipt is
+used. A takeover, resolution, return or loss of authorization can suppress a pending receipt.
+The brief is not shown to the customer.
+
+Staff can mark themselves Available or Away in the Inbox. Availability is advisory and expires
+after two minutes unless the visible Inbox renews it. The agent can check aggregate availability
+and the next configured opening; unknown availability is not a promise of a response.
+
+While a conversation is waiting for a person, the agent may answer a question about the request
+using current support facts. It cannot use business tools in this turn and is instructed not to reply
+to ordinary additional details. The platform permits one active status turn per episode and at most
+three in five minutes. Further messages still reach Inbox staff. For a first-contact attachment
+handoff, the first eligible status turn creates an execution conversation scoped to that customer and
+channel. It uses the same bounded status-only authority; it does not grant business tools.
+
+An accepted handoff creates a durable waiting episode and a native Inbox alert for each currently
+authorized workspace member. Evaluation conversations alert only their trial owner. Alert reads
+and acknowledgement require current membership and the original recipient. Acknowledgement
+records the staff action; it does not establish that a customer received a reply.
+
+An attachment-only or unsupported inbound message also starts a handoff, receipt and waiting
+episode without creating an agent task. Its episode is bound to the original inbound message.
+An uncertain appointment outcome can also request support. The customer receives a factual
+uncertainty notice and Inbox staff see a booking-specific brief. Recovery checks the existing
+provider operation; it does not create another appointment.
+
+For an uncertain reviewed HubSpot contact save, the worker recovers the original operation and
+adds a staff-only Inbox notice. While the handoff and channel remain authorized, it can also send
+one factual customer update about the uncertain save. This update has its own receipt; the original
+handoff receipt stays intact and the provider write is never repeated. A matching contact check,
+takeover or loss of authority suppresses a queued update.
+The connected account owner can run a read-only check in Inbox. A match confirms only the current
+contact details; a missing or unavailable result remains uncertain. The original write and notice
+remain unchanged, and there is no dismissal action.
+
+The worker registers `AgentsSupportWaitingV1` with Restate and dispatches the PostgreSQL waiting
+outbox. Product defaults permit customer waiting notices after 5 and 15 minutes and staff reminders
+after 10 and 30 minutes. Each kind is limited to two stages. These thresholds are reminder policy,
+not a promised response time. After downtime, one notice covers the latest elapsed stage. Configured
+support hours defer updates to the next opening in the published timezone; missing hours remain
+unknown. The initial handoff alert is immediate regardless of hours.
+
+Assignment, takeover and unassignment preserve the waiting episode. An actual human reply,
+resolution, return to automation, a superseding handoff or channel revocation stops later waiting
+work. Removing the published human-support capability also stops agent-initiated waiting work.
+Customer notices use a separate
+receipt and current ownership generation. They do not grant the agent ordinary replying or business
+tool authority during human ownership. Provider delivery applies the existing connection,
+messaging-window and permission checks; a canonical notice is not proof of provider delivery.
+
+Support lifecycle facts use the registered `agent.support.lifecycle@1` event and the existing
+Agents Analytics outbox. `agent.support.lifecycle_events@1` counts committed requests,
+acknowledgements, waiting updates, first overdue events, staff alerts, first human replies and
+customer-notification outcomes. `agent.support.response_time_ms@1` measures request-to-acknowledgement
+and request-to-first-human-reply time. Metrics use bounded agent, version, channel, action and outcome
+dimensions; evaluation trials are excluded. Event attributes and metric dimensions contain no
+customer, conversation, message, staff or contact identifiers, emails, summaries or message bodies.
+If the optional Agents Analytics publisher is not configured, events remain in the existing outbox.
+Deploy the Analytics registry before an Agents artifact that emits this contract. No Agents database
+migration or Collector configuration change is required.
+
+Native alerts use `GET /api/organizations/:organizationId/inbox-alerts` and
+`POST /api/organizations/:organizationId/inbox-alerts/:alertId/acknowledge`. They do not send staff
+email, push notifications or third-party messages. Waiting failures use the structured
+`support_waiting_publisher_error` event and `SUPPORT_WAITING_DISPATCH_FAILED` code without message
+bodies. Inspect `support_waiting` dispatch/completion records and `support_waiting_notices` receipt
+states before retrying. Apply schema084 through schema088 before starting matching API and worker
+artifacts. Register `AgentsSupportWaitingV1`, `AgentsHandoffReceiptV1` and
+`AgentsBusinessRunV22` with Restate. Inspect `pending_handoff_receipts` and the bounded
+`handoff_receipt_publisher_error` log when an acknowledgement does not appear. To stop future effects, remove Human support
+from the published agent configuration or pause its channel. Pause the channel to stop
+attachment-triggered waiting work. Keep accepted receipts and unknown
+provider deliveries for reconciliation; never resend an unknown effect during rollback.
+
+### Website reply notifications
+
+Website visitors can confirm an email address for notifications about human replies. Configure
+`AGENTS_FOLLOWUP_RESEND_API_KEY` and `AGENTS_FOLLOWUP_EMAIL_SENDER` on both API and worker, using
+an Agents-owned verified Resend sender. API and worker must use the same `AGENTS_PUBLIC_URL`.
+Apply schema085 before either service starts and register the worker's `AgentsCustomerFollowupV1`
+workflow with Restate. New signup requires a matching worker heartbeat observed within 45 seconds
+and a currently registered workflow. Support hours do not establish notification readiness.
+
+The website offers notifications only when this capability is available. Verification uses an
+emailed, one-use code tied to the exact conversation and preference revision. A human reply
+enqueues one notification per message and preference revision. Visible-message read receipts
+suppress pending notifications. Resend acceptance is stored as `accepted`, not delivered or read.
+Rejected and unknown notification outcomes remain visible to authorized Inbox staff.
+
+The email contains a 30-minute one-use return link with its secret in the fragment. Exchange
+requires a valid same-deployment website session and grants access only to that conversation.
+Returning after staff explicitly resumes automation retains the execution conversation while
+checking the new session's scoped access. Evidence inheritance rechecks both session lineages,
+source policy and original grants. A shared email address does not authorize another customer.
+Revoking or changing the preference invalidates recovered-session access and future effects.
+
+The dispatcher never retries an unknown email send. A replay encountering a fresh send claim
+waits; a claim older than 60 seconds becomes `unknown` without another provider request. Inspect
+`customer_followup_notifications` and the bounded `customer_followup_publisher_error` log before
+reconciliation. Removing sender configuration disables new signup and notification admission;
+existing preference reads, opt-out and issued return links remain available. Pausing the website
+or revoking the preference stops its future access. Retain accepted/unknown receipts on rollback.
+
+The controlled `customer-followup-journey.test.ts` verifies API authorization, address verification,
+one human reply notification through a local HTTP mailbox, scoped return and revocation without
+model inference. `customer-return-lineage.test.ts` verifies admission/evidence isolation, source
+withdrawal and claim recovery. Provider delivery, real inbox acceptance and model behavior remain
+owner-run. Unrestricted pending-support agent turns remain unavailable.
+
+Website settings provide install/share links, pause and **Customize widget**. The recovered Growth
+appearance editor includes a live preview, custom colour, title/greeting/avatar, position, window
+and launcher dimensions, corner radius, screen offset, suggested messages and branding visibility.
+The same editor is available in Configure → Website. The embedded widget retains current Agents
+sessions, canonical Inbox messages and confirmed booking/intake flows. Visitors can start and
+switch conversations in the same browser tab. Each conversation has its own visitor session and
+pending message; the list is stored in that tab's session storage. An expired session cannot be
+reopened without authorized return access. Pause
+stops new grants and publication; resuming preserves the URL and conversation identity. Saved
+agent settings create background snapshots and apply to future turns. Existing accepted tasks
+retain their own configuration and executable release.
+
+Schemas through072 require the current matching schema digest and worker
+`product-capabilities-v11` / `AgentsBusinessRunV21`. The preceding product worker was
+`growth-products-v10` / `AgentsBusinessRunV20`. Fresh setup uses the normal command below;
+starting the app never silently upgrades an existing database. The explicit setup command accepts
+only recognized preceding schema digests for its additive upgrade. Stop new admissions before an
+operator-controlled local schema application. Retain old executable releases for any
+accepted work; do not replay an old journal through the new worker. To disable a channel,
+disconnect its binding and remove only owned provider subscriptions. Already accepted or unknown
+provider effects are retained and cannot be undone by local rollback.
+
+Channel metrics use the existing OTLP configuration: `agents.channels.connections`,
+`agents.channels.ingress`, `agents.channels.delivery` and `agents.channels.oldest_pending_ms`.
+Labels contain bounded channel/state values. Private receipt IDs correlate with canonical task,
+message and delivery records; message bodies, provider locators and secrets are excluded from
+telemetry. No hosted collector, dashboard, retention change or production-scale qualification is
+claimed by this local implementation.
+
+The owner runs evaluation and live account acceptance. Use the existing
+[Harbor adapter instructions](evaluation-adapters/harbor/README.md#isolated-messaging-trials)
+and its five channel case manifests. Receipt fixtures cover accepted, rejected and lost-ACK
+transport; setup/reconnect and staff-driven cases have separate stated prerequisites. Existing
+purpose-specific graders still judge knowledge, handoff and booking outcomes. No evaluation or
+live-provider result is implied by installed fixtures or deterministic engineering checks.
+
+## Verify
+
+From the repository root:
+
+```sh
+pnpm build:shared
+pnpm --dir products/agents/api typecheck
+pnpm --dir products/agents/api test
+pnpm --dir products/agents/api test:runtime
+pnpm verify:boundaries
+```
+
+The UI CI suite builds the interface and runs the existing public entry, chat and
+model-provider browser tests with controlled API responses:
+
+```sh
+pnpm --filter @kasitek/agent-platform build
+pnpm --filter @kasitek/agent-platform exec playwright install --with-deps chromium
+pnpm --filter @kasitek/agent-platform test:ci
+```
+
+It starts its own preview server on port 3199. It does not call model providers,
+run agent evaluations or verify live backend execution. Browser failure traces
+and screenshots are uploaded by CI. The Agents source job uses the pinned
+PostgreSQL/pgvector image documented above so fresh schema creation can install
+the required `vector` extension.
+
+PostgreSQL integration suites require `AGENTS_TEST_DATABASE_URL` pointing to a
+separate disposable test server with permission to create databases. They create
+and drop uniquely named test databases. The business suite also starts its own
+Restate container and uses deterministic provider responses. These checks do not
+prove a real model reply or the complete browser journey.
+
+Verify real private storage and memory against disposable PostgreSQL and MinIO:
+
+```sh
+bash infra/agents-runtime/verify-storage.sh
+```
+
+For the live harness browser journey, leave ordinary local services running. The
+fixture starts its own UI, API, worker and Restate on available ports. Set
+`AGENTS_BROWSER_FIXTURE_DATABASE_URL` in your shell to a disposable PostgreSQL
+administrator connection. From `products/agents/api`, run:
+
+```sh
+AGENTS_HARNESS_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file-if-exists=.env --import tsx test/browser-fixture.ts
+```
+
+This uses the approved free-model key from the local environment. It creates its
+own database, UI, API, worker, Restate and browser session, and
+cleans its owned resources. It verifies reviewed memory, a pinned skill,
+contextual follow-up, a new conversation, and a real `memory.search` operation.
+Run the complete delegation/analysis journey with the same disposable database,
+free-model prerequisites, using `AGENTS_ADVANCED_LIVE=1` in place of
+`AGENTS_HARNESS_LIVE=1`. It starts owned MinIO storage and a separate reaper,
+checks two real specialist tasks, and verifies a downloaded analysis report.
+
+For scheduled report review and delivery, build the API first, then run:
+
+```sh
+pnpm --filter @kasitek/agents build
+AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file-if-exists=.env --import tsx test/browser-fixture.ts
+```
+
+Use the same disposable PostgreSQL prerequisite. This mode
+starts a compiled worker, private Restate instance, MinIO, gVisor, and a separate
+authenticated receiver. It restarts the worker while review is pending, then
+interrupts the sender after the receiver has persisted the approved report. It
+checks the original artifact, two specialist tasks, one delivery POST, and receipt
+recovery through a real status request. The receiver never contacts real people.
+The runtime cache and MinIO binary prerequisites are the same as the advanced
+journey (`AGENTS_TEST_MINIO_BINARY` can select the local MinIO executable).
+
+Identity is seeded for these fixtures. Real OIDC is checked separately:
+
+```sh
+bash infra/agents-runtime/verify-identity.sh
+```
+
+[Runtime setup and recovery limits](../../infra/agents-runtime/README.md) cover
+pinned versions, worker signatures, duplicate delivery, cancellation, storage, and
+retention. Local checks do not establish production deployment readiness.
+
+## Verify connected knowledge
+
+The ordinary backend suite uses explicit protocol/model/storage fixtures where
+noted. It never turns on paid provider calls:
+
+```sh
+pnpm --filter @kasitek/agents exec vitest run --maxWorkers=1
+```
+
+Actual document, local embedding, PostgreSQL/pgvector, private MinIO and compiled
+worker checks are opt-in. In `api/`, load your approved local configuration and
+point `AGENTS_TEST_DATABASE_URL` at an owned disposable-database-capable server:
+
+```sh
+AGENTS_INGESTION_LIVE=1 AGENTS_INGESTION_FREE_MODEL=1 \
+  node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run \
+  test/platform-ingestion-live.test.ts --maxWorkers=1
+```
+
+The fixture expects private MinIO at port 19000 with the explicit test credentials
+in its source. It creates and deletes its own bucket/database/Restate/worker. It
+checks PDF tail evidence, private candidates, duplicate admission, worker SIGKILL
+recovery and a real free-model website FAQ. No external connector is mocked into
+that free-model proof. `AGENTS_INGESTION_BROWSER=1` additionally requires the local
+Vite fixture on port 3113 and drives import, preview, approval and withdrawal.
+
+The optional keyed GitHub check requires a separately approved fine-grained read-only PAT
+in `AGENTS_GITHUB_ACCEPTANCE_TOKEN` and its actual finite ISO expiry in
+`AGENTS_GITHUB_ACCEPTANCE_EXPIRES_AT`. It reads the default approved public
+`github/github-mcp-server` repository; the test header lists explicit overrides.
+Never put the token in a command argument or chat. From `api/`:
+
+```sh
+AGENTS_GITHUB_LIVE=1 node --env-file-if-exists=.env \
+  node_modules/vitest/vitest.mjs run test/github-live-acceptance.test.ts --maxWorkers=1
+```
+
+That check uses fixed official native/hosted-MCP endpoints, records negotiated
+protocol/schema hashes and has no model calls. A skipped check is not provider
+acceptance. The scheduled knowledge journey has passed with the free model, two
+specialists, gVisor analysis, exact report review and delivery recovery across two
+worker restarts. Public repository acceptance uses anonymous native GitHub and DeepWiki MCP reads;
+it requires no provider key. Keyed GitHub and Stash acceptance are separate opt-in checks.
+
+The combined provider journey is a separate opt-in path. It requires the same
+approved GitHub configuration, `OPENROUTER_API_KEY`, an owned fixture database in
+`AGENTS_BROWSER_FIXTURE_DATABASE_URL`, the prepared gVisor/document runtimes and
+private MinIO fixture. Build the API first; the fixture starts its own UI. From the
+repository root:
+
+```sh
+AGENTS_GITHUB_JOURNEY=1 AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file=products/agents/api/.env \
+  --import ./products/agents/api/node_modules/tsx/dist/loader.mjs \
+  products/agents/api/test/browser-fixture.ts
+```
+
+This mode uses matching compiled API/worker adapters. It combines imported source
+revisions with native and official hosted-MCP reads in two specialists, then
+checks isolated analysis, a dated report with explicit gaps, factual quotes, exact
+citations, review and delivery recovery. Expected public text must fit a
+16–200 character quote from the actual file. The fixture also
+checks a worker restart after completed connected reads. The provider mode stops
+before resource allocation when its approved credential or expiry is missing.
+Preparing this path does not establish live-provider acceptance; that proof remains
+pending until the configured journey exits successfully against GitHub.
+
+
+For the public repository journey, build the API and
+provide an owned disposable PostgreSQL fixture through
+`AGENTS_BROWSER_FIXTURE_STATE_PATH` or `AGENTS_BROWSER_FIXTURE_DATABASE_URL`. The
+prepared document and analysis runtimes and local MinIO binary are required. From
+the repository root:
+
+```sh
+AGENTS_PUBLIC_REPOSITORY_JOURNEY=1 AGENTS_AUTOMATION_LIVE=1 AGENTS_BROWSER_REAL_MODEL=1 \
+  node --env-file=products/agents/api/.env \
+  --import ./products/agents/api/node_modules/tsx/dist/loader.mjs \
+  products/agents/api/test/browser-fixture.ts
+```
+
+The default approved public repository is `modelcontextprotocol/typescript-sdk`, ref `main`, file
+`README.md`. The native specialist reads an issued immutable file handle. The MCP
+specialist reads its DeepWiki documentation structure. Each has a distinct imported
+source and tool scope. The coordinator has no direct connected tools; its explicit
+specialist selections supply the aggregate grant and version pins. The fixture
+verifies exact evidence quotes, a dated report
+with explicit gaps, isolated analysis, completed-read replay after restart and
+reviewed delivery recovery. It uses the approved free model and no provider token.
+
+For private Stash acceptance, use `AGENTS_STASH_JOURNEY=1` with the same automation
+and model flags. Supply `STASH_AGENT_KEY`, the explicitly approved project note or
+idea ID in `AGENTS_STASH_ACCEPTANCE_ITEM_ID`, and an exact first-passage quote in
+`AGENTS_STASH_ACCEPTANCE_EXPECT`. The two specialists use `get_item` and
+`read_project_document` respectively. Stash credentials stay in protected local
+configuration, never command arguments, model context or browser state.
+
+## Local website crawler
+
+The optional Firecrawl provider has a pinned local stack in
+[`infra/firecrawl/`](../../infra/firecrawl/README.md). Its server-side adapter supports local
+Firecrawl and Firecrawl Cloud through the same v2 scrape, crawl, status and cancellation calls.
+
+Configure the Agents API's private `.env` with:
+
+```dotenv
+AGENTS_FIRECRAWL_URL=http://127.0.0.1:3002
+AGENTS_FIRECRAWL_API_KEY=
+AGENTS_FIRECRAWL_TIMEOUT_MS=60000
+```
+
+Run `pnpm --filter @kasitek/agents verify:firecrawl` from the repository root to verify a
+Markdown scrape of `https://example.com`. The command prints a character count, not the page
+body or credential. It does not invoke a model. An optional URL argument changes the target.
+
+To use Cloud, change `AGENTS_FIRECRAWL_URL` to `https://api.firecrawl.dev` and set
+`AGENTS_FIRECRAWL_API_KEY` to a private Cloud key. The same command and adapter apply; Cloud
+requests use the account's credits. There is no automatic fallback between providers. Drain outstanding crawl jobs before switching;
+job identifiers and stored results belong to the original instance. The transport accepts at most
+10 MiB of JSON per response, matching the existing raw-source byte budget. Crawl page count and
+depth are explicit caller options, not subscription limits imposed by this adapter.
+
+Agent creation now uses guided customer-service setup: business, responsibilities, conditional
+knowledge, channels, operating preferences and review/test. Website import appears when answering
+questions or handling support is selected. Existing eligible agents expose the same import flow
+under Configure → General → Import website. Enter a domain, wait for the crawl, select pages and
+review their content, then import the selection. The existing isolated document pipeline prepares
+a private candidate. Review it and choose **Approve and use** to attach it to the agent. Enable
+**Allow use in public website replies** when the source may be used by website visitors.
+
+Closing the dialog retains the draft and crawl. Reopen Import website to resume. Crawl progress
+and cancellation survive API restarts. Uncertain external submissions fail explicitly; they are
+not automatically repeated. The existing exact-URL importer remains separately available.
+Automatic scheduled refresh is not implemented.
+
+
+Guided setup saves progress after each forward step and resumes from **Continue setup** in Configure.
+Selecting enquiries exposes a native submission tool with the chosen fields. The customer confirms
+exact details before a durable record is saved. Submitted enquiries appear in Inbox conversation
+details. A CRM connection is not required; external export and Growth synchronization are deferred.
+
+The Appointments step reuses service-calendar authorization and structured booking policies.
+Selecting a policy configures actual booking tools. A responsibility checkbox alone never shares
+an account, confirms an appointment or activates a channel. After testing, the Agent setup panel
+opens each selected channel with the agent preselected. Website setup carries the business domain
+into the existing widget editor and install-code flow. Messaging authorization preserves the
+agent and return path. The panel reports current readiness, private knowledge restrictions,
+connections needing attention and paused deployments.
+
+Local schema setup applies supported additive schemas076–079 through the existing explicit
+`pnpm --filter @kasitek/agents setup:db` command. Restart API and business worker afterwards.
+Keep the configured database/environment for each service; do not run setup against another
+product database. Revert application code or disable affected capabilities for rollback, retaining
+schema files and submitted records. Purpose-specific owner acceptance cases and native enquiry
+read/decision ports are in [the existing Harbor adapter](evaluation-adapters/harbor/README.md).
+
+## Customers and follow-up
+
+Open `/app/customers` for Enquiries and Contacts. Confirmed real website or messaging enquiries
+appear once with their submitted details, source, permitted booking links and history. Staff can
+claim or assign follow-up, set a due date, add internal notes and update status. Inbox's
+**Manage enquiry** link opens the same record. Owners can correct contact details and explicitly
+link records. Email/phone text never verifies identity or merges contacts.
+
+Enquiry setup enables native enquiry submission, own-enquiry reading and exact-confirmed
+amendment. Original submissions remain immutable. Configure → Tools separately enables staff
+record search and follow-up updates for signed-in staff with explicit grants. Customer deployments
+never receive those staff tools or internal notes. Due dates do not trigger outbound reminders.
+Private operator tests and evaluation trials do not create ordinary customer records. Staff-tool
+model acceptance uses an owner-controlled disposable organization, not access to ordinary records
+from an evaluation trial. See [owner adapter cases](evaluation-adapters/harbor/README.md).
+
+Apply explicit local schema setup and restart API/worker before testing. The
+[API and recovery reference](docs/source-boundary.md#native-customer-records) documents routes,
+command identity, revisions, schema078/079 and rollback. Growth linkage and external CRM
+synchronization are excluded.

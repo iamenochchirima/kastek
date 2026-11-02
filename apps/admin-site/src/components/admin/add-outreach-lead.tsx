@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-request";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -19,6 +20,7 @@ export default function AddOutreachLead({ campaigns }: { campaigns: Campaign[] }
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     campaignId: "",
     businessName: "",
@@ -35,26 +37,27 @@ export default function AddOutreachLead({ campaigns }: { campaigns: Campaign[] }
     if (!form.campaignId || !form.businessName) return;
 
     setSaving(true);
-    await fetch(`/api/outreach/${form.campaignId}/leads`, {
+    setError(null);
+    try {
+    await adminRequest(`/api/outreach/${form.campaignId}/leads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        listings: [
-          {
-            name: form.businessName,
-            website: form.website || null,
-            address: form.address || null,
-            bizbayUrl: form.bizbayUrl || null,
-            phone: form.phone || null,
-            email: form.emailAddress || null,
-          },
-        ],
+        businessName: form.businessName,
+        category: campaigns.find((campaign) => campaign.id === form.campaignId)?.category,
+        website: form.website || null,
+        address: form.address || null,
+        bizbayUrl: form.bizbayUrl || null,
+        phone: form.phone || null,
+        emailAddress: form.emailAddress || null,
+        notes: form.notes || null,
       }),
     });
-    setSaving(false);
     setOpen(false);
     setForm({ campaignId: "", businessName: "", website: "", address: "", bizbayUrl: "", phone: "", emailAddress: "", notes: "" });
     router.refresh();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save lead"); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -69,10 +72,11 @@ export default function AddOutreachLead({ campaigns }: { campaigns: Campaign[] }
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add AI service lead</DialogTitle>
+            <DialogTitle>Add outreach lead</DialogTitle>
             <DialogDescription className="sr-only">Add a lead to an outreach campaign.</DialogDescription>
           </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
+              {error ? <p role="alert" className="text-sm text-status-danger">{error}</p> : null}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Campaign *</label>
                 <Select

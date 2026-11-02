@@ -1,8 +1,6 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "react-router";
 import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
@@ -27,7 +25,7 @@ function label(step: string) {
 }
 
 export default function WhatsappOnboardingResultCard() {
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const status = searchParams.get("status") || "error";
   const message = searchParams.get("message") || "Onboarding did not complete.";
@@ -106,7 +104,7 @@ export default function WhatsappOnboardingResultCard() {
       </section>
 
       <div className="flex justify-end">
-        <Button asChild><Link href="/connections">Finish</Link></Button>
+        <Button asChild><Link to="/connections">Finish</Link></Button>
       </div>
     </div>
   );

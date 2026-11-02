@@ -1,3 +1,4 @@
+import { adminFixtureHeaders, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -58,7 +59,7 @@ test('invoice month-end clamping, source integer wrapping, typed DTO and support
 });
 
 test(
-  'admin CRM/outreach/invoice state, privacy scopes, distinct replay approvals and operator restrictions',
+  'admin CRM/outreach/invoice state, privacy scopes, distinct replay approvals and retired operator routes',
   { skip: !process.env.CORE_ADMIN_OPERATIONS_TEST_DATABASE_URL },
   async () => {
     installPgTimestampParsers();
@@ -89,7 +90,7 @@ test(
         method,
         url: '/api/admin' + path,
         payload: payload as any,
-        headers: { cookie: `kasitek_admin_session=${actor}` },
+        headers: adminFixtureHeaders(actor),
       });
     try {
       const initial = readFileSync(
@@ -132,6 +133,7 @@ test(
       await pool.query(
         `CREATE TABLE "PublicApiWebhookSubscription"(id text PRIMARY KEY,"orgId" text,status text);CREATE TABLE "PublicApiWebhookDelivery"(id text PRIMARY KEY,"subscriptionId" text,"eventId" text,"eventType" text,status text,"attemptCount" int,"nextAttemptAt" timestamp,"lastStatusCode" int,"lastError" text,"deliveredAt" timestamp,"updatedAt" timestamp);`,
       );
+      await pool.query(readFileSync(resolve(migrations,'20261023130000_admin_customer_operations','migration.sql'),'utf8'));
       for (const [id, role] of [
         ['admin', 'admin'],
         ['support', 'support'],
@@ -142,6 +144,7 @@ test(
           `INSERT INTO "AdminUser"(id,name,email,password,role,"updatedAt")VALUES($1,$1,$1||'@example.test','fixture',$2,NOW())`,
           [id, role],
         );
+      await seedAdminFixtureSessions(pool);
       await pool.query(`INSERT INTO "Organization" VALUES('org-a'),('org-b')`);
       assert.equal(
         (await request('GET', '/leads', undefined, 'missing')).statusCode,
@@ -409,7 +412,7 @@ test(
         method: 'POST',
         url: '/api/admin/operations/webhooks/replays',
         headers: {
-          cookie: 'kasitek_admin_session=admin',
+          ...adminFixtureHeaders("admin"),
           'idempotency-key': 'fixture-replay-key',
         },
         payload: {
@@ -461,34 +464,10 @@ test(
           .statusCode,
         403,
       );
-      assert.equal(
-        (
-          await request(
-            'POST',
-            '/operations/commands',
-            { commandType: 'test' },
-            'support',
-          )
-        ).statusCode,
-        403,
-      );
-      const global = await app.inject({
-        method: 'POST',
-        url: '/api/admin/operations/commands',
-        headers: {
-          cookie: 'kasitek_admin_session=admin',
-          'idempotency-key': 'fixture-global-key',
-        },
-        payload: {
-          commandType: 'kill_switch_enable',
-          payload: { scopeType: 'global' },
-        },
-      });
-      assert.equal(global.statusCode, 403);
-      assert.equal(
-        (await request('GET', '/operations/runs?limit=501')).statusCode,
-        400,
-      );
+      for (const actor of ['support','admin']) {
+        assert.equal((await request('POST','/operations/commands',{commandType:'test'},actor)).statusCode,404);
+      }
+      assert.equal((await request('GET','/operations/runs?limit=501')).statusCode,404);
       const ownNotification = (
         await pool.query(
           `SELECT id FROM "Notification" WHERE "recipientId"='admin' LIMIT 1`,

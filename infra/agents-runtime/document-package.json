@@ -1,0 +1,1 @@
+{"name":"kasitek-document-probe","version":"0.0.0","private":true,"type":"module","dependencies":{"@huggingface/tokenizers":"0.2.0","onnxruntime-node":"1.30.0","pdfjs-dist":"6.4.299","@mozilla/readability":"0.6.0","jsdom":"30.1.3"}}

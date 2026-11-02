@@ -1,0 +1,205 @@
+{
+  "sourceCommit": "39b27ba81c28d0f8a43f8fdcef80351f5fa520f3",
+  "routes": [
+    {
+      "path": "/auth-error",
+      "source": "products/growth/web/src/app/(auth)/auth-error/page.tsx"
+    },
+    {
+      "path": "/invite",
+      "source": "products/growth/web/src/app/(auth)/invite/page.tsx"
+    },
+    {
+      "path": "/login",
+      "source": "products/growth/web/src/app/(auth)/login/page.tsx"
+    },
+    {
+      "path": "/set-password",
+      "source": "products/growth/web/src/app/(auth)/set-password/page.tsx"
+    },
+    {
+      "path": "/signup",
+      "source": "products/growth/web/src/app/(auth)/signup/page.tsx"
+    },
+    {
+      "path": "/verify-request",
+      "source": "products/growth/web/src/app/(auth)/verify-request/page.tsx"
+    },
+    {
+      "path": "/agents/conversations/:id",
+      "source": "products/growth/web/src/app/(dashboard)/agents/conversations/[id]/page.tsx"
+    },
+    {
+      "path": "/agents",
+      "source": "products/growth/web/src/app/(dashboard)/agents/page.tsx"
+    },
+    {
+      "path": "/analytics",
+      "source": "products/growth/web/src/app/(dashboard)/analytics/page.tsx"
+    },
+    {
+      "path": "/analytics/playground",
+      "source": "products/growth/web/src/app/(dashboard)/analytics/playground/page.tsx"
+    },
+    {
+      "path": "/billing",
+      "source": "products/growth/web/src/app/(dashboard)/billing/page.tsx"
+    },
+    {
+      "path": "/bookings",
+      "source": "products/growth/web/src/app/(dashboard)/bookings/page.tsx"
+    },
+    {
+      "path": "/calendar",
+      "source": "products/growth/web/src/app/(dashboard)/calendar/page.tsx"
+    },
+    {
+      "path": "/calls",
+      "source": "products/growth/web/src/app/(dashboard)/calls/page.tsx"
+    },
+    {
+      "path": "/campaigns/:id",
+      "source": "products/growth/web/src/app/(dashboard)/campaigns/[id]/page.tsx"
+    },
+    {
+      "path": "/campaigns/create",
+      "source": "products/growth/web/src/app/(dashboard)/campaigns/create/page.tsx"
+    },
+    {
+      "path": "/campaigns",
+      "source": "products/growth/web/src/app/(dashboard)/campaigns/page.tsx"
+    },
+    {
+      "path": "/connections",
+      "source": "products/growth/web/src/app/(dashboard)/connections/page.tsx"
+    },
+    {
+      "path": "/connections/whatsapp-onboarding",
+      "source": "products/growth/web/src/app/(dashboard)/connections/whatsapp-onboarding/page.tsx"
+    },
+    {
+      "path": "/contacts/:id",
+      "source": "products/growth/web/src/app/(dashboard)/contacts/[id]/page.tsx"
+    },
+    {
+      "path": "/contacts",
+      "source": "products/growth/web/src/app/(dashboard)/contacts/page.tsx"
+    },
+    {
+      "path": "/content/analytics",
+      "source": "products/growth/web/src/app/(dashboard)/content/analytics/page.tsx"
+    },
+    {
+      "path": "/content/calendar",
+      "source": "products/growth/web/src/app/(dashboard)/content/calendar/page.tsx"
+    },
+    {
+      "path": "/content/history",
+      "source": "products/growth/web/src/app/(dashboard)/content/history/page.tsx"
+    },
+    {
+      "path": "/content",
+      "source": "products/growth/web/src/app/(dashboard)/content/page.tsx"
+    },
+    {
+      "path": "/content/posts/:id",
+      "source": "products/growth/web/src/app/(dashboard)/content/posts/[id]/page.tsx"
+    },
+    {
+      "path": "/content/posts",
+      "source": "products/growth/web/src/app/(dashboard)/content/posts/page.tsx"
+    },
+    {
+      "path": "/developers/api-keys",
+      "source": "products/growth/web/src/app/(dashboard)/developers/api-keys/page.tsx"
+    },
+    {
+      "path": "/developers/api",
+      "source": "products/growth/web/src/app/(dashboard)/developers/api/page.tsx"
+    },
+    {
+      "path": "/developers/cli",
+      "source": "products/growth/web/src/app/(dashboard)/developers/cli/page.tsx"
+    },
+    {
+      "path": "/developers/mcp",
+      "source": "products/growth/web/src/app/(dashboard)/developers/mcp/page.tsx"
+    },
+    {
+      "path": "/developers",
+      "source": "products/growth/web/src/app/(dashboard)/developers/page.tsx"
+    },
+    {
+      "path": "/developers/resources",
+      "source": "products/growth/web/src/app/(dashboard)/developers/resources/page.tsx"
+    },
+    {
+      "path": "/inbox",
+      "source": "products/growth/web/src/app/(dashboard)/inbox/page.tsx"
+    },
+    {
+      "path": "/templates",
+      "source": "products/growth/web/src/app/(dashboard)/templates/page.tsx"
+    },
+    {
+      "path": "/upgrade/:planKey",
+      "source": "products/growth/web/src/app/(dashboard)/upgrade/[planKey]/page.tsx"
+    },
+    {
+      "path": "/upgrade",
+      "source": "products/growth/web/src/app/(dashboard)/upgrade/page.tsx"
+    },
+    {
+      "path": "/workspace/notifications",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/notifications/page.tsx"
+    },
+    {
+      "path": "/workspace",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/page.tsx"
+    },
+    {
+      "path": "/workspace/profile",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/profile/page.tsx"
+    },
+    {
+      "path": "/workspace/settings",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/settings/page.tsx"
+    },
+    {
+      "path": "/workspace/team/new",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/team/new/page.tsx"
+    },
+    {
+      "path": "/workspace/team",
+      "source": "products/growth/web/src/app/(dashboard)/workspace/team/page.tsx"
+    },
+    {
+      "path": "/early-access/:token",
+      "source": "products/growth/web/src/app/early-access/[token]/page.tsx"
+    },
+    {
+      "path": "/invite/:token",
+      "source": "products/growth/web/src/app/invite/[token]/page.tsx"
+    },
+    {
+      "path": "/offline",
+      "source": "products/growth/web/src/app/offline/page.tsx"
+    },
+    {
+      "path": "/onboarding",
+      "source": "products/growth/web/src/app/onboarding/page.tsx"
+    },
+    {
+      "path": "/",
+      "source": "products/growth/web/src/app/page.tsx"
+    },
+    {
+      "path": "/oauth/consent",
+      "source": "products/growth/web/src/app/(auth)/oauth/consent/page.tsx"
+    },
+    {
+      "path": "/operations/reviews/:id",
+      "source": "products/growth/web/src/app/(dashboard)/operations/reviews/[id]/page.tsx"
+    }
+  ]
+}

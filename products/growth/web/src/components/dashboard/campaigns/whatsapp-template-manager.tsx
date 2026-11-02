@@ -1,13 +1,14 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRevalidator, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Plus, RotateCcw, Search, X } from "@/components/ui/interface-icons";
+import "./whatsapp-template-manager.css";
 import { Textarea } from "@/components/ui/textarea";
 import {
   TEMPLATE_CATEGORY_OPTIONS,
@@ -16,7 +17,7 @@ import {
   type TemplateCategoryValue,
 } from "@/lib/whatsapp/template-library";
 
-type TemplateView = {
+export type TemplateView = {
   id: string;
   templateName: string;
   language: string;
@@ -29,6 +30,7 @@ type TemplateView = {
   buttons: unknown;
   lastSynced: string | null;
   connectionLabel: string;
+  connectionId?: string;
 };
 
 type ConnectionView = {
@@ -80,19 +82,12 @@ function renderPreviewText(value: string) {
   return value.replace(/{{(\d+)}}/g, (_, token) => `[${token}]`);
 }
 
-export default function WhatsappTemplateManager({
-  templates,
-  connections,
-  initialLibraryItemId,
-  forceCreateForm = false,
-}: {
-  templates: TemplateView[];
-  connections: ConnectionView[];
-  initialLibraryItemId?: string;
-  forceCreateForm?: boolean;
+export default function WhatsappTemplateManager({ templates, connections, initialLibraryItemId, forceCreateForm = false, initialStatus = "all", templatesError, connectionsError }: {
+  templates: TemplateView[]; connections: ConnectionView[]; initialLibraryItemId?: string; forceCreateForm?: boolean;
+  initialStatus?: string; templatesError?: string | null; connectionsError?: string | null;
 }) {
-  const router = useRouter();
-  const shouldChooseConnection = connections.length > 2;
+  const revalidator = useRevalidator();
+  const [, setSearchParams] = useSearchParams();
   const [connectionId, setConnectionId] = useState(connections[0]?.id || "");
   const [templateName, setTemplateName] = useState("");
   const [language, setLanguage] = useState("en_US");
@@ -100,542 +95,143 @@ export default function WhatsappTemplateManager({
   const [header, setHeader] = useState("");
   const [body, setBody] = useState("");
   const [footer, setFooter] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(
-    forceCreateForm || Boolean(initialLibraryItemId) || templates.length === 0,
-  );
+  const [showCreateForm, setShowCreateForm] = useState(forceCreateForm || Boolean(initialLibraryItemId));
   const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
+  const syncLock = useRef(false);
+  const [attempted, setAttempted] = useState(false);
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [error, setError] = useState("");
-
-  const activeConnection =
-    connections.find((connection) => connection.id === connectionId) || connections[0] || null;
-  const previewBody = renderPreviewText(body);
-  const previewHeader = renderPreviewText(header);
-  const previewFooter = renderPreviewText(footer);
+  const [syncError, setSyncError] = useState("");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState(initialStatus);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [syncAccount, setSyncAccount] = useState(connections[0]?.id || "");
+  const [desktop, setDesktop] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches);
+  const opener = useRef<HTMLElement | null>(null);
+  const previewOpener = useRef<HTMLElement | null>(null);
+  const activeConnection = connections.find(connection => connection.id === connectionId);
+  const selectedTemplate = templates.find(template => template.id === selectedTemplateId) || null;
   const variablePlacementError = getVariablePlacementError({ header, body, footer });
-  const displayError = variablePlacementError || error;
-  const selectedTemplate =
-    templates.find((template) => template.id === selectedTemplateId) || null;
-
+  const nameError = attempted && !templateName.trim() ? "Enter a template name" : "";
+  const bodyError = attempted && !body.trim() ? "Enter a message" : "";
+  const placementError = attempted ? variablePlacementError : "";
+  const scoped = templates.filter(template => (!query || `${template.templateName} ${template.body || ""}`.toLowerCase().includes(query.toLowerCase())) && (categoryFilter === "all" || template.category === categoryFilter) && (languageFilter === "all" || template.language === languageFilter) && (accountFilter === "all" || template.connectionId === accountFilter));
+  const filtered = scoped.filter(template => status === "all" || template.status === status);
+  useEffect(() => { setStatus(initialStatus); }, [initialStatus]);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const update = () => setDesktop(media.matches);
+    update(); media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!connections.some(connection => connection.id === connectionId)) setConnectionId(connections[0]?.id || "");
+    if (!connections.some(connection => connection.id === syncAccount)) setSyncAccount(connections[0]?.id || "");
+  }, [connections, connectionId, syncAccount]);
   useEffect(() => {
     if (!initialLibraryItemId) return;
-    const starter = TEMPLATE_LIBRARY.find((item) => item.id === initialLibraryItemId);
+    const starter = TEMPLATE_LIBRARY.find(item => item.id === initialLibraryItemId);
     if (!starter) return;
-
-    setCategory(starter.category);
-    setHeader(starter.header || "");
-    setBody(starter.body);
-    setFooter(starter.footer || "");
-    setTemplateName((current) =>
-      current || starter.title.toLowerCase().replace(/[^a-z0-9_]+/g, "_")
-    );
+    setCategory(starter.category); setHeader(starter.header || ""); setBody(starter.body); setFooter(starter.footer || "");
+    setTemplateName(current => current || starter.title.toLowerCase().replace(/[^a-z0-9_]+/g, "_"));
     setShowCreateForm(true);
   }, [initialLibraryItemId]);
-
-  useEffect(() => {
-    if (forceCreateForm) {
-      setShowCreateForm(true);
-    }
-  }, [forceCreateForm]);
-
-  async function handleCreateTemplate() {
-    setSubmitting(true);
-    setError("");
-
-    if (variablePlacementError) {
-      setError(variablePlacementError);
-      setSubmitting(false);
-      return;
-    }
-
+  useEffect(() => { if (forceCreateForm) setShowCreateForm(true); }, [forceCreateForm]);
+  function openCreate(event: React.MouseEvent<HTMLButtonElement>) { opener.current = event.currentTarget; setShowCreateForm(true); }
+  function changeStatus(next: string) {
+    setStatus(next);
+    setSearchParams(previous => { const params = new URLSearchParams(previous); if (next === "all") params.delete("status"); else params.set("status", next); return params; }, { replace: true });
+  }
+  function closeCreate(open: boolean) {
+    if (submitting) return;
+    setShowCreateForm(open);
+    if (!open) setSearchParams(previous => { const params = new URLSearchParams(previous); params.delete("create"); params.delete("starter"); return params; }, { replace: true });
+  }
+  async function handleCreateTemplate(event: React.FormEvent) {
+    event.preventDefault(); setAttempted(true); setError("");
+    if (submitLock.current || !templateName.trim() || !body.trim() || variablePlacementError || !connectionId) return;
+    submitLock.current = true; setSubmitting(true);
     try {
-      const res = await fetch(apiUrl("/api/whatsapp/templates"), {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          connectionId,
-          templateName,
-          language,
-          category,
-          header: header || undefined,
-          body,
-          footer: footer || undefined,
-        }),
-      });
-
+      const res = await fetch(apiUrl("/api/whatsapp/templates"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ connectionId, templateName, language, category, header: header || undefined, body, footer: footer || undefined }) });
       const payload = await res.json();
-      if (!res.ok) {
-        console.error("Template submission failed", {
-          status: res.status,
-          payload,
-          request: {
-            connectionId,
-            templateName,
-            language,
-            category,
-            header: header || undefined,
-            body,
-            footer: footer || undefined,
-          },
-        });
-        throw new Error(payload.error || "Failed to create template");
-      }
-
+      if (!res.ok) throw new Error(payload.error || "Template submission failed");
       toast.success(payload.status === "APPROVED" ? "Template approved" : "Template submitted");
-      setTemplateName("");
-      setHeader("");
-      setBody("");
-      setFooter("");
-      setCategory("MARKETING");
-      setShowCreateForm(false);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create template");
-    } finally {
-      setSubmitting(false);
-    }
+      setTemplateName(""); setHeader(""); setBody(""); setFooter(""); setCategory("MARKETING"); setAttempted(false); setShowCreateForm(false);
+      setSearchParams(previous => { const params = new URLSearchParams(previous); params.delete("create"); params.delete("starter"); return params; }, { replace: true });
+      void revalidator.revalidate();
+    } catch (err) { setError(err instanceof Error ? err.message : "Template submission failed"); }
+    finally { submitLock.current = false; setSubmitting(false); }
   }
-
-  async function handleSync(connectionIdToSync: string) {
-    setSyncingConnectionId(connectionIdToSync);
-    setError("");
-
+  async function handleSync() {
+    if (syncLock.current || !syncAccount) return;
+    syncLock.current = true; setSyncingConnectionId(syncAccount); setSyncError("");
     try {
-      const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionIdToSync}/templates/sync`), {
-        method: "POST",
-        credentials: "include",
-      });
+      const res = await fetch(apiUrl(`/api/whatsapp/connections/${syncAccount}/templates/sync`), { method: "POST", credentials: "include" });
       const payload = await res.json();
-      if (!res.ok) {
-        throw new Error(payload.error || "Failed to sync templates");
-      }
-
-      toast.success("Templates synced", { description: `${payload.synced || 0} templates updated` });
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync templates");
-    } finally {
-      setSyncingConnectionId(null);
-    }
+      if (!res.ok) throw new Error(payload.error || "Template sync failed");
+      toast.success("Templates synced", typeof payload.synced === "number" ? { description: `${payload.synced} templates updated` } : undefined);
+      void revalidator.revalidate();
+    } catch (err) { setSyncError(err instanceof Error ? err.message : "Template sync failed"); }
+    finally { syncLock.current = false; setSyncingConnectionId(null); }
   }
-
-  return (
-    <div className="space-y-6">
-      {displayError && (
-        <div
-          className={`rounded-lg border px-3 py-2 text-xs ${
-            displayError
-              ? "border-destructive/30 bg-status-danger-soft text-destructive"
-              : "border-status-success/30 bg-status-success-soft text-status-success"
-          }`}
-        >
-          {displayError}
-        </div>
-      )}
-
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <Button
-            onClick={() => setShowCreateForm((current) => !current)}
-          >
-            {showCreateForm ? "Close creator" : "Create new template"}
-          </Button>
-
-          <div className="flex flex-wrap gap-2">
-            {connections.map((connection) => (
-              <Button
-                key={connection.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleSync(connection.id)}
-                disabled={syncingConnectionId === connection.id}
-              >
-                {syncingConnectionId === connection.id
-                  ? "Syncing..."
-                  : `Sync ${connection.phoneDisplayNumber || connection.phoneNumberId}`}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {templates.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-secondary/50 px-6 py-14 text-center">
-            <p className="mb-2 text-lg font-semibold text-foreground">No templates yet</p>
-            <p className="mx-auto mb-6 max-w-xl text-sm text-muted-foreground">
-              Create your first WhatsApp template here, or start from the Template Library and then
-              customize it before submitting to Meta.
-            </p>
-            <Button
-              onClick={() => setShowCreateForm(true)}
-            >
-              Create new template
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {templates.map((template) => (
-              <div key={template.id} className="rounded-xl border border-border bg-secondary/40 p-5">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">{template.templateName}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {categoryLabel(template.category)} · {template.language}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] ${STATUS_STYLES[template.status]}`}
-                  >
-                    {template.status}
-                  </span>
-                </div>
-
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <p className="line-clamp-6 whitespace-pre-wrap text-sm text-muted-foreground">
-                    {template.body || "No template body saved."}
-                  </p>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <TemplateMeta label="Variables" value={String(template.variablesCount)} />
-                  <TemplateMeta label="Connection" value={template.connectionLabel} />
-                  <TemplateMeta
-                    label="Last synced"
-                    value={
-                      template.lastSynced
-                        ? new Date(template.lastSynced).toLocaleDateString("en-ZA")
-                        : "Never"
-                    }
-                  />
-                </div>
-
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedTemplateId(template.id)}
-                  >
-                    View full details
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <Dialog open={selectedTemplate !== null} onOpenChange={(open) => { if (!open) setSelectedTemplateId(null); }}>
-        <DialogContent showCloseButton={false} className="max-h-[92svh] max-w-4xl overflow-y-auto">
-          {selectedTemplate ? (
-            <>
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle>
-                  {selectedTemplate.templateName}
-                </DialogTitle>
-                <DialogDescription className="mt-1">
-                  {categoryLabel(selectedTemplate.category)} · {selectedTemplate.language}
-                </DialogDescription>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] ${STATUS_STYLES[selectedTemplate.status]}`}
-                >
-                  {selectedTemplate.status}
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedTemplateId(null)}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_320px]">
-              <div className="space-y-4">
-                <TemplateDetailBlock
-                  label="Header"
-                  value={selectedTemplate.header || "No header"}
-                />
-                <TemplateDetailBlock
-                  label="Body"
-                  value={selectedTemplate.body || "No body saved."}
-                  preserveWhitespace
-                />
-                <TemplateDetailBlock
-                  label="Footer"
-                  value={selectedTemplate.footer || "No footer"}
-                />
-                <TemplateDetailBlock
-                  label="Buttons"
-                  value={
-                    selectedTemplate.buttons
-                      ? JSON.stringify(selectedTemplate.buttons, null, 2)
-                      : "No buttons configured"
-                  }
-                  preserveWhitespace
-                />
-              </div>
-
-              <div className="space-y-3">
-                <TemplateMeta label="Variables" value={String(selectedTemplate.variablesCount)} />
-                <TemplateMeta label="Connection" value={selectedTemplate.connectionLabel} />
-                <TemplateMeta
-                  label="Last synced"
-                  value={
-                    selectedTemplate.lastSynced
-                      ? new Date(selectedTemplate.lastSynced).toLocaleString("en-ZA")
-                      : "Never"
-                  }
-                />
-              </div>
-            </div>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
-        <DialogContent showCloseButton={false} className="max-h-[92svh] max-w-6xl overflow-y-auto">
-          {showCreateForm ? (
-            <>
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div>
-                <DialogTitle>Create template</DialogTitle>
-                <DialogDescription>
-                  Build a new WhatsApp template and submit it to Meta for approval.
-                </DialogDescription>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setShowCreateForm(false)}
-              >
-                Close
-              </Button>
-            </div>
-
-            <div className="mb-6">
-              <p className="mb-3 text-sm font-medium text-foreground">Template type</p>
-              <div className="grid gap-3 lg:grid-cols-3">
-                {TEMPLATE_CATEGORY_OPTIONS.map((option) => {
-                  const selected = option.value === category;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setCategory(option.value)}
-                      className={`rounded-xl border p-4 text-left transition-colors ${
-                        selected
-                          ? "border-primary/30 bg-primary/10"
-                          : "border-border bg-secondary/50 hover:border-primary/20"
-                      }`}
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <span className="text-base font-semibold text-foreground">{option.label}</span>
-                        <span className="rounded-full border border-border px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                          {option.badge}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{option.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_380px]">
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {shouldChooseConnection ? (
-                    <label className="space-y-2 text-sm">
-                      <span className="text-muted-foreground">Connection</span>
-                      <Select value={connectionId} onValueChange={setConnectionId}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                        {connections.map((connection) => (
-                          <SelectItem key={connection.id} value={connection.id}>
-                            {connection.phoneDisplayNumber || connection.phoneNumberId}
-                          </SelectItem>
-                        ))}
-                        </SelectContent>
-                      </Select>
-                    </label>
-                  ) : (
-                    <div className="space-y-2 text-sm">
-                      <span className="text-muted-foreground">Using connection</span>
-                      <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground">
-                        {activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "-"}
-                      </div>
-                    </div>
-                  )}
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-muted-foreground">Language</span>
-                    <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                      {LANGUAGE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                      </SelectContent>
-                    </Select>
-                  </label>
-                </div>
-
-                <label className="space-y-2 text-sm">
-                  <span className="text-muted-foreground">Template name</span>
-                  <Input
-                    value={templateName}
-                    onChange={(event) => setTemplateName(event.target.value)}
-                    placeholder="promo_launch_april"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use lowercase letters, numbers, and underscores only.
-                  </p>
-                </label>
-
-                <label className="space-y-2 text-sm">
-                  <span className="text-muted-foreground">Header (optional)</span>
-                  <Input
-                    value={header}
-                    onChange={(event) => setHeader(event.target.value)}
-                    placeholder="KasiTek Update"
-                  />
-                </label>
-
-                <label className="space-y-2 text-sm">
-                  <span className="text-muted-foreground">Body</span>
-                  <Textarea
-                    value={body}
-                    onChange={(event) => setBody(event.target.value)}
-                    rows={6}
-                    placeholder="Hi {{1}}, your next offer is ready. Reply STOP to opt out."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use placeholders like {"{{1}}"} when the template needs variables.
-                  </p>
-                  {hasLeadingOrTrailingVariable(body) ? (
-                    <p className="text-xs text-status-attention">
-                      Variables cannot appear at the start or end of the template.
-                    </p>
-                  ) : null}
-                </label>
-
-                <label className="space-y-2 text-sm">
-                  <span className="text-muted-foreground">Footer (optional)</span>
-                  <Input
-                    value={footer}
-                    onChange={(event) => setFooter(event.target.value)}
-                    placeholder="Reply STOP to unsubscribe"
-                  />
-                </label>
-
-                <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Meta reviews every template after submission. Newer accounts may wait longer.
-                  </p>
-                  <Button
-                    onClick={handleCreateTemplate}
-                    disabled={submitting || !connectionId || Boolean(variablePlacementError)}
-                  >
-                    {submitting ? "Submitting..." : "Submit template"}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="lg:sticky lg:top-6">
-                <div className="overflow-hidden rounded-lg border border-border bg-secondary">
-                  <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">WhatsApp Preview</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "Connected number"}
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                      {categoryLabel(category)}
-                    </span>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="ml-auto max-w-[290px] rounded-lg rounded-tr-md border border-border bg-card px-4 py-3 text-foreground">
-                      {previewHeader ? (
-                        <p className="mb-2 text-[13px] font-semibold tracking-[0.01em]">
-                          {previewHeader}
-                        </p>
-                      ) : null}
-
-                      <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground">
-                        {previewBody || "Your message preview will appear here as you type."}
-                      </p>
-
-                      {previewFooter ? (
-                        <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
-                          {previewFooter}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{templateName || "template_name"}</span>
-                        <span>{language}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3 text-[11px] text-muted-foreground">
-                      <p className="font-medium text-foreground">Variable preview</p>
-                      <p className="mt-1">
-                        Placeholders like {"{{1}}"} render as bracket markers such as <span className="font-semibold text-foreground">[1]</span> in the preview.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+  const preview = selectedTemplate ? <TemplatePreview template={selectedTemplate} /> : null;
+  return <div className="templates-workspace">
+    <header className="templates-header"><h1>Templates</h1><div className="templates-actions">
+      {connections.length > 1 && <FilterSelect label="Sync account" value={syncAccount} onChange={setSyncAccount} options={connections.map(connection => ({ value: connection.id, label: connection.phoneDisplayNumber || connection.phoneNumberId }))} />}
+      <Button variant="outline" onClick={handleSync} disabled={!syncAccount || Boolean(syncingConnectionId)}><RotateCcw className={syncingConnectionId ? "size-4 animate-spin" : "size-4"} />{syncingConnectionId ? "Syncing…" : "Sync templates"}</Button>
+      <Button onClick={openCreate} disabled={!connections.length}><Plus className="size-4" />New template</Button>
+    </div></header>
+    {templatesError && <div role="alert" className="templates-alert">{templatesError}<Button variant="outline" size="sm" onClick={() => revalidator.revalidate()}>Retry templates</Button></div>}
+    {connectionsError && <div role="alert" className="templates-alert">{connectionsError}<Button variant="outline" size="sm" onClick={() => revalidator.revalidate()}>Retry accounts</Button></div>}
+    {syncError && <div role="alert" className="templates-alert">{syncError}<Button variant="outline" size="sm" onClick={handleSync}>Retry sync</Button></div>}
+    <div className={selectedTemplate && desktop ? "templates-layout has-preview" : "templates-layout"}><section className="templates-library" aria-label="Template library">
+      <nav className="templates-tabs" aria-label="Template status">{(["all", "APPROVED", "PENDING", "REJECTED", "DISABLED"] as const).map(value => <button key={value} aria-current={status === value ? "page" : undefined} onClick={() => changeStatus(value)}>{value === "all" ? "All templates" : statusLabel(value)}<span>{scoped.filter(template => value === "all" || template.status === value).length}</span></button>)}</nav>
+      <div className="templates-toolbar"><label className="templates-search"><Search className="size-4" /><Input aria-label="Search templates" placeholder="Search templates…" value={query} onChange={event => setQuery(event.target.value)} /></label>
+        <FilterSelect label="Category" value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: "All categories" }, ...TEMPLATE_CATEGORY_OPTIONS.map(option => ({ value: option.value, label: option.label }))]} />
+        <FilterSelect label="Language" value={languageFilter} onChange={setLanguageFilter} options={[{ value: "all", label: "All languages" }, ...Array.from(new Set(templates.map(template => template.language))).map(value => ({ value, label: languageLabel(value) }))]} />
+        <FilterSelect label="Account" value={accountFilter} onChange={setAccountFilter} options={[{ value: "all", label: "All accounts" }, ...connections.map(connection => ({ value: connection.id, label: connection.phoneDisplayNumber || connection.phoneNumberId }))]} />
+      </div>
+      {!templatesError && !filtered.length ? <div className="templates-empty"><h2>{templates.length ? "No matching templates" : "No templates yet"}</h2>{!connections.length && !connectionsError ? <Button variant="outline" asChild><a href="/connections">Connect WhatsApp</a></Button> : !templates.length && connections.length > 0 ? <Button onClick={openCreate}>Create new template</Button> : null}</div> : <>
+        <div className="templates-table-scroll"><table className="templates-table"><thead><tr><th scope="col">Template</th><th scope="col">Category</th><th scope="col">Language</th><th scope="col">Account</th><th scope="col">Status</th><th scope="col">Last synced</th></tr></thead><tbody>{filtered.map(template => <tr key={template.id} data-selected={selectedTemplateId === template.id || undefined}><td><button className="template-name" aria-label={`Preview ${template.templateName}`} onClick={event => { previewOpener.current = event.currentTarget; setSelectedTemplateId(template.id); }}>{template.templateName}</button><p className="template-excerpt">{template.body || "—"}</p></td><td>{categoryLabel(template.category)}</td><td>{languageLabel(template.language)}</td><td>{template.connectionLabel || "—"}</td><td><StatusBadge status={template.status} /></td><td className="templates-date">{formatDate(template.lastSynced)}</td></tr>)}</tbody></table></div>
+        <div className="templates-mobile-list">{filtered.map(template => <button key={template.id} onClick={event => { previewOpener.current = event.currentTarget; setSelectedTemplateId(template.id); }} aria-label={`Preview ${template.templateName}`}><span className="templates-mobile-heading"><strong>{template.templateName}</strong><StatusBadge status={template.status} /></span><span className="template-excerpt">{template.body || "—"}</span><span className="templates-mobile-meta">{categoryLabel(template.category)} · {languageLabel(template.language)} · {template.connectionLabel || "—"}</span></button>)}</div>
+      </>}
+      <p className="templates-count">{filtered.length} {filtered.length === 1 ? "template" : "templates"}{revalidator.state !== "idle" ? " · Refreshing…" : ""}</p>
+    </section>
+    {selectedTemplate && desktop && <aside className="templates-inspector" aria-label="Template preview"><div className="templates-inspector-heading"><h2>Template preview</h2><Button variant="ghost" size="icon" aria-label="Close template preview" onClick={() => setSelectedTemplateId(null)}><X className="size-4" /></Button></div>{preview}</aside>}
     </div>
-  );
+    <Sheet open={Boolean(selectedTemplate) && !desktop} onOpenChange={open => { if (!open) setSelectedTemplateId(null); }}><SheetContent className="templates-preview-sheet" aria-describedby={undefined} onCloseAutoFocus={event => { event.preventDefault(); if (previewOpener.current?.isConnected) previewOpener.current.focus(); }}><SheetTitle>Template preview</SheetTitle>{preview}</SheetContent></Sheet>
+    <Dialog open={showCreateForm} onOpenChange={closeCreate}><DialogContent showCloseButton={false} className="template-create-dialog" aria-describedby={undefined} onCloseAutoFocus={event => { event.preventDefault(); if (opener.current?.isConnected) opener.current.focus(); }} onEscapeKeyDown={event => { if (submitting) event.preventDefault(); }} onInteractOutside={event => { if (submitting) event.preventDefault(); }}>
+      <form onSubmit={handleCreateTemplate} noValidate><div className="template-create-heading"><DialogTitle>Create template</DialogTitle><Button type="button" variant="ghost" size="icon" aria-label="Close creator" disabled={submitting} onClick={() => closeCreate(false)}><X className="size-4" /></Button></div>
+        <div className="template-create-columns"><div className="template-create-fields">
+          <label>Template name<Input aria-label="Template name" value={templateName} onChange={event => setTemplateName(event.target.value)} aria-invalid={Boolean(nameError)} aria-describedby={nameError ? "template-name-error" : undefined} />{nameError && <span id="template-name-error" className="template-field-error">{nameError}</span>}</label>
+          <div><span className="template-field-label">Category</span><div className="template-category-options" role="group" aria-label="Template category">{TEMPLATE_CATEGORY_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={category === option.value} onClick={() => setCategory(option.value)}>{option.label}</button>)}</div></div>
+          <div className="template-fields-pair"><div><span className="template-field-label">Account</span>{connections.length > 1 ? <FilterSelect label="Connection" value={connectionId} onChange={setConnectionId} options={connections.map(connection => ({ value: connection.id, label: connection.phoneDisplayNumber || connection.phoneNumberId }))} /> : <p className="template-single-account">{activeConnection?.phoneDisplayNumber || activeConnection?.phoneNumberId || "No account connected"}</p>}</div><div><span className="template-field-label">Language</span><FilterSelect label="Template language" value={language} onChange={setLanguage} options={LANGUAGE_OPTIONS} /></div></div>
+          <label>Header <span className="template-optional">(optional)</span><Input aria-label="Header (optional)" value={header} onChange={event => setHeader(event.target.value)} aria-invalid={Boolean(placementError && hasLeadingOrTrailingVariable(header))} /></label>
+          <label>Body<Textarea aria-label="Body" value={body} onChange={event => setBody(event.target.value)} rows={6} aria-invalid={Boolean(bodyError || (placementError && hasLeadingOrTrailingVariable(body)))} aria-describedby={bodyError ? "template-body-error" : undefined} />{bodyError && <span id="template-body-error" className="template-field-error">{bodyError}</span>}</label>
+          <label>Footer <span className="template-optional">(optional)</span><Input aria-label="Footer (optional)" value={footer} onChange={event => setFooter(event.target.value)} aria-invalid={Boolean(placementError && hasLeadingOrTrailingVariable(footer))} /></label>
+          {placementError && <p className="template-field-error" role="alert">{placementError}</p>}{error && <p className="template-field-error" role="alert">{error}</p>}
+        </div><aside className="template-create-preview"><h3>Message preview</h3><MessagePreview header={header} body={body} footer={footer} /><p className="template-sample-label">Variables appear as [1], [2]…</p></aside></div>
+        <footer className="template-create-footer"><Button type="button" variant="outline" disabled={submitting} onClick={() => closeCreate(false)}>Cancel</Button><Button type="submit" disabled={submitting || !connectionId}>{submitting ? "Submitting…" : "Submit template"}</Button></footer>
+      </form>
+    </DialogContent></Dialog>
+  </div>;
 }
 
-function TemplateMeta({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-sm font-medium text-foreground">{value}</p>
-    </div>
-  );
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
+  return <Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent>{options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>;
 }
-
-function TemplateDetailBlock({
-  label,
-  value,
-  preserveWhitespace = false,
-}: {
-  label: string;
-  value: string;
-  preserveWhitespace?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-secondary/30 p-4">
-      <p className="mb-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={`text-sm leading-7 text-foreground ${
-          preserveWhitespace ? "whitespace-pre-wrap" : ""
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
+function statusLabel(status: TemplateView["status"]) { return status.charAt(0) + status.slice(1).toLowerCase(); }
+function StatusBadge({ status }: { status: TemplateView["status"] }) { return <span className={`template-status ${STATUS_STYLES[status]}`}>{statusLabel(status)}</span>; }
+function languageLabel(value: string) { return LANGUAGE_OPTIONS.find(option => option.value === value)?.label || value; }
+function formatDate(value: string | null) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "Unavailable" : date.toLocaleString("en-ZA", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function MessagePreview({ header, body, footer, buttons }: { header: string | null; body: string | null; footer: string | null; buttons?: unknown }) {
+  const savedButtons = Array.isArray(buttons) ? buttons : typeof buttons === "object" && buttons && "buttons" in buttons && Array.isArray(buttons.buttons) ? buttons.buttons : [];
+  return <div className="template-message-surface"><div className="template-message">{header && <strong>{renderPreviewText(header)}</strong>}<p>{renderPreviewText(body || "") || "Message preview"}</p>{footer && <small>{renderPreviewText(footer)}</small>}{savedButtons.map((button, index) => <div className="template-preview-button" key={index}>{typeof button === "object" && button && "text" in button && typeof button.text === "string" ? button.text : "Button"}</div>)}</div></div>;
+}
+function TemplatePreview({ template }: { template: TemplateView }) {
+  return <div className="template-preview-content"><h3>{template.templateName}</h3><StatusBadge status={template.status} /><MessagePreview header={template.header} body={template.body} footer={template.footer} buttons={template.buttons} /><dl>{[["Category", categoryLabel(template.category)], ["Language", languageLabel(template.language)], ["Account", template.connectionLabel || "—"], ["Variables", String(template.variablesCount)], ["Last synced", formatDate(template.lastSynced)]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{template.variablesCount > 0 && <p className="template-sample-label">[1], [2]… are sample markers.</p>}</div>;
 }

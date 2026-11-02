@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router";
 import { ArrowLeft, Check, Gauge } from "lucide-react";
 
 import { CheckoutButton } from "@/components/dashboard/billing/checkout-button";
@@ -23,7 +23,7 @@ export function PlanDetailsPage({ details }: { details: AvailablePlanDetails }) 
     <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[980px] space-y-6">
         <div className="flex items-center justify-between gap-4">
-          <Button asChild variant="outline" size="sm"><Link href="/upgrade"><ArrowLeft className="size-3.5" />All plans</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link to="/upgrade"><ArrowLeft className="size-3.5" />All plans</Link></Button>
           <Badge variant="outline">{details.interval === "YEARLY" ? "Annual billing" : "Monthly billing"}</Badge>
         </div>
 

@@ -1,4 +1,4 @@
-export const LOAD_COMMAND_0 = `SELECT "id", "idempotencyKey" AS idempotency_key,
+export const LOAD_COMMAND_0 = `SELECT "id", "idempotencyKey" AS idempotency_key, "requestDigest", "customerId",
                "deliveryId" AS delivery_id, "actorId" AS actor_id,
                "expectedStatus" AS expected_status,
                "expectedAttemptCount" AS expected_attempt_count,
@@ -24,7 +24,7 @@ export const LIST_FAILED_DELIVERIES_0 = `SELECT d."id", d."subscriptionId" AS su
         ORDER BY d."updatedAt" DESC
         LIMIT $1`;
 
-export const CREATE_0 = `SELECT d."id", d."status", d."attemptCount" AS attempt_count,
+export const CREATE_0 = `SELECT s."orgId" AS organization_id, d."id", d."status", d."attemptCount" AS attempt_count,
                s."status" AS subscription_status, d."eventType" AS event_type
         FROM "PublicApiWebhookDelivery" d
         JOIN "PublicApiWebhookSubscription" s ON s."id" = d."subscriptionId"
@@ -35,7 +35,7 @@ export const CREATE_1 = `INSERT INTO "AdminWebhookReplayCommand"
           ("id", "idempotencyKey", "deliveryId", "actorId", "expectedStatus",
            "expectedAttemptCount", "approverIds", "status", "updatedAt")
         VALUES ($1, $2, $3, $4, $5, $6, ARRAY[$4]::TEXT[], 'awaiting_approval', NOW())
-        RETURNING "id", "idempotencyKey" AS idempotency_key,
+        RETURNING "id", "idempotencyKey" AS idempotency_key, "requestDigest", "customerId",
                   "deliveryId" AS delivery_id, "actorId" AS actor_id,
                   "expectedStatus" AS expected_status,
                   "expectedAttemptCount" AS expected_attempt_count,
@@ -44,7 +44,7 @@ export const CREATE_1 = `INSERT INTO "AdminWebhookReplayCommand"
                   "createdAt" AT TIME ZONE 'UTC' AS created_at,
                   "updatedAt" AT TIME ZONE 'UTC' AS updated_at`;
 
-export const GET_0 = `SELECT "id", "idempotencyKey" AS idempotency_key,
+export const GET_0 = `SELECT "id", "idempotencyKey" AS idempotency_key, "requestDigest", "customerId",
                "deliveryId" AS delivery_id, "actorId" AS actor_id,
                "expectedStatus" AS expected_status,
                "expectedAttemptCount" AS expected_attempt_count,
@@ -54,7 +54,7 @@ export const GET_0 = `SELECT "id", "idempotencyKey" AS idempotency_key,
                "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "AdminWebhookReplayCommand" WHERE "id" = $1`;
 
-export const APPROVE_0 = `SELECT "id", "idempotencyKey" AS idempotency_key,
+export const APPROVE_0 = `SELECT "id", "idempotencyKey" AS idempotency_key, "requestDigest", "customerId",
                "deliveryId" AS delivery_id, "actorId" AS actor_id,
                "expectedStatus" AS expected_status,
                "expectedAttemptCount" AS expected_attempt_count,
@@ -70,7 +70,7 @@ export const APPROVE_1 = `UPDATE "AdminWebhookReplayCommand"
                SET "approverIds" = $2, "updatedAt" = NOW()
                WHERE "id" = $1`;
 
-export const APPROVE_2 = `SELECT d."id", d."status", d."attemptCount" AS attempt_count,
+export const APPROVE_2 = `SELECT s."orgId" AS organization_id, d."id", d."status", d."attemptCount" AS attempt_count,
                s."status" AS subscription_status, d."eventType" AS event_type
         FROM "PublicApiWebhookDelivery" d
         JOIN "PublicApiWebhookSubscription" s ON s."id" = d."subscriptionId"

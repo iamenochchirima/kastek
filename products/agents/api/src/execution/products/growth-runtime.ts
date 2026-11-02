@@ -1,0 +1,49 @@
+import type { Pool,PoolClient } from "pg";
+import type { GrowthAgentAction, GrowthAgentActionInputs, GrowthAgentActionOperation, GrowthAgentActionOutputs } from "@kasitek-labs/contracts";
+import { randomUUID } from "node:crypto";
+import { GrowthActionClient } from "../../adapters/products/growth-action-client";
+import { requestDigest, PlatformError } from "../../contracts/contracts";
+import { validateGrowthPublication } from "../../product/integrations/growth-features";
+import { EvidenceStore } from "../context/evidence";
+import { ProductRuntime } from "./product-runtime";
+import { growthOperations } from "@kasitek-labs/contracts";
+const handlers=["workspace.read","content.list","content.read","campaigns.list","campaigns.read","analytics.read","draft.prepare"].map(operation=>`growth.${operation}@1`);
+export const growthInstalledAdapterManifest={schemaVersion:1 as const,id:"growth-product",release:"2",executableDigest:requestDigest({release:"growth-product-v2",handlers}),transports:["native_http" as const],protocolVersions:[],boundedSchemaValidation:true as const};
+const operationHandlers=growthOperations.map(operation=>`growth.operation.${operation.name}@${operation.version}`);
+export const growthOperationAdapterManifest={...growthInstalledAdapterManifest,release:"3",executableDigest:requestDigest({release:"growth-operations-v1",handlers:operationHandlers})};
+const clients=new WeakMap<GrowthActionClient,{handlers:readonly string[];invoke:GrowthActionClient["invoke"]}>();
+export class GrowthProductRuntime extends ProductRuntime {
+  constructor(pool:Pool,readonly client:GrowthActionClient,evidence=new EvidenceStore(pool)) {
+    super(pool,evidence);
+    let adapter=clients.get(client);
+    if(!adapter){adapter={handlers,invoke:client.invoke.bind(client)};clients.set(client,adapter);}
+    this.registerAdapter(growthInstalledAdapterManifest,adapter);
+    this.registerAdapter(growthOperationAdapterManifest,{handlers:operationHandlers,invoke:client.invoke.bind(client)});
+    this.registerOriginAuthorizer("growth",async (taskId,db)=>{
+      const row=(await db.query("SELECT p.tenant_id,t.principal,p.conversation_id,f.feature_id FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.product_execution_features f ON f.product='growth' AND f.tenant_id=p.tenant_id AND f.agent_id=v.agent_id AND f.enabled WHERE t.id=$1 AND t.product='growth'",[taskId])).rows[0];
+      if(!row||row.principal.kind!=="human")throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
+      const result=await this.client.call({version:"1",requestId:randomUUID(),operationId:"origin:"+randomUUID(),tenantId:row.tenant_id,
+        actor:{issuer:row.principal.issuer,subject:row.principal.subject},taskId,conversationId:row.conversation_id,
+        featureId:row.feature_id,context:null,operation:"authorization.check",input:{context:null}});
+      if(result.authorized!==true)throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
+    });
+  }
+  async prepareExecution(taskId:string):Promise<void>{await this.loadPublications(taskId);}
+  async loadPublications(taskId?:string):Promise<void> {
+    const rows=(await this.pool.query("SELECT publication FROM agents_platform.growth_capability_publications n WHERE $1::uuid IS NULL OR EXISTS (SELECT 1 FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id WHERE t.id=$1 AND p.product='growth' AND p.tenant_id=n.tenant_id) ORDER BY created_at",[taskId??null])).rows;
+    for(const row of rows)validateGrowthPublication(row.publication);
+  }
+  async call<K extends GrowthAgentActionOperation>(taskId:string,operationId:string,operation:K,input:GrowthAgentActionInputs[K],db:Pool|PoolClient=this.pool):Promise<GrowthAgentActionOutputs[K]> {
+    const s=(await db.query("SELECT p.*,t.principal,f.feature_id AS selected_feature_id FROM agents_platform.tasks t JOIN agents_platform.product_task_contexts p ON p.task_id=t.root_task_id JOIN agents_platform.agent_versions v ON v.id=t.version_id JOIN agents_platform.product_execution_features f ON f.product='growth' AND f.tenant_id=p.tenant_id AND f.agent_id=v.agent_id AND f.enabled WHERE t.id=$1 AND t.product='growth'",[taskId])).rows[0];
+    if(!s||s.principal.kind!=="human")throw new PlatformError("PRODUCT_AUTHORITY_INACTIVE",403,"Growth execution access is unavailable");
+    return this.client.call({version:"1",requestId:randomUUID(),operationId,tenantId:s.tenant_id,actor:{issuer:s.principal.issuer,subject:s.principal.subject},taskId,conversationId:s.conversation_id,
+      featureId:s.selected_feature_id,context:s.context,contextRevision:s.context_revision,operation,input} as GrowthAgentAction<K>);
+  }
+  async readReview(taskId:string,reviewId:string){
+    await this.authorizeTask(taskId);
+    const binding=(await this.pool.query("SELECT t.effective_configuration,v.configuration FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id WHERE t.id=$1",[taskId])).rows[0];
+    const config=binding?.effective_configuration??binding?.configuration;
+    if(config?.productBindings?.some((item:{authority?:{policyRevision?:string}})=>item.authority?.policyRevision==="6")) return this.call(taskId,"review-read:"+randomUUID(),"operation.review.read",{reviewId});
+    return this.call(taskId,"review-read:"+randomUUID(),"draft.reconcile",{reviewId});
+  }
+}

@@ -23,23 +23,10 @@ import {
 import { syncConnectionTemplates } from "../src/services/whatsapp/templates.js";
 import { createCampaign } from "../src/services/whatsapp/campaigns.js";
 import { SerdeFloat } from "@kasitek-labs/server-support/json";
-test("WhatsApp webhook normalization preserves bounded error/pricing, media fallback and approval contracts", () => {
+test("WhatsApp webhook normalization preserves bounded error/pricing, provider media metadata and marketing contracts", () => {
   assert.equal(
     n.inboundText({ text: { body: "hello" }, button: { text: "button" } }),
     "hello",
-  );
-  assert.equal(
-    n.inboundApprovalToken({
-      interactive: { button_reply: { id: "ka_approval_key" } },
-    }),
-    "ka_approval_key",
-  );
-  assert.equal(
-    n.approvalAcknowledgement({
-      status: "approval_group_signalled",
-      decision: "approved",
-    }),
-    "Approval received. Processing…",
   );
   assert.equal(n.isOptOutMessage(" STOP "), true);
   assert.equal(n.isOptOutMessage("stop please"), false);
@@ -92,19 +79,9 @@ test("WhatsApp webhook normalization preserves bounded error/pricing, media fall
       mime_type: "application/octet-stream",
     },
   })!;
-  assert.equal(n.agentMediaKind(media), "image");
-  assert.equal(
-    n.agentMediaMime(media, "application/octet-stream", "image"),
-    "image/jpeg",
-  );
-  assert.equal(
-    n.agentMediaKind(
-      n.incomingMedia({
-        document: { id: "media", mime_type: "application/pdf" },
-      })!,
-    ),
-    null,
-  );
+  assert.equal(media.kind,"document");
+  assert.equal(media.mediaId,"media");
+  assert.equal(media.filename,"PHOTO.JPG");
   const core = {
     config: readConfig({
       DATABASE_URL: "postgres://fixture",
@@ -122,7 +99,7 @@ test("WhatsApp webhook normalization preserves bounded error/pricing, media fall
   );
 });
 test(
-  "WhatsApp signed raw callbacks, pairing isolation, inbox transitions, media acknowledgements, unsubscribe and campaign pricing",
+  "WhatsApp signed raw callbacks, retired pairing as text, human inbox transitions, media persistence, unsubscribe and campaign pricing",
   { skip: !process.env.CORE_WHATSAPP_TEST_DATABASE_URL },
   async () => {
     installPgTimestampParsers();
@@ -136,8 +113,7 @@ test(
         options: `-c search_path=${schema} -c timezone=UTC`,
       }),
       requests: { path: string; body: any }[] = [],
-      events: any[] = [],
-      uploads: any[] = [];
+      events: any[] = [];
     let base = "";
     const server = createServer(async (req, res) => {
       let bytes = "";
@@ -197,8 +173,6 @@ test(
     const config = readConfig({
         DATABASE_URL: url,
         WHATSAPP_TOKEN_ENCRYPTION_KEY: "synthetic-key",
-        AGENTS_API_URL: base,
-        AGENTS_INTERNAL_AUTH_SECRET: "synthetic-agent-key",
         AUTH_META_APP_SECRET: "synthetic-meta-key",
         WHATSAPP_WEBHOOK_VERIFY_TOKEN: "verify",
       }),
@@ -211,10 +185,6 @@ test(
         },
         ingestCalls: async (_pool, _config, value) => {
           assert.equal(n.arr(n.obj(value).calls).length, 0);
-        },
-        upload: async (_pool, _config, user, org, input) => {
-          uploads.push({ user, org, ...input });
-          return { id: "asset", kind: "audio" } as any;
         },
       };
     const app = Fastify();
@@ -289,10 +259,9 @@ test(
       );
       assert.equal(
         (await pool.query('SELECT count(*) FROM "Message"')).rows[0].count,
-        "0",
+        "1",
       );
-      assert.equal(requests[0]!.path, "/v1/channel-pairing/consume");
-      assert.equal(requests[0]!.body.externalIdentity, "27821234567");
+      assert.equal(requests.length,0);
       await handleIncomingMessages(
         pool,
         config,
@@ -303,13 +272,9 @@ test(
           .rows[0],
         contact = (await pool.query('SELECT * FROM "WhatsappContact"')).rows[0];
       assert.equal(conversation.orgId, "org");
-      assert.equal(conversation.unreadCount, 1);
+      assert.equal(conversation.unreadCount, 2);
       assert.equal(contact.customerId, conversation.customerId);
-      const ingest = requests.find(
-        (row) => row.path === "/v1/channels/inbound",
-      )!;
-      assert.equal(ingest.body.channelKey, "workspace-channel");
-      assert.equal(ingest.body.displayName, "Ada");
+      assert.ok(requests.every(row=>!row.path.startsWith('/v1/')));
       assert.equal(
         events.find((row) => row.event.type === "message.created").event.message
           .canReact,
@@ -349,19 +314,8 @@ test(
         }),
         options,
       );
-      assert.deepEqual(uploads[0].bytes, Buffer.from([1, 2, 3, 4]));
-      assert.equal(
-        uploads[0].sourceKey,
-        "whatsapp:connection:media-inbound:media",
-      );
-      assert.equal(
-        requests.find(
-          (row) =>
-            row.path === "/v1/channels/inbound" &&
-            row.body.providerMessageId === "media-inbound",
-        )!.body.content.transcription.status,
-        "queued",
-      );
+      const attachment=(await pool.query('SELECT * FROM "MessageAttachment" WHERE "providerMediaId"=$1',["media"])).rows[0];
+      assert.ok(attachment);
       const beforeReplies = requests.filter(
         (row) => row.path === "/phone/messages",
       ).length;
@@ -376,16 +330,15 @@ test(
       );
       assert.equal(
         requests.filter((row) => row.path === "/phone/messages").length,
-        beforeReplies + 1,
+        beforeReplies,
       );
-      assert.match(requests.at(-1)!.body.text.body, /image, video, and audio/);
       await handleIncomingMessages(
         pool,
         config,
         incoming({ id: "failure", text: { body: "force-fail" } }),
         options,
       );
-      assert.equal(requests.at(-1)!.body.text.body, n.INGEST_FAILURE_MESSAGE);
+      assert.equal(requests.filter(row=>row.path==='/phone/messages').length,beforeReplies);
       await pool.query(
         `UPDATE "WhatsappContact" SET "optIn"=true WHERE id=$1`,
         [contact.id],

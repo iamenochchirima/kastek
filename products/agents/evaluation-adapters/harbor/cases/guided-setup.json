@@ -1,0 +1,228 @@
+{
+  "schemaVersion": "kasitek-guided-setup-owner-cases.v1",
+  "execution": "owner-run; not executed by implementation",
+  "runnableHarborSuite": false,
+  "runtime": "One customer-service offering and grounded-conversation program, configured by responsibilities and separately authorized bindings.",
+  "driverMethods": [
+    "PlatformClient.version",
+    "PlatformClient.setup_readiness",
+    "PlatformClient.task_enquiries",
+    "PlatformClient.decide_enquiry",
+    "PlatformClient.submitted_enquiries",
+    "VisitorClient.enquiries",
+    "VisitorClient.decide_enquiry",
+    "VisitorClient.bookings",
+    "VisitorClient.decide_booking"
+  ],
+  "prerequisites": [
+    "Fresh dedicated agent and prepared scope per independent profile/trial; never mutate the reserved immutable version during a trial.",
+    "Create through the normal guided setup or authorized agent/configuration API; pin actual version, composition, model routes and budget using existing Harbor preparation.",
+    "Use controlled customer details and an isolated provider calendar; owner explicitly approves every customer decision.",
+    "Use real current execution grants; do not manufacture grants, source approval, tool outputs, enquiry records or provider effects.",
+    "Read authorized native records and provider outcomes independently of the assistant answer; retain evidence privately because enquiry records contain personal data."
+  ],
+  "profiles": {
+    "faq": {
+      "responsibilities": [
+        "answer-questions"
+      ],
+      "requiredTools": [
+        "knowledge.search",
+        "knowledge.read"
+      ],
+      "absentTools": [
+        "enquiry.submit",
+        "booking.reserve",
+        "channel.request_handoff"
+      ],
+      "knowledge": "Approved active source explicitly authorized for public customer replies; blank handoff preferences."
+    },
+    "support": {
+      "responsibilities": [
+        "answer-questions",
+        "customer-support"
+      ],
+      "requiredTools": [
+        "knowledge.search",
+        "knowledge.read",
+        "channel.request_handoff"
+      ],
+      "absentTools": [
+        "enquiry.submit",
+        "booking.reserve"
+      ]
+    },
+    "booking": {
+      "responsibilities": [
+        "bookings"
+      ],
+      "requiredBinding": "Explicit verified calendar and valid agent booking policy; responsibility selection alone grants no calendar writes.",
+      "grant": "booking.execute only when calendar.book is permitted; availability-only policy omits reserve and write authority."
+    },
+    "intake": {
+      "responsibilities": [
+        "enquiries"
+      ],
+      "configuration": {
+        "capabilities.enquiries": {
+          "enabled": true,
+          "fields": [
+            "name",
+            "email",
+            "message"
+          ]
+        },
+        "tools": [
+          "enquiry.submit"
+        ]
+      },
+      "grant": "enquiry.submit",
+      "externalCrmRequired": false
+    },
+    "combined": {
+      "responsibilities": [
+        "answer-questions",
+        "customer-support",
+        "bookings",
+        "enquiries"
+      ],
+      "requiredBindings": "Approved public knowledge, valid separately authorized calendar policy, configured native enquiry fields and intended connected channels."
+    }
+  },
+  "cases": [
+    {
+      "id": "faq-grounded-answer",
+      "profile": "faq",
+      "driver": "existing_faq_harbor_suite",
+      "authoritativeChecks": [
+        "Accepted immutable version retains approved source revision and matching retrieval receipts.",
+        "Unknown facts do not gain invented citations; evaluate answer quality separately.",
+        "No enquiry or booking operation/grant is exposed for this dedicated minimal profile."
+      ]
+    },
+    {
+      "id": "support-escalation-and-return",
+      "profile": "support",
+      "driver": "existing_inbox_harbor_suite_and_owner_staff_http",
+      "authoritativeChecks": [
+        "channel.request_handoff receipt and canonical Inbox state agree.",
+        "Human takeover prevents new automation side effects until explicit return.",
+        "Staff reply persists and automated return uses current customer conversation authority."
+      ]
+    },
+    {
+      "id": "booking-intent-is-not-calendar-authority",
+      "profile": "booking",
+      "driver": "owner_setup_ui_and_readiness_http",
+      "authoritativeChecks": [
+        "Before calendar authorization, setup reports BOOKING_POLICY_REQUIRED and no booking write is permitted.",
+        "After selecting verified calendar/policy, immutable configuration and accepted grant contain only permitted booking operations."
+      ]
+    },
+    {
+      "id": "booking-exact-confirmation",
+      "profile": "booking",
+      "driver": "owner_website_customer_http",
+      "authoritativeChecks": [
+        "VisitorClient.bookings returns the exact interval, policy and request digest.",
+        "Owner approves with VisitorClient.decide_booking; one matching provider event and native confirmed intent agree.",
+        "Rejected, expired or changed confirmation produces no event; existing native provider cases cover conflict and lost acknowledgement."
+      ]
+    },
+    {
+      "id": "native-intake-confirm-and-persist",
+      "profile": "intake",
+      "driver": "owner_website_customer_http",
+      "authoritativeChecks": [
+        "Visible pending enquiry contains exactly configured fields and the current customer conversation identity.",
+        "No submitted row exists before exact customer confirmation.",
+        "Owner decision uses exact id/digest; enquiry.submit returns submitted state, enquiryId and receiptDigest.",
+        "PlatformClient.submitted_enquiries contains one matching record for the prepared agent, linked task/conversation and submitted timestamp; no external CRM needed."
+      ]
+    },
+    {
+      "id": "native-intake-reject-or-expire",
+      "profile": "intake",
+      "driver": "owner_website_customer_http",
+      "authoritativeChecks": [
+        "Rejected, missing, expired or altered-digest confirmation yields no submitted record.",
+        "Pending or approved proposal alone never establishes successful persistence.",
+        "Exact-current task record determines whether a pending confirmation has expired; no local adapter auto-approval."
+      ]
+    },
+    {
+      "id": "native-intake-boundaries",
+      "profile": "intake",
+      "driver": "owner_authorized_negative_http_fixture",
+      "authoritativeChecks": [
+        "Wrong tenant, another visitor session, unconfigured fields or absent enquiry.submit grant cannot submit/read another enquiry.",
+        "Human takeover/current authority withdrawal blocks pending submission.",
+        "Owner task decisions retain the prepared version and principal; visitor requests carry no staff cookie."
+      ]
+    },
+    {
+      "id": "native-intake-replay",
+      "profile": "intake",
+      "driver": "owner_controlled_fault_fixture",
+      "authoritativeChecks": [
+        "Transport retry preserves exact task, operation identity, decision and digest.",
+        "One native enquiry id and one submitted record remain after lost acknowledgement or tool resume.",
+        "Changing fields under the original operation conflicts instead of silently overwriting stored details."
+      ]
+    },
+    {
+      "id": "combined-knowledge-setup-save",
+      "profile": "combined",
+      "driver": "owner_guided_ui_and_authorized_http",
+      "authoritativeChecks": [
+        "Crawl, select pages, inspect normalization/index readiness, explicitly approve and attach source.",
+        "Final setup save preserves the attached revision and native capability bindings.",
+        "Reload derives approval and attachment from actual persisted records; private or withdrawn knowledge is excluded from customer retrieval."
+      ]
+    },
+    {
+      "id": "combined-responsibility-reconfiguration",
+      "profile": "combined",
+      "driver": "owner_guided_ui_and_authorized_http",
+      "authoritativeChecks": [
+        "Changing language/tone leaves approved sources, connected-tool bindings and authorized calendar policy intact.",
+        "Removing enquiries produces a new saved configuration without enquiry.submit; a fresh accepted version/grant cannot submit.",
+        "Removing bookings disables setup-owned calendar capability for fresh accepted execution; unrelated native intake remains available."
+      ]
+    },
+    {
+      "id": "combined-channel-truth",
+      "profile": "combined",
+      "driver": "owner_channel_setup_ui",
+      "authoritativeChecks": [
+        "Selecting website/WhatsApp/Telegram/Facebook/Instagram alone reports needs_connection, not connected.",
+        "Authorized active bindings appear connected; paused and disconnected bindings retain distinct readiness.",
+        "Actual widget/channel conversation uses the chosen agent, saved model/instructions/public knowledge and permitted tools."
+      ]
+    },
+    {
+      "id": "combined-handoff-enquiry",
+      "profile": "combined",
+      "driver": "owner_customer_and_staff_http",
+      "authoritativeChecks": [
+        "A pending enquiry follows its original customer conversation through escalation.",
+        "Human takeover denies automation submission until authority permits it.",
+        "Submitted staff records and canonical Inbox messages agree; unrelated customer records remain inaccessible."
+      ]
+    }
+  ],
+  "evidence": [
+    "Pinned immutable version/composition and accepted model-route/grant identity",
+    "native-export.json with actual enquiry.submit tool result and task provenance",
+    "Owner-authorized task enquiry DTO plus submitted staff record for native persistence",
+    "Current setup-readiness DTO with draftRevision, requirement gaps and channel states",
+    "Canonical Inbox/channel history and independent calendar event audit when applicable"
+  ],
+  "limitations": [
+    "This is an owner case manifest, not a newly registered runnable Harbor suite.",
+    "No automatic decisions, agent evaluations, model-quality runs or live provider sign-ins were executed.",
+    "Readiness checks saved metadata; readyToTest does not prove live provider credentials or every selected capability works.",
+    "The adapter never provisions elevated grants or changes an active prepared agent to pass a trial.",
+    "Existing FAQ/Inbox suites retain their own graders; native intake requires independent record checks listed here."
+  ]
+}

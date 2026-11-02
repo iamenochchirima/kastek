@@ -27,7 +27,7 @@
     "source_service": { "type": "string", "enum": ["core", "agent-platform", "tenant-platform"] },
     "source_domain": { "type": "string", "minLength": 1 },
     "record_category": { "enum": ["event", "observation", "scope_definition", "manifest"] },
-    "scope_kind": { "enum": ["core_organization", "tenant_workspace", "tenant_client"] },
+    "scope_kind": { "enum": ["core_organization", "tenant_workspace", "tenant_client", "agents_organization"] },
     "scope_external_id": { "type": "string", "minLength": 1 },
     "correlation_id": { "type": "string", "minLength": 1 },
     "causation_id": { "type": "string", "minLength": 1 },

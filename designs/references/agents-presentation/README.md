@@ -2,6 +2,12 @@
 
 Researched 2026-10-11. This is a design recommendation, not a user-tested result. The live landing page has not been changed by this research.
 
+Superseded by the current Agents product direction recorded in the
+[platform architecture](../../../products/agents/docs/architecture/agent-platform-architecture.md).
+This proposal groups public Agents, Growth, and Agencies as three public audiences. The current
+target keeps Growth and Agency agent work inside those products and treats personal assistance as
+one Agents offering. Do not use this note to define the current product categories or UI.
+
 The competitor brief is [agents-presentation-research.md](../agents-presentation-research.md). Desktop screenshots here were captured from the live first-party sites at 1440 × 1000. They document a single browser state, not a site's complete motion or interaction behaviour. Reference images are for analysis, not assets to reuse on KasiTek's landing page.
 
 ## Visual observations
@@ -22,10 +28,9 @@ Microsoft's human-AI guidelines advise communicating system capabilities and mak
 
 This is a review of project documentation and source, not fresh end-to-end verification.
 
-- [Agents README](../../../kasitek-agents/README.md) describes local agent setup, real model replies, knowledge retrieval, approved tools, website publication and inbox teammate replies.
-- [End-to-end implementation plan](../../../kasitek-agents/docs/plans/agents/END_TO_END_IMPLEMENTATION_PLAN.md) records local website/inbox handoff acceptance and an internal-calendar approval followed by a persisted created-event receipt. This gives the business demo a grounded story: request a meeting, review the proposed event, approve it, see the receipt. It does not establish live external calendar-provider acceptance.
-- [Runtime research](../../../kasitek-agents/docs/plans/agents/AGENT_RUNTIME_RESEARCH.md) distinguishes audience, channel and runtime. Customer, business and personal purposes should not imply three unrelated systems.
-- [Personal deployments component](../../../kasitek-agents/client/apps/agent-platform/src/components/platform/personal-deployments.tsx) explicitly labels the filesystem deployment workspace as planned and says deployment controls are not available. A private hosted assistant is distinct from this future personal runtime. A personal scene must specify which experience it depicts before implying availability.
+- The [Agents README](../../../products/agents/README.md) covers local setup. The [implementation status](../../../products/agents/docs/source-boundary.md) records current behavior and verification limits.
+- The [platform architecture](../../../products/agents/docs/architecture/agent-platform-architecture.md) describes the shared backend and separate product interfaces. Personal assistance may use an isolated Lina workspace, but that integration is not implemented.
+- The [personal deployments component](../../../products/agents/web/src/components/platform/personal-deployments.tsx) is retained compatibility UI. Do not present it as an available Lina workspace.
 
 ## Recommended composition
 

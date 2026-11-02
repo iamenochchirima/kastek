@@ -114,3 +114,42 @@ existing invitation and password activation flow. If Resend is not configured,
 the portal displays a development activation link. A local default workspace
 slug is only needed when testing legacy staff/client routes without a selected
 portal URL; partner registration and business creation do not need it.
+
+## Labs customer operations
+
+The development-only customer API requires signed platform authority, not a tenant session or
+`x-admin-secret`. Set `KASITEK_CUSTOMER_OPERATIONS=1` for metadata. Both `NODE_ENV=production`
+and `TENANT_SERVER_ENVIRONMENT=production` disable admission. Actions additionally require their
+names in `KASITEK_CUSTOMER_ACTIONS`, such as `client.suspend,client.resume`.
+
+- `GET /api/admin/customers/:customerId` returns workspace metadata and section availability.
+- `GET /api/admin/customers/:customerId/:collection?limit=50&cursor=<last-id>` returns one section.
+  Collections are clients, staff, domains, api-keys, agents, conversations, usage, limits, plans,
+  deployments and operations. ID keyset pages cap at 100 records.
+- `POST /api/admin/customers/:customerId/operations/preview` checks eligibility without changing state.
+- `POST /api/admin/customers/:customerId/operations` accepts a reasoned client suspend/resume command.
+- `GET /api/admin/customers/:customerId/operations/:operationId` reconciles a receipt.
+
+Reads require `admin:read`; preview and execute require `admin:operate` at the owning service.
+Client commands require the exact parent workspace, target ID and `expected: {state: "active"}`
+for suspension or `{state: "suspended"}` for resumption. Archived clients cannot transition here.
+Commands also require an operation ID and reason. The operation ID binds actor, customer and the
+complete normalized request. Conflicting reuse returns 409; identical reuse returns the original
+receipt. Client status, lifecycle outbox, receipt and audit commit in one transaction. Stale or
+cross-workspace targets produce a durable rejected receipt without changing the target.
+
+The additive `20261023190000_admin_customer_operations.sql` migration retains operation evidence.
+Disable individual actions to stop new effects while keeping metadata, receipt reads and identical
+command reconciliation available. No retention deletion job is installed. Roll back compatible
+code or disable admission without deleting receipts or the lifecycle outbox.
+
+Collections exclude staff email, key material, instructions, messages and arbitrary configuration.
+Agency plan/entitlement and shared deployment sections are unsupported. Configured monthly limits
+have unknown enforcement. Measured usage is the current UTC calendar month and remains exact decimal
+text. Workspace agent/conversation rows are Agency records; arbitrary `external_ref` does not produce
+an Agents execution relationship.
+
+Engineering verification uses `ADMIN_CUSTOMERS_TEST_DATABASE_URL` with a disposable schema. Run
+`pnpm --filter @kasitek/agency-tenants exec tsx --test tests/admin-customers.test.ts` against a local
+test database. It exercises signed HTTP paths, isolation, concurrent commands, receipt recovery and
+transaction rollback. It does not run model or load evals.

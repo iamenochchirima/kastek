@@ -1,5 +1,3 @@
-"use client";
-
 import { Badge } from "@/components/ui/badge";
 import type { BillingCredits, BillingUsage, BillingUsageDay, MeterUsage } from "@/lib/billing";
 import { fetchBillingUsage } from "@/lib/billing-client";

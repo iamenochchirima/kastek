@@ -1,11 +1,12 @@
+import { useLoaderData, type ClientLoaderFunctionArgs } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
 import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs";
 import { fetchBillingCredits, fetchBillingPlans, fetchBillingSummary, fetchBillingUsage } from "@/lib/billing";
 import { fetchCoreJson } from "@/lib/core-server-api";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import { WorkspaceSettingsClient, type WorkspaceProfile } from "./workspace-settings-client";
 
-export const metadata = { title: "Settings | KasiTek" };
+export function meta() { return [{ title: "Settings | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 type SettingsSearchParams = {
   section?: string | string[];
@@ -14,20 +15,19 @@ type SettingsSearchParams = {
   trxref?: string | string[];
 };
 
-export default async function WorkspaceSettingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SettingsSearchParams>;
-}) {
-  const { section, payment, reference, trxref } = await searchParams;
-  const session = await getWorkspaceSession();
-  if (!session?.user?.id) redirect("/login");
+export async function clientLoader(route: ClientLoaderFunctionArgs) {
+  const search = new URL(route.request.url).searchParams;
+  const searchParams = (Object.fromEntries([...search.keys()].map(key => [key, search.getAll(key).length > 1 ? search.getAll(key) : search.get(key)!])) as SettingsSearchParams);
+
+  const { section, payment, reference, trxref } = searchParams;
+  const session = await getWorkspaceSession(route.request);
+  if (!session?.user?.id) throw redirect("/login");
   const sectionValue = Array.isArray(section) ? section[0] : section;
-  if (sectionValue === "api-keys") redirect("/developers/api-keys");
-  const orgs = await fetchOrgs();
-  const activeId = await getActiveOrgId();
+  if (sectionValue === "api-keys") throw redirect("/developers/api-keys");
+  const orgs = await fetchOrgs(route.request);
+  const activeId = await getActiveOrgId(route.request);
   const org: Org | undefined = (activeId ? orgs.find((item) => item.id === activeId) : undefined) ?? orgs[0];
-  if (!org) redirect("/workspace");
+  if (!org) throw redirect("/workspace");
   const [members, billingSummary, billingPlans, billingCredits, billingUsage, profile] = await Promise.all([
     fetchOrgMembers(org.id).catch(() => []),
     fetchBillingSummary().catch(() => null),
@@ -36,7 +36,7 @@ export default async function WorkspaceSettingsPage({
     fetchBillingUsage().catch(() => null),
     fetchCoreJson<WorkspaceProfile>("/api/profile").catch(() => null),
   ]);
-  if (!profile?.user) redirect("/login");
+  if (!profile?.user) throw redirect("/login");
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";
   const initialTab = ["profile", "organization", "appearance", "notifications", "billing", "usage"].includes(sectionValue ?? "")
     ? sectionValue as "profile" | "organization" | "appearance" | "notifications" | "billing" | "usage"
@@ -47,6 +47,11 @@ export default async function WorkspaceSettingsPage({
     trxref: Array.isArray(trxref) ? trxref[0] : trxref,
   };
 
+  return { org, billingSummary, billingPlans, billingCredits, billingUsage, profile, role, initialTab, query };
+}
+
+export default function WorkspaceSettingsPage() {
+  const { org, billingSummary, billingPlans, billingCredits, billingUsage, profile, role, initialTab, query } = useLoaderData<typeof clientLoader>();
   return (
     <WorkspaceSettingsClient
       org={org}

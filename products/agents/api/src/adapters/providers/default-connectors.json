@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "connectors": [
+    {
+      "id": "google-calendar",
+      "revision": 1,
+      "profileId": "google-calendar-v1",
+      "adapterKey": "google-calendar-v1",
+      "kind": "native_api",
+      "name": "Google Calendar",
+      "description": "Check availability and create confirmed appointments in a selected calendar.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "oidc",
+        "issuer": "https://accounts.google.com",
+        "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenEndpoint": "https://oauth2.googleapis.com/token",
+        "jwksUri": "https://www.googleapis.com/oauth2/v3/certs",
+        "scopes": [
+          "openid",
+          "email"
+        ],
+        "callbackPath": "/api/google-calendar/callback",
+        "environment": {
+          "clientId": "GOOGLE_CALENDAR_CLIENT_ID",
+          "clientSecret": "GOOGLE_CALENDAR_CLIENT_SECRET",
+          "callbackUrl": "GOOGLE_CALENDAR_CALLBACK_URL"
+        }
+      },
+      "apiBaseUrl": "https://www.googleapis.com/calendar/v3",
+      "catalogue": {
+        "purposes": [
+          "booking",
+          "customer-service"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure",
+          "calendar.configure"
+        ],
+        "selection": {
+          "kind": "capability",
+          "capability": "businessActions",
+          "profileId": "calendar-booking-v1",
+          "setup": "booking"
+        },
+        "configurationRequired": {
+          "code": "BOOKING_POLICY_REQUIRED",
+          "message": "Choose a shared calendar and configure appointment rules."
+        },
+        "unavailable": {
+          "code": "GOOGLE_OAUTH_NOT_CONFIGURED",
+          "message": "Google Calendar is unavailable until the server OAuth client is configured."
+        }
+      },
+      "setup": {
+        "kind": "calendar_service",
+        "apiPath": "google-calendar",
+        "identityLabel": "Google"
+      },
+      "operations": [
+        {
+          "id": "calendar.availability",
+          "name": "Check availability",
+          "description": "Read availability in the selected calendar.",
+          "effect": "read",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events.freebusy"
+          ]
+        },
+        {
+          "id": "calendar.book",
+          "name": "Book appointments",
+          "description": "Create an appointment after customer confirmation.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "microsoft-calendar",
+      "revision": 1,
+      "profileId": "microsoft-calendar-v1",
+      "adapterKey": "microsoft-calendar-v1",
+      "kind": "native_api",
+      "name": "Microsoft 365 Calendar",
+      "description": "Check availability and create confirmed appointments in a selected calendar.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "oidc",
+        "issuer": "https://login.microsoftonline.com/organizations/v2.0",
+        "authorizationEndpoint": "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
+        "tokenEndpoint": "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+        "jwksUri": "https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access"
+        ],
+        "callbackPath": "/api/providers/microsoft-calendar/callback",
+        "environment": {
+          "clientId": "MICROSOFT_CALENDAR_CLIENT_ID",
+          "clientSecret": "MICROSOFT_CALENDAR_CLIENT_SECRET",
+          "callbackUrl": "MICROSOFT_CALENDAR_CALLBACK_URL"
+        }
+      },
+      "apiBaseUrl": "https://graph.microsoft.com/v1.0",
+      "catalogue": {
+        "purposes": [
+          "booking",
+          "customer-service"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure",
+          "calendar.configure"
+        ],
+        "selection": {
+          "kind": "capability",
+          "capability": "businessActions",
+          "profileId": "calendar-booking-v1",
+          "setup": "booking"
+        },
+        "configurationRequired": {
+          "code": "BOOKING_POLICY_REQUIRED",
+          "message": "Choose a shared calendar and configure appointment rules."
+        },
+        "unavailable": {
+          "code": "PROVIDER_OAUTH_NOT_CONFIGURED",
+          "message": "Microsoft 365 Calendar needs server OAuth configuration."
+        }
+      },
+      "setup": {
+        "kind": "calendar_service",
+        "apiPath": "microsoft-calendar",
+        "identityLabel": "Microsoft"
+      },
+      "operations": [
+        {
+          "id": "calendar.availability",
+          "name": "Check availability",
+          "description": "Read availability in the selected calendar.",
+          "effect": "read",
+          "scopes": [
+            "Calendars.Read"
+          ]
+        },
+        {
+          "id": "calendar.book",
+          "name": "Book appointments",
+          "description": "Create an appointment after customer confirmation.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "Calendars.ReadWrite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hubspot",
+      "revision": 1,
+      "profileId": "hubspot-contacts-v1",
+      "adapterKey": "hubspot-contacts-v1",
+      "kind": "native_api",
+      "name": "HubSpot",
+      "description": "Find contacts and create confirmed customer records.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "oauth2",
+        "authorizationEndpoint": "https://app.hubspot.com/oauth/authorize",
+        "tokenEndpoint": "https://api.hubspot.com/oauth/2026-09/token",
+        "introspectionEndpoint": "https://api.hubspot.com/oauth/2026-09/token/introspect",
+        "scopes": [],
+        "callbackPath": "/api/providers/hubspot/callback",
+        "environment": {
+          "clientId": "HUBSPOT_CLIENT_ID",
+          "clientSecret": "HUBSPOT_CLIENT_SECRET",
+          "callbackUrl": "HUBSPOT_CALLBACK_URL"
+        }
+      },
+      "apiBaseUrl": "https://api.hubapi.com/crm/objects/2026-09",
+      "catalogue": {
+        "purposes": [
+          "customer-service"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure"
+        ],
+        "selection": {
+          "kind": "bindings"
+        },
+        "unavailable": {
+          "code": "PROVIDER_OAUTH_NOT_CONFIGURED",
+          "message": "HubSpot needs server OAuth configuration."
+        }
+      },
+      "setup": {
+        "kind": "crm_service",
+        "apiPath": "hubspot",
+        "identityLabel": "HubSpot"
+      },
+      "operations": [
+        {
+          "id": "contacts.search",
+          "name": "Find contacts",
+          "description": "Find a contact by exact email in operator chats.",
+          "effect": "read",
+          "scopes": [
+            "crm.objects.contacts.read"
+          ]
+        },
+        {
+          "id": "contacts.create",
+          "name": "Create contacts",
+          "description": "Create a contact after exact approval.",
+          "effect": "reviewed_write",
+          "scopes": [
+            "crm.objects.contacts.read",
+            "crm.objects.contacts.write"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "revision": 1,
+      "profileId": "github-public-read-v1",
+      "adapterKey": "github-native-read",
+      "kind": "native_api",
+      "name": "GitHub",
+      "description": "Read selected public GitHub repositories.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "connection_defined"
+      },
+      "apiBaseUrl": "https://api.github.com",
+      "catalogue": {
+        "purposes": [
+          "research"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure"
+        ],
+        "selection": {
+          "kind": "bindings"
+        }
+      },
+      "setup": {
+        "kind": "existing_connections"
+      }
+    },
+    {
+      "id": "stash",
+      "revision": 1,
+      "profileId": "stash-read-v1",
+      "adapterKey": "stash-mcp-read",
+      "kind": "mcp",
+      "name": "Stash",
+      "description": "Read selected Stash items and project documents.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "connection_defined"
+      },
+      "apiBaseUrl": "https://api.stash.kasitek.co.za/mcp",
+      "catalogue": {
+        "purposes": [
+          "research"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure"
+        ],
+        "selection": {
+          "kind": "bindings"
+        }
+      },
+      "setup": {
+        "kind": "existing_connections"
+      }
+    },
+    {
+      "id": "deepwiki",
+      "revision": 1,
+      "profileId": "public-repository-read-v1",
+      "adapterKey": "deepwiki-mcp-read",
+      "kind": "mcp",
+      "name": "DeepWiki",
+      "description": "Read documentation for selected public repositories.",
+      "publisher": {
+        "id": "kasitek",
+        "name": "KasiTek",
+        "verified": true
+      },
+      "auth": {
+        "kind": "none"
+      },
+      "apiBaseUrl": "https://mcp.deepwiki.com/mcp",
+      "catalogue": {
+        "purposes": [
+          "research"
+        ],
+        "products": [
+          "agents"
+        ],
+        "executionKinds": [
+          "business"
+        ],
+        "permissions": [
+          "agent.configure"
+        ],
+        "selection": {
+          "kind": "bindings"
+        }
+      },
+      "setup": {
+        "kind": "existing_connections"
+      }
+    }
+  ]
+}

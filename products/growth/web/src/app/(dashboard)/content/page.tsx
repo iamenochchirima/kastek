@@ -1,6 +1,6 @@
 import { PostsWorkspace } from "@/components/social/posts-workspace";
 
-export const metadata = { title: "Create | KasiTek" };
+export function meta() { return [{ title: "Create | KasiTek" }, { name: "robots", content: "noindex, nofollow" }]; }
 
 export default function ContentPage() {
   return <PostsWorkspace />;

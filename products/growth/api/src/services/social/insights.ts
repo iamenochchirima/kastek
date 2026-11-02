@@ -11,7 +11,7 @@ import { decryptSocialSecret } from "../../integrations/crypto.js";
 import { getSocialPost, listSocialPosts } from "./posts.js";
 import { bad, parseOptionalDatetime, trimmed } from "./common.js";
 import { epochMicros } from "../../analytics/facts.js";
-import { providerJson, type ProviderOptions } from "./provider-publishing.js";
+import { facebookPublishedMutationTarget, providerJson, type ProviderOptions } from "./provider-publishing.js";
 import { SQL } from "./insights-sql.js";
 import type { SocialPost, SocialPublishJob } from "./types.js";
 export const NORMALIZED_INSIGHT_METRICS = [
@@ -734,7 +734,9 @@ async function writeJobObservations(
     try {
       readings = await fetchProviderMetrics(
         credentials.platform,
-        job.external_post_id ?? "",
+        credentials.platform === "FACEBOOK"
+          ? facebookPublishedMutationTarget(job.external_post_id ?? "", job.metadata)
+          : job.external_post_id ?? "",
         token,
         credentials.metadata,
         options,

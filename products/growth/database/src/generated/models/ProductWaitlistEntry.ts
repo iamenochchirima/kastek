@@ -31,6 +31,7 @@ export type ProductWaitlistEntryMinAggregateOutputType = {
   phone: string | null
   email: string | null
   businessType: string | null
+  website: string | null
   notes: string | null
   source: string | null
   status: string | null
@@ -59,6 +60,7 @@ export type ProductWaitlistEntryMaxAggregateOutputType = {
   phone: string | null
   email: string | null
   businessType: string | null
+  website: string | null
   notes: string | null
   source: string | null
   status: string | null
@@ -87,6 +89,7 @@ export type ProductWaitlistEntryCountAggregateOutputType = {
   phone: number
   email: number
   businessType: number
+  website: number
   products: number
   notes: number
   source: number
@@ -120,6 +123,7 @@ export type ProductWaitlistEntryMinAggregateInputType = {
   phone?: true
   email?: true
   businessType?: true
+  website?: true
   notes?: true
   source?: true
   status?: true
@@ -148,6 +152,7 @@ export type ProductWaitlistEntryMaxAggregateInputType = {
   phone?: true
   email?: true
   businessType?: true
+  website?: true
   notes?: true
   source?: true
   status?: true
@@ -176,6 +181,7 @@ export type ProductWaitlistEntryCountAggregateInputType = {
   phone?: true
   email?: true
   businessType?: true
+  website?: true
   products?: true
   notes?: true
   source?: true
@@ -275,11 +281,12 @@ export type ProductWaitlistEntryGroupByArgs<ExtArgs extends runtime.Types.Extens
 
 export type ProductWaitlistEntryGroupByOutputType = {
   id: string
-  businessName: string
+  businessName: string | null
   contactPerson: string
   phone: string | null
   email: string
   businessType: string | null
+  website: string | null
   products: string[]
   notes: string | null
   source: string
@@ -327,11 +334,12 @@ export type ProductWaitlistEntryWhereInput = {
   OR?: Prisma.ProductWaitlistEntryWhereInput[]
   NOT?: Prisma.ProductWaitlistEntryWhereInput | Prisma.ProductWaitlistEntryWhereInput[]
   id?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
-  businessName?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  businessName?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   contactPerson?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   phone?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   email?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   businessType?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  website?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   products?: Prisma.StringNullableListFilter<"ProductWaitlistEntry">
   notes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
@@ -361,11 +369,12 @@ export type ProductWaitlistEntryWhereInput = {
 
 export type ProductWaitlistEntryOrderByWithRelationInput = {
   id?: Prisma.SortOrder
-  businessName?: Prisma.SortOrder
+  businessName?: Prisma.SortOrderInput | Prisma.SortOrder
   contactPerson?: Prisma.SortOrder
   phone?: Prisma.SortOrderInput | Prisma.SortOrder
   email?: Prisma.SortOrder
   businessType?: Prisma.SortOrderInput | Prisma.SortOrder
+  website?: Prisma.SortOrderInput | Prisma.SortOrder
   products?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   source?: Prisma.SortOrder
@@ -399,11 +408,12 @@ export type ProductWaitlistEntryWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.ProductWaitlistEntryWhereInput | Prisma.ProductWaitlistEntryWhereInput[]
   OR?: Prisma.ProductWaitlistEntryWhereInput[]
   NOT?: Prisma.ProductWaitlistEntryWhereInput | Prisma.ProductWaitlistEntryWhereInput[]
-  businessName?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  businessName?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   contactPerson?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   phone?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   email?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   businessType?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  website?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   products?: Prisma.StringNullableListFilter<"ProductWaitlistEntry">
   notes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
@@ -432,11 +442,12 @@ export type ProductWaitlistEntryWhereUniqueInput = Prisma.AtLeast<{
 
 export type ProductWaitlistEntryOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
-  businessName?: Prisma.SortOrder
+  businessName?: Prisma.SortOrderInput | Prisma.SortOrder
   contactPerson?: Prisma.SortOrder
   phone?: Prisma.SortOrderInput | Prisma.SortOrder
   email?: Prisma.SortOrder
   businessType?: Prisma.SortOrderInput | Prisma.SortOrder
+  website?: Prisma.SortOrderInput | Prisma.SortOrder
   products?: Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   source?: Prisma.SortOrder
@@ -469,11 +480,12 @@ export type ProductWaitlistEntryScalarWhereWithAggregatesInput = {
   OR?: Prisma.ProductWaitlistEntryScalarWhereWithAggregatesInput[]
   NOT?: Prisma.ProductWaitlistEntryScalarWhereWithAggregatesInput | Prisma.ProductWaitlistEntryScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
-  businessName?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
+  businessName?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   contactPerson?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
   phone?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   email?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
   businessType?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  website?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   products?: Prisma.StringNullableListFilter<"ProductWaitlistEntry">
   notes?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
@@ -500,11 +512,12 @@ export type ProductWaitlistEntryScalarWhereWithAggregatesInput = {
 
 export type ProductWaitlistEntryCreateInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -533,11 +546,12 @@ export type ProductWaitlistEntryCreateInput = {
 
 export type ProductWaitlistEntryUncheckedCreateInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -566,11 +580,12 @@ export type ProductWaitlistEntryUncheckedCreateInput = {
 
 export type ProductWaitlistEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -599,11 +614,12 @@ export type ProductWaitlistEntryUpdateInput = {
 
 export type ProductWaitlistEntryUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -632,11 +648,12 @@ export type ProductWaitlistEntryUncheckedUpdateInput = {
 
 export type ProductWaitlistEntryCreateManyInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -663,11 +680,12 @@ export type ProductWaitlistEntryCreateManyInput = {
 
 export type ProductWaitlistEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -693,11 +711,12 @@ export type ProductWaitlistEntryUpdateManyMutationInput = {
 
 export type ProductWaitlistEntryUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -729,6 +748,7 @@ export type ProductWaitlistEntryCountOrderByAggregateInput = {
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
   businessType?: Prisma.SortOrder
+  website?: Prisma.SortOrder
   products?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
@@ -760,6 +780,7 @@ export type ProductWaitlistEntryMaxOrderByAggregateInput = {
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
   businessType?: Prisma.SortOrder
+  website?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -788,6 +809,7 @@ export type ProductWaitlistEntryMinOrderByAggregateInput = {
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
   businessType?: Prisma.SortOrder
+  website?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -890,11 +912,12 @@ export type ProductWaitlistEntryUpdateOneRequiredWithoutEventsNestedInput = {
 
 export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationsInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -922,11 +945,12 @@ export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationsInput = {
 
 export type ProductWaitlistEntryUncheckedCreateWithoutEarlyAccessInvitationsInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -959,11 +983,12 @@ export type ProductWaitlistEntryCreateOrConnectWithoutEarlyAccessInvitationsInpu
 
 export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -991,11 +1016,12 @@ export type ProductWaitlistEntryCreateWithoutEarlyAccessInvitationInput = {
 
 export type ProductWaitlistEntryUncheckedCreateWithoutEarlyAccessInvitationInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -1039,11 +1065,12 @@ export type ProductWaitlistEntryUpdateToOneWithWhereWithoutEarlyAccessInvitation
 
 export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1071,11 +1098,12 @@ export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationsInput = {
 
 export type ProductWaitlistEntryUncheckedUpdateWithoutEarlyAccessInvitationsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1114,11 +1142,12 @@ export type ProductWaitlistEntryUpdateToOneWithWhereWithoutEarlyAccessInvitation
 
 export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1146,11 +1175,12 @@ export type ProductWaitlistEntryUpdateWithoutEarlyAccessInvitationInput = {
 
 export type ProductWaitlistEntryUncheckedUpdateWithoutEarlyAccessInvitationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1178,11 +1208,12 @@ export type ProductWaitlistEntryUncheckedUpdateWithoutEarlyAccessInvitationInput
 
 export type ProductWaitlistEntryCreateWithoutEventsInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -1210,11 +1241,12 @@ export type ProductWaitlistEntryCreateWithoutEventsInput = {
 
 export type ProductWaitlistEntryUncheckedCreateWithoutEventsInput = {
   id?: string
-  businessName: string
+  businessName?: string | null
   contactPerson: string
   phone?: string | null
   email: string
   businessType?: string | null
+  website?: string | null
   products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
   notes?: string | null
   source?: string
@@ -1258,11 +1290,12 @@ export type ProductWaitlistEntryUpdateToOneWithWhereWithoutEventsInput = {
 
 export type ProductWaitlistEntryUpdateWithoutEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1290,11 +1323,12 @@ export type ProductWaitlistEntryUpdateWithoutEventsInput = {
 
 export type ProductWaitlistEntryUncheckedUpdateWithoutEventsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
   phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.StringFieldUpdateOperationsInput | string
   businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1367,6 +1401,7 @@ export type ProductWaitlistEntrySelect<ExtArgs extends runtime.Types.Extensions.
   phone?: boolean
   email?: boolean
   businessType?: boolean
+  website?: boolean
   products?: boolean
   notes?: boolean
   source?: boolean
@@ -1402,6 +1437,7 @@ export type ProductWaitlistEntrySelectCreateManyAndReturn<ExtArgs extends runtim
   phone?: boolean
   email?: boolean
   businessType?: boolean
+  website?: boolean
   products?: boolean
   notes?: boolean
   source?: boolean
@@ -1434,6 +1470,7 @@ export type ProductWaitlistEntrySelectUpdateManyAndReturn<ExtArgs extends runtim
   phone?: boolean
   email?: boolean
   businessType?: boolean
+  website?: boolean
   products?: boolean
   notes?: boolean
   source?: boolean
@@ -1466,6 +1503,7 @@ export type ProductWaitlistEntrySelectScalar = {
   phone?: boolean
   email?: boolean
   businessType?: boolean
+  website?: boolean
   products?: boolean
   notes?: boolean
   source?: boolean
@@ -1490,7 +1528,7 @@ export type ProductWaitlistEntrySelectScalar = {
   updatedAt?: boolean
 }
 
-export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "products" | "notes" | "source" | "status" | "cohort" | "contactConsentAt" | "reviewNotes" | "decisionReason" | "reviewedById" | "reviewedAt" | "approvedById" | "approvedAt" | "organizationId" | "earlyAccessInvitationId" | "packageKey" | "packageSnapshot" | "activatedAt" | "earlyAccessEndsAt" | "entitlementGrantIds" | "creditGrantId" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
+export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "website" | "products" | "notes" | "source" | "status" | "cohort" | "contactConsentAt" | "reviewNotes" | "decisionReason" | "reviewedById" | "reviewedAt" | "approvedById" | "approvedAt" | "organizationId" | "earlyAccessInvitationId" | "packageKey" | "packageSnapshot" | "activatedAt" | "earlyAccessEndsAt" | "entitlementGrantIds" | "creditGrantId" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
 export type ProductWaitlistEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   events?: boolean | Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>
   earlyAccessInvitation?: boolean | Prisma.ProductWaitlistEntry$earlyAccessInvitationArgs<ExtArgs>
@@ -1513,11 +1551,12 @@ export type $ProductWaitlistEntryPayload<ExtArgs extends runtime.Types.Extension
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
-    businessName: string
+    businessName: string | null
     contactPerson: string
     phone: string | null
     email: string
     businessType: string | null
+    website: string | null
     products: string[]
     notes: string | null
     source: string
@@ -1972,6 +2011,7 @@ export interface ProductWaitlistEntryFieldRefs {
   readonly phone: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly email: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly businessType: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly website: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly products: Prisma.FieldRef<"ProductWaitlistEntry", 'String[]'>
   readonly notes: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly source: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>

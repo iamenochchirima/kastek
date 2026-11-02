@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/orchestration_lifecycle/v1.schema.json",
+  "title": "Adaptive orchestration aggregate lifecycle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "outcome",
+    "revision",
+    "specialist_tasks",
+    "occurred_at"
+  ],
+  "properties": {
+    "action": {
+      "enum": [
+        "started",
+        "revision",
+        "completed",
+        "failed",
+        "stalled"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "pending",
+        "completed",
+        "incomplete",
+        "refused",
+        "failed",
+        "cancelled",
+        "uncertain"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "specialist_tasks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "x-kasitek": {
+    "identity": "agent.orchestration.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "task_id",
+      "child_task_id",
+      "agent_id",
+      "account_id",
+      "conversation_id",
+      "message",
+      "body",
+      "instruction",
+      "objective",
+      "steps",
+      "questions",
+      "evidence_task_ids",
+      "arguments",
+      "token",
+      "credential"
+    ]
+  }
+}

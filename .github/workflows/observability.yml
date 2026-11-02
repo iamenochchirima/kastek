@@ -33,4 +33,4 @@ jobs:
         run: pnpm --dir products/growth/api build
       - name: Verify native Core telemetry
         working-directory: products/growth/api
-        run: pnpm exec tsx --test tests/foundation.test.ts tests/agent-platform-client.test.ts tests/observability.test.ts
+        run: pnpm exec tsx --test tests/foundation.test.ts tests/growth-agent-telemetry.test.ts tests/legacy-runtime-cutover.test.ts tests/observability.test.ts

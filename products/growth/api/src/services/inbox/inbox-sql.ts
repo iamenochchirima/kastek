@@ -184,22 +184,6 @@ export const TRY_DELIVER_META_TEXT_MESSAGE_0 = `WITH updated_message AS (
         WHERE id = $3
           AND EXISTS (SELECT 1 FROM updated_message)`;
 
-export const DELIVER_AGENT_META_MESSAGE_0 = `SELECT "providerMessageId", "providerStatus"
-        FROM "Message"
-        WHERE "conversationId" = $1
-          AND "providerMetadata"->>'_kasitek_agent_idempotency_key' = $2
-        ORDER BY timestamp DESC
-        LIMIT 1`;
-
-export const DELIVER_AGENT_META_MESSAGE_1 = `INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "providerStatus", "providerMetadata", timestamp)
-        VALUES ($1, $2, 'bot', $3, 'TEXT', 'SENDING', $4::jsonb, $5)`;
-
-export const DELIVER_AGENT_META_MESSAGE_2 = `UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1 AND "orgId" = $2`;
-
-export const DELIVER_AGENT_META_MESSAGE_3 = `UPDATE "Message" SET "providerMessageId" = $1, "providerStatus" = 'SENT', "errorCode" = NULL, "errorMessage" = NULL WHERE id = $2 AND "conversationId" = $3`;
-
-export const DELIVER_AGENT_META_MESSAGE_4 = `UPDATE "Message" SET "providerStatus" = 'FAILED', "errorCode" = $1, "errorMessage" = $2 WHERE id = $3 AND "conversationId" = $4`;
-
 export const MARK_CONVERSATION_READ_0 = `UPDATE "Conversation"
         SET "unreadCount" = 0, "lastReadAt" = NOW(), "updatedAt" = NOW()
         WHERE id = $1`;

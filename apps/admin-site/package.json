@@ -6,12 +6,12 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "dev": "next dev --port 3001",
-    "build": "next build",
+    "dev": "pnpm --filter @kasitek-labs/ui build && next dev --port 3001",
+    "build": "pnpm --filter @kasitek-labs/ui build && next build",
     "start": "next start --port 3001",
     "lint": "eslint",
     "test:smtp": "node scripts/test-zoho-smtp.mjs",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "pnpm --filter @kasitek-labs/ui build && next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@tiptap/extension-link": "^3.20.0",
@@ -23,7 +23,10 @@
     "next-auth": "5.0.0-beta.30",
     "nodemailer": "^7.0.7",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "@kasitek-labs/server-support": "workspace:*",
+    "@kasitek-labs/contracts": "workspace:*",
+    "@kasitek-labs/ui": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

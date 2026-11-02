@@ -1,278 +1,39 @@
-# Agent installation REST API (advanced compatibility)
+# Agent access to Growth REST
 
-For the product-level choice between KasiAi, hosted user agents, and external runtimes, see the
-[agent connection guide](./agent-connection-guide.md).
+Growth REST, external MCP and internal agents share one operation catalogue and exact-review
+execution path. Use `GET /v1/operations` to discover the operations currently available to your
+credential and `POST /v1/operations/{operation}` to invoke one. The body is the operation's
+business arguments, with optional transport controls `_requestId`, `_reviewId` and `_continuation`.
 
-The normal Developers flow uses one workspace Developer API key for Core REST and MCP. This
-document describes the lower-level installation-scoped Agent Platform REST surface for advanced
-or legacy runtimes. It uses the
-same tool registry, installation grants, durable run records, Temporal workflow, approval policy, and
-event timeline as the MCP transport.
+Authenticate with a delegated [Growth OAuth token](./mcp-integration.md), a scoped workspace
+Developer API key, or the normal Growth user session. OAuth access tokens must have been issued
+for the configured Growth MCP resource; tokens for other products or resources are rejected.
+Developer API keys are created in **Developers → API Keys** with explicitly selected scopes; rotation preserves those scopes. Send bearer credentials in the
+`Authorization` header. Browser session writes additionally require Growth's exact Origin.
 
-## Authentication
+The current workspace membership, entitlements, credential status and operation scope are
+checked at execution. `api:read` keys permit reads; `api:write` permits reviewed drafts and does
+not grant publication. Use the explicit `growth:*` scopes for other operation classes.
 
-1. Create a dedicated external-connected installation with `POST /v1/external-agents`. Supply the
-   runtime, protocols, initial capabilities, and optional resource/connector constraints. The
-   response contains a copy-once secret with read/write transport access.
-2. Review or narrow the installation's grants from its control-plane details.
-3. Exchange the one-time credential secret at `POST /v1/installation-tokens/exchange` with
-   `{ "audience": "kasitek-public-api" }`.
-4. Send the returned short-lived bearer token to the endpoints below.
+Every non-read operation requires a stable request identity and an exact user review unless
+its discovery schema explicitly identifies a staging control. On `approval_required`, open
+`review.reviewUrl`. After approval, repeat the unchanged request with its `_reviewId`.
+Do not retry an uncertain outcome with a fresh identity. Read receipts through
+`GET /v1/operation-reviews/{id}`. Large results return bounded JSON chunks; repeat unchanged
+arguments with the returned continuation value in `_continuation`.
 
-The external creation flow does not accept or discover a KasiAi or hosted-agent installation ID.
-Credentials on those modes are rejected by the Agent API.
+[Public API v1](./public-v1.md) documents the typed aliases and legacy headers. All operation
+availability depends on the configured deployment flags; this documentation does not claim that
+a hosted environment has been enabled. The former installation-token exchange and retired
+Agents gateway are unsupported.
 
-Credentials are independently revocable and carry both `api:read` and `api:write` transport scopes.
-Read tools, drafts, writes, and external effects are still constrained by the installation's tool
-grants, resource scopes, availability, and approval policy.
+## Update published Facebook text
 
-Management sessions can list and inspect external identities with `GET /v1/external-agents` and
-`GET /v1/external-agents/{installationId}`. The detail response includes grants, credential status,
-and connection health; `/health` is a smaller health-only projection. `DELETE
-/v1/external-agents/{installationId}` archives the external identity and revokes its active
-credentials atomically. These management routes use the browser/internal organization session, not
-the external bearer token.
-
-## Discover the capability directory
-
-```http
-GET /v1/capabilities/directory
-Authorization: Bearer <organization-session>
-```
-
-The response contains the organization-scoped capability descriptors and named toolsets for
-built-in tools, connectors, published skills and plugins, and published MCP revisions. Discovery
-does not grant a capability, load skill instructions, or make an unconfigured provider executable.
-Each descriptor carries its source, version/checksum, provider, runtime mode, required scopes, and
-credential requirements. The directory is separate from the installation-scoped grant projection
-below; agent-version publication and installation admission remain the points where capabilities
-become executable.
-
-## Discover granted tools
-
-```http
-GET /v1/installations/{installationId}/tools
-Authorization: Bearer <installation-token>
-```
-
-The response contains only tools granted to that installation, including their versions, JSON input
-and output schemas, risk class, approval requirement, and capability metadata. The endpoint is safe
-to call with a read-only API credential. Each tool also exposes an effective-access decision with a
-stable reason code such as `available`, `approval_required`, `provider_not_configured`, or
-`credential_denied`.
-
-## Workspace media
-
-Content tools identify workspace media with stable `assetId` values. If the installation has the
-`content.read` grant, it can call these read-only capabilities:
-
-- `kasitek.core.content_media_get` returns organization-scoped metadata and processing/scan state.
-- `kasitek.core.content_media_preview` returns the same metadata and a short-lived preview URL.
-
-Do not persist preview URLs. A hosted agent response uses the versioned shape below; the Agent
-Platform and each channel gateway resolve the asset at delivery time.
-
-```json
-{
-  "version": "1",
-  "text": "Here is the image.",
-  "media": [
-    {
-      "assetId": "core-asset-id",
-      "kind": "image",
-      "fileName": "announcement.png",
-      "altText": "Payment announcement",
-      "disposition": "inline"
-    }
-  ]
-}
-```
-
-The durable contract contains no provider URL or file bytes. Unsupported or temporarily unavailable
-provider media is delivered through the gateway's documented text/link fallback when possible; the
-text reply is preserved if an attachment cannot be resolved.
-
-## Invoke a tool
-
-```http
-POST /v1/installations/{installationId}/tools/call
-Authorization: Bearer <installation-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "name": "platform.current_time",
-  "arguments": {},
-  "idempotencyKey": "client-operation-123",
-  "toolCallId": "optional-client-call-id"
-}
-```
-
-The response is `202 Accepted` and contains an `operationId`/`runId`. The request is accepted only
-after authentication, installation isolation, tool grants, and durable execution availability have
-been checked. Repeating the same idempotency key for the same credential returns the original run.
-
-### Batch social publishing
-
-Agents with the `content.read` and `content.publish` grants can use these capabilities for one
-approval across the accounts selected in a content draft:
-
-- `kasitek.core.content_post_publish_batch_preflight` checks access, connection health, media,
-  content limits, and target state without publishing.
-- `kasitek.core.content_post_publish_batch` starts one durable, idempotent publish operation for all
-  targets in the approved draft.
-- `kasitek.core.content_post_publish_batch_status` returns aggregate and per-account results.
-- `kasitek.core.content_post_publish_batch_retry` requeues only destinations whose provider failure
-  is confirmed and marked retryable. It never retries published or unconfirmed destinations.
-
-The product surface also exposes `GET /api/social/posts/{postId}/publish-batch` for the latest
-authorized batch, so the web post detail view can show durable progress without a separate internal
-batch lookup.
-
-The product surface exposes `POST /api/social/publish-batches/{batchId}/retry` for the same confirmed
-failure-only retry action. Both retry routes require an idempotency key; Agent callers provide it in
-the delegated capability context.
-
-Preflight returns a snapshot hash. Core rejects the effect if the draft, media, variant, or target
-selection changed after approval. Blocked targets prevent provider jobs from being queued. A timeout
-or provider 5xx is an unknown outcome and must be reconciled before retrying; confirmed published
-targets are excluded from later retries.
-
-## Inspect an operation
-
-```http
-GET /v1/installations/{installationId}/operations/{runId}
-Authorization: Bearer <installation-token>
-```
-
-The response contains the organization-scoped run record and its ordered event timeline. A run from
-another installation is intentionally indistinguishable from a missing operation (`404`).
-
-For a direct REST or MCP capability invocation, the terminal run output contains the redacted tool
-result under `tool` rather than an assistant message. The result is available only after the run is
-`completed`; it is not copied into a conversation response.
-
-```json
-{
-  "status": "completed",
-  "tool": {
-    "name": "platform.current_time",
-    "output": { "iso": "2026-09-08T12:00:00.000Z" }
-  }
-}
-```
-
-For polling clients, use `GET /v1/installations/{installationId}/operations/{runId}/events?after=42`.
-The response includes `nextAfter`, the current status, a terminal flag, and only redacted public
-event fields. Persist the cursor and resume from it after reconnecting.
-
-### Approval groups
-
-When one model turn proposes multiple approval-required effects, the run pauses with one immutable
-approval group. `GET /v1/installations/{installationId}/operations/{runId}` exposes the active
-complete group and its exact child operations; the internal run-detail projection also includes
-historical group summaries. Approve or reject the current group through the Agent
-Platform approval endpoint with the expected plan digest and an `Idempotency-Key`; approving a group
-never approves effects proposed by a later model turn.
-
-```http
-POST /v1/runs/{runId}/approval-group
-Authorization: Bearer <organization-session>
-Idempotency-Key: approval-decision-123
-Content-Type: application/json
-```
-
-```json
-{
-  "groupId": "approval-group-uuid",
-  "planDigest": "sha256-digest",
-  "decision": "approved",
-  "selectedOperationIds": ["runtime-operation-1"],
-  "grantScope": "once"
-}
-```
-
-Omit `selectedOperationIds` to approve every operation in the current group. A selected decision
-authorizes only the listed operation IDs; every other child receives a durable denied outcome.
-`grantScope` defaults to `once`. Set it to `session` only when every selected operation has an
-exact resource selector and the run is bound to a conversation. This creates a reusable grant for
-the same actor, installation, capability version, policy revision, and selected resource until its
-bounded expiry; it never authorizes a different resource or a later unscoped action. Session reuse
-is rejected for unscoped operations, non-conversation runs, or rejected decisions.
-The decision is bound to the digest, installation, capability version, arguments hash, and resource
-snapshot. A stale, expired, changed, or unauthorized request fails closed. A changed resource
-invalidates the group before the decision is accepted and returns `409 approval_group_invalidated`;
-the waiting run records a typed blocked outcome for each child and requires a new proposal. A
-repeated matching decision returns the durable prior outcome and does not signal or execute the
-group again.
-
-## Cancel an operation
-
-```http
-POST /v1/installations/{installationId}/operations/{runId}/cancel
-Authorization: Bearer <installation-token>
-Content-Type: application/json
-```
-
-```json
-{ "reason": "stopped by the agent" }
-```
-
-Cancellation is a durable workflow signal. It does not mutate an in-memory queue and is safe to
-repeat for terminal operations.
-
-## Delete memory or knowledge
-
-`DELETE /v1/memory/{memoryId}` and `DELETE /v1/knowledge/sources/{sourceId}` are permanent within
-the authenticated organization and requested scope. Memory deletion removes the stored memory,
-its embedding and search representation, and any conversation summary derived from that memory.
-Knowledge-source deletion removes the source and all of its chunks. The deletion is rejected while
-an applicable legal hold is active. The deletion ledger keeps only the target type, target ID,
-organization, requester, and completion state; it does not preserve the deleted content.
-
-## Review memory
-
-Organization users can review an imported or inferred memory candidate after inspecting its
-content and provenance:
-
-```http
-POST /v1/memory/{memoryId}/review
-Authorization: Bearer <organization-session>
-Content-Type: application/json
-```
-
-```json
-{
-  "agentId": "agent-uuid",
-  "installationId": "installation-uuid",
-  "decision": "approve",
-  "supersedesMemoryId": "previous-memory-uuid"
-}
-```
-
-`decision` is `approve` or `reject`. Candidates are not returned by runtime retrieval while they
-are `review_pending` or `quarantined`. Approval changes the status to `active`; rejection changes
-it to `rejected`. Scope fields are required to prevent reviewing a record belonging to another
-agent or installation. When the candidate provenance contains a contradiction, approval also
-requires `supersedesMemoryId` for the active conflicting fact. This explicit action marks the old
-record `superseded` and preserves the lineage; it does not delete the old record. Review actions
-are audited.
-
-## Memory lifecycle semantics
-
-The versioned memory path keeps source evidence, immutable revisions, and search projections
-separate. A retrieved item is returned only when its revision is `active`, its projection is
-`visible`, and its organization, workspace, agent version, installation, conversation, and end-user
-scope match the request. Inferred and imported candidates remain `review_pending` until an
-authorized review activates them. Corrections append a new revision and preserve the predecessor's
-validity interval; they do not overwrite history.
-
-Compaction checkpoints persist a redacted evidence envelope before a lossy context projection.
-Deletion is asynchronous and may report `held`, `provider_pending`, or `completed`; completion is
-not reported until canonical rows, local projections, and configured provider copies have been
-purged or confirmed. A legal hold prevents physical purge. These transitions are rollout-controlled
-and may be disabled independently by an operator during migration.
-
-MCP clients use the equivalent `/mcp` JSON-RPC methods. Both transports intentionally converge on the
-same `agent_runs`, approval, tool invocation, receipt, and event records.
+Use `content.posts.update_published` with `postId`, `content` and `expectedUpdatedAt` from
+the current post. This requires `growth:publish` and exact review. It updates the text or
+caption of the existing confirmed Facebook post, retaining its external identity. Add
+`removePhoto: true` to detach its single image after exact review. Omit the flag to retain
+media. Replacement and additional media are unsupported.
+Only Facebook-only posts are supported. A stale revision or changed account requires a new
+review. Reuse the same request identity to reconcile an uncertain result; never publish a
+replacement as an edit.

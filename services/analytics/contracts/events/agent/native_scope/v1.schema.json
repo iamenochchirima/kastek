@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/native_scope/v1.schema.json",
+  "title": "Standalone Agents reporting scope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scope_kind",
+    "scope_external_id",
+    "parent_scope_external_id",
+    "reporting_timezone",
+    "status",
+    "source_version"
+  ],
+  "properties": {
+    "scope_kind": {
+      "type": "string",
+      "const": "agents_organization"
+    },
+    "scope_external_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_scope_external_id": {
+      "type": "null"
+    },
+    "reporting_timezone": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "deleted"
+      ]
+    },
+    "source_version": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "x-kasitek": {
+    "identity": "agent.scope.definition@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "name",
+      "email",
+      "phone",
+      "metadata",
+      "credential",
+      "token"
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import { enqueueGrowthAgentSetup } from "../agents/setup.js";
 import { createId } from '@paralleldrive/cuid2';
 import { randomBytes, createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
@@ -26,6 +27,7 @@ export async function createOrg(context: CoreContext,userId: string,name: string
   catch(error){if((error as {code?:string}).code==='23505')throw new ApiError(409,'conflict','An organisation with that slug already exists');throw error;}
   await tx.query('INSERT INTO "OrganizationMember"(id,"orgId","userId",role,"joinedAt","createdAt","updatedAt") VALUES($1,$2,$3,\'OWNER\'::"OrgRole",NOW(),NOW(),NOW())',[createId(),orgId,userId]);
   try {await enqueueOrganizationScope(tx,orgId,Math.max(1,created.createdAt.getTime()),created.reportingTimezone,'active');}catch(error){throw new ApiError(500,'internal_error',`failed to queue organization Analytics scope: ${error instanceof Error ? error.message : 'unknown error'}`);}
+  await enqueueGrowthAgentSetup(tx,orgId,context.config);
   return created;
  });
  // These effects intentionally occur after org commit, matching the Rust lifecycle boundary.

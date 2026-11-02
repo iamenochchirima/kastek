@@ -1,46 +1,67 @@
-# Agent Platform technical documentation
+# Agents documentation
 
-Current architecture and delivery:
+Model provider setup is available at `/app/settings` under **Model providers**.
+Owners can save multiple encrypted API-key accounts, add manual models with sourced
+metadata, inspect affected agents and schedules, refresh models, run an explicit
+paid generation or tool test, and choose an organization default. OpenRouter,
+OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Groq, Together, Fireworks,
+Moonshot/Kimi and Z.ai have installed adapters with controlled HTTP coverage.
+The chat model picker and Configure select that default or an explicit account and model.
+Chat selection saves immediately through the same confirmation flow. Unsaved Configure edits
+must be saved or discarded first. Environment keys do not populate workspace connections. Saving
+creates configuration snapshots in the background. Admission pins the selected
+account, model metadata, use grant, and effective policy before the shared Restate
+worker runs chat or tool rounds. Existing accepted work retains its selection when
+the default changes; credential revocation still blocks later physical requests.
+Model limits shows effective allowances and reviewed model-specific generation controls.
+Scheduled work also retains its authorized route until an explicit schedule edit.
 
-- [Platform architecture and both agent tracks](architecture/agent-platform-architecture.md)
-- [Platform implementation checklist](plans/agents/AGENT_PLATFORM_DELIVERY_PLAN.md)
-- [Initial React/Vite frontend checklist](plans/agents/FRONTEND_INITIAL_IMPLEMENTATION_PLAN.md)
-- [Filesystem personal runtime checklist](plans/agents/PERSONAL_AGENT_RUNTIME_PLAN.md)
+Provider-native continuation stays in private worker records. Context packing,
+compaction, delegated allocation, and root usage settlement use accepted model
+bindings. Reconnecting requires explicit restoration of revoked agent access. Native
+input counting is available on reviewed OpenAI, Anthropic and Google routes. Other
+routes label estimates explicitly; unenforceable strict spending caps are rejected.
+Evaluation trials pin the exact model route and policy; the external
+Harbor adapter verifies those pins in retained evidence. Independent purpose-suite
+acceptance covers grounded FAQ, Inbox handoff and configured booking on reviewed native routes.
+Campaign publishing remains unsupported. An approved live OpenRouter chat/tool browser path
+passed with MiniMax M3.1 Flash on21 October2026. Other provider accounts were not live-tested. Installed adapters do not establish live
+account compatibility. See [implementation boundaries](source-boundary.md) for
+operator limits, verification scope, and remaining work.
 
-Existing hosted-runtime contracts, to verify against the standalone checkout:
+Owner: Agents engineering. Last reviewed: 2026-10-23.
 
-- [Runtime/Core host boundary](architecture/agent-runtime-host-boundary.md)
-- [AgentSpec](architecture/agent-spec.md)
-- [Conversation ordering](architecture/conversation-ordering.md)
-- [Workflow execution and durable sessions](architecture/workflow-execution.md)
-- [Memory lifecycle](architecture/memory-lifecycle.md)
-- [Tenant isolation inventory](architecture/tenant-isolation-inventory.md)
+The standalone product offers a customer-service agent with selectable question answering, support,
+booking and enquiry responsibilities across customer channels, with a shared inbox for staff
+support. Research and campaign experiences belong in Growth or Agencies. The [product boundary and inbox contract](architecture/agent-platform-architecture.md#standalone-agents-product)
+define that scope. Website Inbox, assignment, human replies, takeover and explicit return to automation
+are implemented. Google Calendar booking is implemented through explicit owner policy and exact customer confirmation.
+Connections now includes setup and agent binding for WhatsApp, Telegram, Messenger and Instagram,
+alongside website appearance/install controls. All share Inbox ownership and durable messaging
+receipts. Meta setup requires a configured provider app and reachable webhook; Telegram requires
+an owner-created bot and reachable webhook. Installed adapters and controlled checks do not
+establish live account acceptance. The separate Booking creation offering remains unavailable.
+A live Google OAuth application has not been accepted.
 
-Operations and recovery:
+The current business harness supports contextual conversations, reviewed personal
+memory, pinned skills, bounded tool rounds, and recorded compaction. Optional
+delegation, isolated analysis, approved Python package scripts, reviewed report delivery, durable automation, approved knowledge revisions and connected read tools are opt-in. These documents describe the maintained
+implementation and boundaries:
 
-- [Approval observability](operations/approval-observability.md)
-- [Memory observability](operations/memory-observability.md)
-- [Approval-group migration and rollback](runbooks/approval-group-migration-rollback.md)
-- [Capability-awareness local verification](runbooks/capability-awareness-local-verification.md)
-- [Database isolation](runbooks/database-isolation.md)
-- [Memory recovery](runbooks/memory-recovery.md)
-- [Memory safety response](runbooks/memory-safety.md)
-- [Remote MCP provider operations](runbooks/remote-mcp-provider-operations.md)
-- [Temporal recovery](runbooks/temporal-recovery.md)
+- [Platform interface](../README.md#platform-interface): landing, chat, history, task review and management navigation.
 
-Decisions and reference material:
+- [Platform architecture](architecture/agent-platform-architecture.md): target contracts and execution categories.
+- [Adaptive orchestration](operations/adaptive-orchestration.md): specialist discovery, background work, follow-up, progress and release controls.
+- [Product capabilities](product-capabilities.md): product-owned tools, presets, current authority and release routing.
+- [Growth integration](growth-integration.md): service keys, managed models, operator controls and product execution.
+- [Implementation boundary](source-boundary.md): current modules, verification, and remaining work.
+- [Agents verification skill](../../../.agents/skills/verify-agents/SKILL.md): owned browser and purpose-specific API checks.
+- [Platform login](architecture/platform-login.md): identity, sessions, and product authorization.
+- [Integration boundaries](mcp-integration.md): outbound read adapters, provider acceptance gates and future product connections.
+- [Threat model](THREAT_MODEL.md): enforced controls and release limits.
 
-- [Plan index and retained source studies](plans/agents/README.md)
-- [Runtime decision](adr/0001-agent-platform-runtime.md)
-- [Durable execution decision](adr/0002-temporal-durable-execution.md)
-- [Database ownership](adr/0003-agent-platform-database.md)
-- [Threat model](THREAT_MODEL.md)
-- [Client integration status](source-boundary.md)
-- [MCP integration](mcp-integration.md)
-- [Capability catalog](generated-capabilities.md)
-
-Older rewrite roadmaps, overlapping plans and the Growth-hosted architecture audit have been removed.
-Historical code and deployment claims in retained contracts/runbooks must be verified during the baseline phase; they do not establish current production readiness.
-
-These documents describe the Agent service. Cross-product contracts that define Core behavior remain
-with the owning product and link here where needed.
+Use the [product setup](../README.md) to run the application and the
+[runtime reference](../../../infra/agents-runtime/README.md) for Restate diagnostics.
+Settled requirements and implementation checklists remain in the linked Linear
+specifications in the architecture document. Deleted operational notes remain in
+Git history.

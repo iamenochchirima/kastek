@@ -1,9 +1,7 @@
-"use client";
-
 import { FormEvent, useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { ArrowLeft, Mail } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -24,7 +22,7 @@ function extractInvitationToken(value: string) {
 }
 
 export function InviteLookupClient() {
-  const router = useRouter();
+  const navigateTo = useNavigate();
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
 
@@ -36,7 +34,7 @@ export function InviteLookupClient() {
       return;
     }
     setError("");
-    router.push("/invite/" + encodeURIComponent(token));
+    navigateTo("/invite/" + encodeURIComponent(token));
   }
 
   return (
@@ -79,7 +77,7 @@ export function InviteLookupClient() {
         <Button type="submit" className="w-full">Continue</Button>
       </form>
 
-      <Link href="/login" className="inline-flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <Link to="/login" className="inline-flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back to sign in
       </Link>

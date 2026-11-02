@@ -1,7 +1,7 @@
-import { AdminCustomerAnalytics } from "@/components/admin/admin-customer-analytics";
+import { ProductReportingPage } from "@/components/admin/product-reporting-page";
 
-export const metadata = { title: "Customer analytics | KasiTek Labs" };
+export const metadata = { title: "Customers and access | KasiTek Labs" };
 
-export default function CustomersPage() {
-  return <div className="admin-page"><AdminCustomerAnalytics /></div>;
+export default function Page() {
+  return <ProductReportingPage domain="customers" />;
 }

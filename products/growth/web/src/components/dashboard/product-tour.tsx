@@ -1,5 +1,3 @@
-"use client";
-
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { apiUrl } from "@/lib/server-api";
 import { Button } from "@/components/ui/button";

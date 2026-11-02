@@ -1,0 +1,204 @@
+/* Customers and inbox share the workspace's compact record treatment. */
+.customer-page, .inbox-page { max-width: none; }
+.customer-page-header h1, .inbox-page > header h1 { font-size: 22px; letter-spacing: -.035em; }
+.customer-tabs { margin-bottom: 0; gap: 24px; }
+.customer-tabs a { padding: 12px 2px; text-decoration: none; }
+.customer-filters { padding: 0 0 4px; gap: 8px; }
+.customer-filters label { color: var(--muted-foreground); font-size: 12px; }
+.customer-filters input, .customer-filters select { height: 36px; color: var(--foreground); }
+.customer-filters button { height: 36px; }
+.customer-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.customer-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.customer-table th { height: 42px; padding: 0 14px; background: var(--muted); color: var(--muted-foreground); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.customer-table td { height: 54px; padding: 9px 14px; border-top: 1px solid var(--border); color: var(--muted-foreground); vertical-align: middle; }
+.customer-table th + th, .customer-table td + td { border-left: 1px solid var(--border); }
+.customer-table tbody tr:hover { background: color-mix(in srgb, var(--muted) 65%, transparent); }
+.customer-table td:first-child { color: var(--foreground); font-weight: 500; }
+.customer-record-link { display: inline-flex; align-items: center; gap: 10px; min-width: 150px; color: var(--foreground); text-decoration: none; }
+.customer-record-link:hover, .customer-enquiry-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.customer-initial { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: 50%; background: var(--muted); color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+.customer-enquiry-link { display: block; max-width: 240px; overflow: hidden; color: var(--foreground); text-overflow: ellipsis; white-space: nowrap; }
+.customer-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 5px; background: var(--muted); white-space: nowrap; font-size: 12px; }
+.customer-status::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ""; }
+.customer-status-new, .customer-status-in_progress { color: var(--brand); background: var(--brand-soft); }
+.customer-status-waiting_on_customer { color: var(--warning); background: var(--status-attention-soft); }
+.customer-status-closed { color: var(--success); background: var(--status-success-soft); }
+.customer-empty { padding: 40px 16px; color: var(--muted-foreground); font-size: 13px; }
+.customer-result-count { color: var(--muted-foreground); font-size: 12px; }
+.customer-detail { max-width: 100%; }
+.customer-detail > header { padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.customer-detail > dl { padding: 0 0 18px; border-bottom: 1px solid var(--border); }
+.customer-detail > section, .customer-detail > details { padding: 0 0 18px; border-bottom: 1px solid var(--border); }
+.customer-detail > section h3 { font-size: 14px; font-weight: 600; }
+.customer-activity-list { margin-left: 5px; border-left: 1px solid var(--line-strong); }
+.customer-activity-list li { position: relative; padding: 0 0 18px 20px; }
+.customer-activity-list li::before { position: absolute; top: 5px; left: -5px; width: 9px; height: 9px; border: 2px solid var(--background); border-radius: 50%; background: var(--brand); content: ""; }
+.customer-detail [aria-label="Internal activity"] li > p:not(:first-child) { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
+.inbox-layout { min-height: max(320px, calc(100dvh - 172px)); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.inbox-list { padding: 10px; border-right: 1px solid var(--border); background: var(--card); }
+.inbox-conversation { border-color: transparent; border-radius: 6px; }
+.inbox-conversation:hover { background: var(--muted); }
+.inbox-conversation.is-selected { border-color: var(--border); background: var(--brand-soft); }
+.inbox-conversation-detail { display: flex; min-height: 0; flex-direction: column; padding: 18px; }
+.inbox-conversation-detail > form { margin-top: auto; }
+.inbox-conversation-detail:has(> p:only-child) { display: grid; place-items: center; }
+.customer-messages article { border-color: var(--border); border-radius: 8px; }
+@media (max-width: 767px) {
+  .customer-page, .inbox-page { padding-inline: 16px; }
+  .customer-table-wrap { overflow: visible; border: 0; }
+  .customer-table, .customer-table tbody { display: block; }
+  .customer-table thead { display: none; }
+  .customer-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+  .customer-table td { display: block; height: auto; min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .customer-table td + td { border-left: 0; }
+  .customer-table td:first-child { grid-column: 1 / -1; }
+  .customer-table td:not(:first-child)::before { display: block; margin-bottom: 3px; color: var(--muted-foreground); content: attr(data-label); font-size: 11px; }
+  .customer-enquiry-link { white-space: normal; overflow-wrap: anywhere; }
+  .inbox-layout { display: block; min-height: max(240px, calc(100dvh - 330px)); }
+  .inbox-list { border-right: 0; }
+}
+.customer-detail-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); align-items: start; gap: 24px; }
+.customer-detail-main, .customer-detail-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.customer-detail-main > dl, .customer-detail-main > details, .customer-detail-main > section, .customer-detail-sidebar > section { margin: 0; padding: 0 0 20px; border: 0; border-bottom: 1px solid var(--border); background: transparent; }
+.customer-detail-main > dl dt { margin-bottom: 4px; }
+.customer-detail-main > details summary { color: var(--muted-foreground); }
+.customer-detail-columns h3 { font-size: 14px; font-weight: 600; }
+.customer-expand-detail { display: none; }
+.customer-detail-identity { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 12px; }
+.customer-detail-avatar { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font-size: 15px; font-weight: 600; }
+.enquiry-detail .customer-detail-main > section { border-bottom: 0; }
+.enquiry-detail .customer-detail-sidebar { order: -1; }
+.enquiry-detail .customer-detail-sidebar > section { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.enquiry-detail .customer-detail-sidebar > section > dl { display: block; }
+.enquiry-detail .customer-detail-sidebar > section > dl > div { display: grid; grid-template-columns: minmax(72px, .65fr) minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.enquiry-detail .customer-detail-sidebar > section > dl > div:last-child { border-bottom: 0; }
+@media (max-width: 900px) { .customer-detail-columns { grid-template-columns: 1fr; } }
+.customer-content { min-width: 0; }
+.customer-list-pane { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.customer-detail-pane { min-width: 0; }
+.customer-detail-pane > button:first-child { margin-bottom: 16px; }
+.customer-table tr.is-selected { background: var(--brand-soft); }
+@media (min-width: 1200px) {
+  .customer-expand-detail { display: inline-flex; }
+  .customer-content.has-selection { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; gap: 24px; }
+  .customer-detail-pane { padding-left: 20px; border-left: 1px solid var(--border); }
+  .customer-detail-pane .customer-detail-columns { grid-template-columns: 1fr; }
+  .customer-content.has-enquiry-full { display: block; }
+  .customer-content.has-enquiry-full .customer-list-pane { display: none; }
+  .customer-content.has-enquiry-full .customer-detail-pane { padding-left: 0; border-left: 0; }
+  .customer-content.has-enquiry-full .customer-detail-columns { grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr); }
+  .customer-content.has-enquiry-full .customer-detail-sidebar { order: 0; }
+}
+@media (max-width: 1199px) {
+  .customer-content.has-selection .customer-list-pane { display: none; }
+}
+
+/* Inbox keeps the queue and conversation together without nesting every item in a card. */
+.inbox-page > header { padding-bottom: 2px; }
+.inbox-heading-subtitle { margin-top: 4px; color: var(--muted-foreground); font-size: 13px; }
+.inbox-filters { margin-block: 20px 16px; align-items: center; }
+.inbox-layout { gap: 0; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); background: var(--background); }
+.inbox-list { padding: 0; background: var(--card); }
+.inbox-list-heading { display: flex; min-height: 54px; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; font-weight: 600; }
+.inbox-list-heading span { color: var(--foreground); font-size: 13px; }
+.inbox-list > .space-y-2 { margin: 0; }
+.inbox-list > .space-y-2 > * + * { margin-top: 0; }
+.inbox-conversation { display: flex; min-height: 76px; align-items: flex-start; gap: 12px; padding: 15px 16px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; transition: background-color .15s; }
+.inbox-conversation.is-selected { background: var(--brand-soft); box-shadow: inset 3px 0 var(--brand); }
+.inbox-conversation-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--background); color: var(--muted-foreground); }
+.inbox-conversation.is-selected .inbox-conversation-icon { color: var(--brand); }
+.inbox-conversation-content { min-width: 0; flex: 1; }
+.inbox-conversation-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--foreground); font-size: 13px; font-weight: 600; }
+.inbox-conversation-title time { flex: none; color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+.inbox-conversation-meta { display: block; margin-top: 6px; color: var(--muted-foreground); font-size: 12px; }
+.inbox-conversation-meta span { padding: 0 2px; }
+.inbox-list > p { padding-inline: 18px; }
+.inbox-conversation-detail { padding: 22px 24px; }
+.inbox-detail-header h2 { font-size: 15px; font-weight: 600; }
+.inbox-detail-header > div:first-child { min-width: 0; }
+.inbox-message-scroll { padding: 14px 0; }
+.customer-messages { display: flex; flex-direction: column; gap: 16px; }
+.customer-messages article { width: fit-content; max-width: min(80%, 640px); margin: 0; padding: 12px 14px; }
+.customer-messages article:has(> p:first-child) { background: var(--muted); }
+.customer-messages article.bg-background { align-self: flex-end; background: var(--card); }
+@media (max-width: 767px) {
+  .inbox-layout { grid-template-columns: none; }
+  .inbox-conversation-detail { padding: 18px 16px; }
+  .customer-messages article { max-width: 92%; }
+}
+.inbox-detail-columns { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) minmax(200px, 250px); gap: 24px; }
+.inbox-context { grid-column: 2; grid-row: 1; min-width: 0; padding-left: 20px; border-left: 1px solid var(--border); }
+.inbox-context > h3 { margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+.inbox-context > dl { display: grid; gap: 14px; font-size: 12px; }
+.inbox-context > dl div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; }
+.inbox-context dt { color: var(--muted-foreground); }
+.inbox-context dd { overflow-wrap: anywhere; }
+.inbox-context section { padding-top: 16px; border-top: 1px solid var(--border); }
+.inbox-thread { display: flex; min-width: 0; flex-direction: column; grid-column: 1; grid-row: 1; }
+.inbox-thread > form { margin-top: auto; }
+@media (max-width: 1050px) {
+  .inbox-detail-columns { display: flex; flex-direction: column; gap: 16px; }
+  .inbox-thread { order: 0; }
+  .inbox-context { order: 1; padding: 16px 0 0; border-top: 1px solid var(--border); border-left: 0; }
+  .inbox-context > dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) { .inbox-context > dl { grid-template-columns: 1fr; } }
+
+/* Keep each desktop Inbox pane usable when its content exceeds the viewport. */
+@media (min-width: 1051px) and (min-height: 700px) {
+  .workspace-main:has(.inbox-page) > .workspace-outlet { height: 100%; }
+  .inbox-page { display: flex; height: 100%; min-height: 0; flex-direction: column; }
+  .inbox-layout { flex: 1; min-height: 0; }
+  .inbox-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .inbox-queue-heading { position: sticky; top: 0; z-index: 1; background: var(--card); }
+  .inbox-conversation-detail { overflow: hidden; }
+  .inbox-context { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .inbox-thread { min-height: 0; }
+  .inbox-message-scroll { flex: 1; min-height: 0; max-height: none; overscroll-behavior: contain; }
+}
+
+/* The queue owns its heading and controls, leaving the conversation pane clear. */
+.inbox-layout { grid-template-columns: minmax(350px, 420px) minmax(0, 1fr); }
+.inbox-queue-column { min-width: 0; border-right: 1px solid var(--border); background: var(--card); }
+.inbox-queue-column > header { padding: 20px 16px 0; }
+.inbox-queue-column > header h1 { font-size: 22px; letter-spacing: -.035em; }
+.inbox-queue-column .inbox-filters { padding: 0 16px; }
+.inbox-queue-column .inbox-list { border-right: 0; }
+@media (min-width: 1051px) and (min-height: 700px) {
+  .inbox-queue-column { display: flex; min-height: 0; flex-direction: column; }
+  .inbox-queue-column .inbox-list { flex: 1; }
+}
+@media (max-width: 767px) {
+  .inbox-queue-column { border-right: 0; }
+  .inbox-queue-column.has-selection { display: none; }
+}
+
+.inbox-back { display: none; }
+@media (max-width: 1050px) {
+  .inbox-layout { display: block; }
+  .inbox-queue-column { border-right: 0; }
+  .inbox-queue-column.has-selection { display: none; }
+  .inbox-conversation-detail:has(> .inbox-no-selection) { display: none; }
+  .inbox-back { display: inline-flex; }
+}
+
+/* Keep secondary queue controls behind a compact disclosure. */
+.inbox-queue-column .inbox-filters { margin-block: 16px 12px; }
+.inbox-filter-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); font-size: 13px; font-weight: 500; cursor: pointer; list-style: none; }
+.inbox-filter-toggle::-webkit-details-marker { display: none; }
+.inbox-filter-toggle:hover { background: var(--muted); }
+.inbox-filter-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.inbox-filter-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--muted); font-size: 11px; }
+.inbox-filter-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.inbox-filter-controls select { width: 100%; min-width: 0; padding-inline: 8px 4px; font-size: 12px; }
+
+/* Keep the conversation wide; details are available on demand. */
+.inbox-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+.inbox-detail-columns { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.inbox-context { position: absolute; z-index: 2; grid-column: 1; top: 0; right: 0; bottom: 0; width: min(300px, 100%); min-height: 0; overflow-y: auto; padding: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / .12); }
+.inbox-context[hidden] { display: none; }
+.inbox-context > dl { grid-template-columns: 1fr; }
+@media (max-width: 1050px) {
+  .inbox-layout { display: block; }
+  .inbox-context { order: initial; }
+}

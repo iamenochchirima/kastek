@@ -9,6 +9,8 @@ import {
 import { SerdeFloat } from '@kasitek-labs/server-support/json';
 import { parseSerdeValueJson } from '../json.js';
 import type { CoreContext } from '../context.js';
+import { transaction } from '../db.js';
+import { revokeGrowthOAuthForUsers } from '../oauth/revocation.js';
 import {
   providerRequest,
   setting,
@@ -156,11 +158,17 @@ export async function backchannelLogout(
       await db.query('DELETE FROM "Session" WHERE "providerSid"=$1', [
         claims.sid,
       ]);
-    else
+    else {
+      const affected = await db.query<{userId:string}>(
+        'SELECT "userId" FROM "ExternalIdentity" WHERE issuer=$1 AND subject=$2',
+        [issuer, claims.sub],
+      );
       await db.query(
         'DELETE FROM "Session" WHERE "userId" IN (SELECT "userId" FROM "ExternalIdentity" WHERE issuer=$1 AND subject=$2)',
         [issuer, claims.sub],
       );
+      await revokeGrowthOAuthForUsers(db,affected.rows.map(row=>row.userId));
+    }
     await db.query('DELETE FROM "OidcLogoutReplay" WHERE expires<NOW()');
     await db.query('COMMIT');
   } catch (error) {
@@ -205,5 +213,8 @@ export async function logoutAll(
   } catch {
     throw unavailable();
   }
-  await context.pool.query('DELETE FROM "Session" WHERE "userId"=$1', [userId]);
+  await transaction(context.pool,async db => {
+    await db.query('DELETE FROM "Session" WHERE "userId"=$1', [userId]);
+    await revokeGrowthOAuthForUsers(db,[userId]);
+  });
 }

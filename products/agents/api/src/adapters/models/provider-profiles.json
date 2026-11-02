@@ -1,0 +1,122 @@
+[
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://openrouter.ai/docs/api/api-reference/models/get-models",
+    "adapter": { "id": "openrouter-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "protocol": "openai_responses",
+    "baseUrl": "https://api.openai.com/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://developers.openai.com/api/reference/overview",
+    "adapter": { "id": "openai-responses", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "protocol": "anthropic_messages",
+    "baseUrl": "https://api.anthropic.com/v1",
+    "auth": { "kind": "header", "headerName": "x-api-key" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://platform.claude.com/docs/en/api/overview",
+    "adapter": { "id": "anthropic-messages", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "google",
+    "name": "Google Gemini",
+    "protocol": "google_generate_content",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "auth": { "kind": "header", "headerName": "x-goog-api-key" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://ai.google.dev/api/models",
+    "adapter": { "id": "google-generate-content", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "xai",
+    "name": "xAI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.x.ai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://docs.x.ai/developers/rest-api-reference/inference",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.deepseek.com",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://api-docs.deepseek.com/quick_start",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral AI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://docs.mistral.ai/api",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://console.groq.com/docs/openai",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.together.ai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://docs.together.ai/docs/inference/openai-compatibility",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks AI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "curated" },
+    "officialDocsUrl": "https://docs.fireworks.ai/tools-sdks/openai-compatibility",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "moonshot",
+    "name": "Moonshot AI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.moonshot.ai/v1",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "models_endpoint", "path": "/models" },
+    "officialDocsUrl": "https://platform.kimi.ai/docs/api/chat",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  },
+  {
+    "id": "zai",
+    "name": "Z.AI",
+    "protocol": "openai_chat_completions",
+    "baseUrl": "https://api.z.ai/api/paas/v4",
+    "auth": { "kind": "bearer" },
+    "discovery": { "kind": "curated" },
+    "officialDocsUrl": "https://docs.z.ai/api-reference/introduction",
+    "adapter": { "id": "openai-chat-completions", "revision": "2", "readiness": "installed" }
+  }
+]

@@ -1,12 +1,10 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { loginUrl } from "@/lib/shared-login";
 import { Button } from "@/components/ui/button";
 
 export default function LoginForm({ signup = false }: { signup?: boolean }) {
-  const params = useSearchParams();
+  const [params] = useSearchParams();
   const returnTo = params.get("returnTo") ?? params.get("callbackUrl");
   return (
     <div className="space-y-5">
@@ -15,7 +13,7 @@ export default function LoginForm({ signup = false }: { signup?: boolean }) {
         <a href={loginUrl(returnTo, signup)}>{signup ? "Create account" : "Continue to sign in"}</a>
       </Button>
       <p className="text-center text-sm text-muted-foreground">
-        <Link href={`${signup ? "/login" : "/signup"}?returnTo=${encodeURIComponent(returnTo ?? "/workspace")}`} className="text-primary hover:underline">
+        <Link to={`${signup ? "/login" : "/signup"}?returnTo=${encodeURIComponent(returnTo ?? "/workspace")}`} className="text-primary hover:underline">
           {signup ? "Already have an account? Sign in" : "Create an account"}
         </Link>
       </p>

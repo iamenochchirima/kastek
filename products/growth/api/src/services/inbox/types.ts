@@ -45,7 +45,6 @@ export interface InboxOptions {
   fetch?: typeof fetch;
   whatsapp: WhatsappInboxPorts;
   publishEvent?: (orgId: string, event: unknown) => Promise<void>;
-  forwardMessage?: (input: ObjectValue) => Promise<void>;
 }
 export interface ConversationRow {
   id: string;

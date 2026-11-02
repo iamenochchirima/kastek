@@ -1,5 +1,6 @@
+import { useLoaderData } from "react-router";
 import { getWorkspaceSession } from "@/lib/core-auth";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router";
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { fetchCoreJson } from "@/lib/core-server-api";
@@ -47,13 +48,13 @@ type CoreSocialChannel = {
   id: string;
   platform: string;
   status: string;
-  display_name: string;
+  displayName: string;
   handle: string | null;
 };
 
-export default async function InboxPage() {
-  const session = await getWorkspaceSession();
-  if (!session) redirect("/login");
+export async function clientLoader({ request }: { request: Request }) {
+  const session = await getWorkspaceSession(request);
+  if (!session) throw redirect("/login");
   const [
     connectionsPayload,
     sharedConnectionsPayload,
@@ -78,7 +79,12 @@ export default async function InboxPage() {
     ),
   ]);
 
-  const connections = connectionsPayload.connections || [];
+  return { connectionsPayload, sharedConnectionsPayload, conversationsPayload, socialChannelsPayload, emailConnectionsPayload };
+}
+
+export default function InboxPage() {
+  const { connectionsPayload, sharedConnectionsPayload, conversationsPayload, socialChannelsPayload, emailConnectionsPayload } = useLoaderData<typeof clientLoader>();
+    const connections = connectionsPayload.connections || [];
   const conversations = conversationsPayload.conversations || [];
   const socialChannels = socialChannelsPayload.channels || [];
   const emailConnections = emailConnectionsPayload.connections || [];
@@ -145,7 +151,7 @@ export default async function InboxPage() {
             )
             .map((channel) => ({
               id: channel.id,
-              label: channel.display_name,
+              label: channel.displayName,
               handle: channel.handle,
             })),
           facebook: socialChannels
@@ -154,10 +160,12 @@ export default async function InboxPage() {
             )
             .map((channel) => ({
               id: channel.id,
-              label: channel.display_name,
+              label: channel.displayName,
               handle: channel.handle,
             })),
         }}
       />
   );
 }
+
+export function meta() { return [{ name: "robots", content: "noindex, nofollow" }]; }

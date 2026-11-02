@@ -129,35 +129,47 @@ export async function changeClientStatus(
     status = requested === "deleted" ? "archived" : requested;
   if (!["active", "suspended", "archived"].includes(status))
     throw bad("status must be active, suspended, or archived");
-  return transaction(context.pool, async (tx) => {
-    const row = (
-      await tx.query(
-        `SELECT c.status,COALESCE(c.reporting_timezone,w.reporting_timezone) AS timezone FROM tenant_clients c JOIN workspaces w ON w.id=c.workspace_id WHERE c.id=$1 AND c.workspace_id=$2 FOR UPDATE`,
-        [client, workspace],
-      )
-    ).rows[0];
-    if (!row) throw missing("tenant client not found");
-    if (row.status === status)
-      return { clientId: client, status: requested, changed: false };
-    await tx.query(
-      `UPDATE tenant_clients SET status=$1,updated_at=NOW() WHERE id=$2 AND workspace_id=$3`,
-      [status, client, workspace],
-    );
-    await clientEvents(
-      tx,
-      workspace,
-      client,
-      row.timezone,
-      status === "archived" ? "deleted" : status,
-      status === "active"
-        ? "activated"
-        : status === "archived"
-          ? "deleted"
-          : "suspended",
-    );
-    return { clientId: client, status: requested, changed: true };
-  });
+  return transaction(context.pool, (tx) => changeClientStatusInTransaction(tx, workspace, client, requested));
 }
+
+/** Caller owns the transaction so state, lifecycle outbox and command receipt commit together. */
+export async function changeClientStatusInTransaction(
+  tx: import("pg").PoolClient,
+  workspace: string,
+  client: string,
+  input: string,
+) {
+  const requested = asciiLower(input.trim()), status = requested === "deleted" ? "archived" : requested;
+  if (!["active", "suspended", "archived"].includes(status)) throw bad("status must be active, suspended, or archived");
+
+  const row = (
+    await tx.query(
+      `SELECT c.status,COALESCE(c.reporting_timezone,w.reporting_timezone) AS timezone FROM tenant_clients c JOIN workspaces w ON w.id=c.workspace_id WHERE c.id=$1 AND c.workspace_id=$2 FOR UPDATE`,
+      [client, workspace],
+    )
+  ).rows[0];
+  if (!row) throw missing("tenant client not found");
+  if (row.status === status)
+    return { clientId: client, status: requested, changed: false };
+  await tx.query(
+    `UPDATE tenant_clients SET status=$1,updated_at=NOW() WHERE id=$2 AND workspace_id=$3`,
+    [status, client, workspace],
+  );
+  await clientEvents(
+    tx,
+    workspace,
+    client,
+    row.timezone,
+    status === "archived" ? "deleted" : status,
+    status === "active"
+      ? "activated"
+      : status === "archived"
+        ? "deleted"
+        : "suspended",
+  );
+  return { clientId: client, status: requested, changed: true };
+}
+
 async function assignmentEvents(
   tx: import("pg").PoolClient,
   session: TenantUserSessionContext,

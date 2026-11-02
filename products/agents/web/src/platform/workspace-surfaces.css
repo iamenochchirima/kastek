@@ -1,0 +1,18 @@
+/* Compact source and automation rows share the workspace's neutral surfaces. */
+.workspace-record-list { border-top: 1px solid var(--border); }
+.workspace-record { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.workspace-record-heading { display: flex; align-items: flex-start; min-width: 0; gap: .875rem; }
+.workspace-record-icon { display: grid; place-items: center; flex: 0 0 2.25rem; width: 2.25rem; height: 2.25rem; border: 1px solid var(--border); border-radius: .5rem; color: var(--muted-foreground); background: var(--card); }
+.workspace-record-copy { min-width: 0; padding-top: .05rem; }
+.workspace-record-copy h2 { font-size: .875rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.workspace-record-copy p { margin-top: .2rem; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; }
+.workspace-record-extra { margin-left: 3.125rem; }
+.settings-heading { display: flex; align-items: center; gap: .625rem; }
+.settings-heading svg { color: var(--muted-foreground); flex-shrink: 0; }
+.task-detail-back { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted-foreground); font-size: .8125rem; }
+.task-detail-back:hover { color: var(--foreground); }
+.task-detail-request { border: 1px solid var(--border); border-radius: .5rem; background: var(--card); padding: 1rem; }
+@media (max-width: 640px) {
+  .workspace-record-heading { gap: .65rem; }
+  .workspace-record-extra { margin-left: 0; }
+}

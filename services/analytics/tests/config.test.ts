@@ -5,6 +5,8 @@ const base={ANALYTICS_DATABASE_URL:'postgres://unused/analytics'};
 test('Analytics config retains dedicated DB, raw numeric parsing and optional primary precedence',()=>{
  assert.throws(()=>readConfig({DATABASE_URL:'postgres://wrong'}),/ANALYTICS_DATABASE_URL/);
  assert.equal(readConfig({...base,PORT:'8123'}).api_port,8123);
+ assert.equal(readConfig(base).reporting_database_url,null);
+ assert.equal(readConfig({...base,ANALYTICS_REPORTING_DATABASE_URL:' postgres://reader/analytics '}).reporting_database_url,'postgres://reader/analytics');
  assert.equal(readConfig({...base,ANALYTICS_API_PORT:'',PORT:'8123'}).api_port,4300);
  for(const value of ['0','65536',' 4300 ','-1'])assert.throws(()=>readConfig({...base,ANALYTICS_API_PORT:value}),/invalid value/);
  assert.equal(readConfig({...base,ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS:'18446744073709551615'}).database_acquire_timeout_ms,18446744073709551615n);

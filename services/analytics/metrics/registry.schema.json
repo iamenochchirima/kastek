@@ -58,7 +58,7 @@
         "deduplication": { "enum": ["none", "source_entity", "conversation", "recipient"] },
         "descendant_aggregation": { "enum": ["sum", "ratio_of_sums", "deduplicated", "latest", "weighted_average"] },
         "supported_intervals": { "type": "array", "minItems": 1, "items": { "enum": ["hour", "day", "week", "month"] } },
-        "scope_kinds": { "type": "array", "minItems": 1, "items": { "enum": ["core_organization", "tenant_workspace", "tenant_client"] } },
+        "scope_kinds": { "type": "array", "minItems": 1, "items": { "enum": ["core_organization", "tenant_workspace", "tenant_client", "agents_organization"] } },
         "dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "permissions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "privacy_class": { "enum": ["aggregate", "restricted", "sensitive"] },
@@ -117,7 +117,7 @@
         "description": { "type": "string", "minLength": 1 },
         "metrics": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+@[0-9]+$" } },
         "default_interval": { "enum": ["hour", "day", "week", "month"] },
-        "scope_kinds": { "type": "array", "minItems": 1, "items": { "enum": ["core_organization", "tenant_workspace", "tenant_client"] } },
+        "scope_kinds": { "type": "array", "minItems": 1, "items": { "enum": ["core_organization", "tenant_workspace", "tenant_client", "agents_organization"] } },
         "permissions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
       }
     }

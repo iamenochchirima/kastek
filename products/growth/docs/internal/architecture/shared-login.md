@@ -1,5 +1,15 @@
 # Growth shared login
 
+This page describes the current Growth login contract. Keycloak 26.6.0 is also selected for the
+initial standalone Agents product, with a separate application client and fresh Agents membership
+records. Shared identity does not synchronize product permissions or workspace membership.
+
+Growth keeps its own authorization. Its shared-execution integration is not implemented yet.
+Embedded features will not require an Agents-product account or subscription. The target execution
+architecture is recorded in `products/agents/docs/architecture/agent-platform-architecture.md` in
+the repository. This browser login contract does not define external MCP OAuth access or machine
+delegation.
+
 Labs operates Keycloak. Growth never accepts human passwords, Google authorization codes,
 OTP codes, or email-verification tokens. Passwords, Google, passkeys, optional MFA and
 recovery are configured in the Labs realm. A local account is keyed by the verified issuer

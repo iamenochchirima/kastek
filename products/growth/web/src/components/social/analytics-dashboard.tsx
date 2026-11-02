@@ -1,8 +1,6 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -344,7 +342,7 @@ export function AnalyticsDashboard() {
               {insights?.posts.length ? insights.posts.map((post) => (
                 <div key={post.postId} className="rounded-md border border-border p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <Link href={`/content/posts/${post.postId}`} className="min-w-0 hover:underline">
+                    <Link to={`/content/posts/${post.postId}`} className="min-w-0 hover:underline">
                       <div className="truncate text-sm font-semibold">{post.title || post.contentPreview || "Untitled post"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">{post.publishedAt ? new Date(post.publishedAt).toLocaleString("en-ZA") : "Published"}</div>
                     </Link>
@@ -385,7 +383,7 @@ export function AnalyticsDashboard() {
             ))}
           </div>
           <MotionReveal delay={0.16}><Card><CardHeader><CardTitle>Campaign delivery</CardTitle><CardDescription>WhatsApp delivery and read totals are separate from social publishing metrics.</CardDescription></CardHeader><CardContent className="space-y-3">
-            {campaigns.length ? campaigns.slice(0, 10).map((campaign) => <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="flex flex-col gap-2 rounded-md bg-secondary/50 p-4 text-sm transition-colors duration-[150ms] hover:bg-secondary sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 truncate font-semibold">{campaign.name}</span><span className="text-muted-foreground sm:shrink-0">{campaign.deliveredCount} delivered · {campaign.readCount} read · {campaign.failedCount} failed</span></Link>) : <p className="text-sm text-muted-foreground">No campaigns have been created yet.</p>}
+            {campaigns.length ? campaigns.slice(0, 10).map((campaign) => <Link key={campaign.id} to={`/campaigns/${campaign.id}`} className="flex flex-col gap-2 rounded-md bg-secondary/50 p-4 text-sm transition-colors duration-[150ms] hover:bg-secondary sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 truncate font-semibold">{campaign.name}</span><span className="text-muted-foreground sm:shrink-0">{campaign.deliveredCount} delivered · {campaign.readCount} read · {campaign.failedCount} failed</span></Link>) : <p className="text-sm text-muted-foreground">No campaigns have been created yet.</p>}
           </CardContent></Card></MotionReveal>
         </>}
       </div>

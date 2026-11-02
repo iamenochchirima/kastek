@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/assistant_lifecycle/v1.schema.json",
+  "title": "Private organization assistant lifecycle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "channel_type", "occurred_at"],
+  "properties": {
+    "action": {"enum": ["provisioned", "restored", "link_challenge_created", "link_pending", "link_confirmed", "link_revoked", "task_admitted", "task_completed"]},
+    "channel_type": {"enum": ["app", "telegram", "whatsapp"]},
+    "occurred_at": {"type": "string", "format": "date-time"}
+  },
+  "x-kasitek": {
+    "identity": "agent.assistant.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["phone_number", "sender_id", "account_id", "link_id", "message", "body", "token", "credential", "arguments"]
+  }
+}

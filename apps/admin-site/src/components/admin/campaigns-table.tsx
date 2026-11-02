@@ -1,5 +1,6 @@
 "use client";
 
+import { adminRequest } from "@/lib/admin-request";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -25,16 +26,18 @@ export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] })
 
   async function handleDelete(id: string) {
     setError(null);
-    setPendingDelete(null);
     setDeleting(id);
-    const response = await fetch(`/api/outreach/${id}`, { method: "DELETE" });
-    if (!response.ok) setError("Unable to delete campaign.");
-    setDeleting(null);
-    router.refresh();
+    try {
+      await adminRequest(`/api/outreach/${id}`, { method: "DELETE" });
+      setPendingDelete(null);
+      router.refresh();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to delete campaign"); }
+    finally { setDeleting(null); }
+
   }
 
   return (
-    <div className="v-card overflow-hidden">
+    <div className="v-card overflow-x-auto">
       {error ? <p role="alert" className="border-b border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">{error}</p> : null}
       {campaigns.length === 0 ? (
         <div className="p-12 text-center">
@@ -93,7 +96,7 @@ export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] })
                   <td className="px-4 py-3 text-sm text-foreground">{c.replies}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{rate}%</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(c.createdAt).toLocaleDateString()}
+                    {new Date(c.createdAt).toLocaleDateString("en-ZA", { timeZone: "UTC" })}
                   </td>
                   <td className="px-4 py-3">
                     <button

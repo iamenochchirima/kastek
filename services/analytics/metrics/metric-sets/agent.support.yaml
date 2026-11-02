@@ -1,0 +1,13 @@
+kind: metric_sets
+definitions:
+  - key: agent.support
+    version: 1
+    owner: analytics
+    lifecycle: active
+    description: Customer-support handoff and response metrics.
+    metrics:
+      - agent.support.lifecycle_events@1
+      - agent.support.response_time_ms@1
+    default_interval: day
+    scope_kinds: [agents_organization]
+    permissions: [analytics:read]

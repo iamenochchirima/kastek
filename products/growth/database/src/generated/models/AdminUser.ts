@@ -198,6 +198,7 @@ export type AdminUserWhereInput = {
   role?: Prisma.StringFilter<"AdminUser"> | string
   createdAt?: Prisma.DateTimeFilter<"AdminUser"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AdminUser"> | Date | string
+  sessions?: Prisma.AdminSessionListRelationFilter
   assignedLeads?: Prisma.QuoteRequestListRelationFilter
   supportAccessGrants?: Prisma.AdminSupportAccessGrantListRelationFilter
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantListRelationFilter
@@ -213,6 +214,7 @@ export type AdminUserOrderByWithRelationInput = {
   role?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  sessions?: Prisma.AdminSessionOrderByRelationAggregateInput
   assignedLeads?: Prisma.QuoteRequestOrderByRelationAggregateInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantOrderByRelationAggregateInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantOrderByRelationAggregateInput
@@ -231,6 +233,7 @@ export type AdminUserWhereUniqueInput = Prisma.AtLeast<{
   role?: Prisma.StringFilter<"AdminUser"> | string
   createdAt?: Prisma.DateTimeFilter<"AdminUser"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AdminUser"> | Date | string
+  sessions?: Prisma.AdminSessionListRelationFilter
   assignedLeads?: Prisma.QuoteRequestListRelationFilter
   supportAccessGrants?: Prisma.AdminSupportAccessGrantListRelationFilter
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantListRelationFilter
@@ -272,6 +275,7 @@ export type AdminUserCreateInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
@@ -287,6 +291,7 @@ export type AdminUserUncheckedCreateInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
@@ -302,6 +307,7 @@ export type AdminUserUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
@@ -317,6 +323,7 @@ export type AdminUserUncheckedUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
@@ -466,6 +473,20 @@ export type AdminUserUpdateOneWithoutAssignedLeadsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUserUpdateToOneWithWhereWithoutAssignedLeadsInput, Prisma.AdminUserUpdateWithoutAssignedLeadsInput>, Prisma.AdminUserUncheckedUpdateWithoutAssignedLeadsInput>
 }
 
+export type AdminUserCreateNestedOneWithoutSessionsInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutSessionsInput, Prisma.AdminUserUncheckedCreateWithoutSessionsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutSessionsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+}
+
+export type AdminUserUpdateOneRequiredWithoutSessionsNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutSessionsInput, Prisma.AdminUserUncheckedCreateWithoutSessionsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutSessionsInput
+  upsert?: Prisma.AdminUserUpsertWithoutSessionsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUserUpdateToOneWithWhereWithoutSessionsInput, Prisma.AdminUserUpdateWithoutSessionsInput>, Prisma.AdminUserUncheckedUpdateWithoutSessionsInput>
+}
+
 export type AdminUserCreateWithoutSavedReportsInput = {
   id?: string
   name: string
@@ -474,6 +495,7 @@ export type AdminUserCreateWithoutSavedReportsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
@@ -488,6 +510,7 @@ export type AdminUserUncheckedCreateWithoutSavedReportsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
@@ -518,6 +541,7 @@ export type AdminUserUpdateWithoutSavedReportsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
@@ -532,6 +556,7 @@ export type AdminUserUncheckedUpdateWithoutSavedReportsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
@@ -546,6 +571,7 @@ export type AdminUserCreateWithoutReportExportEventsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
@@ -560,6 +586,7 @@ export type AdminUserUncheckedCreateWithoutReportExportEventsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
@@ -590,6 +617,7 @@ export type AdminUserUpdateWithoutReportExportEventsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
@@ -604,6 +632,7 @@ export type AdminUserUncheckedUpdateWithoutReportExportEventsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
@@ -618,6 +647,7 @@ export type AdminUserCreateWithoutSupportAccessGrantsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
   savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
@@ -632,6 +662,7 @@ export type AdminUserUncheckedCreateWithoutSupportAccessGrantsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
   savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
@@ -651,6 +682,7 @@ export type AdminUserCreateWithoutSupportAccessGrantsIssuedInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
@@ -665,6 +697,7 @@ export type AdminUserUncheckedCreateWithoutSupportAccessGrantsIssuedInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
@@ -695,6 +728,7 @@ export type AdminUserUpdateWithoutSupportAccessGrantsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
   savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
@@ -709,6 +743,7 @@ export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
   savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
@@ -734,6 +769,7 @@ export type AdminUserUpdateWithoutSupportAccessGrantsIssuedInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
@@ -748,6 +784,7 @@ export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsIssuedInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
@@ -762,6 +799,7 @@ export type AdminUserCreateWithoutAssignedLeadsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionCreateNestedManyWithoutAdminInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
   savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
@@ -776,6 +814,7 @@ export type AdminUserUncheckedCreateWithoutAssignedLeadsInput = {
   role?: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  sessions?: Prisma.AdminSessionUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
   savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
@@ -806,6 +845,7 @@ export type AdminUserUpdateWithoutAssignedLeadsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUpdateManyWithoutAdminNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
   savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
@@ -820,6 +860,83 @@ export type AdminUserUncheckedUpdateWithoutAssignedLeadsInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.AdminSessionUncheckedUpdateManyWithoutAdminNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminUserCreateWithoutSessionsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
+}
+
+export type AdminUserUncheckedCreateWithoutSessionsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
+}
+
+export type AdminUserCreateOrConnectWithoutSessionsInput = {
+  where: Prisma.AdminUserWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutSessionsInput, Prisma.AdminUserUncheckedCreateWithoutSessionsInput>
+}
+
+export type AdminUserUpsertWithoutSessionsInput = {
+  update: Prisma.XOR<Prisma.AdminUserUpdateWithoutSessionsInput, Prisma.AdminUserUncheckedUpdateWithoutSessionsInput>
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutSessionsInput, Prisma.AdminUserUncheckedCreateWithoutSessionsInput>
+  where?: Prisma.AdminUserWhereInput
+}
+
+export type AdminUserUpdateToOneWithWhereWithoutSessionsInput = {
+  where?: Prisma.AdminUserWhereInput
+  data: Prisma.XOR<Prisma.AdminUserUpdateWithoutSessionsInput, Prisma.AdminUserUncheckedUpdateWithoutSessionsInput>
+}
+
+export type AdminUserUpdateWithoutSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminUserUncheckedUpdateWithoutSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
   savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
@@ -832,6 +949,7 @@ export type AdminUserUncheckedUpdateWithoutAssignedLeadsInput = {
  */
 
 export type AdminUserCountOutputType = {
+  sessions: number
   assignedLeads: number
   supportAccessGrants: number
   supportAccessGrantsIssued: number
@@ -840,6 +958,7 @@ export type AdminUserCountOutputType = {
 }
 
 export type AdminUserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  sessions?: boolean | AdminUserCountOutputTypeCountSessionsArgs
   assignedLeads?: boolean | AdminUserCountOutputTypeCountAssignedLeadsArgs
   supportAccessGrants?: boolean | AdminUserCountOutputTypeCountSupportAccessGrantsArgs
   supportAccessGrantsIssued?: boolean | AdminUserCountOutputTypeCountSupportAccessGrantsIssuedArgs
@@ -855,6 +974,13 @@ export type AdminUserCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Ex
    * Select specific fields to fetch from the AdminUserCountOutputType
    */
   select?: Prisma.AdminUserCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * AdminUserCountOutputType without action
+ */
+export type AdminUserCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AdminSessionWhereInput
 }
 
 /**
@@ -901,6 +1027,7 @@ export type AdminUserSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   role?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  sessions?: boolean | Prisma.AdminUser$sessionsArgs<ExtArgs>
   assignedLeads?: boolean | Prisma.AdminUser$assignedLeadsArgs<ExtArgs>
   supportAccessGrants?: boolean | Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>
   supportAccessGrantsIssued?: boolean | Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>
@@ -941,6 +1068,7 @@ export type AdminUserSelectScalar = {
 
 export type AdminUserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "password" | "role" | "createdAt" | "updatedAt", ExtArgs["result"]["adminUser"]>
 export type AdminUserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  sessions?: boolean | Prisma.AdminUser$sessionsArgs<ExtArgs>
   assignedLeads?: boolean | Prisma.AdminUser$assignedLeadsArgs<ExtArgs>
   supportAccessGrants?: boolean | Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>
   supportAccessGrantsIssued?: boolean | Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>
@@ -954,6 +1082,7 @@ export type AdminUserIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Ex
 export type $AdminUserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "AdminUser"
   objects: {
+    sessions: Prisma.$AdminSessionPayload<ExtArgs>[]
     assignedLeads: Prisma.$QuoteRequestPayload<ExtArgs>[]
     supportAccessGrants: Prisma.$AdminSupportAccessGrantPayload<ExtArgs>[]
     supportAccessGrantsIssued: Prisma.$AdminSupportAccessGrantPayload<ExtArgs>[]
@@ -1362,6 +1491,7 @@ readonly fields: AdminUserFieldRefs;
  */
 export interface Prisma__AdminUserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  sessions<T extends Prisma.AdminUser$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   assignedLeads<T extends Prisma.AdminUser$assignedLeadsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$assignedLeadsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$QuoteRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   supportAccessGrants<T extends Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSupportAccessGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   supportAccessGrantsIssued<T extends Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSupportAccessGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -1788,6 +1918,30 @@ export type AdminUserDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * Limit how many AdminUsers to delete.
    */
   limit?: number
+}
+
+/**
+ * AdminUser.sessions
+ */
+export type AdminUser$sessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminSession
+   */
+  select?: Prisma.AdminSessionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AdminSession
+   */
+  omit?: Prisma.AdminSessionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminSessionInclude<ExtArgs> | null
+  where?: Prisma.AdminSessionWhereInput
+  orderBy?: Prisma.AdminSessionOrderByWithRelationInput | Prisma.AdminSessionOrderByWithRelationInput[]
+  cursor?: Prisma.AdminSessionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AdminSessionScalarFieldEnum | Prisma.AdminSessionScalarFieldEnum[]
 }
 
 /**

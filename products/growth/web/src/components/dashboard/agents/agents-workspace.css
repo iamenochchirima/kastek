@@ -1,0 +1,51 @@
+.growth-agents-workspace [data-slot="tabs-trigger"][data-state="active"] { color: var(--primary); background:transparent; border-color:transparent transparent var(--primary); box-shadow:none; }
+.growth-agents-feature { display:flex; min-width:0; min-height:180px; flex-direction:column; border:1px solid var(--border); border-radius:8px; padding:20px; background:var(--card); }
+.growth-agents-table-wrap { overflow:hidden; border:1px solid var(--border); border-radius:7px; }
+.growth-agents-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:13px; text-align:left; }
+.growth-agents-table th { padding:9px 14px; background:var(--secondary); color:var(--muted-foreground); font-size:12px; font-weight:500; }
+.growth-agents-table th:first-child { width:42%; }
+.growth-agents-table th:last-child { width:25%; }
+.growth-agents-table td { height:44px; padding:10px 14px; border-top:1px solid var(--border); overflow-wrap:anywhere; }
+.growth-agents-table td:last-child { color:var(--muted-foreground); font-size:12px; }
+.growth-agents-table tr:has(a:hover), .growth-agents-table tr:has(a:focus-visible) { background:var(--secondary); }
+.growth-agents-record-link { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--foreground); text-decoration:none; }
+.growth-agents-record-link:hover { color:var(--primary); }
+.growth-agents-record-link:focus-visible { outline:2px solid var(--ring); outline-offset:3px; border-radius:2px; }
+.growth-agents-task-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.growth-agents-mobile-meta { display:none; }
+.growth-agents-task-table th:first-child { width:34%; }
+.growth-agents-task-table th:last-child { width:16%; }
+.growth-agent-chat-header { min-height:76px; }
+.growth-agent-context-compact { max-width:65%; }
+.growth-agent-context-compact [data-context-action] { min-height:32px; }
+@media (max-width:639px) {
+ .growth-agents-feature { min-height:164px; padding:16px; }
+ .growth-agents-tabs { gap:20px; overflow-x:auto; }
+ .growth-agents-table th,.growth-agents-table td { padding:10px; }
+ .growth-agents-table th:nth-child(2),.growth-agents-table td:nth-child(2) { display:none; }
+ .growth-agents-table th:first-child { width:65%; }
+ .growth-agents-table th:last-child { width:35%; }
+ .growth-agents-task-table th:first-child { width:45%; }
+ .growth-agents-task-table th:last-child { width:22%; }
+ .growth-agents-task-table td:last-child a { min-width:44px; min-height:44px; padding:8px; }
+ .growth-agents-mobile-meta { display:block; margin-top:4px; color:var(--muted-foreground); font-size:11px; }
+ .growth-agent-chat-header { min-height:64px; }
+ .growth-agent-context-compact { max-width:100%; }
+ .growth-agent-context-compact [data-context-action] { min-height:44px; }
+}
+
+.growth-agents-task-status[data-task-state="waiting_review"] { border-radius:99px; padding:3px 8px; background:var(--status-attention-soft); color:var(--status-attention); }
+.growth-agents-task-status[data-task-state="waiting_review"]::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+@media (max-width:639px) {
+ .growth-agents-feature button,.growth-agents-feature a { min-height:44px; }
+ .growth-agent-chat form button[aria-label="Send message"] { width:44px; height:44px; }
+}
+
+.growth-agents-tabs>[data-slot="tabs-trigger"] { flex:none; padding-left:8px; padding-right:8px; }
+.growth-agent-composer-controls { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; }
+.growth-agent-composer-controls .growth-agent-context-compact { display:contents; }
+.growth-agent-composer-controls [data-context-chip] { grid-column:1/-1; justify-self:start; }
+.growth-agent-composer-controls [data-context-action] { justify-self:start; min-width:0; max-width:100%; }
+.growth-agent-composer-controls>button { flex-shrink:0; }
+.growth-agents-workspace h1 { font-size:28px; line-height:1.2; }
+.growth-agents-workspace #recent-conversations,.growth-agents-workspace #ongoing-work { font-size:16px; }

@@ -1,3 +1,4 @@
+import { adminFixtureToken, seedAdminFixtureSessions } from "./helpers/admin-fixture.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
@@ -130,6 +131,7 @@ test(
       authenticated = true,
     ) => {
       const headers = new Headers(init.headers);
+      if (!["GET", "HEAD"].includes(init.method ?? "GET")) headers.set("origin",front);
       if (authenticated && cookies.size)
         headers.set(
           "cookie",
@@ -163,6 +165,7 @@ test(
         `INSERT INTO "AdminUser"(id,name,email,password,role,"updatedAt") VALUES('fixture-admin','Fixture admin','admin@example.test',$1,'admin',NOW()),('fixture-viewer','Fixture viewer','viewer@example.test',$1,'viewer',NOW())`,
         [password],
       );
+      await seedAdminFixtureSessions(fixture.pool);
       const deadline = Date.now() + 30000;
       let ready = false;
       while (Date.now() < deadline && child.exitCode === null) {
@@ -258,7 +261,7 @@ test(
       const cookie = login.headers.get("set-cookie")!;
       assert.match(cookie, /HttpOnly/i);
       assert.match(cookie, /SameSite=lax/i);
-      assert.equal(cookies.get("kasitek_admin_session"), "fixture-admin");
+      assert.equal(cookies.get("kasitek_admin_session")?.length, 43);
       const lead = await post("/api/leads", {
         businessName: "Synthetic consumer company",
         contactPerson: "Fixture Person",
@@ -439,8 +442,7 @@ test(
         ).status,
         401,
       );
-      // CRM source handlers authorize a valid Admin session, without a viewer-role
-      // write restriction. Report mutation/export handlers have a stricter role gate.
+      // Both proxy and backend reject unauthorized writes and exports.
       assert.equal(
         (await post("/api/leads", { businessName: "Denied" }, false)).status,
         401,
@@ -455,7 +457,8 @@ test(
         ).status,
         401,
       );
-      cookies.set("kasitek_admin_session", "fixture-viewer");
+      await fixture.pool.query('UPDATE "AdminSession" SET "revokedAt"=NULL');
+      cookies.set("kasitek_admin_session", adminFixtureToken("fixture-viewer"));
       assert.equal((await request("/api/leads")).status, 200);
       assert.equal(
         (
@@ -479,7 +482,7 @@ test(
         ).rows[0].count,
         1,
       );
-      cookies.set("kasitek_admin_session", "fixture-admin");
+      cookies.set("kasitek_admin_session", adminFixtureToken("fixture-admin"));
       const logout = await post("/api/core/admin/logout", {});
       assert.equal(logout.status, 200);
       assert.equal((await request("/api/leads")).status, 401);

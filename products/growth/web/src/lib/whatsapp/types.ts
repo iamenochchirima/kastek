@@ -1,11 +1,3 @@
-import type {
-  WhatsappCampaign,
-  WhatsappCampaignRecipient,
-  WhatsappConnection,
-  WhatsappContact,
-  WhatsappTemplate,
-} from "@kasitek/database";
-
 export type MarketingVariableSource = "static" | "contact";
 
 export type MarketingVariableMapping = {
@@ -56,22 +48,6 @@ export type CampaignEligibilitySummary = {
     excluded: number;
     cooldown: number;
   };
-};
-
-export type CreateCampaignResult = {
-  campaign: WhatsappCampaign;
-  createdRecipients: number;
-  skipped: CampaignEligibilitySummary["skipped"];
-};
-
-export type WhatsappConnectionSafe = Omit<WhatsappConnection, "accessTokenEncrypted">;
-
-export type CampaignWithDetails = WhatsappCampaign & {
-  connection: WhatsappConnection;
-  template: WhatsappTemplate | null;
-  recipients: (WhatsappCampaignRecipient & {
-    contact: WhatsappContact;
-  })[];
 };
 
 export type SendMarketingTemplateInput = {

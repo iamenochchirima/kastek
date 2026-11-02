@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
+import { buildApp } from "../src/app.js";
 import { readConfig } from "../src/config.js";
 import { installPgTimestampParsers } from "../src/db.js";
 import { encryptSocialSecret } from "../src/integrations/crypto.js";
@@ -33,6 +34,7 @@ import {
 } from "../src/services/whatsapp/templates.js";
 import {
   createCampaign,
+  preflightCampaign,
   getCampaign,
   getCampaignSummary,
   launchCampaign,
@@ -48,8 +50,10 @@ import {
 import { runWhatsappCampaigns } from "../src/workers/whatsapp-campaigns.js";
 import {
   WHATSAPP_MARKETING_ROUTES,
+  registerWhatsappMarketingRoutes,
   contactUpdateInput,
   campaignCreateInput,
+  campaignActionCapability,
   contactListQuery,
 } from "../src/routes/whatsapp.js";
 import { SerdeFloat } from "@kasitek-labs/server-support/json";
@@ -69,7 +73,7 @@ test("WhatsApp normalization, transport integers, template variables and provide
     null,
   );
   assert.equal(variablesCount("{{1}} {{unfinished {{2}}"), 3);
-  assert.equal(WHATSAPP_MARKETING_ROUTES.length, 16);
+  assert.equal(WHATSAPP_MARKETING_ROUTES.length, 17);
   assert.throws(() => campaignCreateInput({ batchSize: new SerdeFloat(1) }));
   assert.throws(() => contactUpdateInput({ optIn: "true" }));
   assert.throws(() => contactListQuery({ cursor: "-1" }));
@@ -313,6 +317,7 @@ test(
       const template = (await listTemplates(pool, "org", "APPROVED"))
         .templates[0];
       assert.equal(template.variablesCount, 1);
+      assert.equal(template.connectionId, "connection");
       const createdTemplate = await createTemplate(
         pool,
         "user",
@@ -333,12 +338,41 @@ test(
         consentConfirmed: true,
       });
       const foreign = (await listContacts(pool, "foreign", {})).contacts[0];
+      const preflight = await preflightCampaign(
+        pool,
+        "org",
+        {
+          list_label: "vip",
+          excluded_contact_ids: [foreign.contactId],
+        },
+        options,
+      );
+      assert.deepEqual(preflight, {
+        totalContacts: 2,
+        eligibleRecipients: 2,
+        skipped: { notOptedIn: 0, excluded: 0, cooldown: 0 },
+      });
+      assert.deepEqual(
+        await preflightCampaign(
+          pool,
+          "foreign",
+          { list_label: "vip" },
+          options,
+        ),
+        {
+          totalContacts: 0,
+          eligibleRecipients: 0,
+          skipped: { notOptedIn: 0, excluded: 0, cooldown: 0 },
+        },
+      );
+      const future = new Date(Date.now() + 86400000).toISOString();
       const campaign = await createCampaign(
         pool,
         "user",
         "org",
         {
           name: "Synthetic campaign",
+          scheduled_at: future,
           connection_id: "connection",
           template_id: template.id,
           list_label: "vip",
@@ -350,7 +384,17 @@ test(
         options,
       );
       const id = campaign.campaign.id;
-      assert.equal(campaign.createdRecipients, 2);
+      assert.equal(campaign.createdRecipients, preflight.eligibleRecipients);
+      assert.equal(campaign.campaign.status, "DRAFT");
+      assert.equal(
+        (
+          await pool.query(
+            `SELECT COUNT(*)::int AS count FROM "WhatsappCampaignRecipient" WHERE "campaignId"=$1 AND status='QUEUED'`,
+            [id],
+          )
+        ).rows[0].count,
+        0,
+      );
       await assert.rejects(
         getCampaignSummary(pool, "foreign", id),
         /Campaign not found/,
@@ -359,13 +403,87 @@ test(
         (await getCampaign(pool, "org", id)).campaign.recipients.length,
         2,
       );
-      await launchCampaign(pool, "user", "org", id, null, 2, options);
+      await assert.rejects(
+        launchCampaign(
+          pool,
+          "user",
+          "org",
+          id,
+          "2020-01-01T00:00:00Z",
+          2,
+          options,
+        ),
+        /future/,
+      );
+      await assert.rejects(
+        launchCampaign(pool, "user", "org", id, "invalid", 2, options),
+        /invalid/,
+      );
+      const instantDraft = await createCampaign(
+        pool,
+        "user",
+        "org",
+        {
+          name: "Immediate override",
+          connection_id: "connection",
+          template_id: template.id,
+          list_label: "vip",
+          scheduled_at: future,
+        },
+        options,
+      );
+      const immediate = await launchCampaign(
+        pool,
+        "user",
+        "org",
+        instantDraft.campaign.id,
+        null,
+        2,
+        options,
+      );
+      assert.equal(immediate.status, "SENDING");
+      assert.equal(immediate.scheduledAt, null);
+      assert.equal(
+        (await getCampaignSummary(pool, "org", instantDraft.campaign.id))
+          .campaign.scheduled_at,
+        null,
+      );
+      await cancelCampaign(
+        pool,
+        "user",
+        "org",
+        instantDraft.campaign.id,
+        options,
+      );
+      await deleteCampaign(pool, "org", instantDraft.campaign.id);
+      const launches = await Promise.allSettled([
+        launchCampaign(pool, "user", "org", id, undefined, 2, options),
+        launchCampaign(pool, "user", "org", id, undefined, 2, options),
+      ]);
+      assert.equal(
+        launches.filter((result) => result.status === "fulfilled").length,
+        1,
+      );
+      assert.equal(
+        (await getCampaignSummary(pool, "org", id)).campaign.status,
+        "SCHEDULED",
+      );
+      assert.equal(await processQueuedCampaignRecipients(pool, 10, options), 0);
       await pauseCampaign(pool, "user", "org", id, options);
       assert.equal(
         (await getCampaignSummary(pool, "org", id)).campaign.status,
         "PAUSED",
       );
+      await resumeCampaign(pool, "user", "org", id, undefined, options);
+      assert.equal(
+        (await getCampaignSummary(pool, "org", id)).campaign.status,
+        "SCHEDULED",
+      );
+      await pauseCampaign(pool, "user", "org", id, options);
       await resumeCampaign(pool, "user", "org", id, null, options);
+      const resumed = (await getCampaignSummary(pool, "org", id)).campaign;
+      assert.equal(resumed.status, "SENDING");
+      assert.equal(resumed.scheduled_at, null);
       await pool.query(
         `UPDATE "WhatsappCampaignRecipient" SET status='PROCESSING',"updatedAt"=NOW()-INTERVAL '5 minutes' WHERE id=(SELECT id FROM "WhatsappCampaignRecipient" WHERE "campaignId"=$1 ORDER BY "createdAt" LIMIT 1)`,
         [id],
@@ -440,3 +558,92 @@ test(
     }
   },
 );
+
+test("campaign lifecycle route dispatch requires send capability for queue mutations", () => {
+  for (const action of ["resume", "retry_failed", "send_more"])
+    assert.equal(campaignActionCapability(action), "feature.campaigns.send");
+  for (const action of ["pause", "cancel", "repair_status", null])
+    assert.equal(campaignActionCapability(action), "feature.campaigns.manage");
+});
+
+test("read-only campaign preflight uses authoritative membership consent, exclusions and cooldown", async () => {
+  const contacts = [
+    { id: "eligible", opt_in: true },
+    { id: "no-consent", opt_in: false },
+    { id: "membership-excluded", opt_in: true, excluded: true },
+    { id: "manual-excluded", opt_in: true },
+    { id: "recent", opt_in: true, last_marketing_sent: new Date() },
+  ].map((contact) => ({
+    tags: [],
+    excluded: false,
+    last_marketing_sent: null,
+    ...contact,
+  }));
+  const pool = {
+    async query(sql: string, values: unknown[]) {
+      assert.match(sql, /SELECT/);
+      assert.doesNotMatch(sql, /INSERT|UPDATE|DELETE/);
+      assert.match(sql, /m\."listLabel" = \$2/);
+      assert.deepEqual(values, ["org", "vip"]);
+      return { rows: contacts };
+    },
+  } as any;
+  assert.deepEqual(
+    await preflightCampaign(
+      pool,
+      "org",
+      {
+        list_label: "VIP",
+        excluded_contact_ids: ["manual-excluded"],
+        batch_size: 1,
+      },
+      {
+        config,
+        publishEvent: async () => {
+          throw Error("Unexpected publication");
+        },
+      },
+    ),
+    {
+      totalContacts: 5,
+      eligibleRecipients: 1,
+      skipped: { notOptedIn: 1, excluded: 2, cooldown: 1 },
+    },
+  );
+});
+
+test("campaign preflight requires authentication and retains typed duplicate-field validation", async () => {
+  const app = await buildApp(
+    {
+      config,
+      pool: {
+        query() {
+          throw Error("Unauthenticated preflight must not access data");
+        },
+      } as any,
+    },
+    [registerWhatsappMarketingRoutes],
+  );
+  try {
+    assert.equal(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/whatsapp/campaigns/preflight",
+          payload: { listLabel: "vip" },
+        })
+      ).statusCode,
+      401,
+    );
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/api/whatsapp/campaigns/preflight",
+      headers: { "content-type": "application/json" },
+      payload: '{"batchSize":1,"batchSize":2}',
+    });
+    assert.equal(duplicate.statusCode, 400);
+    assert.match(duplicate.body, /duplicate field/);
+  } finally {
+    await app.close();
+  }
+});

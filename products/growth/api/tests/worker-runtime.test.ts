@@ -24,7 +24,8 @@ test("source process modes retain dedicated, combined and embedded worker bounda
   assert.equal(processWorkers("not-a-source-process"), undefined);
   assert.equal(processWorkers("toString"), undefined);
   assert.equal(API_WORKERS.includes("analytics_publisher" as never), false);
-  assert.equal(API_WORKERS.length, 7);
+  assert.equal(API_WORKERS.length, 8);
+  assert.deepEqual(processWorkers("growth-agent-setup-worker"), ["growth_agent_setup"]);
   for (const disabled of ["1", "TRUE", "yes", " on "])
     assert.equal(apiWorkersEnabled(disabled), false);
   for (const enabled of [undefined, "", "0", "false"])

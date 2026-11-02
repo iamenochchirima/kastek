@@ -77,7 +77,7 @@ export default function WebServicesImportForm() {
           importResults.push({ category: file.category, count: 0, error: data.error });
         } else {
           const data = await res.json();
-          importResults.push({ category: file.category, count: data.imported });
+          importResults.push({ category: file.category, count: data.inserted });
         }
       } catch {
         importResults.push({ category: file.category, count: 0, error: "Network error" });

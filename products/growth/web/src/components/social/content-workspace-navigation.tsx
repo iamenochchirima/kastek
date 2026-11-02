@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "react-router";
 import { BarChart3, CalendarDays, FileText, Pencil } from "lucide-react";
 
 export type ContentWorkspaceView = "posts" | "calendar" | "history" | "analytics";
@@ -20,7 +18,7 @@ export function ContentWorkspaceNavigation({ active }: { active: ContentWorkspac
         return (
           <Link
             key={item.href}
-            href={item.href}
+            to={item.href}
             aria-current={item.view === active ? "page" : undefined}
             className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
               item.view === active

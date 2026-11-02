@@ -46,7 +46,7 @@ const config = {
         { to: "/development", label: "Development", position: "left" },
         { to: "/architecture", label: "Architecture", position: "left" },
         {
-          href: "https://github.com/Kasitek-Labs/kasitek-agents/tree/main/docs/plans/agents",
+          href: "https://github.com/Kasitek-Labs/kastek/tree/main/products/agents/docs",
           label: "Agent Platform",
           position: "left",
         },

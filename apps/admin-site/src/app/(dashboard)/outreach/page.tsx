@@ -1,7 +1,7 @@
 import { fetchFromCore } from "@/lib/admin-auth";
 import Link from "next/link";
 import CampaignsTable from "@/components/admin/campaigns-table";
-import OutreachDeleteAllButton from "@/components/admin/outreach-delete-all";
+import Pagination from "@/components/admin/pagination";
 import AddOutreachLead from "@/components/admin/add-outreach-lead";
 import OutreachSyncDraftsButton from "@/components/admin/outreach-sync-drafts-button";
 import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
@@ -19,9 +19,13 @@ type Campaign = {
   createdAt: string;
 };
 
-export default async function OutreachPage() {
-  const res = await fetchFromCore("/api/admin/outreach");
-  const campaigns: Campaign[] = res.ok ? await res.json() : [];
+export default async function OutreachPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const filters = await searchParams;
+  const currentPage = Math.max(1, Number(filters.page) || 1);
+  const res = await fetchFromCore(`/api/admin/outreach?paginate=true&page=${currentPage}&limit=50`);
+  if (!res.ok) throw new Error("Outreach unavailable");
+  const data = await res.json() as { items: Campaign[]; total: number };
+  const campaigns = data.items;
 
   // Aggregate stats from campaign-level data
   const totalLeads = campaigns.reduce((s, c) => s + c.totalLeads, 0);
@@ -45,7 +49,7 @@ export default async function OutreachPage() {
 
   return (
     <div className="admin-page">
-      <AdminPageHeader title="AI services" description={`${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} with ${totalLeads} total leads.`} actions={<>
+      <AdminPageHeader title="Outreach campaigns" description={`${data.total} campaigns · ${campaigns.length} on this page`} actions={<>
           <Link
             href="/outreach/delivery"
             className={buttonClassName({ variant: "secondary" })}
@@ -59,7 +63,6 @@ export default async function OutreachPage() {
             <Mail className="size-4" />Email drafts
           </Link>
           <OutreachSyncDraftsButton />
-          {campaigns.length > 0 && <OutreachDeleteAllButton campaignCount={campaigns.length} leadCount={totalLeads} />}
           {campaigns.length > 0 && (
             <AddOutreachLead
               campaigns={campaigns.map((c) => ({ id: c.id, name: c.name, category: c.category }))}
@@ -74,22 +77,22 @@ export default async function OutreachPage() {
       </>} />
 
       {/* Overall Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric label="Total leads" value={totalLeads} detail={`${totalPending} pending`} /><AdminMetric label="Emails sent" value={totalSent} detail={`${totalLeads > 0 ? Math.round((totalSent / totalLeads) * 100) : 0}% of leads`} tone="info" /><AdminMetric label="Replied" value={totalReplied} detail={`${responseRate}% response rate`} tone="attention" /><AdminMetric label="Campaigns" value={campaigns.length} detail={`${campaigns.filter((c) => c.status === "active").length} active`} tone="success" /></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric label="Leads on page" value={totalLeads} detail={`${totalPending} pending`} /><AdminMetric label="Sent on page" value={totalSent} detail={`${totalLeads > 0 ? Math.round((totalSent / totalLeads) * 100) : 0}% of leads`} tone="info" /><AdminMetric label="Replies on page" value={totalReplied} detail={`${responseRate}% response rate`} tone="attention" /><AdminMetric label="Campaigns on page" value={campaigns.length} detail={`${campaigns.filter((c) => c.status === "active").length} active`} tone="success" /></div>
 
       {/* Pipeline Breakdown */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="v-card p-[var(--density-card-padding)]">
-          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Outreach pipeline</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Pipeline on this page</h2>
           <div className="space-y-3">
             <PipelineRow label="Pending" count={totalPending} total={totalLeads} color="bg-secondary" />
             <PipelineRow label="Sent" count={totalSent} total={totalLeads} color="bg-status-info" />
-            <PipelineRow label="Replied" count={totalReplied} total={totalLeads} color="bg-brand-2" />
+            <PipelineRow label="Replies on page" count={totalReplied} total={totalLeads} color="bg-brand-2" />
           </div>
         </div>
 
         {/* By Category */}
         <div className="v-card p-[var(--density-card-padding)]">
-          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">By category</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Categories on this page</h2>
           {sortedCategories.length === 0 ? (
             <p className="text-sm text-muted-foreground">No leads imported yet</p>
           ) : (
@@ -130,6 +133,7 @@ export default async function OutreachPage() {
 
       {/* Campaigns Table */}
       <CampaignsTable campaigns={campaigns} />
+      <Pagination currentPage={currentPage} totalPages={Math.ceil(data.total / 50)} totalItems={data.total} pageSize={50} />
     </div>
   );
 }

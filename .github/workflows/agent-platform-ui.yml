@@ -8,6 +8,7 @@ on:
       - "products/agents/api/package.json"
       - "packages/contracts/**"
       - "packages/server-support/**"
+      - "packages/ui/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -20,6 +21,7 @@ on:
       - "products/agents/api/package.json"
       - "packages/contracts/**"
       - "packages/server-support/**"
+      - "packages/ui/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -46,5 +48,15 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @kasitek/agent-platform typecheck
-      - run: pnpm --filter @kasitek/agent-platform test:studio
       - run: pnpm --filter @kasitek/agent-platform build
+      - name: Install browser runtime
+        run: pnpm --filter @kasitek/agent-platform exec playwright install --with-deps chromium
+      - name: Verify interface with controlled API fixtures
+        run: pnpm --filter @kasitek/agent-platform test:ci
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agents-interface-failures
+          path: products/agents/web/.artifacts/browser
+          if-no-files-found: ignore

@@ -1,124 +1,56 @@
 ---
-title: MCP Integration
+title: MCP integration
 owner: engineering
-last_reviewed: 2026-08-25
+last_reviewed: 2026-11-01
 ---
 
-# KasiTek MCP Integration
+# MCP integration
 
-For the product-level choice between KasiAi, hosted user agents, and external runtimes, see the
-[agent connection guide](./agent-connection-guide.md).
+Growth implements an OAuth-protected MCP endpoint at `<Growth API origin>/mcp`.
+It uses Streamable HTTP POST with JSON responses. GET/SSE sessions and DELETE session
+termination are not supported. Availability depends on the deployment's agent-access flag;
+source support does not establish that a hosted endpoint has been enabled.
 
-The hosted endpoint is `https://agents.kasitek.co.za/mcp`. It is a Streamable HTTP JSON-RPC
-transport backed by the stateless gateway. The gateway forwards no credentials into prompts and has
-no database or Temporal ownership.
+Open **Developers → MCP** for the configured endpoint and your agent connections. Add that
+endpoint to an OAuth-capable MCP client. Growth publishes protected-resource and authorization
+server metadata, supports dynamic public-client registration and HTTPS client metadata documents,
+and requires authorization-code flow with PKCE S256. No separate Growth password or shared
+agent API key is needed. A client with preconfigured metadata can be registered through
+`POST /oauth/register`; confidential-client secrets and client-credentials grants are unsupported.
 
-Modern clients use the stateless MCP protocol revision `2026-07-28`. KasiTek retains the
-initialize-based `2025-06-18` compatibility path during migration. The gateway rejects unsupported
-revisions and advertises supported revisions in the response. Both paths use POST JSON-RPC requests;
-standalone GET streaming, resumable sessions, and `Mcp-Session-Id` are not advertised.
+Sign in through Growth's existing identity provider, select a workspace, and approve the requested
+permissions. A connection belongs to that user, workspace, client and exact MCP resource. Tokens
+issued for another audience are rejected. A connected social account still needs its provider's
+permissions and supported account type for the requested operation.
 
-1. Create a named Developer API key in Developers → API Keys.
-2. Send it as `Authorization: Bearer <developer-api-key>` with every JSON-RPC request. For local
-   stdio clients, set `KASITEK_API_KEY` and let the bridge forward it.
-3. Use the returned manifest schemas to build arguments. The key's workspace access, capability
-   grants, availability, and approval policy filter discovery and calls; denied or unavailable
-   tools return a structured JSON-RPC error.
+| Scope | Authority |
+| --- | --- |
+| `growth:read` | Authorized workspace records, including content and customer data permitted by the operation. |
+| `growth:draft` | Reviewed draft and internal record changes. |
+| `growth:publish` | Reviewed publication, scheduling, message sending and other external effects. |
+| `growth:manage` | Reviewed destructive or account-management operations. |
 
-For the 2026 stateless path, include the protocol revision and method metadata in the request:
+`tools/list` returns only currently permitted canonical operations. Current membership,
+credential scope and entitlements are rechecked when a tool runs. The same operations, schemas,
+results and review rules serve [REST](./agent-rest.md) and internal Growth agents; internal agents
+call the application directly rather than making an MCP request. The standalone Agents product
+retains separate identity, storage and configuration.
 
-```http
-POST /mcp HTTP/1.1
-MCP-Protocol-Version: 2026-07-28
-Mcp-Method: tools/call
-Mcp-Name: platform.current_time
-Accept: application/json, text/event-stream
-Authorization: Bearer <developer-api-key>
-```
+Non-read calls require `_requestId`, a stable request identity. The response supplies
+`state: "approval_required"`, `_reviewId`'s value in `review.id`, a payload digest and `reviewUrl`.
+The user reviews the saved copy, accounts, media and target identity where applicable, and approves or rejects the exact proposed input in Growth. Approval alone does not execute
+an action. Resume with the same arguments, `_requestId` and `_reviewId`. Never create a new
+request identity to retry an uncertain provider result. Tool results are bounded; follow the
+returned `_continuation` using unchanged business arguments to read further JSON chunks.
+Large media uses reviewed staged transfers rather than placing entire files in tool results.
 
-The JSON-RPC `_meta` object carries the client protocol version and capabilities. The gateway and
-Agent API validate mirrored transport metadata and reject mismatches. The 2025 compatibility path
-continues to use `initialize`, `tools/list`, and `tools/call` for clients that have not migrated.
+Access tokens expire after one hour; refresh tokens expire after 30 days. Refresh rotates the
+access and refresh tokens. Reusing an old refresh token revokes that connection. Clients must
+serialize refreshes and retain only the replacement token. `POST /oauth/revoke` accepts the
+connection's token and client ID. **Developers → MCP** can disconnect an individual connection.
+Ordinary browser logout retains independent agent connections; account-wide logout and verified
+identity-provider subject revocation invalidate them. Each connection is independently revocable.
 
-The 2026 path exposes `server/discover`; tool discovery is installation-filtered and deterministic.
-The gateway may return durable task handles for clients that advertise the Tasks extension. Clients
-that do not advertise it receive the structured KasiTek operation result and status reference.
-
-The stateless rollout is controlled independently in the Agent API and gateway with
-`MCP_STATELESS_ENABLED` and `MCP_GATEWAY_STATELESS_ENABLED`. They default on in development and
-test and off in production unless explicitly enabled. Disabling the stateless path preserves the
-2025 compatibility path.
-
-The Agent Platform owns runs, approvals, effects, and audit records. A tool call never receives
-direct database access. External-effect calls require their declared approval and are represented by
-an idempotent effect receipt; ambiguous provider outcomes are surfaced for reconciliation rather
-than blindly retried.
-
-For clients that support it, `/.well-known/oauth-protected-resource` and
-`/.well-known/agent-installation-jwks.json` publish protected-resource and signing-key metadata.
-The local stdio bridge should forward the same JSON-RPC messages to the hosted endpoint rather than
-implementing a second capability registry.
-
-## Agent Studio MCP directory
-
-Hosted agent configuration exposes a reviewed MCP directory under **Capabilities → Connections**.
-The directory is metadata only until the user selects an entry. HTTP servers can be connected from
-the directory; entries that require OAuth use protected-resource metadata, authorization-server
-discovery, PKCE, and the provider's dynamic client registration when available. API-key servers
-store the key in the encrypted credential vault. After connection, KasiTek discovers and publishes
-an immutable provider revision before it can be pinned to an agent version.
-
-Native service bindings use the same connection cards and activation flow. Platform-owned OAuth
-clients are configured by the deployment; Studio starts the provider flow and does not ask users
-for client IDs or secrets.
-
-If a provider does not support dynamic registration, Studio exposes an OAuth client ID and
-optional client secret and continues the same PKCE flow with those credentials. Client secrets
-remain in encrypted one-use OAuth state until the token exchange completes.
-
-Set `MCP_OAUTH_REDIRECT_URI` to the public Core callback URL
-(`/api/agents/integrations/mcp/oauth/callback`) for the environment running Agents. Use a
-separate value for local/tunnel, staging, and production. The production value is
-`https://api.kasitek.co.za/api/agents/integrations/mcp/oauth/callback`; local development must use
-the public tunnel or proxy URL, not `127.0.0.1`, when the provider requires an HTTPS callback.
-Core forwards the one-use callback to the private Agents API and returns the browser to Studio.
-`AGENT_INTEGRATIONS_RETURN_URL` is only needed when calling the private Agents callback directly.
-
-The directory also accepts a custom HTTPS MCP endpoint for providers that are not in the reviewed
-catalogue. Stdio manifests are shown for discovery but are unavailable until a managed stdio
-execution adapter is registered. Browsing or connecting a server does not grant every discovered
-tool; the agent version still selects the pinned revision and its grants.
-
-The standalone `@kasitek/mcp` package follows the same boundary for MCP clients that require a
-local command-launched server. It accepts `KASITEK_MCP_URL` and `KASITEK_API_KEY`, forwards bounded
-JSON-RPC traffic, and does not contain KasiTek tools, policy, product data, or REST client logic.
-Clients that support remote Streamable HTTP do not need the package. REST remains a separate API
-and SDK/CLI surface.
-
-## Workspace media
-
-Granted installations can discover `kasitek.core.content_media_get` for organization-scoped media
-metadata and `kasitek.core.content_media_preview` for a short-lived preview URL. Media returned by
-content tools is identified by a stable `assetId`; preview URLs are transport values and must not be
-stored in agent state, messages, or external caches.
-
-Hosted-agent replies use the shared `AgentResponse@1` envelope:
-
-```json
-{
-  "version": "1",
-  "text": "Here is the image.",
-  "media": [{ "assetId": "core-asset-id", "kind": "image", "disposition": "inline" }]
-}
-```
-
-The hosted harness validates the asset against the current workspace before completing the run.
-Channel gateways then select native media delivery or an explicit provider fallback. Older text-only
-responses remain supported during the compatibility window.
-
-## Installation identity
-
-The Developer API key is the only user-facing MCP credential. On first use, the Agent Platform
-creates a workspace-scoped internal `external_connected` installation for the key. This preserves
-installation-level capability, approval, audit, and activity records without requiring the user to
-manage a second secret or token. This flow never selects KasiAi or a KasiTek-hosted user agent.
+OAuth metadata, consent and token routes remain available for discovery and connection lifecycle;
+operation access and effects can be disabled separately by the operator. Additional browser MCP
+origins must be explicitly allowed. Do not send tokens or private customer data to support logs.

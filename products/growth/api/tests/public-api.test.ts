@@ -13,7 +13,6 @@ import {
   revokeApiKey,
   listApiKeys,
   requestMetrics,
-  loadInstallationCapabilities,
 } from "../src/services/public-api.js";
 import {
   supportedEventTypes,
@@ -45,7 +44,6 @@ const principal: RequestContext = {
   organizationId: "org",
   userId: "user",
   clientId: null,
-  installationId: null,
   effectiveGrants: new Set(),
   apiScopes: new Set(["api:read"]),
   correlationId: "correlation",
@@ -122,58 +120,6 @@ test("native workers honor pre-aborted shutdown without queue effects", async ()
     logger,
   );
 });
-test("actual private capability client signs internal claims and scopes", async () => {
-  let claims: Record<string, unknown> | undefined;
-  const server = createServer((request, response) => {
-    assert.equal(
-      request.url,
-      "/v1/installations/install/capabilities?credentialId=credential",
-    );
-    const token = request.headers.authorization!.slice(7),
-      [encoded, signature] = token.split(".");
-    assert.equal(
-      signature,
-      createHmac("sha256", "synthetic-secret")
-        .update(encoded!)
-        .digest("base64url"),
-    );
-    claims = JSON.parse(Buffer.from(encoded!, "base64url").toString());
-    response.setHeader("content-type", "application/json");
-    response.end('{"apiScopes":["api:read"],"capabilities":[]}');
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  try {
-    const address = server.address() as { port: number },
-      context = {
-        ...principal,
-        installationId: "install",
-        principal: {
-          kind: "agent_installation" as const,
-          id: "install",
-          subjectUserId: null,
-          clientId: "credential",
-        },
-      };
-    assert.deepEqual(
-      await loadInstallationCapabilities(
-        readConfig({
-          DATABASE_URL: "postgres://unused",
-          AGENTS_API_URL: `http://127.0.0.1:${address.port}`,
-          AGENTS_INTERNAL_AUTH_SECRET: "synthetic-secret",
-        }),
-        context,
-      ),
-      { apiScopes: ["api:read"], capabilities: [] },
-    );
-    assert.equal(claims!.organizationId, "org");
-    assert.equal(claims!.actorId, "install");
-    assert.deepEqual(claims!.scopes, ["agents:read"]);
-    assert.equal(claims!.audience, "kasitek-agents");
-    assert.ok(Number(claims!.expiresAt) > Date.now() / 1000);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
-});
 test(
   "isolated PostgreSQL keys, distributed rate accounting and signed webhook delivery",
   { skip: !process.env.CORE_PUBLIC_API_TEST_DATABASE_URL },
@@ -217,6 +163,8 @@ test(
         await pool.query(
           `CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`,
         );
+      // Prisma's @updatedAt does not guarantee a database default for raw SQL inserts.
+      await pool.query('ALTER TABLE "PublicApiRequest" ALTER COLUMN "updatedAt" DROP DEFAULT');
       const key = await createApiKey(
         pool,
         "org",
@@ -241,6 +189,11 @@ test(
         1,
       );
       await revokeApiKey(pool, "org", String(rotated.key.id));
+      const scoped = await createApiKey(pool, "org", "user", "Publishing key", null, ["growth:read", "growth:publish"]);
+      assert.deepEqual(scoped.key.scopes, ["growth:read", "growth:publish"]);
+      const scopedRotation = await rotateApiKey(pool, "org", "user", String(scoped.key.id));
+      assert.deepEqual(scopedRotation.key.scopes, scoped.key.scopes);
+      await assert.rejects(createApiKey(pool, "org", "user", "Invalid authority", null, ["billing:manage"]), /valid API key permissions/);
       await assert.rejects(
         revokeApiKey(pool, "different", String(rotated.key.id)),
         /Active API key not found/,
@@ -348,7 +301,9 @@ test("v1 HTTP contracts finalize denied requests and forward only authenticated 
         ],
         rowCount: 1,
       };
-    if (text.includes("SELECT COUNT(*)"))
+    if(text.startsWith('SELECT scopes FROM "DeveloperApiKey"'))return {rows:[{scopes:["api:read"]}],rowCount:1};
+    if(text.includes('SELECT role::text FROM "OrganizationMember"'))return {rows:[{role:"OWNER"}],rowCount:1};
+    if (text.startsWith("SELECT COUNT(") || (text.includes('FROM "PublicApiRequest"')&&text.includes("COUNT(*)")))
       return { rows: [{ count: "0" }], rowCount: 1 };
     if (text.includes('UPDATE "PublicApiRequest"'))
       finalized.push(Number(args[1]));
@@ -423,24 +378,24 @@ test("v1 HTTP contracts finalize denied requests and forward only authenticated 
       "x-correlation-id": "test-correlation",
     };
     const contacts = await app.inject({ url: "/v1/contacts?limit=1", headers });
-    assert.equal(contacts.statusCode, 200);
-    assert.deepEqual(contacts.json().contacts, [{ name: "Visible" }]);
+    assert.equal(contacts.statusCode, 200, contacts.body);
+    assert.deepEqual(contacts.json().contacts, []);
     assert.equal(contacts.headers.deprecation, "true");
     assert.equal(contacts.headers["x-ratelimit-remaining"], "119");
     assert.equal(contacts.headers["x-correlation-id"], "test-correlation");
-    assert.equal(actionContext!.organizationId, "trusted-org");
+    assert.equal(actionContext, undefined, "Legacy adapters cannot bypass canonical operation policy");
     const forbidden = await app.inject({
       method: "POST",
       url: "/v1/content/posts",
-      headers: { ...headers, "idempotency-key": "test" },
+      headers: { ...headers, "idempotency-key": "test-request" },
       payload: { organizationId: "attacker-org", content: "Draft" },
     });
     assert.equal(forbidden.statusCode, 403);
     assert.equal(draftInput, undefined);
     assert.deepEqual(finalized, [200, 403]);
     const invalid = await app.inject({ url: "/v1/contacts?limit=0", headers });
-    assert.equal(invalid.statusCode, 400);
-    assert.equal(finalized.at(-1), 400);
+    assert.equal(invalid.statusCode, 422);
+    assert.equal(finalized.at(-1), 422);
     const openapi = await app.inject("/v1/openapi.json");
     assert.equal(openapi.statusCode, 200);
     assert.equal(openapi.json().openapi, "3.1.0");

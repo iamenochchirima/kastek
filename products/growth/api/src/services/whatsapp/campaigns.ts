@@ -54,8 +54,9 @@ async function requireCampaign(
   if (!row) throw missing("Campaign not found");
   return row;
 }
-export async function listCampaigns(pool: Pool, orgId: string): Promise<Row> {
-  const rows = (await pool.query(SQL.list_campaigns[0], [orgId])).rows;
+export async function listCampaigns(pool: Pool, orgId: string, page?: { limit: number; afterId?: string; search?: string; status?: string }): Promise<Row> {
+  const query = page ? SQL.list_campaigns[0].replace(/ORDER BY[\s\S]*$/i, 'AND ($2::text IS NULL OR c.id > $2) AND ($3::text IS NULL OR strpos(lower(c.name), lower($3)) > 0) AND ($4::text IS NULL OR c.status::text = $4) ORDER BY c.id LIMIT $5') : SQL.list_campaigns[0];
+  const rows = (await pool.query(query, page ? [orgId, page.afterId ?? null, page.search ?? null, page.status ?? null, page.limit] : [orgId])).rows;
   return {
     campaigns: rows.map((row) =>
       Object.fromEntries(
@@ -112,6 +113,66 @@ export async function publishCampaignUpdated(
     });
   }
 }
+async function campaignAudience(
+  pool: Pool,
+  orgId: string,
+  input: WhatsappCampaignCreateRequest,
+  options: MarketingOptions,
+) {
+  const label =
+      input.list_label != null ? sanitizeListLabel(input.list_label) : null,
+    excluded = input.excluded_contact_ids ?? [];
+  const index = input.recipient_ids != null ? (label ? 1 : 2) : label ? 3 : 4,
+    values =
+      input.recipient_ids != null
+        ? label
+          ? [orgId, input.recipient_ids, label]
+          : [orgId, input.recipient_ids]
+        : label
+          ? [orgId, label]
+          : [orgId];
+  const contacts = (
+    await pool.query<WhatsappContactRow>(SQL.create_campaign[index]!, values)
+  ).rows.filter(
+    (contact) =>
+      input.recipient_ids != null ||
+      contactMatchesAudience(contact, input.audience, options.config),
+  );
+  const eligible: string[] = [],
+    skipped = { notOptedIn: 0, excluded: 0, cooldown: 0 };
+  for (const contact of contacts) {
+    if (excluded.includes(contact.id)) {
+      skipped.excluded++;
+      continue;
+    }
+    const [reason, ok] = contactEligible(contact, options.config);
+    if (ok) eligible.push(contact.id);
+    else if (reason === "not_opted_in") skipped.notOptedIn++;
+    else if (reason === "excluded") skipped.excluded++;
+    else if (reason === "cooldown") skipped.cooldown++;
+  }
+  return { contacts, eligible, skipped };
+}
+
+export async function preflightCampaign(
+  pool: Pool,
+  orgId: string,
+  input: WhatsappCampaignCreateRequest,
+  options: MarketingOptions,
+): Promise<Row> {
+  const { contacts, eligible, skipped } = await campaignAudience(
+    pool,
+    orgId,
+    input,
+    options,
+  );
+  return {
+    totalContacts: contacts.length,
+    eligibleRecipients: eligible.length,
+    skipped,
+  };
+}
+
 export async function createCampaign(
   pool: Pool,
   userId: string,
@@ -143,36 +204,13 @@ export async function createCampaign(
         ? input.batch_size
         : null,
     scheduled = parseScheduledAt(input.scheduled_at);
-  const index = input.recipient_ids != null ? (label ? 1 : 2) : label ? 3 : 4,
-    values =
-      input.recipient_ids != null
-        ? label
-          ? [orgId, input.recipient_ids, label]
-          : [orgId, input.recipient_ids]
-        : label
-          ? [orgId, label]
-          : [orgId];
-  const contacts = (
-    await pool.query<WhatsappContactRow>(SQL.create_campaign[index]!, values)
-  ).rows.filter(
-    (contact) =>
-      input.recipient_ids != null ||
-      contactMatchesAudience(contact, input.audience, options.config),
+  const { contacts, eligible, skipped } = await campaignAudience(
+    pool,
+    orgId,
+    input,
+    options,
   );
-  const byId = new Map(contacts.map((contact) => [contact.id, contact])),
-    eligible: string[] = [],
-    skipped = { notOptedIn: 0, excluded: 0, cooldown: 0 };
-  for (const contact of contacts) {
-    if (excluded.includes(contact.id)) {
-      skipped.excluded++;
-      continue;
-    }
-    const [reason, ok] = contactEligible(contact, options.config);
-    if (ok) eligible.push(contact.id);
-    else if (reason === "not_opted_in") skipped.notOptedIn++;
-    else if (reason === "excluded") skipped.excluded++;
-    else if (reason === "cooldown") skipped.cooldown++;
-  }
+  const byId = new Map(contacts.map((contact) => [contact.id, contact]));
   if (!eligible.length)
     throw bad(
       `No eligible recipients found for this campaign. Skipped: ${skipped.notOptedIn} not opted in, ${skipped.excluded} excluded/manual, ${skipped.cooldown} in cooldown.`,
@@ -191,7 +229,7 @@ export async function createCampaign(
     json(input.variable_mappings),
     label,
     batch,
-    scheduled && scheduled > new Date() ? "SCHEDULED" : "DRAFT",
+    "DRAFT",
     scheduled?.toISOString() ?? null,
     eligible.length,
   ]);
@@ -288,46 +326,78 @@ export async function launchCampaign(
   batchSize: number | null | undefined,
   options: MarketingOptions,
 ): Promise<Row> {
-  const campaign = await requireCampaign(pool, orgId, id),
-    limit =
-      (await getConnectionRowForOrg(pool, orgId, campaign.connection_id))
-        ?.daily_limit_estimate ?? MAX_BATCH,
-    max =
-      batchSize != null && batchSize > 0
-        ? batchSize
-        : (campaign.default_batch_size ?? MAX_BATCH);
-  const recipients = (
-    await pool.query(SQL.launch_campaign[0], [id, max])
-  ).rows.map((row) => row.id);
-  if (!recipients.length) throw bad("Campaign has no recipients to launch");
-  await requireMeterAvailable(
-    pool,
-    orgId,
-    "campaign_recipients",
-    recipients.length,
-  );
-  if (recipients.length > limit)
-    throw conflict(
-      `Launch batch size (${recipients.length}) exceeds estimated daily portfolio limit (${limit})`,
+  const requestedTime = parseScheduledAt(scheduledAt);
+  if (requestedTime && requestedTime <= new Date())
+    throw bad("Scheduled time must be in the future");
+  const result = await transaction(pool, async (tx) => {
+    const campaign = (
+      await tx.query(
+        SQL.get_campaign_row[0].replace(
+          /LIMIT 1\s*$/,
+          "LIMIT 1 FOR UPDATE OF c",
+        ),
+        [id, orgId],
+      )
+    ).rows[0];
+    if (!campaign) throw missing("Campaign not found");
+    if (campaign.status !== "DRAFT") {
+      const recoverable = ["COMPLETED", "FAILED"].includes(campaign.status);
+      const processed = recoverable
+        ? (
+            await tx.query(
+              `SELECT 1 FROM "WhatsappCampaignRecipient"
+               WHERE "campaignId"=$1 AND (status <> 'PENDING'::"WhatsappRecipientStatus"
+                 OR "sentAt" IS NOT NULL OR "waMessageId" IS NOT NULL) LIMIT 1`,
+              [id],
+            )
+          ).rows.length
+        : 1;
+      if (processed)
+        throw bad(
+          "Campaign has already been launched; use resume or send more",
+        );
+    }
+    const limit =
+        (await getConnectionRowForOrg(pool, orgId, campaign.connection_id))
+          ?.daily_limit_estimate ?? MAX_BATCH,
+      max =
+        batchSize != null && batchSize > 0
+          ? batchSize
+          : (campaign.default_batch_size ?? MAX_BATCH);
+    const recipients = (
+      await tx.query(SQL.launch_campaign[0], [id, max])
+    ).rows.map((row) => row.id);
+    if (!recipients.length) throw bad("Campaign has no recipients to launch");
+    await requireMeterAvailable(
+      pool,
+      orgId,
+      "campaign_recipients",
+      recipients.length,
     );
-  const when = parseScheduledAt(scheduledAt) ?? campaign.scheduled_at,
-    scheduled = when !== null && when > new Date();
-  if (!(await pool.query(SQL.launch_campaign[1], [recipients])).rowCount)
-    throw bad("No recipients were queued for launch");
-  await pool.query(SQL.launch_campaign[2], [
-    scheduled ? "SCHEDULED" : "SENDING",
-    when?.toISOString() ?? null,
-    scheduled,
-    id,
-  ]);
+    if (recipients.length > limit)
+      throw conflict(
+        `Launch batch size (${recipients.length}) exceeds estimated daily portfolio limit (${limit})`,
+      );
+    const when = scheduledAt === undefined ? campaign.scheduled_at : requestedTime,
+      scheduled = when !== null && when > new Date();
+    if (!(await tx.query(SQL.launch_campaign[1], [recipients])).rowCount)
+      throw bad("No recipients were queued for launch");
+    await tx.query(SQL.launch_campaign[2], [
+      scheduled ? "SCHEDULED" : "SENDING",
+      when?.toISOString() ?? null,
+      scheduled,
+      id,
+    ]);
+    return {
+      campaignId: id,
+      queuedRecipients: recipients.length,
+      batchSize: max === MAX_BATCH ? null : max,
+      scheduledAt: when,
+      status: scheduled ? "SCHEDULED" : "SENDING",
+    };
+  });
   await publishCampaignUpdated(pool, userId, id, options);
-  return {
-    campaignId: id,
-    queuedRecipients: recipients.length,
-    batchSize: max === MAX_BATCH ? null : max,
-    scheduledAt: when,
-    status: scheduled ? "SCHEDULED" : "SENDING",
-  };
+  return result;
 }
 export async function pauseCampaign(
   pool: Pool,
@@ -357,6 +427,9 @@ export async function resumeCampaign(
   scheduledAt: string | null | undefined,
   options: MarketingOptions,
 ): Promise<Row> {
+  const requestedTime = parseScheduledAt(scheduledAt);
+  if (requestedTime && requestedTime <= new Date())
+    throw bad("Scheduled time must be in the future");
   const campaign = await requireCampaign(pool, orgId, id);
   if (campaign.status !== "PAUSED")
     throw bad("Only paused campaigns can be resumed");
@@ -365,7 +438,7 @@ export async function resumeCampaign(
   );
   if (!recipients.length)
     throw bad("Campaign has no paused recipients to resume");
-  const when = parseScheduledAt(scheduledAt) ?? campaign.scheduled_at,
+  const when = scheduledAt === undefined ? campaign.scheduled_at : requestedTime,
     scheduled = when !== null && when > new Date();
   if (!(await pool.query(SQL.resume_campaign[1], [recipients])).rowCount)
     throw bad("No paused recipients were queued for resume");

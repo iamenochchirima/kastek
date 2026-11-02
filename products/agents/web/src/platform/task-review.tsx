@@ -1,0 +1,26 @@
+import "./management.css";
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { api, ApiError, message, organizationPath, type DeliveryAction } from "./api";
+import { CitedPassages } from "./cited-passages";
+import { ErrorMessage, useWorkspace } from "./shell";
+
+export function TaskReview({ actions, onRefresh }: { actions: DeliveryAction[]; onRefresh?: () => void }) {
+  const { organizationId, session } = useWorkspace();
+  const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState<string[]>([]);
+  const requestIds = useRef(new Map<string, string>());
+  async function decide(action: DeliveryAction, decision: "approve" | "reject") {
+    const key = `${action.id}:${action.reviewDigest}:${decision}`;
+    const operationId = requestIds.current.get(key) ?? crypto.randomUUID(); requestIds.current.set(key, operationId);
+    setBusy(true); setError("");
+    try { await api(`${organizationPath(organizationId)}/tasks/${encodeURIComponent(action.rootTaskId)}/actions/${encodeURIComponent(action.id)}/decision`, { operationId, decision, expectedDigest: action.reviewDigest }); onRefresh?.(); }
+    catch (e) { setError(message(e)); if (e instanceof ApiError && [401,403,404,409,410,422].includes(e.status)) { setUnavailable(current => [...current, `${action.id}:${action.reviewDigest}`]); onRefresh?.(); } } finally { setBusy(false); }
+  }
+  return <section aria-label="Report delivery" className="space-y-4"><h3 className="font-medium">Report delivery</h3><ErrorMessage value={error} />{actions.map(action => {
+    if (unavailable.includes(`${action.id}:${action.reviewDigest}`)) return <p key={action.id} className="text-sm text-muted-foreground">This report is no longer available. Refresh its status.</p>;
+    const expired = Date.parse(action.expiresAt) <= Date.now();
+    const reviewer = !action.reviewerAccountId || action.reviewerAccountId === session.account.id;
+    return <div key={action.id} className="report-review space-y-4"><div className="space-y-1"><h4 className="break-words text-sm font-medium">{action.title}</h4><p className="break-all text-sm">To {action.destination.label} · {action.destination.resource}</p><div className="flex flex-wrap items-center gap-3"><span className="task-state" data-state={action.state === "pending_review" ? "waiting_review" : action.state}>{action.state.replaceAll("_", " ")}</span><p className="text-xs text-muted-foreground">Review expires {new Date(action.expiresAt).toLocaleString()}</p></div></div><details open={action.state === "pending_review"}><summary className="cursor-pointer text-sm">{action.preview.name}</summary><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border p-4 text-xs leading-5">{action.preview.content}</pre></details><CitedPassages passages={action.citedPassages ?? []} />{action.state === "pending_review" ? <div className="flex flex-wrap gap-2"><Button disabled={busy || expired || !reviewer} onClick={() => void decide(action, "approve")}>Approve delivery</Button><Button variant="outline" disabled={busy || expired || !reviewer} onClick={() => void decide(action, "reject")}>Reject delivery</Button>{!reviewer ? <p className="basis-full text-sm text-muted-foreground">Awaiting the assigned reviewer.</p> : null}{expired ? <p className="basis-full text-sm text-muted-foreground">This review has expired. Refresh to check its status.</p> : null}</div> : null}{action.state === "uncertain" ? <p className="text-sm">Delivery outcome is unknown. The service will check the original receipt before any retry.</p> : null}{action.receipt ? <div className="space-y-1 text-sm"><p>Delivery confirmed {new Date(action.receipt.acceptedAt).toLocaleString()}</p><p className="break-all text-xs text-muted-foreground">Receipt {action.receipt.id}</p></div> : null}{action.errorCode ? <p className="text-sm text-muted-foreground">{action.errorCode.replaceAll("_", " ").toLowerCase()}</p> : null}</div>;
+  })}</section>;
+}

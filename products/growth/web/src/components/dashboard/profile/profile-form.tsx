@@ -1,7 +1,5 @@
-"use client";
-
 import { apiUrl } from "@/lib/server-api";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +33,7 @@ function Notice({
 }
 
 export default function ProfileForm({ user }: ProfileFormProps) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
 
   const [name, setName] = useState(user.name || "");
   const [phone, setPhone] = useState(user.phone || "");
@@ -68,7 +66,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
       }
 
       setProfileNotice("Profile updated.");
-      router.refresh();
+      revalidator.revalidate();
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {

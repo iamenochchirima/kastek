@@ -20,7 +20,7 @@ const appearanceInitScript = `
   const resolvedTheme = themeMode === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : themeMode;
   const accents = ${JSON.stringify(bootstrapAccents)};
   const storedAccent = read(keys.accent);
-  const accent = Object.prototype.hasOwnProperty.call(accents, storedAccent) ? storedAccent : "indigo";
+  const accent = Object.prototype.hasOwnProperty.call(accents, storedAccent) ? storedAccent : "blue";
   const tokens = accents[accent][resolvedTheme];
   const density = read(keys.density) === "compact" ? "compact" : "comfortable";
   const rootStyle = root.style;

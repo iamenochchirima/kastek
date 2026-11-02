@@ -10,6 +10,9 @@ datasource db {
 // ─── Organizations ─────────────────────────────────────────
 
 model Organization {
+  agentSetup GrowthAgentSetup?
+  growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewOrganization")
+  growthAgentSourceHandles GrowthAgentSourceHandle[] @relation("GrowthAgentSourceOrganization")
   id      String  @id @default(cuid())
   name    String
   slug    String  @unique
@@ -61,12 +64,12 @@ model Organization {
   referralCodes                  ReferralCode[]          @relation("ReferralCodeOwner")
   referralsSent                  ReferralAttribution[]   @relation("ReferralReferrer")
   referralReceived               ReferralAttribution?   @relation("ReferralReferee")
+  customerReplayCommands         AdminWebhookReplayCommand[]
   supportAccessGrants            AdminSupportAccessGrant[]
   bookingServices                BookingService[]
   bookings                       Booking[]
   onboardingProfile              OrganizationOnboardingProfile?
   productTours                   UserProductTour[]
-  agentWebsiteDeployments        AgentWebsiteDeployment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -728,71 +731,6 @@ model DeveloperApiKey {
   @@index([orgId, createdAt])
 }
 
-// A public website surface for one hosted Agent Platform installation. The
-// browser only ever receives `publicId`; the installation and channel
-// connection identifiers stay inside the KasiTek service boundary.
-model AgentWebsiteDeployment {
-  id                  String       @id @default(cuid())
-  publicId            String       @unique
-  orgId               String
-  org                 Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  installationId      String
-  channelConnectionId String       @unique
-  status              String       @default("DRAFT")
-  allowedOrigins      String[]     @default([])
-  displayName         String?
-  welcomeText         String?
-  launcherPosition    String       @default("bottom-right")
-  colorPreset         String       @default("indigo")
-  appearance          Json         @default("{}")
-  avatarUrl           String?
-  privacyPolicyUrl    String?
-  createdById         String
-  createdBy           User         @relation("AgentWebsiteDeploymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  publishedAt         DateTime?    @db.Timestamptz(3)
-  pausedAt            DateTime?    @db.Timestamptz(3)
-  revokedAt           DateTime?    @db.Timestamptz(3)
-  lastError           String?      @db.Text
-  visitorSessions     AgentWebsiteVisitorSession[]
-  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
-
-  @@index([orgId, installationId, status])
-  @@index([orgId, createdAt])
-}
-
-// Delivery events are a Core-owned browser transport projection. Agent
-// Platform conversations and messages remain authoritative.
-model AgentWebsiteVisitorSession {
-  id                     String                 @id @default(cuid())
-  publicSessionId        String                 @unique
-  deploymentId           String
-  deployment             AgentWebsiteDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  origin                 String
-  externalIdentity       String                 @unique
-  externalConversationId String                 @unique
-  status                 String                 @default("ACTIVE")
-  expiresAt              DateTime               @db.Timestamptz(3)
-  lastSeenAt             DateTime               @default(now()) @db.Timestamptz(3)
-  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime               @updatedAt @db.Timestamptz(3)
-  deliveries             AgentWebsiteDeliveryEvent[]
-
-  @@index([deploymentId, status, expiresAt])
-}
-
-model AgentWebsiteDeliveryEvent {
-  id          String                     @id @default(cuid())
-  sessionId   String
-  session     AgentWebsiteVisitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  eventKey    String                     @unique
-  messageText String                     @db.Text
-  messageContent Json                     @default("{}")
-  createdAt   DateTime                   @default(now()) @db.Timestamptz(3)
-
-  @@index([sessionId, createdAt])
-}
-
 model PublicApiWebhookSubscription {
   id               String   @id @default(cuid())
   orgId            String
@@ -933,6 +871,8 @@ model BillingReconciliationIssue {
 // ─── Auth.js Required Tables (Client App) ─────────────────
 
 model User {
+  growthAgentReviews GrowthAgentReview[] @relation("GrowthAgentReviewActor")
+  growthAgentSourceHandles GrowthAgentSourceHandle[] @relation("GrowthAgentSourceActor")
   id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
@@ -969,7 +909,6 @@ model User {
   pushSubscriptions              PushSubscription[]
   billingCheckouts               BillingCheckout[]
   productTours                   UserProductTour[]
-  agentWebsiteDeployments        AgentWebsiteDeployment[] @relation("AgentWebsiteDeploymentCreator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1064,6 +1003,8 @@ model AdminUser {
   password String
   role     String @default("admin") // superadmin | admin | viewer
 
+  sessions AdminSession[]
+
   assignedLeads QuoteRequest[] @relation("AssignedLeads")
   supportAccessGrants AdminSupportAccessGrant[] @relation("SupportAccessAdmin")
   supportAccessGrantsIssued AdminSupportAccessGrant[] @relation("SupportAccessIssuer")
@@ -1102,6 +1043,7 @@ model AdminReportExportAuditEvent {
 
   @@index([adminId, createdAt])
   @@index([reportKey, createdAt])
+  scope      Json?
 }
 
 model AdminSupportAccessGrant {
@@ -1143,6 +1085,13 @@ model AdminWebhookReplayCommand {
   idempotencyKey       String   @unique
   deliveryId           String
   actorId              String
+  customerId           String?
+  customer             Organization? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  operationId          String? @unique
+  requestDigest        String?
+  reason               String?
+  settledStatus        String?
+  customerApprovals    AdminCustomerReplayApproval[]
   expectedStatus       String
   expectedAttemptCount Int
   approverIds          String[] @default([])
@@ -1156,7 +1105,19 @@ model AdminWebhookReplayCommand {
   auditEvents AdminWebhookReplayAuditEvent[]
 
   @@index([status, updatedAt])
+  @@index([customerId, id], map: "AdminWebhookReplayCommand_customer_history_idx")
   @@index([deliveryId, createdAt])
+}
+
+model AdminCustomerReplayApproval {
+  id String @id
+  commandId String
+  command AdminWebhookReplayCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  actorId String
+  digest String
+  reason String
+  createdAt DateTime @default(now())
+  @@unique([commandId, actorId])
 }
 
 model AdminWebhookReplayAuditEvent {
@@ -2775,4 +2736,222 @@ model WhatsappSendEvent {
   @@index([recipientId])
   @@index([contactId])
   @@index([status])
+}
+
+model GrowthAgentReview {
+  id                   String @id
+  orgId                String
+  actorId              String
+  taskId               String
+  conversationId       String
+  featureId            String
+  operationId          String
+  requestDigest        String
+  payloadDigest        String
+  draft                Json
+  context              Json?
+  contextRevision      String?
+  destinationRevisions Json
+  rootReviewId         String
+  supersededBy         String?
+  state                String @default("proposed")
+  result               Json?
+  decisionRequestId    String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+  expiresAt            DateTime @db.Timestamptz(3)
+  org                  Organization @relation("GrowthAgentReviewOrganization", fields: [orgId], references: [id], onDelete: Cascade)
+  actor                User @relation("GrowthAgentReviewActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([orgId, actorId, operationId])
+  @@index([orgId, actorId, taskId, createdAt])
+  @@index([rootReviewId])
+}
+
+model AdminSession {
+  tokenHash String @id
+  adminId String
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminCommercialAudit {
+  id String @id
+  actorId String
+  action String
+  resourceId String
+  details Json @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz
+}
+model AdminOutreachSendAttempt {
+  id String @id
+  campaignId String
+  leadId String
+  fingerprint String @unique
+  actorId String
+  recipients Json
+  subject String
+  status String
+  accepted Json @default("[]")
+  rejected Json @default("[]")
+  providerMessageId String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @default(now()) @db.Timestamptz
+  @@index([leadId, createdAt], map: "AdminOutreachSendAttempt_lead")
+}
+
+/// Durable product setup intent. Provider credentials remain exclusively in Agents.
+model GrowthAgentSetup {
+  orgId String @id
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestId String @unique
+  defaultsRevision String @default("1")
+  modelProfileId String
+  modelProfileRevision String
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseOwner String?
+  leaseExpiresAt DateTime?
+  generation Int @default(0)
+  failureCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  completedAt DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+}
+
+model GrowthAgentSourceHandle {
+  id String @id
+  orgId String
+  actorId String
+  actorIssuer String
+  context Json
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  org Organization @relation("GrowthAgentSourceOrganization",fields:[orgId],references:[id],onDelete:Cascade)
+  actor User @relation("GrowthAgentSourceActor",fields:[actorId],references:[id],onDelete:Cascade)
+  @@index([orgId,actorId])
+}
+
+model GrowthOAuthClient {
+  id String @id
+  name String
+  redirectUris String[]
+  registrationIpHash String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  requests GrowthOAuthRequest[]
+  codes GrowthOAuthCode[]
+  connections GrowthOAuthConnection[]
+  @@index([registrationIpHash, createdAt])
+}
+
+model GrowthOAuthRequest {
+  hash String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  redirectUri String
+  resource String
+  scopes String[]
+  state String
+  challenge String
+  userId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+  @@index([expiresAt])
+}
+
+model GrowthOAuthCode {
+  hash String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  userId String
+  orgId String
+  redirectUri String
+  resource String
+  scopes String[]
+  challenge String
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+}
+
+model GrowthOAuthConnection {
+  id String @id
+  clientId String
+  client GrowthOAuthClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  userId String
+  orgId String
+  resource String
+  scopes String[]
+  accessHash String @unique
+  accessExpiresAt DateTime @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  lastUsedAt DateTime? @db.Timestamptz(6)
+  refreshTokens GrowthOAuthRefresh[]
+  @@index([userId, orgId])
+}
+
+model GrowthOAuthRefresh {
+  hash String @id
+  connectionId String
+  connection GrowthOAuthConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @db.Timestamptz(6)
+  usedAt DateTime? @db.Timestamptz(6)
+  @@index([connectionId])
+}
+model GrowthOperationReview {
+  id             String   @id
+  orgId          String
+  userId         String
+  principalId    String
+  principalKind  String
+  operation      String
+  version        String
+  requestKey     String
+  payloadDigest  String
+  input          Json
+  snapshot       Json
+  state          String   @default("proposed")
+  result         Json?
+  errorCode      String?
+  taskId         String?
+  conversationId String?
+  operationId    String?
+  expiresAt      DateTime @db.Timestamptz
+  createdAt      DateTime @default(now()) @db.Timestamptz
+  updatedAt      DateTime @default(now()) @db.Timestamptz
+
+  @@unique([orgId, principalKind, principalId, requestKey])
+  @@index([userId, orgId, createdAt], map: "GrowthOperationReview_user_org_idx")
+}
+
+model GrowthMediaTransfer {
+  id String @id
+  orgId String
+  userId String
+  principalId String
+  principalKind String
+  requestKey String
+  fileName String?
+  mimeType String
+  byteSize BigInt
+  expectedChecksum String?
+  checksum String?
+  storageKey String?
+  state String @default("PENDING")
+  assetId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([orgId,principalKind,principalId,requestKey])
+  @@index([expiresAt],map:"GrowthMediaTransfer_expiry_idx")
+  @@index([orgId,userId,principalKind,principalId],map:"GrowthMediaTransfer_owner_idx")
 }

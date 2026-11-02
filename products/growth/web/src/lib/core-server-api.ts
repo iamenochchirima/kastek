@@ -1,28 +1,19 @@
-import { cookies } from "next/headers";
-import { apiUrl } from "@/lib/server-api";
+import { queryClient, requestScope } from "@/lib/query-client";
 
-export async function fetchCoreJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((cookie) => `${cookie.name}=${cookie.value}`)
-    .join("; ");
-
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    cache: "no-store",
-    headers: {
-      ...(init?.headers || {}),
-      ...(cookieHeader ? { cookie: cookieHeader } : {}),
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      `Core API request failed for ${path} (${response.status})${text ? `: ${text}` : ""}`,
-    );
+export class ApiError extends Error {
+  constructor(public status: number, public path: string) {
+    super(`API request failed (${status})`);
   }
+}
 
-  return response.json() as Promise<T>;
+// Loader reads and component reads share the same scoped, cancellable query cache.
+export async function fetchCoreJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method?.toUpperCase() ?? "GET";
+  const read = async (signal?: AbortSignal): Promise<T> => {
+    const response = await fetch(path, { ...init, credentials: "include", cache: "no-store", signal: init?.signal ?? signal });
+    if (!response.ok) throw new ApiError(response.status, path);
+    return response.json() as Promise<T>;
+  };
+  if (method !== "GET") return read();
+  return queryClient.fetchQuery({ queryKey: ["growth", requestScope(), path, Array.from(new Headers(init?.headers).entries())], queryFn: ({ signal }) => read(signal) });
 }

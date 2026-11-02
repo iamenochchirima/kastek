@@ -1,120 +1,23 @@
+import { adminCapabilities } from "@kasitek-labs/server-support/admin-authority";
 import { NextResponse } from "next/server";
 import { getAdminSession, fetchFromCore } from "@/lib/admin-auth";
 import { sendSmtpMail, verifySmtpTransport } from "@/lib/smtp";
-
-async function ensureTestCampaignId(): Promise<string> {
-  const res = await fetchFromCore("/api/admin/outreach");
-  const campaigns = res.ok ? (await res.json() as Array<{ id: string; name: string; category: string }>) : [];
-  const existing = Array.isArray(campaigns)
-    ? campaigns.find((c) => c.name === "System Test Sends" && c.category === "system-test")
-    : null;
-
-  if (existing?.id) return existing.id;
-
-  const createRes = await fetchFromCore("/api/admin/outreach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "System Test Sends", category: "system-test", status: "active" }),
-  });
-  const created = await createRes.json() as { id: string };
-  return created.id;
-}
+import { submitOutreach } from "@/lib/outreach-submit";
 
 export async function POST(req: Request) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => ({}));
-  const to = String(body?.to || admin.email || "").trim();
-  const subject = String(body?.subject || "").trim();
-  const text = String(body?.text || body?.emailBody || "").trim();
-  const html = body?.html ? String(body.html) : undefined;
-
+  const admin=await getAdminSession();
+  if(!admin) return NextResponse.json({error:"Unauthorized"},{status:401});
+  if(!adminCapabilities(admin.role).has("admin:write")) return NextResponse.json({error:"Forbidden"},{status:403});
+  const body=await req.json().catch(()=>({}));
+  const to=String(body.to ?? admin.email).trim().toLowerCase();
+  const subject=String(body.subject ?? '').trim(),text=String(body.text ?? body.emailBody ?? '').trim();
+  if(!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(to) || !subject || !text) return NextResponse.json({error:"Recipient, subject and text are required"},{status:400});
   try {
-    if (!to) {
-      return NextResponse.json(
-        { error: "No recipient provided and session user has no email" },
-        { status: 400 }
-      );
-    }
-
-    if (!subject || !text) {
-      return NextResponse.json(
-        { error: "Test send requires draft subject and full draft body" },
-        { status: 400 }
-      );
-    }
-
     await verifySmtpTransport();
-
-    const info = await sendSmtpMail({ to, subject, text, html });
-    const testCampaignId = await ensureTestCampaignId();
-
-    let logSaved = true;
-    let logError: string | null = null;
-    try {
-      await fetchFromCore("/api/admin/outreach/delivery-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          logs: [{
-            campaignId: testCampaignId,
-            leadId: null,
-            recipient: to.toLowerCase(),
-            subject,
-            status: "sent",
-            provider: "smtp",
-            providerMessageId: info.messageId ? String(info.messageId) : null,
-            providerResponse: info.response ? String(info.response) : null,
-          }],
-        }),
-      });
-    } catch (e) {
-      logSaved = false;
-      logError = e instanceof Error ? e.message : "Unknown log write error";
-      console.error("[outreach test send] log write failed:", logError);
-    }
-
-    return NextResponse.json({
-      ok: true,
-      to,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-      response: info.response,
-      logSaved,
-      logError,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "SMTP test failed";
-    if (to) {
-      try {
-        const testCampaignId = await ensureTestCampaignId();
-        await fetchFromCore("/api/admin/outreach/delivery-logs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            logs: [{
-              campaignId: testCampaignId,
-              leadId: null,
-              recipient: to.toLowerCase(),
-              subject,
-              status: "failed",
-              provider: "smtp",
-              errorMessage: message,
-            }],
-          }),
-        });
-      } catch (e) {
-        console.error(
-          "[outreach test send] failed-log write failed:",
-          e instanceof Error ? e.message : "Unknown log write error"
-        );
-      }
-    }
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
-  }
+    const response=await fetchFromCore('/api/admin/outreach/test-recipient',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:to})});
+    if(!response.ok) return NextResponse.json({error:'Could not prepare test recipient'},{status:response.status});
+    const {campaignId,leadId}=await response.json() as {campaignId:string;leadId:string};
+    const result=await submitOutreach({campaignId,leadId,to:[to],subject,text,...(body.html?{html:String(body.html)}:{}),...(body.retryOf?{retryOf:String(body.retryOf)}:{})},{core:fetchFromCore,send:sendSmtpMail});
+    return NextResponse.json(result.body,{status:result.status});
+  } catch {return NextResponse.json({error:'SMTP is unavailable. No submission was started.'},{status:503});}
 }

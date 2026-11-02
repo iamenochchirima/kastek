@@ -1,0 +1,13 @@
+.knowledge-record { padding: .875rem .25rem; }
+.knowledge-record-main { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.knowledge-record-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin-top: .3rem; color: var(--muted-foreground); font-size: .75rem; }
+.knowledge-status { display: inline-flex; align-items: center; gap: .375rem; }
+.knowledge-status::before { content: ''; width: .375rem; height: .375rem; border-radius: 50%; background: currentColor; }
+.knowledge-status[data-status="Ready"] { color: var(--success); }
+.knowledge-status[data-status="Import failed"], .knowledge-status[data-status="Awaiting approval"] { color: var(--warning); }
+.knowledge-record-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .25rem; }
+.knowledge-record > details { margin-top: .75rem; }
+@media (max-width: 640px) {
+  .knowledge-record-main { align-items: flex-start; flex-direction: column; gap: .5rem; }
+  .knowledge-record-actions { justify-content: flex-start; margin-left: 2.85rem; }
+}

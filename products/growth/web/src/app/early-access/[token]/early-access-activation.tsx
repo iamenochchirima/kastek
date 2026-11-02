@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate, useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
@@ -23,7 +21,8 @@ type Props = {
 };
 
 export function EarlyAccessActivation({ token, invitation, isLoggedIn }: Props) {
-  const router = useRouter();
+  const navigateTo = useNavigate();
+  const revalidator = useRevalidator();
   const [workspaceName, setWorkspaceName] = useState(invitation?.businessName ?? "");
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -87,8 +86,8 @@ export function EarlyAccessActivation({ token, invitation, isLoggedIn }: Props) 
         return;
       }
 
-      router.replace("/workspace");
-      router.refresh();
+      navigateTo("/workspace", { replace: true });
+      revalidator.revalidate();
     } catch {
       setError("We could not reach KasiTek. Check your connection and try again.");
     } finally {
