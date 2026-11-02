@@ -37,6 +37,33 @@ test('direct Instagram authorization uses its own app and public callback withou
   assert.ok(!url.searchParams.has('page_id'));
 });
 
+test('selected direct Instagram capabilities include basic identity without unselected permissions', () => {
+  const choices: [string[], string][] = [
+    [['SOCIAL_PUBLISH'], 'instagram_business_content_publish'],
+    [['MEDIA_PUBLISH'], 'instagram_business_content_publish'],
+    [['COMMENTS_MANAGE'], 'instagram_business_manage_comments'],
+    [['MESSAGING_INBOUND', 'MESSAGING_OUTBOUND'], 'instagram_business_manage_messages'],
+    [['SOCIAL_ANALYTICS'], 'instagram_business_manage_insights'],
+  ];
+  for (const [requested, permission] of choices) {
+    const url = new URL(buildInstagramAuthorizeUrl(config, 'synthetic-state', requested));
+    const scopes = url.searchParams.get('scope')!.split(',');
+    assert.deepEqual(new Set(scopes), new Set(['instagram_business_basic', permission]));
+    assert.equal(scopes.length, 2, 'shared messaging/publishing capabilities must not duplicate scopes');
+  }
+});
+
+test('explicit direct Instagram choices override a legacy broad scope bundle', () => {
+  const configured = readConfig({...config.rawEnv, AUTH_INSTAGRAM_SCOPES: 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights'});
+  const selected = new URL(buildInstagramAuthorizeUrl(configured, 'synthetic-state', ['SOCIAL_PUBLISH']));
+  assert.deepEqual(new Set(selected.searchParams.get('scope')!.split(',')), new Set(['instagram_business_basic', 'instagram_business_content_publish']));
+  const legacy = new URL(buildInstagramAuthorizeUrl(config, 'synthetic-state'));
+  assert.deepEqual(new Set(legacy.searchParams.get('scope')!.split(',')), new Set([
+    'instagram_business_basic', 'instagram_business_content_publish', 'instagram_business_manage_messages',
+    'instagram_business_manage_comments', 'instagram_business_manage_insights',
+  ]));
+});
+
 test('direct Instagram exchanges its code, extends the token and reads a professional account without Page discovery', async () => {
   const calls: { url: URL; init: RequestInit }[] = [];
   const responses = [

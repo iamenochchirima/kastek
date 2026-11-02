@@ -308,6 +308,12 @@ export function ConnectionsManager({
   const [permissionConnectProvider, setPermissionConnectProvider] = useState<string | null>(null);
   const [selectedAccess, setSelectedAccess] = useState<string[]>(DEFAULT_ACCESS_KEYS);
   const [requestedPermissionKeys, setRequestedPermissionKeys] = useState<string[]>([]);
+  const instagramAccessOptions = ACCESS_OPTIONS.map((option) =>
+    instagramConnectionMethod === "instagram" && option.key === "SOCIAL_POST_DELETE"
+      ? { ...option, available: false, availabilityLabel: "Not supported" }
+      : { ...option, available: true });
+  const instagramSelectedAccess = selectedAccess.filter((key) =>
+    instagramAccessOptions.some((option) => option.key === key && option.available));
   const [shownConnections, setShownConnections] = useState(() => displayableConnections(connections));
 
   useEffect(() => {
@@ -694,18 +700,24 @@ export function ConnectionsManager({
                       </span>
                     </label>
                   </RadioGroup>
-                  {instagramConnectionMethod === "meta" ? (
-                    <AccessSelection value={selectedAccess} onChange={setSelectedAccess} />
+                  <AccessSelection
+                    value={instagramSelectedAccess}
+                    onChange={setSelectedAccess}
+                    options={instagramAccessOptions}
+                  />
+                  {instagramConnectionMethod === "instagram" ? (
+                    <p className="text-xs text-muted-foreground">Basic account access is required; Instagram groups some permissions.</p>
                   ) : null}
                   <div className="sticky bottom-0 bg-background py-2">
                     <Button
                       className="w-full"
-                      disabled={instagramConnectionMethod === "meta" && selectedAccess.length === 0}
+                      disabled={instagramSelectedAccess.length === 0}
                       onClick={() => {
                         if (instagramConnectionMethod === "instagram") {
-                          setInstagramConnectPath("/api/social/oauth/instagram/start");
+                          const params = new URLSearchParams({capabilities: instagramSelectedAccess.join(",")});
+                          setInstagramConnectPath(`/api/social/oauth/instagram/start?${params.toString()}`);
                         } else {
-                          startOAuthConnection(metaConnectionPath("instagram", selectedAccess));
+                          startOAuthConnection(metaConnectionPath("instagram", instagramSelectedAccess));
                         }
                       }}
                     >

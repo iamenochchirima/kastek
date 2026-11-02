@@ -32,7 +32,9 @@ the destination remains unchanged. Other published platforms and processing post
 
 Open **Connections** → **Connect Instagram**, select **Instagram Login**, then **Continue**.
 Sign in with a Business or Creator account. A Facebook Page is not required for this path.
-Select **Meta Login** to use the separate Facebook Page-linked flow and choose its access.
+Select **Meta Login** to use the separate Facebook Page-linked flow. Both methods let you choose
+requested access before continuing. Direct login always includes basic account access; Instagram
+groups some feature permissions. Published-media deletion is unavailable through direct login.
 
 After returning, confirm the intended Instagram identity and granted permissions. A connected
 status alone does not establish that publishing, messages or analytics work. Ordinary personal
