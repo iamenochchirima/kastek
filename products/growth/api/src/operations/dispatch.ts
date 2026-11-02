@@ -170,6 +170,10 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       const { getOperationReview, operationReviewView } = await import("./reviews.js");
       return { review: operationReviewView(core, await getOperationReview(core, context, text(input, "reviewId"))) };
     }
+    case "content.actions.preview": {
+      const { prepareContentActionPreview } = await import("./reviews.js");
+      return prepareContentActionPreview(core, context, {action:text(input,"action"), input:object(input,"input"), requestId:input.requestId as string | undefined});
+    }
     case "content.posts.publish_batch.preflight": return batches.preflight(pool, context, text(input, "postId"));
     case "content.posts.publish": return batches.publishBatch(pool, context, text(input, "postId"), options.expectedSnapshotHash, { ...options, platform: text(input, "platform") });
     case "content.posts.publish_batch": return batches.publishBatch(pool, context, text(input, "postId"), options.expectedSnapshotHash, options);

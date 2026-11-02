@@ -21,6 +21,13 @@ export async function reconcileGrowthOperationReceipt(core: CoreContext, review:
       if (rows.length !== 1 || !/^[a-f0-9]{64}$/.test(rows[0].digest ?? "")) return null;
       return { reconciled: true, postId: rows[0].id, receipt: "draft_created" };
     }
+    case "content.media.transfer.prepare": {
+      const rows=(await core.pool.query(`SELECT id,"fileName","mimeType","byteSize","expectedChecksum","expiresAt",state FROM "GrowthMediaTransfer" WHERE "orgId"=$1 AND "userId"=$2 AND "principalId"=$3 AND "principalKind"=$4 AND "requestKey"=$5 LIMIT 2`,[review.orgId,review.userId,review.principalId,review.principalKind,key])).rows;
+      if(rows.length!==1) return null;
+      const row=rows[0];
+      if(row.fileName!==(input.fileName??null)||row.mimeType!==input.mimeType||Number(row.byteSize)!==input.byteSize||row.expectedChecksum!==(input.sha256??null)) return null;
+      return {reconciled:true,transferId:row.id,uploadUrl:`${core.config.publicApiUrl}/v1/media-transfers/${row.id}`,uploadMethod:"PUT",contentType:"application/octet-stream",byteSize:Number(row.byteSize),expiresAt:new Date(row.expiresAt).toISOString(),state:+new Date(row.expiresAt)<=Date.now()?"EXPIRED":row.state,requiresAuthentication:true,receipt:"media_transfer_prepared"};
+    }
     case "content.media.upload": {
       if (typeof input.transferId === "string") {
         const transfer = (await core.pool.query(`SELECT state,"assetId",checksum,"byteSize" FROM "GrowthMediaTransfer" WHERE id=$1 AND "orgId"=$2 AND "userId"=$3 AND "principalId"=$4 AND "principalKind"=$5`, [input.transferId, review.orgId, review.userId, review.principalId, review.principalKind])).rows[0];

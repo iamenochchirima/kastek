@@ -1,6 +1,7 @@
 import type { ProductCapabilityDescriptor, ProductCapabilityManifest, GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import { growthAgentDigest } from "./security.js";
 import { growthOperationDescriptors } from "../operations/manifest.js";
+import { retainedGrowthOperationDescriptorsV8 } from "../operations/retained-manifest.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
@@ -97,13 +98,21 @@ function operationPublication(descriptors: typeof growthOperationDescriptors, re
   }));
   return { manifest, presets: currentPresets, policy: { ...growthAgentPublicationV4.policy, revision } };
 }
-export const growthAgentPublicationV6 = operationPublication(growthOperationDescriptors.filter(operation => operation.operation !== "content.posts.update_published"), "6", "3");
-const captionOnlyDescriptors = growthOperationDescriptors.map(operation => operation.operation !== "content.posts.update_published" ? operation : ({
+export const growthAgentPublicationV6 = operationPublication(retainedGrowthOperationDescriptorsV8.filter(operation => operation.operation !== "content.posts.update_published"), "6", "3");
+const captionOnlyDescriptors = retainedGrowthOperationDescriptorsV8.map(operation => operation.operation !== "content.posts.update_published" ? operation : ({
   ...operation,
   description: "Update the text or caption of a confirmed Facebook Page post after exact review. Preserves its existing provider post, media and account. Unknown outcomes require reconciliation, not another update.",
   inputSchema: { ...operation.inputSchema, properties: Object.fromEntries(Object.entries(operation.inputSchema.properties as Record<string, unknown>).filter(([key]) => key !== "removePhoto")) },
 }));
 export const growthAgentPublicationV7 = operationPublication(captionOnlyDescriptors, "7", "4");
-export const growthAgentPublication = operationPublication(growthOperationDescriptors, "8", "5");
+export const growthAgentPublicationV8 = operationPublication(retainedGrowthOperationDescriptorsV8, "8", "5");
+const nextPublication = operationPublication(growthOperationDescriptors, "9", "6");
+export const growthAgentPublication = { ...nextPublication, presets: nextPublication.presets.map(preset => ({ ...preset,
+  instructions: preset.instructions
+    .replaceAll("Prepare a draft review only when saving is explicitly requested.", "Save a private draft directly only when saving is explicitly requested.")
+    .replaceAll("Only when a business change is explicitly requested, prepare its exact review and wait for user approval. Preserve request and review identities across retries.", "Create, edit and duplicate private drafts directly when requested. Preserve request identities and wait for an authoritative saved receipt.")
+    .replaceAll("Publishing and scheduling use the same Growth tools available externally. Prepare an exact action review and wait for its approved state before committing; never invent approval or a successful publication.", "For publishing, scheduling, edits or deletions of public content, call content.actions.preview for the exact requested action first, show its destinations, text, media and timing, and obtain user confirmation before execution. Internal public effects keep the trusted exact-review boundary; never invent approval or a successful publication.")
+    .replaceAll("A review URL is an action for the staff member, not evidence of approval.", "A preview or review ID is not evidence of user confirmation. Use the confirmation mechanism provided by the current interface; clients without chat confirmation retain the in-app review fallback.")
+})) };
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

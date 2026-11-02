@@ -193,7 +193,7 @@ export class GrowthExecutionService {
     if(command.input.context!==undefined&&canonicalJson(command.input.context)!==canonicalJson(conversation.context))throw new PlatformError("CONVERSATION_CONTEXT_CONFLICT",409,"Start a conversation for the new context");
     const config=agentConfigurationSchema.parse(feature.configuration),grant=executionGrantSchema.parse({
       id:randomUUID(),product:"growth",organizationId:feature.organization_id,resourceId:feature.feature_id,callerClientId:"growth-api",principal:this.principal(command),
-      versionId:feature.version_id,operations:["model.reply","product.read",...(config.capabilities.delegation.enabled?["delegation.execute"]:[]),...(config.productBindings.some(b=>b.policy.effect==="reviewed_write")?["product.write"]:[])],
+      versionId:feature.version_id,operations:["model.reply","product.read",...(config.capabilities.delegation.enabled?["delegation.execute"]:[]),...(config.productBindings.some(b=>b.policy.effect!=="read")?["product.write"]:[])],
       maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,
       rootTokenLimit:modelServicePolicy().maxRootTokens,expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null});
     await db.query("INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,max_input_bytes,max_output_tokens,max_context_tokens,root_token_limit,expires_at,source_revision_ids,connected_tool_binding_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
