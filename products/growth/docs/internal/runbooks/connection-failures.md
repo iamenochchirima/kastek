@@ -138,7 +138,8 @@ exact scopes requested by the successful OAuth attempt in that case. The Threads
 Threads-only posts with `platform_edit_unsupported` and the message “The Threads API does not
 support editing published posts.” Granting more permissions does not enable editing. Drafts remain
 editable. The rejected preview retains the Threads account and destination without changing the
-post or contacting the provider. See the [Threads API reference](https://developers.facebook.com/documentation/threads/reference)
+post or contacting the provider. The review page displays validation errors and disables approval
+when the preview is not ready. See the [Threads API reference](https://developers.facebook.com/documentation/threads/reference)
 and [changelog](https://developers.facebook.com/documentation/threads/changelog).
 
 ## Bluesky
