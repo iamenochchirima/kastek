@@ -3,7 +3,7 @@
   "info": {
     "title": "KasiTek Public API",
     "version": "1.0.0",
-    "description": "Growth public API for product sessions, workspace Developer API keys and resource-bound OAuth. Canonical REST, MCP and internal agents share operation schemas, authorization, exact reviews and bounded results. Deployment flags determine availability."
+    "description": "Growth public API for product sessions, workspace Developer API keys and resource-bound OAuth. Canonical REST, MCP and internal agents share operation schemas, authorization, requested private writes, exact public-action confirmation and bounded results. Deployment flags determine availability."
   },
   "servers": [
     {
@@ -767,7 +767,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+                    "description": "Legacy review ID for the exact unchanged action or receipt."
                   },
                   "_continuation": {
                     "type": "string",
@@ -794,7 +794,7 @@
             }
           },
           "202": {
-            "description": "Exact review required or nonterminal receipt",
+            "description": "Nonterminal durable receipt; reconcile with unchanged input and request identity",
             "content": {
               "application/json": {
                 "schema": {
@@ -825,7 +825,7 @@
             "$ref": "#/components/responses/GrowthOperationError"
           }
         },
-        "description": "Canonical reviewed draft alias. Initial202 saves no draft. After approval repeat unchanged input/request identity with _reviewId. Scheduling/publication are rejected. Receipt replay does not repeat effects."
+        "description": "Canonical requested private draft alias. Saves directly with current write authority and stable request identity; succeeded receipts replay without repeating effects. Reconcile nonterminal receipts with unchanged input and identity. Retained reviews still accept _reviewId. Scheduling/publication are rejected."
       }
     },
     "/content/posts/{id}": {
@@ -1068,7 +1068,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+                    "description": "Legacy review ID for the exact unchanged action or receipt."
                   },
                   "_continuation": {
                     "type": "string",
@@ -1095,7 +1095,7 @@
             }
           },
           "202": {
-            "description": "Exact review required or nonterminal receipt",
+            "description": "Nonterminal durable receipt; reconcile with unchanged input and request identity",
             "content": {
               "application/json": {
                 "schema": {
@@ -1126,7 +1126,7 @@
             "$ref": "#/components/responses/GrowthOperationError"
           }
         },
-        "description": "Canonical reviewed draft alias. Initial202 saves no draft. After approval repeat unchanged input/request identity with _reviewId. Scheduling/publication are rejected. Receipt replay does not repeat effects."
+        "description": "Canonical requested private draft alias. Saves directly with current write authority and stable request identity; succeeded receipts replay without repeating effects. Reconcile nonterminal receipts with unchanged input and identity. Retained reviews still accept _reviewId. Scheduling/publication are rejected."
       }
     },
     "/content/posts/{id}/activity": {
@@ -1318,7 +1318,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "prepareGrowthMediaTransfer",
-        "description": "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload after review.",
+        "description": "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload.",
         "x-growth-operation": "content.media.transfer.prepare",
         "x-growth-review": "none",
         "x-growth-effect": "draft",
@@ -1412,7 +1412,7 @@
       "x-growth-generated": true,
       "put": {
         "operationId": "uploadGrowthMediaTransfer",
-        "description": "Upload exactly the declared bytes to this credential's pending transfer. Finalize through the reviewed content.media.transfer.finalize operation.",
+        "description": "Upload exactly the declared bytes to this credential's pending transfer. Save the completed transfer through the requested private content.media.upload operation.",
         "parameters": [
           {
             "name": "id",
@@ -1627,7 +1627,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invokeGrowthOperation",
-        "description": "Use the named concrete operation schema; all writes require stable request identity and exact review unless marked as staging controls.",
+        "description": "Use the named concrete operation schema; writes require stable request identity. Requested private content drafts/media execute directly; public/destructive content actions bind an exact preview and confirmation, and other writes retain exact reviews.",
         "parameters": [
           {
             "name": "operation",
@@ -1652,6 +1652,7 @@
                 "content.media.transfer.prepare",
                 "content.media.upload",
                 "operations.reviews.get",
+                "content.actions.preview",
                 "content.posts.publish_batch.preflight",
                 "content.posts.publish",
                 "content.posts.publish_batch",
@@ -1738,6 +1739,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/GrowthInput_operations_reviews_get"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GrowthInput_content_actions_preview"
                   },
                   {
                     "$ref": "#/components/schemas/GrowthInput_content_posts_publish_batch_preflight"
@@ -2460,6 +2464,60 @@
         }
       }
     },
+    "/operations/content.actions.preview": {
+      "x-growth-generated": true,
+      "post": {
+        "operationId": "invoke_content_actions_preview",
+        "description": "Preview an exact content action without changing content or contacting a provider. Repeat the same requestId and business input when reading continuation chunks. Returns a bound preview ID for confirmation; publishing, scheduling, retries and deletion remain separate actions.",
+        "x-growth-operation": "content.actions.preview",
+        "x-growth-review": "none",
+        "x-growth-effect": "read",
+        "x-growth-scope": "growth:read",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrowthInput_content_actions_preview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical result, exact review or durable receipt; large results use continuation chunks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrowthOperationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "403": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "409": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "413": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "422": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/GrowthOperationError"
+          }
+        }
+      }
+    },
     "/operations/content.insights.report": {
       "x-growth-generated": true,
       "post": {
@@ -2734,7 +2792,7 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_media_transfer_prepare",
-        "description": "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload after review.",
+        "description": "Prepare private temporary storage for an image or video upload. This does not create a content asset; save the completed transfer through content.media.upload.",
         "x-growth-operation": "content.media.transfer.prepare",
         "x-growth-review": "none",
         "x-growth-effect": "draft",
@@ -2788,9 +2846,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_media_upload",
-        "description": "Save a completed owned transfer, or a small image/video of at most 16 KiB decoded from canonical base64, after exact review. Choose exactly one source.",
+        "description": "Save a completed owned transfer, or a small image/video of at most 16 KiB decoded from canonical base64, directly when requested. Choose exactly one source.",
         "x-growth-operation": "content.media.upload",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "draft",
         "x-growth-scope": "growth:draft",
         "requestBody": {
@@ -3004,9 +3062,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_draft_create",
-        "description": "Prepare a new content draft for exact review. Does not publish or schedule.",
+        "description": "Create a private content draft directly when requested. Does not publish or schedule.",
         "x-growth-operation": "content.posts.draft.create",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "draft",
         "x-growth-scope": "growth:draft",
         "requestBody": {
@@ -3058,9 +3116,9 @@
       "x-growth-generated": true,
       "post": {
         "operationId": "invoke_content_posts_draft_update",
-        "description": "Update an unpublished draft after exact review. Published history must remain unchanged.",
+        "description": "Update an unpublished draft directly when requested. Published history remains unchanged.",
         "x-growth-operation": "content.posts.draft.update",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "draft",
         "x-growth-scope": "growth:draft",
         "requestBody": {
@@ -3114,7 +3172,7 @@
         "operationId": "invoke_content_posts_duplicate",
         "description": "Copy an authorized post into a new draft without copying delivery history or scheduling.",
         "x-growth-operation": "content.posts.duplicate",
-        "x-growth-review": "required",
+        "x-growth-review": "none",
         "x-growth-effect": "draft",
         "x-growth-scope": "growth:draft",
         "requestBody": {
@@ -4628,7 +4686,7 @@
             "refreshUrl": "/oauth/token",
             "scopes": {
               "growth:read": "Read authorized workspace and customer data",
-              "growth:draft": "Create drafts and edit records after exact review",
+              "growth:draft": "Save requested private content drafts/media; review other record edits",
               "growth:publish": "Publish, schedule and send after exact review",
               "growth:manage": "Delete and manage records after exact review"
             }
@@ -5215,7 +5273,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -5341,7 +5399,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -5371,6 +5429,48 @@
           }
         },
         "required": [],
+        "additionalProperties": false
+      },
+      "GrowthInput_content_actions_preview": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "content.posts.publish",
+              "content.posts.publish_batch",
+              "content.posts.publish_batch.retry",
+              "content.posts.schedule",
+              "content.posts.reschedule",
+              "content.posts.unschedule",
+              "content.jobs.cancel",
+              "content.jobs.retry",
+              "content.posts.delete",
+              "content.posts.delete_published",
+              "content.posts.update_published"
+            ]
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 240
+          },
+          "_continuation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Continuation returned by this same operation. Repeat unchanged business arguments to retrieve the next bounded result chunk."
+          }
+        },
+        "required": [
+          "action",
+          "input",
+          "requestId"
+        ],
         "additionalProperties": false
       },
       "GrowthInput_content_insights_report": {
@@ -5446,7 +5546,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5478,7 +5584,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5565,7 +5677,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -5613,7 +5725,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [],
@@ -5643,7 +5755,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256,
-                "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+                "description": "Legacy review ID for the exact unchanged action or receipt."
               }
             },
             "required": [
@@ -5685,7 +5797,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256,
-                "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+                "description": "Legacy review ID for the exact unchanged action or receipt."
               }
             },
             "required": [
@@ -5740,7 +5852,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5784,7 +5902,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -5972,7 +6096,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6164,7 +6288,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6197,7 +6321,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6343,7 +6467,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6376,7 +6506,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6428,7 +6564,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6488,7 +6630,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6526,7 +6674,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6559,7 +6713,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6605,7 +6765,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
+          },
+          "_previewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Preview ID returned by content.actions.preview. Repeat the exact action input; the client presents confirmation before any public change. The preview retains its stable request identity."
           }
         },
         "required": [
@@ -6682,7 +6848,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6717,7 +6883,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6790,7 +6956,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Review ID returned by this action. Supply it with the same request identity and unchanged input after approval."
+            "description": "Legacy review ID for the exact unchanged action or receipt."
           }
         },
         "required": [
@@ -6924,6 +7090,19 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "decisionSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "requested_draft",
+              "growth_ui",
+              "mcp_form",
+              null
+            ],
+            "description": "Recorded decision authority; null for historical rows"
           },
           "requestId": {
             "type": "string",
