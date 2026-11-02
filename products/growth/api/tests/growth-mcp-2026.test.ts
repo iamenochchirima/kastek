@@ -227,7 +227,14 @@ test("real MCP2026 host forms confirm an exact owned content action once and fai
     assert.equal(hostUnsupported.structuredContent.review.state,"proposed");
     assert.equal(await draftCount(),1);
     const missingAnswer=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{}}}});
-    assert.equal(missingAnswer.structuredContent.code,"content_confirmation_invalid");
+    assert.equal(missingAnswer.structuredContent.state,"approval_required");
+    assert.equal(missingAnswer.structuredContent.review.state,"proposed");
+    assert.equal(missingAnswer.structuredContent.review.decisionSource,null);
+    assert.ok(missingAnswer.structuredContent.message.includes("client did not return"));
+    const malformedAnswer=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{confirm:"true"}}}});
+    assert.equal(malformedAnswer.structuredContent.code,"content_confirmation_invalid");
+    const foreignEmpty=await invoke("content.posts.delete",deletion,{requestState:proposed.requestState,inputResponses:{[formId]:{action:"accept",content:{}}}},readToken);
+    assert.equal(foreignEmpty.structuredContent.code,"content_confirmation_invalid");
     assert.equal(await draftCount(),1);
     const foreign = await invoke("content.posts.delete",deletion,approve,readToken);
     assert.equal(foreign.structuredContent.code,"content_confirmation_invalid");

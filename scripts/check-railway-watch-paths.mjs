@@ -33,5 +33,5 @@ expect('infra/observability/otel-collector/config.production.template.yaml', ['o
 for (const file of ['VERSION', 'AGENTS.md', 'docs/operations/platform-0.3.0-release.md',
   'products/growth/docs/features/README.md', 'products/growth/web/src/app/page.tsx',
   'products/growth/api/tests/growth-mcp-2026.test.ts', 'products/agents/api/test/product-capabilities.test.ts',
-  'infra/identity/README.md', 'infra/railway/watch-paths.json']) expect(file, []);
+  'infra/identity/README.md', 'infra/observability/otel-collector/compose.yaml', 'infra/railway/watch-paths.json']) expect(file, []);
 console.log('Railway watch-path matrix passed: 13 Git services, 6 image-only services, runtime/shared inputs and excluded changes.');

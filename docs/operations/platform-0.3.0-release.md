@@ -111,3 +111,12 @@ capabilities, but its publish continuation failed closed before approval. No pro
 Bounded confirmation failure categories and response-shape flags were added to diagnose the host
 interaction without logging content, tokens or opaque state. Explicit unsupported-form protocol
 errors retain the owned Growth review fallback. Native confirmation acceptance remains pending.
+
+The diagnostic round trip identified `accept` with an empty content object, missing the required
+boolean choice. Its state, argument and ownership checks passed. The official OpenAI SDK emits the
+same request structure and supports boolean fields; no supported server-side schema correction was
+identified. Empty acceptance is never approval. This precise host mismatch now returns the owned
+Growth review fallback after a fresh grant check, with a bounded diagnostic event. Nonempty malformed
+answers remain errors. Nine protocol checks passed after this interoperability fix. Actual native
+form rendering remains unverified; do not describe the current host as having completed in-chat
+confirmation.

@@ -211,7 +211,10 @@
     ],
     "otel-collector": [
       "/infra/observability/otel-collector/Dockerfile",
-      "/infra/observability/otel-collector/*.yaml"
+      "/infra/observability/otel-collector/config.yaml",
+      "/infra/observability/otel-collector/config.local.yaml",
+      "/infra/observability/otel-collector/config.staging.yaml",
+      "/infra/observability/otel-collector/config.production.template.yaml"
     ]
   },
   "imageOnlyServices": [
