@@ -56,11 +56,31 @@ eight current/retained workflows were registered through signed private discover
 persistent media path is writable. Canonical MCP discovery returns the public API issuer and
 unauthenticated MCP initialization returns its OAuth challenge.
 
+The first media probe ran through privileged Railway SSH and was insufficient: the application
+runs as UID 1000 and could not write the root-owned mount. Ownership was corrected and a separate
+UID 1000 write/delete probe passed. For a new `/data/media` volume, initialize it from a privileged
+maintenance session before accepting uploads; keep the application process unprivileged:
+
+```sh
+mkdir -p /data/media
+chown 1000:1000 /data /data/media
+chmod 0750 /data/media
+```
+
 Sixteen public frontend checks passed, including session denial, correct login redirects/PKCE and
 Agency wildcard routing with caller-header spoof rejection. SMTP certificate-verified TLS and
 authentication succeeded without sending email. Completed human sign-in/logout, actual email
 delivery, authenticated browser uploads/streaming and external-agent/provider publication remain
 unverified. Local Facebook tests establish provider behavior, not hosted agent acceptance.
+
+CI is not fully green. The latest inspected Monorepo validation run found an ambiguous Growth
+Retry-button locator; the separate Agents Source Checks run had 24 failures, 2,255 passes and
+112 skips. Some failures are fixture/infrastructure drift, while review suppression, execution
+export redaction, controlled-model uncertainty and a grounded execution timeout need separate
+reproduction. These logs do not establish a live defect, and successful readiness checks do not
+certify those workflows. The owner explicitly authorized deployment based on local working
+behavior without making the full CI suite a promotion gate. The focused Agent Platform UI run
+passed after its stale assertions were corrected.
 
 Registered analytics events and bounded logs are reused. Analytics projection and Operations
 workers show current progress; no synthetic business events were inserted. Central log retention
@@ -78,6 +98,10 @@ Keep previous provider source settings, deployment IDs and domain targets for ro
 matching frontend/backend artifacts without dropping additive schemas, receipts or durable queues.
 Disable Growth agent effects/access separately when needed. Never blindly retry an uncertain
 provider mutation. Keep old production data untouched.
+
+Old source deployments were already failing when inventoried; their availability is not a
+verified rollback target. Domain/source settings and previous frontend artifact IDs are retained,
+but a complete rollback was not executed during this rollout.
 
 Post-release review: 2026-11-03. Remaining acceptance is listed above. Growth's existing landing-page
 SEO metadata still references its legacy `growth.kasitek.co.za` canonical origin; application routing
