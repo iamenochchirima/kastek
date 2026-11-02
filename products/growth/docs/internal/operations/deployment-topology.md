@@ -1,7 +1,7 @@
 ---
 title: Service deployment ownership
 owner: platform-ops
-last_reviewed: 2026-10-23
+last_reviewed: 2026-11-02
 ---
 
 # Service deployment ownership
@@ -30,3 +30,14 @@ The repository's `infra/backend/README.md` defines explicit
 monorepo build arguments, start commands, runtime migration files and health paths for Growth,
 Agency, Analytics and Operations. Agents retains its own backend image. These packaging files
 do not establish hosted deployment readiness or change live service settings.
+
+## Production Identity
+
+Human sign-in uses `https://auth.kasitek.co.za/realms/kasitek`. Railway terminates
+HTTPS for the DNS-only Cloudflare CNAME. Identity owns the exact public origin through
+`KC_HOSTNAME`; its passwordless relying-party ID is `auth.kasitek.co.za`.
+Growth, Agents, Agency and Operations API issuer settings reference
+`${{identity.KC_HOSTNAME}}/realms/kasitek`. Restart each consuming API/worker after an
+issuer change to discard cached discovery. Product command-signing issuers are independent.
+Vercel frontends proxy authentication through their own backend and need no Identity issuer
+variable. See `infra/identity/HOSTED.md` for realm configuration and hostname migration limits.

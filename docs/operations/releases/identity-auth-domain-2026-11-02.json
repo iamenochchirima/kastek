@@ -1,0 +1,166 @@
+{
+  "configurationRevision": "identity-auth-domain-2026-11-02",
+  "platformVersion": "0.2.0",
+  "verifiedAt": "2026-11-02T17:06:56.786242+00:00",
+  "identityOrigin": "https://auth.kasitek.co.za",
+  "certificateVerified": true,
+  "identityReadiness": "UP",
+  "realm": {
+    "issuer": "https://auth.kasitek.co.za/realms/kasitek",
+    "passwordlessRpId": "auth.kasitek.co.za",
+    "realmFrontendUrl": null
+  },
+  "deployments": [
+    {
+      "service": "agency-analytics-worker",
+      "id": "2e822649-bb69-4d41-bfba-7ed106b74715",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "agency-api",
+      "id": "33f0d91e-a933-4ee1-b99c-1547ef793768",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "agency-db",
+      "id": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "agents-api",
+      "id": "f6228e6a-306a-44c5-b60f-a67cfd72fa0c",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "agents-db",
+      "id": "6a213b45-e5bd-4ad7-9fe5-ff87301a4b90",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "agents-worker",
+      "id": "9309020f-9e9e-4067-bbf6-df70dd2d77c3",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "analytics-api",
+      "id": "9fe0e025-be8b-46e8-b141-f4f6f81e2f0e",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "analytics-db",
+      "id": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "analytics-worker",
+      "id": "47826bc7-d89e-41af-b99e-93bbbd5664a6",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "growth-analytics-worker",
+      "id": "33dd268b-d5b0-4faa-9902-1d04c3d9c5d2",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "growth-api",
+      "id": "fd61d2b3-a32b-4ffb-97f9-6d540fb727ea",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "growth-db",
+      "id": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "identity",
+      "id": "4da846ee-cb25-447c-b4ce-30f7c0e5fef9",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "identity-db",
+      "id": "f8477a21-77bc-45f7-8379-488bb94e431c",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "operations-api",
+      "id": "a5ece82d-3ca8-47d5-bc8e-5d3f543518e2",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "operations-db",
+      "id": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "operations-worker",
+      "id": "db3912cd-ecbb-487e-a250-05ba8c9c3ba6",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "otel-collector",
+      "id": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+      "status": "SUCCESS"
+    },
+    {
+      "service": "restate",
+      "id": "3f5e2711-9f57-485f-8d9f-611d0c419acc",
+      "status": "SUCCESS"
+    }
+  ],
+  "loginChecks": [
+    {
+      "origin": "https://app.kasitek.co.za",
+      "path": "/api/auth/login",
+      "clientId": "growth",
+      "finalStatus": 200,
+      "finalOrigin": "https://auth.kasitek.co.za",
+      "passwordFormPresent": true,
+      "pkceS256": true,
+      "passed": true
+    },
+    {
+      "origin": "https://agents.kasitek.co.za",
+      "path": "/api/auth/login",
+      "clientId": "agents",
+      "finalStatus": 200,
+      "finalOrigin": "https://auth.kasitek.co.za",
+      "passwordFormPresent": true,
+      "pkceS256": true,
+      "passed": true
+    },
+    {
+      "origin": "https://admin.kasitek.co.za",
+      "path": "/api/operations-auth/login",
+      "clientId": "labs-admin",
+      "finalStatus": 200,
+      "finalOrigin": "https://auth.kasitek.co.za",
+      "passwordFormPresent": true,
+      "pkceS256": true,
+      "passed": true
+    },
+    {
+      "origin": "https://portal.kasitek.co.za",
+      "path": "/api/tenant/api/partner/auth/start",
+      "clientId": "agency-partner",
+      "finalStatus": 200,
+      "finalOrigin": "https://auth.kasitek.co.za",
+      "passwordFormPresent": true,
+      "pkceS256": true,
+      "passed": true
+    },
+    {
+      "origin": "https://app.kasitek.co.za",
+      "path": "/api/auth/login?screen=signup",
+      "clientId": "growth",
+      "finalStatus": 200,
+      "finalOrigin": "https://auth.kasitek.co.za",
+      "passwordFormPresent": true,
+      "pkceS256": true,
+      "passed": true
+    }
+  ],
+  "limitations": [
+    "No human registration, completed login/logout or email delivery performed.",
+    "Existing platform release CI limitations still apply."
+  ]
+}
