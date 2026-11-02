@@ -23,6 +23,35 @@ test("Growth OAuth permits bounded public-client metadata and rejects private me
   assert.throws(() => clientMetadata({redirect_uris:["https://example.com/cb"],grant_types:["client_credentials"]},"client"));
 });
 
+const chatgptMetadata = {
+  client_id: "https://chatgpt.com/oauth/client.json",
+  client_name: "ChatGPT",
+  redirect_uris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+  token_endpoint_auth_method: "private_key_jwt",
+  token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+  grant_types: ["authorization_code", "refresh_token"],
+  response_types: ["code"],
+  token_endpoint_auth_signing_alg: "RS256",
+  jwks_uri: "https://chatgpt.com/oauth/jwks.json",
+};
+
+test("CIMD negotiates public PKCE when ChatGPT prefers signed client authentication", () => {
+  const client = clientMetadata(chatgptMetadata, chatgptMetadata.client_id, "document");
+  assert.deepEqual(client, {id: chatgptMetadata.client_id, name: "ChatGPT", redirectUris: chatgptMetadata.redirect_uris});
+  assert.deepEqual(clientMetadata({...chatgptMetadata, token_endpoint_auth_method: undefined}, chatgptMetadata.client_id, "document"), client);
+  assert.throws(() => clientMetadata({...chatgptMetadata, client_id: undefined}, "registered-client"), /Only public/);
+});
+
+test("CIMD rejects unsupported or malformed authentication choices without a public fallback", () => {
+  for (const methods of [["private_key_jwt"], [], "none", ["none", 42], null]) {
+    assert.throws(() => clientMetadata({...chatgptMetadata, token_endpoint_auth_methods_supported: methods}, chatgptMetadata.client_id, "document"));
+    assert.throws(() => clientMetadata({...chatgptMetadata, token_endpoint_auth_method: undefined, token_endpoint_auth_methods_supported: methods}, chatgptMetadata.client_id, "document"));
+  }
+  assert.throws(() => clientMetadata({...chatgptMetadata, token_endpoint_auth_method: 42}, chatgptMetadata.client_id, "document"));
+  assert.throws(() => clientMetadata({...chatgptMetadata, token_endpoint_auth_methods_supported: undefined}, chatgptMetadata.client_id, "document"));
+  assert.throws(() => clientMetadata({...chatgptMetadata, client_id: "https://different.example/client.json"}, chatgptMetadata.client_id, "document"));
+});
+
 const database=process.env.CORE_OAUTH_TEST_DATABASE_URL;
 test("Growth OAuth consent, PKCE, workspace isolation, code races, rotation, replay and independent revocation", {skip:!database,timeout:30000}, async () => {
   const url=new URL(database!);

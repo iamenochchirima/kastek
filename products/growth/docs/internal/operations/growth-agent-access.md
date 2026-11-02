@@ -1,14 +1,15 @@
 ---
 title: Growth agent access operations
 owner: engineering
-last_reviewed: 2026-11-01
+last_reviewed: 2026-11-02
 ---
 
 # Growth agent access operations
 
 Growth implements OAuth MCP, canonical REST and direct internal execution over the same
-operation catalogue. These notes describe the source implementation and controlled rollout;
-no production deployment is established by the local verification below. The public contracts
+operation catalogue. The platform hosting release deployed these endpoints; the local evidence
+below does not establish a completed native ChatGPT connection. See
+`docs/operations/platform-0.2.0-release.md` for deployment evidence. The public contracts
 are [MCP integration](https://docs.kasitek.co.za/api/mcp-integration) and
 [Agent REST](https://docs.kasitek.co.za/api/agent-rest).
 
@@ -62,7 +63,12 @@ Plan retention for review input/results and transfer files using the deployment'
 Discovery is at `/.well-known/oauth-protected-resource`, its `/mcp` alias, and
 `/.well-known/oauth-authorization-server`. `/oauth/register` accepts bounded public-client
 metadata; metadata-document URLs require public HTTPS with DNS/IP validation, pinned resolution,
-request deadlines and no redirects. Registration is limited per IP and by total stored clients.
+request deadlines and no redirects. CIMD `token_endpoint_auth_methods_supported` is a validated
+nonempty string list and must include `none`; its legacy singular authentication preference does
+not override a mutually supported public method. Without a choices list, the singular method
+must be `none` or omitted. Dynamic registration still requires the singular public method;
+CIMD negotiation does not change registration or PKCE/token validation. Registration is limited
+per IP and by total stored clients.
 `/oauth/authorize` requires PKCE S256 and the exact MCP resource. Consent inspection binds its
 opaque request to the existing signed-in user. The user selects an actual member workspace and
 can narrow requested scopes. Consent and code use are single-use under database locks.

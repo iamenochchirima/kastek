@@ -14,7 +14,10 @@ source support does not establish that a hosted endpoint has been enabled.
 Open **Developers → MCP** for the configured endpoint and your agent connections. Add that
 endpoint to an OAuth-capable MCP client. Growth publishes protected-resource and authorization
 server metadata, supports dynamic public-client registration and HTTPS client metadata documents,
-and requires authorization-code flow with PKCE S256. No separate Growth password or shared
+and requires authorization-code flow with PKCE S256. Client metadata documents can list supported
+token authentication methods; Growth selects `none` only when that list includes it, even if
+the legacy preference names another method. Clients requiring confidential authentication remain
+unsupported. No separate Growth password or shared
 agent API key is needed. A client with preconfigured metadata can be registered through
 `POST /oauth/register`; confidential-client secrets and client-credentials grants are unsupported.
 

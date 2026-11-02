@@ -24,14 +24,25 @@ export function redirectUri(value: string): string {
   return value;
 }
 
-export function clientMetadata(value: unknown, id: string): OAuthClient {
+export function clientMetadata(value: unknown, id: string, source: "registration" | "document" = "registration"): OAuthClient {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new OAuthError("invalid_client_metadata", "Invalid client metadata");
   const input = value as Record<string, unknown>;
   if (input.client_id !== undefined && input.client_id !== id)
     throw new OAuthError("invalid_client_metadata", "Client identity does not match its metadata URL");
-  if (input.token_endpoint_auth_method !== undefined && input.token_endpoint_auth_method !== "none")
+  const method = input.token_endpoint_auth_method;
+  if (method !== undefined && (typeof method !== "string" || !method.trim()))
+    throw new OAuthError("invalid_client_metadata", "Invalid client authentication method");
+  if (source === "document" && input.token_endpoint_auth_methods_supported !== undefined) {
+    // CIMD choices describe capabilities; the singular field is only a legacy preference.
+    const methods = input.token_endpoint_auth_methods_supported;
+    if (!Array.isArray(methods) || !methods.length || methods.some(value => typeof value !== "string" || !value.trim()))
+      throw new OAuthError("invalid_client_metadata", "Invalid client authentication choices");
+    if (!methods.includes("none"))
+      throw new OAuthError("invalid_client_metadata", "Only public clients using PKCE are supported");
+  } else if (method !== undefined && method !== "none") {
     throw new OAuthError("invalid_client_metadata", "Only public clients using PKCE are supported");
+  }
   if (!Array.isArray(input.redirect_uris) || !input.redirect_uris.length || input.redirect_uris.length > 10 || input.redirect_uris.some(v => typeof v !== "string"))
     throw new OAuthError("invalid_client_metadata", "One to ten redirect URIs are required");
   for (const [key, allowed] of [["grant_types", ["authorization_code", "refresh_token"]], ["response_types", ["code"]]] as const)
@@ -99,5 +110,5 @@ export async function fetchClientMetadata(id: string): Promise<OAuthClient> {
   try { value = JSON.parse(body); } catch { throw new OAuthError("invalid_client_metadata", "Invalid metadata JSON"); }
   if ((value as Record<string, unknown>)?.client_id !== id)
     throw new OAuthError("invalid_client_metadata", "Client metadata must identify its exact URL");
-  return clientMetadata(value, id);
+  return clientMetadata(value, id, "document");
 }
