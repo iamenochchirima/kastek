@@ -1,0 +1,42 @@
+{
+  "releaseId": "growth-chatgpt-cimd-2026-11-02",
+  "verifiedAt": "2026-11-02T17:42:51.181252+00:00",
+  "deployments": [
+    {
+      "service": "growth-api",
+      "deploymentId": "c18e4e77-71d4-4283-8245-f0df4394817c",
+      "status": "SUCCESS",
+      "sourceCommit": "efcb4f115a6a4bad4b1bf628925f084b04ec4405"
+    },
+    {
+      "service": "growth-analytics-worker",
+      "deploymentId": "3415e772-e080-4301-95d4-637ee5ff6e09",
+      "status": "SUCCESS",
+      "sourceCommit": "efcb4f115a6a4bad4b1bf628925f084b04ec4405"
+    }
+  ],
+  "liveAuthorization": {
+    "checkedAt": "2026-11-02T17:42:36.312661+00:00",
+    "authorizationStatus": 302,
+    "consentDestination": "https://app.kasitek.co.za/oauth/consent",
+    "passed": true,
+    "client": "https://chatgpt.com/oauth/client.json",
+    "scope": "growth:read",
+    "workspaceGrantApproved": false,
+    "nativeChatGPTConsentCompleted": false
+  },
+  "localVerification": {
+    "currentSourceTestsPassed": 14,
+    "currentSourceTestsSkipped": 0,
+    "realChatgptMetadataFixturePassed": true,
+    "apiBuild": "passed",
+    "importBoundaries": "passed",
+    "whitespace": "passed"
+  },
+  "security": "CIMD public-method choices validated; DCR and PKCE/consent/resource/scope/revocation rules unchanged",
+  "limits": [
+    "No production workspace grant or native ChatGPT consent was completed by the agent.",
+    "Owned fixture tool calls do not establish real Facebook or other provider publication.",
+    "Existing unrelated platform CI limitations still apply."
+  ]
+}
