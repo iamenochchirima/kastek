@@ -57,7 +57,7 @@ requested schedule and organization timezone, target receipts, update/removal de
 The preview is optional. Execution under current grants validates its current snapshot or, when
 `_previewId` is supplied, the unchanged frozen preview. Content writes use durable receipts without
 a Growth human approval requirement. MCP clients may apply their own confirmations. No app-only
-confirmation tool, form or card is needed. See [ADR 0003](../../adr/0003-direct-authorized-content-actions.md).
+confirmation tool, form or card is needed. See [ADR 0003](https://github.com/Kasitek-Labs/kastek/blob/main/products/growth/docs/adr/0003-direct-authorized-content-actions.md).
 
 Other non-read business changes retain exact persisted reviews. Internal agents invoke the same
 content handlers directly, without MCP. The current product-only `authorized_write` policy preserves
