@@ -18,7 +18,6 @@ export function createVercelRoutes(product, { apiOrigin, frontendOrigin, growthR
   const api = origin(apiOrigin, 'API origin');
   const frontend = origin(frontendOrigin, 'FRONTEND_URL');
   const routes = [{ src: '/.*', headers: { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'cache-control': 'no-store', ...(preview ? { 'x-robots-tag': 'noindex, nofollow' } : {}) }, continue: true }];
-  if (product === 'growth') routes.push({ src: '/api/orgs/set-active', dest: '/_hosting/org-switch' });
   const source = product === 'agency' ? '/api/tenant(?:/(.*))?' : product === 'growth' ? '(/api(?:/.*)?|/v1(?:/.*)?|/mcp|/oauth/(?:authorize|register|token|revoke))' : '(/api(?:/.*)?)';
   const transforms = [header('forwarded'), header('x-kasitek-tenant-host')];
   if (product === 'agency' && agencyWildcardDomain) {
@@ -68,13 +67,6 @@ export async function packageVercelOutput(product, env = process.env) {
     recursive: true,
     filter: source => !source.split('/').some(part => part.startsWith('.') || part.endsWith('.map')),
   });
-  if (product === 'growth') {
-    const target = join(output, 'functions/_hosting/org-switch.func');
-    await mkdir(join(target, 'scripts'), { recursive: true });
-    for (const filename of ['serve.mjs', 'route-contract.json']) await cp(join(root, 'scripts', filename), join(target, 'scripts', filename));
-    await cp(join(repository, 'scripts/hosting/org-switch.mjs'), join(target, 'index.mjs'));
-    await writeFile(join(target, '.vc-config.json'), JSON.stringify({ runtime: 'nodejs24.x', handler: 'index.mjs', launcherType: 'Nodejs', maxDuration: 30, supportsResponseStreaming: true }));
-  }
   await writeFile(join(output, 'config.json'), JSON.stringify(config, null, 2) + '\n');
   return output;
 }

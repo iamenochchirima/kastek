@@ -94,15 +94,16 @@ Supply these build-time origins before packaging:
 Origins must use HTTPS, with no credentials, path, query or fragment. Generated routing includes
 public origins only; it does not copy backend environment files or secrets. Set `VERCEL_ENV` to
 `production` only for a production artifact; other artifacts receive `X-Robots-Tag: noindex`.
-The Growth organization-switch function also needs `CORE_API_BASE_URL` and `FRONTEND_URL` at
-runtime. A prebuilt promotion must use the same tested origins and environment configuration.
+A prebuilt promotion must use the same tested origins and environment configuration.
 
 Static assets are served by Vercel. Browser APIs use native external rewrites instead of a
-function proxy, preserving the upload path outside Vercel Functions' payload limit. Only Growth's
-small `/api/orgs/set-active` request uses a Node function; it reuses the existing Growth proxy to
-preserve the exact browser Host and cookie authority checks. Other requests cannot use this
-function. Growth private routes follow the route inventory, unknown routes and missing assets
-return 404, source maps and hidden files remain unavailable, and documents use `no-store`.
+function proxy, preserving the upload path outside Vercel Functions' payload limit. Growth's
+organization-switch endpoint accepts the exact `FRONTEND_URL` or `KASITEK_CORE_PUBLIC_URL` Host
+and still requires the exact frontend Origin, session cookie and workspace membership. This permits
+the Railway HTTPS routing Host without trusting caller-supplied forwarded-host headers. Growth
+private routes follow the route inventory, unknown routes and missing assets return 404, source
+maps and hidden files remain unavailable, and documents use `no-store`. No Growth Vercel function
+or function runtime environment is required.
 
 MCP clients must connect to the Railway Growth API's canonical public origin. Its OAuth discovery,
 registration, authorization, token and revocation endpoints remain on that API origin. Do not
