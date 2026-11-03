@@ -11,7 +11,7 @@ const reference=procedureReferenceSchema;
 const metadata=z.strictObject({id:z.string().max(80),version:z.string().max(20),title:z.string().max(120),description:z.string().max(500),requiredCapabilities:z.array(z.string().max(100)).max(16)});
 const revision=z.string().regex(/^[1-9][0-9]*$/);
 const hours=z.union([z.strictObject({state:z.literal('unknown')}),z.strictObject({state:z.enum(['open','closed']),timeZone:z.string().max(128),intervals:z.array(z.strictObject({day:z.number().int().min(0).max(6),start:z.string().max(5),end:z.string().max(5)})).max(28)})]);
-const assistanceResult=z.strictObject({requestId:z.uuid(),status:z.enum(['requested','human_owned','completed','withdrawn']),state:z.enum(['automation_active','handoff_pending','human_owned','resolved']),noticeMessageId:z.uuid(),supportFacts:z.strictObject({hours,nextOpening:z.iso.datetime().nullable(),staffAvailability:z.enum(['available','away','unknown']),responseTime:z.literal('unknown')})});
+const assistanceResult=z.strictObject({requestId:z.uuid(),status:z.enum(['requested','human_owned','completed','withdrawn']),state:z.enum(['automation_active','handoff_pending','human_owned','resolved']),noticeMessageId:z.uuid().nullable(),supportFacts:z.strictObject({hours,nextOpening:z.iso.datetime().nullable(),staffAvailability:z.enum(['available','away','unknown']),responseTime:z.literal('unknown')})});
 const authority=['channel.handoff'];
 const resources=['selected_procedure_version','current_channel_generation','trusted_conversation','product_receipts'];
 const read={authority,resources,reconciliation:'not_applicable'};
@@ -53,7 +53,7 @@ const descriptions:Record<Name,string>={
  'procedures.inspect':'Inspect durable procedure progress and outstanding requirements.',
  'procedures.update':'Suspend or resume a procedure. This does not withdraw a recorded support request.',
  'procedures.cancel':'Cancel procedure execution. Existing human requests and external effects remain; use the support tool to withdraw a request.',
- 'support.request_assistance':'Record a request for human support with current hours feedback, while keeping the assistant available. Does not transfer ownership to staff.',
+ 'support.request_assistance':'Save a human support request immediately when the customer asks for a person. Returns trusted support hours and request status; sends no customer message. You must explain the hours and continue the conversation yourself. Contact details are optional. Does not transfer ownership to staff.',
  'support.update_assistance':'Choose one explicit action with customer-message evidence. Use save_contact to save a preference and continue helping. Use human_only ONLY when the customer explicitly wants automated replies to stop, never just because they request a human. Never combine saving contact and pausing the agent.',
 };
 export const selectedProcedures=(config:AgentConfiguration)=>config.procedures??[];

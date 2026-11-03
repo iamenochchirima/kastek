@@ -33,8 +33,10 @@ The same agent loads the playbook when the customer requests a person and suppor
 The playbook requires truthful hours feedback, an offer to help now, and respect for the
 customer's choice. Optional contact details do not gate recording the human request.
 
-`support.request_assistance` records the request, staff brief and customer notice through Inbox.
-The notice is a short factual receipt with the next opening when known and an offer of continued help. The model follows with one or two short sentences that ask the next useful question, rather than repeating the receipt or reciting uncertainty disclaimers. It leaves conversation ownership with the agent. `support.update_assistance` requires one explicit action: `save_contact`, `human_only`,
+`support.request_assistance` records the request, staff brief and current support facts through
+Inbox. It does not publish a customer message or transfer conversation ownership. The agent gives
+the conversational reply: it explains closure, offers help and asks for contact preferences when
+needed. `support.update_assistance` requires one explicit action: `save_contact`, `human_only`,
 `self_service`, `declined` or `withdrawn`. Customer message ID and exact evidence quote are shared
 top-level fields. Saving contact cannot simultaneously pause assistance. Contact and
 choice evidence must reference the bound customer's real message; provided contact values must
@@ -58,10 +60,14 @@ scoped snapshots and receipt validation; it never reads product customer tables 
 
 Instances have `active`, `suspended`, `completed` or `cancelled` status. Customer routes are
 `callback`, `self_service`, `declined` or `withdrawn`; `callback` means a recorded follow-up
-request, not a completed phone call. Completion requires domain-validated receipts for the
-after-hours notice, offer of help and customer choice, plus the human request for follow-up.
+request, not a completed phone call. Completion requires domain-validated `customer_choice` and
+`assistant_reply` receipts, plus `human_request` for the callback route. The reply receipt proves
+that the agent's response was delivered. It does not prove that its wording followed every
+playbook instruction. Closure explanations and offers of help remain model-owned conversation
+behavior, checked through conversation testing rather than claimed by a backend receipt.
 Model-authored checklist claims are insufficient. Missing receipts remain missing and unknown
-effects block completion. For connected channels, a queued notice is not confirmed delivery.
+effects block completion. For connected channels, queued or uncertain outbound delivery does
+not establish a confirmed reply.
 
 An instance links its originating task, which retains the accepted work, actor, product and grant.
 Stable command identities and revisions protect retries and concurrent updates. Suspending or
@@ -89,15 +95,19 @@ then the referenced Inbox request/message and channel delivery records. Reconcil
 uncertainty before retrying a physical effect. A successful tool receipt proves only its stated
 domain outcome, not that a human replied or an external callback occurred.
 
-### Local notice wording correction
+### Local agent-only reply correction
 
-The support receipt uses a short date and contains no contact collection question. The
-agent asks the next question without repeating the receipt. This wording change retains
-request storage, ownership, delivery checks and consent rules. API/schema migrations,
-analytics events, logging changes and new alerts are not applicable. Validation covers the
-notice regression, procedure contract, API types and module boundaries. Rollout uses the
-existing runtime preview/apply mechanism to update local serving bindings; production is
-excluded from this local verification. Rollback restores the previous wording and applies
-the previous runtime artifact through the same rollout mechanism. The serving source and
-local rollout evidence are recorded in the change, rather than using the package default
-as a release version.
+After-hours support uses the agent's normal response publication path. Request tools return
+facts and durable request outcomes without appending or enqueueing an automatic customer
+notice. Existing notice columns and historical notice records remain retained; this correction
+needs no schema migration. The ordinary response timer and loading state cover the agent reply.
+
+| Concern | Decision |
+| --- | --- |
+| Scope | Local Agents API and worker, serving the Labs widget and the existing local runtime bindings. Production deployment is excluded. |
+| Schema and contracts | No schema migration. The assistance result permits a missing notice message because the tool no longer publishes one. Existing historical receipt records are retained. |
+| Analytics and logging | No new events, metrics, dashboards, exporters or alerts. Existing execution and delivery records retain outcome evidence. Contact details and message bodies are not added to logs. |
+| Validation | Focused request/reply regression, procedure contract, API types and module boundaries, plus one real-model after-hours conversation. Record results with the change. |
+| Rollout and identity | Use the existing runtime preview/apply control to update local published bindings with the matching API and worker. Record the source commit and rollout result. Do not require manual agent republishing or claim production availability. |
+| Rollback | Restore the previous API/worker artifact and apply its runtime bindings through the same control. Preserve request records, custom configuration, permissions and accepted work. |
+| Post-release review | Not applicable to production before joint deployment. Review the local conversation with the owner. |

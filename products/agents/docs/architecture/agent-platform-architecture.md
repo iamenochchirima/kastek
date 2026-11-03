@@ -496,7 +496,10 @@ The standard separates reviewed conversational guidance, executable conditional 
 durable procedure instances, product-owned guarded actions and execution coordination. The model
 chooses questions, permitted actions and flexible ordering. Code validates facts, dependencies,
 confirmations, transitions and completion using authoritative receipts. A model-written checklist
-or transcript summary cannot prove an effect succeeded or a notice was delivered.
+or transcript summary cannot prove an effect succeeded or a reply was delivered. Customer-facing
+workflow conversation belongs to the agent. Product tools return facts and validated outcomes;
+they do not publish a second scripted reply alongside the agent. A delivery receipt proves only
+delivery, not semantic adherence to the playbook.
 
 Procedure instances retain definition revisions, validated inputs and provenance, outstanding
 requirements, operation/message receipts, waits and outcomes across turns, compaction and
@@ -521,7 +524,10 @@ when wanted and confirms only committed effects. Contact supplied, verified noti
 request saved, staff assigned and customer contacted remain distinct facts. Later contact is
 offered only through a real authorized delivery route; the next opening is not a callback promise.
 Selected after-hours workflows use a deferred request while the conversation stays
-`automation_active`. The earlier status-only pending-handoff restriction applies to legacy
+`automation_active`. Recording the request emits no automatic customer notice. The agent explains
+closure and continues the conversation through its ordinary reply path. Completion requires a
+validated customer choice and delivered agent reply, plus the saved human request for follow-up;
+unknown outbound delivery remains incomplete. The earlier status-only pending-handoff restriction applies to legacy
 ownership-changing handoff paths and explicit human-only pauses, not ordinary deferred requests.
 
 Support, content, booking and other business procedures share this contract while keeping their

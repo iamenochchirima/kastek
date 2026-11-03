@@ -11,8 +11,8 @@ describe('after-hours procedure contract',()=>{
   expect(publicUpdateAssistanceSchema.safeParse({...base,action:'human_only',contact}).success).toBe(false);
   expect(publicUpdateAssistanceSchema.safeParse({...base,action:'save_contact'}).success).toBe(false);
  });
- it('requires delivered facts, a customer route and a durable callback request only when needed',()=>{
-  const notices=[evidence('after_hours_notice'),evidence('help_offer'),evidence('customer_choice')];
+ it('requires the agent reply delivery, a customer route and a durable callback request only when needed',()=>{
+  const notices=[evidence('assistant_reply'),evidence('customer_choice')];
   expect(afterHoursProgress(null,notices).complete).toBe(false);
   expect(afterHoursProgress('unsupported',notices).complete).toBe(false);
   expect(afterHoursProgress('self_service',notices).complete).toBe(true);
@@ -20,6 +20,8 @@ describe('after-hours procedure contract',()=>{
   expect(afterHoursProgress('callback',notices).missing).toEqual(['human_request']);
   expect(afterHoursProgress('callback',[...notices,evidence('human_request','unknown')]).complete).toBe(false);
   expect(afterHoursProgress('callback',[...notices,evidence('human_request')]).complete).toBe(true);
+  expect(afterHoursProgress('callback',[evidence('customer_choice'),evidence('human_request')]).missing).toEqual(['assistant_reply']);
+  expect(afterHoursProgress('callback',[evidence('assistant_reply','unknown'),evidence('customer_choice'),evidence('human_request')]).complete).toBe(false);
  });
  it('does not discover unselected, unavailable, or unready definitions or accept model completion flags',()=>{
   const reference={id:'after-hours-assistance',version:'1'};
@@ -64,17 +66,17 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   expect((await store.start(scope,ref,start)).id).toBe(instance.id);
   expect((await store.start(scope,ref,{...start,commandId:randomUUID()})).id).toBe(instance.id);
   await expect(store.inspect({...scope,agentId:randomUUID()},instance.id)).rejects.toMatchObject({code:'PROCEDURE_NOT_FOUND'});
-  let state=await store.recordEvidence(scope,instance.id,{commandId:randomUUID(),expectedRevision:instance.revision,route:'callback',receipts:[evidence('after_hours_notice'),evidence('help_offer'),evidence('customer_choice'),evidence('human_request','unknown')]});
+  let state=await store.recordEvidence(scope,instance.id,{commandId:randomUUID(),expectedRevision:instance.revision,route:'callback',receipts:[evidence('assistant_reply'),evidence('customer_choice'),evidence('human_request','unknown')]});
   expect(state.status).toBe('active');expect(state.hasUnknownEffects).toBe(true);
   await expect(store.update(scope,state.id,{commandId:randomUUID(),expectedRevision:'1',action:'cancel'})).rejects.toMatchObject({code:'PROCEDURE_CONFLICT'});
   state=await store.update(scope,state.id,{commandId:randomUUID(),expectedRevision:state.revision,action:'suspend'});
   state=await new ProcedureStore(pool,async()=>{}).update(scope,state.id,{commandId:randomUUID(),expectedRevision:state.revision,action:'resume'});
   state=await store.update(scope,state.id,{commandId:randomUUID(),expectedRevision:state.revision,action:'cancel'});
-  expect(state.status).toBe('cancelled');expect(state.receipts).toHaveLength(4);expect(state.hasUnknownEffects).toBe(true);
+  expect(state.status).toBe('cancelled');expect(state.receipts).toHaveLength(3);expect(state.hasUnknownEffects).toBe(true);
   state=await store.recordEvidence(scope,state.id,{commandId:randomUUID(),expectedRevision:state.revision,receipts:[evidence('human_request')]});
   expect(state.status).toBe('cancelled');expect(state.hasUnknownEffects).toBe(false);
   const second=await store.start(scope,ref,{...start,commandId:randomUUID()});
-  const complete=await store.recordEvidence(scope,second.id,{commandId:randomUUID(),expectedRevision:second.revision,route:'self_service',receipts:[evidence('after_hours_notice'),evidence('help_offer'),evidence('customer_choice')]});
+  const complete=await store.recordEvidence(scope,second.id,{commandId:randomUUID(),expectedRevision:second.revision,route:'self_service',receipts:[evidence('assistant_reply'),evidence('customer_choice')]});
   expect(complete.status).toBe('completed');
   await expect(new ProcedureStore(pool).recordEvidence(scope,second.id,{commandId:randomUUID(),expectedRevision:complete.revision,receipts:[]})).rejects.toMatchObject({code:'PROCEDURE_EVIDENCE_UNAVAILABLE'});
  });

@@ -11,20 +11,13 @@ import type {ProcedureEvidence,ProcedureScope} from "../../contracts/procedures"
 import {supportStatusV2} from "../../capabilities/support-status-v2";
 import type {CustomerConversation,CustomerMessage,HumanRequestView} from "./inbox-contracts";
 export type {HumanRequestView} from "./inbox-contracts";
-import {enqueueChannelMessage} from "../channels/channel-outbound";
 
 type Db=Pool|PoolClient;
-export type HumanAssistanceResult={requestId:string;status:HumanRequestView["status"];state:CustomerConversation["state"];noticeMessageId:string;supportFacts:Awaited<ReturnType<typeof supportStatusV2>>};
+export type HumanAssistanceResult={requestId:string;status:HumanRequestView["status"];state:CustomerConversation["state"];noticeMessageId:string|null;supportFacts:Awaited<ReturnType<typeof supportStatusV2>>};
 
 type Ports={assertBinding(db:Db,binding:ChannelBinding,task:{organization_id:string;version_id:string;root_task_id:string}):Promise<void>;append(db:PoolClient,row:CustomerConversation,input:{key:string;digest:string;kind:"assistant";body:string}):Promise<CustomerMessage>;cancel(db:PoolClient,id:string,generation:string,exceptTaskId?:string):Promise<void>};
 const denied=()=>new PlatformError("HUMAN_ASSISTANCE_SCOPE_DENIED",403,"Human assistance is unavailable");
 
-/** Factual receipt is committed with the request; the model remains free to continue helping. */
-export function humanAssistanceNotice(facts:Awaited<ReturnType<typeof supportStatusV2>>):string {
-  const opening=facts.hours.state==="closed"&&facts.nextOpening ? new Intl.DateTimeFormat("en-GB",{timeZone:facts.hours.timeZone,weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(facts.nextOpening)) : null;
-  const hours=facts.hours.state==="closed" ? `Support is closed.${opening ? ` Hours resume ${opening} (${facts.hours.timeZone}).` : ""}` : facts.hours.state==="unknown" ? "Support hours are unavailable." : "Support request recorded.";
-  return `${hours}${facts.hours.state==="open"?"":" Request recorded."} I can still help.`;
-}
 async function taskScope(db:PoolClient,row:CustomerConversation,binding:ChannelBinding,taskId:string,ports:Pick<Ports,"assertBinding">){
   const task=(await db.query(`SELECT t.organization_id,t.version_id,t.root_task_id,v.configuration FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id JOIN agents_platform.execution_grants g ON g.id=t.grant_id AND g.organization_id=t.organization_id JOIN agents_platform.customer_task_links l ON l.task_id=t.id WHERE t.id=$1 AND t.root_task_id=t.id AND t.parent_task_id IS NULL AND t.organization_id=$2 AND l.conversation_id=$3 AND l.input_message_id=$4 AND l.ownership_generation=$5 AND t.channel_binding->>'customerConversationId'=$3::text AND t.channel_binding->>'inputMessageId'=$4::text AND t.channel_binding->>'ownershipGeneration'=$5::text AND g.product=t.product AND g.version_id=t.version_id AND g.principal=t.principal AND g.resource_id=t.resource_id AND g.caller_client_id=t.caller_client_id AND t.state IN ('accepted','running') AND (t.deadline_at IS NULL OR t.deadline_at>clock_timestamp()) AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_cancellations cancel WHERE cancel.task_id=t.id) AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp() FOR SHARE OF t,v,g`,[taskId,row.organization_id,row.id,binding.inputMessageId,binding.ownershipGeneration])).rows[0];
   if(!task)throw denied();
@@ -39,7 +32,7 @@ export async function humanAssistanceSnapshot(db:PoolClient,row:CustomerConversa
  const configuration=agentConfigurationSchema.parse(latest.configuration);
  const request=(await db.query(`SELECT r.*,choice.customer_choice_message_id,choice.disposition FROM agents_platform.human_assistance_requests r LEFT JOIN LATERAL (SELECT cmd.customer_choice_message_id,cmd.disposition FROM agents_platform.human_assistance_commands cmd JOIN agents_platform.customer_messages m ON m.id=cmd.customer_choice_message_id WHERE cmd.request_id=r.id AND cmd.disposition IS NOT NULL ORDER BY m.sequence DESC LIMIT 1) choice ON true WHERE r.organization_id=$1 AND r.conversation_id=$2 ORDER BY r.requested_at DESC LIMIT 1`,[scope.organizationId,row.id])).rows[0];
  const customerEvidence=(await db.query(`SELECT m.id,m.body FROM agents_platform.customer_messages m JOIN agents_platform.customer_messages current ON current.id=$2 AND current.conversation_id=m.conversation_id WHERE m.conversation_id=$1 AND m.author_kind='visitor' AND m.sequence<=current.sequence ORDER BY m.sequence DESC LIMIT 5`,[row.id,binding.inputMessageId])).rows.map(message=>({id:message.id,text:message.body}));
- return {currentProcedures:(configuration.procedures??[]).filter(ref=>procedureReady(configuration,ref)),customerEvidence,request:request?{id:request.id,status:request.status,noticeMessageId:request.notice_message_id,inputMessageId:request.input_message_id,choiceMessageId:request.customer_choice_message_id??null,disposition:request.disposition??null,noticeStatus:await humanAssistanceNoticeStatus(db,scope,request.notice_message_id)}:null};
+ return {currentProcedures:(configuration.procedures??[]).filter(ref=>procedureReady(configuration,ref)),customerEvidence,request:request?{id:request.id,status:request.status,noticeMessageId:request.notice_message_id,inputMessageId:request.input_message_id,choiceMessageId:request.customer_choice_message_id??null,disposition:request.disposition??null,noticeStatus:request.notice_message_id?await humanAssistanceNoticeStatus(db,scope,request.notice_message_id):null,...await humanAssistanceReply(db,scope,request.id)}:null};
 }
 async function replay(db:PoolClient,taskId:string,operationId:string,digest:string):Promise<HumanAssistanceResult|null>{
   const prior=(await db.query("SELECT request_digest,result FROM agents_platform.human_assistance_commands WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];
@@ -53,13 +46,10 @@ export async function requestHumanAssistance(db:PoolClient,row:CustomerConversat
   const task=await taskScope(db,row,binding,taskId,ports);
   const active=(await db.query("SELECT * FROM agents_platform.human_assistance_requests WHERE conversation_id=$1 AND status IN ('requested','human_owned') FOR UPDATE",[row.id])).rows[0];
   if(active)return remember(db,taskId,input.operationId,digest,{requestId:active.id,status:active.status,state:row.state,noticeMessageId:active.notice_message_id,supportFacts:active.support_facts});
-  const supportFacts=await supportStatusV2(db,row.organization_id,task.configuration.supportHours),body=humanAssistanceNotice(supportFacts),id=randomUUID();
-  await db.query("INSERT INTO agents_platform.human_assistance_requests(id,organization_id,conversation_id,task_id,input_message_id,ownership_generation,status,brief,support_facts,notice_body) VALUES($1,$2,$3,$4,$5,$6,'requested',$7,$8,$9)",[id,row.organization_id,row.id,taskId,binding.inputMessageId,row.ownership_generation,input.brief,supportFacts,body]);
-  const message=await ports.append(db,row,{key:`human-assistance:${id}`,digest:requestDigest(body),kind:"assistant",body});
-  await db.query("UPDATE agents_platform.human_assistance_requests SET notice_message_id=$2 WHERE id=$1",[id,message.id]);
+  const supportFacts=await supportStatusV2(db,row.organization_id,task.configuration.supportHours),id=randomUUID();
+  await db.query("INSERT INTO agents_platform.human_assistance_requests(id,organization_id,conversation_id,task_id,input_message_id,ownership_generation,status,brief,support_facts,notice_body) VALUES($1,$2,$3,$4,$5,$6,'requested',$7,$8,$9)",[id,row.organization_id,row.id,taskId,binding.inputMessageId,row.ownership_generation,input.brief,supportFacts,""]);
   await db.query("UPDATE agents_platform.customer_conversations SET revision=revision+1,updated_at=now() WHERE id=$1",[row.id]);
-  await enqueueChannelMessage(db,row,message);
-  return remember(db,taskId,input.operationId,digest,{requestId:id,status:"requested",state:row.state,noticeMessageId:message.id,supportFacts});
+  return remember(db,taskId,input.operationId,digest,{requestId:id,status:"requested",state:row.state,noticeMessageId:null,supportFacts});
 }
 async function customerEvidence(db:Db,row:CustomerConversation,binding:ChannelBinding,id:string|undefined,quote:string|undefined):Promise<string>{
   if(!id||!quote)throw new PlatformError("HUMAN_ASSISTANCE_EVIDENCE_REQUIRED",400,"Customer confirmation is required");
@@ -108,6 +98,22 @@ export async function humanAssistanceNoticeStatus(db:Db,scope:ProcedureScope,not
   if(!deliveries.length||deliveries.some(row=>!terminal.includes(row.state)))return 'unknown';
   return deliveries.some(row=>['failed','rejected','suppressed'].includes(row.state))?'failed':'confirmed';
 }
+/** Delivery proves a reply was published, not that the model followed every conversational instruction. */
+export async function humanAssistanceReply(db:Db,scope:ProcedureScope,requestId:string):Promise<{replyMessageId:string|null;replyStatus:"confirmed"|"unknown"|"failed"|null}>{
+ const reply=(await db.query(`SELECT m.id,c.channel_kind FROM agents_platform.human_assistance_requests h
+ JOIN agents_platform.customer_conversations c ON c.id=h.conversation_id AND c.organization_id=h.organization_id
+ JOIN agents_platform.customer_messages origin ON origin.id=h.input_message_id AND origin.conversation_id=c.id
+ JOIN agents_platform.customer_messages m ON m.conversation_id=c.id AND m.sequence>origin.sequence AND m.ownership_generation=h.ownership_generation
+ JOIN agents_platform.customer_deliveries d ON d.conversation_id=c.id AND d.task_id=m.task_id AND d.message_id=m.id AND d.state='published'
+ WHERE h.id=$4 AND c.organization_id=$1 AND c.agent_id=$2 AND c.execution_conversation_id=$3 AND m.author_kind='assistant' AND m.request_key='assistant:'||m.task_id::text
+ ORDER BY m.sequence LIMIT 1`,[scope.organizationId,scope.agentId,scope.conversationId,requestId])).rows[0];
+ if(!reply)return {replyMessageId:null,replyStatus:null};
+ if(reply.channel_kind==='website')return {replyMessageId:reply.id,replyStatus:'confirmed'};
+ const deliveries=(await db.query("SELECT state FROM agents_platform.channel_outbound WHERE message_id=$1",[reply.id])).rows;
+ const terminal=['sent','delivered','read','failed','rejected','suppressed'];
+ const replyStatus=!deliveries.length||deliveries.some(row=>!terminal.includes(row.state))?'unknown':deliveries.some(row=>['failed','rejected','suppressed'].includes(row.state))?'failed':'confirmed';
+ return {replyMessageId:reply.id,replyStatus};
+}
 export async function verifyHumanAssistanceEvidence(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence):Promise<boolean>{
   const request=(await db.query(`SELECT h.*,c.channel_kind FROM agents_platform.human_assistance_requests h JOIN agents_platform.customer_conversations c ON c.id=h.conversation_id AND c.organization_id=h.organization_id WHERE c.organization_id=$1 AND c.agent_id=$2 AND c.execution_conversation_id=$3 ORDER BY h.requested_at DESC,h.id DESC LIMIT 1`,[scope.organizationId,scope.agentId,scope.conversationId])).rows[0];
   if(!request)return false;
@@ -125,6 +131,9 @@ export async function verifyHumanAssistanceEvidence(db:PoolClient,scope:Procedur
     }else if(receipt.kind==="human_request"){
       if(receipt.status!=="confirmed")return false;
       if(receipt.sourceId!==request.id||!['requested','human_owned'].includes(request.status))return false;
+    }else if(receipt.kind==='assistant_reply'){
+      const reply=await humanAssistanceReply(db,scope,request.id);
+      if(!reply.replyMessageId||receipt.sourceId!==reply.replyMessageId||receipt.status!==reply.replyStatus)return false;
     }else if(receipt.kind==='after_hours_notice'||receipt.kind==='help_offer'){
       if(receipt.sourceId!==request.notice_message_id)return false;
       if(receipt.status!==await humanAssistanceNoticeStatus(db,scope,receipt.sourceId))return false;

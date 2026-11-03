@@ -29,8 +29,9 @@ Configure → Tools → Workflows. Execution intersects selected accepted/curren
 trusted organization, agent, conversation and channel authority. Cross-agent visibility is denied.
 The current runtime remains `product-capabilities-v15` / `AgentsBusinessRunV25`.
 
-Inbox owns human requests, optional customer-evidenced contact preferences, customer notices,
-assignment and speaking ownership. A requested human can coexist with active agent replies;
+Inbox owns human requests, optional customer-evidenced contact preferences, historical customer notices,
+assignment and speaking ownership. After-hours request tools save state without appending or enqueueing
+a customer message. The agent publishes the conversational reply through the normal output path. A requested human can coexist with active agent replies;
 staff takeover and explicit human-only choice fence those replies. Procedure completion checks
 actual domain receipts and unresolved effects. Model claims, queue admission or a saved contact
 preference cannot prove delivery, human response or a callback. The existing ownership-changing

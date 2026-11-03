@@ -34,8 +34,8 @@ export interface VisitorLineage {
 export interface ChannelExecutionPorts {
   procedureSnapshot?(db:PoolClient,scope:ProcedureScope,binding:ChannelBinding,taskId:string):Promise<ProcedureDomainSnapshot>;
   verifyProcedureEvidence?(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence):Promise<boolean>;
-  requestHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
-  updateHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
+  requestHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string|null;supportFacts:unknown}>;
+  updateHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string|null;supportFacts:unknown}>;
 
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }>;

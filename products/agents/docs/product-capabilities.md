@@ -15,7 +15,8 @@ provides the first **After-hours support** workflow. The ordinary agent discover
 selected definitions through `procedures.*`, while durable instances track revision-checked
 progress and verified domain receipts. A definition never expands tool or tenant authority.
 
-Support facts come from the backend. Human-assistance request tools keep a pending human
+Support facts come from the backend. The agent gives the customer-facing workflow reply;
+request tools save state without sending an additional system message. Human-assistance request tools keep a pending human
 request independent from agent speaking ownership; staff takeover and explicit human-only
 choices still fence automated work. Optional contact preferences are customer-evidenced data,
 not promises of an outbound call or message. Only verified domain outcomes can satisfy workflow
