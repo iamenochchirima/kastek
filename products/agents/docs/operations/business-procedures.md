@@ -34,7 +34,7 @@ The playbook requires truthful hours feedback, an offer to help now, and respect
 customer's choice. Optional contact details do not gate recording the human request.
 
 `support.request_assistance` records the request, staff brief and customer notice through Inbox.
-It leaves conversation ownership with the agent. `support.update_assistance` requires one explicit action: `save_contact`, `human_only`,
+The notice is a short factual receipt with the next opening when known and an offer of continued help. The model follows with one or two short sentences that ask the next useful question, rather than repeating the receipt or reciting uncertainty disclaimers. It leaves conversation ownership with the agent. `support.update_assistance` requires one explicit action: `save_contact`, `human_only`,
 `self_service`, `declined` or `withdrawn`. Customer message ID and exact evidence quote are shared
 top-level fields. Saving contact cannot simultaneously pause assistance. Contact and
 choice evidence must reference the bound customer's real message; provided contact values must
@@ -88,3 +88,16 @@ For an incomplete procedure, inspect its status, route, missing receipts and unk
 then the referenced Inbox request/message and channel delivery records. Reconcile provider
 uncertainty before retrying a physical effect. A successful tool receipt proves only its stated
 domain outcome, not that a human replied or an external callback occurred.
+
+### Local notice wording correction
+
+The support receipt uses a short date and contains no contact collection question. The
+agent asks the next question without repeating the receipt. This wording change retains
+request storage, ownership, delivery checks and consent rules. API/schema migrations,
+analytics events, logging changes and new alerts are not applicable. Validation covers the
+notice regression, procedure contract, API types and module boundaries. Rollout uses the
+existing runtime preview/apply mechanism to update local serving bindings; production is
+excluded from this local verification. Rollback restores the previous wording and applies
+the previous runtime artifact through the same rollout mechanism. The serving source and
+local rollout evidence are recorded in the change, rather than using the package default
+as a release version.
