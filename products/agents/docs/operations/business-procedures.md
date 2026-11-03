@@ -97,7 +97,9 @@ domain outcome, not that a human replied or an external callback occurred.
 
 ### Local agent-only reply correction
 
-After-hours support uses the agent's normal response publication path. Request tools return
+After-hours support uses the agent's normal response publication path. Request IDs and other
+internal identifiers stay in tool calls; customer replies acknowledge the outcome without a
+reference number. Request tools return
 facts and durable request outcomes without appending or enqueueing an automatic customer
 notice. Existing notice columns and historical notice records remain retained; this correction
 needs no schema migration. The ordinary response timer and loading state cover the agent reply.
