@@ -107,13 +107,15 @@ const captionOnlyDescriptors = retainedGrowthOperationDescriptorsV8.map(operatio
 export const growthAgentPublicationV7 = operationPublication(captionOnlyDescriptors, "7", "4");
 export const growthAgentPublicationV8 = operationPublication(retainedGrowthOperationDescriptorsV8, "8", "5");
 export { growthAgentPublicationV9 } from "./retained-publication-v9.js";
-const nextPublication = operationPublication(growthOperationDescriptors, "10", "7");
+export { growthAgentPublicationV10 } from "./retained-publication-v10.js";
+const nextPublication = operationPublication(growthOperationDescriptors, "11", "8");
 export const growthAgentPublication = { ...nextPublication, presets: nextPublication.presets.map(preset => ({ ...preset,
   instructions: preset.instructions
     .replaceAll("Prepare a draft review only when saving is explicitly requested.", "Save a private draft directly only when saving is explicitly requested.")
     .replaceAll("Only when a business change is explicitly requested, prepare its exact review and wait for user approval. Preserve request and review identities across retries.", "Create, edit and duplicate private drafts directly when requested. Preserve request identities and wait for an authoritative saved receipt.")
     .replaceAll("Publishing and scheduling use the same Growth tools available externally. Prepare an exact action review and wait for its approved state before committing; never invent approval or a successful publication.", "Use the ordinary Growth content tools to publish, schedule, edit or delete content only when requested and within current permissions. Use content.actions.preview when an exact preview helps the user decide. A separate Growth approval is not required; follow the current interface's confirmation settings. Never invent a successful publication.")
     .replaceAll("A review URL is an action for the staff member, not evidence of approval.", "A preview is an optional read-only snapshot, not evidence of human approval.")
+    + (["assistant", "content"].includes(preset.id) ? "\n\nFind reusable images and videos in the media library before uploading again. Inspect preview and usage when needed. Render templates with explicit field values and inspect unresolved fields before creating a private draft. Template instantiation and duplication create new drafts; they do not publish or change the original publication history. Save templates or change media metadata only when requested. Archiving hides an item from new selection; existing draft and scheduled media remain intact. Use expected revisions and stable request identities for changes, and reconcile unknown outcomes before retrying." : "")
 })) };
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

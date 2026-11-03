@@ -12,6 +12,8 @@ import * as batches from "../capabilities/content-batch.js";
 import { updatePublishedFacebookPost } from "../capabilities/content-published-edit.js";
 import * as webhooks from "../services/public-webhooks.js";
 import * as posts from "../services/social/posts.js";
+import * as library from "../services/social/media-library.js";
+import * as contentTemplates from "../services/social/content-templates.js";
 import * as media from "../services/social/media.js";
 import * as socialChannels from "../services/social/channels.js";
 import * as connections from "../services/connections.js";
@@ -149,11 +151,48 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       const channelSelections = Object.fromEntries(original.publishJobs.filter(job => job.channel_connection_id).map(job => [job.platform, job.channel_connection_id!]));
       const post = await content.createDraft(pool, context, { title: original.title, content: original.content, channels: original.channels, status: "DRAFT", primaryChannelId: original.primary_channel_id,
         channelSelections, media: original.media.map(item => ({ assetId: item.asset_id, sortOrder: item.sort_order, altText: item.alt_text })),
-        variants: original.variants.map(variant => ({ platform: variant.platform, content: variant.content, status: "DRAFT", aiGenerated: variant.ai_generated })), metadata: { duplicatedFrom: original.id } }, options);
+        variants: original.variants.map(variant => ({ platform: variant.platform, content: variant.content, status: "DRAFT", aiGenerated: variant.ai_generated })), metadata: { duplicatedFrom: original.id } }, {...options, expectedPostRevision: options.expectedPostRevision ?? original.updated_at.toISOString(), duplicateSourceId: original.id});
       await draftEvent(core, context, post, true);
       return { post };
     }
-    case "content.media.get": return { asset: await media.getContentMediaAsset(pool, org, text(input, "assetId")) };
+    case "content.media.list": return library.listLibraryMedia(pool, org, input);
+    case "content.media.usage": return library.getLibraryMediaUsage(pool, org, text(input, "assetId"), input);
+    case "content.media.update": return { asset: await library.updateLibraryMedia(pool, org, text(input, "assetId"), { expectedRevision: Number(input.expectedRevision), ...(input.displayName !== undefined ? {displayName: input.displayName as string | null} : {}), ...(input.tags !== undefined ? {tags: input.tags as string[]} : {}), ...(input.defaultAltText !== undefined ? {defaultAltText: input.defaultAltText as string | null} : {}) }, {operationKey: context.idempotencyKey ?? undefined}) };
+    case "content.media.archive":
+    case "content.media.restore": return { asset: await library.setLibraryMediaArchived(pool, org, text(input, "assetId"), {expectedRevision: Number(input.expectedRevision), archived: name.endsWith(".archive")}, {operationKey: context.idempotencyKey ?? undefined}) };
+    case "content.templates.list": {
+      const result = await contentTemplates.listContentTemplates(pool, org, input);
+      return {templates: result.items, pagination: {limit: Number(input.limit ?? 30), nextCursor: result.nextCursor}};
+    }
+    case "content.templates.get": return {template: await contentTemplates.getContentTemplate(pool, org, text(input, "templateId"))};
+    case "content.templates.create": return {template: await contentTemplates.createContentTemplate(pool, context, input as {template?: contentTemplates.TemplateInput; sourcePostId?: string})};
+    case "content.templates.update": return {template: await contentTemplates.updateContentTemplate(pool, context, text(input, "templateId"), {expectedRevision: Number(input.expectedRevision), template: input.template as contentTemplates.TemplateInput})};
+    case "content.templates.archive":
+    case "content.templates.restore": return {template: await contentTemplates.setContentTemplateArchived(pool, context, text(input, "templateId"), {expectedRevision: Number(input.expectedRevision), archived: name.endsWith(".archive")})};
+    case "content.templates.render": {
+      const rendered = await contentTemplates.renderContentTemplate(pool, org, text(input, "templateId"), input as unknown as contentTemplates.TemplateRenderInput);
+      for (const asset of rendered.media) {
+        try { await media.getContentMediaPreview(pool, core.config, org, asset.assetId); }
+        catch (error) {
+          if (!(error instanceof ApiError)) throw error;
+          rendered.validation.ready = false;
+          for (const platform of rendered.channels) rendered.validation.errors.push({platform,code:error.code,message:error.message});
+        }
+      }
+      return {rendered};
+    }
+    case "content.templates.instantiate": {
+      const post = await contentTemplates.withTemplateDraft(pool, context, text(input, "templateId"), input as unknown as contentTemplates.TemplateRenderInput, async ({draft, variantMedia}) => {
+        for (const asset of draft.media ?? []) await media.getContentMediaPreview(pool, core.config, org, asset.assetId);
+        return content.createDraft(pool, context, draft, {...options, reusableVariantMedia: variantMedia});
+      });
+      await draftEvent(core, context, post, true);
+      return {post};
+    }
+    case "content.media.get": {
+      const asset = await media.getContentMediaAsset(pool, org, text(input, "assetId"));
+      return {asset: asset.kind === "AUDIO" ? asset : await library.getLibraryMedia(pool, org, text(input, "assetId"))};
+    }
     case "content.media.preview": {
       const [asset, previewUrl] = await media.getContentMediaPreview(pool, core.config, org, text(input, "assetId"));
       return { asset, previewUrl };

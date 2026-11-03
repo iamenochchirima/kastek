@@ -194,6 +194,7 @@ test(
  CREATE TABLE "SocialDataDeletionRequest"(id text PRIMARY KEY,provider text,"confirmationCode" text,status text,"completedAt" timestamp,"createdAt" timestamp,"updatedAt" timestamp);
  CREATE TABLE "SocialPostInsightObservation"(id text PRIMARY KEY,"orgId" text,"postId" text,"publishJobId" text,platform "SocialPlatform","metricKey" text,value bigint,availability text,"providerMetricKey" text,"observationKey" text UNIQUE,"observedAt" timestamp,"fetchedAt" timestamp,"windowStart" timestamp,"windowEnd" timestamp,"adapterVersion" text,metadata jsonb);
  CREATE TABLE "SocialPostInsightSyncState"(id text PRIMARY KEY,"orgId" text,platform "SocialPlatform",status text,retryable boolean,"consecutiveFailures" integer,"lastAttemptAt" timestamp,"lastSuccessAt" timestamp,"nextRetryAt" timestamp,"lastErrorCode" text,"lastErrorMessage" text,"updatedAt" timestamp,UNIQUE("orgId",platform));`);
+      await pool.query('ALTER TABLE "ContentMediaAsset" ADD COLUMN "archivedAt" timestamp, ADD COLUMN "defaultAltText" text');
       await pool.query(
         `INSERT INTO "SocialChannelConnection"(id,"userId","orgId",platform,status,"displayName","externalAccountId","accessToken",metadata) VALUES('x','user','org','X','CONNECTED','Synthetic','synthetic-x',$1,'{}'),('tiktok','user','org','TIKTOK','CONNECTED','Synthetic','synthetic-tiktok',$1,'{}'),('threads','user','org','THREADS','CONNECTED','Synthetic','synthetic-threads',$1,'{}')`,
         [encrypted],

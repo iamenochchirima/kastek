@@ -11,7 +11,7 @@
     "test:e2e:analytics": "playwright test",
     "test:e2e:agents": "playwright test --config playwright.agents.config.ts",
     "typecheck": "pnpm --filter @kasitek-labs/ui build && react-router typegen && tsc --noEmit",
-    "test:frontend": "node --test scripts/growth-agent-sources.test.mjs scripts/serve.test.mjs scripts/service-worker.test.mjs scripts/seo-artifact.test.mjs scripts/pwa-browser.test.mjs scripts/campaign-schedule.test.mjs",
+    "test:frontend": "node --test scripts/growth-agent-sources.test.mjs scripts/serve.test.mjs scripts/service-worker.test.mjs scripts/seo-artifact.test.mjs scripts/pwa-browser.test.mjs scripts/campaign-schedule.test.mjs scripts/content-library.test.mjs",
     "test:e2e:migration": "playwright test --config playwright.migration.config.ts",
     "measure:frontend": "node scripts/measure-frontend.mjs"
   },

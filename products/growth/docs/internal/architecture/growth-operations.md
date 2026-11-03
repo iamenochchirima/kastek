@@ -7,11 +7,11 @@ last_reviewed: 2026-11-02
 # Growth operation coverage
 
 The executable source of truth is `packages/contracts/src/growth-operations.ts`. It currently
-defines 46 version-1 operations. MCP tools and signed internal descriptors use those exact
+defines 59 version-1 operations. MCP tools and signed internal descriptors use those exact
 identities and schemas; REST exposes `POST /v1/operations/{operation}`. `GET /v1/operations`
 filters discovery by the current credential, workspace membership and entitlements. Typed REST
 aliases delegate to the same handlers. There are no additional internal business operations in
-the current publication (manifest/policy revision 10, adapter release 7).
+the current publication (manifest/policy revision 11, adapter release 8).
 
 This table accounts for the historical tool families without reinstating their removed gateway,
 installation credentials or executor. Historical names are not compatibility aliases.
@@ -130,8 +130,8 @@ replacement post. Photo removal is persisted only after provider readback confir
 
 ## Explicit exclusions and verification limits
 
-Campaign launch, booking creation, call controls, new social formats, media-library organization,
-reusable template editing and automatic customer-service deployment are not restored operations.
+Campaign launch, booking creation, call controls, new social formats and automatic customer-service deployment are not restored operations.
+Media organization and reusable social templates use the [content library](./content-library.md) operations.
 Human Inbox access does not create a second automatic responder. Customer-service execution stays
 in standalone Agents.
 

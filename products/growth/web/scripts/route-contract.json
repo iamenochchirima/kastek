@@ -86,6 +86,14 @@
       "source": "products/growth/web/src/app/(dashboard)/contacts/page.tsx"
     },
     {
+      "path": "/content/media",
+      "source": "products/growth/web/src/app/(dashboard)/content/media/page.tsx"
+    },
+    {
+      "path": "/content/templates",
+      "source": "products/growth/web/src/app/(dashboard)/content/templates/page.tsx"
+    },
+    {
       "path": "/content/analytics",
       "source": "products/growth/web/src/app/(dashboard)/content/analytics/page.tsx"
     },

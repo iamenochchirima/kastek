@@ -33,6 +33,8 @@ model Organization {
   socialPublishBatches           SocialPublishBatch[]
   socialPostInsightObservations  SocialPostInsightObservation[]
   socialPostInsightSyncStates    SocialPostInsightSyncState[]
+  contentTemplates ContentTemplate[]
+  contentTemplateMutations ContentTemplateMutation[]
   contentMediaAssets             ContentMediaAsset[]
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
@@ -898,6 +900,8 @@ model User {
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
   socialPublishBatches           SocialPublishBatch[]
+  createdContentTemplates ContentTemplate[] @relation("CreatedContentTemplates")
+  updatedContentTemplates ContentTemplate[] @relation("UpdatedContentTemplates")
   uploadedContentMediaAssets     ContentMediaAsset[] @relation("UploadedContentMediaAssets")
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
@@ -2417,6 +2421,73 @@ model SocialPostInsightSyncState {
   @@index([orgId, platform, lastAttemptAt])
 }
 
+model ContentMediaLibraryMutation {
+  orgId String
+  operationKey String
+  assetId String
+  action String
+  inputDigest String
+  result Json
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  @@id([orgId, operationKey])
+}
+
+model ContentTemplate {
+  id String @id
+  orgId String
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name String
+  description String?
+  category String?
+  content String
+  channels String[]
+  variants Json @default("[]")
+  fields Json @default("[]")
+  revision Int @default(1)
+  creatorId String?
+  creator User? @relation("CreatedContentTemplates", fields: [creatorId], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy User? @relation("UpdatedContentTemplates", fields: [updatedById], references: [id], onDelete: SetNull)
+  sourcePostId String?
+  sourceKey String?
+  inputDigest String?
+  lastMutationKey String?
+  lastMutationDigest String?
+  archivedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  media ContentTemplateMedia[]
+  mutations ContentTemplateMutation[]
+  @@unique([orgId, sourceKey])
+  @@index([orgId, archivedAt, createdAt(sort: Desc), id(sort: Desc)], map: "ContentTemplate_org_archive_created_idx")
+  @@index([orgId, category], map: "ContentTemplate_org_category_idx")
+}
+model ContentTemplateMedia {
+  id String @id
+  templateId String
+  template ContentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  assetId String
+  asset ContentMediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  sortOrder Int @default(0)
+  altText String?
+  @@unique([templateId, sortOrder])
+  @@unique([templateId, assetId])
+  @@index([assetId], map: "ContentTemplateMedia_asset_idx")
+}
+model ContentTemplateMutation {
+  orgId String
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  operationKey String
+  templateId String
+  template ContentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  action String
+  inputDigest String
+  result Json
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@id([orgId, operationKey])
+  @@index([templateId], map: "ContentTemplateMutation_template_idx")
+}
+
 model ContentMediaAsset {
   id          String                       @id @default(cuid())
   orgId       String
@@ -2437,12 +2508,20 @@ model ContentMediaAsset {
   scanStatus  ContentMediaScanStatus       @default(PENDING)
   metadata    Json?
 
+  displayName String?
+  tags String[] @default([])
+  defaultAltText String?
+  archivedAt DateTime?
+  revision Int @default(1)
+  templateMedia ContentTemplateMedia[]
   postMedia   SocialPostMedia[]
   renditions  ContentMediaRendition[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([orgId, archivedAt, kind, createdAt(sort: Desc), id(sort: Desc)], map: "ContentMediaAsset_library_idx")
+  @@index([tags], type: Gin, map: "ContentMediaAsset_tags_idx")
   @@index([orgId, processingStatus, scanStatus])
   @@index([orgId, checksum])
   @@index([uploadedById])

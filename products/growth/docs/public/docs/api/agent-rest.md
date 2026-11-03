@@ -54,3 +54,9 @@ media. Replacement and additional media are unsupported.
 Only Facebook-only posts are supported. A stale revision or changed account requires a fresh
 read. Reuse the same request identity to reconcile an uncertain result; never publish a
 replacement as an edit.
+
+## Reusable content
+
+[Media and content templates](../operations/content-reuse.md) covers library search, metadata, usage,
+archive/restore, literal template rendering and independent draft creation. These use the same
+canonical operations across REST, MCP and internal agents.

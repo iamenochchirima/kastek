@@ -73,3 +73,9 @@ identity-provider subject revocation invalidate them. Each connection is indepen
 OAuth metadata, consent and token routes remain available for discovery and connection lifecycle;
 operation access and effects can be disabled separately by the operator. Additional browser MCP
 origins must be explicitly allowed. Do not send tokens or private customer data to support logs.
+
+## Reusable content
+
+[Media and content templates](../operations/content-reuse.md) covers library search, metadata, usage,
+archive/restore, literal template rendering and independent draft creation. These use the same
+canonical operations across REST, MCP and internal agents.

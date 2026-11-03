@@ -43,7 +43,7 @@ function postMetadata(requested: unknown, existing: unknown = null): unknown {
     ? Object.fromEntries(Object.entries(existing).filter(([key]) => key.startsWith("_kasitek_"))) : {};
   return { ...publicFields, ...privateFields };
 }
-export interface PostMutationOptions { expectedPostRevision?: string; expectedAccounts?: Record<string, string> }
+export interface PostMutationOptions { expectedPostRevision?: string; expectedAccounts?: Record<string, string>; /** Trusted source for atomic reuse of legacy platform media associations. */ duplicateSourceId?: string; reusableVariantMedia?: {platform: string; media: {assetId: string; sortOrder?: number; altText?: string | null; crop?: unknown}[]}[] }
 export async function lockSocialPost(tx: PoolClient, orgId: string, postId: string, options: PostMutationOptions = {}) {
   await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`growth.content.post:${orgId}:${postId}`]);
   const post = (await tx.query<{ id: string; updated_at: Date; status: string }>(
@@ -205,9 +205,9 @@ async function validateMedia(
     throw bad("A post can include at most 10 media assets");
   const ids = media.map((item) => item.assetId.trim());
   const available = (
-    await pool.query<{ id: string }>(SQL[8], [orgId, ids])
-  ).rows.map((row) => row.id);
-  if (ids.some((id) => !available.includes(id)))
+    await pool.query<{ id: string; defaultAltText: string | null }>(SQL[8].replace("SELECT id", 'SELECT id,"defaultAltText"'), [orgId, ids])
+  ).rows;
+  if (ids.some((id) => !available.some(asset => asset.id === id)))
     throw bad(
       "Every attached media asset must belong to this workspace and be ready",
     );
@@ -219,10 +219,22 @@ async function validateMedia(
     ...item,
     assetId: item.assetId.trim(),
     sortOrder: Math.max(0, item.sortOrder ?? index),
-    altText: trimmed(item.altText),
+    altText: trimmed(item.altText === undefined ? available.find(asset => asset.id === item.assetId.trim())?.defaultAltText : item.altText),
   }));
   media.sort((a, b) => a.sortOrder! - b.sortOrder!);
   return media.map((item, index) => ({ ...item, sortOrder: index }));
+}
+/** New attachments require active assets; archived assets already attached to this post remain usable. */
+async function lockMediaAdmission(tx: PoolClient, orgId: string, media: SocialMediaInput[], retainedIds: string[] = []) {
+  if (!media.length) return;
+  const assets = (await tx.query<{id: string; archivedAt: Date | null; defaultAltText: string | null}>(
+    `SELECT id,"archivedAt","defaultAltText" FROM "ContentMediaAsset" WHERE "orgId"=$1 AND id=ANY($2::text[]) AND kind::text IN('IMAGE','VIDEO') AND "processingStatus"::text='READY' AND "scanStatus"::text='CLEAN' ORDER BY id FOR SHARE`,
+    [orgId, media.map(item => item.assetId)],
+  )).rows;
+  for (const item of media) {
+    const asset = assets.find(row => row.id === item.assetId);
+    if (!asset || asset.archivedAt && !retainedIds.includes(item.assetId)) throw new ApiError(409, "media_unavailable", "Restore or replace archived media before attaching it to a new post");
+  }
 }
 async function persistMedia(
   tx: PoolClient,
@@ -371,6 +383,8 @@ export async function createSocialPostIdempotent(
         .rows[0];
       if (existing) return existing.id;
     }
+    if (options.duplicateSourceId) await lockSocialPost(tx, orgId, options.duplicateSourceId, options);
+    await lockMediaAdmission(tx, orgId, media);
     await tx.query(SQL[12], [
       id,
       userId,
@@ -396,6 +410,42 @@ export async function createSocialPostIdempotent(
       status,
       scheduled,
     );
+    if (options.reusableVariantMedia?.length) {
+      for (const override of options.reusableVariantMedia) {
+        const variant = (await tx.query<{id: string}>('SELECT id FROM "SocialPostVariant" WHERE "postId"=$1 AND platform::text=$2', [id,override.platform])).rows[0];
+        if (!variant) throw bad("Template media version must belong to the new draft");
+        const rows = [];
+        for (const [order,item] of override.media.entries()) {
+          const attachment = (await tx.query<{id: string}>('SELECT id FROM "SocialPostMedia" WHERE "postId"=$1 AND "assetId"=$2',[id,item.assetId])).rows[0];
+          if (!attachment) throw bad("Template version media must belong to its draft");
+          await tx.query(`INSERT INTO "SocialPostVariantMedia"(id,"variantId","postMediaId","sortOrder","altText",crop,"createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6::jsonb,now(),now())`, [createId(),variant.id,attachment.id,order,item.altText ?? null,json(item.crop)]);
+          rows.push({assetId:item.assetId,sortOrder:order,altText:item.altText ?? null});
+        }
+        await tx.query(`UPDATE "SocialPublishJob" SET "deliverySnapshot"=jsonb_build_object('schema','kasitek-content-delivery-v1','platform',platform::text,'media',$3::jsonb) WHERE "postId"=$1 AND "variantId"=$2`, [id,variant.id,json(rows)]);
+      }
+    }
+    if (options.duplicateSourceId && media.length) {
+      const overrides = (await tx.query<{variantId: string; postMediaId: string; sortOrder: number; altText: string | null; crop: unknown}>(`
+        SELECT target.id AS "variantId",new_media.id AS "postMediaId",overrides."sortOrder",overrides."altText",overrides.crop
+        FROM "SocialPostVariantMedia" overrides
+        JOIN "SocialPostVariant" source ON source.id=overrides."variantId" AND source."postId"=$1
+        JOIN "SocialPostMedia" old_media ON old_media.id=overrides."postMediaId" AND old_media."postId"=$1
+        JOIN "SocialPostVariant" target ON target."postId"=$2 AND target.platform=source.platform
+        JOIN "SocialPostMedia" new_media ON new_media."postId"=$2 AND new_media."assetId"=old_media."assetId"
+        ORDER BY source.platform,overrides."sortOrder"`, [options.duplicateSourceId,id])).rows;
+      for (const item of overrides) await tx.query(`INSERT INTO "SocialPostVariantMedia"(id,"variantId","postMediaId","sortOrder","altText",crop,"createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6::jsonb,now(),now())`, [createId(),item.variantId,item.postMediaId,item.sortOrder,item.altText,json(item.crop)]);
+      for (const variantId of new Set(overrides.map(item => item.variantId))) {
+        // Rebuild delivery media from new owned associations, retaining no provider delivery state.
+        await tx.query(`UPDATE "SocialPublishJob" job SET "deliverySnapshot"=jsonb_build_object('schema','kasitek-content-delivery-v1','platform',job.platform::text,'media',(
+          SELECT jsonb_agg(jsonb_build_object('assetId',m."assetId",'sortOrder',vm."sortOrder",'altText',vm."altText") ORDER BY vm."sortOrder")
+          FROM "SocialPostVariantMedia" vm JOIN "SocialPostMedia" m ON m.id=vm."postMediaId" WHERE vm."variantId"=$1)) WHERE job."postId"=$2 AND job."variantId"=$1`,[variantId,id]);
+      }
+    }
+    if (options.duplicateSourceId && media.length) {
+      await tx.query(`UPDATE "SocialPublishJob" target SET "deliverySnapshot"=jsonb_set(target."deliverySnapshot",'{media}','[]'::jsonb)
+        WHERE target."postId"=$2 AND EXISTS (SELECT 1 FROM "SocialPublishJob" source WHERE source."postId"=$1 AND source.platform=target.platform
+          AND jsonb_typeof(source."deliverySnapshot"->'media')='array' AND source."deliverySnapshot"->'media'='[]'::jsonb)`, [options.duplicateSourceId,id]);
+    }
     return id;
   });
   const post = await getSocialPost(pool, orgId, createdId);
@@ -449,7 +499,10 @@ export async function updateSocialPost(
   );
   const media =
     request.media != null
-      ? await validateMedia(pool, orgId, request.media)
+      ? await validateMedia(pool, orgId, request.media.map(item => {
+          const retained = existing.media.find(saved => saved.asset_id === item.assetId.trim());
+          return item.altText === undefined && retained ? {...item, altText: retained.alt_text} : item;
+        }))
       : existing.media.map((item) => ({
           assetId: item.asset_id,
           sortOrder: item.sort_order,
@@ -472,6 +525,7 @@ export async function updateSocialPost(
       throw new ApiError(409, "conflict", "Unschedule this post before editing");
     if (jobs.some(job => !["PENDING", "QUEUED", "CANCELED"].includes(job.status) || job.external_post_id || job.metadata?._kasitek_outcome === "UNKNOWN"))
       throw new ApiError(409, "conflict", "Content with a publishing attempt cannot be edited. Create a new draft instead");
+    await lockMediaAdmission(tx, orgId, media, existing.media.map(item => item.asset_id));
     await tx.query(SQL[13], [
       primary,
       title,

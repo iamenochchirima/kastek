@@ -23,7 +23,15 @@ const inputRef=(name:string)=>({$ref:`#/components/schemas/GrowthInput_${name.re
 for(const key of Object.keys(doc.components.schemas))if(key.startsWith("GrowthInput_"))delete doc.components.schemas[key];
 for(const d of growthOperations)doc.components.schemas[`GrowthInput_${d.name.replaceAll(".","_")}`]=growthToolInputSchema(d);
 const resultRef={$ref:"#/components/schemas/GrowthOperationResult"};
-const post=(name:string)=>{const d=definition(name);return {operationId:`invoke_${name.replaceAll(".","_")}`,description:d.description,"x-growth-operation":name,"x-growth-review":d.review,"x-growth-effect":d.effect,"x-growth-scope":d.scope,requestBody:{required:true,content:{"application/json":{schema:inputRef(name)}}},responses:{200:response("Canonical result, exact review or durable receipt; large results use continuation chunks",resultRef),...errors}};};
+for (const key of Object.keys(doc.components.schemas)) if (key.startsWith("GrowthOutput_")) delete doc.components.schemas[key];
+const resultSchema=(d: ReturnType<typeof definition>) => {
+ if (!d.outputSchema.$defs) return resultRef;
+ const key=`GrowthOutput_${d.name.replaceAll(".","_")}`;
+ const qualify=(value: unknown): unknown => Array.isArray(value) ? value.map(qualify) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([name,item])=>[name,name==="$ref" && typeof item==="string" && item.startsWith("#/$defs/") ? `#/components/schemas/${key}/$defs/${item.slice(8)}` : qualify(item)])) : value;
+ doc.components.schemas[key]=qualify(d.outputSchema);
+ return {$ref:`#/components/schemas/${key}`};
+};
+const post=(name:string)=>{const d=definition(name);return {operationId:`invoke_${name.replaceAll(".","_")}`,description:d.description,"x-growth-operation":name,"x-growth-review":d.review,"x-growth-effect":d.effect,"x-growth-scope":d.scope,requestBody:{required:true,content:{"application/json":{schema:inputRef(name)}}},responses:{200:response("Canonical result, exact review or durable receipt; large results use continuation chunks",resultSchema(d)),...errors}};};
 doc.paths["/operations"]=generated({get:{operationId:"listGrowthOperations",description:"Canonical schemas shared with tools/list and direct internal execution; filtered by current authority.",responses:{200:response("Permitted operation definitions",{type:"object",properties:{operations:{type:"array",items:{type:"object",additionalProperties:true}}},required:["operations"]}),...errors}}});
 for(const d of growthOperations)doc.paths[`/operations/${d.name}`]=generated({post:post(d.name)});
 doc.paths["/operations/{operation}"]=generated({post:{operationId:"invokeGrowthOperation",description:"Use the named concrete operation schema; writes require stable request identity. Requested private content drafts/media execute directly; public/destructive content actions bind an exact preview and confirmation, and other writes retain exact reviews.",parameters:[{name:"operation",in:"path",required:true,schema:{type:"string",enum:growthOperations.map(d=>d.name)}}],requestBody:{required:true,content:{"application/json":{schema:{anyOf:growthOperations.map(d=>inputRef(d.name))}}}},responses:{200:response("Canonical result",resultRef),...errors}}});
