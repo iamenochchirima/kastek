@@ -1,5 +1,6 @@
 import type { ProductCapabilityDescriptor, ProductCapabilityManifest, GrowthAgentDelegationPolicy, GrowthAgentFeatureId } from "@kasitek-labs/contracts";
 import { growthAgentDigest } from "./security.js";
+import { growthOperationDescriptors } from "../operations/manifest.js";
 const object=(properties:Record<string,unknown>,required:string[]=[])=>({type:"object",properties,required,additionalProperties:false});
 const identifier={type:"string",minLength:1,maxLength:256};
 const continuation={type:"string",maxLength:2048};
@@ -88,16 +89,18 @@ export { growthAgentPublicationV7 } from "./retained-publication-v7.js";
 export { growthAgentPublicationV8 } from "./retained-publication-v8.js";
 export { growthAgentPublicationV9 } from "./retained-publication-v9.js";
 export { growthAgentPublicationV10 } from "./retained-publication-v10.js";
-import { growthAgentPublicationV11 } from "./retained-publication-v11.js";
-export { growthAgentPublicationV11 };
-const currentAdapter={...growthAdapterManifest,release:"9",executableDigest:growthAgentDigest({release:"growth-operations-v2",
-  handlers:growthAgentPublicationV11.manifest.operations.map(operation=>operation.handlerRef),modelProjection:"growth-content-post-read-v1"})};
-const {digest:previousDigest,...previousBody}=growthAgentPublicationV11.manifest;
-void previousDigest;
-const nextBody={...previousBody,revision:"12",adapter:{id:currentAdapter.id,release:currentAdapter.release,manifestDigest:growthAgentDigest(currentAdapter)}};
-export const growthAgentPublication = { ...growthAgentPublicationV11,manifest:{...nextBody,digest:growthAgentDigest(nextBody)},policy:{...growthAgentPublicationV11.policy,revision:"12",
-  optionalCapabilities:{...growthAgentPublicationV11.policy.optionalCapabilities,knowledge:true,skills:true,memory:true},
-  delegation:{maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3},childLimits:{maxTokens:null,maxActiveMs:null},
-    delegates:{assistant:["research","content","campaigns"],research:[],content:["research"],campaigns:["research"]} satisfies GrowthAgentDelegationPolicy["delegates"]}}};
+export { growthAgentPublicationV11 } from "./retained-publication-v11.js";
+import { growthAgentPublicationV12 } from "./retained-publication-v12.js";
+export { growthAgentPublicationV12 };
+const currentAdapter={...growthAdapterManifest,release:"10",executableDigest:growthAgentDigest({release:"growth-operations-v2",
+  handlers:growthOperationDescriptors.map(operation=>operation.handlerRef),modelProjection:"growth-content-post-read-v1"})};
+const consolidatedBody={schemaVersion:1 as const,product:"growth",revision:"13",adapter:{id:currentAdapter.id,release:currentAdapter.release,manifestDigest:growthAgentDigest(currentAdapter)},operations:growthOperationDescriptors};
+export const growthAgentPublication = {...growthAgentPublicationV12,
+ manifest:{...consolidatedBody,digest:growthAgentDigest(consolidatedBody)},
+ presets:growthAgentPublicationV12.presets.map(preset=>({...preset,
+  operations:growthOperationDescriptors.filter(operation=>preset.id==="research"||preset.id==="campaigns"?operation.policy.effect==="read":preset.id==="content"?/^(content\.|operations\.reviews\.|workspace\.|connections\.|analytics\.)/.test(operation.operation):true).map(operation=>operation.operation),
+ })),
+ policy:{...growthAgentPublicationV12.policy,revision:"13"}
+};
 export const growthCapabilityManifest = growthAgentPublication.manifest;
 export const growthAgentPresets = growthAgentPublication.presets;

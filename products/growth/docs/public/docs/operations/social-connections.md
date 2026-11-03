@@ -26,7 +26,9 @@ Choose **Edit post** for a draft or scheduled post to change its text and media,
 **Save changes**. Published Facebook-only posts have a separate text/caption editor with
 **Update on Facebook**. This updates the existing Facebook post. A single photo can be removed with **Remove photo**;
 **Undo** restores it before saving. Replacing or adding published media is not supported, and
-the destination remains unchanged. Other published platforms and processing posts cannot be edited here.
+the destination remains unchanged. The Threads API does not support editing published posts;
+Growth reports this limitation when an agent requests an edit. Threads drafts can still be edited.
+Other published platforms and processing posts cannot be edited here.
 
 ## Instagram without a Facebook Page
 

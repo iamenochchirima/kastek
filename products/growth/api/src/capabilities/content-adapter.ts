@@ -258,6 +258,15 @@ export async function updateDraft(
     ctx.organizationId,
     request,
   );
+  if (
+    request.channels === undefined &&
+    request.primaryChannelId === undefined &&
+    request.channelSelections === undefined
+  ) {
+    prepared.channels = undefined;
+    prepared.primaryChannelId = undefined;
+    prepared.channelSelections = undefined;
+  }
   return posts.updateSocialPost(
     pool,
     await actorUserId(pool, ctx),

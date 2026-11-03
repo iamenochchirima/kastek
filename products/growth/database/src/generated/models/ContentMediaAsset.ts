@@ -31,6 +31,7 @@ export type ContentMediaAssetAvgAggregateOutputType = {
   width: number | null
   height: number | null
   durationMs: number | null
+  revision: number | null
 }
 
 export type ContentMediaAssetSumAggregateOutputType = {
@@ -38,6 +39,7 @@ export type ContentMediaAssetSumAggregateOutputType = {
   width: number | null
   height: number | null
   durationMs: number | null
+  revision: number | null
 }
 
 export type ContentMediaAssetMinAggregateOutputType = {
@@ -56,6 +58,10 @@ export type ContentMediaAssetMinAggregateOutputType = {
   previewStorageKey: string | null
   processingStatus: $Enums.ContentMediaProcessingStatus | null
   scanStatus: $Enums.ContentMediaScanStatus | null
+  displayName: string | null
+  defaultAltText: string | null
+  archivedAt: Date | null
+  revision: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -76,6 +82,10 @@ export type ContentMediaAssetMaxAggregateOutputType = {
   previewStorageKey: string | null
   processingStatus: $Enums.ContentMediaProcessingStatus | null
   scanStatus: $Enums.ContentMediaScanStatus | null
+  displayName: string | null
+  defaultAltText: string | null
+  archivedAt: Date | null
+  revision: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -97,6 +107,11 @@ export type ContentMediaAssetCountAggregateOutputType = {
   processingStatus: number
   scanStatus: number
   metadata: number
+  displayName: number
+  tags: number
+  defaultAltText: number
+  archivedAt: number
+  revision: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -108,6 +123,7 @@ export type ContentMediaAssetAvgAggregateInputType = {
   width?: true
   height?: true
   durationMs?: true
+  revision?: true
 }
 
 export type ContentMediaAssetSumAggregateInputType = {
@@ -115,6 +131,7 @@ export type ContentMediaAssetSumAggregateInputType = {
   width?: true
   height?: true
   durationMs?: true
+  revision?: true
 }
 
 export type ContentMediaAssetMinAggregateInputType = {
@@ -133,6 +150,10 @@ export type ContentMediaAssetMinAggregateInputType = {
   previewStorageKey?: true
   processingStatus?: true
   scanStatus?: true
+  displayName?: true
+  defaultAltText?: true
+  archivedAt?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -153,6 +174,10 @@ export type ContentMediaAssetMaxAggregateInputType = {
   previewStorageKey?: true
   processingStatus?: true
   scanStatus?: true
+  displayName?: true
+  defaultAltText?: true
+  archivedAt?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -174,6 +199,11 @@ export type ContentMediaAssetCountAggregateInputType = {
   processingStatus?: true
   scanStatus?: true
   metadata?: true
+  displayName?: true
+  tags?: true
+  defaultAltText?: true
+  archivedAt?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -282,6 +312,11 @@ export type ContentMediaAssetGroupByOutputType = {
   processingStatus: $Enums.ContentMediaProcessingStatus
   scanStatus: $Enums.ContentMediaScanStatus
   metadata: runtime.JsonValue | null
+  displayName: string | null
+  tags: string[]
+  defaultAltText: string | null
+  archivedAt: Date | null
+  revision: number
   createdAt: Date
   updatedAt: Date
   _count: ContentMediaAssetCountAggregateOutputType | null
@@ -326,10 +361,16 @@ export type ContentMediaAssetWhereInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaScanStatus
   metadata?: Prisma.JsonNullableFilter<"ContentMediaAsset">
+  displayName?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  tags?: Prisma.StringNullableListFilter<"ContentMediaAsset">
+  defaultAltText?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  archivedAt?: Prisma.DateTimeNullableFilter<"ContentMediaAsset"> | Date | string | null
+  revision?: Prisma.IntFilter<"ContentMediaAsset"> | number
   createdAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   uploadedBy?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  templateMedia?: Prisma.ContentTemplateMediaListRelationFilter
   postMedia?: Prisma.SocialPostMediaListRelationFilter
   renditions?: Prisma.ContentMediaRenditionListRelationFilter
 }
@@ -351,10 +392,16 @@ export type ContentMediaAssetOrderByWithRelationInput = {
   processingStatus?: Prisma.SortOrder
   scanStatus?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  displayName?: Prisma.SortOrderInput | Prisma.SortOrder
+  tags?: Prisma.SortOrder
+  defaultAltText?: Prisma.SortOrderInput | Prisma.SortOrder
+  archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   org?: Prisma.OrganizationOrderByWithRelationInput
   uploadedBy?: Prisma.UserOrderByWithRelationInput
+  templateMedia?: Prisma.ContentTemplateMediaOrderByRelationAggregateInput
   postMedia?: Prisma.SocialPostMediaOrderByRelationAggregateInput
   renditions?: Prisma.ContentMediaRenditionOrderByRelationAggregateInput
 }
@@ -379,10 +426,16 @@ export type ContentMediaAssetWhereUniqueInput = Prisma.AtLeast<{
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaScanStatus
   metadata?: Prisma.JsonNullableFilter<"ContentMediaAsset">
+  displayName?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  tags?: Prisma.StringNullableListFilter<"ContentMediaAsset">
+  defaultAltText?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  archivedAt?: Prisma.DateTimeNullableFilter<"ContentMediaAsset"> | Date | string | null
+  revision?: Prisma.IntFilter<"ContentMediaAsset"> | number
   createdAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   uploadedBy?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
+  templateMedia?: Prisma.ContentTemplateMediaListRelationFilter
   postMedia?: Prisma.SocialPostMediaListRelationFilter
   renditions?: Prisma.ContentMediaRenditionListRelationFilter
 }, "id" | "storageKey">
@@ -404,6 +457,11 @@ export type ContentMediaAssetOrderByWithAggregationInput = {
   processingStatus?: Prisma.SortOrder
   scanStatus?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  displayName?: Prisma.SortOrderInput | Prisma.SortOrder
+  tags?: Prisma.SortOrder
+  defaultAltText?: Prisma.SortOrderInput | Prisma.SortOrder
+  archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ContentMediaAssetCountOrderByAggregateInput
@@ -433,6 +491,11 @@ export type ContentMediaAssetScalarWhereWithAggregatesInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusWithAggregatesFilter<"ContentMediaAsset"> | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusWithAggregatesFilter<"ContentMediaAsset"> | $Enums.ContentMediaScanStatus
   metadata?: Prisma.JsonNullableWithAggregatesFilter<"ContentMediaAsset">
+  displayName?: Prisma.StringNullableWithAggregatesFilter<"ContentMediaAsset"> | string | null
+  tags?: Prisma.StringNullableListFilter<"ContentMediaAsset">
+  defaultAltText?: Prisma.StringNullableWithAggregatesFilter<"ContentMediaAsset"> | string | null
+  archivedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ContentMediaAsset"> | Date | string | null
+  revision?: Prisma.IntWithAggregatesFilter<"ContentMediaAsset"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ContentMediaAsset"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"ContentMediaAsset"> | Date | string
 }
@@ -452,10 +515,16 @@ export type ContentMediaAssetCreateInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutContentMediaAssetsInput
   uploadedBy: Prisma.UserCreateNestedOneWithoutUploadedContentMediaAssetsInput
+  templateMedia?: Prisma.ContentTemplateMediaCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionCreateNestedManyWithoutAssetInput
 }
@@ -477,8 +546,14 @@ export type ContentMediaAssetUncheckedCreateInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionUncheckedCreateNestedManyWithoutAssetInput
 }
@@ -498,10 +573,16 @@ export type ContentMediaAssetUpdateInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutContentMediaAssetsNestedInput
   uploadedBy?: Prisma.UserUpdateOneRequiredWithoutUploadedContentMediaAssetsNestedInput
+  templateMedia?: Prisma.ContentTemplateMediaUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUpdateManyWithoutAssetNestedInput
 }
@@ -523,8 +604,14 @@ export type ContentMediaAssetUncheckedUpdateInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUncheckedUpdateManyWithoutAssetNestedInput
 }
@@ -546,6 +633,11 @@ export type ContentMediaAssetCreateManyInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -565,6 +657,11 @@ export type ContentMediaAssetUpdateManyMutationInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -586,6 +683,11 @@ export type ContentMediaAssetUncheckedUpdateManyInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -598,6 +700,11 @@ export type ContentMediaAssetListRelationFilter = {
 
 export type ContentMediaAssetOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type ContentMediaAssetScalarRelationFilter = {
+  is?: Prisma.ContentMediaAssetWhereInput
+  isNot?: Prisma.ContentMediaAssetWhereInput
 }
 
 export type ContentMediaAssetCountOrderByAggregateInput = {
@@ -617,6 +724,11 @@ export type ContentMediaAssetCountOrderByAggregateInput = {
   processingStatus?: Prisma.SortOrder
   scanStatus?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  displayName?: Prisma.SortOrder
+  tags?: Prisma.SortOrder
+  defaultAltText?: Prisma.SortOrder
+  archivedAt?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -626,6 +738,7 @@ export type ContentMediaAssetAvgOrderByAggregateInput = {
   width?: Prisma.SortOrder
   height?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
 }
 
 export type ContentMediaAssetMaxOrderByAggregateInput = {
@@ -644,6 +757,10 @@ export type ContentMediaAssetMaxOrderByAggregateInput = {
   previewStorageKey?: Prisma.SortOrder
   processingStatus?: Prisma.SortOrder
   scanStatus?: Prisma.SortOrder
+  displayName?: Prisma.SortOrder
+  defaultAltText?: Prisma.SortOrder
+  archivedAt?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -664,6 +781,10 @@ export type ContentMediaAssetMinOrderByAggregateInput = {
   previewStorageKey?: Prisma.SortOrder
   processingStatus?: Prisma.SortOrder
   scanStatus?: Prisma.SortOrder
+  displayName?: Prisma.SortOrder
+  defaultAltText?: Prisma.SortOrder
+  archivedAt?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -673,11 +794,7 @@ export type ContentMediaAssetSumOrderByAggregateInput = {
   width?: Prisma.SortOrder
   height?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
-}
-
-export type ContentMediaAssetScalarRelationFilter = {
-  is?: Prisma.ContentMediaAssetWhereInput
-  isNot?: Prisma.ContentMediaAssetWhereInput
+  revision?: Prisma.SortOrder
 }
 
 export type ContentMediaAssetCreateNestedManyWithoutOrgInput = {
@@ -764,6 +881,24 @@ export type ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput = {
   deleteMany?: Prisma.ContentMediaAssetScalarWhereInput | Prisma.ContentMediaAssetScalarWhereInput[]
 }
 
+export type ContentMediaAssetCreateNestedOneWithoutTemplateMediaInput = {
+  create?: Prisma.XOR<Prisma.ContentMediaAssetCreateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedCreateWithoutTemplateMediaInput>
+  connectOrCreate?: Prisma.ContentMediaAssetCreateOrConnectWithoutTemplateMediaInput
+  connect?: Prisma.ContentMediaAssetWhereUniqueInput
+}
+
+export type ContentMediaAssetUpdateOneRequiredWithoutTemplateMediaNestedInput = {
+  create?: Prisma.XOR<Prisma.ContentMediaAssetCreateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedCreateWithoutTemplateMediaInput>
+  connectOrCreate?: Prisma.ContentMediaAssetCreateOrConnectWithoutTemplateMediaInput
+  upsert?: Prisma.ContentMediaAssetUpsertWithoutTemplateMediaInput
+  connect?: Prisma.ContentMediaAssetWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ContentMediaAssetUpdateToOneWithWhereWithoutTemplateMediaInput, Prisma.ContentMediaAssetUpdateWithoutTemplateMediaInput>, Prisma.ContentMediaAssetUncheckedUpdateWithoutTemplateMediaInput>
+}
+
+export type ContentMediaAssetCreatetagsInput = {
+  set: string[]
+}
+
 export type EnumContentMediaKindFieldUpdateOperationsInput = {
   set?: $Enums.ContentMediaKind
 }
@@ -774,6 +909,11 @@ export type EnumContentMediaProcessingStatusFieldUpdateOperationsInput = {
 
 export type EnumContentMediaScanStatusFieldUpdateOperationsInput = {
   set?: $Enums.ContentMediaScanStatus
+}
+
+export type ContentMediaAssetUpdatetagsInput = {
+  set?: string[]
+  push?: string | string[]
 }
 
 export type ContentMediaAssetCreateNestedOneWithoutRenditionsInput = {
@@ -819,9 +959,15 @@ export type ContentMediaAssetCreateWithoutOrgInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   uploadedBy: Prisma.UserCreateNestedOneWithoutUploadedContentMediaAssetsInput
+  templateMedia?: Prisma.ContentTemplateMediaCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionCreateNestedManyWithoutAssetInput
 }
@@ -842,8 +988,14 @@ export type ContentMediaAssetUncheckedCreateWithoutOrgInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionUncheckedCreateNestedManyWithoutAssetInput
 }
@@ -894,6 +1046,11 @@ export type ContentMediaAssetScalarWhereInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFilter<"ContentMediaAsset"> | $Enums.ContentMediaScanStatus
   metadata?: Prisma.JsonNullableFilter<"ContentMediaAsset">
+  displayName?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  tags?: Prisma.StringNullableListFilter<"ContentMediaAsset">
+  defaultAltText?: Prisma.StringNullableFilter<"ContentMediaAsset"> | string | null
+  archivedAt?: Prisma.DateTimeNullableFilter<"ContentMediaAsset"> | Date | string | null
+  revision?: Prisma.IntFilter<"ContentMediaAsset"> | number
   createdAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ContentMediaAsset"> | Date | string
 }
@@ -913,9 +1070,15 @@ export type ContentMediaAssetCreateWithoutUploadedByInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutContentMediaAssetsInput
+  templateMedia?: Prisma.ContentTemplateMediaCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionCreateNestedManyWithoutAssetInput
 }
@@ -936,8 +1099,14 @@ export type ContentMediaAssetUncheckedCreateWithoutUploadedByInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionUncheckedCreateNestedManyWithoutAssetInput
 }
@@ -968,6 +1137,134 @@ export type ContentMediaAssetUpdateManyWithWhereWithoutUploadedByInput = {
   data: Prisma.XOR<Prisma.ContentMediaAssetUpdateManyMutationInput, Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByInput>
 }
 
+export type ContentMediaAssetCreateWithoutTemplateMediaInput = {
+  id?: string
+  kind: $Enums.ContentMediaKind
+  fileName?: string | null
+  mimeType: string
+  byteSize: bigint | number
+  checksum?: string | null
+  width?: number | null
+  height?: number | null
+  durationMs?: number | null
+  storageKey: string
+  previewStorageKey?: string | null
+  processingStatus?: $Enums.ContentMediaProcessingStatus
+  scanStatus?: $Enums.ContentMediaScanStatus
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  org: Prisma.OrganizationCreateNestedOneWithoutContentMediaAssetsInput
+  uploadedBy: Prisma.UserCreateNestedOneWithoutUploadedContentMediaAssetsInput
+  postMedia?: Prisma.SocialPostMediaCreateNestedManyWithoutAssetInput
+  renditions?: Prisma.ContentMediaRenditionCreateNestedManyWithoutAssetInput
+}
+
+export type ContentMediaAssetUncheckedCreateWithoutTemplateMediaInput = {
+  id?: string
+  orgId: string
+  uploadedById: string
+  kind: $Enums.ContentMediaKind
+  fileName?: string | null
+  mimeType: string
+  byteSize: bigint | number
+  checksum?: string | null
+  width?: number | null
+  height?: number | null
+  durationMs?: number | null
+  storageKey: string
+  previewStorageKey?: string | null
+  processingStatus?: $Enums.ContentMediaProcessingStatus
+  scanStatus?: $Enums.ContentMediaScanStatus
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  postMedia?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutAssetInput
+  renditions?: Prisma.ContentMediaRenditionUncheckedCreateNestedManyWithoutAssetInput
+}
+
+export type ContentMediaAssetCreateOrConnectWithoutTemplateMediaInput = {
+  where: Prisma.ContentMediaAssetWhereUniqueInput
+  create: Prisma.XOR<Prisma.ContentMediaAssetCreateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedCreateWithoutTemplateMediaInput>
+}
+
+export type ContentMediaAssetUpsertWithoutTemplateMediaInput = {
+  update: Prisma.XOR<Prisma.ContentMediaAssetUpdateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedUpdateWithoutTemplateMediaInput>
+  create: Prisma.XOR<Prisma.ContentMediaAssetCreateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedCreateWithoutTemplateMediaInput>
+  where?: Prisma.ContentMediaAssetWhereInput
+}
+
+export type ContentMediaAssetUpdateToOneWithWhereWithoutTemplateMediaInput = {
+  where?: Prisma.ContentMediaAssetWhereInput
+  data: Prisma.XOR<Prisma.ContentMediaAssetUpdateWithoutTemplateMediaInput, Prisma.ContentMediaAssetUncheckedUpdateWithoutTemplateMediaInput>
+}
+
+export type ContentMediaAssetUpdateWithoutTemplateMediaInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  kind?: Prisma.EnumContentMediaKindFieldUpdateOperationsInput | $Enums.ContentMediaKind
+  fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mimeType?: Prisma.StringFieldUpdateOperationsInput | string
+  byteSize?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  checksum?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  width?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  storageKey?: Prisma.StringFieldUpdateOperationsInput | string
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
+  scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutContentMediaAssetsNestedInput
+  uploadedBy?: Prisma.UserUpdateOneRequiredWithoutUploadedContentMediaAssetsNestedInput
+  postMedia?: Prisma.SocialPostMediaUpdateManyWithoutAssetNestedInput
+  renditions?: Prisma.ContentMediaRenditionUpdateManyWithoutAssetNestedInput
+}
+
+export type ContentMediaAssetUncheckedUpdateWithoutTemplateMediaInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  uploadedById?: Prisma.StringFieldUpdateOperationsInput | string
+  kind?: Prisma.EnumContentMediaKindFieldUpdateOperationsInput | $Enums.ContentMediaKind
+  fileName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mimeType?: Prisma.StringFieldUpdateOperationsInput | string
+  byteSize?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
+  checksum?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  width?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  height?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  storageKey?: Prisma.StringFieldUpdateOperationsInput | string
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
+  scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  postMedia?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutAssetNestedInput
+  renditions?: Prisma.ContentMediaRenditionUncheckedUpdateManyWithoutAssetNestedInput
+}
+
 export type ContentMediaAssetCreateWithoutRenditionsInput = {
   id?: string
   kind: $Enums.ContentMediaKind
@@ -983,10 +1280,16 @@ export type ContentMediaAssetCreateWithoutRenditionsInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutContentMediaAssetsInput
   uploadedBy: Prisma.UserCreateNestedOneWithoutUploadedContentMediaAssetsInput
+  templateMedia?: Prisma.ContentTemplateMediaCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaCreateNestedManyWithoutAssetInput
 }
 
@@ -1007,8 +1310,14 @@ export type ContentMediaAssetUncheckedCreateWithoutRenditionsInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedCreateNestedManyWithoutAssetInput
   postMedia?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutAssetInput
 }
 
@@ -1043,10 +1352,16 @@ export type ContentMediaAssetUpdateWithoutRenditionsInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutContentMediaAssetsNestedInput
   uploadedBy?: Prisma.UserUpdateOneRequiredWithoutUploadedContentMediaAssetsNestedInput
+  templateMedia?: Prisma.ContentTemplateMediaUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUpdateManyWithoutAssetNestedInput
 }
 
@@ -1067,8 +1382,14 @@ export type ContentMediaAssetUncheckedUpdateWithoutRenditionsInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutAssetNestedInput
 }
 
@@ -1087,10 +1408,16 @@ export type ContentMediaAssetCreateWithoutPostMediaInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutContentMediaAssetsInput
   uploadedBy: Prisma.UserCreateNestedOneWithoutUploadedContentMediaAssetsInput
+  templateMedia?: Prisma.ContentTemplateMediaCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionCreateNestedManyWithoutAssetInput
 }
 
@@ -1111,8 +1438,14 @@ export type ContentMediaAssetUncheckedCreateWithoutPostMediaInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedCreateNestedManyWithoutAssetInput
   renditions?: Prisma.ContentMediaRenditionUncheckedCreateNestedManyWithoutAssetInput
 }
 
@@ -1147,10 +1480,16 @@ export type ContentMediaAssetUpdateWithoutPostMediaInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutContentMediaAssetsNestedInput
   uploadedBy?: Prisma.UserUpdateOneRequiredWithoutUploadedContentMediaAssetsNestedInput
+  templateMedia?: Prisma.ContentTemplateMediaUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUpdateManyWithoutAssetNestedInput
 }
 
@@ -1171,8 +1510,14 @@ export type ContentMediaAssetUncheckedUpdateWithoutPostMediaInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUncheckedUpdateManyWithoutAssetNestedInput
 }
 
@@ -1192,6 +1537,11 @@ export type ContentMediaAssetCreateManyOrgInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1211,9 +1561,15 @@ export type ContentMediaAssetUpdateWithoutOrgInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   uploadedBy?: Prisma.UserUpdateOneRequiredWithoutUploadedContentMediaAssetsNestedInput
+  templateMedia?: Prisma.ContentTemplateMediaUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUpdateManyWithoutAssetNestedInput
 }
@@ -1234,8 +1590,14 @@ export type ContentMediaAssetUncheckedUpdateWithoutOrgInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUncheckedUpdateManyWithoutAssetNestedInput
 }
@@ -1256,6 +1618,11 @@ export type ContentMediaAssetUncheckedUpdateManyWithoutOrgInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1276,6 +1643,11 @@ export type ContentMediaAssetCreateManyUploadedByInput = {
   processingStatus?: $Enums.ContentMediaProcessingStatus
   scanStatus?: $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: string | null
+  tags?: Prisma.ContentMediaAssetCreatetagsInput | string[]
+  defaultAltText?: string | null
+  archivedAt?: Date | string | null
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1295,9 +1667,15 @@ export type ContentMediaAssetUpdateWithoutUploadedByInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutContentMediaAssetsNestedInput
+  templateMedia?: Prisma.ContentTemplateMediaUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUpdateManyWithoutAssetNestedInput
 }
@@ -1318,8 +1696,14 @@ export type ContentMediaAssetUncheckedUpdateWithoutUploadedByInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  templateMedia?: Prisma.ContentTemplateMediaUncheckedUpdateManyWithoutAssetNestedInput
   postMedia?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutAssetNestedInput
   renditions?: Prisma.ContentMediaRenditionUncheckedUpdateManyWithoutAssetNestedInput
 }
@@ -1340,6 +1724,11 @@ export type ContentMediaAssetUncheckedUpdateManyWithoutUploadedByInput = {
   processingStatus?: Prisma.EnumContentMediaProcessingStatusFieldUpdateOperationsInput | $Enums.ContentMediaProcessingStatus
   scanStatus?: Prisma.EnumContentMediaScanStatusFieldUpdateOperationsInput | $Enums.ContentMediaScanStatus
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  displayName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tags?: Prisma.ContentMediaAssetUpdatetagsInput | string[]
+  defaultAltText?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1350,11 +1739,13 @@ export type ContentMediaAssetUncheckedUpdateManyWithoutUploadedByInput = {
  */
 
 export type ContentMediaAssetCountOutputType = {
+  templateMedia: number
   postMedia: number
   renditions: number
 }
 
 export type ContentMediaAssetCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  templateMedia?: boolean | ContentMediaAssetCountOutputTypeCountTemplateMediaArgs
   postMedia?: boolean | ContentMediaAssetCountOutputTypeCountPostMediaArgs
   renditions?: boolean | ContentMediaAssetCountOutputTypeCountRenditionsArgs
 }
@@ -1367,6 +1758,13 @@ export type ContentMediaAssetCountOutputTypeDefaultArgs<ExtArgs extends runtime.
    * Select specific fields to fetch from the ContentMediaAssetCountOutputType
    */
   select?: Prisma.ContentMediaAssetCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * ContentMediaAssetCountOutputType without action
+ */
+export type ContentMediaAssetCountOutputTypeCountTemplateMediaArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContentTemplateMediaWhereInput
 }
 
 /**
@@ -1401,10 +1799,16 @@ export type ContentMediaAssetSelect<ExtArgs extends runtime.Types.Extensions.Int
   processingStatus?: boolean
   scanStatus?: boolean
   metadata?: boolean
+  displayName?: boolean
+  tags?: boolean
+  defaultAltText?: boolean
+  archivedAt?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   uploadedBy?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  templateMedia?: boolean | Prisma.ContentMediaAsset$templateMediaArgs<ExtArgs>
   postMedia?: boolean | Prisma.ContentMediaAsset$postMediaArgs<ExtArgs>
   renditions?: boolean | Prisma.ContentMediaAsset$renditionsArgs<ExtArgs>
   _count?: boolean | Prisma.ContentMediaAssetCountOutputTypeDefaultArgs<ExtArgs>
@@ -1427,6 +1831,11 @@ export type ContentMediaAssetSelectCreateManyAndReturn<ExtArgs extends runtime.T
   processingStatus?: boolean
   scanStatus?: boolean
   metadata?: boolean
+  displayName?: boolean
+  tags?: boolean
+  defaultAltText?: boolean
+  archivedAt?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -1450,6 +1859,11 @@ export type ContentMediaAssetSelectUpdateManyAndReturn<ExtArgs extends runtime.T
   processingStatus?: boolean
   scanStatus?: boolean
   metadata?: boolean
+  displayName?: boolean
+  tags?: boolean
+  defaultAltText?: boolean
+  archivedAt?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -1473,14 +1887,20 @@ export type ContentMediaAssetSelectScalar = {
   processingStatus?: boolean
   scanStatus?: boolean
   metadata?: boolean
+  displayName?: boolean
+  tags?: boolean
+  defaultAltText?: boolean
+  archivedAt?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ContentMediaAssetOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "uploadedById" | "kind" | "fileName" | "mimeType" | "byteSize" | "checksum" | "width" | "height" | "durationMs" | "storageKey" | "previewStorageKey" | "processingStatus" | "scanStatus" | "metadata" | "createdAt" | "updatedAt", ExtArgs["result"]["contentMediaAsset"]>
+export type ContentMediaAssetOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orgId" | "uploadedById" | "kind" | "fileName" | "mimeType" | "byteSize" | "checksum" | "width" | "height" | "durationMs" | "storageKey" | "previewStorageKey" | "processingStatus" | "scanStatus" | "metadata" | "displayName" | "tags" | "defaultAltText" | "archivedAt" | "revision" | "createdAt" | "updatedAt", ExtArgs["result"]["contentMediaAsset"]>
 export type ContentMediaAssetInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   uploadedBy?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+  templateMedia?: boolean | Prisma.ContentMediaAsset$templateMediaArgs<ExtArgs>
   postMedia?: boolean | Prisma.ContentMediaAsset$postMediaArgs<ExtArgs>
   renditions?: boolean | Prisma.ContentMediaAsset$renditionsArgs<ExtArgs>
   _count?: boolean | Prisma.ContentMediaAssetCountOutputTypeDefaultArgs<ExtArgs>
@@ -1499,6 +1919,7 @@ export type $ContentMediaAssetPayload<ExtArgs extends runtime.Types.Extensions.I
   objects: {
     org: Prisma.$OrganizationPayload<ExtArgs>
     uploadedBy: Prisma.$UserPayload<ExtArgs>
+    templateMedia: Prisma.$ContentTemplateMediaPayload<ExtArgs>[]
     postMedia: Prisma.$SocialPostMediaPayload<ExtArgs>[]
     renditions: Prisma.$ContentMediaRenditionPayload<ExtArgs>[]
   }
@@ -1519,6 +1940,11 @@ export type $ContentMediaAssetPayload<ExtArgs extends runtime.Types.Extensions.I
     processingStatus: $Enums.ContentMediaProcessingStatus
     scanStatus: $Enums.ContentMediaScanStatus
     metadata: runtime.JsonValue | null
+    displayName: string | null
+    tags: string[]
+    defaultAltText: string | null
+    archivedAt: Date | null
+    revision: number
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["contentMediaAsset"]>
@@ -1917,6 +2343,7 @@ export interface Prisma__ContentMediaAssetClient<T, Null = never, ExtArgs extend
   readonly [Symbol.toStringTag]: "PrismaPromise"
   org<T extends Prisma.OrganizationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   uploadedBy<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  templateMedia<T extends Prisma.ContentMediaAsset$templateMediaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ContentMediaAsset$templateMediaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentTemplateMediaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   postMedia<T extends Prisma.ContentMediaAsset$postMediaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ContentMediaAsset$postMediaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostMediaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   renditions<T extends Prisma.ContentMediaAsset$renditionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ContentMediaAsset$renditionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentMediaRenditionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
@@ -1964,6 +2391,11 @@ export interface ContentMediaAssetFieldRefs {
   readonly processingStatus: Prisma.FieldRef<"ContentMediaAsset", 'ContentMediaProcessingStatus'>
   readonly scanStatus: Prisma.FieldRef<"ContentMediaAsset", 'ContentMediaScanStatus'>
   readonly metadata: Prisma.FieldRef<"ContentMediaAsset", 'Json'>
+  readonly displayName: Prisma.FieldRef<"ContentMediaAsset", 'String'>
+  readonly tags: Prisma.FieldRef<"ContentMediaAsset", 'String[]'>
+  readonly defaultAltText: Prisma.FieldRef<"ContentMediaAsset", 'String'>
+  readonly archivedAt: Prisma.FieldRef<"ContentMediaAsset", 'DateTime'>
+  readonly revision: Prisma.FieldRef<"ContentMediaAsset", 'Int'>
   readonly createdAt: Prisma.FieldRef<"ContentMediaAsset", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"ContentMediaAsset", 'DateTime'>
 }
@@ -2359,6 +2791,30 @@ export type ContentMediaAssetDeleteManyArgs<ExtArgs extends runtime.Types.Extens
    * Limit how many ContentMediaAssets to delete.
    */
   limit?: number
+}
+
+/**
+ * ContentMediaAsset.templateMedia
+ */
+export type ContentMediaAsset$templateMediaArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContentTemplateMedia
+   */
+  select?: Prisma.ContentTemplateMediaSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContentTemplateMedia
+   */
+  omit?: Prisma.ContentTemplateMediaOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentTemplateMediaInclude<ExtArgs> | null
+  where?: Prisma.ContentTemplateMediaWhereInput
+  orderBy?: Prisma.ContentTemplateMediaOrderByWithRelationInput | Prisma.ContentTemplateMediaOrderByWithRelationInput[]
+  cursor?: Prisma.ContentTemplateMediaWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContentTemplateMediaScalarFieldEnum | Prisma.ContentTemplateMediaScalarFieldEnum[]
 }
 
 /**

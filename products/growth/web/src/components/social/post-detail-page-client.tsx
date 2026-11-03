@@ -1,3 +1,5 @@
+import { ContentSourceLinks } from "./content-source-links";
+import { contentOperation } from "@/lib/content-library";
 import { AskGrowthAgent } from "@/components/dashboard/agents/agent-context";
 
 import { Link } from "react-router";
@@ -376,8 +378,11 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                   );
                 })}
               </div>
+              <ContentSourceLinks metadata={post.metadata}/>
             </PageHeaderContent>
             <PageHeaderActions>
+              <Button variant="outline" disabled={busyKey === "duplicate"} onClick={async () => { setBusyKey("duplicate"); try { const result = await contentOperation<{post?: {id: string};postId?:string}>("content.posts.duplicate", {postId: post.id}, crypto.randomUUID()); const postId=result.post?.id || result.postId;if(!postId)throw new Error("Could not read duplicated draft."); navigate(`/content?edit=${postId}`); } catch(error) { setError(error instanceof Error ? error.message : "Could not duplicate post"); } finally { setBusyKey(null); } }}>Duplicate</Button>
+              <Button variant="outline" asChild><Link to={`/content/templates?sourcePostId=${post.id}`}>Save as template</Link></Button>
               <AskGrowthAgent featureId="content" context={{ kind: "content_post", resourceId: post.id }}>Improve draft</AskGrowthAgent>
               <Button variant="outline" className="gap-2" onClick={() => navigate(`/content?edit=${encodeURIComponent(post.id)}`)}>
                 <Pencil className="h-4 w-4" />

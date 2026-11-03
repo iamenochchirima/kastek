@@ -15,11 +15,32 @@ export async function reconcileGrowthOperationReceipt(core: CoreContext, review:
   const key = operationDomainKey(review.id), input = review.input;
   switch (review.operation) {
     case "content.posts.draft.create":
+    case "content.templates.instantiate":
     case "content.posts.duplicate": {
       const rows = (await core.pool.query(`SELECT id,metadata->>'_kasitek_agent_request_digest' AS digest FROM "SocialPost"
         WHERE "orgId"=$1 AND "userId"=$2 AND metadata->>'_kasitek_agent_idempotency_key'=$3 LIMIT 2`, [review.orgId, review.userId, key])).rows;
       if (rows.length !== 1 || !/^[a-f0-9]{64}$/.test(rows[0].digest ?? "")) return null;
       return { reconciled: true, postId: rows[0].id, receipt: "draft_created" };
+    }
+    case "content.media.update":
+    case "content.media.archive":
+    case "content.media.restore": {
+      const receipt = (await core.pool.query('SELECT action,result FROM "ContentMediaLibraryMutation" WHERE "orgId"=$1 AND "operationKey"=$2 AND "assetId"=$3', [review.orgId,key,input.assetId])).rows[0];
+      return receipt?.action === review.operation ? {asset: receipt.result} : null;
+    }
+    case "content.templates.create":
+    case "content.templates.update":
+    case "content.templates.archive":
+    case "content.templates.restore": {
+      const receipt = (await core.pool.query('SELECT action,result FROM "ContentTemplateMutation" WHERE "orgId"=$1 AND "operationKey"=$2', [review.orgId,key])).rows[0];
+      return receipt?.action === review.operation.split(".").at(-1) ? {template: receipt.result} : null;
+    }
+    case "content.media.transfer.prepare": {
+      const rows=(await core.pool.query(`SELECT id,"fileName","mimeType","byteSize","expectedChecksum","expiresAt",state FROM "GrowthMediaTransfer" WHERE "orgId"=$1 AND "userId"=$2 AND "principalId"=$3 AND "principalKind"=$4 AND "requestKey"=$5 LIMIT 2`,[review.orgId,review.userId,review.principalId,review.principalKind,key])).rows;
+      if(rows.length!==1) return null;
+      const row=rows[0];
+      if(row.fileName!==(input.fileName??null)||row.mimeType!==input.mimeType||Number(row.byteSize)!==input.byteSize||row.expectedChecksum!==(input.sha256??null)) return null;
+      return {reconciled:true,transferId:row.id,uploadUrl:`${core.config.publicApiUrl}/v1/media-transfers/${row.id}`,uploadMethod:"PUT",contentType:"application/octet-stream",byteSize:Number(row.byteSize),expiresAt:new Date(row.expiresAt).toISOString(),state:+new Date(row.expiresAt)<=Date.now()?"EXPIRED":row.state,requiresAuthentication:true,receipt:"media_transfer_prepared"};
     }
     case "content.media.upload": {
       if (typeof input.transferId === "string") {

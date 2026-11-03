@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Pool } from "pg";
 import type { GrowthActionClient } from "../src/adapters/products/growth-action-client";
-import { growthLocalRetainedVariants,growthContentReadAdapterManifest } from "../src/adapters/products/growth-capability-manifests";
+import { growthLocalRetainedVariants,growthContentReadAdapterManifest,growthCurrentContentReadAdapterManifest } from "../src/adapters/products/growth-capability-manifests";
 import { requestDigest } from "../src/contracts/contracts";
 import { productAdapterRegistry } from "../src/capabilities/products/product-capabilities";
 import {
@@ -24,6 +24,7 @@ describe("Growth installed operation releases", () => {
     expect(requestDigest(local.manifest)).toBe("ea866f17fc8f723774d916468055fda67ebd30851a1b18821fc6aebbfcdf06fa");
     expect(productAdapterRegistry.resolve({adapter:{id:local.manifest.id,release:"6",manifestDigest:requestDigest(local.manifest)},transport:"native_http",protocolVersion:null}).handlers).toHaveLength(45);
     expect(growthContentReadAdapterManifest.release).toBe("9");
+    expect(growthCurrentContentReadAdapterManifest.release).toBe("10");
     const retained = [
       [
         growthOperationAdapterManifest,
@@ -154,7 +155,7 @@ it("discovers canonical library schemas in content specialist bindings and rejec
     ).toEqual(descriptor.inputSchema);
     expect(binding.authority).toMatchObject({
       tenantId: "fixture-workspace",
-      policyRevision: "12",
+      policyRevision: "13",
       handlerRef: `growth.operation.${name}@1`,
     });
   }

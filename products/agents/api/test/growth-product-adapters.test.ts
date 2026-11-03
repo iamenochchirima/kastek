@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import {
   growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5,
-  growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication,
+  growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV12, growthAgentPublication,
 } from "../../../growth/api/src/agents/manifest";
 import type { GrowthActionClient } from "../src/adapters/products/growth-action-client";
 import { GrowthProductRuntime } from "../src/execution/products/growth-runtime";
@@ -14,14 +14,14 @@ import { sourceAuthorityIds, type AgentConfiguration } from "../src/contracts/co
 describe("installed Growth publication adapters", () => {
   it("loads retained and current owning-product publications using their exact executable releases", async () => {
     const publications = [growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5,
-      growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication];
+      growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV12, growthAgentPublication];
     const query = vi.fn(async () => ({ rows: publications.map(publication => ({ publication })) }));
     const client = { invoke: vi.fn() } as unknown as GrowthActionClient;
     const runtime = new GrowthProductRuntime({ query } as unknown as Pool, client);
     await expect(runtime.loadPublications()).resolves.toBeUndefined();
     expect(client.invoke).not.toHaveBeenCalled();
-    expect(growthAgentPublication.manifest.revision).toBe("11");
-    expect(growthAgentPublication.manifest.adapter.release).toBe("6");
+    expect(growthAgentPublication.manifest.revision).toBe("13");
+    expect(growthAgentPublication.manifest.adapter.release).toBe("10");
   });
 
   it("applies the versioned Growth delegation graph through child configurations", async () => {

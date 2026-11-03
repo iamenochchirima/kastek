@@ -221,6 +221,8 @@ export type OrganizationWhereInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateListRelationFilter
+  contentTemplates?: Prisma.ContentTemplateListRelationFilter
+  contentTemplateMutations?: Prisma.ContentTemplateMutationListRelationFilter
   contentMediaAssets?: Prisma.ContentMediaAssetListRelationFilter
   whatsappConnections?: Prisma.WhatsappConnectionListRelationFilter
   whatsappContacts?: Prisma.WhatsappContactListRelationFilter
@@ -284,6 +286,8 @@ export type OrganizationOrderByWithRelationInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchOrderByRelationAggregateInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationOrderByRelationAggregateInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateOrderByRelationAggregateInput
+  contentTemplates?: Prisma.ContentTemplateOrderByRelationAggregateInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationOrderByRelationAggregateInput
   contentMediaAssets?: Prisma.ContentMediaAssetOrderByRelationAggregateInput
   whatsappConnections?: Prisma.WhatsappConnectionOrderByRelationAggregateInput
   whatsappContacts?: Prisma.WhatsappContactOrderByRelationAggregateInput
@@ -350,6 +354,8 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateListRelationFilter
+  contentTemplates?: Prisma.ContentTemplateListRelationFilter
+  contentTemplateMutations?: Prisma.ContentTemplateMutationListRelationFilter
   contentMediaAssets?: Prisma.ContentMediaAssetListRelationFilter
   whatsappConnections?: Prisma.WhatsappConnectionListRelationFilter
   whatsappContacts?: Prisma.WhatsappContactListRelationFilter
@@ -440,6 +446,8 @@ export type OrganizationCreateInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -502,6 +510,8 @@ export type OrganizationUncheckedCreateInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -564,6 +574,8 @@ export type OrganizationUpdateInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -626,6 +638,8 @@ export type OrganizationUncheckedUpdateInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -1408,6 +1422,34 @@ export type OrganizationUpdateOneRequiredWithoutSocialPostInsightSyncStatesNeste
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutSocialPostInsightSyncStatesInput, Prisma.OrganizationUpdateWithoutSocialPostInsightSyncStatesInput>, Prisma.OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput>
 }
 
+export type OrganizationCreateNestedOneWithoutContentTemplatesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplatesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutContentTemplatesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutContentTemplatesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplatesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutContentTemplatesInput
+  upsert?: Prisma.OrganizationUpsertWithoutContentTemplatesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutContentTemplatesInput, Prisma.OrganizationUpdateWithoutContentTemplatesInput>, Prisma.OrganizationUncheckedUpdateWithoutContentTemplatesInput>
+}
+
+export type OrganizationCreateNestedOneWithoutContentTemplateMutationsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplateMutationsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutContentTemplateMutationsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutContentTemplateMutationsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplateMutationsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutContentTemplateMutationsInput
+  upsert?: Prisma.OrganizationUpsertWithoutContentTemplateMutationsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutContentTemplateMutationsInput, Prisma.OrganizationUpdateWithoutContentTemplateMutationsInput>, Prisma.OrganizationUncheckedUpdateWithoutContentTemplateMutationsInput>
+}
+
 export type OrganizationCreateNestedOneWithoutContentMediaAssetsInput = {
   create?: Prisma.XOR<Prisma.OrganizationCreateWithoutContentMediaAssetsInput, Prisma.OrganizationUncheckedCreateWithoutContentMediaAssetsInput>
   connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutContentMediaAssetsInput
@@ -1566,6 +1608,8 @@ export type OrganizationCreateWithoutMembersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -1627,6 +1671,8 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -1704,6 +1750,8 @@ export type OrganizationUpdateWithoutMembersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -1765,6 +1813,8 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -1827,6 +1877,8 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -1888,6 +1940,8 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -1965,6 +2019,8 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -2026,6 +2082,8 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -2086,6 +2144,8 @@ export type OrganizationCreateWithoutInvitationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -2147,6 +2207,8 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -2224,6 +2286,8 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -2285,6 +2349,8 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -2347,6 +2413,8 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -2408,6 +2476,8 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -2485,6 +2555,8 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -2546,6 +2618,8 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -2606,6 +2680,8 @@ export type OrganizationCreateWithoutEmailConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -2667,6 +2743,8 @@ export type OrganizationUncheckedCreateWithoutEmailConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -2744,6 +2822,8 @@ export type OrganizationUpdateWithoutEmailConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -2805,6 +2885,8 @@ export type OrganizationUncheckedUpdateWithoutEmailConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -2866,6 +2948,8 @@ export type OrganizationCreateWithoutEmailInboxBindingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -2927,6 +3011,8 @@ export type OrganizationUncheckedCreateWithoutEmailInboxBindingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -3004,6 +3090,8 @@ export type OrganizationUpdateWithoutEmailInboxBindingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -3065,6 +3153,8 @@ export type OrganizationUncheckedUpdateWithoutEmailInboxBindingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -3126,6 +3216,8 @@ export type OrganizationCreateWithoutEmailOAuthStatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -3187,6 +3279,8 @@ export type OrganizationUncheckedCreateWithoutEmailOAuthStatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -3264,6 +3358,8 @@ export type OrganizationUpdateWithoutEmailOAuthStatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -3325,6 +3421,8 @@ export type OrganizationUncheckedUpdateWithoutEmailOAuthStatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -3387,6 +3485,8 @@ export type OrganizationCreateWithoutProductToursInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -3448,6 +3548,8 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -3525,6 +3627,8 @@ export type OrganizationUpdateWithoutProductToursInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -3586,6 +3690,8 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -3647,6 +3753,8 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -3708,6 +3816,8 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -3785,6 +3895,8 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -3846,6 +3958,8 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -3907,6 +4021,8 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -3968,6 +4084,8 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -4045,6 +4163,8 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -4106,6 +4226,8 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -4167,6 +4289,8 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -4228,6 +4352,8 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -4305,6 +4431,8 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -4366,6 +4494,8 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -4427,6 +4557,8 @@ export type OrganizationCreateWithoutReferralCodesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -4488,6 +4620,8 @@ export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -4565,6 +4699,8 @@ export type OrganizationUpdateWithoutReferralCodesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -4626,6 +4762,8 @@ export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -4687,6 +4825,8 @@ export type OrganizationCreateWithoutReferralsSentInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -4748,6 +4888,8 @@ export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -4814,6 +4956,8 @@ export type OrganizationCreateWithoutReferralReceivedInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -4875,6 +5019,8 @@ export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -4952,6 +5098,8 @@ export type OrganizationUpdateWithoutReferralsSentInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -5013,6 +5161,8 @@ export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -5085,6 +5235,8 @@ export type OrganizationUpdateWithoutReferralReceivedInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -5146,6 +5298,8 @@ export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -5207,6 +5361,8 @@ export type OrganizationCreateWithoutCreditAccountInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -5268,6 +5424,8 @@ export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -5345,6 +5503,8 @@ export type OrganizationUpdateWithoutCreditAccountInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -5406,6 +5566,8 @@ export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -5467,6 +5629,8 @@ export type OrganizationCreateWithoutCreditGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -5528,6 +5692,8 @@ export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -5605,6 +5771,8 @@ export type OrganizationUpdateWithoutCreditGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -5666,6 +5834,8 @@ export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -5727,6 +5897,8 @@ export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -5788,6 +5960,8 @@ export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -5865,6 +6039,8 @@ export type OrganizationUpdateWithoutCreditLedgerEntriesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -5926,6 +6102,8 @@ export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -5987,6 +6165,8 @@ export type OrganizationCreateWithoutCreditReservationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -6048,6 +6228,8 @@ export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -6125,6 +6307,8 @@ export type OrganizationUpdateWithoutCreditReservationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -6186,6 +6370,8 @@ export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -6247,6 +6433,8 @@ export type OrganizationCreateWithoutCreditUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -6308,6 +6496,8 @@ export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -6385,6 +6575,8 @@ export type OrganizationUpdateWithoutCreditUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -6446,6 +6638,8 @@ export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -6507,6 +6701,8 @@ export type OrganizationCreateWithoutCreditAdminOperationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -6568,6 +6764,8 @@ export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -6645,6 +6843,8 @@ export type OrganizationUpdateWithoutCreditAdminOperationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -6706,6 +6906,8 @@ export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -6767,6 +6969,8 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -6828,6 +7032,8 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -6905,6 +7111,8 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -6966,6 +7174,8 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -7027,6 +7237,8 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -7088,6 +7300,8 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -7165,6 +7379,8 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -7226,6 +7442,8 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -7287,6 +7505,8 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -7348,6 +7568,8 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -7425,6 +7647,8 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -7486,6 +7710,8 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -7547,6 +7773,8 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -7608,6 +7836,8 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -7685,6 +7915,8 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -7746,6 +7978,8 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -7807,6 +8041,8 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -7868,6 +8104,8 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -7945,6 +8183,8 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -8006,6 +8246,8 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -8067,6 +8309,8 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -8128,6 +8372,8 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -8205,6 +8451,8 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -8266,6 +8514,8 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -8326,6 +8576,8 @@ export type OrganizationCreateWithoutOwnerInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -8387,6 +8639,8 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -8489,6 +8743,8 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -8550,6 +8806,8 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -8627,6 +8885,8 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -8688,6 +8948,8 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -8749,6 +9011,8 @@ export type OrganizationCreateWithoutCustomerReplayCommandsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -8810,6 +9074,8 @@ export type OrganizationUncheckedCreateWithoutCustomerReplayCommandsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -8887,6 +9153,8 @@ export type OrganizationUpdateWithoutCustomerReplayCommandsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -8948,6 +9216,8 @@ export type OrganizationUncheckedUpdateWithoutCustomerReplayCommandsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -9009,6 +9279,8 @@ export type OrganizationCreateWithoutCustomersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -9070,6 +9342,8 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -9147,6 +9421,8 @@ export type OrganizationUpdateWithoutCustomersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -9208,6 +9484,8 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -9269,6 +9547,8 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -9330,6 +9610,8 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -9407,6 +9689,8 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -9468,6 +9752,8 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -9529,6 +9815,8 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -9590,6 +9878,8 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -9667,6 +9957,8 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -9728,6 +10020,8 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -9789,6 +10083,8 @@ export type OrganizationCreateWithoutBookingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -9850,6 +10146,8 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -9927,6 +10225,8 @@ export type OrganizationUpdateWithoutBookingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -9988,6 +10288,8 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -10049,6 +10351,8 @@ export type OrganizationCreateWithoutConversationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -10110,6 +10414,8 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -10187,6 +10493,8 @@ export type OrganizationUpdateWithoutConversationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -10248,6 +10556,8 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -10309,6 +10619,8 @@ export type OrganizationCreateWithoutCallsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -10370,6 +10682,8 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -10447,6 +10761,8 @@ export type OrganizationUpdateWithoutCallsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -10508,6 +10824,8 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -10569,6 +10887,8 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
@@ -10630,6 +10950,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
@@ -10707,6 +11029,8 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
@@ -10768,6 +11092,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
@@ -10829,6 +11155,8 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -10890,6 +11218,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -10967,6 +11297,8 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -11028,6 +11360,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -11088,6 +11422,8 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -11149,6 +11485,8 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -11226,6 +11564,8 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -11287,6 +11627,8 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -11348,6 +11690,8 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -11409,6 +11753,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -11486,6 +11832,8 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -11547,6 +11895,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -11608,6 +11958,8 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -11669,6 +12021,8 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -11746,6 +12100,8 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -11807,6 +12163,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -11868,6 +12226,8 @@ export type OrganizationCreateWithoutSocialPublishBatchesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -11929,6 +12289,8 @@ export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -12006,6 +12368,8 @@ export type OrganizationUpdateWithoutSocialPublishBatchesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -12067,6 +12431,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -12128,6 +12494,8 @@ export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -12189,6 +12557,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -12266,6 +12636,8 @@ export type OrganizationUpdateWithoutSocialPostInsightObservationsInput = {
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -12327,6 +12699,8 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -12388,6 +12762,8 @@ export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -12449,6 +12825,8 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput =
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -12526,6 +12904,8 @@ export type OrganizationUpdateWithoutSocialPostInsightSyncStatesInput = {
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -12587,6 +12967,544 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput =
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutContentTemplatesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutContentTemplatesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutContentTemplatesInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplatesInput>
+}
+
+export type OrganizationUpsertWithoutContentTemplatesInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedUpdateWithoutContentTemplatesInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplatesInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutContentTemplatesInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutContentTemplatesInput, Prisma.OrganizationUncheckedUpdateWithoutContentTemplatesInput>
+}
+
+export type OrganizationUpdateWithoutContentTemplatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutContentTemplatesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutContentTemplateMutationsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleCreateNestedManyWithoutOrgInput
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutContentTemplateMutationsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedCreateNestedOneWithoutOrgInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedCreateNestedManyWithoutOrgInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedCreateNestedManyWithoutOrgInput
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailConnections?: Prisma.EmailConnectionUncheckedCreateNestedManyWithoutOrgInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedCreateNestedManyWithoutOrgInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUncheckedCreateNestedManyWithoutCustomerInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutContentTemplateMutationsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplateMutationsInput>
+}
+
+export type OrganizationUpsertWithoutContentTemplateMutationsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedUpdateWithoutContentTemplateMutationsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedCreateWithoutContentTemplateMutationsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutContentTemplateMutationsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutContentTemplateMutationsInput, Prisma.OrganizationUncheckedUpdateWithoutContentTemplateMutationsInput>
+}
+
+export type OrganizationUpdateWithoutContentTemplateMutationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUpdateManyWithoutOrgNestedInput
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  customerReplayCommands?: Prisma.AdminWebhookReplayCommandUpdateManyWithoutCustomerNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutContentTemplateMutationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  agentSetup?: Prisma.GrowthAgentSetupUncheckedUpdateOneWithoutOrgNestedInput
+  growthAgentReviews?: Prisma.GrowthAgentReviewUncheckedUpdateManyWithoutOrgNestedInput
+  growthAgentSourceHandles?: Prisma.GrowthAgentSourceHandleUncheckedUpdateManyWithoutOrgNestedInput
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailConnections?: Prisma.EmailConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  emailInboxBindings?: Prisma.EmailInboxBindingUncheckedUpdateManyWithoutOrgNestedInput
+  emailOAuthStates?: Prisma.EmailOAuthStateUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -12649,6 +13567,8 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
@@ -12710,6 +13630,8 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
@@ -12787,6 +13709,8 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
@@ -12848,6 +13772,8 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
@@ -12909,6 +13835,8 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
@@ -12970,6 +13898,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
@@ -13047,6 +13977,8 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
@@ -13108,6 +14040,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
@@ -13169,6 +14103,8 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -13230,6 +14166,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -13307,6 +14245,8 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -13368,6 +14308,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -13429,6 +14371,8 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -13490,6 +14434,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -13567,6 +14513,8 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -13628,6 +14576,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -13689,6 +14639,8 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -13750,6 +14702,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -13827,6 +14781,8 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -13888,6 +14844,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -13949,6 +14907,8 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -14010,6 +14970,8 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -14087,6 +15049,8 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -14148,6 +15112,8 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -14208,6 +15174,8 @@ export type OrganizationCreateWithoutGrowthAgentReviewsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -14269,6 +15237,8 @@ export type OrganizationUncheckedCreateWithoutGrowthAgentReviewsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -14346,6 +15316,8 @@ export type OrganizationUpdateWithoutGrowthAgentReviewsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -14407,6 +15379,8 @@ export type OrganizationUncheckedUpdateWithoutGrowthAgentReviewsInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -14468,6 +15442,8 @@ export type OrganizationCreateWithoutAgentSetupInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -14529,6 +15505,8 @@ export type OrganizationUncheckedCreateWithoutAgentSetupInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -14606,6 +15584,8 @@ export type OrganizationUpdateWithoutAgentSetupInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -14667,6 +15647,8 @@ export type OrganizationUncheckedUpdateWithoutAgentSetupInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -14728,6 +15710,8 @@ export type OrganizationCreateWithoutGrowthAgentSourceHandlesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
@@ -14789,6 +15773,8 @@ export type OrganizationUncheckedCreateWithoutGrowthAgentSourceHandlesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedCreateNestedManyWithoutOrgInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
@@ -14866,6 +15852,8 @@ export type OrganizationUpdateWithoutGrowthAgentSourceHandlesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -14927,6 +15915,8 @@ export type OrganizationUncheckedUpdateWithoutGrowthAgentSourceHandlesInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -14998,6 +15988,8 @@ export type OrganizationUpdateWithoutOwnerInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
@@ -15059,6 +16051,8 @@ export type OrganizationUncheckedUpdateWithoutOwnerInput = {
   socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplates?: Prisma.ContentTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  contentTemplateMutations?: Prisma.ContentTemplateMutationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
   whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
@@ -15127,6 +16121,8 @@ export type OrganizationCountOutputType = {
   socialPublishBatches: number
   socialPostInsightObservations: number
   socialPostInsightSyncStates: number
+  contentTemplates: number
+  contentTemplateMutations: number
   contentMediaAssets: number
   whatsappConnections: number
   whatsappContacts: number
@@ -15177,6 +16173,8 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   socialPublishBatches?: boolean | OrganizationCountOutputTypeCountSocialPublishBatchesArgs
   socialPostInsightObservations?: boolean | OrganizationCountOutputTypeCountSocialPostInsightObservationsArgs
   socialPostInsightSyncStates?: boolean | OrganizationCountOutputTypeCountSocialPostInsightSyncStatesArgs
+  contentTemplates?: boolean | OrganizationCountOutputTypeCountContentTemplatesArgs
+  contentTemplateMutations?: boolean | OrganizationCountOutputTypeCountContentTemplateMutationsArgs
   contentMediaAssets?: boolean | OrganizationCountOutputTypeCountContentMediaAssetsArgs
   whatsappConnections?: boolean | OrganizationCountOutputTypeCountWhatsappConnectionsArgs
   whatsappContacts?: boolean | OrganizationCountOutputTypeCountWhatsappContactsArgs
@@ -15312,6 +16310,20 @@ export type OrganizationCountOutputTypeCountSocialPostInsightObservationsArgs<Ex
  */
 export type OrganizationCountOutputTypeCountSocialPostInsightSyncStatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.SocialPostInsightSyncStateWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountContentTemplatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContentTemplateWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountContentTemplateMutationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContentTemplateMutationWhereInput
 }
 
 /**
@@ -15577,6 +16589,8 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
   socialPostInsightObservations?: boolean | Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>
   socialPostInsightSyncStates?: boolean | Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>
+  contentTemplates?: boolean | Prisma.Organization$contentTemplatesArgs<ExtArgs>
+  contentTemplateMutations?: boolean | Prisma.Organization$contentTemplateMutationsArgs<ExtArgs>
   contentMediaAssets?: boolean | Prisma.Organization$contentMediaAssetsArgs<ExtArgs>
   whatsappConnections?: boolean | Prisma.Organization$whatsappConnectionsArgs<ExtArgs>
   whatsappContacts?: boolean | Prisma.Organization$whatsappContactsArgs<ExtArgs>
@@ -15669,6 +16683,8 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
   socialPostInsightObservations?: boolean | Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>
   socialPostInsightSyncStates?: boolean | Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>
+  contentTemplates?: boolean | Prisma.Organization$contentTemplatesArgs<ExtArgs>
+  contentTemplateMutations?: boolean | Prisma.Organization$contentTemplateMutationsArgs<ExtArgs>
   contentMediaAssets?: boolean | Prisma.Organization$contentMediaAssetsArgs<ExtArgs>
   whatsappConnections?: boolean | Prisma.Organization$whatsappConnectionsArgs<ExtArgs>
   whatsappContacts?: boolean | Prisma.Organization$whatsappContactsArgs<ExtArgs>
@@ -15733,6 +16749,8 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     socialPublishBatches: Prisma.$SocialPublishBatchPayload<ExtArgs>[]
     socialPostInsightObservations: Prisma.$SocialPostInsightObservationPayload<ExtArgs>[]
     socialPostInsightSyncStates: Prisma.$SocialPostInsightSyncStatePayload<ExtArgs>[]
+    contentTemplates: Prisma.$ContentTemplatePayload<ExtArgs>[]
+    contentTemplateMutations: Prisma.$ContentTemplateMutationPayload<ExtArgs>[]
     contentMediaAssets: Prisma.$ContentMediaAssetPayload<ExtArgs>[]
     whatsappConnections: Prisma.$WhatsappConnectionPayload<ExtArgs>[]
     whatsappContacts: Prisma.$WhatsappContactPayload<ExtArgs>[]
@@ -16189,6 +17207,8 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   socialPublishBatches<T extends Prisma.Organization$socialPublishBatchesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPublishBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishBatchPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPostInsightObservations<T extends Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostInsightObservationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPostInsightSyncStates<T extends Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostInsightSyncStatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  contentTemplates<T extends Prisma.Organization$contentTemplatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$contentTemplatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentTemplatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  contentTemplateMutations<T extends Prisma.Organization$contentTemplateMutationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$contentTemplateMutationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentTemplateMutationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   contentMediaAssets<T extends Prisma.Organization$contentMediaAssetsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$contentMediaAssetsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentMediaAssetPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappConnections<T extends Prisma.Organization$whatsappConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$whatsappConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   whatsappContacts<T extends Prisma.Organization$whatsappContactsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$whatsappContactsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsappContactPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -16987,6 +18007,54 @@ export type Organization$socialPostInsightSyncStatesArgs<ExtArgs extends runtime
   take?: number
   skip?: number
   distinct?: Prisma.SocialPostInsightSyncStateScalarFieldEnum | Prisma.SocialPostInsightSyncStateScalarFieldEnum[]
+}
+
+/**
+ * Organization.contentTemplates
+ */
+export type Organization$contentTemplatesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContentTemplate
+   */
+  select?: Prisma.ContentTemplateSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContentTemplate
+   */
+  omit?: Prisma.ContentTemplateOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentTemplateInclude<ExtArgs> | null
+  where?: Prisma.ContentTemplateWhereInput
+  orderBy?: Prisma.ContentTemplateOrderByWithRelationInput | Prisma.ContentTemplateOrderByWithRelationInput[]
+  cursor?: Prisma.ContentTemplateWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContentTemplateScalarFieldEnum | Prisma.ContentTemplateScalarFieldEnum[]
+}
+
+/**
+ * Organization.contentTemplateMutations
+ */
+export type Organization$contentTemplateMutationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContentTemplateMutation
+   */
+  select?: Prisma.ContentTemplateMutationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContentTemplateMutation
+   */
+  omit?: Prisma.ContentTemplateMutationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentTemplateMutationInclude<ExtArgs> | null
+  where?: Prisma.ContentTemplateMutationWhereInput
+  orderBy?: Prisma.ContentTemplateMutationOrderByWithRelationInput | Prisma.ContentTemplateMutationOrderByWithRelationInput[]
+  cursor?: Prisma.ContentTemplateMutationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContentTemplateMutationScalarFieldEnum | Prisma.ContentTemplateMutationScalarFieldEnum[]
 }
 
 /**

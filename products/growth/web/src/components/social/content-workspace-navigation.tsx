@@ -1,12 +1,14 @@
 import { Link } from "react-router";
 import { BarChart3, CalendarDays, FileText, Pencil } from "lucide-react";
 
-export type ContentWorkspaceView = "posts" | "calendar" | "history" | "analytics";
+export type ContentWorkspaceView = "posts" | "calendar" | "history" | "analytics" | "media" | "templates";
 
 const navigation = [
   { href: "/content", label: "Create", icon: Pencil, view: "posts" },
   { href: "/content/posts", label: "Posts", icon: FileText, view: "history" },
   { href: "/content/calendar", label: "Calendar", icon: CalendarDays, view: "calendar" },
+  { href: "/content/media", label: "Media", icon: FileText, view: "media" },
+  { href: "/content/templates", label: "Templates", icon: FileText, view: "templates" },
   { href: "/content/analytics", label: "Analytics", icon: BarChart3, view: "analytics" },
 ] as const;
 

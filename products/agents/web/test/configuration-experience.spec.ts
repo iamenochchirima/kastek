@@ -17,6 +17,7 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith("/setup-readiness")) data = { readiness: {readyToTest:false, setupStep:"complete", requirements:{model:{state:"ready",code:null},knowledge:{state:"deferred",code:null},bookings:{state:"blocked",code:"BOOKING_POLICY_REQUIRED"},handoff:{state:"ready",code:null}}, channels:[{kind:"website",state:"needs_connection"},{kind:"facebook",state:"connected"}] }};
+    else if (path.endsWith("/procedures")) data = {entries:[]};
     else if (path.endsWith("/booking-policies")) data = {policies:[]};
     else if (path.endsWith("/provider-calendars/connections")) data = {connections:[]};
     else if (path.endsWith("/model-providers/default")) data = {selection:{kind:"connection",connectionId:"provider-a",modelId:"model-a"},revision:1};

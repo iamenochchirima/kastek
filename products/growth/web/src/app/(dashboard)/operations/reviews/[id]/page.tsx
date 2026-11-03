@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 type ReviewPreview = {
   postId?:string;title?:string;content?:string;previousContent?:string;scheduledFor?:string;targetLabel?:string;
+  validation?:{ready:boolean;errors:Array<{code:string;message:string}>};
   variants?:Array<{platform:string;content:string}>;
   accounts?:Array<{id:string;platform:string;displayName:string;handle?:string;externalAccountId:string}>;
   media?:Array<{assetId:string;fileName?:string;mimeType?:string}>;
@@ -28,7 +29,7 @@ export default function OperationReviewPage() {
 }
 const operationLabels:Record<string,string>={
   "content.posts.draft.create":"Create draft","content.posts.draft.update":"Update draft","content.posts.duplicate":"Duplicate post",
-  "content.posts.update_published":"Update Facebook post",
+  "content.posts.update_published":"Update published post",
   "content.posts.publish":"Publish post","content.posts.publish_batch":"Publish to accounts","content.posts.schedule":"Schedule post",
   "content.posts.reschedule":"Reschedule post","content.posts.unschedule":"Remove schedule","content.posts.delete":"Delete draft",
   "content.posts.delete_published":"Delete published post","content.jobs.cancel":"Cancel publication","content.jobs.retry":"Retry publication",
@@ -37,6 +38,7 @@ const operationLabels:Record<string,string>={
 };
 function ContentPreview({preview}:{preview:ReviewPreview}) {
   return <section aria-label="Content preview" className="space-y-5 rounded-lg border border-border bg-card p-4 sm:p-5">
+    {preview.validation?.errors.length?<div role="alert" className="space-y-1 text-sm text-destructive">{preview.validation.errors.map((error,index)=><p key={`${error.code}:${index}`}>{error.message}</p>)}</div>:null}
     {preview.targetLabel?<dl className="text-sm"><dt className="text-xs text-muted-foreground">Target</dt><dd className="mt-1 break-words font-medium">{preview.targetLabel}</dd></dl>:null}
     {preview.title?<h3 className="break-words text-base font-semibold">{preview.title}</h3>:null}
     {preview.previousContent!==undefined?<dl className="space-y-1 text-sm"><dt className="text-xs text-muted-foreground">Current text</dt><dd className="whitespace-pre-wrap break-words leading-6">{preview.previousContent}</dd></dl>:null}
@@ -59,6 +61,7 @@ function OperationReviewContent({initial}:{initial:{review:Review|null;error:str
   const inputText=rawInput&&typeof rawInput==="object"&&"text" in rawInput&&typeof rawInput.text==="string"?rawInput.text:undefined;
   const resultPostId=savedPostId(review?.result);
   const expired=Boolean(review&&new Date(review.expiresAt).getTime()<=Date.now());
+  const blocked=review?.preview?.validation?.ready===false;
   const actionable=Boolean(review&&["proposed","pending","prepared","awaiting_review"].includes(review.state)&&!expired);
   useEffect(()=>{
     if(!review||!["approved","executing","claimed"].includes(review.state))return;
@@ -79,7 +82,7 @@ function OperationReviewContent({initial}:{initial:{review:Review|null;error:str
     return ()=>{window.clearInterval(timer);controller.abort();};
   },[review]);
   async function decide(decision:"approve"|"reject") {
-    if(!review||pending)return;
+    if(!review||pending||decision==="approve"&&blocked)return;
     setPending(decision);setError("");
     try {
       const response=await fetch(`/api/operations/reviews/${encodeURIComponent(review.id)}/decision`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision,payloadDigest:review.payloadDigest})});
@@ -89,5 +92,5 @@ function OperationReviewContent({initial}:{initial:{review:Review|null;error:str
     } catch(caught) {setError(caught instanceof Error?caught.message:"Could not update this review");}
     finally {setPending(null);}
   }
-  return <div className="min-h-[100dvh] p-4 sm:p-6"><div className="mx-auto max-w-3xl space-y-6"><PageHeader><PageHeaderContent><PageHeaderTitle>Review action</PageHeaderTitle></PageHeaderContent>{review?<Badge variant="secondary">{expired&&["proposed","pending","prepared","awaiting_review"].includes(review.state)?"Expired":review.state.replaceAll("_"," ")}</Badge>:null}</PageHeader>{error?<p role="alert" className="text-sm text-destructive">{error}</p>:null}{review?<><section className="space-y-3"><h2 className="break-words text-base font-semibold">{operationLabels[review.operation]??review.operation.replaceAll("."," ").replaceAll("_"," ")}</h2><p className="text-xs text-muted-foreground">Expires {new Date(review.expiresAt).toLocaleString()}</p>{review.preview?<ContentPreview preview={{...review.preview,content:review.preview.content??inputText}}/>:null}<details open={!review.preview||!review.operation.startsWith("content.")} className="rounded-lg border border-border bg-card"><summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Exact request</summary><pre className="max-h-[50dvh] overflow-auto whitespace-pre-wrap break-all border-t border-border p-4 text-xs leading-5">{JSON.stringify(review.input,null,2)}</pre></details></section>{review.state==="approved"?<p role="status" className="text-sm text-muted-foreground">Approved. Waiting for your agent.</p>:null}{review.errorCode?<p role="status" className="text-sm text-destructive">Action needs attention: {review.errorCode}</p>:null}{resultPostId&&!review.preview?.postId?<Button asChild variant="outline" size="sm"><Link to={`/content/posts/${encodeURIComponent(resultPostId)}`}>Open post</Link></Button>:null}{review.result!=null?<details className="rounded-lg border border-border bg-card"><summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Result</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all border-t border-border p-4 text-xs leading-5">{JSON.stringify(review.result,null,2)}</pre></details>:null}{actionable?<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={Boolean(pending)} onClick={()=>void decide("reject")}>{pending==="reject"?"Rejecting…":"Reject"}</Button><Button type="button" disabled={Boolean(pending)} onClick={()=>void decide("approve")}>{pending==="approve"?"Approving…":"Approve action"}</Button></div>:null}{expired&&["proposed","pending","prepared","awaiting_review"].includes(review.state)?<p className="text-sm text-muted-foreground">This review expired. Ask your agent to prepare the action again.</p>:null}</>:null}<Button asChild variant="ghost"><Link to="/content">Back to content</Link></Button></div></div>;
+  return <div className="min-h-[100dvh] p-4 sm:p-6"><div className="mx-auto max-w-3xl space-y-6"><PageHeader><PageHeaderContent><PageHeaderTitle>Review action</PageHeaderTitle></PageHeaderContent>{review?<Badge variant="secondary">{expired&&["proposed","pending","prepared","awaiting_review"].includes(review.state)?"Expired":review.state.replaceAll("_"," ")}</Badge>:null}</PageHeader>{error?<p role="alert" className="text-sm text-destructive">{error}</p>:null}{review?<><section className="space-y-3"><h2 className="break-words text-base font-semibold">{operationLabels[review.operation]??review.operation.replaceAll("."," ").replaceAll("_"," ")}</h2><p className="text-xs text-muted-foreground">Expires {new Date(review.expiresAt).toLocaleString()}</p>{review.preview?<ContentPreview preview={{...review.preview,content:review.preview.content??inputText}}/>:null}<details open={!review.preview||!review.operation.startsWith("content.")} className="rounded-lg border border-border bg-card"><summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Exact request</summary><pre className="max-h-[50dvh] overflow-auto whitespace-pre-wrap break-all border-t border-border p-4 text-xs leading-5">{JSON.stringify(review.input,null,2)}</pre></details></section>{review.state==="approved"?<p role="status" className="text-sm text-muted-foreground">Approved. Waiting for your agent.</p>:null}{review.errorCode?<p role="status" className="text-sm text-destructive">Action needs attention: {review.errorCode}</p>:null}{resultPostId&&!review.preview?.postId?<Button asChild variant="outline" size="sm"><Link to={`/content/posts/${encodeURIComponent(resultPostId)}`}>Open post</Link></Button>:null}{review.result!=null?<details className="rounded-lg border border-border bg-card"><summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Result</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all border-t border-border p-4 text-xs leading-5">{JSON.stringify(review.result,null,2)}</pre></details>:null}{actionable?<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" disabled={Boolean(pending)} onClick={()=>void decide("reject")}>{pending==="reject"?"Rejecting…":"Reject"}</Button><Button type="button" disabled={Boolean(pending)||blocked} onClick={()=>void decide("approve")}>{pending==="approve"?"Approving…":"Approve action"}</Button></div>:null}{expired&&["proposed","pending","prepared","awaiting_review"].includes(review.state)?<p className="text-sm text-muted-foreground">This review expired. Ask your agent to prepare the action again.</p>:null}</>:null}<Button asChild variant="ghost"><Link to="/content">Back to content</Link></Button></div></div>;
 }

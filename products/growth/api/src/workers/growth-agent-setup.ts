@@ -1,4 +1,4 @@
-import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10 } from "../agents/manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV12 } from "../agents/manifest.js";
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { metrics } from "@opentelemetry/api";
@@ -19,7 +19,7 @@ export function growthAgentSetupRetryDelay(attempt: number, random = Math.random
 }
 const setupPublications = [growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4,
   growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8,
-  growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication];
+  growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublicationV11, growthAgentPublicationV12, growthAgentPublication];
 export function growthAgentSetupRequest(job: GrowthAgentSetupJob): GrowthAgentProvisionRequest {
   const publication = setupPublications.find(candidate => candidate.manifest.revision === job.defaultsRevision);
   return { version: "1", requestId: job.requestId, tenantId: job.orgId, defaultsRevision: job.defaultsRevision,

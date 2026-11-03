@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.3.1",
+  "releaseCommit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+  "capturedAt": "2026-11-02T21:22:45.993428+00:00",
+  "services": [
+    {
+      "service": "agency-analytics-worker",
+      "deploymentId": "edd1dc2c-4efb-4f2c-95df-0029cd4e8314",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:96c1324a1963da6accacd2a23b246d6e632e24eb60c5071307c08b140b76faec",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "agency-api",
+      "deploymentId": "7a9b2686-08b7-4b61-80fe-2bfd17ee5865",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:8130c92cb7c3ee815854a6e7998d6eb2a8352346e031f83f8ccc429de559ec01",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "agency-db",
+      "deploymentId": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+      "source": {
+        "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "repo": null
+      }
+    },
+    {
+      "service": "agents-api",
+      "deploymentId": "aa33ba79-cb08-473d-a824-54b8b6296530",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:90463f8c05f4e127d45f55ac71ed02d9099fba558291d4accd1b7281fac77386",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "agents-db",
+      "deploymentId": "6a213b45-e5bd-4ad7-9fe5-ff87301a4b90",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31",
+      "source": {
+        "image": "pgvector/pgvector@sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31",
+        "repo": null
+      }
+    },
+    {
+      "service": "agents-worker",
+      "deploymentId": "d643dc7c-4c97-4939-b7ff-91a92c5e1c79",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:6e8abe08a885e3f8fa28ad550592311f6ef979ebe43ae9cb9e041b4720ed57e3",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "analytics-api",
+      "deploymentId": "5914d8d6-c5c1-4f70-91b2-2555edeb0afe",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:3b6a2db4d8e2663824ad2444954295fcee74afb7a872a3f8a7c155895543846d",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "analytics-db",
+      "deploymentId": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+      "source": {
+        "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "repo": null
+      }
+    },
+    {
+      "service": "analytics-worker",
+      "deploymentId": "f5b69f11-abb0-4b91-a99e-f26dfcaadcb9",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:763cadce69530b177ffbe184c4ffde3f7573639e758c1900b09b07d7cd487749",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "growth-analytics-worker",
+      "deploymentId": "813d7e06-43e1-41c6-8184-55200cec3b8c",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:a24339edd001c2825407781cf1c7249f6c8270349756aaa6f56a3bb653ec394c",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "growth-api",
+      "deploymentId": "04d001b3-4f87-4236-8ead-f45a0ae4f245",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:f552f164edd53ded840efe8a48bc9410b3db09bebf677c96a1bcc5ed5d1a02e8",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "growth-db",
+      "deploymentId": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+      "source": {
+        "image": "postgres:17",
+        "repo": null
+      }
+    },
+    {
+      "service": "identity",
+      "deploymentId": "ba1f6aa2-ae35-4ef3-8aab-e78d2aa307f6",
+      "status": "SUCCESS",
+      "commit": "5b23a47e2a65a5db7d37017f57e9c044233f1bdf",
+      "imageDigest": "sha256:e0309401046e423d45e75211bd1c84fec2bed67a42b7a35fa90801650e906bb0",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "identity-db",
+      "deploymentId": "f8477a21-77bc-45f7-8379-488bb94e431c",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+      "source": {
+        "image": "postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "repo": null
+      }
+    },
+    {
+      "service": "operations-api",
+      "deploymentId": "72d04e4b-d495-4da7-ad86-757eeae14ecb",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:90e85ea2f49e8ef20fca541d25e8b8a4784b42f09cda92440044a46205f18184",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "operations-db",
+      "deploymentId": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+      "status": "SUCCESS",
+      "commit": null,
+      "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+      "source": {
+        "image": "postgres:17",
+        "repo": null
+      }
+    },
+    {
+      "service": "operations-worker",
+      "deploymentId": "072858d6-871b-4ebf-88e4-7929f80684af",
+      "status": "SUCCESS",
+      "commit": "a55147ed5048f959e30522e26c4fb1efe8c75401",
+      "imageDigest": "sha256:df75161ecd3401efe073c9b739ed0eff0d6409daaa67f5ddacebcf56cfaa34d5",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "otel-collector",
+      "deploymentId": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+      "status": "SUCCESS",
+      "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+      "imageDigest": "sha256:941db0cfa898b84598300053e12a532e2fd6bbc37fa5d5c1e729f8935b7aa473",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    },
+    {
+      "service": "restate",
+      "deploymentId": "3327acae-2c2d-4e6e-921b-d774a137b739",
+      "status": "SUCCESS",
+      "commit": "5b23a47e2a65a5db7d37017f57e9c044233f1bdf",
+      "imageDigest": "sha256:97ab17b26879d30ceb44ef2474db37d0cf7d5b03e42eafb4e3fcee0033facad9",
+      "source": {
+        "image": null,
+        "repo": "Kasitek-Labs/kastek"
+      }
+    }
+  ],
+  "watchInventory": {
+    "path": "infra/railway/watch-paths.json",
+    "sha256": "dd1aa9998b0025dfbea8d72380fe8add65ced3a25c621d624812cba42bb41500",
+    "liveMatches": true,
+    "gitBackedRoles": 13,
+    "imageOnlyRoles": 6
+  },
+  "migrations": [
+    {
+      "name": "20261102190000_content_agent_workflows",
+      "sha256": "8c552aed74e6daaf9df135399e27595579d8978850e36e880c0e7556f112ee3f",
+      "productionApplied": true
+    },
+    {
+      "name": "20261102200000_content_mcp_app_confirmation",
+      "sha256": "620269c01110bbed8a25f0d0c1fc11d4035093592a56814a78f444f17c8f9592",
+      "productionApplied": true
+    },
+    {
+      "name": "20261102210000_content_requested_actions",
+      "sha256": "7711a094a7d423b9f8b7e7df17acd0f84e2364ffdeecd2859f086e8400a63ec9",
+      "productionApplied": true
+    }
+  ],
+  "productionMcpSmoke": {
+    "operation": "content.posts.delete",
+    "fixture": "Existing disposable unpublished test draft",
+    "state": "succeeded",
+    "decisionSource": "requested_action",
+    "sameRequestReplay": "same receipt and result",
+    "receiptCount": 1,
+    "humanApprovalEvents": 0,
+    "postReadback": "not_found",
+    "publicProviderMutation": false
+  },
+  "health": {
+    "growthApi": 200,
+    "agentsApi": 200,
+    "identityDiscovery": 200,
+    "identityIssuer": "https://auth.kasitek.co.za/realms/kasitek"
+  },
+  "providerVerification": "This release smoke does not establish live publication/edit/delete support for every provider. Owned provider execution fixture passed.",
+  "frontends": "No frontend source change required for this release.",
+  "rollback": "Restore previous service images and retain additive schema/receipts; never reissue an uncertain effect with a new identity."
+}

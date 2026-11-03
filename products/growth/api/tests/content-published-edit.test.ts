@@ -185,3 +185,12 @@ test("photo removal rejects posts without one image before calling Facebook", op
  await assert.rejects(updatePublishedFacebookPost(pool, config, context(), "post", { content: "Caption", expectedUpdatedAt: original.updated_at.toISOString(), removePhoto: true }, { fetch: async () => { requests++; throw new Error("Must not send"); } }), /one image/);
  assert.equal(requests, 0);
 }));
+
+test("Threads published edit execution reports the API limitation without contacting a provider", opts, async () => fixture(async pool => {
+ await pool.query(`UPDATE "SocialPost" SET channels=ARRAY['THREADS'] WHERE id='post';UPDATE "SocialPublishJob" SET platform='THREADS' WHERE id='job'`);
+ const before = (await getSocialPost(pool, "org", "post"))!;
+ let calls = 0;
+ await assert.rejects(updatePublishedFacebookPost(pool, config, context("threads-edit"), "post", {content:"Changed",expectedUpdatedAt:before.updated_at.toISOString()}, {fetch:async()=>{calls++;throw Error("Must not contact provider");}}), (error: any) => error.code === "platform_edit_unsupported" && error.message === "The Threads API does not support editing published posts.");
+ assert.equal(calls, 0);
+ assert.equal((await getSocialPost(pool, "org", "post"))!.content, before.content);
+}));

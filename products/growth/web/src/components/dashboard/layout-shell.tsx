@@ -460,7 +460,7 @@ function SidebarContent({
           onClick={onNavigate}
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
-          <span className="growth-brand-mark" aria-hidden="true">K</span>
+          <img src="/logo.png" alt="KasiTek" width={32} height={32} className="growth-brand-mark" />
           {!collapsed ? <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">Growth</span> : null}
         </Link>
 
