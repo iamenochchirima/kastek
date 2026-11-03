@@ -11,21 +11,12 @@ export function initializePresentations(runtime) {
     const states = kind === 'growth' ? ['conversation', 'campaign', 'schedule'] : ['portfolio', 'identity', 'client'];
     const durations = kind === 'growth' ? [10000, 12000, 12000] : [10000, 11000, 12000];
     const section = stage.closest('.product-panel');
-    const controls = section.querySelector('.pr-controls');
-    const pause = controls.querySelector('[data-sequence-pause]');
     const status = section.querySelector('[data-sequence-status]');
-    const sceneLabel = section.querySelector('[data-sequence-label]');
-    const sceneNames = kind === 'growth' ? ['Customer conversations', 'Campaign review', 'The week, scheduled'] : ['Client workspaces', 'Your studio identity', 'Client portal'];
-    let current = 0, elapsed = 0, visible = false, paused = false, last = performance.now();
+    let current = 0, elapsed = 0, visible = false, last = performance.now();
     let accent = '#e76b49';
     function syncMotion() {
       stage.classList.toggle('is-playing', !motionOff());
-      stage.classList.toggle('is-paused', paused || !visible || document.hidden);
-      pause.disabled = motionOff();
-      const product = kind === 'growth' ? 'Growth' : 'Agency';
-      pause.setAttribute('aria-label', motionOff() ? `Motion off for ${product} demo` : `${paused ? 'Play' : 'Pause'} ${product} demo`);
-      pause.setAttribute('aria-pressed', String(paused || motionOff()));
-      pause.innerHTML = motionOff() ? 'Motion off' : paused ? '▷ <span>Play</span>' : 'Ⅱ <span>Pause</span>';
+      stage.classList.toggle('is-paused', !visible || document.hidden);
     }
     function front(client) {
       stage.dataset.front = client;
@@ -85,7 +76,6 @@ export function initializePresentations(runtime) {
         stage.dataset.branded = String(current === 2 || (current === 1 && motionOff()));
         stage.style.setProperty('--agency-accent', accent);
       }
-      sceneLabel.textContent = kind === 'agency' && current === 2 ? ({ acorn: 'Acorn Home portal', dental: 'Kaya Dental portal', lena: 'Lena Studio portal' })[stage.dataset.front] : sceneNames[current];
       // Restart only authored entrance animations, retaining the shell and portal positions.
       void stage.offsetWidth;
       syncMotion();
@@ -94,10 +84,7 @@ export function initializePresentations(runtime) {
     listen(section, 'click', event => {
       const target = event.target.closest('button');
       if (!target) return;
-      if (target.matches('[data-sequence-pause]')) { paused = !paused; syncMotion(); }
-      else if (target.matches('[data-sequence-next]')) select((current + 1) % states.length);
-      else if (target.matches('[data-sequence-replay]')) select(0);
-      else if (target.matches('[data-sequence-select]')) select(Number(target.dataset.sequenceSelect));
+      if (target.matches('[data-sequence-select]')) select(Number(target.dataset.sequenceSelect));
       else if (target.matches('[data-client]')) select(target.dataset.client === 'acorn' ? 0 : 2, { client: target.dataset.client });
       else if (target.matches('[data-accent]')) { elapsed = 0; brand(target.dataset.accent); status.textContent = 'Portal accent updated.'; }
       else if (target.matches('[data-agency-review]')) {
@@ -115,7 +102,7 @@ export function initializePresentations(runtime) {
     function tick(now) {
       const delta = Math.min(now - last, 200); last = now;
       const focused = stage.contains(document.activeElement);
-      if (visible && !paused && !document.hidden && !motionOff()) {
+      if (visible && !document.hidden && !motionOff()) {
         // Finish the operation while focused, but never replace the user's focused view.
         elapsed += delta;
         if (kind === 'growth' && current === 1 && elapsed >= 5000 && stage.dataset.scrolled !== 'true') {

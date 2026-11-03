@@ -22,8 +22,8 @@ export function GrowthSection() {
           <p>
             {"Conversations, campaigns and the day's work, in one place."}
           </p>
-          <a className="text-action" href={productUrls.growth}>
-            {"Explore Growth ↗"}
+          <a className="button button-signal" href={productUrls.growth}>
+            {"Open Growth ↗"}
           </a>
         </div>
       </div>
@@ -399,23 +399,6 @@ export function GrowthSection() {
         <span className="gr-sample">
           {"Illustrative workspace"}
         </span>
-      </div>
-      <div className="pr-controls">
-        <span className="demo-scene-label" data-sequence-label="">
-          {"Customer conversations"}
-        </span>
-        <button type="button" data-sequence-pause="" aria-pressed="false">
-          {"Ⅱ "}
-          <span>
-            {"Pause"}
-          </span>
-        </button>
-        <button type="button" data-sequence-next="">
-          {"Next view →"}
-        </button>
-        <button type="button" data-sequence-replay="" aria-label="Replay this section">
-          {"↻ Replay"}
-        </button>
       </div>
       <p className="sr-only" data-sequence-status="" role="status">
       </p>
