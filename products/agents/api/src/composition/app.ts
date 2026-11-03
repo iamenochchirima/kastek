@@ -69,6 +69,7 @@ import { registerApiConnectionRoutes } from "../product/connections/api-connecti
 import { registerModelPolicyRoutes } from "../product/model-providers/model-policy";
 import { registerModelProviderDependencyRoutes } from "../product/model-providers/dependencies";
 import { registerModelProviderRoutes } from "../product/model-providers/routes";
+import { managedModelDefaultFromEnvironment } from "../product/model-providers/managed-default";
 import { ModelProviderStore } from "../product/model-providers/store";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
 import { connectionVaultFromEnvironment } from "../infrastructure/vault";
@@ -300,6 +301,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles});
   const modelVault = connectionVaultFromEnvironment();
   const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
+  const initializeDefaultModel=managedModelDefaultFromEnvironment(pool,modelVault?new ModelCredentialVault(modelVault):undefined,process.env,{discoveryFetch:options.testModelProviderOptions?.discoveryFetch});
+  async function initializeOwnerModel(accountId:string,organizationId:string) {
+    try {await initializeDefaultModel?.({accountId,organizationId});}
+    catch(error) {app.log.warn({event:"agents.default_model.initialization_failed",organizationId,code:error instanceof PlatformError?error.code:"MODEL_DEFAULT_UNAVAILABLE"},"Managed model initialization unavailable");}
+  }
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
@@ -377,11 +383,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/api/session", async (request) => {
     const user = await account(request);
     await store.ensureInitialWorkspace(user.id);
-    return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations: await store.listOrganizations(user.id) };
+    const organizations=await store.listOrganizations(user.id);
+    for(const organization of organizations)if(organization.role==="owner")await initializeOwnerModel(user.id,organization.id);
+    return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations };
   });
   app.post("/api/organizations", async (request, reply) => {
     const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
-    return reply.code(201).send({ organization: await store.createOrganization(user.id, input.name) });
+    const organization=await store.createOrganization(user.id,input.name);
+    await initializeOwnerModel(user.id,organization.id);
+    return reply.code(201).send({organization});
   });
   const base = "/api/organizations/:organizationId";
   registerMemoryRoutes(app, { pool, objects, resolveScope: async request => {

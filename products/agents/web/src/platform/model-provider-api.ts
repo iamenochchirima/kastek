@@ -1,7 +1,7 @@
 import { api, ApiError, organizationPath } from "./api";
 
 export type ModelProvider = { id: string; name: string; baseUrl: string; officialDocsUrl: string; adapter: { readiness: "installed" | "planned" } };
-export type ModelProviderConnection = { id: string; providerId: string; name: string; endpoint: string; revision: number; credentialRevision: number; state: "active" | "revoked" | "removed"; verification: "saved" | "discovered" | "inference_verified" | "tools_verified" };
+export type ModelProviderConnection = { id: string; providerId: string; name: string; endpoint: string; revision: number; credentialRevision: number; custody?: "user_supplied" | "platform_managed"; state: "active" | "revoked" | "removed"; verification: "saved" | "discovered" | "inference_verified" | "tools_verified" };
 type Capability = { source?: { kind: string } | null; value: boolean | null; evidence: "unknown" | "declared" | "discovered" | "verified" };
 export type ProviderModel = { inputModalities?: string[]; outputModalities?: string[]; id: string; name: string; contextTokens: { value: number | null }; maxOutputTokens: { value: number | null }; capabilities: { tools: Capability; reasoning: Capability; structuredOutput: Capability }; lifecycle: "active" | "deprecated" | "retired" | "unknown"; pricing: { inputMicrosPerMillionTokens: number | null; outputMicrosPerMillionTokens: number | null } | null };
 export type ProviderModels = { kind: "discovered"; unavailableModelIds?: string[]; models: ProviderModel[]; observedAt: string; visibility: "public_catalog" | "credential_scoped"; complete: boolean } | { kind: "manual_required"; models: []; observedAt: string };
