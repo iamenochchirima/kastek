@@ -133,3 +133,9 @@ logging pipelines are not applicable. Existing command/evidence records retain o
 the explicit support-contact backfill logs counts only. Run the backfill once after deploying the
 API, then refresh Customers. Rollback uses the preceding API/worker/UI artifacts and retains the
 contact records; no destructive rollback is required. Production deployment is excluded here.
+
+Contact collection uses a direct question, such as “What's your name and email so the team can
+follow up?” The agent asks only for missing details. It handles refusals or a preference for phone
+when they arise, rather than explaining all options and optional-field rules upfront. Simple
+after-hours acknowledgments use conversational prose without status headings or lists. These
+are playbook instructions, not fixed customer text or a global sentence limit.
