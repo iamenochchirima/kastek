@@ -84,6 +84,7 @@ test(
  CREATE TABLE "SocialPostMedia"(id text PRIMARY KEY,"postId" text REFERENCES "SocialPost" ON DELETE CASCADE,"assetId" text,"sortOrder" integer,"altText" text,metadata jsonb);
  INSERT INTO "SocialChannelConnection"(id,"userId","orgId",platform,status,"displayName",metadata) VALUES('channel','user','org','FACEBOOK','CONNECTED','Synthetic','{"scope":"private","dpopPrivateKey":"private","authMethod":"meta"}'),('foreign-channel','foreign-user','foreign-org','FACEBOOK','CONNECTED','Foreign','{}');
  INSERT INTO "ContentMediaAsset" VALUES('asset','org','IMAGE','image/png','synthetic.png',9223372036854775807,1,1,NULL,'READY','CLEAN'),('foreign-asset','foreign-org','IMAGE','image/png','foreign.png',1,1,1,NULL,'READY','CLEAN');`);
+      await pool.query('ALTER TABLE "ContentMediaAsset" ADD COLUMN "archivedAt" timestamp, ADD COLUMN "defaultAltText" text');
       const input = {
         content: "  First line\nnext line ",
         channels: ["UNKNOWN", "FACEBOOK"],

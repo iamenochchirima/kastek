@@ -1,0 +1,113 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import pg from "pg";
+import type { RequestContext } from "../src/identity/request-context.js";
+import { createContentTemplate, getContentTemplate, getTemplateMutationReceipt, listContentTemplates, updateContentTemplate, setContentTemplateArchived, renderContentTemplate, prepareTemplateDraft, withTemplateDraft, validateTemplateInput, resolveTemplateValues, type TemplateInput } from "../src/services/social/content-templates.js";
+const base: TemplateInput = { name: "Offer", content: "Hello {{name}}", channels: ["FACEBOOK"], variants: [{ platform: "FACEBOOK", content: "Welcome {{name}}" }], fields: [{ key: "name", label: "Name" }] };
+test("literal template validation rejects undeclared, malformed and duplicate fields", () => {
+  assert.throws(() => validateTemplateInput({ ...base, fields: [] }), /Declare field/);
+  assert.throws(() => validateTemplateInput({ ...base, content: "{{name.toUpperCase()}}" }), /literal fields/);
+  assert.throws(() => validateTemplateInput({ ...base, fields: [base.fields![0]!, base.fields![0]!] }), /unique/);
+  assert.throws(() => validateTemplateInput({ ...base, variants: [null as never] }), /Versions/);
+  assert.throws(() => validateTemplateInput({ ...base, media: [{ assetId: "common" }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "foreign" }] }] }), /belong/);
+  assert.throws(() => validateTemplateInput({ ...base, media: [{ assetId: "common" }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "common", crop: { x: Number.POSITIVE_INFINITY } }] }] }), /crop/);
+  assert.throws(() => validateTemplateInput({ ...base, media: Array.from({ length: 11 }, (_, i) => ({ assetId: `asset-${i}` })) }), /Media is invalid/);
+  const ordered = validateTemplateInput({ ...base, media: [{ assetId: "one", sortOrder: 9 }, { assetId: "two", sortOrder: 1 }], variants: [{ platform: "FACEBOOK", content: "Caption", media: [{ assetId: "one", sortOrder: 9, crop: { x: 0.1 } }, { assetId: "two", sortOrder: 1, crop: { x: 0.2 } }] }] });
+  assert.deepEqual(ordered.media?.map(item => [item.assetId, item.sortOrder]), [["two", 0], ["one", 1]]);
+  assert.deepEqual(ordered.variants?.[0]?.media?.map(item => [item.assetId, item.sortOrder, item.crop]), [["two", 0, { x: 0.2 }], ["one", 1, { x: 0.1 }]]);
+  assert.throws(() => validateTemplateInput({ ...base, media: [{ assetId: "one", sortOrder: -1 }] }), /order/);
+  assert.throws(() => resolveTemplateValues(base), /Enter Name/);
+  assert.throws(() => resolveTemplateValues(base, { name: "A", extra: "B" }), /Unknown field/);
+  assert.deepEqual({ ...resolveTemplateValues({ ...base, fields: [{ key: "name", label: "Name", defaultValue: "$& {{literal}}" }] }) }, { name: "$& {{literal}}" });
+});
+test("templates isolate workspaces, render literal snapshots, check readiness and enforce revisions and replay", { skip: !process.env.CORE_SOCIAL_TEST_DATABASE_URL }, async () => {
+  const schema = `content_templates_${randomUUID().replaceAll("-", "")}`;
+  const admin = new pg.Pool({ connectionString: process.env.CORE_SOCIAL_TEST_DATABASE_URL });
+  await admin.query(`CREATE SCHEMA "${schema}"`);
+  const pool = new pg.Pool({ connectionString: process.env.CORE_SOCIAL_TEST_DATABASE_URL, options: `-c search_path=${schema} -c timezone=UTC` });
+  const ctx = (key: string): RequestContext => ({ organizationId: "org", userId: "user", idempotencyKey: key } as RequestContext);
+  try {
+    await pool.query(`CREATE TABLE "Organization" (id text PRIMARY KEY); CREATE TABLE "User" (id text PRIMARY KEY); INSERT INTO "Organization" VALUES ('org'),('other'); INSERT INTO "User" VALUES ('user'); CREATE TABLE "ContentMediaAsset" (id text PRIMARY KEY,"orgId" text,kind text,"processingStatus" text,"scanStatus" text,"archivedAt" timestamptz,"defaultAltText" text); INSERT INTO "ContentMediaAsset" VALUES ('image','org','IMAGE','READY','CLEAN',NULL,'Original alt'),('foreign','other','IMAGE','READY','CLEAN',NULL,NULL);`);
+    await pool.query(await readFile(new URL("../sql/20261103111000_content_templates.sql", import.meta.url), "utf8"));
+    const input = { template: { ...base, media: [{ assetId: "image" }] } };
+    const template = await createContentTemplate(pool, ctx("create"), input);
+    assert.equal(template.revision, 1);
+    assert.equal(template.media[0]?.altText, "Original alt");
+    assert.equal((await createContentTemplate(pool, ctx("create"), input)).id, template.id);
+    await assert.rejects(createContentTemplate(pool, ctx("create"), { template: { ...base, name: "Different" } }), /different input/);
+    await assert.rejects(getContentTemplate(pool, "other", template.id), /not found/);
+    assert.equal((await listContentTemplates(pool, "org", { search: "Offer", limit: 1 })).items.length, 1);
+    assert.equal((await listContentTemplates(pool, "other")).items.length, 0);
+    const rendered = await renderContentTemplate(pool, "org", template.id, { expectedRevision: 1, values: { name: "$& {{other}}" } });
+    assert.equal(rendered.content, "Hello $& {{other}}");
+    assert.equal(rendered.variants[0]?.content, "Welcome $& {{other}}");
+    assert.equal((await getContentTemplate(pool, "org", template.id)).revision, 1);
+    const snapshot = await prepareTemplateDraft(pool, ctx("draft"), template.id, { expectedRevision: 1, values: { name: "First" } });
+    assert.equal(snapshot.draft.content, "Hello First");
+    assert.equal(snapshot.draft.status, "DRAFT");
+    const provenance = snapshot.draft.metadata as Record<string, unknown>;
+    assert.equal(provenance.contentTemplateId, template.id);
+    assert.equal(provenance.contentTemplateRevision, 1);
+    assert.match(String(provenance.contentTemplateValuesDigest), /^[a-f0-9]{64}$/);
+    assert.equal(JSON.stringify(provenance).includes("First"), false);
+    await pool.query(`UPDATE "ContentMediaAsset" SET "archivedAt"=now() WHERE id='image'`);
+    await assert.rejects(renderContentTemplate(pool, "org", template.id, { expectedRevision: 1, values: { name: "A" } }), /archived/);
+    assert.equal((await renderContentTemplate(pool, "org", template.id, { expectedRevision: 1, values: { name: "A" }, media: [] })).media.length, 0);
+    await assert.rejects(createContentTemplate(pool, ctx("foreign"), { template: { ...base, media: [{ assetId: "foreign" }] } }), /workspace/);
+    const update = { expectedRevision: 1, template: { ...base, name: "New offer", media: [] } };
+    const results = await Promise.allSettled([updateContentTemplate(pool, ctx("update"), template.id, update), updateContentTemplate(pool, ctx("competitor"), template.id, update)]);
+    assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+    const winner = results[0]?.status === "fulfilled" ? "update" : "competitor";
+    assert.equal((await updateContentTemplate(pool, ctx(winner), template.id, update)).revision, 2);
+    assert.equal(snapshot.draft.content, "Hello First");
+    await withTemplateDraft(pool, ctx("locked-draft"), template.id, { expectedRevision: 2, values: { name: "Locked" }, media: [] }, async prepared => {
+      assert.equal(prepared.draft.content, "Hello Locked");
+      const competing = await pool.connect();
+      try {
+        await competing.query("BEGIN");
+        await competing.query("SET LOCAL lock_timeout='100ms'");
+        await assert.rejects(competing.query('UPDATE "ContentTemplate" SET revision=revision+1 WHERE id=$1', [template.id]), (error: unknown) => (error as {code?: string}).code === "55P03");
+      } finally { await competing.query("ROLLBACK"); competing.release(); }
+    });
+    const archived = await setContentTemplateArchived(pool, ctx("archive"), template.id, { expectedRevision: 2, archived: true });
+    assert.equal(archived.revision, 3);
+    assert.equal((await listContentTemplates(pool, "org")).items.length, 0);
+    assert.equal((await listContentTemplates(pool, "org", { archived: true })).items.length, 1);
+    await assert.rejects(renderContentTemplate(pool, "org", template.id, { expectedRevision: 3, values: { name: "A" } }), /Restore/);
+    assert.equal((await setContentTemplateArchived(pool, ctx("restore"), template.id, { expectedRevision: 3, archived: false })).revision, 4);
+    for (const [platform, maximum] of [["X", 280], ["BLUESKY", 300], ["LINKEDIN", 3000], ["THREADS", 500]] as const) {
+      const bounded = await createContentTemplate(pool, ctx(`limits-${platform}`), { template: { ...base, channels: [platform], variants: [{ platform, content: "{{name}}" }], media: [] } });
+      const acceptable = await renderContentTemplate(pool, "org", bounded.id, { expectedRevision: 1, values: { name: "😀".repeat(maximum) } });
+      assert.equal(acceptable.validation.ready, true);
+      const rejected = await renderContentTemplate(pool, "org", bounded.id, { expectedRevision: 1, values: { name: "😀".repeat(maximum + 1) } });
+      assert.equal(rejected.validation.ready, false);
+      assert.ok(rejected.validation.errors.some(error => error.platform === platform && error.code === "text_length_exceeded"));
+      await assert.rejects(prepareTemplateDraft(pool, ctx(`invalid-${platform}`), bounded.id, { expectedRevision: 1, values: { name: "A".repeat(maximum + 1) } }), (error: unknown) => (error as { code?: string }).code === "template_render_invalid");
+    }
+    const whitespace = await createContentTemplate(pool, ctx("whitespace"), { template: { ...base, content: "  Hello {{name}}  ", variants: [{ platform: "FACEBOOK", content: "   " }], media: [] } });
+    const exactWhitespace = await renderContentTemplate(pool, "org", whitespace.id, { expectedRevision: 1, values: { name: "A" } });
+    assert.equal(exactWhitespace.content, "Hello A");
+    assert.equal(exactWhitespace.variants[0]?.content, "Hello A");
+    await pool.query(`INSERT INTO "ContentMediaAsset" VALUES ('video','org','VIDEO','READY','CLEAN',NULL,NULL),('image2','org','IMAGE','READY','CLEAN',NULL,NULL)`);
+    const unsupported = await createContentTemplate(pool, ctx("video-template"), { template: { ...base, media: [{ assetId: "video" }] } });
+    assert.ok((await renderContentTemplate(pool, "org", unsupported.id, { expectedRevision: 1, values: { name: "A" } })).validation.errors.some(error => error.code === "media_type_unsupported"));
+    const noInstagramMedia = await createContentTemplate(pool, ctx("instagram-empty"), { template: { ...base, channels: ["INSTAGRAM"], variants: [], media: [] } });
+    assert.ok((await renderContentTemplate(pool, "org", noInstagramMedia.id, { expectedRevision: 1, values: { name: "A" } })).validation.errors.some(error => error.code === "media_required"));
+    const tiktokVideo = await createContentTemplate(pool, ctx("tiktok-video"), { template: { ...base, channels: ["TIKTOK"], variants: [], media: [{ assetId: "video" }] } });
+    assert.ok((await renderContentTemplate(pool, "org", tiktokVideo.id, { expectedRevision: 1, values: { name: "😀".repeat(1101) } })).validation.errors.some(error => error.code === "text_length_exceeded"));
+    // A lost acknowledgement must replay its original result after later edits.
+    assert.equal((await createContentTemplate(pool, ctx("create"), input)).revision, 1);
+    assert.equal((await updateContentTemplate(pool, ctx(winner), template.id, update)).revision, 2);
+    const replayedArchive = await setContentTemplateArchived(pool, ctx("archive"), template.id, { expectedRevision: 2, archived: true });
+    assert.equal(replayedArchive.revision, 3);
+    assert.ok(replayedArchive.archivedAt);
+    assert.equal((await getContentTemplate(pool, "org", template.id)).revision, 4);
+    const receipt = await getTemplateMutationReceipt(pool, "org", "archive");
+    assert.equal(receipt?.result.revision, 3);
+    assert.equal(receipt?.action, "archive");
+    assert.equal(await getTemplateMutationReceipt(pool, "other", "archive"), undefined);
+    await assert.rejects(setContentTemplateArchived(pool, ctx(winner), template.id, { expectedRevision: 4, archived: true }), /different input/);
+  } finally { await pool.end(); await admin.query(`DROP SCHEMA "${schema}" CASCADE`); await admin.end(); }
+});

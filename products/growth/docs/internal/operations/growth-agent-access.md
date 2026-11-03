@@ -48,7 +48,9 @@ artifact. The additive migrations are:
 - `20261102190000_content_agent_workflows`: nullable, constrained `decisionSource` audit column.
 
 - `20261102200000_content_mcp_app_confirmation`: retained historical `mcp_app` source;
-- `20261102210000_content_requested_actions`: adds `requested_action` for authorized content execution.
+- `20261102210000_content_requested_actions`: adds `requested_action` for authorized content execution;
+- `20261103110000_content_media_library`: additive media metadata, indexes and durable mutation receipts;
+- `20261103111000_content_templates`: social templates, retained media references and mutation receipts.
 
 Apply each migration once using the existing ledger procedure. The former
 `GROWTH_MCP_CONFIRMATION_SECRET` is no longer consumed by the MCP route. Retain historical receipts

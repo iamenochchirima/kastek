@@ -9,6 +9,7 @@ import { authorizationRequirement, permissionSnapshots } from "../integrations/c
 import { getSocialPost } from "../services/social/posts.js";
 import { THREADS_PUBLISHED_EDIT_UNSUPPORTED } from "../capabilities/content-published-edit.js";
 import { apiJson } from "../json.js";
+import { resolveDeliveryMedia } from "../services/social/delivery-media.js";
 
 export const contentActionNames = [
   "content.posts.publish", "content.posts.publish_batch", "content.posts.publish_batch.retry",
@@ -18,7 +19,7 @@ export const contentActionNames = [
 ] as const;
 export const isContentAction = (name: string): boolean => (contentActionNames as readonly string[]).includes(name);
 export const directContentOperations = new Set([
-  "content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare",
+  "content.posts.draft.create", "content.posts.draft.update", "content.posts.duplicate", "content.media.upload", "content.media.transfer.prepare", "content.media.update", "content.media.archive", "content.media.restore", "content.templates.create", "content.templates.update", "content.templates.instantiate", "content.templates.archive", "content.templates.restore",
 ]);
 export const isDirectContentOperation = (name:string):boolean => directContentOperations.has(name);
 const hash = (value: unknown) => createHash("sha256").update(canonicalJson(JSON.parse(apiJson(value)))).digest("hex");
@@ -55,9 +56,10 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
   const threadsEdit = action === "content.posts.update_published" && saved.channels.length === 1 && saved.channels[0] === "THREADS";
   const targetPlatform = action === "content.posts.update_published" ? threadsEdit ? "THREADS" : "FACEBOOK" : typeof input.platform === "string" ? input.platform : undefined;
   const jobs = saved.publishJobs.filter(job => (!targetPlatform || job.platform === targetPlatform) && (!input.jobId || job.id === input.jobId) && (!retryJobIds || retryJobIds.has(job.id))).sort((a,b) => a.id.localeCompare(b.id));
-  const media = saved.media.map(item => ({assetId:item.asset_id, fileName:item.file_name, mimeType:item.mime_type, kind:item.kind, altText:item.alt_text, sortOrder:item.sort_order, byteSize:String(item.byte_size), width:item.width, height:item.height, durationMs:item.duration_ms, processingStatus:item.processing_status, scanStatus:item.scan_status})).sort((a,b) => a.sortOrder-b.sortOrder || a.assetId.localeCompare(b.assetId));
+  const commonMedia = saved.media.map(item => ({assetId:item.asset_id, fileName:item.file_name, mimeType:item.mime_type, kind:item.kind, altText:item.alt_text, sortOrder:item.sort_order, byteSize:String(item.byte_size), width:item.width, height:item.height, durationMs:item.duration_ms, processingStatus:item.processing_status, scanStatus:item.scan_status})).sort((a,b) => a.sortOrder-b.sortOrder || a.assetId.localeCompare(b.assetId));
+  const media = targetPlatform && jobs[0] ? resolveDeliveryMedia(jobs[0], commonMedia) : commonMedia;
   snapshot.mediaAssets = await contentPreviewMediaAssetsDigest(core,ctx,saved.media.map(item=>item.asset_id));
-  const variants = saved.variants.filter(variant => !targetPlatform || variant.platform === targetPlatform).map(variant => ({platform:variant.platform, content:variant.content, status:variant.status})).sort((a,b) => a.platform.localeCompare(b.platform));
+  const variants = saved.variants.filter(variant => !targetPlatform || variant.platform === targetPlatform).map(variant => ({platform:variant.platform, content:variant.content, status:variant.status, media: jobs.find(job=>job.platform===variant.platform) ? resolveDeliveryMedia(jobs.find(job=>job.platform===variant.platform)!, commonMedia) : commonMedia})).sort((a,b) => a.platform.localeCompare(b.platform));
   snapshot.content = hash({content:saved.content, title:saved.title, status:saved.status, channels:saved.channels, scheduledFor:saved.scheduled_for, variants:saved.variants, media, metadata: Object.fromEntries(["instagramImageUrl","tiktokMediaUrl","tiktokMediaType","tiktokPrivacyLevel","tiktokConsent"].map(key => [key, plain(saved.metadata)[key] ?? null]))});
   snapshot.jobs = hash(jobs.map(job => ({id:job.id,platform:job.platform,status:job.status,updatedAt:job.updated_at,externalPostId:job.external_post_id,accountId:job.channel_connection_id,scheduledFor:job.scheduled_for,metadata:job.metadata})));
   const errors: {code:string; message:string}[] = [];
@@ -87,7 +89,7 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
     if (!account) throw new ApiError(404,"not_found","Publishing account not found");
     snapshot[`account:${id}`] = hash({id:account.id,status:account.status,updatedAt:account.updatedAt});
     snapshot[`permission:${id}`] = hash(permissionSnapshots(account.platform,account.metadata));
-    const capability = action === "content.posts.delete_published" ? "SOCIAL_POST_DELETE" : saved.media.length ? "MEDIA_PUBLISH" : "SOCIAL_PUBLISH";
+    const capability = action === "content.posts.delete_published" ? "SOCIAL_POST_DELETE" : jobs.some(job=>job.channel_connection_id===id && resolveDeliveryMedia(job, commonMedia).length>0) ? "MEDIA_PUBLISH" : "SOCIAL_PUBLISH";
     const permission = authorizationRequirement(account.platform,account.metadata,capability);
     accounts.push({id:account.id,platform:account.platform,displayName:account.displayName,handle:account.handle,externalAccountId:account.externalAccountId,status:account.status,requiredCapability:capability,permission:permission ? permission.reasonCode : "GRANTED"});
     if (!["content.posts.delete","content.jobs.cancel","content.posts.unschedule"].includes(action)) {
@@ -98,7 +100,7 @@ export async function contentActionSnapshot(core: CoreContext, ctx: RequestConte
   }
   const timezone = (await core.pool.query(`SELECT "reportingTimezone" FROM "Organization" WHERE id=$1`,[ctx.organizationId])).rows[0]?.reportingTimezone ?? "UTC";
   const preview: Record<string,unknown> = {action,postId,title:saved.title,content:targetPlatform ? variants.find(variant=>variant.platform===targetPlatform)?.content ?? saved.content : saved.content,variants,media,accounts,scheduledFor:input.scheduledFor ?? saved.scheduled_for?.toISOString() ?? null,timezone,
-    targets:jobs.map(job => ({jobId:job.id,platform:job.platform,accountId:job.channel_connection_id,externalPostId:job.external_post_id,status:job.status,content:saved.variants.find(variant=>variant.id===job.variant_id)?.content ?? saved.content,...(planTargets.find(target=>target.jobId===job.id) ?? {})})),
+    targets:jobs.map(job => ({jobId:job.id,platform:job.platform,accountId:job.channel_connection_id,externalPostId:job.external_post_id,status:job.status,media:resolveDeliveryMedia(job,commonMedia),content:saved.variants.find(variant=>variant.id===job.variant_id)?.content ?? saved.content,...(planTargets.find(target=>target.jobId===job.id) ?? {})})),
     validation:{ready:false,errors},
   };
   if (typeof input.scheduledFor === "string") {

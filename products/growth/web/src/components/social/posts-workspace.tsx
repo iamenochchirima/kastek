@@ -1,3 +1,6 @@
+import { ContentSourceLinks } from "./content-source-links";
+import { MediaPicker } from "./content-media-library";
+import { contentOperation, getEditablePost, type MediaAsset } from "@/lib/content-library";
 import { useGrowthAgents } from "@/components/dashboard/agents/agent-provider";
 
 import { apiUrl } from "@/lib/server-api";
@@ -228,6 +231,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [deletingPost, setDeletingPost] = useState(false);
   const [batchPreflight, setBatchPreflight] = useState<PublishBatchPreflight | null>(null);
   const refreshedChannelIdentities = useRef(new Set<string>());
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  function attachLibraryAsset(asset: MediaAsset) {
+    setComposer(current => current.media.some(item=>item.assetId===asset.id) ? current : ({ ...current, media: [...current.media, { ...asset, byteSize: Number(asset.byteSize), assetId: asset.id, altText: asset.defaultAltText, sortOrder: current.media.length }] }));
+  }
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -520,6 +527,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     const params = new URLSearchParams(window.location.search);
     const editPostId = params.get("edit");
     const scheduleDate = params.get("scheduleDate");
+    const assetId = params.get("asset");
+    if (assetId) {
+      window.history.replaceState(null, "", "/content");
+      void contentOperation<{asset: MediaAsset}>("content.media.get", {assetId}).then(({asset}) => {
+        setComposer({...emptyComposer, media: [{...asset, byteSize: Number(asset.byteSize), assetId: asset.id, altText: asset.defaultAltText, sortOrder: 0}]});
+        setComposerStep(1); setIsComposerOpen(true);
+      }).catch(error => setError(error instanceof Error ? error.message : "Could not load media"));
+      return;
+    }
 
     if (editPostId) {
       const post = posts.find((candidate) => candidate.id === editPostId);
@@ -1047,10 +1063,18 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
   return (
     <div className="min-w-0">
+      <MediaPicker open={mediaPickerOpen} onOpenChange={setMediaPickerOpen} validateSelection={asset=>{if(composer.media.some(item=>item.assetId===asset.id))return null;for(const platform of composer.channels){if(platform === "TIKTOK" && composer.media.length >= 1)return "TikTok supports one media attachment.";const cap=getPlatformCapabilities(platform).media;const limits=asset.kind === "IMAGE" ? cap.images : cap.videos;const count=composer.media.filter(item=>item.kind===asset.kind).length+1;if(!limits.supported)return `${getPlatformLabel(platform)} does not support this media type.`;if(count>limits.maxCount)return `${getPlatformLabel(platform)} supports up to ${limits.maxCount} ${asset.kind === "IMAGE" ? "images" : "videos"}.`;}return null;}} onSelect={attachLibraryAsset} selectedIds={composer.media.map(item=>item.assetId)} />
       <PostsLibraryWorkspace key={view}
         posts={posts} channels={channels} loading={loading} refreshing={refreshing} error={error || statusRefreshError}
         initialStatus={view === "history" ? "PUBLISHED" : "ALL"}
         onCreate={openNewComposer} onEdit={openEditComposer}
+        onDuplicate={async (post) => {
+          if (saving) return;
+          setSaving(true); setError("");
+          try { const result = await contentOperation<{post?: {id:string};postId?:string}>("content.posts.duplicate", {postId: post.id}, crypto.randomUUID()); const postId = result.post?.id || result.postId; if(!postId)throw new Error("Could not read duplicated draft."); openEditComposer(await getEditablePost(postId)); void loadData({showLoading:false}); toast.success("Draft created"); }
+          catch(error) { setError(error instanceof Error ? error.message : "Could not duplicate post"); }
+          finally { setSaving(false); }
+        }}
         onRefresh={() => void loadData({ showLoading: false })}
         onActivity={(post) => void openActivity(post)} onDelete={openDeleteModal}
         renderPublishActions={(post) => <div className="flex flex-wrap gap-2">
@@ -1182,13 +1206,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               const channel = channels.find(item => item.id === composer.channelSelections[platform]);
               return channel ? channelLabel(channel) : getPlatformLabel(platform);
             }).join(" · ")}</DialogDescription>
+            {editTarget.status === "DRAFT" ? <span className="text-xs text-muted-foreground">Draft</span> : null}
+            <ContentSourceLinks metadata={editTarget.metadata}/>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
             {error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive">{error}</p> : null}
             <label className="block space-y-2"><span className="text-sm text-muted-foreground">{editTarget.status === "PUBLISHED" ? "Facebook text" : "Post text"}</span><Textarea value={composer.content} onChange={event => setComposer(current => ({ ...current, content: event.target.value, variants: current.variants.map(variant => variant.content === current.content ? { ...variant, content: event.target.value } : variant) }))} placeholder="Write your post..." className="min-h-[160px] resize-y leading-6" disabled={saving} /></label>
             {editTarget.status !== "PUBLISHED" ? activeComposerVariants.map(variant => <label key={variant.platform} className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} version</span><Textarea value={variant.content} onChange={event => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[100px] resize-y" disabled={saving} /></label>) : null}
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Media</span>{editTarget.status !== "PUBLISHED" ? <><Button type="button" variant="outline" size="sm" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="mr-1.5 h-3.5 w-3.5" />Add media</Button><input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={event => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} /></> : null}</div>
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Media</span>{editTarget.status !== "PUBLISHED" ? <><Button type="button" variant="outline" size="sm" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="mr-1.5 h-3.5 w-3.5" />Add media</Button><Button type="button" variant="outline" size="sm" disabled={saving} onClick={()=>setMediaPickerOpen(true)}>Media library</Button><input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={event => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} /></> : null}</div>
               {editTarget.status === "PUBLISHED" && removePublishedPhoto ? <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3"><p className="text-sm text-muted-foreground">Photo will be removed</p><Button variant="outline" size="sm" disabled={saving} onClick={() => setRemovePublishedPhoto(false)} aria-label="Undo photo removal">Undo</Button></div> : composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map(item => <div key={item.assetId} className="overflow-hidden rounded-lg border border-border">{item.kind === "VIDEO" ? <video className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} controls preload="metadata" /> : <img className="max-h-44 w-full object-contain" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || "Media"}</span>{editTarget.status !== "PUBLISHED" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-4 w-4" /></Button> : composer.media.length === 1 && item.kind === "IMAGE" ? <Button variant="ghost" size="icon" disabled={saving} onClick={() => setRemovePublishedPhoto(true)} aria-label="Remove photo"><X className="h-4 w-4" /></Button> : null}</div></div>)}</div> : <p className="text-sm text-muted-foreground">No media</p>}
             </div>
             {editTarget.status === "SCHEDULED" ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule for</span><Input type="datetime-local" value={composer.scheduledFor} onChange={event => setComposer(current => ({ ...current, scheduledFor: event.target.value }))} disabled={saving} /></label> : null}
@@ -1283,7 +1309,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                   <div className="space-y-3 rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div><p className="text-sm font-medium text-foreground">Media (optional)</p><p className="text-xs text-muted-foreground">Attach images or videos to this post.</p></div>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button><Button type="button" variant="outline" size="sm" disabled={saving} onClick={()=>setMediaPickerOpen(true)}>Media library</Button>
                       <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
                     </div>
                   {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img width={640} height={320} className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : null}

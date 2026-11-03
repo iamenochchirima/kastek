@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import { canonicalJson, wireInteger } from "@kasitek-labs/server-support/json";
 import type { RequestContext } from "../identity/request-context.js";
+import { resolveDeliveryMedia } from "../services/social/delivery-media.js";
 import type { SocialPost } from "../services/social/types.js";
 import { getSocialPost, lockSocialPost, refreshSocialPostPublishState } from "../services/social/posts.js";
 import { syncOrgConnections } from "../services/connections.js";
@@ -130,7 +131,7 @@ export function textLengthError(
   text: string,
 ): [string, string] | undefined {
   const max = (
-    { BLUESKY: 300, X: 280, LINKEDIN: 3000 } as Record<string, number>
+    { BLUESKY: 300, X: 280, LINKEDIN: 3000, THREADS: 500 } as Record<string, number>
   )[platform];
   return max !== undefined && Array.from(text).length > max
     ? ["text_length_exceeded", `${platform} accepts at most ${max} characters`]
@@ -217,6 +218,7 @@ export function postSnapshotHash(
           processingStatus: m.processing_status,
           scanStatus: m.scan_status,
         })),
+        deliveryMedia: post.publishJobs.map(job => ({ id: job.id, deliverySnapshot: job.deliverySnapshot ?? null })),
         targets: snapshot,
       }),
     )
@@ -344,13 +346,23 @@ export async function preflightInternal(
       : []
     ).map((row) => [row.id, row]),
   );
-  const mediaCount = post.media.length,
-    ready = post.media.every(
-      (media) =>
-        media.processing_status === "READY" && media.scan_status === "CLEAN",
-    );
+  const mediaCount = post.media.length;
+  const common = post.media.map(item => ({ ...item, assetId: item.asset_id, altText: item.alt_text, sortOrder: item.sort_order }));
+  const owned = mediaCount ? new Set((await pool.query<{id: string}>('SELECT id FROM "ContentMediaAsset" WHERE "orgId"=$1 AND id=ANY($2::text[])', [ctx.organizationId, common.map(item => item.assetId)])).rows.map(row => row.id)) : new Set<string>();
   const targets: TargetPlan[] = jobs.map((job) => {
-    const cap = mediaCount ? "MEDIA_PUBLISH" : "SOCIAL_PUBLISH",
+    let selected = common;
+    let selectionError: [string, string] | undefined;
+    try {
+      if (job.status !== "PUBLISHED" && common.some(item => !owned.has(item.assetId))) throw new ApiError(409, "delivery_media_invalid", "Publishing media must belong to this workspace");
+      selected = resolveDeliveryMedia(job, common);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.code !== "delivery_media_invalid") throw error;
+      selected = [];
+      selectionError = [error.code, error.message];
+    }
+    const targetMediaCount = selected.length;
+    const ready = selected.every(media => media.processing_status === "READY" && media.scan_status === "CLEAN");
+    const cap = targetMediaCount ? "MEDIA_PUBLISH" : "SOCIAL_PUBLISH",
       channel = job.channel_connection_id
         ? channels.get(job.channel_connection_id)
         : undefined;
@@ -388,14 +400,15 @@ export async function preflightInternal(
       const permission = permissionFailure(channel, cap),
         mediaError = platformMediaError(
           job.platform,
-          post.media.map((m) => m.kind),
-          mediaCount,
+          selected.map((m) => m.kind),
+          targetMediaCount,
         ),
         textError = textLengthError(job.platform, content);
       const url = metadata(post.metadata)[
         job.platform === "INSTAGRAM" ? "instagramImageUrl" : "tiktokMediaUrl"
       ];
       if (permission) fail(permission);
+      else if (selectionError) fail(["INVALID_MEDIA", ...selectionError]);
       else if (!ready)
         fail([
           "INVALID_MEDIA",
@@ -404,7 +417,7 @@ export async function preflightInternal(
         ]);
       else if (
         ["INSTAGRAM", "TIKTOK"].includes(job.platform) &&
-        mediaCount === 0 &&
+        targetMediaCount === 0 &&
         !(typeof url === "string" && url.trim())
       )
         fail([

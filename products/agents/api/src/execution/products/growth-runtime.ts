@@ -7,6 +7,7 @@ import { validateGrowthPublication } from "../../product/integrations/growth-fea
 import { EvidenceStore } from "../context/evidence";
 import { ProductRuntime } from "./product-runtime";
 import { growthOperations } from "@kasitek-labs/contracts";
+import { retainedGrowthOperationHandlersV10 } from "./retained-growth-operation-handlers-v10";
 const handlers=["workspace.read","content.list","content.read","campaigns.list","campaigns.read","analytics.read","draft.prepare"].map(operation=>`growth.${operation}@1`);
 export const growthInstalledAdapterManifest={schemaVersion:1 as const,id:"growth-product",release:"2",executableDigest:requestDigest({release:"growth-product-v2",handlers}),transports:["native_http" as const],protocolVersions:[],boundedSchemaValidation:true as const};
 // Historical handler identities are frozen independently from the current operation catalogue.
@@ -63,7 +64,8 @@ export const growthOperationAdapterManifest=operationAdapter("3",retainedOperati
 export const growthOperationAdapterManifestV7=operationAdapter("4",retainedOperationHandlers);
 export const growthOperationAdapterManifestV8=operationAdapter("5",retainedOperationHandlers);
 export const growthOperationAdapterManifestV9=operationAdapter("6",[...retainedOperationHandlers.slice(0,16),"growth.operation.content.actions.preview@1",...retainedOperationHandlers.slice(16)]);
-export const growthCurrentOperationAdapterManifest=operationAdapter("7",operationHandlers);
+export const growthOperationAdapterManifestV10=operationAdapter("7",retainedGrowthOperationHandlersV10);
+export const growthCurrentOperationAdapterManifest=operationAdapter("8",operationHandlers);
 const clients=new WeakMap<GrowthActionClient,{handlers:readonly string[];invoke:GrowthActionClient["invoke"]}>();
 export class GrowthProductRuntime extends ProductRuntime {
   constructor(pool:Pool,readonly client:GrowthActionClient,evidence=new EvidenceStore(pool)) {
@@ -76,6 +78,7 @@ export class GrowthProductRuntime extends ProductRuntime {
       [growthOperationAdapterManifestV7,retainedOperationHandlers],
       [growthOperationAdapterManifestV8,retainedOperationHandlers],
       [growthOperationAdapterManifestV9,[...retainedOperationHandlers.slice(0,16),"growth.operation.content.actions.preview@1",...retainedOperationHandlers.slice(16)]],
+      [growthOperationAdapterManifestV10,retainedGrowthOperationHandlersV10],
       [growthCurrentOperationAdapterManifest,operationHandlers],
     ] as const)this.registerAdapter(manifest,{handlers:selected,invoke:client.invoke.bind(client)});
     this.registerOriginAuthorizer("growth",async (taskId,db)=>{

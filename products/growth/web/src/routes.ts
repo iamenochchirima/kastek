@@ -27,6 +27,8 @@ export default [
     route("connections/whatsapp-onboarding", "app/(dashboard)/connections/whatsapp-onboarding/page.tsx"),
     route("contacts/:id", "app/(dashboard)/contacts/[id]/page.tsx"),
     route("contacts", "app/(dashboard)/contacts/page.tsx"),
+    route("content/media", "app/(dashboard)/content/media/page.tsx"),
+    route("content/templates", "app/(dashboard)/content/templates/page.tsx"),
     route("content/analytics", "app/(dashboard)/content/analytics/page.tsx"),
     route("content/calendar", "app/(dashboard)/content/calendar/page.tsx"),
     route("content/history", "app/(dashboard)/content/history/page.tsx"),

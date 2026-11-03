@@ -14,7 +14,14 @@ const instant = (value: unknown): string | null => {
 const span = (from: unknown, to: unknown): number => Math.max(0, Date.parse(instant(to) ?? "") - Date.parse(instant(from) ?? "")) || 0;
 const labels: Record<string, string> = {
   "workspace.read": "Reading workspace context", "content.list": "Finding content", "content.read": "Reading content",
-  "content.posts.list": "Finding posts", "content.posts.get": "Reading a post", "content.posts.draft.create": "Creating a reviewed draft",
+  "content.posts.list": "Finding posts", "content.posts.get": "Reading a post", "content.posts.draft.create": "Creating a draft",
+  "content.media.list": "Finding media", "content.media.get": "Reading media", "content.media.preview": "Previewing media",
+  "content.media.update": "Updating media", "content.media.usage": "Checking media usage",
+  "content.media.archive": "Archiving media", "content.media.restore": "Restoring media",
+  "content.templates.list": "Finding templates", "content.templates.get": "Reading a template",
+  "content.templates.create": "Saving a template", "content.templates.update": "Updating a template",
+  "content.templates.render": "Previewing a template", "content.templates.instantiate": "Creating a draft",
+  "content.templates.archive": "Archiving a template", "content.templates.restore": "Restoring a template",
   "campaigns.list": "Finding campaigns", "campaigns.read": "Reading campaigns", "analytics.read": "Reading analytics",
   "connections.list": "Checking connections", "draft.prepare": "Preparing a draft review",
   "knowledge.search": "Searching knowledge", "context.compact": "Compacting context",

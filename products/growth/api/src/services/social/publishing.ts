@@ -9,6 +9,7 @@ import { SQL } from "./publishing-sql.js";
 import { assertSocialPublicationAccount, lockReviewedSocialAccounts, stampSocialPublicationAccounts } from "./account-admission.js";
 import { assertDelegatedSocialAuthority } from "../../operations/delegation.js";
 import { lockSocialPost, refreshSocialPostPublishState, type PostMutationOptions } from "./posts.js";
+import { resolveDeliveryMedia, type DeliveryMediaItem } from "./delivery-media.js";
 import type { SocialPublishJob } from "./types.js";
 export interface PublishExecutionResult {
   jobId: string;
@@ -38,8 +39,15 @@ export async function loadPublishJob(
   pool: Pool,
   id: string,
 ): Promise<PublishJobLoad | undefined> {
-  return (await pool.query<PublishJobLoad>(SQL.load_publish_job[0], [id]))
-    .rows[0];
+  const row = (await pool.query<PublishJobLoad & { delivery_snapshot: unknown }>(SQL.load_publish_job[0], [id])).rows[0];
+  if (!row) return undefined;
+  const { delivery_snapshot, ...job } = row;
+  const eligible = ["PENDING", "QUEUED", "PROCESSING", "FAILED"].includes(job.status);
+  if (eligible && job.org_id !== null && job.media.some(item => item._assetOrgId !== job.org_id))
+    throw new ApiError(409, "delivery_media_invalid", "Publishing media must belong to this workspace");
+  const common = job.media.map(({ _assetOrgId, ...item }) => item as Record<string, unknown> & DeliveryMediaItem);
+  return { ...job, media: resolveDeliveryMedia({ platform: job.platform, status: job.status, deliverySnapshot: delivery_snapshot }, common) };
+
 }
 export async function claimPublishJob(
   pool: Pool,

@@ -8,12 +8,12 @@ import { reportingDependencies } from "../services/analytics-reporting.js";
 import { requireCapability } from "../services/billing.js";
 import { authorizeGrowthAgentScope } from "./scope.js";
 import { growthAgentDigest, verifyGrowthProductCapability } from "./security.js";
-import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9 } from "./manifest.js";
+import { growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10 } from "./manifest.js";
 import { invokeInternalGrowthOperation } from "../operations/internal.js";
 import { discoverGrowthRecords, readGrowthRecord, growthSourceHandle, resolveGrowthSourceHandle } from "./tools.js";
 import { GrowthAgentReviewStore, type GrowthDraftPorts } from "./reviews.js";
 const ajv=new Ajv({strict:false,allErrors:false});addFormats.default(ajv);
-const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
+const publications = new Map([growthAgentPublicationV2, growthAgentPublicationV3, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10, growthAgentPublication].map(publication => [publication.policy.revision, publication]));
 const validators = new Map([...publications.values()].map(publication => [publication.manifest.digest, new Map(publication.manifest.operations.map(operation => [operation.operation, ajv.compile(operation.inputSchema)]))]));
 function reviewReference(review:GrowthDraftReview,operationId:string):ProductReviewReference {
   return {id:review.id,product:"growth",taskId:review.taskId,operationId,payloadDigest:review.payloadDigest,
@@ -36,7 +36,7 @@ export function registerGrowthCapabilityRoutes(app:FastifyInstance,core:CoreCont
     const scope={tenantId:authority.tenantId,actor:command.actor};
     await authorizeGrowthAgentScope(core,scope);
     for(const permission of descriptor.requiredAuthority)await requireCapability(core.pool,scope.tenantId,permission);
-    if (["6", "7", "8", "9", "10"].includes(authority.policyRevision)) return invokeInternalGrowthOperation(core, command);
+    if (["6", "7", "8", "9", "10", "11"].includes(authority.policyRevision)) return invokeInternalGrowthOperation(core, command);
     if(command.control==="authorize") {
       if(command.operation==="analytics.read") {
         try {await reportingDependencies(core);}

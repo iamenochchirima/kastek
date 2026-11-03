@@ -61,7 +61,7 @@ export function checkRouteContract(source, contract, moduleExists = (file) => ex
     errors.push(`cannot inspect route configuration: ${error.message}`);
   }
   const baseline = contract.routes;
-  if (!Array.isArray(baseline) || baseline.length !== 50) return [...errors, "baseline must contain all 50 audited routes"];
+  if (!Array.isArray(baseline) || baseline.length !== 52) return [...errors, "baseline must contain all 52 audited routes"];
   for (const [label, list] of [["baseline", baseline], ["configured", routes]]) {
     const counts = new Map();
     for (const entry of list) counts.set(entry.path, (counts.get(entry.path) ?? 0) + 1);

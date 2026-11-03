@@ -12,6 +12,8 @@ export const growthOperationDescriptors: ProductCapabilityDescriptor[] = growthO
     ? { effect: "authorized_write", disclosure: "exact_requested_payload", retry: "status_only", approval: "none", cancel: "reconcile_claimed" }
     : operation.effect === "draft" && operation.review === "none"
     ? { effect: "draft_write", disclosure: "exact_requested_payload", retry: "status_only", approval: "none", cancel: "reconcile_claimed" }
+    : operation.effect !== "read" && operation.review === "none"
+    ? { effect: "authorized_write", disclosure: "exact_requested_payload", retry: "status_only", approval: "none", cancel: "reconcile_claimed" }
     : operation.review === "required"
     ? { effect: "reviewed_write", disclosure: "exact_reviewed_payload", retry: "status_only", approval: "exact_single_use", cancel: "reconcile_claimed" }
     : { effect: "read", disclosure: "approved_resource_identifiers", retry: "safe_read", approval: "none", cancel: "stop_admission" },
