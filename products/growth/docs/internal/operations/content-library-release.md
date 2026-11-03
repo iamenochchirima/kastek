@@ -14,12 +14,11 @@ Owner: Growth engineering. Risk: standard, with additive schema and delegated pr
 Affected services: Growth API/web/database/shared contracts and the Growth adapter inside Agents.
 Other products' identity, data, hosting and business APIs are unaffected.
 
-Platform release identity: candidate `growth-content-library-2026-11-03` on
-`codex/growth-content-library`, based on `aa3d10df3ff72b7e3a9455e7f53d0c4127898cbd`.
-This record is implementation evidence, not a production release assertion. A compatible feature
-release should use the next approved minor platform version. Deployment SHA, exact artifacts,
-configuration revision and final platform tag must be recorded at promotion; package `0.1.0`
-values are not platform release versions. The current `VERSION` is unchanged.
+Platform release version: `0.4.0`, authorized for push, merge and production deployment by the
+owner on 3 November 2026. The feature and logo commits are `715e05df8` and `44982a69a`.
+The release artifact manifest will record the merged source SHA, Railway deployment/image
+identities, Vercel deployment, migration checksums and production verification. Promotion follows
+successful additive migrations, backend readiness and frontend preview checks.
 
 ## Contracts and data
 
@@ -88,7 +87,8 @@ focused web lint, 52-route inventory, generated API/OpenAPI contracts, 844 local
 Prisma validation and product import boundaries passed. Exact commands and artifacts belong to
 the issue/PR evidence. Browser fixtures use an
 owned random schema and temporary storage; they do not import production records or publish to
-social providers. Hosted rollout and post-release review remain pending a release.
+social providers. Production rollout evidence is recorded in `docs/operations/releases/platform-0.4.0-artifacts.json`
+after promotion. Post-release review follows live acceptance.
 
 Current technical behavior is documented in [content media and templates](../architecture/content-library.md),
 operation coverage and public media/template, REST and MCP docs. The feature map records the new
