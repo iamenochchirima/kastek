@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.4.0",
+  "releaseCommit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+  "sourceTree": "13869c6a51b5f27fbb64fca16477ff3baf4e86a0",
+  "pullRequest": "https://github.com/Kasitek-Labs/kastek/pull/55",
+  "capturedAt": "2026-11-03T11:33:01.994117+00:00",
+  "railway": {
+    "projectId": "83fe5737-0fcd-4b07-b077-04e336a1c7c4",
+    "environmentId": "9380a1a6-6791-4321-9d81-e88c9b3b73ce",
+    "services": [
+      {
+        "service": "agency-analytics-worker",
+        "deploymentId": "cc1236f5-c8db-45e2-8b1f-df94942c11b7",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:7336711660c8059ba33412e0ef3754c93f54ea6b0d5dc83dc890e5f3be71952f",
+        "changedByRelease": true,
+        "previousDeploymentId": "edd1dc2c-4efb-4f2c-95df-0029cd4e8314"
+      },
+      {
+        "service": "agency-api",
+        "deploymentId": "e0462ae0-b977-426f-ad96-62fdce5c783c",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:21ada72baca407dabc5da45546e05a9daabb2d25ae1e37e91663967bf801c2bd",
+        "changedByRelease": true,
+        "previousDeploymentId": "7a9b2686-08b7-4b61-80fe-2bfd17ee5865"
+      },
+      {
+        "service": "agency-db",
+        "deploymentId": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "changedByRelease": false,
+        "previousDeploymentId": "85f2bf00-b3a4-4d82-88a5-1ac9b85d4571"
+      },
+      {
+        "service": "agents-api",
+        "deploymentId": "6da3006f-7673-4406-8c3a-c9c57542ddd9",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:dc8babc9fcda0c187e4ae8e3cae43362e9ef92877b31cb08f2c7093615129bb8",
+        "changedByRelease": true,
+        "previousDeploymentId": "8ed7d65d-27c5-4444-a359-d088d5bbcaf8"
+      },
+      {
+        "service": "agents-db",
+        "deploymentId": "6a213b45-e5bd-4ad7-9fe5-ff87301a4b90",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:2017da03379b27508603c44e9041a082ef53ef711fed614ccd5044eaf9df6e31",
+        "changedByRelease": false,
+        "previousDeploymentId": "6a213b45-e5bd-4ad7-9fe5-ff87301a4b90"
+      },
+      {
+        "service": "agents-worker",
+        "deploymentId": "ec7a6c63-4dd6-427f-8b4b-ab7edc202a72",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:4c0246b999df0ad288ef1d0e8e06a4228b1964c8dd98a2cf5573be2aa7479168",
+        "changedByRelease": true,
+        "previousDeploymentId": "98d396f6-960d-45ca-a543-9d2e17259a5f"
+      },
+      {
+        "service": "analytics-api",
+        "deploymentId": "ce722ecd-7164-4b76-b457-1ad5fc7f46f9",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:d5ee650a83f0fa29c077ef2bd93174a424efee8b829367c26c48347d4e4f4a2f",
+        "changedByRelease": true,
+        "previousDeploymentId": "5914d8d6-c5c1-4f70-91b2-2555edeb0afe"
+      },
+      {
+        "service": "analytics-db",
+        "deploymentId": "77709735-c85d-43c5-9f6b-31dd9f75703f",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "changedByRelease": false,
+        "previousDeploymentId": "77709735-c85d-43c5-9f6b-31dd9f75703f"
+      },
+      {
+        "service": "analytics-worker",
+        "deploymentId": "9ca15801-ccf6-4cfa-a6fe-e7982996686f",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:a67d195360762a33e7796dc96ad0dba97795b2fcb5181453f9e37c0f0311a174",
+        "changedByRelease": true,
+        "previousDeploymentId": "f5b69f11-abb0-4b91-a99e-f26dfcaadcb9"
+      },
+      {
+        "service": "growth-analytics-worker",
+        "deploymentId": "0b09a837-da3d-4031-af4d-a7b73ba82f44",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:843fb4e1859d730486600f6a79cd39ce2d0ac16ed8f6ca52e0e2af8bab4f0809",
+        "changedByRelease": true,
+        "previousDeploymentId": "7e82dcce-1c97-4bcd-9ca5-7c4b6b7fe97f"
+      },
+      {
+        "service": "growth-api",
+        "deploymentId": "d68fe28e-f204-40d3-a44c-8475d4cb7cc2",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:7ca2b9d764291882e92a9dbdc4dcbb3a8a2886d9b6ef20381e8917f4deb2de52",
+        "changedByRelease": true,
+        "previousDeploymentId": "03c7d9fc-b620-4d25-b554-89eb940c469f"
+      },
+      {
+        "service": "growth-db",
+        "deploymentId": "b6e2cf7e-4ae8-4190-ac02-120a66630002",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "changedByRelease": false,
+        "previousDeploymentId": "b6e2cf7e-4ae8-4190-ac02-120a66630002"
+      },
+      {
+        "service": "identity",
+        "deploymentId": "ba1f6aa2-ae35-4ef3-8aab-e78d2aa307f6",
+        "status": "SUCCESS",
+        "commit": "5b23a47e2a65a5db7d37017f57e9c044233f1bdf",
+        "imageDigest": "sha256:e0309401046e423d45e75211bd1c84fec2bed67a42b7a35fa90801650e906bb0",
+        "changedByRelease": false,
+        "previousDeploymentId": "ba1f6aa2-ae35-4ef3-8aab-e78d2aa307f6"
+      },
+      {
+        "service": "identity-db",
+        "deploymentId": "f8477a21-77bc-45f7-8379-488bb94e431c",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "changedByRelease": false,
+        "previousDeploymentId": "f8477a21-77bc-45f7-8379-488bb94e431c"
+      },
+      {
+        "service": "operations-api",
+        "deploymentId": "af64c0ab-b5c9-4c06-9d7d-dbe57cbd1624",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:b64fb4a59ebac0e736e4d4118d0d14c3d87970080768d86f4666052bdb4e345c",
+        "changedByRelease": true,
+        "previousDeploymentId": "72d04e4b-d495-4da7-ad86-757eeae14ecb"
+      },
+      {
+        "service": "operations-db",
+        "deploymentId": "1ceec966-f635-4831-8bf1-7d757c5dbd7a",
+        "status": "SUCCESS",
+        "commit": null,
+        "imageDigest": "sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1",
+        "changedByRelease": false,
+        "previousDeploymentId": "1ceec966-f635-4831-8bf1-7d757c5dbd7a"
+      },
+      {
+        "service": "operations-worker",
+        "deploymentId": "bdf41a26-b681-42d5-99a7-584f9d98b64f",
+        "status": "SUCCESS",
+        "commit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+        "imageDigest": "sha256:0f2d92a9f3a1f249487555089eb2105ba59c9f705f30e03c89779eae7148499e",
+        "changedByRelease": true,
+        "previousDeploymentId": "072858d6-871b-4ebf-88e4-7929f80684af"
+      },
+      {
+        "service": "otel-collector",
+        "deploymentId": "d73d5da5-36b5-43fe-889e-ace5bd2e85be",
+        "status": "SUCCESS",
+        "commit": "8b44ae276e454c0b6337dee5a7d8af41f47f76a1",
+        "imageDigest": "sha256:941db0cfa898b84598300053e12a532e2fd6bbc37fa5d5c1e729f8935b7aa473",
+        "changedByRelease": false,
+        "previousDeploymentId": "d73d5da5-36b5-43fe-889e-ace5bd2e85be"
+      },
+      {
+        "service": "restate",
+        "deploymentId": "3327acae-2c2d-4e6e-921b-d774a137b739",
+        "status": "SUCCESS",
+        "commit": "5b23a47e2a65a5db7d37017f57e9c044233f1bdf",
+        "imageDigest": "sha256:97ab17b26879d30ceb44ef2474db37d0cf7d5b03e42eafb4e3fcee0033facad9",
+        "changedByRelease": false,
+        "previousDeploymentId": "3327acae-2c2d-4e6e-921b-d774a137b739"
+      }
+    ]
+  },
+  "vercel": {
+    "projectId": "prj_dPu8OmVJUcmVf8kgdAA7Q3Yh7alt",
+    "deploymentId": "dpl_FhwVttEMFMByzXUHaJCmZu5NLBR4",
+    "sourceSha": "6a1403de77c513d0760e1485a359b36511d4e907",
+    "tree": "13869c6a51b5f27fbb64fca16477ff3baf4e86a0",
+    "releaseCommit": "defbe2be3b5d0912f01515b4a8a62e51d28cb534",
+    "candidateUrl": "https://kasitek-g0k8rjfyt-iamenochchirimas-projects.vercel.app",
+    "previousProductionId": "dpl_5pQCM9EjwxQm2XrUBDnnpAB9j1jP",
+    "previousProductionUrl": "kasitek-a3tt36g7s-iamenochchirimas-projects.vercel.app",
+    "promotedAt": "2026-11-03T11:27:04.882211+00:00",
+    "productionVerified": true,
+    "productionChecks": [
+      {
+        "path": "/workspace",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/content/media",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/content/templates",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/auth/me",
+        "status": 401,
+        "expected": 401,
+        "passed": true
+      },
+      {
+        "path": "/v1/operations",
+        "status": 401,
+        "expected": 401,
+        "passed": true
+      },
+      {
+        "path": "/api/auth/login",
+        "status": 302,
+        "expected": 302,
+        "passed": true
+      },
+      {
+        "path": "/not-a-real-route",
+        "status": 404,
+        "expected": 404,
+        "passed": true
+      },
+      {
+        "path": "/logo.png",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/assets/layout-BWEVU93K.js",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "name": "20261103110000_content_media_library",
+      "sha256": "e31c647f4488d1d9df1fba00a69dbffef78ff50c399f21bb4462d27fb57771e5",
+      "verified": true
+    },
+    {
+      "name": "20261103111000_content_templates",
+      "sha256": "5a0f02dcde5ae2d083aa29eb99e35e543bce6dcd3be789043b8f9d2225ca2724",
+      "verified": true
+    }
+  ],
+  "backups": {
+    "databaseBackupSha256": "d3b7b0c8aaf9d7e284f5f70bdb92c3b1ff8654c461d3c630bc4b7a22513c2d3a",
+    "databaseBackupBytes": 1161228,
+    "mediaBackupSha256": "ddb28f0a795ea4357e6069f08248e0706d6578204f3b71d8a5156802923192b0",
+    "mediaBackupFiles": 2,
+    "retainedPrivatelyOutsideWorktree": true
+  },
+  "verification": {
+    "localGrowthTestsPassed": 51,
+    "localInternalBindingTestsPassed": 2,
+    "localFrontendTestsPassed": 52,
+    "ciMigrationBrowserJourneysPassed": 86,
+    "ciAgentsBrowserJourneysPassed": 53,
+    "productionInternal": {
+      "releaseSmoke": true,
+      "version": "0.4.0",
+      "operationCount": 59,
+      "newOperationCount": 13,
+      "retainedMediaPreviewVerified": true,
+      "templateId": "v0u7d4xjgoycwrs9i3d4anhl",
+      "templateArchived": true,
+      "draftIds": [
+        "xkomvrj1hr6px3zgb3vola9w",
+        "l00hei46dl797wegpkx282sn"
+      ],
+      "draftsDeleted": true,
+      "literalRenderVerified": true,
+      "replayVerified": true,
+      "providerEffects": 0
+    },
+    "productionExternalMcp": {
+      "externalMcp": true,
+      "state": "succeeded",
+      "postId": "ezmhx47zmpees25pxoayhagf",
+      "wasPrivateDraft": true,
+      "replayVerified": true,
+      "cleanupState": "succeeded",
+      "providerEffects": 0
+    },
+    "liveRuntimeAndTelemetry": {
+      "publication": "11",
+      "retainedPublication": "10",
+      "receipts": [
+        {
+          "operation": "content.posts.delete",
+          "state": "succeeded",
+          "decisionSource": "requested_action",
+          "count": 3
+        },
+        {
+          "operation": "content.posts.draft.create",
+          "state": "succeeded",
+          "decisionSource": "requested_draft",
+          "count": 1
+        },
+        {
+          "operation": "content.posts.duplicate",
+          "state": "succeeded",
+          "decisionSource": "requested_draft",
+          "count": 1
+        },
+        {
+          "operation": "content.templates.archive",
+          "state": "succeeded",
+          "decisionSource": "requested_draft",
+          "count": 1
+        },
+        {
+          "operation": "content.templates.create",
+          "state": "succeeded",
+          "decisionSource": "requested_draft",
+          "count": 1
+        },
+        {
+          "operation": "content.templates.instantiate",
+          "state": "succeeded",
+          "decisionSource": "requested_draft",
+          "count": 1
+        }
+      ],
+      "outboxLifecycleRows": 8,
+      "adapter": {
+        "currentAdapter": "8",
+        "retainedAdapter": "7"
+      }
+    },
+    "browser": {
+      "signedInMediaLibrary": true,
+      "retainedImagesRendered": 2,
+      "signedInTemplates": true,
+      "actualLogoLoaded": true,
+      "logoDimensions": [
+        32,
+        32
+      ]
+    },
+    "broaderAgentsCi": {
+      "status": "baseline_failures_only",
+      "currentRun": "https://github.com/Kasitek-Labs/kastek/actions/runs/41624928846",
+      "baselineRun": "https://github.com/Kasitek-Labs/kastek/actions/runs/41609659434",
+      "passed": 2283,
+      "failed": 28,
+      "skipped": 112,
+      "newFailures": 0
+    }
+  }
+}
