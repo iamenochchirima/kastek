@@ -45,9 +45,12 @@ Company and project enquiries stay on Labs routes. Chat uses an explicitly confi
 
 ## Configuration
 
-- NEXT_PUBLIC_AGENTS_PUBLIC_URL and NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID select the
-  current Agents publication. Both are required, and the deployment must allow this site's origin.
-  There is no default tenant or deployment. See .env.example.
+- The homepage loads the owner-approved Agents publication
+  `2a25e036-7985-4c67-816a-8d05389d61aa` from `https://agents.kasitek.co.za`.
+  `NEXT_PUBLIC_AGENTS_PUBLIC_URL` and `NEXT_PUBLIC_AGENTS_WIDGET_DEPLOYMENT_ID` override that
+  publication as a pair. When either override is present, both must be valid; an empty deployment
+  ID disables chat and shows the contact fallback. The publication must allow the site's origin.
+  See `.env.example`.
 - Invalid configuration or a script-load failure shows Contact us. HTTPS is required outside local
   development. The fallback does not call the retired Growth widget API.
 - `NEXT_PUBLIC_KASITEK_CONTACT_EMAIL` sets the displayed contact address. It defaults to
@@ -94,3 +97,16 @@ environment. Those remain separate cutover work.
   motion disabled.
 - Version, rollout and post-release review: not applicable; local source and preview only.
   Rollback: revert this navigation/presentation change together, including its runtime cleanup.
+
+## Website chat publication
+
+The owner's supplied embed selects the Labs homepage publication above. This is a low-risk
+website configuration change; API/schema changes, migrations, new analytics, structured logs,
+metrics and release identity are not applicable. No deployment or hosted access-policy change
+is included. Rollback or disable chat by setting an empty deployment-ID override.
+
+Validation: focused ESLint, production build/TypeScript, product boundaries and configuration
+checks passed. The hosted script returned HTTP 200 and its launcher opened locally. The
+publication API rejects `http://127.0.0.1:3007` with `ORIGIN_DENIED`, so message delivery could
+not be verified from this preview. Verify chat on the publication's allowed production origin
+at rollout; no origin permissions were changed by this source update.
