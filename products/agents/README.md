@@ -35,9 +35,13 @@ access, publish a version and test it. Controlled acceptance results do not cert
 
 ## Model selection
 
-Connect a provider account in **Settings > Model providers**, refresh its models,
-and choose an organization default. New agents use that default. A key in the
-server environment does not create a workspace connection or authorize agent use.
+With the platform OpenRouter key configured, owner workspace access initializes an
+included NVIDIA free model as the organization default. Existing defaults and removed
+or revoked included connections are preserved. The included connection permits only
+its pinned free model. Its key stays server-side.
+
+Use **Settings > Model providers > Add provider** to connect a personal provider key,
+refresh its models, and choose another default. New agents use the organization default.
 
 Use the model picker in chat to select a connected account and model. The selection
 saves the agent configuration in the background and applies to new messages,
@@ -137,8 +141,9 @@ pnpm dev:agents
 
 Open `http://localhost:3100`. The web server proxies `/api` to port 4100.
 API diagnostics are `http://127.0.0.1:4100/health` and `/ready`.
-Connect a provider in **Settings > Model providers** before using agent chat.
-The API and worker use encrypted workspace credentials, not an environment-key fallback.
+Configure the included OpenRouter default or connect a provider in **Settings > Model providers**
+before using agent chat. The API and worker use encrypted workspace credentials and saved
+use grants. The environment key initializes the included connection; it is not a generation fallback.
 
 Private storage is required for knowledge, connected evidence and isolated analysis. Conversations without those capabilities can run without it. Configure all five `AGENTS_S3_*` settings
 from the environment example and provision a private S3-compatible bucket.

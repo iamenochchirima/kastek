@@ -296,6 +296,10 @@ migration is required. Avatars permit HTTPS or local development HTTP and use no
 The widget can start and switch separate conversations in one browser tab. Each uses its own
 visitor session and pending request, stored in that tab's session storage. Switching waits for
 in-flight requests to finish. An expired session does not grant access to its earlier conversation.
+Rejected sends retain their text and a separate visible error through background refreshes.
+An unknown send outcome retains its original request key for retry. Model-configuration failures
+show a temporary-unavailability message to visitors; owners configure the provider and default
+model under Settings → Model providers. A connected website alone does not establish reply readiness.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
 
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
@@ -338,8 +342,15 @@ Changing the organization default affects new admissions; it does not redirect a
 The chat model picker and Configure support an explicit account/model selection through the
 existing background configuration-snapshot flow. Chat selection saves after any required impact
 confirmation; it preserves conversation history and drafts. Unsaved Configure edits block chat
-switching until saved or discarded. An environment key alone does not create a workspace
-connection. Owner dependency views list affected agents,
+switching until saved or discarded. With the platform OpenRouter key configured, authenticated
+owner workspace access initializes an included NVIDIA free model through the normal encrypted
+connection, discovered catalogue and organization-default grant. Existing defaults and historical
+included-provider revocation or removal prevent automatic replacement. Anonymous website requests
+do not initialize accounts. Schema099 pins the included connection's permitted model independently
+of catalogue edits and subsequent operator default changes. The included connection cannot be
+repurposed to use paid models or another endpoint; owners add their own provider key for other
+models. Generation still requires a saved connection and use grant, with no environment-key fallback.
+Owner dependency views list affected agents,
 schedules, defaults and active tasks before removal or revocation. Reconnection does not restore
 old use grants. An explicit revision-checked Restore access action authorizes only the agent's
 currently configured model IDs. Cached model reads for ordinary members are filtered to the
@@ -1263,8 +1274,8 @@ Inbox message inspection recognizes the two previously shipped grounded-conversa
 descriptors when the remaining pinned composition still matches. It continues to check the saved
 output, current authority and evidence policies. This does not make those releases executable.
 Saving unchanged settings refreshes these known older releases through normal configuration and
-channel validation, creating a new snapshot for subsequent messages. A widget keeps a failed
-message's error visible while its existing retry is pending.
+channel validation, creating a new snapshot for subsequent messages. Widget send errors remain
+visible across successful background reads until another send attempt or a conversation change.
 The Inbox conversation gives messages the main pane; the Details control opens and closes the
 customer and conversation details without resizing the thread.
 
