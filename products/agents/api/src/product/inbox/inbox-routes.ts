@@ -22,7 +22,7 @@ export function inboxConversation(row: CustomerConversation) {
       ? { body: row.last_message_body, authorKind: row.last_message_author_kind, createdAt: row.last_message_created_at } : null };
 }
 function message(row: CustomerMessage, staff: boolean) {
-  return { id: row.id, sequence: row.sequence, authorKind: row.author_kind, ...(row.displayKind ? { displayKind: row.displayKind } : {}), body: row.body, createdAt: row.created_at,
+  return { id: row.id, sequence: row.sequence, authorKind: row.author_kind, ...(row.displayKind ? { displayKind: row.displayKind } : {}), body: row.body, createdAt: row.created_at, ...(row.responseDurationMs === undefined ? {} : {responseDurationMs:row.responseDurationMs}),
     ...(staff ? { authorAccountId: row.author_account_id, taskId: row.task_id,channelFacts:row.channelFacts,deliveries:row.deliveries??[] } : {}) };
 }
 function visitorConversation(row: CustomerConversation) {
@@ -102,7 +102,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   });
   app.get(`${website}/:conversationId/messages`, async (request, reply) => {
     const scope = await options.resolveVisitor(request, reply), input = page.parse(request.query), result = await options.inbox.readVisitor(scope, params(request).conversationId, input.after, input.limit, input.before);
-    return { conversation: visitorConversation(result.conversation), messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
+    return { conversation: visitorConversation(result.conversation), responseStatus: result.responseStatus, responseActivity: result.responseActivity, messages: result.messages.map(row => message(row, false)), nextSequence: result.messages.at(-1)?.sequence ?? input.after, latestSequence: String(BigInt(result.conversation.next_sequence) - 1n), earlierBefore: result.messages[0] && BigInt(result.messages[0].sequence) > 1n ? result.messages[0].sequence : null };
   });
   if(options.bookings) {
     const bookings=options.bookings;

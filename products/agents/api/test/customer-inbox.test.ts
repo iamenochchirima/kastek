@@ -62,6 +62,35 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("exposes scoped response progress and persisted reply timing without private task details", async () => {
+    const f=await fixture(),other=await fixture();
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("idle");
+    const input=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    let read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.responseStatus).toBe("processing");expect(read.responseActivity?.inputMessageId).toBe(input.message.id);
+    const start=read.responseActivity!.startedAt;
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseActivity!.startedAt).toEqual(start);
+    await pool.query("UPDATE agents_platform.tasks SET state='failed',error_code='PRIVATE_PROVIDER_DETAIL' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("failed");
+    await expect(inbox.readVisitor(other.visitor,f.conversation.id)).rejects.toMatchObject({code:"INBOX_ACCESS_DENIED"});
+    await pool.query("UPDATE agents_platform.tasks SET state='completed',error_code=NULL WHERE id=$1",[input.message.task_id]);
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId:input.message.task_id!,binding:binding(f,input.message.id),output:"Delivered reply"}));
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.messages.at(-1)!.responseDurationMs).toBeGreaterThanOrEqual(0);
+    expect(read.responseStatus).toBe("idle");expect(read.responseActivity?.replyMessageId).toBe(read.messages.at(-1)!.id);
+    expect(read.responseActivity!.completedAt!.getTime()).toBeGreaterThanOrEqual(start.getTime());
+    const app=Fastify();registerInboxRoutes(app,{inbox,resolveScope:async()=>f.scope,resolveVisitor:async()=>f.visitor});
+    try {const result=await app.inject({url:`/api/website/${f.deployment.id}/customer-conversations/${f.conversation.id}/messages`});
+      expect(result.json().responseActivity.inputMessageId).toBe(input.message.id);
+      expect(result.body).not.toContain(input.message.task_id!);expect(result.body).not.toContain("PRIVATE_PROVIDER_DETAIL");
+    } finally {await app.close()}
+    await command(f,"claim");await command(f,"takeover");
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);expect(read.responseStatus).toBe("idle");expect(read.responseActivity).toBeNull();
+    await command(f,"return");
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("idle");
+  });
   it("reports the website channel as unavailable when paused or revoked", async () => {
     const f = await fixture();
     expect((await inbox.readStaff(f.scope, f.conversation.id)).channelAvailable).toBe(true);

@@ -45,7 +45,7 @@ for (const theme of ["light", "dark"] as const) test(`staff can claim, take over
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await page.screenshot({ path: test.info().outputPath(`inbox-takeover-${theme}.png`), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "Return to automation" }).click();
+  await page.getByRole("button", { name: "Return to Agent" }).click();
   await expect(page.getByRole("button", { name: "Take over" })).toBeVisible();
   expect(commands.map(command => command.action)).toEqual(["claim", "takeover", "reply", "return"]);
   expect(commands[2].body).toBe("A staff response");

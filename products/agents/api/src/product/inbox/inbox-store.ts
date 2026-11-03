@@ -41,7 +41,7 @@ const customerIdentityJoin = `LEFT JOIN LATERAL (
   JOIN agents_platform.customer_contacts contact ON contact.organization_id=record.organization_id AND contact.id=record.contact_id
   WHERE record.organization_id=c.organization_id AND record.customer_conversation_id=c.id
 ) identity ON true`;
-export interface CustomerMessage { id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
+export interface CustomerMessage { responseDurationMs?: number; id: string; conversation_id: string; sequence: string; author_kind: "visitor" | "human" | "assistant";
   author_account_id: string | null; body: string; task_id: string | null; ownership_generation: string; created_at: Date; request_key?: string;
   displayKind?: "system";
   channelFacts?: { occurredAt: Date | null; replyToProviderMessageId: string | null; attachments: {kind:string;fileName?:string;index:number}[] };
@@ -213,6 +213,13 @@ export class InboxStore {
       "SELECT * FROM agents_platform.customer_messages WHERE conversation_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3", [id, before ?? (after === "0" ? null : after), limit])).rows;
     for (const message of rows) if (message.author_kind === "assistant") message.body = await this.readableMessage(db,message)??"[Response unavailable]";
     if (rows.length) {
+      const timings = (await db.query(`SELECT reply.id,
+        greatest(0,extract(epoch FROM (reply.created_at-input.created_at))*1000)::double precision AS duration_ms
+        FROM agents_platform.customer_messages reply
+        JOIN agents_platform.customer_task_links l ON l.task_id=reply.task_id AND l.conversation_id=reply.conversation_id
+        JOIN agents_platform.customer_messages input ON input.id=l.input_message_id AND input.conversation_id=reply.conversation_id
+        WHERE reply.conversation_id=$1 AND reply.id=ANY($2::uuid[]) AND reply.author_kind='assistant'`,[id,rows.map(row=>row.id)])).rows;
+      for (const message of rows) { const timing=timings.find(row=>row.id===message.id);if(timing)message.responseDurationMs=timing.duration_ms; }
       const systemIds = await systemMessageIds(db,id,rows.map(row=>row.id));
       for (const message of rows) if (systemIds.has(message.id)) message.displayKind="system";
       const facts = (await db.query("SELECT * FROM agents_platform.channel_message_facts WHERE message_id=ANY($1::uuid[])",[rows.map(row=>row.id)])).rows;
@@ -227,7 +234,25 @@ export class InboxStore {
     return rows;
   }
   async readVisitor(scope: VisitorScope, id: string, after = "0", limit = 100, before?: string) {
-    return transaction(this.pool, async db => { const conversation = await this.visitorConversation(db, scope, id); return { conversation, messages: await this.messages(db, id, after, limit, before) }; });
+    return transaction(this.pool, async db => {
+      const conversation = await this.visitorConversation(db, scope, id);
+      let responseStatus: "processing" | "failed" | "idle" = "idle";
+      let responseActivity: {inputMessageId:string;startedAt:Date;completedAt:Date|null;replyMessageId:string|null}|null = null;
+      if (conversation.state === "automation_active") {
+        const latest = (await db.query(`SELECT t.state,m.id AS input_message_id,m.created_at AS started_at,
+          reply.id AS reply_message_id,reply.created_at AS completed_at FROM agents_platform.customer_task_links l
+          JOIN agents_platform.customer_messages m ON m.id=l.input_message_id AND m.conversation_id=l.conversation_id
+          JOIN agents_platform.tasks t ON t.id=l.task_id AND t.organization_id=$3
+          LEFT JOIN LATERAL (SELECT id,created_at FROM agents_platform.customer_messages
+            WHERE conversation_id=l.conversation_id AND task_id=t.id AND author_kind='assistant' ORDER BY sequence DESC LIMIT 1) reply ON true
+          WHERE l.conversation_id=$1 AND l.ownership_generation=$2 AND m.sequence>$4::bigint
+          ORDER BY m.sequence DESC LIMIT 1`, [id, conversation.ownership_generation, conversation.organization_id, conversation.return_watermark])).rows[0];
+        if (latest) responseActivity={inputMessageId:latest.input_message_id,startedAt:latest.started_at,completedAt:latest.completed_at,replyMessageId:latest.reply_message_id};
+        if (latest && ["accepted", "running", "waiting_children", "reconciling"].includes(latest.state)) responseStatus = "processing";
+        else if (latest && ["failed", "incomplete", "refused", "cancelled", "uncertain"].includes(latest.state)) responseStatus = "failed";
+      }
+      return { conversation, responseStatus, responseActivity, messages: await this.messages(db, id, after, limit, before) };
+    });
   }
   async readStaff(scope: InboxScope, id: string, after = "0", limit = 100, before?: string) {
     return transaction(this.pool, async db => { await this.membership(db, scope); const conversation = await this.conversation(db, id); if (conversation.organization_id !== scope.organizationId) denied();
