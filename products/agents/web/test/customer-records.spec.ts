@@ -56,6 +56,8 @@ async function fixture(
         },
         organizations: [{ id: "org", name: "Shop", role }],
       };
+    else if (path.endsWith("/inbox-alerts"))
+      data = { unread: 0, alerts: [] };
     else if (path.endsWith("/customer-records/members"))
       data = {
         members: [
@@ -405,5 +407,43 @@ for (const view of ["enquiries", "contacts"] as const) {
     failing = false;
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByRole("table")).toBeVisible();
+  });
+}
+
+for (const width of [1440, 768, 390]) {
+  test(`collected follow-ups stay discoverable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await fixture(page);
+    const requests: URL[] = [];
+    await page.route("**/customer-records/followups?**", async route => {
+      const url = new URL(route.request().url());
+      requests.push(url);
+      const more = url.searchParams.has("cursor");
+      return route.fulfill({ json: {
+        followups: [{
+          id: more ? "followup-2" : "followup-1", status: "requested",
+          customerConversationId: "thread", contactId: "contact",
+          agentName: "Support agent", channel: "website", name: more ? "Ben" : "Ada",
+          email: more ? "ben@example.test" : "ada@example.test", phone: null,
+          preferredTime: "Tomorrow morning", reason: "Human support requested",
+          summary: "Needs help with an order", assigneeName: null, requestedAt: timestamp,
+        }], nextCursor: more ? null : "page2",
+      } });
+    });
+    await page.goto("/app/customers?view=followups");
+    await expect(page.getByRole("link", { name: "Follow-ups", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("table")).toContainText("ada@example.test");
+    await expect(page.getByRole("table")).toContainText("Needs help with an order");
+    await expect(page.getByRole("link", { name: "Ada", exact: true })).toHaveAttribute("href", "/app/customers?view=contacts&contact=contact");
+    await expect(page.getByRole("link", { name: "Open conversation" })).toHaveAttribute("href", "/app/inbox?conversation=thread");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole("button", { name: "Load more" }).click();
+    await expect(page.getByRole("table")).toContainText("ben@example.test");
+    await expect(page.getByRole("button", { name: "Load more" })).toHaveCount(0);
+    await page.getByRole("textbox", { name: "Search follow-ups" }).fill("ada@example.test");
+    await page.getByRole("combobox", { name: "Filter follow-up status" }).selectOption("requested");
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
+    await expect.poll(() => requests.some(url => url.searchParams.get("search") === "ada@example.test" && url.searchParams.get("status") === "requested")).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`followups-${width}.png`), fullPage: true });
   });
 }

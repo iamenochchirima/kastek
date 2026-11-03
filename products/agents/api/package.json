@@ -31,6 +31,7 @@
     "control:growth": "node --env-file-if-exists=.env --import tsx src/composition/control-growth.ts",
     "control:admissions": "node --env-file-if-exists=.env --import tsx src/composition/control-admissions.ts",
     "verify:firecrawl": "node --env-file-if-exists=.env --import tsx src/composition/firecrawl-smoke.ts",
+    "backfill:support-contacts": "node --env-file-if-exists=.env --import tsx src/composition/backfill-support-contacts.ts",
     "backfill:knowledge": "node --env-file-if-exists=.env --import tsx src/composition/backfill-knowledge.ts",
     "dev:memory-retention": "node --env-file-if-exists=.env --import tsx src/composition/memory-retention.ts",
     "start:memory-retention": "node --env-file-if-exists=.env dist/composition/memory-retention.js",

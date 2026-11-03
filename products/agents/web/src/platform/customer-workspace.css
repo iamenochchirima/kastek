@@ -202,3 +202,16 @@
   .inbox-layout { display: block; }
   .inbox-context { order: initial; }
 }
+
+.customer-followups-table td { vertical-align: top; }
+.customer-followups-table td:first-child { min-width: 190px; max-width: 280px; overflow-wrap: anywhere; }
+.customer-followups-table .customer-record-link { min-width: 0; overflow-wrap: anywhere; }
+.customer-followup-reason { max-width: 360px; color: var(--foreground); font-weight: 500; overflow-wrap: anywhere; }
+.customer-followup-line { display: block; margin-top: 4px; max-width: 360px; font-size: 12px; font-weight: 400; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.customer-followup-conversation { display: inline-flex; min-height: 32px; align-items: center; color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 767px) {
+  .customer-followups-table td:first-child { min-width: 0; max-width: none; }
+  .customer-followups-table td:nth-child(2), .customer-followups-table td:last-child { grid-column: 1 / -1; }
+  .customer-followup-reason, .customer-followup-line { max-width: none; }
+  .customer-followup-conversation { min-height: 44px; }
+}

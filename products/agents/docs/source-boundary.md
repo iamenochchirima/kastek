@@ -78,17 +78,23 @@ is added.
 
 ## Native customer records
 
-`/app/customers` exposes Enquiries and Contacts. Real confirmed channel submissions project
-transactionally into schema078 records. Unconfirmed/rejected submissions, private operator tests
-and evaluation trials never create ordinary contacts or follow-up records. No historical backfill
-runs. Original submitted evidence remains in the existing enquiry store and Inbox reads.
+`/app/customers` exposes Enquiries, Contacts and Follow-ups. Real confirmed channel submissions
+project transactionally into schema078 records. Validated human-support contact saves also
+project into Contacts in the same transaction. Follow-ups reads the existing support requests,
+including their reason, preferred contact, status, assignee, agent and original Inbox conversation.
+Unconfirmed/rejected submissions, private operator tests and evaluation trials do not create
+ordinary contacts. Original evidence remains in the enquiry/request store and Inbox reads.
+The explicit `pnpm --filter @kasitek/agents backfill:support-contacts` command brings previously
+saved support contact preferences into Contacts. It is repeatable and does not log contact values.
 Website contact association uses deployment/session identity; messaging uses deployment/verified
-sender identity. No email/phone matching or cross-channel merging occurs.
+sender identity. No email/phone matching or cross-channel merging occurs. Support projection fills missing
+contact fields and preserves existing staff corrections; repeated saves do not increment revisions.
 
 Membership-authorized APIs are under `/api/organizations/:organizationId/customer-records`:
 
 | Route | Contract |
 | --- | --- |
+| GET `/followups` | Search support requests and filter by requested/human-owned/completed/withdrawn status; signed stable cursors, limit1–100. Returns contact and Inbox links without duplicating request state. |
 | GET `/members` | Current staff eligible for assignment. Revoked assignees remain visibly former members until reassigned. |
 | GET `/enquiries` | Search and filter by status, assignee, due date, agent, conversation or contact; signed stable cursors, limit1–100. |
 | GET `/enquiries/:id` and `/enquiries/:id/activity` | Current and original fields, permitted source/booking references and paginated internal activity. An original submitted enquiry ID resolves its projected record. |
@@ -1412,7 +1418,7 @@ membership, permissions, and domain records. Embedded execution remains unavaila
 | `/app/agents` | Searchable, paginated agent directory with configuration-status filters, selected-agent responsibilities, connected channels and latest customer-conversation update. Chat and configuration open from the selected agent; conversation history appears in its chat workspace. | `agent-entry-directory.spec.ts`, chat workspace and discovery regression suites. |
 | `/app/agents/:agentId` | Chat, Activity, General/Tools/Skills/Website setup, immutable skill selection, exact-revision requirement repair, contextual compatible Analysis access and optional pinned booking policy. Connect saves draft selections before navigation. | `catalogue.spec.ts`, `skill-requirements.spec.ts`, `bookings.spec.ts`, and actual API `catalogue-live.spec.ts` / `catalogue-execution-live.spec.ts`. |
 | `/app/agents/:agentId/conversations/:conversationId` | Authorized history scoped to its original agent and principal, per-turn configuration snapshots, current-policy output and inline report review. | Scope/recovery browser regressions and PostgreSQL history tests. |
-| `/app/customers` | Enquiry and contact lists with follow-up, activity and authorized Inbox links. Desktop can show a selected record beside the list; smaller screens open the detail view. | `customer-records.spec.ts` and native record database checks. |
+| `/app/customers` | Enquiry, contact and support follow-up lists with activity and authorized Inbox links. Desktop can show a selected record beside the list; smaller screens open the detail view. | `customer-records.spec.ts` and native record database checks. |
 | `/app/tasks` | Paginated authorized root tasks, filters and conversation/review links. | Actual PostgreSQL collection tests and browser navigation checks. |
 | `/app/settings` | Real account/workspace identity, workspace creation/switching, theme and sign-out. | Settings browser checks and theme tracking regression. |
 | `/app/knowledge` | Upload text/PDF/HTML, import one public URL, inspect candidates, approve, adopt revisions and withdraw. | Actual compiled ingestion, crash recovery and responsive browser acceptance. |

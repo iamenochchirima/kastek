@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import type {Pool} from "pg";
 import {z} from "zod";
 import type {ActionScope} from "../../contracts/connections";
-import {contactCommandSchema,contactCreateSchema,contactListSchema,recordCreateSchema,recordListSchema,type RecordCommand} from "../../contracts/customer-records";
+import {customerFollowupListSchema,type CustomerFollowup,contactCommandSchema,contactCreateSchema,contactListSchema,recordCreateSchema,recordListSchema,type RecordCommand} from "../../contracts/customer-records";
 import {PlatformError} from "../../contracts/contracts";
 import {transaction} from "../../infrastructure/database";
 import {createCursorCodec,cursorKeysFromEnvironment} from "../../infrastructure/read-pages";
@@ -11,6 +11,26 @@ import {recordDTO,contactDTO,recordCommand,recordActivity,recordRole,recordMissi
 const iso=(value:any)=>new Date(value).toISOString();
 export class CustomerRecordStore {
  constructor(readonly pool:Pool,readonly cursors=createCursorCodec(cursorKeysFromEnvironment())){}
+ async followups(scope:ActionScope,raw:unknown={}){const filter=customerFollowupListSchema.parse(raw);return transaction(this.pool,async db=>{
+  await requireActionMember(db,scope);const key={kind:'customer-followups',...scope,...filter,cursor:undefined},position=this.cursors.read(filter.cursor,key);
+  const rows=(await db.query(`SELECT h.*,h.requested_at::text AS page_position,c.channel_kind,a.name AS agent_name,ct.id AS contact_id,ct.name AS contact_name,ct.email AS contact_email,ct.phone AS contact_phone,staff.display_name AS assignee_name
+   FROM agents_platform.human_assistance_requests h
+   JOIN agents_platform.customer_conversations c ON c.id=h.conversation_id AND c.organization_id=h.organization_id
+   JOIN agents_platform.agents a ON a.id=c.agent_id AND a.organization_id=h.organization_id
+   JOIN agents_platform.tasks t ON t.id=h.task_id AND t.organization_id=h.organization_id
+   LEFT JOIN agents_platform.customer_contacts ct ON ct.organization_id=h.organization_id AND ct.participant_key=CASE WHEN c.channel_kind='website' THEN 'website:'||c.deployment_id::text||':'||c.session_id::text ELSE c.channel_kind||':'||c.channel_deployment_id::text||':'||c.external_sender_id END
+   LEFT JOIN agents_platform.accounts staff ON staff.id=c.assignee_account_id
+   WHERE h.organization_id=$1 AND h.requested_at<=$2::timestamptz AND t.evaluation_trial_id IS NULL
+   AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_channels x WHERE x.deployment_id=c.deployment_id)
+   AND NOT EXISTS(SELECT 1 FROM agents_platform.evaluation_trial_messaging_channels x WHERE x.deployment_id=c.channel_deployment_id)
+   AND ($3::text IS NULL OR h.status=$3)
+   AND ($4::text IS NULL OR concat_ws(' ',h.contact->>'name',h.contact->>'value',ct.name,ct.email,ct.phone,h.brief->>'reason',h.brief->>'brief',a.name) ILIKE '%'||$4||'%')
+   AND ($5::timestamptz IS NULL OR (h.requested_at,h.id)<($5::timestamptz,$6::uuid))
+   ORDER BY h.requested_at DESC,h.id DESC LIMIT $7`,[scope.organizationId,position.snapshot,filter.status??null,filter.search??null,position.position||null,position.id||null,filter.limit+1])).rows;
+  const page=rows.slice(0,filter.limit),last=page.at(-1);
+  const followups:CustomerFollowup[]=page.map(row=>({id:row.id,status:row.status,customerConversationId:row.conversation_id,contactId:row.contact_id??null,agentName:row.agent_name,channel:row.channel_kind,name:row.contact?.name??row.contact_name??null,email:row.contact?.method==='email'?row.contact.value:row.contact_email??null,phone:row.contact?.method==='phone'?row.contact.value:row.contact_phone??null,preferredTime:row.contact?.preferredTime??null,reason:row.brief?.reason??'',summary:row.brief?.brief??'',assigneeName:row.assignee_name??null,requestedAt:iso(row.requested_at)}));
+  return {followups,nextCursor:rows.length>filter.limit&&last?this.cursors.next({snapshot:position.snapshot,position:last.page_position,id:last.id},key):null};
+ });}
  async members(scope:ActionScope){return transaction(this.pool,async db=>{await requireActionMember(db,scope);return (await db.query(`SELECT m.account_id,a.display_name,m.role FROM agents_platform.memberships m JOIN agents_platform.accounts a ON a.id=m.account_id WHERE m.organization_id=$1 AND m.revoked_at IS NULL ORDER BY a.display_name,m.account_id LIMIT 500`,[scope.organizationId])).rows.map(r=>({accountId:r.account_id,name:r.display_name,role:r.role}));});}
  async list(scope:ActionScope,raw:unknown={}){const filter=recordListSchema.parse(raw);return transaction(this.pool,async db=>{
   await requireActionMember(db,scope);const key={kind:'customer-record-enquiries',...scope,...filter,cursor:undefined},position=this.cursors.read(filter.cursor,key);

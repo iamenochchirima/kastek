@@ -46,6 +46,22 @@ export type CustomerEnquiry = {
     createdAt: string;
   }>;
 };
+export type CustomerFollowup = {
+  id: string;
+  status: "requested" | "human_owned" | "completed" | "withdrawn";
+  customerConversationId: string;
+  contactId: string | null;
+  agentName: string;
+  channel: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  preferredTime: string | null;
+  reason: string;
+  summary: string;
+  assigneeName: string | null;
+  requestedAt: string;
+};
 export type CustomerMember = { accountId: string; name: string; role: string };
 export type RecordsPage<T, K extends string> = { [P in K]: T[] } & {
   nextCursor: string | null;
@@ -53,6 +69,8 @@ export type RecordsPage<T, K extends string> = { [P in K]: T[] } & {
 export function customerRecordsApi(organizationId: string) {
   const base = `${organizationPath(organizationId)}/customer-records`;
   return {
+    followups: (query: URLSearchParams) =>
+      api<RecordsPage<CustomerFollowup, "followups">>(`${base}/followups?${query}`),
     enquiries: (query: URLSearchParams) =>
       api<RecordsPage<CustomerEnquiry, "enquiries">>(
         `${base}/enquiries?${query}`,

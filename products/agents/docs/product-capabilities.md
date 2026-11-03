@@ -27,6 +27,18 @@ not change `product-capabilities-v15` / `AgentsBusinessRunV25`. This capability 
 from `capabilities.workflows`, the existing report-delivery feature. See
 [Business workflows](operations/business-procedures.md) for API, scope, receipt and rollout rules.
 
+## Customer follow-ups
+
+`/app/customers` includes Contacts and Follow-ups alongside Enquiries. Customer-consented support
+details populate Contacts automatically using the verified website participant or channel sender.
+Follow-ups shows the saved request, preferred contact, status, assignee, agent and original
+conversation. Existing saved preferences can be brought across with the explicit support-contact
+backfill command. A matching email alone never merges customers.
+
+Agents ask for a name when collecting contact preferences, reuse details already supplied and
+save an email/phone promptly if the name is not yet available. A customer may decline a name
+without losing their support request. No email or call is sent by saving these details.
+
 ## Publication and installation
 
 Shared contracts in `packages/contracts/src/product-capabilities.ts` describe

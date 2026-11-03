@@ -116,3 +116,20 @@ needs no schema migration. The ordinary response timer and loading state cover t
 | Rollout and identity | Use the existing runtime preview/apply control to update local published bindings with the matching API and worker. Record the source commit and rollout result. Do not require manual agent republishing or claim production availability. |
 | Rollback | Restore the previous API/worker artifact and apply its runtime bindings through the same control. Preserve request records, custom configuration, permissions and accepted work. |
 | Post-release review | Not applicable to production before joint deployment. Review the local conversation with the owner. |
+
+### Customers contact collection
+
+Validated `save_contact` effects populate Customers Contacts in the same transaction. The
+Follow-ups view reads support request state directly and links to Contacts and Inbox. It does
+not introduce another follow-up state machine. The playbook asks for the customer's name and
+preferred contact method, saves provided details promptly and asks for a missing name next.
+It neither invents a name nor makes one a prerequisite for a support request. Saved contact
+evidence is included in the bound procedure context so a later name can reuse the existing method.
+
+Release scope is local Agents API, worker and UI, including the Labs widget's published binding.
+The API adds a member-authorized paginated `customer-records/followups` read. Schema migration
+is not applicable; existing contact and request tables are reused. Analytics, new alerts and new
+logging pipelines are not applicable. Existing command/evidence records retain operation identity;
+the explicit support-contact backfill logs counts only. Run the backfill once after deploying the
+API, then refresh Customers. Rollback uses the preceding API/worker/UI artifacts and retains the
+contact records; no destructive rollback is required. Production deployment is excluded here.

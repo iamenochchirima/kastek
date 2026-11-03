@@ -25,3 +25,6 @@ export type RecordFields=z.infer<typeof recordFieldsSchema>;
 export interface CustomerContact {id:string;revision:string;name:string|null;email:string|null;phone:string|null;createdAt:string;updatedAt:string}
 export interface CustomerRecordActivity {id:string;kind:string;actorAccountId:string|null;body:string|null;createdAt:string}
 export interface RecordEnquiry {id:string;revision:string;status:z.infer<typeof recordStatusSchema>;fields:RecordFields;originalFields:RecordFields;sourceEnquiryId:string|null;sourceTaskId:string|null;agentId:string|null;conversationId:string|null;customerConversationId:string|null;channel:string|null;contactId:string|null;assigneeAccountId:string|null;dueAt:string|null;createdAt:string;updatedAt:string;activity?:CustomerRecordActivity[];bookings?:{id:string;state:string;startsAt:string;endsAt:string}[]}
+
+export const customerFollowupListSchema=contactListSchema.extend({status:z.enum(["requested","human_owned","completed","withdrawn"]).optional()});
+export interface CustomerFollowup {id:string;status:"requested"|"human_owned"|"completed"|"withdrawn";customerConversationId:string;contactId:string|null;agentName:string;channel:string;name:string|null;email:string|null;phone:string|null;preferredTime:string|null;reason:string;summary:string;assigneeName:string|null;requestedAt:string}

@@ -24,7 +24,7 @@ export const publicUpdateAssistanceSchema=z.strictObject({
  contact:z.strictObject({
   method:z.enum(['same_channel','email','phone']).describe("The customer's preferred follow-up method. same_channel uses this conversation and requires no value."),
   value:z.string().trim().min(1).max(320).optional().describe("Exact email address or phone number the customer supplied; required for email/phone, omitted for same_channel."),
-  name:z.string().trim().min(1).max(200).optional().describe("The customer's name, only if supplied by them."),
+  name:z.string().trim().min(1).max(200).optional().describe("Ask for the customer's name when collecting follow-up details. Save it only if supplied by them; do not invent it or block saving an email while waiting for a name."),
   preferredTime:z.string().trim().min(1).max(200).optional().describe("Their exact preferred contact time, only if supplied; this is a preference, not a confirmed appointment."),
   fieldEvidence:z.strictObject({
    value:z.uuid().optional().describe("Customer message ID containing value, if it appears in a different message from the consent quote."),

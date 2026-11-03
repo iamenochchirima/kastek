@@ -1,3 +1,4 @@
+import {projectSupportContact} from "../customer-records/support-contacts";
 import type {ProcedureDomainSnapshot} from "../../contracts/procedure-domain";
 import {procedureReady} from "../../contracts/procedure-tools";
 import {resolveProcedure} from "../../contracts/procedure-definitions";
@@ -32,7 +33,7 @@ export async function humanAssistanceSnapshot(db:PoolClient,row:CustomerConversa
  const configuration=agentConfigurationSchema.parse(latest.configuration);
  const request=(await db.query(`SELECT r.*,choice.customer_choice_message_id,choice.disposition FROM agents_platform.human_assistance_requests r LEFT JOIN LATERAL (SELECT cmd.customer_choice_message_id,cmd.disposition FROM agents_platform.human_assistance_commands cmd JOIN agents_platform.customer_messages m ON m.id=cmd.customer_choice_message_id WHERE cmd.request_id=r.id AND cmd.disposition IS NOT NULL ORDER BY m.sequence DESC LIMIT 1) choice ON true WHERE r.organization_id=$1 AND r.conversation_id=$2 ORDER BY r.requested_at DESC LIMIT 1`,[scope.organizationId,row.id])).rows[0];
  const customerEvidence=(await db.query(`SELECT m.id,m.body FROM agents_platform.customer_messages m JOIN agents_platform.customer_messages current ON current.id=$2 AND current.conversation_id=m.conversation_id WHERE m.conversation_id=$1 AND m.author_kind='visitor' AND m.sequence<=current.sequence ORDER BY m.sequence DESC LIMIT 5`,[row.id,binding.inputMessageId])).rows.map(message=>({id:message.id,text:message.body}));
- return {currentProcedures:(configuration.procedures??[]).filter(ref=>procedureReady(configuration,ref)),customerEvidence,request:request?{id:request.id,status:request.status,noticeMessageId:request.notice_message_id,inputMessageId:request.input_message_id,choiceMessageId:request.customer_choice_message_id??null,disposition:request.disposition??null,noticeStatus:request.notice_message_id?await humanAssistanceNoticeStatus(db,scope,request.notice_message_id):null,...await humanAssistanceReply(db,scope,request.id)}:null};
+ return {currentProcedures:(configuration.procedures??[]).filter(ref=>procedureReady(configuration,ref)),customerEvidence,request:request?{contact:request.contact??null,id:request.id,status:request.status,noticeMessageId:request.notice_message_id,inputMessageId:request.input_message_id,choiceMessageId:request.customer_choice_message_id??null,disposition:request.disposition??null,noticeStatus:request.notice_message_id?await humanAssistanceNoticeStatus(db,scope,request.notice_message_id):null,...await humanAssistanceReply(db,scope,request.id)}:null};
 }
 async function replay(db:PoolClient,taskId:string,operationId:string,digest:string):Promise<HumanAssistanceResult|null>{
   const prior=(await db.query("SELECT request_digest,result FROM agents_platform.human_assistance_commands WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];
@@ -73,6 +74,7 @@ export async function updateHumanAssistance(db:PoolClient,row:CustomerConversati
   if(input.disposition)await customerEvidence(db,row,binding,input.evidenceMessageId,input.evidenceQuote);
   const status=input.disposition==="withdrawn"||input.disposition==="declined"?"withdrawn":input.disposition==="self_service"?"completed":"requested";
   await db.query("UPDATE agents_platform.human_assistance_requests SET contact=coalesce($2::jsonb,contact),human_only=human_only OR $3,status=$4,updated_at=now() WHERE id=$1",[request.id,input.contact??null,input.disposition==="human_only",status]);
+  if(input.contact)await projectSupportContact(db,request.id);
   if(input.disposition==="human_only"){
     const updated=(await db.query<CustomerConversation>("UPDATE agents_platform.customer_conversations SET state='handoff_pending',ownership_generation=ownership_generation+1,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *",[row.id])).rows[0]!;
     await ports.cancel(db,row.id,updated.ownership_generation,taskId);row=updated;
