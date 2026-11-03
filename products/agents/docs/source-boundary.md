@@ -2511,3 +2511,18 @@ manifest digest); a persisted manifest cannot install an executor. Hosted releas
 release 6 remains executable only at its exact frozen digest, alongside hosted
 release 6. New publication 12 selects projection-aware release 9. Runtime adoption
 does not add or replace product operation assignments.
+
+### Unavailable historical execution releases
+
+Conversation planning omits a prior turn when its program, workflow or harness release is no
+longer available. It records the omission reason and includes a bounded context notice so the
+model can ask for missing information instead of inventing history. Current-task publication,
+authority and release validation remain strict. This handles unavailable history; it does not
+make an old executable release available or restore its customer-visible output.
+
+This correction is rolled out to the local Agents API and worker through `dev:local restart`;
+production is excluded. No API/schema migration, permission change, analytics event or new
+alert is required. Existing omission codes and bounded context metadata provide diagnosis.
+Validation covers the release-drift history regression, strict current-release rejection, build
+and module boundaries, plus a same-conversation local check. Rollback restores the preceding
+API/worker artifact; it does not modify stored tasks or conversation records.

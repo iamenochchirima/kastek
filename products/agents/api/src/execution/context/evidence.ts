@@ -200,12 +200,16 @@ export class EvidenceStore {
     const empty={taskId:priorTaskId,evidenceIds:[] as string[],manifest:createDependencyManifest([]),originNodeIds:[] as string[]};
     const prior=(await db.query(`SELECT * FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2 AND conversation_id=$3
       AND turn_sequence<$4`,[priorTaskId,execution.task.organization_id,execution.task.conversation_id,execution.task.turn_sequence])).rows[0];
-    if(!prior||(execution.task.parent_task_id?!await childHistoryAllowed(db,execution,await loadExecution(db,prior.id)):!!prior.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(prior.state)||!await historyPrincipalAllowed(db,execution,await loadExecution(db,prior.id)))throw denied();
+    if(!prior||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(prior.state)||(!execution.task.parent_task_id&&prior.parent_task_id))throw denied();
+    let origin:Execution;
+    try{origin=await loadExecution(db,prior.id);}
+    catch(error){if(error instanceof PlatformError&&["PROGRAM_RELEASE_UNAVAILABLE","HARNESS_RELEASE_UNAVAILABLE","PROCEDURE_RELEASE_UNAVAILABLE"].includes(error.code))return {...empty,eligible:false,omissionCode:error.code};throw error;}
+    if((execution.task.parent_task_id&&!await childHistoryAllowed(db,execution,origin))||!await historyPrincipalAllowed(db,execution,origin))throw denied();
     const rows=selection?[]:(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[prior.root_task_id])).rows.map(nodeDto);
     const roots=rows.filter(node=>node.taskId===priorTaskId),graph=new Map(rows.map(node=>[node.id,node]));
     const manifest=selection?.manifest??collectDependencyGraph(roots.map(node=>node.id),graph),ids=selection?.evidenceIds??[...evidenceGraphIds(roots.map(node=>node.id),graph)];
     try{await assertCurrentEvidence(db,prior.id,manifest,{requireActiveTask:false});await assertCurrentEvidence(db,execution.task.id,manifest,{historyOriginTaskIds:[prior.id]});}
-    catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED","EVIDENCE_LIMIT"].includes(error.code))return{...empty,eligible:false,omissionCode:error.code};throw error;}
+    catch(error){if(error instanceof PlatformError&&["EVIDENCE_SCOPE_DENIED","EVIDENCE_UNAVAILABLE","GRANT_CAPABILITY_DENIED","EVIDENCE_LIMIT","PROGRAM_RELEASE_UNAVAILABLE","HARNESS_RELEASE_UNAVAILABLE","PROCEDURE_RELEASE_UNAVAILABLE"].includes(error.code))return{...empty,eligible:false,omissionCode:error.code};throw error;}
     return{taskId:priorTaskId,eligible:true,evidenceIds:[...ids].sort(),manifest,originNodeIds:selection?.originNodeIds??roots.map(node=>node.id)};
   }
   async checkHistory(taskId:string,priorTaskIds:string[]){

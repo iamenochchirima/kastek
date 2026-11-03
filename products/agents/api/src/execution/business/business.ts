@@ -269,9 +269,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC`,
   [task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null])).rows;
   const eligible = options.evidence ? new Set<string>() : undefined;
+  let unavailableHistory=0;
   if(options.evidence)for(let offset=0;offset<prior.length;offset+=64){
-    for(const item of await options.evidence.checkHistory(taskId,prior.slice(offset,offset+64).map(t=>t.id)))if(item.eligible)eligible!.add(item.taskId);
+    for(const item of await options.evidence.checkHistory(taskId,prior.slice(offset,offset+64).map(t=>t.id))){if(item.eligible)eligible!.add(item.taskId);else unavailableHistory++;}
   }
+  if(unavailableHistory)sources.push({id:"unavailable-history",revision:task.turn_sequence,kind:"result",content:JSON.stringify({kind:"unavailable_history",omittedTurns:unavailableHistory,guidance:"Some earlier conversation turns cannot be safely loaded. Do not invent their content or claim to remember them. Ask for missing context when needed to answer the current message."})});
   const selectedPrior = prior.reverse().filter(t => !omitted.includes(t.id) && (!eligible || eligible.has(t.id)));
   if(sharedProtocol&&options.evidence&&!invalidated&&!task.channel_binding&&omitted.length){
     const indexed=prior.filter(t=>omitted.includes(t.id)&&(!eligible||eligible.has(t.id))),page=indexed.slice(-6);

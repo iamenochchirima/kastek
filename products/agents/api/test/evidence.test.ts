@@ -3,7 +3,8 @@ import {connectFixtureModel} from "./model-fixture";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomBytes,randomUUID} from "node:crypto";
 import {Pool} from "pg";
-import {afterAll,beforeAll,describe,expect,it} from "vitest";
+import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
+import * as compositionCompiler from "../src/execution/lifecycle/validated-composition";
 import {EvidenceStore,citationLabels,assertCurrentEvidence} from "../src/execution/context/evidence";
 import {PlatformStore} from "../src/product/agents/store";
 import {KnowledgeStore} from "../src/capabilities/knowledge/knowledge";
@@ -136,6 +137,31 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const summary=await evidence.derive(f.task.id,"summary","memory-summary");expect(summary.manifest.dependencies[0]?.kind).toBe("memory");
   await memory.mutate(managed,accepted.id,{operationId:randomUUID(),expectedRevision:accepted.revision,action:"forget"});
   await expect(evidence.derive(f.task.id,"artifact",randomUUID())).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+ });
+
+ it("omits unavailable historical releases without relaxing current execution or history scope",async()=>{
+  const f=await fixture(),passage=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);await context(f,passage);
+  await finishOperation(pool,f.task.id,f.operationId,"completed",{},null,0);
+  await pool.query("UPDATE agents_platform.tasks SET state='completed',output=$2 WHERE id=$1",[f.task.id,`Known fact [${passage.label}]`]);
+  const {task:staleCurrent}=await platform.admitTask({authority:f.authority,grantId:f.grant.id,versionId:f.version.id,conversationId:f.task.conversation_id,requestKey:randomUUID(),input:"Accepted before the release change"});
+  const configuration=structuredClone(f.version.configuration);configuration.instructions+=" Current release instructions.";
+  const draft=await platform.updateDraft({...f.scope,agentId:f.version.agent_id,expectedRevision:1,configuration});
+  const version=await platform.createVersion({...f.scope,agentId:f.version.agent_id,expectedRevision:draft.draft_revision});
+  const grant={...f.grant,id:randomUUID(),versionId:version.id};await platform.createGrant({accountId:f.scope.accountId,grant});
+  const {task:current}=await platform.admitTask({authority:f.authority,grantId:grant.id,versionId:version.id,conversationId:f.task.conversation_id,configurationMode:"current",requestKey:randomUUID(),input:"Continue on the current release"});
+  const unrelated=await fixture(),compile=compositionCompiler.compileValidatedComposition;
+  const changed=vi.spyOn(compositionCompiler,"compileValidatedComposition").mockImplementation((config,...args)=>{
+   const composition=compile(config,...args);if(config.instructions!==f.version.configuration.instructions)return composition;
+   const {digest:_digest,...content}=composition;
+   const drifted={...content,program:{...content.program,digest:requestDigest("replacement trusted program release")}};
+   return {...drifted,digest:requestDigest(drifted)};
+  });
+  try{
+   expect((await evidence.checkHistory(current.id,[f.task.id]))[0]).toMatchObject({taskId:f.task.id,eligible:false,omissionCode:"PROGRAM_RELEASE_UNAVAILABLE",evidenceIds:[],originNodeIds:[]});
+   await expect(evidence.checkHistory(current.id,[unrelated.task.id])).rejects.toMatchObject({code:"EVIDENCE_SCOPE_DENIED"});
+   await expect(evidence.checkHistory(staleCurrent.id,[])).rejects.toMatchObject({code:"PROGRAM_RELEASE_UNAVAILABLE"});
+   await expect(assertCurrentEvidence(pool,current.id,await evidence.taskManifest(current.id))).resolves.toBeUndefined();
+  }finally{changed.mockRestore();}
  });
 
  it("omits a candidate beyond32 history origins while preserving strict consumed-provenance fencing",async()=>{
