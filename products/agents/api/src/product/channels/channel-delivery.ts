@@ -1,3 +1,4 @@
+import {humanAssistanceNoticeValid} from "../inbox/human-assistance";
 import { MemberChannels } from "../assistant/member-channels";
 import {assertEnquiryReviewPrompt,enquiryReviewDecision} from "./channel-enquiry-reviews";
 import { randomUUID } from "node:crypto";
@@ -235,6 +236,7 @@ export class ChannelDelivery {
             WHERE mem.organization_id=p.organization_id AND mem.account_id=m.author_account_id AND mem.revoked_at IS NULL)))
         FOR SHARE OF o,p,d,c,m`,[row.id,row.claim_id,HANDOFF_RECEIPT,BOOKING_UNCERTAIN_RECEIPT])).rows[0];
       if (!result) throw new PlatformError("CHANNEL_AUTHORITY_CHANGED",403,"Message authority changed");
+      if(result.message.request_key?.startsWith('human-assistance:')&&!await humanAssistanceNoticeValid(db,result.message,true))throw new PlatformError('CHANNEL_AUTHORITY_CHANGED',403,'Message authority changed');
       if(pendingReceipt) await this.inbox.assertPendingReceiptDelivery(db,result.message);
       if(supportStatus) await this.inbox.assertSupportStatusDelivery(db,result.message);
       if(connectedUncertainty) {

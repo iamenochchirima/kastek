@@ -8,6 +8,8 @@ export async function systemMessageIds(db: Pool | PoolClient, conversationId: st
   const rows = (await db.query<{ id: string }>(`SELECT n.message_id AS id FROM agents_platform.support_waiting_notices n
     JOIN agents_platform.support_waiting w ON w.task_id=n.task_id
     WHERE w.conversation_id=$1 AND n.state='published' AND n.message_id=ANY($2::uuid[])
+    UNION SELECT h.notice_message_id AS id FROM agents_platform.human_assistance_requests h
+      WHERE h.conversation_id=$1 AND h.notice_message_id=ANY($2::uuid[])
     UNION SELECT r.message_id AS id FROM agents_platform.pending_handoff_receipts r
       WHERE r.conversation_id=$1 AND r.outcome='fallback' AND r.message_id=ANY($2::uuid[])
     UNION SELECT n.message_id AS id FROM agents_platform.connected_uncertainty_notices n

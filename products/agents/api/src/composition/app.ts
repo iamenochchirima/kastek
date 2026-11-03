@@ -1,3 +1,4 @@
+import { afterHoursAssistance } from "../product/procedures/definitions";
 import { contextGrantCeiling } from "../execution/models/settings";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
@@ -430,6 +431,17 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const agent = await store.getAgent(user.id, org, agentId);
     const [versions, deployments] = await Promise.all([store.listVersions(user.id, org, agentId), store.listDeployments(user.id, org, agentId)]);
     return { agent: dto(agent), versions: versions.map(dto), deployments: deployments.map(dto) };
+  });
+  app.get(`${base}/agents/:agentId/procedures`, async request => {
+    const agent = await store.getAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));
+    const config = agentConfigurationSchema.parse(agent.draft);
+    const reasons = [
+      ...(!config.tools.includes("channel.request_handoff") ? [{code:"HUMAN_SUPPORT_DISABLED",message:"Enable human support"}] : []),
+      ...(!config.tools.includes("support.get_status_v2") ? [{code:"SUPPORT_STATUS_DISABLED",message:"Enable support status"}] : []),
+      ...(!config.supportHours ? [{code:"SUPPORT_HOURS_MISSING",message:"Set support hours"}] : []),
+    ];
+    return {entries:[{id:afterHoursAssistance.id,version:afterHoursAssistance.version,name:afterHoursAssistance.title,description:afterHoursAssistance.description,
+      readiness:{state:reasons.length ? "unavailable" : "ready",reasons}}]};
   });
   app.delete(`${base}/agents/:agentId`, async (request, reply) => {
     await store.deleteAgent((await account(request)).id, organizationId(request), uuid.parse(parameters(request).agentId));

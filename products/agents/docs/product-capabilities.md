@@ -7,6 +7,25 @@ product capabilities alongside native and connected tools. Instructions, selecte
 capabilities and current authority determine an agent's available work. A preset
 name does not select a separate execution engine or grant access.
 
+## Business workflows
+
+Agents may select immutable playbook references in `configuration.procedures`, default `[]`.
+Configure → Tools → Workflows exposes the per-agent catalogue. `after-hours-assistance@1`
+provides the first **After-hours support** workflow. The ordinary agent discovers and loads
+selected definitions through `procedures.*`, while durable instances track revision-checked
+progress and verified domain receipts. A definition never expands tool or tenant authority.
+
+Support facts come from the backend. Human-assistance request tools keep a pending human
+request independent from agent speaking ownership; staff takeover and explicit human-only
+choices still fence automated work. Optional contact preferences are customer-evidenced data,
+not promises of an outbound call or message. Only verified domain outcomes can satisfy workflow
+completion. Cancellation does not undo recorded effects or withdraw the separate support request.
+
+Schemas116/117 store instances, commands and human requests. Definition version1 opt-in does
+not change `product-capabilities-v15` / `AgentsBusinessRunV25`. This capability is separate
+from `capabilities.workflows`, the existing report-delivery feature. See
+[Business workflows](operations/business-procedures.md) for API, scope, receipt and rollout rules.
+
 ## Publication and installation
 
 Shared contracts in `packages/contracts/src/product-capabilities.ts` describe

@@ -1,3 +1,4 @@
+import { procedureToolNames } from "../../contracts/procedures";
 import { orchestrationTools } from "../../contracts/orchestration";
 import { productAuthorityBindings } from "../../capabilities/products/product-capabilities";
 import { PlatformError, requestDigest, type AgentConfiguration } from "../../contracts/contracts";
@@ -66,7 +67,8 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.capabilities.sandbox.enabled && !program.sandbox) ||
       (configuration.connectedToolBindingIds.length > 0 && !program.connectedTools) ||
       (configuration.capabilities.workflows.enabled && !program.workflows.includes(configuration.capabilities.workflows.profileId))) denied();
-  const expectedTools: string[] = [...configuration.tools,...configuration.productBindings.map(binding=>binding.alias), ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
+  if(configuration.procedures?.length && (!configuration.tools.includes("channel.request_handoff") || !configuration.tools.includes("support.get_status_v2") || !configuration.supportHours)) throw new PlatformError("PROCEDURE_NOT_READY",409,"Enable human support and configure support hours before selecting the workflow");
+  const expectedTools: string[] = [...configuration.tools,...(configuration.procedures?.length ? procedureToolNames : []),...configuration.productBindings.map(binding=>binding.alias), ...(configuration.sourceRevisionIds.length ? ["knowledge.initial"] : []),
     ...(dependencies.tools.some(tool => (PROTOCOL_TOOL_NAMES as readonly string[]).includes(tool.name)) ? PROTOCOL_TOOL_NAMES : []),
     ...(configuration.memory.enabled&&configuration.tools.includes("memory.search")&&!configuration.tools.includes("memory.read")?["memory.read"]:[]),
     ...(configuration.skillIds.length ? ["skills.activate", "skills.read",...(configuration.capabilities.sandbox.enabled&&configuration.tools.includes("sandbox.analyze")?["skills.run"]:[])] : []),
@@ -80,7 +82,8 @@ export function compileComposition(reference: ProgramReference, configuration: A
       (configuration.tools.includes("sandbox.analyze") && !configuration.capabilities.sandbox.enabled) ||
       (configuration.tools.some(name => name.startsWith("memory.")) && !configuration.memory.enabled)) denied();
   const workflowConfiguration = configuration.capabilities.workflows,bookingConfiguration=configuration.capabilities.businessActions;
-  const workflows = dependencies.workflows.filter(workflow => workflowConfiguration.enabled&&workflow.id===workflowConfiguration.profileId || bookingConfiguration.enabled&&workflow.id===bookingConfiguration.profileId);
+  const workflows = dependencies.workflows.filter(workflow => workflowConfiguration.enabled&&workflow.id===workflowConfiguration.profileId || bookingConfiguration.enabled&&workflow.id===bookingConfiguration.profileId || configuration.procedures?.some(ref=>ref.id===workflow.id&&ref.version===workflow.version));
+  if((configuration.procedures??[]).some(ref=>!workflows.some(workflow=>workflow.id===ref.id&&workflow.version===ref.version)))throw new PlatformError("PROCEDURE_RELEASE_UNAVAILABLE",503,"The selected workflow release is unavailable");
   if(bookingConfiguration.enabled&&!workflows.some(workflow=>workflow.id===bookingConfiguration.profileId))throw new PlatformError("WORKFLOW_RELEASE_UNAVAILABLE",503,"The booking workflow release is unavailable");
   if (workflowConfiguration.enabled && workflows.filter(workflow=>workflow.id===workflowConfiguration.profileId).length !== 1) throw new PlatformError("WORKFLOW_RELEASE_UNAVAILABLE", 503, "The workflow release is unavailable");
   const bindings = dependencies.connectedBindings.map(binding => capabilityBindingSchema.parse(binding));

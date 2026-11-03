@@ -1,3 +1,4 @@
+import { procedureContext } from "../../capabilities/procedure-tools";
 import { measureCompactionProgress, compactionDidNotProgress, compactionForecast, type CompactionProgress } from "../context/compaction-progress";
 import { executionReservationPressure } from "../lifecycle/reservation-pressure";
 import { executionAllowanceObservation } from "../lifecycle/work-policy";
@@ -214,8 +215,9 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const visibleTools = await visibleTaskControlTools(pool,execution,await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])],task.harness_release==="product-capabilities-v13",new Map(execution.toolBindings.map(binding=>[binding.name,binding.version]))).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2"].includes(tool.function.name))
+  })() : [])],task.harness_release==="product-capabilities-v13",new Map(execution.toolBindings.map(binding=>[binding.name,binding.version]))).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2", "procedures_discover", "procedures_load", "procedures_start", "procedures_inspect", "procedures_update", "procedures_cancel", "support_request_assistance", "support_update_assistance"].includes(tool.function.name))
     && (tool.function.name!=="artifact_create" || Boolean(options.artifacts?.objects)&&!task.channel_binding&&["human","automation"].includes(task.principal.kind))
+    && !(config.procedures?.length && ["channel_request_handoff","support_request_handoff","support_request_handoff_v2"].includes(tool.function.name))
     && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")
     && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff"))));
   const directTools = visibleTools.filter(tool => !tool.function.name.startsWith("memory_") ||
@@ -328,10 +330,11 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     historyAvailable:recoveryTools.length>0,historyArtifactsAvailable,memoryEnabled:memoryReadAllowed,
     memoryCanPropose:toolCalling && directTools.some(tool=>tool.function.name==="memory_propose"),delegatedTask:Boolean(task.parent_task_id),
   }):"";
+  const procedureInstructions=await procedureContext(pool,execution);
   const selectedProductContext=task.product!=="agents"?await options.product!.selectedContextReference(taskId):null;
   if(selectedProductContext&&!options.evidence)throw new PlatformError("PRODUCT_CONTEXT_UNAVAILABLE",503,"Selected context evidence is unavailable");
   const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+recoveryInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+recoveryInstructions+procedureInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };

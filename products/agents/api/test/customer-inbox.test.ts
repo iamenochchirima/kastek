@@ -1,3 +1,4 @@
+import {verifyHumanAssistanceEvidence} from "../src/product/inbox/human-assistance";
 import { connectFixtureModel } from "./model-fixture";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import Fastify from "fastify";
@@ -42,11 +43,12 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { return platform.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "inbox@example.test", displayName: "Operator" }); }
-  async function fixture(structuredHandoff = false) {
+  async function fixture(structuredHandoff = false, afterHours = false) {
     const owner = await actor(), member = await actor(), outsider = await actor(), org = await platform.createOrganization(owner.id, "Inbox fixtures");
     await pool.query("INSERT INTO agents_platform.memberships(organization_id,account_id,role) VALUES($1,$2,'member')", [org.id, member.id]);
     await connectFixtureModel(pool, owner.id, org.id);
     const config = defaultBusinessConfiguration(); config.program = { id: "grounded-conversation", version: "1" };
+    if(afterHours) config.supportHours={timeZone:"UTC",intervals:[{day:(new Date().getUTCDay()+1)%7,start:"09:00",end:"17:00"}]};
     if (structuredHandoff) config.tools = ["channel.request_handoff", "support.request_handoff"];
     const agent = await platform.createAgent({ accountId: owner.id, organizationId: org.id, name: "Support", configuration: config });
     const version = await platform.createVersion({ accountId: owner.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
@@ -62,6 +64,32 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     return inbox.command({ ...f.scope, accountId }, f.conversation.id, { commandId: randomUUID(), expectedRevision: current.conversation.revision, action, ...extra });
   }
   function binding(f: Awaited<ReturnType<typeof fixture>>, messageId: string, generation = "1"): ChannelBinding { return { customerConversationId: f.conversation.id, ownershipGeneration: generation, inputMessageId: messageId }; }
+  it("records after-hours help without transferring ownership and fences only actual takeover", async()=>{
+    const f=await fixture(true,true),turn=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"I need a person. Please contact me at person@example.test"});
+    const taskId=turn.message.task_id!,bound=binding(f,turn.message.id),operationId=randomUUID();
+    const request=await transaction(pool,db=>inbox.requestHumanAssistance(db,bound,taskId,{operationId,brief:{reason:"Human requested",brief:"Customer needs support"}}));
+    expect(request.state).toBe("automation_active");expect(request.supportFacts.hours.state).toBe("closed");
+    const execution=(await pool.query("SELECT conversation_id FROM agents_platform.tasks WHERE id=$1",[taskId])).rows[0];
+    const procedureScope={organizationId:f.org.id,agentId:f.agent.id,conversationId:execution.conversation_id};
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,{commandId:randomUUID(),expectedRevision:"1",route:"self_service",receipts:[]}))).toBe(false);
+    expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,{commandId:randomUUID(),expectedRevision:"1",route:"callback",receipts:[{kind:"after_hours_notice",sourceId:request.noticeMessageId,status:"confirmed"},{kind:"human_request",sourceId:request.requestId,status:"confirmed"}]}))).toBe(true);
+    expect(await transaction(pool,db=>inbox.requestHumanAssistance(db,bound,taskId,{operationId,brief:{reason:"Human requested",brief:"Customer needs support"}}))).toEqual(request);
+    const visible=await inbox.readVisitor(f.visitor,f.conversation.id);expect(visible.messages.at(-1)?.body).toContain("outside its support hours");expect(visible.messages.at(-1)?.body).toContain("I can still help here");
+    expect((await inbox.list(f.scope,{state:"human_requested",limit:30})).items.map(v=>v.id)).toContain(f.conversation.id);
+    const contact={method:"email",value:"person@example.test",evidenceMessageId:turn.message.id,consentQuote:"Please contact me at person@example.test"};
+    await expect(transaction(pool,db=>inbox.updateHumanAssistance(db,bound,taskId,{operationId:randomUUID(),requestId:request.requestId,contact:{...contact,value:"invented@example.test"}}))).rejects.toMatchObject({code:"HUMAN_ASSISTANCE_CONTACT_INVALID"});
+    await transaction(pool,db=>inbox.updateHumanAssistance(db,bound,taskId,{operationId:randomUUID(),requestId:request.requestId,contact}));
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.humanRequest?.contact?.value).toBe("person@example.test");
+    await command(f,"claim");await transaction(pool,db=>inbox.assertBinding(db,bound,{organization_id:f.org.id,version_id:f.version.id,root_task_id:taskId}));
+    await command(f,"takeover");
+    await expect(transaction(pool,db=>inbox.assertBinding(db,bound,{organization_id:f.org.id,version_id:f.version.id,root_task_id:taskId}))).rejects.toMatchObject({code:"CHANNEL_OWNERSHIP_CHANGED"});
+    expect((await inbox.readStaff(f.scope,f.conversation.id)).conversation.humanRequest?.status).toBe("human_owned");
+    const returned=await command(f,"return");
+    const only=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Human support only please. Stop the assistant."});
+    const paused=await transaction(pool,db=>inbox.updateHumanAssistance(db,binding(f,only.message.id,returned.ownership_generation),only.message.task_id!,{operationId:randomUUID(),requestId:request.requestId,disposition:"human_only",evidenceMessageId:only.message.id,evidenceQuote:"Stop the assistant."}));
+    expect(paused.state).toBe("handoff_pending");
+    const pending=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Here are more details"});expect(pending.message.task_id).toBeNull();
+  });
   it("projects the latest visitor reply status without exposing execution errors or stale failures", async () => {
     const f = await fixture(), other = await fixture();
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();

@@ -479,8 +479,10 @@ are channels. Sandboxes are execution resources. None adds a third category.
 
 ### Business procedures within autonomous agents
 
-Target architecture, agreed direction recorded 3 November 2026. This section defines the target;
-it does not claim a generic procedure capability is implemented or deployed. The execution
+The first implementation is `after-hours-assistance@1`, selected per agent under Configure →
+Tools → Workflows. Generic versioned instances and receipt-based progress run in the existing
+business loop. The [operations reference](../operations/business-procedures.md) documents implemented
+contracts and limits. Production rollout remains a joint owner step. The execution
 checklist is in the [shared workflow implementation plan](https://linear.app/kasitek/document/shared-autonomous-agent-workflows-architecture-and-implementation-42b7f624bdba).
 
 A business agent remains the same model-directed agent while carrying out a workflow. A workflow
@@ -518,8 +520,9 @@ availability, offers help, records human-help intent, collects missing preferred
 when wanted and confirms only committed effects. Contact supplied, verified notification enabled,
 request saved, staff assigned and customer contacted remain distinct facts. Later contact is
 offered only through a real authorized delivery route; the next opening is not a callback promise.
-The earlier status-only pending-handoff restriction must be revised consistently across ingress,
-permissions, publication, timers, receipts and adapters for this target behavior.
+Selected after-hours workflows use a deferred request while the conversation stays
+`automation_active`. The earlier status-only pending-handoff restriction applies to legacy
+ownership-changing handoff paths and explicit human-only pauses, not ordinary deferred requests.
 
 Support, content, booking and other business procedures share this contract while keeping their
 own domain schemas and actual confirmation/review policies. No separate permanent agent or

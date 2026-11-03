@@ -27,7 +27,7 @@ export function InboxQueue({ items, selected, search, filtered, error, hasMore, 
         <span className="inbox-queue-avatar" aria-hidden="true">{customer ? customer.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase() : <HugeiconsIcon icon={UserIcon} size={19} />}</span>
         <span className="inbox-conversation-content"><span className="inbox-conversation-title"><span className="truncate">{customer || "Customer"}</span></span>{item.agentName ? <span className="sr-only">Agent {item.agentName}</span> : null}
           <span className="inbox-queue-preview">{preview || (item.lastMessage ? "Message" : "No messages yet")}</span>
-          {item.channelAvailable === false ? <span className="inbox-queue-unavailable">Channel unavailable</span> : null}
+          {item.humanRequest?.status === "requested" ? <span className="inbox-queue-unavailable">Support requested</span> : null}{item.channelAvailable === false ? <span className="inbox-queue-unavailable">Channel unavailable</span> : null}
         </span><span className="inbox-queue-channel" aria-label={channels[item.channel]}><HugeiconsIcon icon={channelIcons[item.channel]} size={18} aria-hidden="true" /></span><span className="inbox-queue-end"><time dateTime={displayTime}>{new Date(displayTime).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time><span className={`inbox-queue-status status-${item.state}`}>{statuses[item.state]}</span></span>
       </button>;
     })}</div> : <p className="inbox-queue-empty">{search.trim() || filtered ? "No matching conversations" : "No customer conversations"}</p>}

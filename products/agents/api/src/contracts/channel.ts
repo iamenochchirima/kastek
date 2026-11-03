@@ -30,6 +30,9 @@ export interface VisitorLineage {
   current: { deploymentId: string; sessionId: string }; origin: { deploymentId: string; sessionId: string }; originTaskId?: string;
 }
 export interface ChannelExecutionPorts {
+  requestHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
+  updateHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
+
   assertBinding(db: Pool | PoolClient, binding: ChannelBinding, task: { organization_id: string; version_id: string; root_task_id: string }): Promise<void>;
   requestHandoff(db: PoolClient, binding: ChannelBinding, taskId: string, brief?: HandoffBrief, cause?: { bookingOperationId: string }): Promise<{ state: "handoff_pending" }>;
   requestHandoffV2?(db: PoolClient, binding: ChannelBinding, taskId: string, brief: HandoffBrief, feedback?: HandoffFeedbackRequest): Promise<{ state: "handoff_pending" }>;

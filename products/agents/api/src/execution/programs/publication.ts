@@ -1,3 +1,4 @@
+import { loadProcedure } from "../../product/procedures/definitions";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import { requestDigest, type AgentConfiguration } from "../../contracts/contracts";
 import { SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../../contracts/execution";
@@ -14,6 +15,6 @@ export function compilePublishedComposition(configuration: AgentConfiguration, c
   const includeProtocol = shared && (acceptedBindings === undefined || PROTOCOL_TOOL_NAMES.some(name=>versions!.has(name)));
   return compileComposition(configuration.program, configuration, {
     runtime: pinnedRuntime ?? {release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME}, tools: publishedToolBindings(configuration,pinnedRuntime?.release==="product-capabilities-v13",versions,includeProtocol), connectedBindings,
-    workflows: [REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING].map(binding=>({id:binding.profileId,version:binding.version,digest:requestDigest(binding)})),
+    workflows: [...[REPORT_WORKFLOW_BINDING,BOOKING_WORKFLOW_BINDING].map(binding=>({id:binding.profileId,version:binding.version,digest:requestDigest(binding)})), ...(configuration.procedures??[]).map(ref=>({...ref,digest:requestDigest(loadProcedure(ref))}))],
   });
 }

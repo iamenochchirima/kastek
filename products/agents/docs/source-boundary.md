@@ -1,6 +1,6 @@
 # Implementation boundary
 
-Owner: Agents engineering. Last reviewed: 2026-10-27.
+Owner: Agents engineering. Last reviewed: 2026-11-03.
 
 Agents is a fresh standalone product. Its API and business worker use the dedicated
 `agents_platform` PostgreSQL schema. Setup loads the ordered SQL files in
@@ -13,6 +13,32 @@ Shared errors, initiating principals and canonical request digests are defined i
 `contracts/channel.ts` owns the handoff-feedback snapshot schema and fixed receipt deadline, while
 execution validates complete model-message groups. Support schedule calculations and aggregate
 presence reads belong to the support capabilities; Inbox owns presence updates and waiting notices.
+
+## Business workflow boundary
+
+`contracts/procedures.ts` owns versioned definition references and durable progress contracts.
+`product/procedures/definitions.ts` contains the first immutable playbook,
+`after-hours-assistance@1`; `product/procedures/store.ts` owns instance/revision/idempotency
+storage. Schemas116/117 add procedure state and the independent human-assistance request domain.
+`capabilities/procedure-tools.ts` exposes discovery, loading, lifecycle and support request tools
+to the existing business model loop. Procedures grant no capability authority.
+
+Per-agent `configuration.procedures` defaults to empty. The authenticated
+`GET /api/organizations/:organizationId/agents/:agentId/procedures` catalogue powers
+Configure → Tools → Workflows. Execution intersects selected accepted/current definitions with
+trusted organization, agent, conversation and channel authority. Cross-agent visibility is denied.
+The current runtime remains `product-capabilities-v15` / `AgentsBusinessRunV25`.
+
+Inbox owns human requests, optional customer-evidenced contact preferences, customer notices,
+assignment and speaking ownership. A requested human can coexist with active agent replies;
+staff takeover and explicit human-only choice fence those replies. Procedure completion checks
+actual domain receipts and unresolved effects. Model claims, queue admission or a saved contact
+preference cannot prove delivery, human response or a callback. The existing ownership-changing
+handoff remains a distinct path for configurations without this opt-in.
+
+[Business workflows](operations/business-procedures.md) records contracts and release limits.
+Deployment and rollback are joint owner steps pending; neither these source boundaries nor
+focused local checks establish production rollout or live-model acceptance.
 
 ## Private organization assistant
 

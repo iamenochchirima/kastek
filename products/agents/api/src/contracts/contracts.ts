@@ -1,3 +1,4 @@
+import { procedureReferenceSchema } from "./procedures";
 import { canonicalJson, PlatformError, principalSchema, type InitiatingPrincipal } from "./primitives";
 export { canonicalJson, PlatformError, principalSchema, requestDigest, isCustomerPrincipal, type InitiatingPrincipal } from "./primitives";
 import { orchestrationTools, orchestrationPolicySchema } from "./orchestration";
@@ -79,6 +80,7 @@ export const agentConfigurationSchema = z.strictObject({
     compactAtTokens: storagePositiveInteger })]).default({mode:"automatic"}),
   tools: z.array(toolNameSchema).max(toolNameSchema.options.length).refine(tools => new Set(tools).size === tools.length, "Duplicate tool").default([]),
   skillIds: z.array(z.uuid()).max(8).default([]),
+  procedures: z.array(procedureReferenceSchema).max(20).refine(refs => new Set(refs.map(ref => ref.id)).size === refs.length, "Duplicate workflow").optional(),
 }).refine(configuration => collectConnectedToolAuthorityIds(configuration).length <= 8, "At most eight connected tools may be authorized across the agent and its specialists")
   .refine(configuration => configuration.program.id === "tool-directed" && configuration.program.version === "4" ||
     !configuration.capabilities.delegation.enabled || configuration.capabilities.delegation.bindings.every(binding => binding.maxTokens !== null && binding.maxTokens <= 12000 && binding.maxActiveMs !== null),

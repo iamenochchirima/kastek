@@ -1,0 +1,10 @@
+import {z} from "zod";
+import {handoffBriefSchema} from "./channel";
+
+export const preferredSupportContactSchema=z.strictObject({method:z.enum(["same_channel","email","phone"]),value:z.string().trim().min(1).max(320).optional(),name:z.string().trim().min(1).max(200).optional(),preferredTime:z.string().trim().min(1).max(200).optional(),fieldEvidence:z.strictObject({value:z.uuid().optional(),name:z.uuid().optional(),preferredTime:z.uuid().optional()}).optional(),evidenceMessageId:z.uuid(),consentQuote:z.string().trim().min(1).max(1000)}).superRefine((v,c)=>{if(v.method!=="same_channel"&&!v.value)c.addIssue({code:"custom",message:"Contact value is required",path:["value"]});if(v.method==="email"&&v.value&&!z.email().safeParse(v.value).success)c.addIssue({code:"custom",message:"Enter a valid email",path:["value"]});if(v.method==="same_channel"&&v.value)c.addIssue({code:"custom",message:"This conversation needs no contact value",path:["value"]});if(v.method==="phone"&&v.value&&(!/^[+()0-9 .-]+$/.test(v.value)||v.value.replace(/[^0-9]/g,"").length<7||v.value.replace(/[^0-9]/g,"").length>15))c.addIssue({code:"custom",message:"Enter a valid phone number",path:["value"]});});
+export type PreferredSupportContact=z.infer<typeof preferredSupportContactSchema>;
+export const requestHumanAssistanceInputSchema=z.strictObject({brief:handoffBriefSchema});
+export const requestHumanAssistanceSchema=requestHumanAssistanceInputSchema.extend({operationId:z.string().min(1).max(256)});
+export const updateHumanAssistanceInputSchema=z.strictObject({requestId:z.uuid(),contact:preferredSupportContactSchema.optional(),disposition:z.enum(["human_only","withdrawn","self_service","declined"]).optional(),evidenceMessageId:z.uuid().optional(),evidenceQuote:z.string().trim().min(1).max(1000).optional()});
+export const updateHumanAssistanceSchema=updateHumanAssistanceInputSchema.extend({operationId:z.string().min(1).max(256)}).refine(v=>!!v.contact||!!v.disposition,{message:"Choose a contact or disposition"});
+

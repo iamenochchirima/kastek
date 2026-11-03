@@ -13,8 +13,9 @@ export type Configuration = {
   memory?: { enabled: boolean };
   context?: { mode: "automatic" } | { maxInputTokens: number; compactAtTokens: number };
   supportHours?: SupportHours;
-  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.read" | "memory.propose" | "agents.delegate" | "agents.discover" | "agents.start" | "agents.status" | "agents.result" | "agents.wait" | "agents.followup" | "agents.cancel" | "work.update" | "work.inspect" | "tasks.inspect" | "tasks.cancel" | "sandbox.analyze" | "channel.request_handoff" | "support.request_handoff" | "support.get_status" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
+  tools?: ("knowledge.search" | "knowledge.read" | "memory.search" | "memory.read" | "memory.propose" | "agents.delegate" | "agents.discover" | "agents.start" | "agents.status" | "agents.result" | "agents.wait" | "agents.followup" | "agents.cancel" | "work.update" | "work.inspect" | "tasks.inspect" | "tasks.cancel" | "sandbox.analyze" | "channel.request_handoff" | "support.request_handoff" | "support.request_handoff_v2" | "support.get_status" | "support.get_status_v2" | "enquiry.submit" | "enquiry.read" | "enquiry.amend" | "records.search" | "records.update")[];
   skillIds?: string[];
+  procedures?: Array<{ id: string; version: string }>;
   capabilities: { enquiries?: {enabled:false} | {enabled:true;fields:Array<"name"|"email"|"phone"|"service"|"message">}; delegation: DelegationConfiguration; sandbox: { enabled: false } | { enabled: true; profileId: "python-analysis-v1" }; businessActions: { enabled: false } | { enabled: true; profileId: "calendar-booking-v1"; permittedOperations?: Array<"calendar.availability" | "calendar.book">; policyId: string; policyDigest: string }; workflows: { enabled: false } | { enabled: true; profileId: "report-delivery-v1"; connectionId: string; reportArtifactName?: string; title?: string }; schedules: { enabled: false } };
 };
 export type CatalogueItem = {

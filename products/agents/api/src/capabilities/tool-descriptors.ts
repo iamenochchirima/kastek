@@ -1,9 +1,10 @@
+import { procedureToolNames } from "../contracts/procedures";
 import { orchestrationTools } from "../contracts/orchestration";
 import { historyResultBytes } from "../contracts/history";
 import type { AgentConfiguration } from "../contracts/contracts";
 import { capabilityContractMetadata } from "./tool-contracts";
 export interface ToolDescriptor {
-  name: AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read" | "skills.run" | "booking.availability" | "booking.reserve" | "tools.discover" | "tools.load" | "history.search" | "history.read"; version: "1" | "2" | "3" | "4";
+  name: typeof procedureToolNames[number] | AgentConfiguration["tools"][number] | "report.deliver" | "knowledge.initial" | "skills.activate" | "skills.read" | "skills.run" | "booking.availability" | "booking.reserve" | "tools.discover" | "tools.load" | "history.search" | "history.read"; version: "1" | "2" | "3" | "4";
   effect: "read" | "idempotent_memory" | "delegation" | "resource" | "external_effect" | "channel_control";
   maxDurationMs: number; maxResultBytes: number; retry: "safe_read" | "idempotent_receipt" | "stable_children" | "adapter_reconcile" | "status_only";
   cancel: "stop_admission" | "dependent_children" | "adapter_cleanup" | "reconcile_claimed";
@@ -14,6 +15,7 @@ export interface ToolDescriptor {
 }
 export const BOOKING_WORKFLOW_BINDING=Object.freeze({profileId:"calendar-booking-v1",version:"1",adapter:"calendar-provider-v1",stages:["prepare_exact_intent","customer_confirmation","reserve_slot","validate_provider_availability","claim_once","provider_commit","reconcile","confirm_receipt"]});
 const descriptors: readonly Omit<ToolDescriptor,"inputSchema"|"outputSchema"|"requiredAuthority"|"requiredResources"|"reconciliation">[] = [
+  ...procedureToolNames.map(name=>({name,version:"1" as const,effect:(["procedures.discover","procedures.load","procedures.inspect"].includes(name)?"read":"channel_control") as ToolDescriptor["effect"],maxDurationMs:30000,maxResultBytes:16384,retry:"idempotent_receipt" as const,cancel:"stop_admission" as const})),
   {name:"tools.discover",version:"3",effect:"read",maxDurationMs:30000,maxResultBytes:65536,retry:"safe_read",cancel:"stop_admission"},
   {name:"tools.load",version:"3",effect:"read",maxDurationMs:30000,maxResultBytes:524288,retry:"idempotent_receipt",cancel:"stop_admission"},
   {name:"history.search",version:"2",effect:"read",maxDurationMs:30000,maxResultBytes:historyResultBytes["history.search"],retry:"safe_read",cancel:"stop_admission"},
@@ -89,6 +91,7 @@ const nativePresentation:Record<string,{title:string;category:string;schemaLoadi
   ["enquiry.submit","Submit enquiry","Enquiries","auto"],["enquiry.read","Read enquiry","Enquiries","auto"],["enquiry.amend","Update enquiry","Enquiries","auto"],
   ["records.search","Find records","Records","auto"],["records.update","Update record","Records","auto"],
   ["report.deliver","Deliver report","Reports","auto"],
+  ...procedureToolNames.map(name=>[name,name.replaceAll("."," ").replaceAll("_"," "),"Workflows","eager"]),
 ].map(([name,title,category,schemaLoading])=>[name,{title,category,schemaLoading:schemaLoading as "eager"|"auto"|"deferred"}]));
 export function toolDescriptorPresentation(name:string) {
   const hint=nativePresentation[name],descriptor=descriptors.find(value=>value.name===name);

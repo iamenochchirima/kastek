@@ -366,6 +366,26 @@ or subscription loss. Setup uncertainty requires explicit native-state reconcili
 time alone never proves success. Quarantined ingress is visible in connection details and can be
 retried deliberately after correcting the displayed failure. Repeated ingress retains its identity.
 
+### Business workflows
+
+Configure → Tools → Workflows enables versioned playbooks per agent. **After-hours support**
+selects `after-hours-assistance@1`; new and existing configurations default to no selected
+procedures. The same agent discovers and loads its authorized playbook, then uses validated
+support tools. Workflows do not grant permissions or replace the ordinary model/tool loop.
+
+For opted-in customer agents, an after-hours human request is recorded independently from
+conversation ownership. The agent can continue helping until staff takes over or the customer
+chooses human-only support. Optional contact preferences do not gate the request and do not
+initiate calls or email. Inbox shows request details and a **Human support requested** filter.
+Backend hours facts and native effect receipts determine progress, not model checklist claims.
+
+Schemas116/117 add procedure instances/commands and human-assistance requests. The current
+`product-capabilities-v15` / `AgentsBusinessRunV25` runtime identity stays unchanged. Deployment
+and rollback remain joint owner steps; implementation does not establish production rollout.
+See [Business workflows](docs/operations/business-procedures.md) for contracts, authority,
+receipt rules and operation. The older ownership-changing handoff behavior below remains for
+configurations using those tools without the selected procedure.
+
 ### Support waiting and staff alerts
 
 Enabling Human support asks for support hours and an editable timezone. Requests use the workspace
@@ -382,7 +402,7 @@ Staff can mark themselves Available or Away in the Inbox. Availability is adviso
 after two minutes unless the visible Inbox renews it. The agent can check aggregate availability
 and the next configured opening; unknown availability is not a promise of a response.
 
-While a conversation is waiting for a person, the agent may answer a question about the request
+Under the older ownership-changing handoff path, while a conversation is waiting for a person, the agent may answer a question about the request
 using current support facts. It cannot use business tools in this turn and is instructed not to reply
 to ordinary additional details. The platform permits one active status turn per episode and at most
 three in five minutes. Further messages still reach Inbox staff. For a first-contact attachment
@@ -495,7 +515,7 @@ stops new grants and publication; resuming preserves the URL and conversation id
 agent settings create background snapshots and apply to future turns. Existing accepted tasks
 retain their own configuration and executable release.
 
-Current setup applies schemas through105 with the matching schema digest. Fresh publications use
+Current setup applies schemas through117 with the matching schema digest. Fresh publications use
 `product-capabilities-v15` / `AgentsBusinessRunV25`; the channel-era V11/V21 and subsequent V12–V14
 registrations remain separate for their accepted work. Fresh setup uses the normal command below;
 starting the app never silently upgrades an existing database. The explicit setup command accepts
