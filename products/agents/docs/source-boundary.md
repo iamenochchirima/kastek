@@ -145,6 +145,9 @@ pinned to the agent configuration when published. When human support is selected
 `support.get_status_v2` tool returns whether the current time falls within that schedule, the next
 opening when closed, and aggregate staff availability. It reports unknown when a schedule or
 availability is not known, and never derives staff presence or response times from the schedule.
+Website enquiry, confirmation and followup-preference reads retain visitor/session and conversation
+authorization without charging the website write-rate budget. Message sends, confirmation decisions
+and followup mutations remain rate-limited; normal widget polling does not exhaust those writes.
 The Inbox lets a member explicitly select Available or Away. Availability expires after two minutes;
 only the visible Inbox tab that selected Available renews its lease. Revoked members do not count,
 and the tool never exposes individual staff identities. Previously published configurations keep

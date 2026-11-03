@@ -134,15 +134,15 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
   if(options.enquiries){
     const enquiries=options.enquiries;
     const enquiryTasks=async(request:FastifyRequest,reply:FastifyReply)=>{
-      const scope=await options.resolveVisitor(request,reply);await options.publicRate?.(scope.deploymentId);
+      const scope=await options.resolveVisitor(request,reply);
       const result=await options.inbox.readVisitor(scope,params(request).conversationId,"0",1);
       const principal={kind:"visitor" as const,deploymentId:scope.deploymentId,sessionId:scope.sessionId};
       const rows=(await options.inbox.pool.query(`SELECT DISTINCT t.id FROM agents_platform.tasks t JOIN agents_platform.enquiries e ON e.task_id=t.id WHERE t.conversation_id=$1 AND t.principal=$2::jsonb AND t.organization_id=$3 ORDER BY t.id LIMIT 30`,[result.conversation.execution_conversation_id,JSON.stringify(principal),result.conversation.organization_id])).rows;
-      return {principal,rows,conversation:result.conversation};
+      return {scope,principal,rows,conversation:result.conversation};
     };
     app.get(`${website}/:conversationId/enquiries`,async(request,reply)=>{const current=await enquiryTasks(request,reply);return {enquiries:(await Promise.all(current.rows.map(row=>enquiries.listForPrincipal(row.id,current.principal)))).flat()};});
     app.post(`${website}/:conversationId/enquiries/:enquiryId/decision`,async(request,reply)=>{
-      const current=await enquiryTasks(request,reply);if(current.conversation.state!=="automation_active")throw new PlatformError("ENQUIRY_REVIEW_DENIED",403,"Enquiry confirmation is unavailable");
+      const current=await enquiryTasks(request,reply);await options.publicRate?.(current.scope.deploymentId);if(current.conversation.state!=="automation_active")throw new PlatformError("ENQUIRY_REVIEW_DENIED",403,"Enquiry confirmation is unavailable");
       const id=uuid.parse((request.params as Record<string,string>).enquiryId),input=z.strictObject({decision:z.enum(["approve","reject"]),requestDigest:z.string().regex(/^[a-f0-9]{64}$/)}).parse(request.body);
       for(const row of current.rows){const items=await enquiries.listForPrincipal(row.id,current.principal);if(items.some(item=>item.id===id))return {enquiry:await enquiries.decide(row.id,current.principal,id,input)};}
       throw new PlatformError("ENQUIRY_NOT_FOUND",404,"Enquiry not found");
@@ -161,7 +161,7 @@ export function registerInboxRoutes(app: FastifyInstance, options: {
       return {scope,principal,rows,conversation:result.conversation};
     };
     app.get(`${website}/:conversationId/tool-reviews`,async(request,reply)=>{
-      const current=await reviewTasks(request,reply);await options.publicRate?.(current.scope.deploymentId);
+      const current=await reviewTasks(request,reply);
       return {reviews:(await Promise.all(current.rows.map(row=>reviews.listForPrincipal(row.id,current.principal)))).flat()};
     });
     app.post(`${website}/:conversationId/tool-reviews/:reviewId/decision`,async(request,reply)=>{
