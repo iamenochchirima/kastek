@@ -26,6 +26,10 @@ import { AuthorityStore } from "../../execution/admission/authority-store";
 import { loadSkillRevisions } from "../../execution/memory/memory";
 
 type Db=Pool|PoolClient;
+function updatedSupportHoursSetup(agent:AgentRecord,configuration:AgentConfiguration):CustomerSetup|undefined {
+  if(!agent.setup||isDeepStrictEqual(agent.draft.supportHours,configuration.supportHours))return undefined;
+  return customerSetupSchema.parse({...agent.setup,supportHours:configuration.supportHours});
+}
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function denied(): never { throw new PlatformError("ACCESS_DENIED", 403, "Access denied"); }
 function absent(): never { throw new PlatformError("NOT_FOUND", 404, "Record not found"); }
@@ -101,9 +105,12 @@ export class AgentStore extends AuthorityStore {
     configuration: AgentConfiguration; expectedRevision: number }): Promise<AgentRecord> {
     const config = agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async (db) => { await this.membership(db, input.accountId, input.organizationId);
-      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),
+      const current=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 FOR UPDATE",[input.organizationId,input.agentId,input.expectedRevision])).rows[0];
+      if(!current)throw new PlatformError("DRAFT_CONFLICT",409,"Agent settings changed. Refresh and try again.");
+      const setup=updatedSupportHoursSetup(current,config);
+      const row = (await db.query<AgentRecord>(`UPDATE agents_platform.agents SET draft=$4,name=coalesce($5,name),setup=coalesce($6,setup),
         draft_revision=draft_revision+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL AND draft_revision=$3 RETURNING *`,
-      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120)])).rows[0];
+      [input.organizationId, input.agentId, input.expectedRevision, config, input.name === undefined ? null : text(input.name, 120),setup??null])).rows[0];
       if (!row) throw new PlatformError("DRAFT_CONFLICT", 409, "Agent settings changed. Refresh and try again.");
       return row; });
   }
@@ -129,13 +136,14 @@ export class AgentStore extends AuthorityStore {
     });
   }
   async saveConfiguration(input:{accountId:string;organizationId:string;agentId:string;name?:string;configuration:AgentConfiguration;expectedRevision:number;confirmImpact?:boolean;setup?:CustomerSetup;setupStep?:string}):Promise<{agent:AgentRecord;snapshot:VersionRecord;deployments:WebsiteDeployment[]}> {
-    const setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
+    let setup=input.setup===undefined?undefined:customerSetupSchema.parse(input.setup);
     let config=agentConfigurationSchema.parse(input.configuration);
     return this.transaction(async db=>{
       await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[input.organizationId]);
       await this.membership(db,input.accountId,input.organizationId);
       let agent=(await db.query<AgentRecord>("SELECT * FROM agents_platform.agents WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE",[input.organizationId,input.agentId])).rows[0]??absent();
       if(setup)config=agentConfigurationSchema.parse(applyCustomerSetup(config,setup,agent.setup??undefined));
+      else setup=updatedSupportHoursSetup(agent,config);
       if(agent.draft_revision!==input.expectedRevision)throw new PlatformError("DRAFT_CONFLICT",409,"The configuration has changed. Refresh and try again.");
       const latest=(await db.query<VersionRecord>("SELECT * FROM agents_platform.agent_versions WHERE organization_id=$1 AND agent_id=$2 ORDER BY number DESC LIMIT 1",[input.organizationId,input.agentId])).rows[0];
       const previous=latest?agentConfigurationSchema.parse(latest.configuration):null;
