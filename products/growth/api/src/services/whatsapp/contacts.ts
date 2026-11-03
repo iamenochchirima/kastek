@@ -238,7 +238,7 @@ export async function updateAgentContact(
   if (input.metadata != null && (typeof input.metadata !== "object" || Array.isArray(input.metadata)))
     throw bad("Agent contact metadata must be a JSON object");
   return transaction(pool, async tx => {
-    const revision = (await tx.query(`SELECT m."updatedAt" AS "membershipRevision",c."updatedAt" AS "contactRevision"
+    const revision = (await tx.query(`SELECT m."updatedAt" AS "membershipRevision",c."updatedAt" AS "contactRevision",m."agentReviewRevision"::text AS "membershipAgentRevision",c."agentReviewRevision"::text AS "contactAgentRevision"
       FROM "WhatsappContactListMembership" m JOIN "WhatsappContact" c ON c.id=m."contactId" AND c."orgId"=m."orgId"
       WHERE m.id=$1 AND m."orgId"=$2 FOR UPDATE OF m,c`, [id, orgId])).rows[0];
     if (!revision) throw missing("Contact not found");

@@ -7,6 +7,7 @@ import { parseGrowthAgentAction, type GrowthAgentAction, type GrowthDraftProposa
 import { readConfig } from "../src/config.js";
 import { installPgTimestampParsers } from "../src/db.js";
 import { GrowthAgentReviewStore } from "../src/agents/reviews.js";
+import { growthAgentDigest } from "../src/agents/security.js";
 import { createSocialPostIdempotent } from "../src/services/social/posts.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 const actor = { issuer: "https://growth.kasitek.co.za/identity", subject: "user" };
@@ -32,6 +33,9 @@ test("Growth exact draft review saves real records and reconciles lost replies u
       INSERT INTO "Organization" VALUES('org','Business','UTC',now()),('foreign-org','Foreign','UTC',now());
       INSERT INTO "OrganizationMember" VALUES('org','user','OWNER'),('foreign-org','other','OWNER');`);
     await pool.query(growthAgentSocialFixture);
+    await pool.query(`CREATE TABLE "Conversation"(id text PRIMARY KEY);CREATE TABLE "ExternalConnection"(id text PRIMARY KEY);
+      CREATE TABLE "WhatsappContact"(id text PRIMARY KEY);CREATE TABLE "WhatsappContactListMembership"(id text PRIMARY KEY);`);
+    await pool.query(await readFile(new URL("../../database/prisma/migrations/20261103120000_agent_review_row_versions/migration.sql",import.meta.url),"utf8"));
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20261023010000_growth_agent_reviews/migration.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../../database/prisma/migrations/20260829180000_add_core_analytics_outbox/migration.sql", import.meta.url), "utf8"));
     const core = { config: readConfig({ DATABASE_URL: "postgres://unused" }), pool }, scope = { tenantId: "org", actor }, store = new GrowthAgentReviewStore(core);
@@ -89,8 +93,13 @@ test("Growth exact draft review saves real records and reconciles lost replies u
     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM "GrowthAgentReview"')).rows[0].count), beforeRollback);
     await pool.query('DROP TRIGGER reject_fixture_review_fact ON analytics_outbox');
     const stale = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "stale-account" }))).review;
-    await pool.query(`UPDATE "SocialChannelConnection" SET "updatedAt"=now()+interval '1 second' WHERE id='channel'`);
+    await pool.query(`UPDATE "SocialChannelConnection" SET "displayName"='Changed account' WHERE id='channel'`);
     await assert.rejects(store.decide(scope, stale.id, { requestId: "stale-account", payloadDigest: stale.payloadDigest, decision: "approve" }), /account changed/);
+    const old = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "old-account-review" }))).review;
+    const account=(await pool.query('SELECT id,platform::text,status::text,"updatedAt" FROM "SocialChannelConnection" WHERE id=\'channel\'')).rows[0];
+    const oldDigest=growthAgentDigest({id:account.id,platform:account.platform,updatedAt:new Date(account.updatedAt).toISOString(),status:account.status});
+    await pool.query('UPDATE "GrowthAgentReview" SET "destinationRevisions"=$2 WHERE id=$1',[old.id,JSON.stringify({channel:oldDigest})]);
+    await assert.rejects(store.decide(scope,old.id,{requestId:"old-account-review",payloadDigest:old.payloadDigest,decision:"approve"}),/account changed/);
     const revoked = (await store.prepare(action("draft.prepare", { draft: selected }, { operationId: "revoked" }))).review;
     await store.decide(scope, revoked.id, { requestId: "approve-revoked", payloadDigest: revoked.payloadDigest, decision: "approve" });
     await pool.query('DELETE FROM "OrganizationMember" WHERE "orgId"=$1 AND "userId"=$2', ["org", "user"]);

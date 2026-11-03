@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -64,7 +65,7 @@ import type { CapabilityBinding, CapabilityCatalog } from "../src/contracts/capa
    }
    executor.assertAvailable(bindings);const configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:bindings.map(binding=>binding.id)},agent=await platform.createAgent({...scope,name:"Actual connected reader",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
    const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:owner.issuer,subject:owner.subject}};
-   const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Math.min(Date.now()+600000,Date.parse(expiresAt))).toISOString(),revokedAt:null};await platform.createGrant({...scope,grant});
+   const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","connected.read"],sourceRevisionIds:[],connectedToolBindingIds:configuration.connectedToolBindingIds,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Math.min(Date.now()+600000,Date.parse(expiresAt))).toISOString(),revokedAt:null};await platform.createGrant({...scope,grant});
    const admitted=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Read the owner's approved public repository"});taskId=admitted.task.id;
    async function call(operation:string,args:object){
     const binding=bindings.find(binding=>binding.definition.providerOperation===operation)!,operationId=`github-live:${taskId}:${randomUUID()}`;await beginOperation(pool,taskId!,{id:operationId,kind:"tool",name:binding.alias,request:args,reservedTokens:0,reservedMs:binding.limits.timeoutMs,retrySafe:true});

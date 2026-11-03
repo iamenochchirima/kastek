@@ -28,6 +28,7 @@ import { parseOptionalDatetime } from "../services/social/common.js";
 import { delegatedSocialAuthority } from "./delegation.js";
 import { stampSocialPublicationAccounts, lockReviewedSocialAccounts } from "../services/social/account-admission.js";
 import { prepareGrowthMediaTransfer, finalizeGrowthMediaTransfer, type PrepareGrowthMediaTransferInput } from "./media-transfers.js";
+import type { GrowthReadDetails } from "./read-access.js";
 
 const text = (input: GrowthOperationInput, key: string) => input[key] as string;
 const object = (input: GrowthOperationInput, key: string) => input[key] as Record<string, unknown>;
@@ -96,8 +97,11 @@ export interface GrowthOperationExecutionOptions {
   /** Trusted value from a persisted review, never a model-supplied input field. */
   expectedSnapshotHash?: string;
   expectedPostRevision?: string;
+  expectedPostAgentRevision?: string;
   expectedAccounts?: Record<string, string>;
   expectedResourceRevisions?: Record<string, string>;
+  /** Private provenance from the authorized read, never part of the public operation result. */
+  readDetails?: GrowthReadDetails;
 }
 
 /**
@@ -120,7 +124,7 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       return { workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug, logo: workspace.logo, reportingTimezone: workspace.reportingTimezone, updatedAt: workspace.updatedAt, profile } };
     }
     case "connections.list": return page(await connections.listConnections(pool, org), input, "connections");
-    case "connections.status.update": return { connection: await connections.updateStatus(pool, org, text(input, "connectionId"), text(input, "status"), options.expectedResourceRevisions?.connectionId) };
+    case "connections.status.update": return { connection: await connections.updateStatus(pool, org, text(input, "connectionId"), text(input, "status"), options.expectedResourceRevisions?.connectionId, options.expectedResourceRevisions?.connectionIdAgentRevision) };
     case "content.accounts.list": {
       const accounts = await socialChannels.listSocialChannels(pool, org);
       return page(accounts.map(account => ({ ...account, capabilities: socialChannels.platformCapabilities(account.platform) })), input, "accounts");
@@ -148,7 +152,7 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       const channelSelections = Object.fromEntries(original.publishJobs.filter(job => job.channel_connection_id).map(job => [job.platform, job.channel_connection_id!]));
       const post = await content.createDraft(pool, context, { title: original.title, content: original.content, channels: original.channels, status: "DRAFT", primaryChannelId: original.primary_channel_id,
         channelSelections, media: original.media.map(item => ({ assetId: item.asset_id, sortOrder: item.sort_order, altText: item.alt_text })),
-        variants: original.variants.map(variant => ({ platform: variant.platform, content: variant.content, status: "DRAFT", aiGenerated: variant.ai_generated })), metadata: { duplicatedFrom: original.id } }, options);
+        variants: original.variants.map(variant => ({ platform: variant.platform, content: variant.content, status: "DRAFT", aiGenerated: variant.ai_generated })), metadata: { duplicatedFrom: original.id } }, {...options,reviewedSourcePostId:original.id});
       await draftEvent(core, context, post, true);
       return { post };
     }
@@ -168,12 +172,18 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
     case "content.media.transfer.prepare": return prepareGrowthMediaTransfer(core, context, input as unknown as PrepareGrowthMediaTransferInput);
     case "operations.reviews.get": {
       const { getOperationReview, operationReviewView } = await import("./reviews.js");
-      return { review: operationReviewView(core, await getOperationReview(core, context, text(input, "reviewId"))) };
+      const review=await getOperationReview(core,context,text(input,"reviewId"));
+      if(options.readDetails)options.readDetails.review={id:review.id,operation:review.operation,taskId:review.taskId,conversationId:review.conversationId,operationId:review.operationId,
+        payloadDigest:review.payloadDigest,userId:review.userId,principalId:review.principalId,principalKind:review.principalKind};
+      return { review: operationReviewView(core,review) };
     }
-    case "content.posts.publish_batch.preflight": return batches.preflight(pool, context, text(input, "postId"));
+    case "content.posts.publish_batch.preflight": return batches.preflight(pool, context, text(input, "postId"),options.readDetails?value=>{options.readDetails!.preflight=value;}:undefined);
     case "content.posts.publish": return batches.publishBatch(pool, context, text(input, "postId"), options.expectedSnapshotHash, { ...options, platform: text(input, "platform") });
     case "content.posts.publish_batch": return batches.publishBatch(pool, context, text(input, "postId"), options.expectedSnapshotHash, options);
-    case "content.posts.publish_batch.status": return input.batchId ? batches.getBatch(pool, context, text(input, "batchId")) : { batch: await batches.getLatestBatchForPost(pool, context, text(input, "postId")) };
+    case "content.posts.publish_batch.status": {
+      const capture=options.readDetails?(value:unknown)=>{options.readDetails!.batch=value;}:undefined;
+      return input.batchId ? batches.getBatch(pool, context, text(input, "batchId"),capture) : { batch: await batches.getLatestBatchForPost(pool, context, text(input, "postId"),capture) };
+    }
     case "content.posts.publish_batch.retry": return batches.retryFailedBatch(pool, context, text(input, "batchId"), options);
     case "content.posts.schedule": return content.schedule(pool, context, text(input, "postId"), text(input, "scheduledFor"), options);
     case "content.posts.reschedule": return reschedule(core, context, text(input, "postId"), text(input, "scheduledFor"), options);
@@ -191,24 +201,27 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       return contacts.updateAgentContact(pool, org, text(input, "contactId"), { ...patch, full_name: patch.fullName as string | null | undefined }, context.idempotencyKey!, { expectedSnapshot: options.expectedResourceRevisions?.contactId });
     }
     case "inbox.conversations.list": {
-      const result = await inbox.listInboxConversations(pool, org, inboxOptions(core));
-      return page(result.conversations, input, "conversations");
+      const sources:import("../services/inbox/types.js").InboxReadSource[]=[];
+      const result = await inbox.listInboxConversations(pool, org, {...inboxOptions(core),...(options.readDetails?{captureReadSource:(source:import("../services/inbox/types.js").InboxReadSource)=>sources.push(source)}:{})});
+      const selected=page(result.conversations, input, "conversations");
+      if(options.readDetails){const ids=new Set((selected.conversations as Record<string,unknown>[]).map(row=>row.id));options.readDetails.inbox=sources.filter(source=>ids.has(source.conversationId));}
+      return selected;
     }
     case "inbox.messages.list": {
       const result = await inbox.listConversationMessages(pool, org, text(input, "conversationId"), inboxOptions(core));
       return { ...result, ...page(result.messages as unknown[], input, "messages") };
     }
     case "inbox.conversations.update": {
-      const result = await pool.query('UPDATE "Conversation" SET starred=$3,"updatedAt"=NOW() WHERE id=$1 AND "orgId"=$2 AND ($4::timestamp IS NULL OR "updatedAt"=$4::timestamp) RETURNING id,starred', [text(input, "conversationId"), org, input.starred, options.expectedResourceRevisions?.conversationId ?? null]);
+      const result = await pool.query('UPDATE "Conversation" SET starred=$3,"updatedAt"=NOW() WHERE id=$1 AND "orgId"=$2 AND ($4::timestamp IS NULL OR "updatedAt"=$4::timestamp) AND ($5::bigint IS NULL OR "agentReviewRevision"=$5::bigint) RETURNING id,starred', [text(input, "conversationId"), org, input.starred, options.expectedResourceRevisions?.conversationId ?? null,options.expectedResourceRevisions?.conversationIdAgentRevision ?? null]);
       if (!result.rows[0]) throw new ApiError(409, "operation_review_conflict", "The conversation changed. Prepare a new review.");
       return { conversation: result.rows[0] };
     }
     case "inbox.conversations.mark_read":
     case "inbox.messages.send": {
       // Consume the reviewed revision before admission. Conversation recipients are immutable identities.
-      const revision = options.expectedResourceRevisions?.conversationId;
-      if (revision) {
-        const claimed = await pool.query('UPDATE "Conversation" SET "updatedAt"=NOW() WHERE id=$1 AND "orgId"=$2 AND "updatedAt"=$3::timestamp RETURNING id', [text(input, "conversationId"), org, revision]);
+      const revision = options.expectedResourceRevisions?.conversationId,agentRevision=options.expectedResourceRevisions?.conversationIdAgentRevision;
+      if (revision || agentRevision) {
+        const claimed = await pool.query('UPDATE "Conversation" SET "updatedAt"=NOW() WHERE id=$1 AND "orgId"=$2 AND ($3::timestamp IS NULL OR "updatedAt"=$3::timestamp) AND ($4::bigint IS NULL OR "agentReviewRevision"=$4::bigint) RETURNING id', [text(input, "conversationId"), org, revision ?? null,agentRevision ?? null]);
         if (!claimed.rowCount) throw new ApiError(409, "operation_review_conflict", "The conversation changed. Prepare a new review.");
       }
       return name === "inbox.conversations.mark_read" ? inbox.markConversationRead(pool, user(context), org, text(input, "conversationId"), inboxOptions(core))
@@ -232,7 +245,7 @@ async function dispatch(core: CoreContext, context: RequestContext, name: string
       if (from >= to || to.getTime() - from.getTime() > 366 * 86400000) throw new ApiError(422, "operation_arguments_invalid", "Choose an increasing report range of at most 366 days");
       try { new Intl.DateTimeFormat("en", { timeZone: text(input, "timezone") }); } catch { throw new ApiError(422, "operation_arguments_invalid", "Choose a valid reporting timezone"); }
       const query = { range_start: input.from, range_end: input.to, timezone: input.timezone, metrics: input.metrics ?? [], breakdowns: input.breakdowns ?? [], filters: input.filters ?? {}, include_descendants: false } as ReportQueryInput;
-      return { report: await reportForOrganization(core, user(context), org, query) };
+      return { report: await reportForOrganization(core, user(context), org, query, options.readDetails ? scope=>{options.readDetails!.analyticsScope=scope;} : undefined) };
     }
     default: throw new ApiError(404, "operation_not_found", "Growth operation not found");
   }

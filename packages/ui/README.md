@@ -40,7 +40,19 @@ For rollback, revert the package and consumer imports together and rebuild each 
   stable request keys remain in the adapter.
 - `AgentExecutionView` presents public updates, a revisable Approach, compact tool activity,
   clickable specialists and output. `AgentContextUsage` exposes capacity and optional diagnostics
-  separately; context is hidden inside execution views unless `showContext` is requested.
+  separately; context is hidden inside execution views unless `showContext` is requested. Activity
+  shows only the generic `Generating response` label for active model work; it never renders model
+  request/response details or historical model-call rows. Model counts and timing remain in
+  measurements. Supply `errorCode` to render the shared failure label alongside the
+  terminal state; explicit provider unavailability stays distinct from an uncertain result.
+  Product adapters retain the native operations without their own presentation filter.
+  Supply catalogue-backed `label`/`category` and typed `activityKind` for capability discovery or
+  schema loading. Consecutive calls in the same task are grouped as an expandable Capability lookup,
+  retaining each real call, failure state and measured elapsed span. Public updates, other operations
+  and different task identities break a group. Missing duration is omitted. `technicalName` appears
+  only inside an explicit Technical details disclosure and is suppressed for restricted/unavailable
+  rows. Connection-sourced titles carry a Connected service label; supply `source` from accepted
+  catalogue metadata. A technical name must contain only an accepted tool identity, never arguments or response bodies.
 - `AgentSubagentModal` uses the same conversation body supplied by its host. The modal owns one
   scrolling area and becomes full screen on mobile. Opening/closing it does not execute commands.
 - `AgentConversationScroll` follows new output only while already at the latest content. It offers
@@ -62,6 +74,25 @@ viewport resize, disclosure Escape behavior and scroll restoration through root 
 The consuming applications' broader browser suites retain their own admission, authority,
 review, delivery and responsive checks.
 
-Execution status includes a compact duration when the product supplies `elapsedMs`, for example `Finished · 2m 34s`. Subagent modal headers use the same formatter. Duration covers acceptance through the recorded outcome, including queue/waiting and specialist work; it is separate from model latency. Missing or invalid timing is omitted.
+Execution status includes a compact duration when the product supplies `elapsedMs`, for example `Finished · 2m 34s`. Subagent modal headers use the same formatter. Duration covers acceptance through the recorded outcome, including queue/waiting and specialist work; it is separate from model latency. Missing or invalid timing is omitted. Active durations advance locally between authoritative observations; terminal observations freeze the value. Supply `observedAt` with `elapsedMs` and a scoped execution identity. A new task or observation resets the local clock without inventing a starting value.
 
-Specialist modals share their theme styling from `theme.css`, scoped to `data-agent-subagent-modal`. Pass the current authorized task input as `assignment`; it appears as an expandable assignment above the transcript. Do not also render that input as a duplicate user message. Clear it when evidence access is withdrawn. The header, response typography, activity grouping and active-state footer adapt to the shared light/dark theme and mobile full-screen layout.
+`agentRuntimePresentation` maps the safe runtime scalar envelope to the shared context/diagnostic
+fields used by Growth, standalone and Agency. Model latency, observed/accounted usage, compaction
+state and input/output reserves keep the same labels. Missing measurements stay unavailable.
+Optional `workElapsedMs` measures original-request acceptance through this task's current/final
+endpoint and appears separately when it differs from the task's own elapsed time.
+
+Specialist modals share their styling from `agent.css`, imported by `theme.css` or the host stylesheet and scoped to `data-agent-subagent-modal`. Pass the current authorized task input as `assignment`; it appears as an expandable assignment above the transcript. Do not also render that input as a duplicate user message. Clear it when evidence access is withdrawn. The header, response typography, activity grouping and active-state footer adapt to the shared light/dark theme and mobile full-screen layout.
+
+`@kasitek-labs/ui/agent-memory` exports `AgentMemoryPanel`. The host supplies a product/actor/client
+`scopeKey`, current selection, and authorized load/mutation callbacks. The panel supports suggested
+memory review, exact acceptance, correction, Forget confirmation, pagination and optional selection
+toggle. The visible panel rechecks its displayed pages every five seconds and when the tab becomes
+visible. A failed read clears cached memory and the open review; a changed or withdrawn record
+closes its stale review. Fresh authorized reads can restore the list. Pending mutations pause this
+refresh; a failed mutation rechecks the record before leaving an unchanged authorized edit open.
+Stable request keys survive such retries. A scope change clears protected state and fences old
+responses. The component never accepts a suggestion
+autonomously, installs a capability, chooses a memory namespace or claims provider unlearning.
+
+`@kasitek-labs/ui/agent-model-picker` supplies the shared responsive model-selection trigger and dialog. Product adapters own authorized catalogue loading, saved selection, request identity, revisions and scope changes. The renderer accepts disabled options/reasons and a footer slot for product-specific configuration links or notices.

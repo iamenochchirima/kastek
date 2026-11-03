@@ -1,20 +1,22 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { PlatformError,requestDigest } from "./contracts";
+import { productInformationEnvelopeSchema } from "./product-information";
 
 const id = z.uuid();
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const generation = z.number().int().positive();
 export const SOURCE_LIMITS = Object.freeze({ rawBytes: 10_485_760, textBytes: 1_048_576, pages: 200,
   chunks: 1000, organizationSources: 200, organizationChunks: 100_000, versionSources: 20,
-  concurrentImports: 2, importWallMs: 600_000, manifestNodes: 1024, manifestEdges: 4096, manifestDepth: 32 });
+  concurrentImports: 2, importWallMs: 600_000, manifestNodes: 1024 });
 
 export const sourceSchema = z.strictObject({
-  id, organizationId: id, importerAccountId: id, title: z.string().trim().min(1).max(200),
+  id, organizationId: id, importerAccountId: id.nullable(), importerService: z.strictObject({ product: z.literal("growth"), tenantId: z.string().min(1).max(256), agentId: id,
+    actor: z.strictObject({ issuer: z.url().max(2048), subject: z.string().min(1).max(512) }), service: z.strictObject({ issuer: z.url().max(2048), clientId: z.string().min(1).max(128) }) }).optional(), title: z.string().trim().min(1).max(200),
   kind: z.enum(["upload", "public_url", "provider_snapshot"]), generation,
   state: z.enum(["active", "withdrawn"]), visibility: z.enum(["private", "public"]),
   createdAt: z.iso.datetime(),
-});
+}).refine(value => value.importerAccountId !== null ? value.importerService === undefined : value.importerService !== undefined, "A source requires one importer identity");
 export const ingestionJobSchema = z.strictObject({
   id, sourceId: id, revisionId: id, revision: generation, acceptedGeneration: generation,
   state: z.enum(["queued", "acquiring", "extracting", "indexing", "ready", "failed", "cancelled"]),
@@ -43,11 +45,27 @@ export const sourceChunkSchema = z.strictObject({
 const sourceDependency = z.strictObject({ kind: z.literal("source"), sourceId: id, revisionId: id, generation, visibility: z.enum(["private", "public"]) });
 const connectionDependency = z.strictObject({ kind: z.literal("connection"), connectionId: id, policyRevision: generation,
   resource: z.string().min(1).max(2048), catalogDigest: digest });
-const delegationDependency = z.strictObject({kind:z.literal("delegation_input"),referenceId:id,manifestDigest:digest});
-const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId: id, generation });
+const memoryTransition = z.strictObject({ memoryId: id, memoryRevision: generation });
+const delegationDependency = z.strictObject({kind:z.literal("delegation_input"),referenceId:id,manifestDigest:digest,memoryTransition:memoryTransition.optional()});
+const artifactDependency = z.strictObject({kind:z.literal("artifact"),referenceId:id,contentDigest:digest});
+const memoryDependency = z.strictObject({ kind: z.literal("memory"), referenceId: id, generation,
+  memoryId: id.optional(), memoryRevision: generation.optional() }).refine(value =>
+  (value.memoryId === undefined) === (value.memoryRevision === undefined) && (value.memoryRevision === undefined || value.generation === value.memoryRevision),
+  "Exact memory dependencies use the record revision as their generation");
 const productDependency = z.strictObject({ kind: z.literal("product"), product: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
-  tenantId: z.string().min(1).max(256), taskId: id, contextRevision: digest,bindingId:id.optional(),bindingDigest:digest.optional(), sourceId: z.string().min(1).max(1024) });
-export const evidenceDependencySchema = z.discriminatedUnion("kind", [productDependency, sourceDependency, connectionDependency, memoryDependency, delegationDependency, z.strictObject({kind:z.literal("skill"),skillId:id,agentId:id,packageDigest:digest})]);
+  tenantId: z.string().min(1).max(256), taskId: id, contextRevision: digest,bindingId:id.optional(),bindingDigest:digest.optional(), sourceId: z.string().min(1).max(1024),
+  information: productInformationEnvelopeSchema.optional(), memoryTransition: memoryTransition.optional() });
+const productAccessDependency = z.strictObject({ kind: z.literal("product_access"), product: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
+  tenantId: z.string().min(1).max(256), taskId: id, bindingId: id, bindingDigest: digest,
+  reference: z.string().min(1).max(1024), information: productInformationEnvelopeSchema,
+  memoryTransition: memoryTransition.optional() });
+const productContextDependency = z.strictObject({ kind: z.literal("product_context"), product: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
+  tenantId: z.string().min(1).max(256), taskId: id, referenceDigest: digest, information: productInformationEnvelopeSchema, memoryTransition: memoryTransition.optional() });
+const productArtifactDependency = z.strictObject({ kind: z.literal("product_artifact"), version: z.literal("1"), product: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
+  tenantId: z.string().min(1).max(256), taskId: id, artifactId: id, contentDigest: digest,
+  name: z.string().min(1).max(120), contentType: z.string().min(1).max(128), bytes: z.number().int().nonnegative().max(1048576),
+  information: productInformationEnvelopeSchema, memoryTransition: memoryTransition.optional() });
+export const evidenceDependencySchema = z.discriminatedUnion("kind", [productDependency, productAccessDependency, productContextDependency, productArtifactDependency, sourceDependency, connectionDependency, memoryDependency, delegationDependency, artifactDependency, z.strictObject({kind:z.literal("skill"),skillId:id,agentId:id,packageDigest:digest})]);
 export const dependencyManifestSchema = z.strictObject({ version: z.literal(1), dependencies: z.array(evidenceDependencySchema).max(SOURCE_LIMITS.manifestNodes), digest });
 export const evidenceReferenceSchema = z.strictObject({
   id, organizationId: id, rootTaskId: id, operationId: z.string().min(1).max(256),
@@ -73,16 +91,19 @@ export const textDigest = (value: string | Uint8Array): string => createHash("sh
 
 function dependencyKey(dependency: EvidenceDependency): string {
   switch (dependency.kind) {
-    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId??""}:${dependency.sourceId}`;
+    case "product": return `product:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId??""}:${dependency.sourceId}:${dependency.memoryTransition ? `${dependency.memoryTransition.memoryId}:${dependency.memoryTransition.memoryRevision}` : ""}`;
+    case "product_access": return `product_access:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.bindingId}:${dependency.reference}:${requestDigest(dependency.information)}:${dependency.memoryTransition ? `${dependency.memoryTransition.memoryId}:${dependency.memoryTransition.memoryRevision}` : ""}`;
+    case "product_context": return `product_context:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.memoryTransition ? `${dependency.memoryTransition.memoryId}:${dependency.memoryTransition.memoryRevision}` : ""}`;
+    case "product_artifact": return `product_artifact:${dependency.product}:${dependency.tenantId}:${dependency.taskId}:${dependency.artifactId}:${dependency.memoryTransition ? `${dependency.memoryTransition.memoryId}:${dependency.memoryTransition.memoryRevision}` : ""}`;
     case "skill": return `skill:${dependency.agentId}:${dependency.skillId}`;
     case "source": return `source:${dependency.sourceId}:${dependency.revisionId}`;
     case "connection": return `connection:${dependency.connectionId}:${dependency.resource}:${dependency.catalogDigest}`;
-    case "memory": return `memory:${dependency.referenceId}`;
-    case "delegation_input": return `delegation_input:${dependency.referenceId}`;
+    case "memory": return `memory:${dependency.referenceId}:${dependency.memoryId ?? ""}`;
+    case "delegation_input": return `delegation_input:${dependency.referenceId}:${dependency.memoryTransition ? `${dependency.memoryTransition.memoryId}:${dependency.memoryTransition.memoryRevision}` : ""}`;
+    case "artifact": return `artifact:${dependency.referenceId}`;
   }
 }
 export function createDependencyManifest(inputs: readonly EvidenceDependency[]): DependencyManifest {
-  if (inputs.length > SOURCE_LIMITS.manifestEdges) throw new PlatformError("EVIDENCE_LIMIT", 413, "Too many evidence dependencies");
   const unique = new Map<string, EvidenceDependency>();
   for (const input of inputs) {
     const dependency = evidenceDependencySchema.parse(input), key = dependencyKey(dependency), prior = unique.get(key);
@@ -102,24 +123,35 @@ export function assertDependencyManifest(value: unknown): DependencyManifest {
 }
 
 export interface DependencyNode { id: string; manifest: DependencyManifest; parents: readonly string[] }
-export function collectDependencyGraph(rootIds: readonly string[], nodes: ReadonlyMap<string, DependencyNode>): DependencyManifest {
-  let edges = 0;
-  const visiting = new Set<string>(), visited = new Set<string>(), dependencies: EvidenceDependency[] = [];
-  function visit(nodeId: string, depth: number): void {
-    if (++edges > SOURCE_LIMITS.manifestEdges || depth > SOURCE_LIMITS.manifestDepth) throw new PlatformError("EVIDENCE_LIMIT", 413, "Evidence graph exceeds its limit");
-    if (visiting.has(nodeId)) throw new PlatformError("EVIDENCE_CYCLE", 409, "Evidence graph contains a cycle");
-    if (visited.has(nodeId)) return;
-    if (visited.size + visiting.size >= SOURCE_LIMITS.manifestNodes) throw new PlatformError("EVIDENCE_LIMIT", 413, "Evidence graph exceeds its limit");
-    const node = nodes.get(nodeId);
-    if (!node || node.id !== nodeId) throw new PlatformError("EVIDENCE_MISSING", 409, "Evidence dependency is unavailable");
-    visiting.add(nodeId);
-    dependencies.push(...assertDependencyManifest(node.manifest).dependencies);
-    if (dependencies.length > SOURCE_LIMITS.manifestEdges) throw new PlatformError("EVIDENCE_LIMIT", 413, "Too many evidence dependencies");
-    for (const parent of node.parents) visit(parent, depth + 1);
-    visiting.delete(nodeId); visited.add(nodeId);
+function inspectDependencyGraph(rootIds:readonly string[],nodes:ReadonlyMap<string,DependencyNode>) {
+  const visiting=new Set<string>(),visited=new Set<string>(),referenced=new Set<string>(),dependencies=new Map<string,EvidenceDependency>();
+  const pending=[...rootIds].reverse().map(id=>({id,exit:false}));
+  while(pending.length){
+    const entry=pending.pop()!;
+    if(entry.exit){visiting.delete(entry.id);visited.add(entry.id);continue;}
+    if(visiting.has(entry.id))throw new PlatformError("EVIDENCE_CYCLE",409,"Evidence graph contains a cycle");
+    if(visited.has(entry.id))continue;
+    const node=nodes.get(entry.id);
+    if(!node||node.id!==entry.id)throw new PlatformError("EVIDENCE_MISSING",409,"Evidence dependency is unavailable");
+    for(const dependency of assertDependencyManifest(node.manifest).dependencies){
+      const key=dependencyKey(dependency),prior=dependencies.get(key);
+      if(prior&&requestDigest(prior)!==requestDigest(dependency))throw new PlatformError("EVIDENCE_POLICY_CONFLICT",409,"Evidence policy changed during execution");
+      dependencies.set(key,dependency);
+      if(dependencies.size>SOURCE_LIMITS.manifestNodes)throw new PlatformError("EVIDENCE_LIMIT",413,"Too many evidence dependencies");
+    }
+    visiting.add(entry.id);pending.push({id:entry.id,exit:true});
+    for(const id of [...node.parents].reverse()){referenced.add(id);pending.push({id,exit:false});}
   }
-  for (const root of rootIds) visit(root, 0);
-  return createDependencyManifest(dependencies);
+  return {manifest:createDependencyManifest([...dependencies.values()]),referenced};
+}
+/** Retained graph size is independent of the bounded actual dependency manifest. */
+export function collectDependencyGraph(rootIds: readonly string[], nodes: ReadonlyMap<string, DependencyNode>): DependencyManifest {
+  return inspectDependencyGraph(rootIds,nodes).manifest;
+}
+/** Keep new parent edges sparse without rewriting any already recorded node. */
+export function dependencyFrontier<T extends DependencyNode>(candidates:readonly T[],nodes:ReadonlyMap<string,DependencyNode>):T[] {
+  const {referenced}=inspectDependencyGraph(candidates.map(node=>node.id),nodes);
+  return candidates.filter(node=>!referenced.has(node.id));
 }
 
 export function assertIngestionPublication(job: IngestionJob, source: Source, now = Date.now()): void {

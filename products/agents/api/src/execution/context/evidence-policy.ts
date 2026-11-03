@@ -1,7 +1,7 @@
 import {parseSkillPackage} from "../../capabilities/skills/package";
 import type { Pool,PoolClient } from "pg";
 import { capabilityBindingSchema,type CapabilityBinding,type ResourceHandle } from "../../contracts/capability-catalog";
-import { isCustomerPrincipal, connectedToolAuthorityIds,PlatformError,requestDigest } from "../../contracts/contracts";
+import { isCustomerPrincipal, connectedToolAuthorityIds,sourceAuthorityIds,PlatformError,requestDigest } from "../../contracts/contracts";
 import type { Execution } from "../../contracts/execution";
 import {
 assertDependencyManifest,collectDependencyGraph,createDependencyManifest,evidenceReferenceSchema,
@@ -15,7 +15,12 @@ import { assertProductAuthority } from "../admission/product-authority";
 import { productPorts } from "../../infrastructure/product-ports";
 import { assertCustomerNativeBindings } from "../../capabilities/connected-tools/customer-native-policy";
 import { currentVisitorLineageAllowed,historyPrincipalAllowed } from "./visitor-lineage";
+import { assertParentEdge, delegationAncestors } from "../delegation/scope";
 import { continuationChildAllowed } from "./work-lineage";
+import { memoryScopeMatchesExecution } from "../memory/scope";
+import { assertProductNativeTaskAccess } from "../../capabilities/products/resource-scope";
+import { assertAcceptedProductMemoryTransition } from "../products/product-information";
+import { assertProductReadCustody } from "../products/product-read-custody";
 
 export type Db = Pool | PoolClient;
 export type EvidenceKind = "context" | "summary" | "memory" | "artifact" | "child_result" | "input";
@@ -25,6 +30,7 @@ export interface ProductEvidenceInput {
   product: string; tenantId: string; contextRevision: string;
   bindingId?:string;bindingDigest?:string;operationName?:string;
   sources: { id: string }[]; text: string; title: string; acquiredAt: string;
+  information?: import("@kasitek-labs/contracts").ProductInformationEnvelope;
 }
 export interface ConnectedEvidenceInput { bindingId: string; resource: ResourceHandle; text: string; title: string; acquiredAt: string; receiptDigest: string }
 export const denied = () => new PlatformError("EVIDENCE_SCOPE_DENIED", 403, "Evidence is outside the task's permitted scope");
@@ -48,6 +54,10 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
         organizationId: root.task.organization_id, resourceId: root.task.resource_id,
         callerClientId: root.task.caller_client_id, principal: root.task.principal } });
   }
+  for(const ancestor of await delegationAncestors(db,execution)) {
+    const grant=(await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE",[ancestor.task.grant_id])).rows[0];
+    if(!grant||grant.revoked_at)throw unavailable();
+  }
   const accountId = await owner(db, root);
   const grant = (await db.query("SELECT revoked_at FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
   if (!grant || grant.revoked_at) throw unavailable();
@@ -56,6 +66,7 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
     if(!rootGrant||rootGrant.revoked_at)throw unavailable();
   }
   if(root.task.product!=="agents") {
+    await assertProductNativeTaskAccess(db, execution);
     await assertProductAuthority(db,{product:root.task.product,organizationId:root.task.organization_id,resourceId:root.task.resource_id,
       callerClientId:root.task.caller_client_id,principal:root.task.principal},root.task.version_id);
     if(execution.task.parent_task_id)await assertProductAuthority(db,{product:execution.task.product,organizationId:execution.task.organization_id,resourceId:execution.task.resource_id,
@@ -75,10 +86,10 @@ export async function inspectionAuthority(db: Db, execution: Execution): Promise
 }
 export async function sourceAllowed(db: Db, execution: Execution, revisionId: string): Promise<void> {
   const grant = (await db.query("SELECT source_revision_ids,operations FROM agents_platform.execution_grants WHERE id=$1 FOR SHARE", [execution.task.grant_id])).rows[0];
-  if (!execution.configuration.sourceRevisionIds.includes(revisionId) || !grant?.source_revision_ids.includes(revisionId) || !grant.operations.includes("knowledge.read")) throw denied();
+  if (!sourceAuthorityIds(execution.configuration).includes(revisionId) || !grant?.source_revision_ids.includes(revisionId) || !grant.operations.includes("knowledge.read")) throw denied();
   if (!(await db.query("SELECT 1 FROM agents_platform.version_sources WHERE organization_id=$1 AND version_id=$2 AND revision_id=$3", [execution.task.organization_id, execution.task.version_id, revisionId])).rowCount) throw denied();
   if (execution.task.parent_task_id) {
-    const root = await loadExecution(db, execution.task.root_task_id); await sourceAllowed(db, root, revisionId);
+    const parent = await loadExecution(db, execution.task.parent_task_id); assertParentEdge(parent,execution); await sourceAllowed(db, parent, revisionId);
   }
 }
 export async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionId:string,bindingId:string):Promise<void>{
@@ -93,30 +104,31 @@ export async function rootRoleAllows(db:Db,root:Execution,roleId:string,versionI
 }
 export async function assertChildConnectedAuthority(db:Db,child:Execution,bindingId:string):Promise<void>{
   if(!child.task.parent_task_id)return;
-  const root=await loadExecution(db,child.task.root_task_id);
+  const parent=await loadExecution(db,child.task.parent_task_id);
+  assertParentEdge(parent,child);
   const delegation=(await db.query("SELECT binding_id,parent_task_id FROM agents_platform.delegations WHERE child_task_id=$1",[child.task.id])).rows[0];
-  if(!delegation||delegation.parent_task_id!==root.task.id||child.task.parent_task_id!==root.task.id||child.task.organization_id!==root.task.organization_id||await owner(db,child)!==await owner(db,root))throw denied();
-  await rootRoleAllows(db,root,delegation.binding_id,child.task.version_id,bindingId);
+  if(!delegation||delegation.parent_task_id!==parent.task.id||await owner(db,child)!==await owner(db,parent))throw denied();
+  await rootRoleAllows(db,parent,delegation.binding_id,child.task.version_id,bindingId);
+  await assertChildConnectedAuthority(db,parent,bindingId);
 }
 /** Only explicit follow-up ancestry can supply another child turn's conversation. */
 export async function childHistoryAllowed(db:Db,current:Execution,origin:Execution):Promise<boolean>{
   const task=current.task,prior=origin.task;
-  if(!task.parent_task_id||!prior.parent_task_id||task.parent_task_id!==task.root_task_id||prior.parent_task_id!==task.parent_task_id||
+  if(!task.parent_task_id||!prior.parent_task_id||prior.parent_task_id!==task.parent_task_id||
     task.root_task_id!==prior.root_task_id||task.organization_id!==prior.organization_id||task.conversation_id!==prior.conversation_id||
     task.version_id!==prior.version_id||current.agentId!==origin.agentId||!await historyPrincipalAllowed(db,current,origin)||
     BigInt(prior.turn_sequence)>=BigInt(task.turn_sequence))return false;
   let cursor=task.id;const seen=new Set<string>();
-  while(seen.size<32){
+  while(true){
     if(seen.has(cursor))throw integrity();seen.add(cursor);
     const link=(await db.query(`SELECT d.prior_task_id FROM agents_platform.delegations d
       JOIN agents_platform.tasks t ON t.id=d.child_task_id
-      WHERE d.child_task_id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$2 AND t.organization_id=$3
-        AND t.conversation_id=$4 AND t.version_id=$5`,[cursor,task.parent_task_id,task.organization_id,task.conversation_id,task.version_id])).rows[0];
+      WHERE d.child_task_id=$1 AND d.parent_task_id=$2 AND t.root_task_id=$6 AND t.organization_id=$3
+        AND t.conversation_id=$4 AND t.version_id=$5`,[cursor,task.parent_task_id,task.organization_id,task.conversation_id,task.version_id,task.root_task_id])).rows[0];
     if(!link?.prior_task_id)return false;
     if(link.prior_task_id===prior.id)return true;
     cursor=link.prior_task_id;
   }
-  throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");
 }
 export async function historyOrigins(db:Db,current:Execution,extra:string[]):Promise<Execution[]>{
   const origins:Execution[]=[],seen=new Set<string>(),queue:{id:string;consumer:Execution}[]=extra.map(id=>({id,consumer:current}));
@@ -127,17 +139,19 @@ export async function historyOrigins(db:Db,current:Execution,extra:string[]):Pro
     const priorSpecialist=await continuationChildAllowed(db,current,origin);
     if(!priorSpecialist&&((current.task.parent_task_id?!await childHistoryAllowed(db,item.consumer,origin):!!origin.task.parent_task_id)||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(origin.task.state)||origin.task.organization_id!==current.task.organization_id||origin.task.conversation_id!==current.task.conversation_id||origin.agentId!==current.agentId||!await historyPrincipalAllowed(db,current,origin)||BigInt(origin.task.turn_sequence)>=BigInt(item.consumer.task.turn_sequence)))throw denied();
     if(priorSpecialist&&!["completed","incomplete","refused","failed","cancelled"].includes(origin.task.state))throw denied();
-    if(seen.has(item.id))continue;if(seen.size>=32)throw new PlatformError("EVIDENCE_LIMIT",413,"History provenance exceeds its origin limit");seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
+    if(seen.has(item.id))continue;seen.add(item.id);await inspectionAuthority(db,origin);origins.push(origin);await linked(origin);
   }return origins;
 }
 export async function suppliedNodes(db:Db,execution:Execution):Promise<EvidenceNode[]>{
   const rows=(await db.query("SELECT * FROM agents_platform.evidence_nodes WHERE root_task_id=$1",[execution.task.root_task_id])).rows.map(nodeDto),graph=new Map(rows.map(node=>[node.id,node]));
   const roots=rows.filter(node=>node.taskId===execution.task.id);collectDependencyGraph(roots.map(node=>node.id),graph);
-  const seen=new Set<string>();const visit=(id:string):void=>{if(seen.has(id))return;seen.add(id);for(const parent of graph.get(id)!.parents)visit(parent);};roots.forEach(node=>visit(node.id));return rows.filter(node=>seen.has(node.id));
+  const seen=new Set<string>(),pending=roots.map(node=>node.id);
+  while(pending.length){const id=pending.pop()!;if(seen.has(id))continue;seen.add(id);for(const parent of graph.get(id)!.parents)pending.push(parent);}
+  return rows.filter(node=>seen.has(node.id));
 }
 export async function connectionEvidenceBinding(db:Db,execution:Execution,dependency:Extract<EvidenceDependency,{kind:"connection"}>,origins:Execution[]=[]):Promise<CapabilityBinding>{
   const own=execution.configuration.connectedToolBindingIds,candidates=[...own],delegated=new Map<string,Execution>();
-  if(!execution.task.parent_task_id){
+  {
     for(const origin of origins)if(await continuationChildAllowed(db,execution,origin)) {
       const roleId=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1",[origin.task.id])).rows[0]?.binding_id;
       for(const id of origin.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,origin,id);await rootRoleAllows(db,execution,roleId,origin.task.version_id,id);candidates.push(id);delegated.set(id,origin);}
@@ -145,9 +159,8 @@ export async function connectionEvidenceBinding(db:Db,execution:Execution,depend
     for(const origin of [execution,...origins])for(const node of await suppliedNodes(db,origin)){
       if(node.taskId===origin.task.id||node.kind!=="child_result"||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
       const child=await loadExecution(db,node.taskId);
-      if(child.task.parent_task_id!==origin.task.id||!child.task.output||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.task.state))continue;
-      const roleId=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1",[child.task.id])).rows[0]?.binding_id;
-      for(const id of child.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,child,id);await rootRoleAllows(db,execution,roleId,child.task.version_id,id);candidates.push(id);delegated.set(id,child);}
+      if(!(await delegationAncestors(db,child)).some(ancestor=>ancestor.task.id===origin.task.id)||!child.task.output||!["completed","incomplete","refused","failed","cancelled","uncertain"].includes(child.task.state))continue;
+      for(const id of child.configuration.connectedToolBindingIds){await assertChildConnectedAuthority(db,child,id);candidates.push(id);delegated.set(id,child);}
     }
   }
   const rows=(await db.query("SELECT id,binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND connection_id=$2 AND id=ANY($3::uuid[])",[execution.task.organization_id,dependency.connectionId,[...new Set(candidates)]])).rows;
@@ -183,16 +196,21 @@ export async function bindingAllowed(db: Db, execution: Execution, bindingId: st
 export async function delegationInput(db:Db,childTaskId:string){
  const child=await loadExecution(db,childTaskId);if(!child.task.parent_task_id)return;
  const row=(await db.query("SELECT parent_task_id,input_manifest FROM agents_platform.delegations WHERE child_task_id=$1",[childTaskId])).rows[0];
- if(!row||row.parent_task_id!==child.task.parent_task_id||row.parent_task_id!==child.task.root_task_id)throw integrity();
- const parent=await loadExecution(db,row.parent_task_id);if(parent.task.organization_id!==child.task.organization_id||await owner(db,parent)!==await owner(db,child))throw integrity();
+ if(!row||row.parent_task_id!==child.task.parent_task_id)throw integrity();
+ const parent=await loadExecution(db,row.parent_task_id);assertParentEdge(parent,child);if(parent.task.organization_id!==child.task.organization_id||await owner(db,parent)!==await owner(db,child))throw integrity();
  return{parentTaskId:row.parent_task_id as string,manifest:assertDependencyManifest(row.input_manifest),child};
 }
 export async function assertDelegationInputEvidence(db:Db,childTaskId:string,expectedDigest?:string,trail:readonly string[]=[],consumerTaskId=childTaskId):Promise<void>{
  const input=await delegationInput(db,childTaskId);if(!input){if(expectedDigest)throw integrity();return;}
  if(input.child.task.product!=="agents")await inspectionAuthority(db,input.child);
  const consumer=consumerTaskId===childTaskId?input.child:await loadExecution(db,consumerTaskId);
- if(consumer.task.organization_id!==input.child.task.organization_id||await owner(db,consumer)!==await owner(db,input.child))throw denied();
- if(expectedDigest&&expectedDigest!==input.manifest.digest||trail.includes(childTaskId)||trail.length>=32)throw integrity();
+ if(consumer.task.organization_id!==input.child.task.organization_id||consumer.task.product!==input.child.task.product||
+    !await historyPrincipalAllowed(db,consumer,input.child)||await owner(db,consumer)!==await owner(db,input.child))throw denied();
+ if(consumer.task.product!=="agents") {
+   const {currentProductInformation,assertProductInformationAudience}=await import("../products/product-information");
+   await assertProductInformationAudience(db,consumer,await currentProductInformation(db,input.child));
+ }
+ if(expectedDigest&&expectedDigest!==input.manifest.digest||trail.includes(childTaskId))throw integrity();
  // Inspection validates the original actor and live policies, even after the parent task completes.
  await assertCurrentEvidence(db,input.parentTaskId,input.manifest,{requireActiveTask:false,delegationTrail:[...trail,childTaskId]});
 }
@@ -200,45 +218,115 @@ export async function delegationDependency(db:Db,taskId:string):Promise<Evidence
  const input=await delegationInput(db,taskId);return input?[{kind:"delegation_input",referenceId:taskId,manifestDigest:input.manifest.digest}]:[];
 }
 async function joinedSpecialistSkillAllowed(db:Db,current:Execution,dependency:Extract<EvidenceDependency,{kind:"skill"}>,origins:Execution[]):Promise<boolean>{
-  const root=current.task.parent_task_id?await loadExecution(db,current.task.root_task_id):current;
+  const root=current;
   if(root.configuration.program.id!=="tool-directed"||root.configuration.program.version!=="4"||!root.configuration.capabilities.delegation.enabled)return false;
   for(const origin of [root,...origins]){
-    if(origin.task.parent_task_id)continue;
     for(const node of await suppliedNodes(db,origin)){
       if(node.kind!=="child_result"||node.taskId===origin.task.id||!node.manifest.dependencies.some(item=>requestDigest(item)===requestDigest(dependency)))continue;
       const child=await loadExecution(db,node.taskId);
-      if(child.task.parent_task_id!==origin.task.id||child.task.root_task_id!==origin.task.id||child.task.organization_id!==root.task.organization_id||child.agentId!==dependency.agentId||!child.configuration.skillIds.includes(dependency.skillId))continue;
-      const delegated=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1 AND parent_task_id=$2",[child.task.id,origin.task.id])).rows[0];
-      if(!root.configuration.capabilities.delegation.bindings.some(binding=>binding.id===delegated?.binding_id&&binding.versionId===child.task.version_id))continue;
+      if(!(await delegationAncestors(db,child)).some(ancestor=>ancestor.task.id===origin.task.id)||child.task.organization_id!==root.task.organization_id||child.agentId!==dependency.agentId||!child.configuration.skillIds.includes(dependency.skillId))continue;
+      const delegated=(await db.query("SELECT binding_id FROM agents_platform.delegations WHERE child_task_id=$1 AND parent_task_id=$2",[child.task.id,child.task.parent_task_id])).rows[0];
+      const parent=await loadExecution(db,child.task.parent_task_id!);
+      if(!parent.configuration.capabilities.delegation.enabled||!parent.configuration.capabilities.delegation.bindings.some(binding=>binding.id===delegated?.binding_id&&binding.versionId===child.task.version_id))continue;
       await inspectionAuthority(db,child);
       return true;
     }
   }
   return false;
 }
+async function memoryDependencyAllowed(db:Db,current:Execution,row:Record<string,any>,origins:Execution[]):Promise<boolean>{
+  for(const candidate of [current,...await delegationAncestors(db,current),...origins]) {
+    if(await memoryScopeMatchesExecution(db,candidate,row))return true;
+  }
+  for(const origin of [current,...origins])for(const node of await suppliedNodes(db,origin)) {
+    if(node.kind!=="child_result"||!node.manifest.dependencies.some(dependency=>dependency.kind==="memory"&&dependency.referenceId===row.id))continue;
+    const child=await loadExecution(db,node.taskId);
+    if(!(await delegationAncestors(db,child)).some(ancestor=>ancestor.task.id===origin.task.id))continue;
+    if(await memoryScopeMatchesExecution(db,child,row)){await inspectionAuthority(db,child);return true;}
+  }
+  return false;
+}
 /** Call inside the same transaction as the consuming model/effect claim, holding the organization lock. */
 export async function assertCurrentEvidence(db: Db, taskId: string, input: DependencyManifest, options: { requireActiveTask?: boolean; delegationTrail?:readonly string[]; historyOriginTaskIds?:string[] } = {}): Promise<void> {
   const manifest = assertDependencyManifest(input), execution = await loadExecution(db, taskId);
+  if(options.requireActiveTask===false)await assertProductReadCustody(db,taskId);
   if (options.requireActiveTask !== false) await assertCurrentAuthority(db, execution); else {await inspectionAuthority(db, execution);if(execution.task.parent_task_id)await assertDelegationInputEvidence(db,taskId,undefined,options.delegationTrail);}
   const origins=await historyOrigins(db,execution,options.historyOriginTaskIds??[]);
   const dependencies = [...manifest.dependencies].sort((a, b) => {
-    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.kind === "product" ? `${value.product}:${value.tenantId}:${value.taskId}:${value.sourceId}` : value.referenceId;
+    const key = (value: EvidenceDependency) => value.kind === "source" ? value.sourceId : value.kind === "connection" ? value.connectionId : value.kind === "skill" ? value.skillId : value.kind === "product" ? `${value.product}:${value.tenantId}:${value.taskId}:${value.sourceId}` : value.kind === "product_access" ? `${value.product}:${value.tenantId}:${value.taskId}:${value.reference}` : value.kind === "product_context" ? `${value.product}:${value.tenantId}:${value.taskId}` : value.kind === "product_artifact" ? value.artifactId : value.referenceId;
     return key(a).localeCompare(key(b));
   });
   for (const dependency of dependencies) {
-    if (dependency.kind !== "product") continue;
+    if (dependency.kind !== "product" && dependency.kind !== "product_access") continue;
     const currentGrant=(await db.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1",[execution.task.grant_id])).rows[0];
     if(!currentGrant?.operations.includes("product.read"))throw denied();
     const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
-    const origin = [execution, root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
+    let origin = [execution, root, ...origins].find(candidate => candidate.task.id === dependency.taskId);
+    if(!origin&&dependency.memoryTransition){origin=await assertAcceptedProductMemoryTransition(db,execution,dependency);await inspectionAuthority(db,origin);}
+    if(!origin) {
+      const candidate=await loadExecution(db,dependency.taskId);
+      for(const context of [execution,...origins]) {
+        const joined=(await suppliedNodes(db,context)).some(node=>node.kind==="child_result"&&node.taskId===candidate.task.id&&
+          node.manifest.dependencies.some(value=>requestDigest(value)===requestDigest(dependency)));
+        if(joined&&(await delegationAncestors(db,candidate)).some(ancestor=>ancestor.task.id===context.task.id)) {
+          await inspectionAuthority(db,candidate);origin=candidate;break;
+        }
+      }
+    }
     if (!origin || (!dependency.bindingId && (origin.task.product !== dependency.product || root.task.product !== dependency.product))) throw denied();
-    try { await productPorts(db).assertCurrentEvidence(db, { consumerTaskId: taskId, dependency }); }
+    try {
+      const port=productPorts(db);
+      if(dependency.kind==="product_access"){
+        if(!port.assertCurrentAccess)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product result authorization is unavailable");
+        await port.assertCurrentAccess(db,{consumerTaskId:taskId,dependency});
+      }else await port.assertCurrentEvidence(db, { consumerTaskId: taskId, dependency });
+    }
     catch (error) {
       if (error instanceof PlatformError && [403, 404, 409].includes(error.statusCode)) throw unavailable();
       throw error;
     }
   }
-  for(const dependency of dependencies)if(dependency.kind==="delegation_input")await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,taskId);
+  for(const dependency of dependencies)if(dependency.kind==="product_context"){
+    const root=execution.task.parent_task_id?await loadExecution(db,execution.task.root_task_id):execution;
+    let origin=[execution,root,...origins].find(candidate=>candidate.task.id===dependency.taskId);
+    if(!origin&&dependency.memoryTransition){origin=await assertAcceptedProductMemoryTransition(db,execution,dependency);await inspectionAuthority(db,origin);}
+    if(!origin||origin.task.product!==dependency.product||root.task.product!==dependency.product)throw denied();
+    try {
+      const port=productPorts(db);
+      if(!port.assertCurrentContext)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product context authorization is unavailable");
+      await port.assertCurrentContext(db,{consumerTaskId:taskId,dependency});
+    } catch(error) {
+      if(error instanceof PlatformError&&[403,404,409].includes(error.statusCode))throw unavailable();
+      throw error;
+    }
+  }
+  for(const dependency of dependencies)if(dependency.kind==="product_artifact"){
+    const origin=await loadExecution(db,dependency.taskId);
+    if(origin.task.organization_id!==execution.task.organization_id||origin.task.product!==execution.task.product||
+      !await historyPrincipalAllowed(db,execution,origin))throw denied();
+    await inspectionAuthority(db,origin);
+    try{
+      const port=productPorts(db);
+      if(!port.assertCurrentArtifact)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product artifact authorization is unavailable");
+      await port.assertCurrentArtifact(db,{consumerTaskId:taskId,dependency});
+    }catch(error){if(error instanceof PlatformError&&[403,404,409].includes(error.statusCode))throw unavailable();throw error;}
+  }
+  for(const dependency of dependencies)if(dependency.kind==="delegation_input"){
+    if(dependency.memoryTransition){
+      const origin=await assertAcceptedProductMemoryTransition(db,execution,dependency);await inspectionAuthority(db,origin);
+      await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,origin.task.id);
+    }else await assertDelegationInputEvidence(db,dependency.referenceId,dependency.manifestDigest,options.delegationTrail,taskId);
+  }
+  for(const dependency of dependencies)if(dependency.kind==="artifact"){
+    const row=(await db.query(`SELECT a.task_id,a.content_digest FROM agents_platform.artifacts a
+      JOIN agents_platform.tasks t ON t.id=a.task_id JOIN agents_platform.conversations c ON c.id=t.conversation_id
+      WHERE a.id=$1 AND a.organization_id=$2 AND a.state='available' AND c.deleted_at IS NULL FOR SHARE OF a,c`,
+    [dependency.referenceId,execution.task.organization_id])).rows[0];
+    if(!row||row.content_digest!==dependency.contentDigest)throw unavailable();
+    const origin=await loadExecution(db,row.task_id);
+    if(!await historyPrincipalAllowed(db,execution,origin))throw denied();
+    await inspectionAuthority(db,origin);
+  }
   for (const dependency of dependencies.filter(item => item.kind === "source")) {
     if (dependency.kind !== "source") continue;
     await sourceAllowed(db, execution, dependency.revisionId);
@@ -269,10 +357,14 @@ export async function assertCurrentEvidence(db: Db, taskId: string, input: Depen
   }
   for (const dependency of dependencies.filter(item => item.kind === "memory")) {
     if (dependency.kind !== "memory") continue;
-    const root = execution.task.parent_task_id ? await loadExecution(db, execution.task.root_task_id) : execution;
-    if (root.task.principal.kind !== "human") throw denied();
-    const row = (await db.query("SELECT * FROM agents_platform.memory_scopes WHERE id=$1 AND organization_id=$2 AND account_id=$3 AND agent_id=$4 FOR SHARE", [dependency.referenceId, execution.task.organization_id, await owner(db, root), root.agentId])).rows[0];
-    if (!row || Number(row.generation) !== dependency.generation || row.next_expiry_at && new Date(row.next_expiry_at).getTime() <= Date.now()) throw unavailable();
+    const row = (await db.query("SELECT * FROM agents_platform.memory_scopes WHERE id=$1 AND organization_id=$2 FOR SHARE", [dependency.referenceId, execution.task.organization_id])).rows[0];
+    if (!row) throw unavailable();
+    try{if(!await memoryDependencyAllowed(db,execution,row,origins))throw denied();}
+    catch(error){if(error instanceof PlatformError&&[403,404,409].includes(error.statusCode))throw unavailable();throw error;}
+    if(dependency.memoryId) {
+      const memory=(await db.query("SELECT revision,status,expires_at FROM agents_platform.memories WHERE id=$1 AND scope_id=$2 FOR SHARE",[dependency.memoryId,row.id])).rows[0];
+      if(!memory||memory.status!=="accepted"||Number(memory.revision)!==dependency.memoryRevision||memory.expires_at&&new Date(memory.expires_at).getTime()<=Date.now())throw unavailable();
+    } else if(Number(row.generation)!==dependency.generation||row.next_expiry_at&&new Date(row.next_expiry_at).getTime()<=Date.now())throw unavailable();
   }
 }
 

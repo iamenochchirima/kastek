@@ -1,5 +1,10 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
-import {execFileSync} from "node:child_process";
+import {execFileSync,spawn,type ChildProcess} from "node:child_process";
+import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import {createServer as portServer} from "node:net";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
 import {randomUUID} from "node:crypto";
 import {createServer,type ServerHttp2Session} from "node:http2";
 import {createEndpointHandler} from "@restatedev/restate-sdk";
@@ -20,25 +25,37 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)("real Restate automation timers and occurrence recovery",()=>{
  let admin:Pool,pool:Pool,store:PlatformStore,service:AutomationService,server:ReturnType<typeof createServer>,workflow:ReturnType<typeof createAutomationWorkflow>;
  let ingress:string,adminUrl:string,port:number,bridge:string,started=false;
+ let native:ChildProcess|undefined,nativeDirectory:string|undefined;
+ const binary=process.env.AGENTS_TEST_RESTATE_BINARY;
  const sessions=new Set<ServerHttp2Session>(),observed=new Set<string>(),container=`agents-timer-test-${randomUUID()}`,database=`agents_timer_${randomUUID().replaceAll("-","")}`;
  const docker=(...args:string[])=>execFileSync("docker",args,{encoding:"utf8",timeout:60000}).trim();
  const delay=(ms:number)=>new Promise<void>(done=>setTimeout(done,ms));
  async function eventually<T>(check:()=>Promise<T|false>,timeout=15000):Promise<T>{const deadline=Date.now()+timeout;while(Date.now()<deadline){const value=await check();if(value!==false)return value;await delay(50);}throw Error("Automation timer verification timed out");}
  async function listen(listenPort=0){server=createServer(createEndpointHandler({services:[workflow]}));server.on("session",session=>{sessions.add(session);session.once("close",()=>sessions.delete(session));});await new Promise<void>(done=>server.listen(listenPort,bridge,done));port=(server.address() as {port:number}).port;}
  async function stopWorker(){for(const session of sessions)session.destroy();await new Promise<void>(done=>server.close(()=>done()));}
+ async function freePort(){const server=portServer();await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const port=(server.address() as {port:number}).port;await new Promise<void>(resolve=>server.close(()=>resolve()));return port;}
  beforeAll(async()=>{
   admin=new Pool({connectionString:databaseUrl});await admin.query(`CREATE DATABASE "${database}"`);const url=new URL(databaseUrl!);url.pathname=`/${database}`;pool=new Pool({connectionString:url.href});await setupPlatformSchema(pool);
   store=new PlatformStore(pool);service=new AutomationService(pool);
   const snapshot=service.timerSnapshot.bind(service);service.timerSnapshot=async(id,revision)=>{const value=await snapshot(id,revision);observed.add(`${id}:${revision}`);return value;};
   workflow=createAutomationWorkflow(service);
-  // Unsigned SDK fixture binds only the private Docker bridge, never a LAN address.
-  bridge=docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}");await listen();
-  docker("run","-d","--name",container,"--cpus","2","--memory","768m","--add-host","host.docker.internal:host-gateway","-p","127.0.0.1::8080","-p","127.0.0.1::9070","docker.restate.dev/restatedev/restate:1.7.13");started=true;
-  ingress=`http://${docker("port",container,"8080/tcp")}`;adminUrl=`http://${docker("port",container,"9070/tcp")}`;
+  bridge=binary?"127.0.0.1":docker("network","inspect","bridge","--format","{{(index .IPAM.Config 0).Gateway}}");await listen();
+  let workerHost="host.docker.internal";
+  if(binary){
+   expect(execFileSync(binary,["--version"],{encoding:"utf8"})).toContain("1.7.13");
+   const ingressPort=await freePort(),adminPort=await freePort(),internal=await freePort();
+   nativeDirectory=await mkdtemp(join(tmpdir(),"kasitek-automation-timers-"));const config=join(nativeDirectory,"restate.toml");
+   await writeFile(config,await readFile(join(__dirname,"scheduling-restate.toml"),"utf8")+`\n[ingress]\nbind-address="127.0.0.1:${ingressPort}"\n[admin]\nbind-address="127.0.0.1:${adminPort}"\n`);
+   native=spawn(binary,["--config-file",config,"--base-dir",join(nativeDirectory,"data"),"--bind-address",`127.0.0.1:${internal}`,"--advertised-host","127.0.0.1","--node-name","automation-timers","--no-logo"],{stdio:"ignore"});
+   ingress=`http://127.0.0.1:${ingressPort}`;adminUrl=`http://127.0.0.1:${adminPort}`;workerHost="127.0.0.1";
+  }else{
+   docker("run","-d","--name",container,"--cpus","2","--memory","768m","--add-host","host.docker.internal:host-gateway","-p","127.0.0.1::8080","-p","127.0.0.1::9070","docker.restate.dev/restatedev/restate:1.7.13");started=true;
+   ingress=`http://${docker("port",container,"8080/tcp")}`;adminUrl=`http://${docker("port",container,"9070/tcp")}`;
+  }
   await eventually(async()=>{try{return(await fetch(`${adminUrl}/health`)).ok;}catch{return false;}});
-  const registration=await fetch(`${adminUrl}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://host.docker.internal:${port}`,force:false})});expect(registration.ok,await registration.text()).toBe(true);
+  const registration=await fetch(`${adminUrl}/deployments`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uri:`http://${workerHost}:${port}`,force:false})});expect(registration.ok,await registration.text()).toBe(true);
  },60000);
- afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
+ afterAll(async()=>{if(server?.listening)await stopWorker();if(started)docker("rm","-f",container);if(native&&native.exitCode===null){native.kill("SIGTERM");await new Promise<void>(resolve=>native!.once("exit",()=>resolve()));}if(nativeDirectory)await rm(nativeDirectory,{recursive:true,force:true});await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
  async function fixture(schedule:AutomationConfig["schedule"],historical=false){
   const account=await store.ensureAccount({issuer:"http://localhost/timers",subject:randomUUID(),email:"owner@example.test",displayName:"Owner"}),organization=await store.createOrganization(account.id,"Timer tests"),scope={accountId:account.id,organizationId:organization.id};
   await connectFixtureModel(pool,account.id,organization.id);
@@ -52,7 +69,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
    await transaction(pool,async db=>{
     const cfg=defaultBusinessConfiguration(),grant=executionGrantSchema.parse({id:randomUUID(),product:"agents",organizationId:organization.id,resourceId:id,callerClientId:"agents-automation",
       principal:{kind:"automation",id,ownerAccountId:account.id},versionId:version.id,operations:["model.reply"],sourceRevisionIds:[],connectedToolBindingIds:[],
-      maxInputBytes:cfg.model.maxInputBytes,maxOutputTokens:cfg.model.maxOutputTokens,maxContextTokens:cfg.context.maxInputTokens,expiresAt:input.expiresAt,revokedAt:null});
+      maxInputBytes:cfg.model.maxInputBytes,maxOutputTokens:cfg.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(cfg),expiresAt:input.expiresAt,revokedAt:null});
     const routes=await resolveAcceptedModelRoutes(db,{organizationId:organization.id,agentId:agent.id,product:"agents",selection:cfg.model.selection,layers:executionModelLayers(cfg,grant),requiresTools:false});
     await saveAutomationModelRoutes(db,{automationId:id,revision:1,organizationId:organization.id,versionId:version.id,routes});
    });

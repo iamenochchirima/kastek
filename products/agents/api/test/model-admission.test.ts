@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
@@ -32,7 +33,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
     const grant = await platform.createGrant({ accountId: account.id, grant: { ...authority, id: randomUUID(), versionId: snapshot.id,
       operations: ["model.reply"], sourceRevisionIds: [], connectedToolBindingIds: [], maxInputBytes: configuration.model.maxInputBytes,
-      maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens,
+      maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration),
       rootTokenLimit: 32000, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null } });
     const request = { authority, grantId: grant.id, versionId: snapshot.id, requestKey: randomUUID(), input: "Hello" };
     return { account, org, models, configuration, agent, snapshot, request };

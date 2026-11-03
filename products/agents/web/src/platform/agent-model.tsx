@@ -1,8 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { PiCaretDown as ChevronDown, PiCheck as Check, PiMagnifyingGlass } from "react-icons/pi";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PiMagnifyingGlass } from "react-icons/pi";
+import { AgentModelPicker } from "@kasitek-labs/ui/agent-model-picker";
 import { Input } from "@/components/ui/input";
 import { api, message, organizationPath, type Configuration } from "./api";
 import { providerApi, providerError, type CachedProviderModels, type DefaultModel, type ModelProviderConnection, type ProviderModel } from "./model-provider-api";
@@ -18,7 +17,7 @@ type ModelPolicyPreview = {
 type Choice = { connection: ModelProviderConnection; model: ProviderModel; available: boolean; toolSupport: "supported" | "needs_verification" | "unsupported" };
 function useAgentModels(organizationId: string, agentId: string) {
   const [choices, setChoices] = useState<Choice[]>([]), [defaultModel, setDefaultModel] = useState<DefaultModel | null>(null);
-  const [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [loading, setLoading] = useState(true), [error, setError] = useState(""), [reloadKey,setReloadKey]=useState(0);
   useEffect(() => {
     let active = true;
     setLoading(true); setError("");
@@ -33,8 +32,8 @@ function useAgentModels(organizationId: string, agentId: string) {
         if (models.some(result => result.status === "rejected")) setError("Some model lists are unavailable.");
       }).catch(cause => { if (active) setError(providerError(cause)); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [organizationId, agentId]);
-  return { choices, defaultModel, loading, error };
+  }, [organizationId, agentId,reloadKey]);
+  return { choices, defaultModel, loading, error,reload:()=>setReloadKey(value=>value+1) };
 }
 function modelIncompatibility(choice: Choice, requiresTools: boolean): string | null {
   if (!choice.available || choice.model.lifecycle === "retired") return "Unavailable";
@@ -48,7 +47,7 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
   organizationId: string; agentId: string; configuration: Configuration; dirty: boolean; saving: boolean;
   onSelect(selection: Selection): Promise<boolean>;
 }) {
-  const { choices, defaultModel, loading, error } = useAgentModels(organizationId, agentId);
+  const { choices, defaultModel, loading, error,reload } = useAgentModels(organizationId, agentId);
   const active = configuration.model.selection ?? { kind: "organization_default" as const };
   const activeKey = JSON.stringify(active);
   const [open, setOpen] = useState(false), [search, setSearch] = useState(""), [pending, setPending] = useState(activeKey), [saveError, setSaveError] = useState("");
@@ -56,37 +55,27 @@ export function ChatModelPicker({ organizationId, agentId, configuration, dirty,
   const resolved = active.kind === "organization_default" ? defaultModel?.selection : active;
   const selected = choices.find(choice => choice.connection.id === resolved?.connectionId && choice.model.id === resolved.modelId);
   const label = selected ? `${selected.connection.name} · ${selected.model.name}` : resolved ? resolved.modelId : loading ? "Loading model…" : "Choose model";
-  const matching = choices.filter(choice => `${choice.connection.name} ${choice.connection.providerId} ${choice.model.id} ${choice.model.name}`.toLowerCase().includes(search.toLowerCase()));
   const defaultChoice = choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId);
   const defaultReason = defaultChoice ? modelIncompatibility(defaultChoice, requiresTools) : "No available default model";
+  const details = (choice: Choice | undefined) => choice ? {contextWindowTokens:choice.model.contextTokens.value,maxOutputTokens:choice.model.maxOutputTokens.value,
+    pricing:choice.model.pricing?{...choice.model.pricing,currency:"USD" as const}:null} : {};
   async function apply() {
     if (saving || dirty) return;
     setSaveError("");
     try { if (await onSelect(JSON.parse(pending) as Selection)) setOpen(false); }
     catch (cause) { setSaveError(message(cause)); }
   }
-  return <>
-    <Button type="button" size="sm" variant="ghost" className="chat-model-picker max-w-full min-w-0" aria-label={`Chat model: ${label}`} disabled={saving} onClick={() => { setPending(activeKey); setSearch(""); setSaveError(""); setOpen(true); }}><span className="truncate">{label}</span><ChevronDown className="size-3 shrink-0" /></Button>
-    <Dialog open={open} onOpenChange={value => { if (!saving) setOpen(value); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Choose model</DialogTitle><DialogDescription>New messages use the saved model.</DialogDescription></DialogHeader>
-      {dirty && <p role="status" className="text-sm text-muted-foreground">Save configuration changes in Configure before switching models.</p>}
-      {error && <p role="status" className="text-sm text-muted-foreground">{error}</p>}
-      {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
-      <Input aria-label="Search chat models" placeholder="Search models" value={search} disabled={saving} onChange={event => setSearch(event.target.value)} />
-      <div className="max-h-[50vh] space-y-1 overflow-auto" aria-label="Chat models" aria-busy={loading}>
-        <button type="button" disabled={saving || Boolean(defaultReason)} title={defaultReason ?? undefined} aria-pressed={pending === JSON.stringify({ kind: "organization_default" })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(JSON.stringify({ kind: "organization_default" }))}>
-          <span className="min-w-0 text-sm font-medium">Organization default</span>{pending === JSON.stringify({ kind: "organization_default" }) && <Check className="size-4 shrink-0" />}
-        </button>
-        {matching.map(choice => {
-          const key = JSON.stringify({ kind: "connection", connectionId: choice.connection.id, modelId: choice.model.id });
-          const reason = modelIncompatibility(choice, requiresTools);
-          return <button type="button" key={key} disabled={saving || Boolean(reason)} title={reason ?? undefined} aria-pressed={pending === key} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-muted aria-pressed:bg-muted disabled:opacity-50" onClick={() => setPending(key)}><span className="min-w-0 break-words text-sm font-medium">{choice.model.name}</span>{pending === key && <Check className="size-4 shrink-0" />}</button>;
-        })}
-        {!loading && !matching.length && <p className="px-3 py-2 text-sm text-muted-foreground">{choices.length ? "No matching models" : "No available models"}</p>}
-      </div>
+  return <AgentModelPicker label={label} disabled={saving} open={open} onOpenChange={value=>{
+    if(value){setPending(activeKey);setSearch("");setSaveError("");}setOpen(value);
+  }} search={search} onSearch={setSearch} selectedId={pending} onSelect={setPending}
+    options={[{id:JSON.stringify({kind:"organization_default"}),label:defaultChoice?`${defaultChoice.model.name} · Default`:"Default",...details(defaultChoice),disabled:Boolean(defaultReason),reason:defaultReason??undefined},
+      ...choices.map(choice=>({id:JSON.stringify({kind:"connection",connectionId:choice.connection.id,modelId:choice.model.id}),
+        label:choice.model.name,provider:`${choice.connection.name} · ${choice.model.id}`,...details(choice),disabled:Boolean(modelIncompatibility(choice,requiresTools)),reason:modelIncompatibility(choice,requiresTools)??undefined}))]}
+    loading={loading} saving={saving} error={saveError||error} saveDisabled={dirty||pending===activeKey}
+    onSave={()=>void apply()} onReload={reload} footer={<>
+      {dirty?<p role="status" className="text-sm text-muted-foreground">Save configuration changes before switching models.</p>:null}
       <Link to="/app/settings" className="text-sm underline underline-offset-4">Manage model providers</Link>
-      <DialogFooter><Button variant="outline" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button><Button disabled={saving || dirty || pending === activeKey || loading} onClick={() => void apply()}>{saving ? "Saving…" : "Use model"}</Button></DialogFooter>
-    </DialogContent></Dialog>
-  </>;
+    </>} />;
 }
 export function AgentModel({ organizationId, agentId, configuration, onChange }: {
   organizationId: string; agentId: string; configuration: Configuration; onChange(value: Configuration): void;
@@ -117,6 +106,9 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
   const selected = choices.find(choice => selection.kind === "connection" && choice.connection.id === selection.connectionId && choice.model.id === selection.modelId);
   const available = selection.kind === "organization_default" ? choices.find(choice => choice.connection.id === defaultModel?.selection?.connectionId && choice.model.id === defaultModel.selection.modelId) : selected;
   const limits = preview?.limits, controls = preview?.controls;
+  const customContext=configuration.context&&!("mode" in configuration.context)?configuration.context:undefined;
+  const automaticInput=preview?.effectivePolicy?.maxInputTokens,automaticThreshold=preview?.effectivePolicy?.compactAtTokens;
+  const canSetContext=typeof automaticInput==="number"&&typeof automaticThreshold==="number";
   const generation = configuration.model.generation, reasoning = generation?.reasoning;
   const reasoningControl = controls?.reasoning;
   const reasonValue = reasoning ? reasoning.kind === "budget" ? "budget" : reasoning.value : "provider_default";
@@ -166,8 +158,12 @@ export function AgentModel({ organizationId, agentId, configuration, onChange }:
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-2">Maximum reply tokens<Input type="number" min={1} max={limits?.maxOutputTokens ?? undefined} required {...field("maxOutputTokens")} value={configuration.model.maxOutputTokens} onChange={event => update({ maxOutputTokens: Number(event.target.value) })} /></label>
           <label className="block space-y-2">Call timeout in seconds<Input type="number" min={1} max={limits?.maxCallDurationMs === null || limits?.maxCallDurationMs === undefined ? undefined : Math.floor(limits.maxCallDurationMs / 1000)} required {...field("maxDurationSeconds")} value={configuration.model.maxDurationSeconds} onChange={event => update({ maxDurationSeconds: Number(event.target.value) })} /></label>
-          <label className="block space-y-2">Input context tokens<Input type="number" min={1} max={limits?.maxInputTokens ?? undefined} required {...field("maxInputTokens")} value={configuration.context?.maxInputTokens ?? ""} onChange={event => onChange({ ...configuration, context: { maxInputTokens: Number(event.target.value), compactAtTokens: configuration.context?.compactAtTokens ?? 1 } })} /></label>
-          <label className="block space-y-2">Compact at tokens<Input type="number" min={1} max={configuration.context?.maxInputTokens === undefined ? undefined : configuration.context.maxInputTokens - 1} required {...field("compactAtTokens")} value={configuration.context?.compactAtTokens ?? ""} onChange={event => onChange({ ...configuration, context: { maxInputTokens: configuration.context?.maxInputTokens ?? Number(event.target.value) + 1, compactAtTokens: Number(event.target.value) } })} /></label>
+          <label className="block space-y-2">Context<select aria-label="Context mode" className="min-h-10 w-full rounded-md border bg-background p-2 font-normal" value={customContext?"custom":"automatic"}
+            onChange={event=>{if(event.target.value==="automatic")onChange({...configuration,context:{mode:"automatic"}});else if(canSetContext)onChange({...configuration,context:{maxInputTokens:automaticInput,compactAtTokens:automaticThreshold}});}}>
+            <option value="automatic">Automatic</option><option value="custom" disabled={!canSetContext&&!customContext}>Custom limit</option>
+          </select></label>
+          {customContext?<><label className="block space-y-2">Input context tokens<Input type="number" min={1} max={limits?.maxInputTokens ?? undefined} required {...field("maxInputTokens")} value={customContext.maxInputTokens} onChange={event => onChange({ ...configuration, context: { ...customContext,maxInputTokens:Number(event.target.value) } })} /></label>
+          <label className="block space-y-2">Compact at tokens<Input type="number" min={1} max={customContext.maxInputTokens-1} required {...field("compactAtTokens")} value={customContext.compactAtTokens} onChange={event => onChange({ ...configuration, context: { ...customContext,compactAtTokens:Number(event.target.value) } })} /></label></>:null}
           {controls?.temperature && <label className="block space-y-2">Temperature<Input aria-label="Temperature" type="number" step="any" min={controls.temperature.min} max={controls.temperature.max} placeholder="Provider default" {...field("temperature")}
             value={generation?.temperature ?? ""} onChange={event => updateGeneration({ temperature: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}
           {reasoningControl && <label className="block space-y-2">Reasoning<select aria-label="Reasoning" className="min-h-10 w-full rounded-md border bg-background p-2 font-normal" {...field("reasoning")} value={reasonValue}

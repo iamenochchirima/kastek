@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {connectFixtureModel} from "./model-fixture";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {randomBytes,randomUUID} from "node:crypto";
@@ -74,7 +75,7 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   const agent=await platform.createAgent({...scope,name:"Grounded",configuration:config});
   const version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant={...authority,id:randomUUID(),versionId:version.id,operations:(effects?["model.reply","knowledge.read","artifact.read","artifact.write","effect.deliver"]:connected?["model.reply","knowledge.read","connected.read"]:memoryEnabled?["model.reply","knowledge.read","memory.read","memory.propose"]:["model.reply","knowledge.read"]) as ("model.reply"|"knowledge.read"|"memory.read"|"memory.propose"|"connected.read"|"artifact.read"|"artifact.write"|"effect.deliver")[],sourceRevisionIds:config.sourceRevisionIds,connectedToolBindingIds:config.connectedToolBindingIds,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
+  const grant={...authority,id:randomUUID(),versionId:version.id,operations:(effects?["model.reply","knowledge.read","artifact.read","artifact.write","effect.deliver"]:connected?["model.reply","knowledge.read","connected.read"]:memoryEnabled?["model.reply","knowledge.read","memory.read","memory.propose"]:["model.reply","knowledge.read"]) as ("model.reply"|"knowledge.read"|"memory.read"|"memory.propose"|"connected.read"|"artifact.read"|"artifact.write"|"effect.deliver")[],sourceRevisionIds:config.sourceRevisionIds,connectedToolBindingIds:config.connectedToolBindingIds,maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
   await platform.createGrant({accountId:account.id,grant});const{task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Answer with sources"});
   const operationId=`knowledge:${task.id}:initial`;
   await beginOperation(pool,task.id,{id:operationId,kind:"tool",name:"knowledge.search",request:{query:"tail"},reservedTokens:0,reservedMs:1000,retrySafe:true});
@@ -101,6 +102,13 @@ const url=process.env.AGENTS_TEST_DATABASE_URL;
   expect(await evidence.verifyQuote(f.task.id,p.reference.id,"Decisive tail")).toBe(true);
   expect(await evidence.verifyQuote(f.task.id,p.reference.id,"invented quotation")).toBe(false);
   await expect(evidence.validateCitations(f.task.id,"Fact [E2]")).rejects.toMatchObject({code:"CITATION_UNKNOWN"});
+  const retainedDigest=requestDigest({ids:node.evidenceIds,parentIds:[],manifest:node.manifest});
+  await pool.query(`INSERT INTO agents_platform.evidence_nodes(id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
+    SELECT gen_random_uuid(),organization_id,root_task_id,task_id,'summary','retained:parallel:'||n,evidence_ids,'{}',manifest,$2
+    FROM agents_platform.evidence_nodes CROSS JOIN generate_series(1,1030)n WHERE id=$1`,[node.id,retainedDigest]);
+  const joined=await evidence.derive(f.task.id,"summary","retained:joined");
+  expect(joined.parents.length).toBeGreaterThan(1024);expect(joined.manifest).toEqual(p.reference.manifest);
+  expect((await evidence.validateCitations(f.task.id,`Retained fact [${p.label}]`))[0]?.text).toBe(f.text);
  });
  it("fails closed on forged snapshots, unpinned grants, visibility changes, and withdrawal of hidden influences",async()=>{
   const f=await fixture(),p=await evidence.recordChunk(f.task.id,f.operationId,f.chunkId);

@@ -38,9 +38,9 @@ export class GrowthAgentReviewStore {
     for (const platform of draft.channels) {
       const selected = draft.channelSelections[platform];
       if (!selected) continue;
-      const row = (await db.query(`SELECT id,platform::text,status::text,"updatedAt" FROM "SocialChannelConnection" WHERE "orgId"=$1 AND id=$2 FOR SHARE`, [scope.tenantId, selected])).rows[0];
+      const row = (await db.query(`SELECT id,platform::text,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialChannelConnection" WHERE "orgId"=$1 AND id=$2 FOR SHARE`, [scope.tenantId, selected])).rows[0];
       if (!row || row.platform !== platform || row.status !== "CONNECTED") throw new ApiError(422, "agent_destination_unavailable", "The selected publishing account is unavailable");
-      revisions[selected] = growthAgentDigest({ id: row.id, platform: row.platform, updatedAt: new Date(row.updatedAt).toISOString(), status: row.status });
+      revisions[selected] = growthAgentDigest({ id: row.id, platform: row.platform, updatedAt: new Date(row.updatedAt).toISOString(), status: row.status, agentReviewRevision: row.agentReviewRevision });
     }
     return revisions;
   }

@@ -117,8 +117,8 @@ export async function updatePublishedFacebookPost(
     if (uncertain) throw new ApiError(409, "published_update_unconfirmed", "Facebook update confirmation is unavailable. Check the Facebook post before another edit");
     throw error;
   }
-  await transaction(pool, async tx => {
-    await lockSocialPost(tx, ctx.organizationId, postId, { expectedPostRevision: input.expectedUpdatedAt });
+  try { await transaction(pool, async tx => {
+    await lockSocialPost(tx, ctx.organizationId, postId, { expectedPostRevision: input.expectedUpdatedAt,expectedPostAgentRevision:options.expectedPostAgentRevision });
     intent.state = "confirmed"; intent.confirmedAt = new Date().toISOString();
     await tx.query(`UPDATE "SocialPublishJob" SET metadata=jsonb_set(metadata,'{_kasitek_edit_intent}',$2::jsonb,true),"updatedAt"=NOW() WHERE id=$1`, [job.id, canonicalJson(intent)]);
     if (removePhoto) {
@@ -128,7 +128,9 @@ export async function updatePublishedFacebookPost(
     }
     await tx.query('UPDATE "SocialPostVariant" SET content=$2,"updatedAt"=NOW() WHERE "postId"=$1 AND platform=\'FACEBOOK\'', [postId, content]);
     await tx.query('UPDATE "SocialPost" SET content=$2,"updatedAt"=NOW() WHERE id=$1 AND "orgId"=$3', [postId, content, ctx.organizationId]);
-  });
+  }); } catch {
+    throw new ApiError(409, "published_update_unconfirmed", "Facebook update confirmation is unavailable. Check the Facebook post before another edit");
+  }
   const post = await getSocialPost(pool, ctx.organizationId, postId);
   if (!post) throw new ApiError(404, "not_found", "Post not found");
   try { await enqueueDomainEvent(pool, ctx.organizationId, CONTENT_POST_UPDATED_EVENT, { postId, status: post.status, title: post.title, updatedAt: post.updated_at }); }

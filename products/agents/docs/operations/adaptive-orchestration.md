@@ -1,6 +1,6 @@
 # Adaptive specialist orchestration
 
-Owner: Agents engineering. Reviewed: 2026-10-31.
+Owner: Agents engineering. Reviewed: 2026-11-02.
 
 The existing organization Assistant remains an ordinary editable business agent. An explicitly
 saved `tool-directed` program version 4 gives its model separate discovery, delegation, inspection,
@@ -9,9 +9,11 @@ no topic-to-specialist routing table or required Content workflow controls that 
 capabilities are available to other authorized standalone business coordinators.
 
 The runtime enforces permissions, published version pins, budgets and durable execution. Those
-controls do not decide the business plan. This is a coordinator with specialist workers, not
-recursive teams: specialists cannot delegate further or acquire personal memory. Sandbox access
-requires an explicit matching scope. Cross-product delegation, dynamically invented elevated grants and arbitrary agent
+controls do not decide the business plan. A specialist with an explicitly commissioned delegation
+configuration can commission its own child through the same shared protocol. Each edge narrows
+the published definition through its immediate parent, retaining the original human/customer or
+automation identity and root work accounting. Personal memory is not inherited. Sandbox access
+requires an explicit matching scope. Dynamically invented elevated grants and arbitrary agent
 creation during execution remain unavailable. Growth's managed assistant can now coordinate its
 three existing same-business specialists through the product integration described below.
 
@@ -28,21 +30,21 @@ not an instruction to invoke it for a particular topic.
 | Concurrent child tasks | 1–8; default 2 |
 | Total child tasks per work | `policy.maxTasks`: positive integer or `null`; default `null`; follow-ups and continued segments count |
 | Repeated unchanged observations | `policy.maxStalls`: 1–8; default 3; one replanning opportunity before pause |
-| Delegation depth | One level |
+| Delegation depth | Positive configured number of further edges, or `null` for no configured depth ceiling. A finite ancestor ceiling remains binding. |
 | Tasks started per call | One or two |
 | Execution allowances | Local/shared call counts, cumulative tokens and active time default to no service cap; explicit grants, quotas, deadlines and concurrency remain enforced |
 
 Schema096 adds prior-task links, versioned work-progress records, idempotent progress updates and
 queued user instructions. Schemas097/098 add logical work lineage, immutable continuation segments,
-nullable cumulative allowances and integer-safe counters. New publication of program version 4 uses
-`product-capabilities-v14` / `AgentsBusinessRunV24`; retain v13/V23 and earlier registered workflows
-for their accepted tasks. Versions
+nullable cumulative allowances and integer-safe counters. Schema099 permits immutable parent/root/depth lineage at multiple levels. New business publications
+use `product-capabilities-v15` / `AgentsBusinessRunV25`; retain v14/V24, v13/V23 and earlier registered
+workflows for their accepted tasks. Versions
 1–3 keep their descriptors and behavior. The adaptive tools are not injected into incompatible
 product programs. Saving an explicit version 4 configuration enables future compatible admissions;
 there is no separate adaptive rollout environment variable. Private phone admissions still require
 `AGENTS_MEMBER_ASSISTANT_ORGANIZATIONS` on both API and worker.
 
-For local Restate setup, verify the registered service list includes `AgentsBusinessRunV24` and
+For local Restate setup, verify the registered service list includes `AgentsBusinessRunV25` and
 the retained handlers after changing the worker. Re-registering an existing endpoint with
 `force: false` can return HTTP200 while keeping its earlier manifest. Refresh that owned local
 registration with `force: true`, then inspect the registered services before admitting work.
@@ -57,13 +59,43 @@ fences new use and results already influenced by it. Coordinator evidence recogn
 skill provenance only through an actually joined child result and the current matching binding pin;
 unselected sibling/private skills remain unavailable.
 
+## Recursive authority and settlement
+
+Direct tool bindings remain separate from commissioned specialist bindings. A parent can commission
+an operation without exposing its schema in its own direct catalogue. Each nested source,
+connection and product descriptor must remain inside the immediate parent's selected ceiling and
+the child's immutable published definition. Discovery does not grant authority. Explicit finite
+depth and subtree-task allowances apply at every ancestor; concurrency applies to each parent's
+outstanding children and physical operations still use the shared fair-capacity service.
+
+V15 reserves physical requests once against the work ledger. A finite intermediate token or active-time
+allowance covers its own work and every descendant. Its descendants cannot obtain a fresh allowance
+by changing a task ID. Earlier accepted runtimes retain their original prepaid allocation semantics.
+A waiting parent holds no model permit. Canceling a child cancels its subtree and leaves siblings
+active; an intermediate task stays pending until its own children and resources settle. Confirmed
+and uncertain effects remain recorded after cancellation.
+
+Every child retains the immutable dependencies of its accepted brief. Selected descendant results
+join through actual parent-child edges, and source/skill/connection withdrawal fences derived
+results through the full chain. Queued directions remain private to their accepted branch. The coordinating model selects
+applicable facts for a focused brief or follow-up; ancestor instruction bodies and transcripts
+are not automatically copied into child context. Each branch keeps separate history and progress. Customer delegation is available only for a recursively validated public configuration;
+it preserves the customer deployment/session/ownership authority and cannot inherit staff identity,
+personal memory, private product tools, analysis or private workflows.
+
 ## Model tools
 
-Growth defaults revision 5 publishes its assistant on program 4 and pins Research, Content and
-Campaigns as direct program 3 specialists. Growth membership and signed product authority remain
+Current Growth defaults revision 11 publishes the Assistant, Content and Campaigns with versioned
+delegation rosters; Research remains a leaf. The Assistant can use all three specialists, while
+Content and Campaigns can send focused evidence work to Research. Growth membership and signed product authority remain
 the source of access; no standalone Agents account or membership is created. Child grants retain
-the root's initiating principal and product scope and cannot delegate further. Current specialist
+the root's initiating principal and product scope. A managed specialist without a configured roster
+has no delegation tools; an explicitly commissioned delegation scope enables the same recursive
+protocol under the parent and published definition's ceilings. Current specialist
 availability and root authority are checked before execution and when consuming child evidence.
+Each delegated edge receives only product operations present in both the specialist definition and
+the parent's commissioned product scope; broader specialist operations are omitted from that child
+execution. The same intersection applies at every descendant edge.
 See [Growth integration](../growth-integration.md) for managed upgrades, signed instruction and
 continuation commands, reviewed child effects, verification and rollback. Other product adapters
 do not acquire delegation authority from this Growth-specific publication.
@@ -77,25 +109,109 @@ miss does not establish an empty roster, and the stored tool receipt remains unc
 | --- | --- |
 | `agents.discover` | Search/page the permitted roster; return version pins, capability metadata and readiness reasons. |
 | `agents.start` | Admit one or two focused briefs; return stable child task handles without joining all results. |
-| `agents.status` | Page current and authorized prior-segment child tasks without consuming output. |
+| `agents.status` | Page current and authorized prior-segment child tasks without consuming output; current active children precede completed history. |
 | `agents.wait` | Wait for any/all selected children for up to 60 seconds; return statuses and timeout state. |
-| `agents.result` | Read one current or authorized prior-segment terminal child's result by bounded pages; consume only that child's evidence. |
+| `agents.result` | Read one current or authorized prior-segment terminal child's paged report, work/questions, supplied citation index, native effect references and permitted artifact handles. |
 | `agents.followup` | Start a new immutable task in the selected specialist's existing conversation. |
 | `agents.cancel` | Request cancellation of one owned child; completed side effects are not undone. |
 | `work.update` | Compare-and-set a bounded work record using `expectedRevision`. |
 | `work.inspect` | Read the current work record and revision, or page exact instructions for the same work item. |
 
 Briefs may include selected context, a deliverable and acceptance criteria. They do not include the
-parent's full conversation automatically. A follow-up reuses the same pinned specialist, direct
+parent's full conversation automatically. The shared protocol directs a coordinator requesting a
+review to supply the relevant material or a reference the specialist is authorized to read, and to
+identify missing content. Model compliance is not guaranteed; an assignment alone does not prove
+that the specialist received or reviewed the whole source. A follow-up reuses the same pinned specialist, direct
 parent/root, member and private child conversation; its prior task must be the latest terminal turn.
 An active child conversation cannot accept an overlapping follow-up. History is authorized through
 that explicit prior-task chain, not a matching agent name, sibling task or parent transcript.
 Member-channel history is not injected into child branches.
 
+`agents.start` and `agents.followup` version 2 can select up to four pages of earlier input or output per child, using
+task IDs from the parent's own authorized conversation history. Each page carries its UTF-8 offset,
+next offset, total bytes, digest and complete-coverage flag as untrusted reference data in the
+child's accepted brief. Access and source evidence are checked before admission and remain linked
+to the child, so later withdrawal invalidates dependent use. An oversized brief is rejected rather
+than silently shortened.
+
+Version 3 additionally lets a coordinator select up to eight exact artifact IDs for each start or
+follow-up. For an authorized standalone Agents task, each selected artifact must belong to the
+same work and be readable by the immediate parent. Admission records its transfer and a narrow
+child read grant in the same transaction as the child and its outbox entry. The child receives
+metadata and uses its version-2 `history.read` tool to page the original text, Markdown or JSON;
+the artifact body is not copied into the brief. A child can pass an authorized artifact onward to
+its own child. Current source, member, artifact and child scope checks still apply; an unselected
+artifact is not made available and read access does not grant write or delivery permission.
+The child must have a tool-capable model and the compatible recovery tool.
+
+Version 4 also accepts explicit `artifactReferences` containing an earlier task ID and artifact ID
+from the parent's authorized conversation history. The parent reads that exact artifact under its
+current permissions before admission; the transferred child receives a scoped handle, not access
+to the earlier conversation. A specialist can pass the same authorized handle to its own child.
+The evidence graph retains the original source and exact artifact identity/digest, so source
+withdrawal, removal or changed content fences dependent work. Literal citations inside the
+artifact remain usable only when the original citation is authorized; the handle does not grant
+general passage access. Member/customer channel tasks and product-owned Growth/Agency artifacts
+are not supported by this handoff and return an unavailable error.
+
+Versions 1–3 retain their original schemas and behavior. New publications use version 4;
+Growth's managed runtime repair republishes an equivalent configuration while preserving disabled
+state and unpublished drafts. Roll out the version-4-aware API and worker together before allowing
+new version-4 publications. If rollback is needed, stop new version-4 admissions and restore the
+prior feature version; keep a version-4-aware worker available until already accepted version-4
+work settles. Reverting the worker alone makes those tasks unavailable.
+The change needs no new schema or analytics event; existing task and operation records remain the
+source for activity and failure monitoring.
+
+Status pages contain up to 64 records and expose `nextOffset`. Native final/budget waits obtain
+all current dependent task IDs independently of those public pages; a completed-history page
+cannot hide active work or permit premature settlement.
+An explicit specialist follow-up can read its own earlier branch's selected child results through
+the immutable delegation follow-up chain. The earlier conversation, version, principal, parent and
+work must match. This grants result inspection only; cancellation and further follow-up of those
+earlier children remain with their original parent. Sibling conversations cannot read them, and
+current source withdrawal still invalidates both the old result and a newly joined summary.
+
 Result pages contain up to 4,096 UTF-8 bytes, preserving code-point boundaries. `nextOffset` is a
 Unicode code-point offset; `totalBytes` and the full-output SHA256 digest permit reconstruction. A page boundary
-is not an incomplete-task outcome. Native outcome and transport availability remain separate.
+is not an incomplete-task outcome. Newly published result descriptor3 has no separate 1 MiB cumulative
+result-reader limit; accepted descriptor2 retains its earlier offset schema and plain-text response.
+Native outcome and transport availability remain separate.
 Reading a result rechecks current authority and evidence, including the original delegated brief.
+Descriptor3 returns optional version1 metadata beside the existing report fields. The report and
+work record, including steps and unresolved questions, are labeled `agent_reported`; correctness and
+coverage remain `not_assessed`. A completed task does not certify either. Source entries identify
+only passages actually supplied to the selected result graph. Inherited brief dependencies still
+invalidate the report when withdrawn, without inventing an issued citation for unsupplied text.
+The older `agents.delegate` durable result still has only child state and report text; its child
+source and connection IDs describe permitted scope, not the source content or verification receipts.
+Before the result reaches the coordinator model, a model-only view labels each report as
+`agent_reported` with correctness and coverage `not_assessed`, and nests those IDs under
+`authorizedScope`. The strict tool contract and persisted result remain unchanged. The legacy result
+contains no native effect receipts. Shared instructions direct the coordinator to confirm material
+facts from authorized source content and claimed effects from native receipts; otherwise it must
+preserve them as unverified.
+The source, effect and artifact lists each contain up to eight entries and have independent
+`nextOffset` values, consumed through `sourceOffset`, `effectOffset` and `artifactOffset`.
+Their pages do not impose a cumulative list ceiling.
+
+Effect references identify recorded product reviews, connected-tool reviews and report actions.
+Only native `saved`, `completed` and `delivered` records in their corresponding families are
+confirmed. Claimed, executing and uncertain records remain unknown; proposals and approval alone
+do not confirm delivery. The response excludes arguments, effect payloads and private review notes.
+Joined descendant results can contribute these references; unselected siblings cannot.
+Artifact metadata requires the parent's existing `artifact.read` grant and the same own/root or
+explicit-transfer audience as a content read. Source withdrawal and memory expiry/Forget are checked
+before metadata is returned. Inspecting metadata grants no new read or transfer permission.
+Retained artifact dependency traversal has no fixed depth or total-reference cutoff; it validates
+each reachable artifact and rejects cycles. Per-operation input/output and storage limits remain.
+
+The worker selects schema and definition versions from each accepted task's immutable tool pins.
+New publications use result3, memory search3, memory read2 and memory propose2. Earlier supported
+result2 and memory pins retain their schemas and definitions; loading a new worker does not edit
+accepted versions. Rollback selects a supported earlier configuration for new work while keeping
+the worker able to finish or reconcile accepted records. This protocol change adds no analytics
+event, exporter or database migration; existing operation identities and lifecycle records apply.
 A selected failed child does not permanently force a root to be partial: the model can inspect the
 failure, revise its approach and finish with an evidenced answer. A completed task is not proof
 that the answer satisfies the user's request; model acceptance remains separate.
@@ -122,8 +238,8 @@ group, under the same principal and conversation; specialist conversations do no
 
 Telegram and WhatsApp text received while the verified link has an active v4 delegation root is
 queued against that same root, with a durable acknowledgment. It does not create another task.
-Each correction is limited to 4,000 characters and each root to 32 queued corrections. Oversized
-phone messages and exhausted instruction slots receive a durable concise rejection; they do not
+Each correction is limited to 4,000 characters. Oversized
+phone messages receive a durable concise rejection; they do not
 create another task or hide authority failures. Rejection notice identities also prevent replay
 from turning a previously rejected message into a new request after input closes.
 `/status` and `/cancel` retain their explicit controls. Once input closes or work finishes, a new
@@ -163,11 +279,24 @@ child identities, waits and cancellation intent. Root accounting owns every admi
 settled, even if the coordinator no longer needs its answer. The current stall check compares recent
 operation names, request identities and results, including repeating short action cycles, when no
 child is active. Equivalent generated orchestration handles do not establish progress; business
-resource identifiers and result content remain significant. Changed results count as
-progress; waits and progress inspection are excluded. Rewriting the same work record under a new
-revision is not progress. A repeated unchanged observation adds a replanning observation to the
-model context; another unchanged action pauses with `ORCHESTRATION_STALLED`. This is a repetition
-guard, not a semantic judge. The v13/V23 detector remains request-only for its pinned journals.
+resource identifiers and result content remain significant. Changed results count as progress;
+waits are excluded. For the shared runtime, a work inspection interrupts the previous cycle so the
+agent can use its result, while repeated unchanged inspections can themselves form a cycle. The
+detector compares only operations recorded against the current instruction revision. An accepted
+correction starts a new sequence and the same cycle under that revision gets its own warning.
+Rewriting the same work record under a new revision is not progress. A repeated unchanged
+observation adds a replanning observation to the model context; another unchanged action pauses
+with `ORCHESTRATION_STALLED`. A newly evaluated V25 stop rechecks the observation and queued
+instructions under the task lock, then stores the exact partial outcome and closes input in one
+transaction. A correction accepted first keeps the task open for processing; one submitted after
+closure is rejected.
+The saved decision makes an interrupted commit retry return the same intended outcome. Current
+authority, evidence withdrawal and cancellation may still narrow what is settled or displayed.
+An active background compaction is joined before a new stop decision; an uncertain compaction is
+not rewritten as a confirmed stall. This is a repetition
+guard, not a semantic judge. The v14/V24
+detector excludes work inspections, and the v13/V23 detector remains request-only for its pinned
+journals.
 Observe the recorded error and receipts before retrying. Unknown physical tool outcomes retain the
 existing no-blind-replay policy. A worker restart is different from a tested full runtime crash;
 report evidence for each separately.
@@ -429,3 +558,53 @@ Rollout: owned local services and test organization only until explicitly approv
 the optional runtime projection/live subscription and retains compatible polling, native events and
 accepted receipts. Stop observation connections without cancelling tasks. Production deployment,
 release tag and post-deployment review date: not applicable until separately authorized.
+
+## Repetition observation release record
+
+Owner: iamenochchirima. Risk: standard. The shared Agents worker compares only observations made
+against the current instruction revision and includes work inspection in its repetition check.
+Journaled observations replay their recorded values. Existing action receipts, task identities,
+grants and published tool contracts do not change. Schema and migration: not applicable.
+
+The existing native replan and stalled events remain the monitoring signals. New analytics, logs,
+metrics, alerts, Collector and exporter changes: not applicable. The focused database regression,
+controlled PostgreSQL/Restate worker check and API typecheck are recorded in the local audit trail.
+The worker check uses a fixture model; no live model or hosted smoke is claimed.
+Roll out the compatible worker artifact for newly evaluated observations. Rollback restores the
+prior worker while preserving accepted work and receipts. Production release identity, deployment
+and post-release review date: not applicable until separately authorized.
+
+### Stalled-stop closure
+
+Schema108 adds immutable task-scoped stalled-stop decisions. The V25 worker reuses the existing
+`stalled:<step>` journal entry and records the exact partial outcome alongside its input closure.
+The decision transaction locks the organization and task in that order. The existing pending-outcome
+field remains reserved for dependent-work settlement. Native task and replan events remain the
+monitoring signals; new analytics, logging, metrics, dashboards and alerts are not introduced.
+
+Existing journaled string/null stall observations retain their original behavior. An older task
+whose final stall observation was already journaled before the worker change cannot acquire this
+new closure retroactively; drain or pause admissions for an idle worker rollout, or use normal
+continuation for any correction not included in such a task. Apply schema108 before the worker,
+and keep the compatible worker available for accepted work with its new decision. Rollback needs
+an idle/drained boundary and must retain the decision and closure rows. Local validation uses
+owned PostgreSQL and a controlled Restate worker; hosted rollout and live-model acceptance remain
+unverified. Production release identity and post-release review are not applicable until deployment.
+
+## Legacy delegation provenance view release record
+
+Owner: iamenochchirima. Risk: standard. The shared worker adds model-only provenance labels when
+presenting the existing `agents.delegate` receipt to the coordinator. Persisted results, published
+tool schemas, task records, grants and accepted work are unchanged. Database schema and migration:
+not applicable.
+
+Existing delegation operation and task lifecycle records remain the monitoring source. New
+analytics, structured logs, metrics, dashboards and alerts: not applicable. The model-only view has
+a focused unit regression; the existing PostgreSQL/Restate delegation integration assertion covers
+the parent model message when run with its configured harness. The project `verify-agents` skill
+lists both verification paths. No new release tag or hosted runtime identity is available in this
+local change.
+
+Roll out the compatible Agents worker with the API artifact. Rollback restores the prior worker;
+persisted receipts need no transformation. Hosted rollout and post-deployment review are not
+applicable until separately authorized.

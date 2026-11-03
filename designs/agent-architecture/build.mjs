@@ -1,0 +1,13 @@
+import { createRequire } from 'node:module';
+import { readFile, writeFile, realpath } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const here=path.dirname(fileURLToPath(import.meta.url));
+const web=path.resolve(here,'../../products/growth/web/node_modules');
+const require=createRequire(await realpath(path.join(web,'vite/package.json')));
+const {build}=require('esbuild');
+const result=await build({entryPoints:[path.join(here,'app.jsx')],bundle:true,write:false,outdir:'out',format:'iife',platform:'browser',minify:true,jsx:'automatic',nodePaths:[web],define:{'process.env.NODE_ENV':'"production"'},legalComments:'inline'});
+let html=await readFile(path.join(here,'template.html'),'utf8');
+html=html.replace('/* FLOW_STYLES */',()=>result.outputFiles.find(f=>f.path.endsWith('.css')).text).replace('/* FLOW_APP */',()=>result.outputFiles.find(f=>f.path.endsWith('.js')).text.replace(/<\/script/gi,'<\\/script'));
+await writeFile(path.join(here,'index.html'),html);
+console.log('Built offline React Flow viewer: '+path.join(here,'index.html'));

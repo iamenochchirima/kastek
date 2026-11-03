@@ -1,0 +1,11 @@
+[Unit]
+Description=Agents expiry operation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/kasitek/infra/agents-runtime/backup-control.py --config /etc/kasitek/agents-backup.json prune --apply
+LogNamespace=kasitek-agents
+TimeoutStartSec=4h

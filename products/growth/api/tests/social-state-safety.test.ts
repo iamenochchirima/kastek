@@ -28,6 +28,10 @@ test("content edits preserve delivery references and stale approvals cannot muta
     assert.equal(changed.publishJobs[0]!.variant_id, job.variant_id);
     assert.equal((await db.pool.query('SELECT "jobId" FROM "SocialPublishBatchItem" WHERE id=\'item\'')).rows[0].jobId, job.id);
     await assert.rejects(updateSocialPost(db.pool, "user", "org", original.id, { content: "Stale", channelSelections: { X: "x" } }, { expectedPostRevision: original.updated_at.toISOString() }), /reviewed content changed/);
+    const version=(await db.pool.query('SELECT "agentReviewRevision"::text AS revision FROM "SocialPost" WHERE id=$1',[original.id])).rows[0].revision as string;
+    await db.pool.query('UPDATE "SocialPost" SET title=$2 WHERE id=$1',[original.id,"Changed by another writer"]);
+    await assert.rejects(updateSocialPost(db.pool,"user","org",original.id,{content:"Stale reviewed content",channelSelections:{X:"x"}},
+      {expectedPostRevision:changed.updated_at.toISOString(),expectedPostAgentRevision:version}),/reviewed content changed/);
     const outcomes = await Promise.allSettled([
       claimPublishJob(db.pool, job.id, ["PENDING"]),
       updateSocialPost(db.pool, "user", "org", original.id, { content: "Concurrent edit", channelSelections: { X: "x" } }, { expectedPostRevision: changed.updated_at.toISOString() }),

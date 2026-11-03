@@ -1,16 +1,30 @@
 import { randomUUID } from "node:crypto";
-import { GROWTH_AGENT_COMMAND_PATH, parseGrowthAgentCommand, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentCommandOutputs } from "@kasitek-labs/contracts";
+import { GROWTH_AGENT_COMMAND_PATH, isGrowthResourceOperation, parseGrowthAgentCommand, type GrowthAgentActor, type GrowthAgentCommand, type GrowthAgentCommandInputs, type GrowthAgentCommandOperation, type GrowthAgentCommandOutputs } from "@kasitek-labs/contracts";
 import type { CoreConfig } from "../config.js";
 import { ApiError } from "../error.js";
 import { outboundTraceHeaders } from "../observability/context.js";
 import { providerSpan } from "../observability/operations.js";
 import { growthAgentApiUrl, signGrowthAgentCommand } from "./security.js";
+import { growthAgentPublication } from "./manifest.js";
 export interface GrowthAgentTransport { fetch?: typeof fetch }
 export class GrowthAgentClient {
+  private readonly publications=new Map<string,Promise<void>>();
   constructor(private readonly config: CoreConfig, private readonly transport: GrowthAgentTransport = {}) {}
   configured(): boolean { return Boolean(growthAgentApiUrl(this.config) && this.config.env.GROWTH_AGENTS_SIGNING_PRIVATE_KEY); }
   async command<K extends GrowthAgentCommandOperation>(scope: { tenantId: string; actor: GrowthAgentActor }, operation: K,
     input: GrowthAgentCommandInputs[K], requestId: string = randomUUID()): Promise<GrowthAgentCommandOutputs[K]> {
+    if(operation==="features.list"){
+      const result=await this.send(scope,operation,{...input,publication:growthAgentPublication} as GrowthAgentCommandInputs[K],requestId);
+      this.publications.set(scope.tenantId,Promise.resolve());return result;
+    }
+    if(operation==="turns.submit"||operation==="conversations.create"||operation==="features.configure"||operation.startsWith("models.")||operation.startsWith("memory.")||isGrowthResourceOperation(operation)){
+      let published=this.publications.get(scope.tenantId);
+      if(!published){published=this.send(scope,"features.list",{publication:growthAgentPublication},randomUUID()).then(()=>{});this.publications.set(scope.tenantId,published);}
+      try{await published;}catch(error){if(this.publications.get(scope.tenantId)===published)this.publications.delete(scope.tenantId);throw error;}
+    }
+    return this.send(scope,operation,input,requestId);
+  }
+  private async send<K extends GrowthAgentCommandOperation>(scope:{tenantId:string;actor:GrowthAgentActor},operation:K,input:GrowthAgentCommandInputs[K],requestId:string):Promise<GrowthAgentCommandOutputs[K]>{
     const base = growthAgentApiUrl(this.config);
     if (!base) throw new ApiError(503, "agent_service_unavailable", "Agents is not configured");
     const body = parseGrowthAgentCommand(JSON.parse(JSON.stringify({ version: "1", requestId, ...scope, operation, input }))) as GrowthAgentCommand;
@@ -32,9 +46,10 @@ export class GrowthAgentClient {
     try { value = JSON.parse(text); } catch { throw new ApiError(502, "agent_response_invalid", "Agent response is unavailable"); }
     if (!response.ok) {
       const error = value && typeof value === "object" ? value as Record<string, unknown> : {};
+      const detail=error.error&&typeof error.error==="object"&&!Array.isArray(error.error)?error.error as Record<string,unknown>:error;
       throw new ApiError(response.status >= 500 ? 503 : response.status,
-        typeof error.code === "string" ? error.code : "agent_request_failed",
-        typeof error.error === "string" ? error.error : "Agent request could not be completed");
+        typeof detail.code === "string" ? detail.code : "agent_request_failed",
+        typeof detail.message === "string" ? detail.message : typeof error.error === "string" ? error.error : "Agent request could not be completed");
     }
     return value as GrowthAgentCommandOutputs[K];
   }

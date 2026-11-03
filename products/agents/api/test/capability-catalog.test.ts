@@ -150,6 +150,12 @@ describe("exact executable routing and replay", () => {
     expect(registry.register(manifest, executor)).toEqual(adapter);
     expect(() => registry.register({ ...manifest, executableDigest: "b".repeat(64) }, executor)).toThrowError(expect.objectContaining({ code: "ADAPTER_RELEASE_CONFLICT" }));
     for (const changed of [{ release: "2.0.0" }, { manifestDigest: "b".repeat(64) }]) expect(() => registry.resolve({ ...binding, adapter: { ...binding.adapter, ...changed } })).toThrowError(expect.objectContaining({ code: "ADAPTER_RELEASE_UNAVAILABLE" }));
+    const retainedManifest={...manifest,executableDigest:"c".repeat(64)};
+    const retained=registry.registerRetainedVariant(retainedManifest,executor);
+    expect(registry.resolve({...binding,adapter:retained})).toBe(executor);
+    expect(registry.resolve(binding)).toBe(executor);
+    expect(()=>registry.registerRetainedVariant(retainedManifest,{...executor})).toThrowError(expect.objectContaining({code:"ADAPTER_RELEASE_CONFLICT"}));
+    expect(()=>registry.register(retainedManifest,executor)).toThrowError(expect.objectContaining({code:"ADAPTER_RELEASE_CONFLICT"}));
     expect(adapterManifestSchema.safeParse({ ...manifest, boundedSchemaValidation: false }).success).toBe(false);
   });
 

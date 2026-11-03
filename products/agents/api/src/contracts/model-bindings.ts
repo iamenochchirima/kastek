@@ -11,7 +11,7 @@ export const acceptedModelRouteSchema = z.strictObject({
   policy: effectiveExecutionPolicySchema,
   policyDecisions: z.array(z.strictObject({
     field:z.string().min(1).max(128),value:z.number().nullable(),rule:z.enum(["minimum","maximum"]),
-    sources:z.array(z.strictObject({kind:z.enum(["platform","product","tenant","agent","model","attestation"]),
+    sources:z.array(z.strictObject({kind:z.enum(["platform","product","tenant","agent","model","attestation","derived"]),
       reference:z.string().min(1).max(2048),value:z.number().nullable(),metadata:metadataSourceSchema.nullable().optional()})),
   })).optional(),
   consumer: providerUseGrantSchema.shape.consumer,

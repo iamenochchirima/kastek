@@ -12,10 +12,12 @@ it("reports unavailable context and first token honestly while measuring live ve
   const task=root(), live=projectGrowthRuntime(task,rows(),now);
   expect(live).toMatchObject({elapsedMs:10000,model:{firstTokenMs:null,latencyMs:null},context:{estimatedInputTokens:null,windowTokens:null,utilizationPercent:null,compactionCount:0},usage:{inputTokens:null,outputTokens:null,accountedTokens:0,observedModelCalls:0}});
   expect(projectGrowthRuntime({...task,state:"completed"},rows(),now).elapsedMs).toBe(4000);
+  expect(projectGrowthRuntime({...task,created_at:undefined},rows(),now).elapsedMs).toBeNull();
+  expect(projectGrowthRuntime({...task,state:"completed",updated_at:"invalid"},rows(),now).elapsedMs).toBeNull();
 });
 it("projects actual context, compaction, provider timing and accounted versus observed usage independently",()=>{
   const task=root();const value=projectGrowthRuntime(task,{tasks:[{id:task.id,name:"Assistant",tokens_used:120,model_calls:2,tool_calls:1}],operations:[],aggregate:{input_tokens:"80",output_tokens:"20",observed_calls:1,compaction_count:1,last_compacted_at:start},snapshot:{estimated_tokens:300,history_count:3,source_count:2},route:{model_id:"fixture/model",provider_id:"fixture",policy:{contextTokens:1000,maxInputTokens:800,maxOutputTokens:100,safetyTokens:50,compactAtTokens:600}},timing:{duration_ms:2000,first_token_ms:300,output_tokens:20}},now);
-  expect(value.context).toMatchObject({estimatedInputTokens:300,windowTokens:1000,utilizationPercent:30,compactionCount:1,historyGroups:3,sourceCount:2,compactAtTokens:600,pressure:"normal",decision:"prepared"});
+  expect(value.context).toMatchObject({estimatedInputTokens:300,inputLimitTokens:800,windowTokens:1000,utilizationPercent:37.5,compactionCount:1,historyGroups:3,sourceCount:2,compactAtTokens:600,pressure:"normal",decision:"prepared"});
   expect(value.usage).toEqual({accountedTokens:120,inputTokens:80,outputTokens:20,modelCalls:2,toolCalls:1,observedModelCalls:1});
   expect(value.model).toMatchObject({id:"fixture/model",latencyMs:2000,firstTokenMs:300,outputTokensPerSecond:10});
 });
@@ -24,6 +26,15 @@ it("never serializes raw tool names, arguments, result bodies or hostile error m
   const value=projectGrowthRuntime(task,{tasks:[{id:task.id,name:"Assistant",tokens_used:0,model_calls:0,tool_calls:0}],operations:[op],aggregate:{operation_count:61}},now);
   expect(value.operations[0]).toMatchObject({label:"Using a tool",durationMs:10000,errorCode:null});
   expect(value.operationsTruncated).toBe(true);expect(JSON.stringify(value)).not.toMatch(/private_tool|Bearer|SECRET|arguments|messages/);
+});
+it("uses bounded approved catalogue descriptions for otherwise unnamed product operations",()=>{
+  const task=root(),operation={id:"read",task_id:task.id,kind:"tool",name:"agency.workspace_agents.read",state:"completed",started_at:start,completed_at:now,error_code:null,
+    catalog_description:"Read permitted workspace agents. Does not return configuration or messages."};
+  const value=projectGrowthRuntime(task,{...rows(),operations:[operation]},now);
+  expect(value.operations[0]?.label).toBe("Read permitted workspace agents.");
+  const long=projectGrowthRuntime(task,{...rows(),operations:[{...operation,catalog_description:"  Read\n"+"word ".repeat(100)}]},now).operations[0]!.label;
+  expect(long.length).toBeLessThanOrEqual(120);expect(long).not.toContain("\n");
+  expect(projectGrowthRuntime(task,{...rows(),operations:[{...operation,catalog_description:"  "}]},now).operations[0]?.label).toBe("Using a tool");
 });
 it("bounds timeline size, retains chronological display and does not turn invalid observations into measurements",()=>{
   const task=root(), operations=Array.from({length:65},(_,index)=>({id:String(index),task_id:task.id,kind:"model",name:"model.generate",state:"completed",started_at:new Date(now.getTime()-index*1000).toISOString(),completed_at:now.toISOString(),error_code:null}));
@@ -41,7 +52,7 @@ it("scopes all operation and usage queries to inspected same-principal children 
   const calls:{sql:string;values:unknown[]}[]=[];
   const pool={query:vi.fn(async(sql:string,values:unknown[])=>{calls.push({sql,values});if(sql.includes("SELECT t.id,t.parent_task_id"))return{rows:[{id:task.id,name:"Assistant",parent_task_id:null},{id:allowed,name:"Content",parent_task_id:task.id},{id:denied,name:"Research",parent_task_id:task.id}]};return{rows:[]};})} as unknown as Pool;
   await readGrowthRuntime(pool,task);
-  expect(calls[0]!.sql).toContain("t.organization_id=$2 AND t.principal=$3::jsonb");expect(calls[0]!.sql).toContain("c.deleted_at IS NULL");expect(calls[0]!.sql).toContain("t.root_task_id=$1");expect(calls[0]!.values).toEqual([task.id,task.organization_id,JSON.stringify(task.principal)]);
+  expect(calls[0]!.sql).toContain("t.organization_id=$2 AND t.principal=$3::jsonb");expect(calls[0]!.sql).toContain("c.deleted_at IS NULL");expect(calls[0]!.sql).toContain("WITH RECURSIVE family");expect(calls[0]!.values).toEqual([task.id,task.organization_id,JSON.stringify(task.principal),"growth"]);
   for(const call of calls.filter(call=>call.sql.includes("task_id=ANY")))expect(call.values[0]).toEqual([task.id,allowed]);
   expect(calls.filter(call=>call.sql.includes("task_id=ANY"))).toHaveLength(2);
   expect(calls.find(call=>call.sql.includes("SELECT o.id"))?.sql).toContain("ORDER BY (o.state='started') DESC");
@@ -60,6 +71,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       CREATE TABLE agents_platform.agent_versions(id uuid PRIMARY KEY,organization_id uuid,agent_id uuid,configuration jsonb DEFAULT '{}'::jsonb);
       CREATE TABLE agents_platform.conversations(id uuid PRIMARY KEY,deleted_at timestamptz);
       CREATE TABLE agents_platform.tasks(id uuid PRIMARY KEY,product text,organization_id uuid,principal jsonb,version_id uuid,conversation_id uuid,parent_task_id uuid,root_task_id uuid,created_at timestamptz,tokens_used int,model_calls int,tool_calls int,effective_configuration jsonb DEFAULT '{}'::jsonb);
+      CREATE TABLE agents_platform.capability_bindings(alias text,organization_id uuid,binding jsonb);
       CREATE TABLE agents_platform.operations(id text,task_id uuid,kind text,name text,state text,started_at timestamptz,completed_at timestamptz,error_code text,accounted_tokens int,output jsonb);
       CREATE TABLE agents_platform.context_snapshots(id text,task_id uuid,step int,payload jsonb,source_references jsonb);
       CREATE TABLE agents_platform.task_model_routes(task_id uuid,organization_id uuid,routes jsonb);
@@ -81,11 +93,12 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
       await pool.query(`INSERT INTO agents_platform.operations VALUES($1,$2,'model','model.generate','completed',$3,$4,null,10,$5)`,["model:"+id,id,start,now,{message:{content:"NEVER_EXPOSE_PRIVATE_RESPONSE"},usage:{observed:true,inputTokens:6,outputTokens:4}}]);
     }
     await pool.query("UPDATE agents_platform.tasks SET effective_configuration=null WHERE id=$1",[task.id]);
-    await pool.query("UPDATE agents_platform.agent_versions v SET configuration=$2 FROM agents_platform.tasks t WHERE t.id=$1 AND v.id=t.version_id",[task.id,{productBindings:[{alias:"opaque-tool-alias",definition:{providerOperation:"content.list"}}]}]);
+    await pool.query("UPDATE agents_platform.agent_versions v SET configuration=$2 FROM agents_platform.tasks t WHERE t.id=$1 AND v.id=t.version_id",[task.id,{productBindings:[{alias:"opaque-tool-alias",definition:{providerOperation:"content.list"}},{alias:"opaque-metadata-alias",definition:{providerOperation:"agency.workspace_agents.read",description:"Read permitted workspace agents. No private conversation bodies."}}]}]);
     await pool.query("UPDATE agents_platform.agent_versions v SET configuration=$2 FROM agents_platform.tasks t WHERE t.id=$1 AND v.id=t.version_id",[allowed,{productBindings:[{alias:"opaque-child-alias",definition:{providerOperation:"campaigns.list"}}]}]);
     await pool.query("UPDATE agents_platform.tasks SET effective_configuration=$2 WHERE id=$1",[allowed,{productBindings:[{alias:"opaque-child-alias",definition:{providerOperation:"analytics.read"}}]}]);
     await pool.query(`INSERT INTO agents_platform.operations VALUES('read-analytics',$1,'tool','opaque-child-alias','completed',$2,$3,null,0,null)`,[allowed,start,now]);
     await pool.query(`INSERT INTO agents_platform.operations VALUES('read-content',$1,'tool','opaque-tool-alias','completed',$2,$3,null,0,null)`,[task.id,start,now]);
+    await pool.query(`INSERT INTO agents_platform.operations VALUES('read-metadata',$1,'tool','opaque-metadata-alias','completed',$2,$3,null,0,null)`,[task.id,start,now]);
     await pool.query("INSERT INTO agents_platform.context_snapshots VALUES($1,$2,1,$3,$4)",["context:"+task.id+":1",task.id,{estimatedTokens:250,historyGroupIds:["a"],messages:[{content:"NEVER_EXPOSE_PRIVATE_PROMPT"}]},JSON.stringify([{id:"source"}])]);
     await pool.query("INSERT INTO agents_platform.task_model_routes VALUES($1,$2,$3)",[task.id,task.organization_id,{primary:{binding:{modelId:"fixture/model",providerId:"fixture",credential:"NEVER_EXPOSE_SECRET"},policy:{contextTokens:1000,maxInputTokens:800,maxOutputTokens:100,safetyTokens:50,compactAtTokens:600}}}]);
     await pool.query("INSERT INTO agents_platform.task_events(task_id,kind,payload) VALUES($1,'model.observed',$2)",[task.id,{role:"primary",durationMs:1000,firstTokenMs:20,outputTokens:4}]);
@@ -94,6 +107,7 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect([...new Set(result.operations.map(operation=>operation.taskId))].sort()).toEqual([task.id,allowed].sort());
     expect(result.operations.find(operation=>operation.id==="read-content")?.label).toBe("Finding content");
     expect(result.operations.find(operation=>operation.id==="read-analytics")?.label).toBe("Reading analytics");
+    expect(result.operations.find(operation=>operation.id==="read-metadata")?.label).toBe("Read permitted workspace agents.");
     expect(result.usage).toMatchObject({accountedTokens:20,inputTokens:12,outputTokens:8,modelCalls:2,observedModelCalls:2});
     expect(result.context).toMatchObject({estimatedInputTokens:250,historyGroups:1,sourceCount:1,windowTokens:1000});
     expect(result.model).toMatchObject({firstTokenMs:20,latencyMs:1000});
@@ -107,4 +121,14 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect(bounded.operations.at(-1)?.id).toBe("new-completed-65");
 
   }finally{await pool?.end();await dropClosedTestDatabase(admin,database);await admin.end();}
+});
+
+it("uses shared catalogue presentation and typed discovery activity for public operation labels",()=>{
+  const task=root();
+  const operation=(name:string)=>({id:name,task_id:task.id,kind:"tool",name,state:"completed",started_at:start,completed_at:now,error_code:null});
+  const value=projectGrowthRuntime(task,{...rows(),operations:[operation("tools.discover"),operation("tools.load"),operation("memory.search")]},now);
+  expect(value.operations.find(item=>item.id==="tools.discover")).toMatchObject({label:"Find tools",category:"Capabilities",activityKind:"capability_discovery",technicalName:"tools.discover"});
+  expect(value.operations.find(item=>item.id==="tools.load")).toMatchObject({label:"Load tools",activityKind:"capability_loading"});
+  expect(value.operations.find(item=>item.id==="memory.search")).toMatchObject({label:"Find memory",category:"Memory"});
+  expect(value.operations.find(item=>item.id==="memory.search")?.activityKind).toBeUndefined();
 });

@@ -53,11 +53,19 @@ export class S3PrivateStore implements PrivateObjectStore {
     if (method !== "GET") { await response.body?.cancel(); return new Uint8Array(); }
     const reader = response.body?.getReader(); if (!reader) throw new PlatformError("ARTIFACT_CONTENT_MISSING", 404, "Content is unavailable");
     const chunks: Uint8Array[] = []; let bytes = 0;
-    while (true) {
-      const next = await reader.read(); if (next.done) break;
-      bytes += next.value.byteLength;
-      if (bytes > this.maxBytes) { await reader.cancel(); throw new PlatformError("ARTIFACT_TOO_LARGE", 413, "Content exceeds the storage limit"); }
-      chunks.push(next.value);
+    try {
+      while (true) {
+        const next = await reader.read(); if (next.done) break;
+        bytes += next.value.byteLength;
+        if (bytes > this.maxBytes) throw new PlatformError("ARTIFACT_TOO_LARGE", 413, "Content exceeds the storage limit");
+        chunks.push(next.value);
+      }
+    } catch(error) {
+      await reader.cancel().catch(()=>{});
+      if(error instanceof PlatformError)throw error;
+      throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
+    } finally {
+      reader.releaseLock();
     }
     return Buffer.concat(chunks);
   }

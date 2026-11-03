@@ -4,6 +4,13 @@ export const DEFAULT_TENANT_API_BASE_URL = "/api/tenant";
 const ACTIVE_WORKSPACE_KEY = "kasitek.agency.selected-workspace-slug";
 export const AGENCY_BUSINESSES_CHANGED = "kasitek-agency-businesses-changed";
 
+export class TenantApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "TenantApiError";
+  }
+}
+
 export function notifyAgencyBusinessesChanged() {
   window.dispatchEvent(new Event(AGENCY_BUSINESSES_CHANGED));
 }
@@ -60,10 +67,22 @@ export async function tenantFetch<T>(
     error?: string;
   };
   if (!response.ok) {
-    throw new Error(
+    throw new TenantApiError(response.status,
       payload.error || `Request failed with status ${response.status}`,
     );
   }
 
   return payload;
+}
+
+export async function tenantDownload(path: string, signal?: AbortSignal): Promise<Blob> {
+  const headers = new Headers();
+  const workspaceSlug = activeWorkspaceSlug();
+  if (workspaceSlug) headers.set("x-kasitek-tenant-slug", workspaceSlug);
+  const response = await fetch(tenantApiUrl(path), { credentials: "include", headers, signal, cache: "no-store" });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(payload.error || `Request failed with status ${response.status}`);
+  }
+  return response.blob();
 }

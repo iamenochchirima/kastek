@@ -9,7 +9,7 @@ import { readConfig } from "../src/config.js";
 import { installErrorHandler } from "../src/error.js";
 import { growthAgentSocialFixture } from "./growth-agent-fixture.js";
 import { growthAgentDigest } from "../src/agents/security.js";
-import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV4, growthAgentPublicationV5 } from "../src/agents/manifest.js";
+import { growthCapabilityManifest, growthAgentPresets, growthAgentPublication, growthAgentPublicationV2, growthAgentPublicationV4, growthAgentPublicationV5, growthAgentPublicationV6, growthAgentPublicationV7, growthAgentPublicationV8, growthAgentPublicationV9, growthAgentPublicationV10 } from "../src/agents/manifest.js";
 import { registerGrowthCapabilityRoutes } from "../src/agents/capability-routes.js";
 import { discoverGrowthRecords, readGrowthRecord } from "../src/agents/tools.js";
 import type { CoreContext } from "../src/context.js";
@@ -33,11 +33,11 @@ test("real content discovery and continuation retain current tenant, actor, sour
   try {
     await pool.query(`CREATE TABLE "Organization"(id text PRIMARY KEY,name text,"reportingTimezone" text,"updatedAt" timestamp DEFAULT now());
       CREATE TABLE "User"(id text PRIMARY KEY,"emailVerified" timestamp);
-      CREATE TABLE "OrganizationMember"("orgId" text,"userId" text);
+      CREATE TABLE "OrganizationMember"("orgId" text,"userId" text,role text DEFAULT 'OWNER');
       CREATE TABLE "OrganizationOnboardingProfile"("orgId" text,website text,industry text,"primaryGoal" text,"primaryGoals" text[]);
       INSERT INTO "Organization"(id,name) VALUES('org','Business'),('foreign-org','Foreign');
       INSERT INTO "User" VALUES('user',now()),('outsider',now());
-      INSERT INTO "OrganizationMember" VALUES('org','user');`);
+      INSERT INTO "OrganizationMember"("orgId","userId") VALUES('org','user');`);
     await pool.query(growthAgentSocialFixture);
     await pool.query(`CREATE TABLE "WhatsappConnection"(id text,"phoneDisplayNumber" text,"phoneNumberId" text);
       CREATE TABLE "WhatsappTemplate"(id text,status text);
@@ -50,6 +50,8 @@ test("real content discovery and continuation retain current tenant, actor, sour
       ('a','user','org','First',$1,'{FACEBOOK}','DRAFT',now(),now()),
       ('b','user','org','Second','Other content','{FACEBOOK}','DRAFT',now(),now()),
       ('c','foreign-user','foreign-org','Secret','Must not appear','{FACEBOOK}','DRAFT',now(),now())`,["Useful content ".repeat(1000)]);
+    await pool.query(`INSERT INTO "SocialPublishJob"(id,"userId","orgId","postId","channelConnectionId",platform,status,"createdAt","updatedAt")
+      VALUES('pending-job','user','org','a',NULL,'FACEBOOK','PENDING',now(),now())`);
     const keys=await generateKeyPair("RS256",{extractable:true});
     const core={pool,config:readConfig({DATABASE_URL:url,AGENTS_PRODUCT_ACTION_PUBLIC_KEY:await exportSPKI(keys.publicKey)})} as CoreContext;
     const scope={tenantId:"org",actor:{issuer:"https://growth.kasitek.co.za/identity",subject:"user"}};
@@ -62,6 +64,12 @@ test("real content discovery and continuation retain current tenant, actor, sour
     await assert.rejects(discoverGrowthRecords(core,scope,"content_post",{limit:21}));
     const context={kind:"content_post" as const,resourceId:"a"};
     const chunks=[];let current=await readGrowthRecord(core,scope,context,{resourceId:"a"});
+    assert(!JSON.stringify(current.data).includes("selectedAccounts"));
+    assert(!JSON.stringify(current.data).includes("channel_connection_id"));
+    const selectedRevision=current.revision;
+    await pool.query(`UPDATE "SocialPublishJob" SET status='QUEUED' WHERE id='pending-job'`);
+    const changedJob=await readGrowthRecord(core,scope,context,{resourceId:"a"});assert.notEqual(changedJob.revision,selectedRevision);
+    await pool.query(`UPDATE "SocialPublishJob" SET status='PENDING' WHERE id='pending-job'`);
     assert.deepEqual(await readGrowthRecord(core,scope,context,{resourceId:"a",continuation:""}),current);
     const revision=current.revision;chunks.push((current.data as {text:string}).text);
     while(current.continuation){current=await readGrowthRecord(core,scope,context,{resourceId:"a",continuation:current.continuation});chunks.push((current.data as {text:string}).text);assert.equal(current.revision,revision);}
@@ -113,11 +121,21 @@ test("real content discovery and continuation retain current tenant, actor, sour
     const retainedV4Descriptor=growthAgentPublicationV4.manifest.operations.find(operation=>operation.operation==="content.read")!;
     const retainedV4={...command,authority:{...command.authority,policyRevision:"4",manifestDigest:growthAgentPublicationV4.manifest.digest,descriptorDigest:growthAgentDigest(retainedV4Descriptor)}};
     assert.equal((await send(retainedV4)).statusCode,200);
+    for(const publication of [growthAgentPublicationV6,growthAgentPublicationV7,growthAgentPublicationV8,growthAgentPublicationV9,growthAgentPublicationV10,growthAgentPublication]){
+      const installed=publication.manifest.operations.find(operation=>operation.operation==="workspace.read")!;
+      const canonical={...command,operation:installed.operation,control:"authorize",input:{},authority:{...command.authority,
+        policyRevision:publication.policy.revision,manifestDigest:publication.manifest.digest,
+        descriptorDigest:growthAgentDigest(installed),handlerRef:installed.handlerRef}};
+      const allowed=await send(canonical);
+      assert.equal(allowed.statusCode,200,`canonical publication ${publication.policy.revision}: ${allowed.body}`);
+      assert.equal(allowed.json().value.authorized,true);
+      assert.equal((await send({...canonical,authority:{...canonical.authority,descriptorDigest:"0".repeat(64)}})).statusCode,403);
+    }
     assert.equal((await send({...retainedV4,authority:{...retainedV4.authority,manifestDigest:growthCapabilityManifest.digest}})).statusCode,403);
     assert.equal((await send({...legacy,authority:{...legacy.authority,manifestDigest:growthCapabilityManifest.digest}})).statusCode,403);
     const source=accepted.json().sources[0];assert.match(source.id,/^growth-resource:[a-f0-9]{64}$/);
     assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,200);
-    await pool.query('INSERT INTO "OrganizationMember" VALUES(\'org\',\'outsider\')');
+    await pool.query('INSERT INTO "OrganizationMember"("orgId","userId") VALUES(\'org\',\'outsider\')');
     assert.equal((await send({...command,actor:{...scope.actor,subject:"outsider"},control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,403);
     await pool.query('UPDATE "SocialPost" SET content=\'New source revision\',"updatedAt"=now() WHERE id=\'a\'');
     assert.equal((await send({...command,control:"evidence",input:{source:{id:source.id,revision:source.revision}}})).statusCode,409);

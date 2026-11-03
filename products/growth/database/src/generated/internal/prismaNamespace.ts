@@ -9297,7 +9297,8 @@ export const ExternalConnectionScalarFieldEnum = {
   lastError: 'lastError',
   metadata: 'metadata',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type ExternalConnectionScalarFieldEnum = (typeof ExternalConnectionScalarFieldEnum)[keyof typeof ExternalConnectionScalarFieldEnum]
@@ -10463,7 +10464,8 @@ export const ConversationScalarFieldEnum = {
   externalConnectionId: 'externalConnectionId',
   customerId: 'customerId',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type ConversationScalarFieldEnum = (typeof ConversationScalarFieldEnum)[keyof typeof ConversationScalarFieldEnum]
@@ -10755,7 +10757,8 @@ export const SocialChannelConnectionScalarFieldEnum = {
   metadata: 'metadata',
   lastSyncedAt: 'lastSyncedAt',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type SocialChannelConnectionScalarFieldEnum = (typeof SocialChannelConnectionScalarFieldEnum)[keyof typeof SocialChannelConnectionScalarFieldEnum]
@@ -10828,7 +10831,8 @@ export const SocialPostScalarFieldEnum = {
   publishedAt: 'publishedAt',
   metadata: 'metadata',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type SocialPostScalarFieldEnum = (typeof SocialPostScalarFieldEnum)[keyof typeof SocialPostScalarFieldEnum]
@@ -11046,7 +11050,8 @@ export const WhatsappContactScalarFieldEnum = {
   excluded: 'excluded',
   notes: 'notes',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type WhatsappContactScalarFieldEnum = (typeof WhatsappContactScalarFieldEnum)[keyof typeof WhatsappContactScalarFieldEnum]
@@ -11068,7 +11073,8 @@ export const WhatsappContactListMembershipScalarFieldEnum = {
   excluded: 'excluded',
   notes: 'notes',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  agentReviewRevision: 'agentReviewRevision'
 } as const
 
 export type WhatsappContactListMembershipScalarFieldEnum = (typeof WhatsappContactListMembershipScalarFieldEnum)[keyof typeof WhatsappContactListMembershipScalarFieldEnum]
@@ -11529,6 +11535,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'BigInt'
+ */
+export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt'>
+    
+
+
+/**
+ * Reference to a field of type 'BigInt[]'
+ */
+export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
+    
+
+
+/**
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
@@ -11560,20 +11580,6 @@ export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'In
  * Reference to a field of type 'Int[]'
  */
 export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
-    
-
-
-/**
- * Reference to a field of type 'BigInt'
- */
-export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt'>
-    
-
-
-/**
- * Reference to a field of type 'BigInt[]'
- */
-export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
     
 
 

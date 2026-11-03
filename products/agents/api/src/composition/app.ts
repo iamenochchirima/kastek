@@ -1,3 +1,7 @@
+import { contextGrantCeiling } from "../execution/models/settings";
+import { readTaskTiming } from "../execution/lifecycle/timing";
+import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";
+import { AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH } from "@kasitek-labs/contracts";
 import { readPublicAgentUpdates } from "../product/integrations/public-agent-activity";
 import { deadlineMillis } from "../execution/lifecycle/deadline";
 import { readWorkProgress, queueOrchestrationInstruction, authorizeOrchestration } from "../execution/delegation/progress";
@@ -30,7 +34,7 @@ import { capabilityBindingSchema } from "../contracts/capability-catalog";
 import {
 agentConfigurationSchema,assertRuntimeAvailable,
 canonicalJson,
-connectedToolAuthorityIds,requestDigest,
+sourceAuthorityIds,connectedToolAuthorityIds,requestDigest,
 executionGrantSchema,
 parseAllowedOrigin,
 PlatformError,
@@ -69,6 +73,7 @@ import { registerApiConnectionRoutes } from "../product/connections/api-connecti
 import { registerModelPolicyRoutes } from "../product/model-providers/model-policy";
 import { registerModelProviderDependencyRoutes } from "../product/model-providers/dependencies";
 import { registerModelProviderRoutes } from "../product/model-providers/routes";
+import { managedModelDefaultFromEnvironment } from "../product/model-providers/managed-default";
 import { ModelProviderStore } from "../product/model-providers/store";
 import { ModelCredentialVault } from "../infrastructure/model-credential-vault";
 import { connectionVaultFromEnvironment } from "../infrastructure/vault";
@@ -105,9 +110,9 @@ import { exportExecutionHistory } from "../product/evaluation/history-export";
 import {registerGrowthProvisionRoute} from "../product/integrations/growth-provisioning";
 import { registerGrowthProductRoutes } from "../product/integrations/growth-routes";
 import { growthServiceTrustFromEnvironment } from "../adapters/products/growth-service-auth";
-import { growthActionClientFromEnvironment } from "../adapters/products/growth-action-client";
 import { GrowthProductRuntime } from "../execution/products/growth-runtime";
-import { registerAgencyProductCapabilities } from "../adapters/products/agency-capability-client";
+import { createConfiguredProductRuntime } from "../execution/products/configured-runtime";
+import { registerAgencyProductRoutes, agencyServiceTrustFromEnvironment } from "../product/integrations/agency-routes";
 const uuid = z.uuid();
 const taskInput = z.strictObject({ versionId: uuid, input: z.string().min(1),
   requestKey: z.string().trim().min(1).max(128), conversationId: uuid.optional() });
@@ -204,11 +209,10 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     serializers: { req: (request: { method: string; url: string }) => ({ method: request.method, path: request.url.split("?")[0] }) },
   } });
   registerGrowthProvisionRoute(app,pool,growthServiceTrustFromEnvironment());
-  const growthActions=growthActionClientFromEnvironment();
-  const productRuntime=growthActions?new GrowthProductRuntime(pool,growthActions,evidence):undefined;
-  if(productRuntime){await productRuntime.loadPublications();registerAgencyProductCapabilities(productRuntime);}
+  const productRuntime=await createConfiguredProductRuntime(pool,evidence);
   registerGrowthProductRoutes(app,{pool,trust:growthServiceTrustFromEnvironment(),
-    runtime:productRuntime});
+    runtime:productRuntime instanceof GrowthProductRuntime?productRuntime:undefined});
+  registerAgencyProductRoutes(app,{pool,runtime:productRuntime,trust:agencyServiceTrustFromEnvironment()});
   await app.register(cookie);
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
@@ -225,7 +229,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
-        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" && !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
+        request.url.split("?")[0] !== "/internal/v1/products/growth/commands" && request.url.split("?")[0] !== "/internal/v1/products/growth/provision" &&
+        ![AGENCY_AGENT_COMMAND_PATH, AGENCY_AGENT_MODEL_PATH].includes(request.url.split("?")[0]!) &&
+        !request.url.startsWith("/api/website/") && !request.url.startsWith("/api/automation-events/") && !request.url.startsWith("/api/channel-webhooks/") && request.url.split("?")[0] !== "/api/auth/backchannel-logout" && request.headers.origin !== origin) {
       throw new PlatformError("ORIGIN_DENIED", 403, "Request origin is not allowed");
     }
   });
@@ -281,7 +287,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   async function readableTask(task:TaskRecord){
     let input:unknown=task.input,inputAvailability="available";
     if(task.parent_task_id)try{await (await import("../execution/context/evidence")).assertDelegationInputEvidence(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;input=task.input==="[Deleted conversation]"?task.input:null;inputAvailability="unavailable";}
-    return {...dto(task),input,inputAvailability,...await readableOutput(task.id,task.output)};
+    const canContinue=task.principal?.kind==="human"&&!task.parent_task_id&&(task.state==="waiting_authority"||task.state==="waiting_children"&&Boolean((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE root_task_id=$1 AND parent_task_id IS NOT NULL AND state='waiting_authority' LIMIT 1",[task.id])).rowCount));
+    return {...dto(task),...await readTaskTiming(pool,task),canContinue,input,inputAvailability,...await readableOutput(task.id,task.output)};
   }
   async function resolveScope(request:FastifyRequest) {const user=await account(request),org=organizationId(request);await store.requireMembership(user.id,org);return {accountId:user.id,organizationId:org};}
   const organizationAssistant=new OrganizationAssistantStore(pool),memberChannels=new MemberChannels(pool);
@@ -300,6 +307,11 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   await registerChannelWebhooks(app,{channels:channelServices.channels,delivery:channelServices.delivery,profiles:channelServices.profiles});
   const modelVault = connectionVaultFromEnvironment();
   const modelProviders = new ModelProviderStore(pool, modelVault ? new ModelCredentialVault(modelVault) : undefined, undefined, options.testModelProviderOptions);
+  const initializeDefaultModel=managedModelDefaultFromEnvironment(pool,modelVault?new ModelCredentialVault(modelVault):undefined,process.env,{discoveryFetch:options.testModelProviderOptions?.discoveryFetch});
+  async function initializeOwnerModel(accountId:string,organizationId:string) {
+    try {await initializeDefaultModel?.({accountId,organizationId});}
+    catch(error) {app.log.warn({event:"agents.default_model.initialization_failed",organizationId,code:error instanceof PlatformError?error.code:"MODEL_DEFAULT_UNAVAILABLE"},"Managed model initialization unavailable");}
+  }
   registerModelProviderRoutes(app, { store: modelProviders, resolveScope });
   registerModelProviderDependencyRoutes(app, { pool, resolveScope });
   registerModelPolicyRoutes(app, { store: modelProviders, resolveScope });
@@ -377,11 +389,15 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
   app.get("/api/session", async (request) => {
     const user = await account(request);
     await store.ensureInitialWorkspace(user.id);
-    return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations: await store.listOrganizations(user.id) };
+    const organizations=await store.listOrganizations(user.id);
+    for(const organization of organizations)if(organization.role==="owner")await initializeOwnerModel(user.id,organization.id);
+    return { account: { id: user.id, email: user.email, displayName: user.display_name }, organizations };
   });
   app.post("/api/organizations", async (request, reply) => {
     const user = await account(request), input = z.strictObject({ name: z.string().min(1).max(120) }).parse(request.body);
-    return reply.code(201).send({ organization: await store.createOrganization(user.id, input.name) });
+    const organization=await store.createOrganization(user.id,input.name);
+    await initializeOwnerModel(user.id,organization.id);
+    return reply.code(201).send({organization});
   });
   const base = "/api/organizations/:organizationId";
   registerMemoryRoutes(app, { pool, objects, resolveScope: async request => {
@@ -547,9 +563,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
         assertRuntimeAvailable(version.configuration);
         await assertServices(version.configuration);
         const grant = executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:grantOperations(version.configuration),
-          sourceRevisionIds:version.configuration.sourceRevisionIds,connectedToolBindingIds:connectedToolAuthorityIds(version.configuration),
+          sourceRevisionIds:sourceAuthorityIds(version.configuration),connectedToolBindingIds:connectedToolAuthorityIds(version.configuration),
           maxInputBytes:version.configuration.model.maxInputBytes,maxOutputTokens:version.configuration.model.maxOutputTokens,
-          maxContextTokens:version.configuration.context.maxInputTokens,expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
+          maxContextTokens:contextGrantCeiling(version.configuration),expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
         await store.createGrantInTransaction(db,{accountId:user.id,grant});
         return store.admitTaskInTransaction(db,{authority,grantId:grant.id,versionId:version.id,input:input.input,requestKey:input.requestKey,
           conversationId:input.conversationId,configurationMode:"current"});
@@ -566,9 +582,9 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if (input.evaluationRootTokenLimit && !trial) throw new PlatformError("EVALUATION_SCOPE_REQUIRED", 403, "A trial is required for this allocation");
     if (trial && input.evaluationRootTokenLimit !== undefined && input.evaluationRootTokenLimit !== trial.rootTokenLimit) throw new PlatformError("EVALUATION_MODEL_MISMATCH", 409, "Use the trial's pinned root allocation");
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
-      operations: grantOperations(version.configuration), sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
+      operations: grantOperations(version.configuration), sourceRevisionIds: sourceAuthorityIds(version.configuration), connectedToolBindingIds: connectedToolAuthorityIds(version.configuration),
       maxInputBytes: version.configuration.model.maxInputBytes, maxOutputTokens: version.configuration.model.maxOutputTokens,
-      maxContextTokens: version.configuration.context.maxInputTokens,
+      maxContextTokens: contextGrantCeiling(version.configuration),
       ...(trial ? { rootTokenLimit: trial.rootTokenLimit } : {}),
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -592,13 +608,16 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     if(operationCursor.position&&!Number.isFinite(Date.parse(operationCursor.position)))throw new PlatformError("INVALID_CURSOR",400,"Invalid operation cursor");
     const operationRows = (await pool.query(`SELECT o.id AS operation_id,md5(o.id) AS cursor_id,
       to_char(o.started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_position,
-      o.kind,o.name,o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
+      o.kind,${productOperationMetadataSql},o.state,o.error_code,o.accounted_tokens,o.started_at,o.completed_at,
+      greatest(0,extract(epoch FROM (coalesce(o.completed_at,now())-o.started_at))*1000)::float8 AS duration_ms,
       b.binding->>'transport' AS transport,b.binding->'definition'->>'providerOperation' AS provider_operation
-      FROM agents_platform.operations o LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
+      FROM agents_platform.operations o JOIN agents_platform.tasks t ON t.id=o.task_id
+      JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id
+      LEFT JOIN agents_platform.capability_bindings b ON b.alias=o.name AND b.organization_id=$2
       WHERE o.task_id=$1 AND o.started_at<=$3 AND ($4::text='' OR (o.started_at,md5(o.id))<($4::timestamptz,$5::text))
       ORDER BY o.started_at DESC,md5(o.id) DESC LIMIT $6`, [task.id,task.organization_id,operationCursor.snapshot,operationCursor.position,operationCursor.id,eventQuery.operationsLimit+1])).rows;
     const operationPage=finishPage(operationRows,eventQuery.operationsLimit,operationScope,operationCursor.snapshot,row=>({position:row.cursor_position,id:row.cursor_id}));
-    const operations=operationPage.items.reverse().map(({cursor_id:_,cursor_position:__,...operation})=>operation);
+    const operations=operationPage.items.reverse().map(({cursor_id:_,cursor_position:__,catalog_binding,catalog_description,...operation})=>({...operation,...operationPresentation(operation.kind,operation.name,catalog_binding,catalog_description)}));
     const eventPage=await store.getEventPage(authority,task.id,{limit:eventQuery.eventsLimit,cursor:eventQuery.eventsCursor});
     const events=eventPage.items;
     const children = (await pool.query(`SELECT t.id,a.name AS agent_name,t.version_id,v.number AS version_number,d.binding_id,
@@ -620,7 +639,7 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const actions=actionServices?await actionServices.actions.listForTask({accountId:viewer.id,organizationId:task.organization_id},task.id):[];
     const hasToolReviews=Boolean((await pool.query("SELECT 1 FROM agents_platform.tool_invocation_reviews WHERE task_id=$1 AND organization_id=$2 AND reviewer_account_id=$3 LIMIT 1",[task.id,task.organization_id,viewer.id])).rowCount);
     const configuration=agentConfigurationSchema.parse((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[task.version_id])).rows[0].configuration);
-    const adaptive=configuration.program.id==="tool-directed"&&configuration.program.version==="4"&&!task.parent_task_id;
+    const adaptive=configuration.program.id==="tool-directed"&&configuration.program.version==="4"&&configuration.capabilities.delegation.enabled;
     let orchestration=adaptive?await readWorkProgress(pool,task.id):undefined;
     if(orchestration?.record){
       const conversation=(await pool.query("SELECT deleted_at FROM agents_platform.conversations WHERE id=$1",[task.conversation_id])).rows[0];
@@ -630,9 +649,14 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
         await policy.assertCurrentEvidence(pool,task.id,await policy.taskEvidenceManifest(pool,task.id),{requireActiveTask:false});
       }catch(error){if(!(error instanceof PlatformError))throw error;orchestration={revision:orchestration.revision,record:null};}
     }
-    let canSteer=adaptive&&canControl&&task.principal.kind==="human"&&!terminalTaskStates.has(task.state)&&task.state!=="cancel_requested";
+    let canSteer=(adaptive||task.effective_composition?.runtime.release==="product-capabilities-v15")&&canControl&&task.principal.kind==="human"&&!task.parent_task_id&&!terminalTaskStates.has(task.state)&&task.state!=="cancel_requested";
     if(canSteer)try{await authorizeOrchestration(pool,task.id);}catch(error){if(!(error instanceof PlatformError))throw error;canSteer=false;}
-    return { ...await readPublicAgentUpdates(pool,task.id),orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...await readableTask(task),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),operationsNextCursor:operationPage.nextCursor,children:await Promise.all(children.map(async child=>{const visible=await readableTask(child);return {...dto(child),input:visible.input,assignment:visible.input,...await readableOutput(child.id,child.output)};})),resources:resources.map(dto),artifacts };
+    const visibleTask=await readableTask(task);
+    let runtime;
+    if(task.product==="agents"&&!task.channel_binding&&visibleTask.inputAvailability!=="unavailable"&&visibleTask.outputAvailability!=="unavailable")try{
+      runtime=await readTaskRuntime(pool,task,"agents");
+    }catch(error){if(!(error instanceof PlatformError)||![403,404,409,503].includes(error.statusCode))throw error;}
+    return { ...await readPublicAgentUpdates(pool,task.id),orchestration,canSteer,actions,canControl,canDownloadArtifacts:true,task: {...visibleTask,...(runtime?{runtime,elapsedMs:runtime.elapsedMs,workElapsedMs:runtime.workElapsedMs,observedAt:runtime.observedAt}:{}),hasToolReviews,hasEnquiries:Boolean((await pool.query("SELECT 1 FROM agents_platform.enquiries WHERE task_id=$1 LIMIT 1",[task.id])).rowCount),hasBookings:Boolean((await pool.query("SELECT 1 FROM agents_platform.booking_intents WHERE task_id=$1 LIMIT 1",[task.id])).rowCount)}, events: events.map(dto), eventsNextCursor:eventPage.nextCursor, operations: operations.map(dto),operationsNextCursor:operationPage.nextCursor,children:await Promise.all(children.map(async child=>{const visible=await readableTask(child);return {...dto(child),input:visible.input,assignment:visible.input,...await readableOutput(child.id,child.output)};})),resources:resources.map(dto),artifacts };
   });
   app.get(`${base}/tasks/:taskId/events`,async request=>{
     const {task,authority,reviewOnly}=await humanTask(request);
@@ -688,8 +712,8 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     const version = await store.getVersion(user.id, task.organization_id, task.version_id);
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
       operations: grantOperations(version.configuration),
-      sourceRevisionIds: version.configuration.sourceRevisionIds, connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
-      maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: version.configuration.context.maxInputTokens,
+      sourceRevisionIds: sourceAuthorityIds(version.configuration), connectedToolBindingIds: connectedToolAuthorityIds(version.configuration), maxInputBytes: version.configuration.model.maxInputBytes,
+      maxOutputTokens: version.configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(version.configuration),
       rootTokenLimit: (task as TaskRecord & {root_token_limit:number}).root_token_limit,
       expiresAt: new Date(Math.min(Date.now()+30*60_000, deadlineMillis((task as TaskRecord & {deadline_at:Date|null}).deadline_at))).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: user.id, grant });
@@ -746,9 +770,12 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }
     return { deployment, websiteOrigin, grantOrigin: websiteOrigin === origin ? deployment.allowed_origins[0]! : websiteOrigin };
   }
-  app.options("/api/website/:deploymentId/*", async (request, reply) => {
-    await websiteContext(request, reply); return reply.code(204).send();
-  });
+  // Saved visitors also preflight the metadata GET because it carries Authorization.
+  for (const path of ["/api/website/:deploymentId", "/api/website/:deploymentId/*"]) {
+    app.options(path, async (request, reply) => {
+      await websiteContext(request, reply); return reply.code(204).send();
+    });
+  }
   async function publicRate(deploymentId: string): Promise<void> {
     await pool.query("DELETE FROM agents_platform.website_rate_limits WHERE deployment_id=$1 AND minute<now()-interval '1 day'", [deploymentId]);
     const row = (await pool.query<{ requests: number }>(`INSERT INTO agents_platform.website_rate_limits(deployment_id,minute,requests)

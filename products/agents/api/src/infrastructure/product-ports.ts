@@ -3,11 +3,18 @@ import { PlatformError } from "../contracts/contracts";
 import type { EvidenceDependency } from "../contracts/source-contracts";
 
 export type ProductEvidenceDependency = Extract<EvidenceDependency, { kind: "product" }>;
+export type ProductAccessDependency = Extract<EvidenceDependency, { kind: "product_access" }>;
+export type ProductContextDependency = Extract<EvidenceDependency, { kind: "product_context" }>;
+export type ProductArtifactDependency = Extract<EvidenceDependency, { kind: "product_artifact" }>;
 export interface ProductExecutionPorts {
   assertCurrentEvidence(db: Pool | PoolClient, input: {
     consumerTaskId: string;
     dependency: ProductEvidenceDependency;
   }): Promise<void>;
+  assertCurrentAccess?(db: Pool | PoolClient, input: { consumerTaskId: string; dependency: ProductAccessDependency }): Promise<void>;
+  assertCurrentContext?(db: Pool | PoolClient, input: { consumerTaskId: string; dependency: ProductContextDependency }): Promise<void>;
+  assertCurrentOrigin?(db: Pool | PoolClient, taskId: string): Promise<void>;
+  assertCurrentArtifact?(db: Pool | PoolClient, input: { consumerTaskId: string; dependency: ProductArtifactDependency }): Promise<void>;
 }
 const bindings = new WeakMap<Pool | PoolClient, ProductExecutionPorts>();
 export function registerProductPorts(pool: Pool, ports: ProductExecutionPorts): void { bindings.set(pool, ports); }

@@ -49,10 +49,14 @@ export function previewText(content: string, maxBytes: number): string {
 export async function listInboxConversations(
   pool: Pool,
   orgId: string,
+  capture?:(source:import("../inbox/types.js").InboxReadSource)=>void,
 ): Promise<Record<string, unknown>> {
+  const query=capture?sql.LIST_INBOX_CONVERSATIONS_0.replace("last_message.content AS last_message_content", "last_message.content AS last_message_content, last_message.id AS access_message_id")
+    .replace("SELECT m.content", "SELECT m.id, m.content"):sql.LIST_INBOX_CONVERSATIONS_0;
   const conversations = (
-    await pool.query(sql.LIST_INBOX_CONVERSATIONS_0, [orgId])
+    await pool.query(query, [orgId])
   ).rows;
+  if(capture)for(const row of conversations)capture({conversationId:row.id,messageId:row.access_message_id??null,connectionId:row.connection_id??null,connectionKind:"whatsapp"});
   return {
     conversations: conversations.map((row) => ({
       id: row.id,

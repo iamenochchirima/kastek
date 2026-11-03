@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { requestDigest } from "../../contracts/contracts";
 import { parseHandoffFeedbackRequest, type HandoffFeedbackRequest } from "../../execution/lifecycle/handoff-feedback-contract";
 import type { DependencyManifest } from "../../contracts/source-contracts";
-export const HANDOFF_RECEIPT_DEADLINE_MS = 5000;
+export { HANDOFF_RECEIPT_DEADLINE_MS } from "../../contracts/channel";
 
 export type Receipt = { task_id: string; conversation_id: string; ownership_generation: string; deadline: Date; outcome: string | null; feedback_request_digest: string | null; evidence_manifest: DependencyManifest | null };
 export type Publisher = (db: PoolClient, input: { receipt: Receipt; origin: "model" | "fallback"; text: string }) => Promise<string | null>;

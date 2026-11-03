@@ -7,6 +7,7 @@ import { assertGrowthObservation, streamGrowthObservation } from "@/lib/growth-a
 import { growthExecution } from "@/lib/growth-agent-presentation";
 import { AgentSources, GrowthAgentMarkdown } from "./agent-content";
 import { mergeGrowthOperationHistory } from "./agent-execution";
+import { TaskResults } from "./agent-results";
 
 type Selection = { rootId: string; child: AgentSubagent; scope: string };
 
@@ -53,7 +54,7 @@ export function useGrowthSubagent(scope: string, restoreFocus: () => void) {
       lastClock = clock;
       if (value.task.errorCode === "EVIDENCE_UNAVAILABLE") { withdrawalClock.current = clock; pagingController.current?.abort(); setPaging(false); setOlder([]); setOlderCursor(null); }
       const previous = acceptedObservation.current;
-      if (previous && !isActiveTask(previous.task) && isActiveTask(value.task) && value.task.errorCode !== "EVIDENCE_UNAVAILABLE") value = { ...value, task: { ...value.task, state: previous.task.state, output: previous.task.output } };
+      if (previous && !isActiveTask(previous.task) && isActiveTask(value.task) && value.task.errorCode !== "EVIDENCE_UNAVAILABLE") return;
       if (value.task.errorCode !== "EVIDENCE_UNAVAILABLE") value = { ...value, operations: mergeGrowthOperationHistory(value.task.id, previous?.operations ?? [], value.operations) };
       acceptedObservation.current = value;
       setObservation(value); setError(null); setBusy(false); setReconnecting(false);
@@ -88,7 +89,7 @@ export function useGrowthSubagent(scope: string, restoreFocus: () => void) {
   useEffect(() => { setOlder([]); setOlderCursor(undefined); setPaging(false); return () => pagingController.current?.abort(); }, [observationKey]);
   if (view && visible && visible.task.errorCode !== "EVIDENCE_UNAVAILABLE") {
     view.updates = visible.updates;
-    const operations = [...older, ...(visible.operations ?? [])].filter(operation => operation.kind !== "model").map(operation => ({...operation,
+    const operations = [...older, ...(visible.operations ?? [])].map(operation => ({...operation,
       details: `Duration: ${(operation.durationMs / 1000).toFixed(1)} s${operation.errorCode ? ` · ${operation.errorCode}` : ""}`, detailAvailability: "available" as const,
     }));
     view.operations = [...new Map([...operations, ...(view.operations ?? [])].map(operation => [operation.id, operation])).values()].sort((a,b) => ("startedAt" in a && "startedAt" in b ? String(a.startedAt).localeCompare(String(b.startedAt)) : 0));
@@ -113,11 +114,13 @@ export function useGrowthSubagent(scope: string, restoreFocus: () => void) {
     open,
     dialog: <AgentSubagentModal open={Boolean(validSelection)} onOpenChange={value => { if (!value) setStack([]); }} title={validSelection?.child.name ?? "Agent"}
       assignment={visible?.task.errorCode === "EVIDENCE_UNAVAILABLE" ? undefined : visible?.task.input}
-      elapsedMs={visible?.task.runtime?.elapsedMs}
+      errorCode={visible?.task.errorCode === "EVIDENCE_UNAVAILABLE" ? undefined : visible?.task.boundary?.reason ?? visible?.task.errorCode}
+      elapsedMs={visible?.task.runtime?.elapsedMs} observedAt={visible?.task.runtime?.observedAt}
       state={visible?.task.errorCode === "EVIDENCE_UNAVAILABLE" ? "Activity unavailable" : visible?.task.state ?? validSelection?.child.state} viewKey={observationKey} loading={busy && !visible} error={error}
       onBack={stack.length > 1 ? () => setStack(previous => previous.slice(0, -1)) : undefined}
       onCloseAutoFocus={event => { event.preventDefault(); if (triggerScope.current !== scope) return; const replacement = triggerId.current ? document.querySelector<HTMLButtonElement>(`button[data-subagent-id="${CSS.escape(triggerId.current)}"]`) : null; const button = trigger.current?.isConnected ? trigger.current : replacement; if (button) button.focus({ preventScroll: true }); else restoreFocus(); }}>
       {visible ? <>{visible.task.errorCode === "EVIDENCE_UNAVAILABLE" ? <p role="status" className="text-sm text-muted-foreground">Activity unavailable</p> : null}{view ? <AgentExecutionView execution={view} showStatus={false} showContext onOpenSubagent={child => setStack(previous => [...previous, { rootId: rootId!, child, scope }])} renderOutput={text => <AgentMessage role="assistant"><GrowthAgentMarkdown text={text} sources={visible.task.sources} /><AgentSources sources={visible.task.sources ?? []} /></AgentMessage>} /> : null}
+        {visible.task.errorCode !== "EVIDENCE_UNAVAILABLE" && visible.task.results?.length && rootId && selectedId ? <TaskResults key={`${observationKey}:${visible.task.results.map(result => result.artifactId ?? result.id).join(":")}`} task={visible.task} rootTaskId={rootId} childTaskId={selectedId} /> : null}
         {(olderCursor === undefined ? visible.nextOperationCursor : olderCursor) ? <Button type="button" variant="ghost" size="sm" disabled={paging} onClick={() => void page()}>{paging ? "Loading…" : "Load more activity"}</Button> : null}</> : null}
       {reconnecting ? <p role="status" className="text-xs text-muted-foreground">Reconnecting to activity…</p> : null}
     </AgentSubagentModal>,

@@ -27,6 +27,7 @@ import { loadTaskModelRoutes, saveTaskModelRoutes } from "../models/persistence"
 import { initializeRootModelAccount } from "../models/accounting";
 import { loadExecution } from "../lifecycle/state";
 import { assertPendingSupportStatusAuthority } from "../lifecycle/authority";
+import { assertPlatformRootAdmissionOpen } from "./platform-gate";
 
 import type { AdmitTaskInput,TaskEvent,TaskRecord } from "../../contracts/records";
 import { AuthorityStore } from "./authority-store";
@@ -76,7 +77,7 @@ export class AdmissionStore extends AuthorityStore {
     const config = agentConfigurationSchema.parse(version.configuration);
     const bindings = (await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",
       [input.authority.organizationId, config.connectedToolBindingIds])).rows.map(row => capabilityBindingSchema.parse(row.binding));
-    const composition = compilePublishedComposition(config, bindings);
+    const composition = compilePublishedComposition(config, bindings,undefined,version.tool_bindings);
     assertComposition(version.effective_composition, composition);
     assertGrantAuthority(grant, input.authority, input.versionId, config);
     assertRuntimeAvailable(config);
@@ -101,6 +102,7 @@ export class AdmissionStore extends AuthorityStore {
       if (existing.request_digest !== digest) throw new PlatformError("IDEMPOTENCY_CONFLICT", 409, "The request key was used for different input");
       return { task: existing, replayed: true };
     }
+    await assertPlatformRootAdmissionOpen(db);
     await assertEvaluationTrial(db, { trialId: input.evaluationTrialId, authority: input.authority, agentId: version.agent_id,
       versionId: version.id, rootTokenLimit: grant.rootTokenLimit, conversationId: input.conversationId });
     let models = input.evaluationTrialId ? await trialModelRoutes(db, input.evaluationTrialId, input.authority.organizationId, grant) : input.authority.principal.kind === "automation" ? await automationModelRoutes(db, input.authority, version.id, grant) : await resolveAcceptedModelRoutes(db, { organizationId: input.authority.organizationId,

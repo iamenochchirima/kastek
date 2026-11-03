@@ -113,7 +113,8 @@ describe("controlled Gemini REST transport", () => {
     const f = await fixture((_body, _req, res) => { res.writeHead(status); res.end('{"error":{"message":"private-test-key"}}'); });
     let error: any;
     try { await callGoogleProviderModel(f.input, f.options()); } catch (value) { error = value; }
-    expect(error.status).toBe(status); expect(error.outcome).toBe(status < 500 ? "rejected" : "uncertain");
+    expect(error.status).toBe(status); expect(error.outcome).toBe(status < 500 || status === 503 ? "rejected" : "uncertain");
+    if (status === 503) expect(error.code).toBe("MODEL_PROVIDER_UNAVAILABLE");
     expect(error.message).not.toContain("private-test-key"); expect(f.calls()).toBe(1);
   });
 

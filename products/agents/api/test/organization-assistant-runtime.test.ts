@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildPlatformApp } from "../src/composition/app";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { defaultBusinessConfiguration, terminalTaskStates, type AgentConfiguration } from "../src/contracts/contracts";
-import { HARNESS_RELEASE, WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME } from "../src/contracts/execution";
+import { HARNESS_RELEASE, WORKFLOW_NAME, ADAPTIVE_HARNESS_RELEASE, ADAPTIVE_WORKFLOW_NAME, SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../src/contracts/execution";
 import { EvidenceStore } from "../src/execution/context/evidence";
 import { createBusinessWorkflow } from "../src/execution/business/business";
 import { dispatchBoundModel } from "../src/execution/models/dispatch";
@@ -49,7 +49,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   let browserPort = 0;
   const sessions = new Set<ServerHttp2Session>();
   const requests: any[] = [];
-  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" | "adaptive_cancel" | "instruction_burst" | "adaptive_timeout" | "stalled_cycle" | "reservation_pressure" | "compaction_pressure" = "draft";
+  let fixtureMode: "draft" | "direct" | "clarification" | "child_failure" | "control" | "adaptive" | "stalled" | "stalled_correction" | "stalled_inspect" | "adaptive_cancel" | "instruction_burst" | "adaptive_timeout" | "stalled_cycle" | "reservation_pressure" | "compaction_pressure" = "draft";
   let controlTarget = "";
   let adaptiveCallSequence = 0;
   let childBarrier: Promise<void> | null = null;
@@ -73,8 +73,8 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
     return port;
   }
-  async function listenWorker(workflow: ReturnType<typeof createBusinessWorkflow>, port = 0) {
-    worker = createServer(createEndpointHandler({ services: [workflow, workflowForAdaptive()] }));
+  async function listenWorker(selectedWorkflow: ReturnType<typeof createBusinessWorkflow>, port = 0) {
+    worker = createServer(createEndpointHandler({ services: [selectedWorkflow, workflowForAdaptive(), workflow({release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME})] }));
     worker.on("session", session => { sessions.add(session); session.once("close", () => sessions.delete(session)); });
     await new Promise<void>(resolve => worker.listen(port, "127.0.0.1", resolve));
     workerPort = (worker.address() as { port: number }).port;
@@ -104,7 +104,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       return new Response(`data: ${JSON.stringify({id:"controlled-compaction",model:body.model,choices:[{index:0,delta:{role:"assistant",content},finish_reason:"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
     }
     if(fixtureMode==="instruction_burst") return new Response(`data: ${JSON.stringify({id:"controlled-instruction-burst",model:body.model,choices:[{index:0,delta:{role:"assistant",content:"Instructions reviewed."},finish_reason:"stop"}],usage:{prompt_tokens:50,completion_tokens:10}})}\n\ndata: [DONE]\n\n`,{headers:{"content-type":"text/event-stream"}});
-    if (fixtureMode === "adaptive" || fixtureMode === "stalled" || fixtureMode === "adaptive_cancel" || fixtureMode === "adaptive_timeout" || fixtureMode === "stalled_cycle" || fixtureMode === "reservation_pressure" || fixtureMode === "compaction_pressure") {
+    if (fixtureMode === "adaptive" || fixtureMode === "stalled" || fixtureMode === "stalled_correction" || fixtureMode === "stalled_inspect" || fixtureMode === "adaptive_cancel" || fixtureMode === "adaptive_timeout" || fixtureMode === "stalled_cycle" || fixtureMode === "reservation_pressure" || fixtureMode === "compaction_pressure") {
       const coordinator = body.messages[0].content.startsWith("ADAPTIVE_FIXTURE");
       const records = body.messages.filter((message:any)=>message.role==="tool");
       const named = (name:string) => records.filter((record:any)=>body.messages.some((message:any)=>message.tool_calls?.some((call:any)=>call.id===record.tool_call_id && call.function.name===name))).map((record:any)=>JSON.parse(record.content));
@@ -122,6 +122,15 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
       const completed = (name:string) => named(name.replaceAll(".","_")).length > 0 ||
         checkpoint?.operations?.some((operation:any)=>operation.name===name && operation.state==="completed") || summaryCompleted.has(name);
       if(fixtureMode === "stalled") calls=[call("agents_discover",{})];
+      else if(fixtureMode === "stalled_correction") {
+        if(body.messages.some((message:any)=>message.content?.includes("Use the revised requirement.")))content="Used the revised requirement.";
+        else calls=[call("agents_discover",{})];
+      }
+      else if(fixtureMode === "stalled_inspect") {
+        if(named("work_inspect").length)content="Inspected the recorded work.";
+        else if(body.messages.some((message:any)=>message.content?.includes("repeated actions returned unchanged results"))) calls=[call("work_inspect",{})];
+        else calls=[call("agents_discover",{})];
+      }
       else if(fixtureMode === "stalled_cycle") {
         const last = body.messages.flatMap((message:any)=>message.tool_calls??[]).at(-1)?.function.name ??
           checkpoint?.operations?.at(-1)?.name.replaceAll(".","_");
@@ -219,6 +228,7 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   const runtimeRoutes = () => ({
     [HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: WORKFLOW_NAME },
     [ADAPTIVE_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: ADAPTIVE_WORKFLOW_NAME },
+    [SHARED_HARNESS_RELEASE]: { ingressUrl, adminUrl, workflowName: SHARED_WORKFLOW_NAME },
   });
   beforeAll(async () => {
     process.env.AGENTS_MODEL_POLICY_JSON=JSON.stringify({...JSON.parse(previousModelPolicy??"{}"),maxRootTokens:32000,maxInputTokens:27904,maxOutputTokens:4096,compactAtTokens:22000});
@@ -270,8 +280,9 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
     const session = await store.createSession({ accountId: owner.id, providerSessionId: randomUUID(), expiresAt: new Date(Date.now() + 300_000) });
     const cookie = `agents_session=${session.token}`, base = `/api/organizations/${organization.id}`;
     const assistant = (await new OrganizationAssistantStore(pool).getOrganizationAssistant(owner.id, organization.id)).agent!;
+    const contentConfiguration=defaultBusinessConfiguration();contentConfiguration.model.maxOutputTokens=1024;
     const content = await store.createAgent({ accountId: owner.id, organizationId: organization.id, name: "Content", configuration: {
-      ...defaultBusinessConfiguration(), instructions: "CONTENT_FIXTURE: Return a concise text draft from the supplied brief only.",
+      ...contentConfiguration, instructions: "CONTENT_FIXTURE: Return a concise text draft from the supplied brief only.",
     } });
     const specialist = await store.createVersion({ accountId: owner.id, organizationId: organization.id, agentId: content.id, expectedRevision: content.draft_revision });
     const configuration: AgentConfiguration = { ...assistant.draft, instructions: "COORDINATOR_FIXTURE: Ask Content to draft the requested post and return its confirmed result.", tools: [...assistant.draft.tools, "agents.delegate"],
@@ -508,11 +519,49 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
 
   it("stops a repeated unproductive model loop with a durable stalled outcome",async()=>{
     const f=await adaptiveFixture(false,true);fixtureMode="stalled";
+    const saved=(await pool.query("SELECT draft,draft_revision FROM agents_platform.agents WHERE id=$1",[f.assistant.id])).rows[0];
+    const configured=await app.inject({method:"POST",url:`${f.base}/agents/${f.assistant.id}/configuration`,headers:{cookie:f.cookie,origin},payload:{expectedRevision:saved.draft_revision,configuration:{...saved.draft,tools:["agents.discover"]},confirmImpact:true}});
+    expect(configured.statusCode,configured.body).toBe(200);
     const task=await admit(f);const result=await finish(f,task.id);
     expect(result).toMatchObject({state:"incomplete",errorCode:"ORCHESTRATION_STALLED"});
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='agents.discover'",[task.id])).rows[0].count).toBe(4);
     expect(requests.some(body=>JSON.stringify(body.messages).includes("repeated actions returned unchanged results"))).toBe(true);
     expect((await pool.query("SELECT count(*)::int count FROM agents_platform.tasks WHERE parent_task_id=$1",[task.id])).rows[0].count).toBe(0);
+    const decision=(await pool.query(`SELECT d.outcome,d.outcome_digest,c.outcome_digest AS closure_digest
+      FROM agents_platform.orchestration_stall_decisions d JOIN agents_platform.orchestration_input_closures c ON c.task_id=d.task_id WHERE d.task_id=$1`,[task.id])).rows[0];
+    expect(decision.outcome).toMatchObject({state:"incomplete",errorCode:"ORCHESTRATION_STALLED",output:result.output});
+    expect(decision.closure_digest).toBe(decision.outcome_digest);
+  },45_000);
+
+  it("processes a correction admitted while the final stall decision is in flight",async()=>{
+    const f=await adaptiveFixture(false,true);fixtureMode="stalled_correction";
+    const saved=(await pool.query("SELECT draft,draft_revision FROM agents_platform.agents WHERE id=$1",[f.assistant.id])).rows[0];
+    const configured=await app.inject({method:"POST",url:`${f.base}/agents/${f.assistant.id}/configuration`,headers:{cookie:f.cookie,origin},payload:{expectedRevision:saved.draft_revision,configuration:{...saved.draft,tools:["agents.discover"]},confirmImpact:true}});
+    expect(configured.statusCode,configured.body).toBe(200);
+    let release!:()=>void,reached=false;
+    const barrier=new Promise<void>(resolve=>{release=resolve;});
+    const decide=progressTools.decideStallStop;
+    const spy=vi.spyOn(progressTools,"decideStallStop").mockImplementation(async(...args)=>{reached=true;await barrier;return decide(...args);});
+    try {
+      const task=await admit(f);await dispatchTasksOnce(pool,{ingressUrl,adminUrl,runtimeRoutes:runtimeRoutes()});
+      await eventually(async()=>reached?true:false,25000);
+      const accepted=await app.inject({method:"POST",url:`${f.base}/tasks/${task.id}/instructions`,headers:{cookie:f.cookie,origin},payload:{instruction:"Use the revised requirement.",requestKey:randomUUID()}});
+      expect(accepted.statusCode,accepted.body).toBe(200);release();
+      const result=await finish(f,task.id);expect(result).toMatchObject({state:"completed",output:"Used the revised requirement."});
+      expect((await pool.query("SELECT 1 FROM agents_platform.orchestration_stall_decisions WHERE task_id=$1",[task.id])).rowCount).toBe(0);
+    } finally {release();spy.mockRestore();}
+  },45_000);
+
+  it("lets a warned agent inspect work and use the result before deciding its response",async()=>{
+    const f=await adaptiveFixture();fixtureMode="stalled_inspect";
+    const saved=(await pool.query("SELECT draft,draft_revision FROM agents_platform.agents WHERE id=$1",[f.assistant.id])).rows[0];
+    const configured=await app.inject({method:"POST",url:`${f.base}/agents/${f.assistant.id}/configuration`,headers:{cookie:f.cookie,origin},payload:{expectedRevision:saved.draft_revision,configuration:{...saved.draft,tools:["agents.discover","work.inspect"]},confirmImpact:true}});
+    expect(configured.statusCode,configured.body).toBe(200);
+    const task=await admit(f);const result=await finish(f,task.id);
+    const operations=(await pool.query("SELECT name,state,error_code FROM agents_platform.operations WHERE task_id=$1 ORDER BY started_at,id",[task.id])).rows;
+    expect(result,JSON.stringify({errorCode:result.errorCode,operations})).toMatchObject({state:"completed",output:"Inspected the recorded work."});
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.operations WHERE task_id=$1 AND name='work.inspect' AND state='completed'",[task.id])).rows[0].count).toBe(1);
+    expect((await pool.query("SELECT count(*)::int count FROM agents_platform.task_events WHERE task_id=$1 AND kind='work.replan_requested'",[task.id])).rows[0].count).toBe(1);
   },45_000);
 
   it("replans and pauses an alternating unchanged operation cycle across compaction",async()=>{
@@ -560,9 +609,11 @@ suite("organization assistant through app, PostgreSQL and Restate", () => {
   it("returns a pinned Content draft through the app once and keeps another member out", async () => {
     const f = await fixture(), key = randomUUID();
     const task = await admit(f, key);
+    expect((await pool.query("SELECT harness_release FROM agents_platform.tasks WHERE id=$1",[task.id])).rows[0].harness_release).toBe(SHARED_HARNESS_RELEASE);
     expect((await admit(f, key)).id).toBe(task.id);
-    expect(await finish(f, task.id)).toMatchObject({ state: "completed", output: "DRAFT: A concise launch post." });
-    const children = (await pool.query("SELECT id,version_id,principal,state,output FROM agents_platform.tasks WHERE parent_task_id=$1", [task.id])).rows;
+    const completed=await finish(f, task.id);
+    const children = (await pool.query("SELECT id,version_id,principal,state,error_code,output FROM agents_platform.tasks WHERE parent_task_id=$1", [task.id])).rows;
+    expect(completed,JSON.stringify({errorCode:completed.errorCode,children:children.map(child=>({state:child.state,errorCode:child.error_code}))})).toMatchObject({ state: "completed", output: "DRAFT: A concise launch post." });
     expect(children).toEqual([expect.objectContaining({ version_id: f.specialist.id, state: "completed", output: "DRAFT: A concise launch post.", principal: { kind: "human", issuer: f.owner.issuer, subject: f.owner.subject } })]);
     expect(requests).toHaveLength(3);
     expect(requests[1].messages[0].content).toContain("CONTENT_FIXTURE");

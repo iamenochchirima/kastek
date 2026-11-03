@@ -1,14 +1,13 @@
 import { Link } from "react-router";
 import { useNavigate } from "react-router";
 import { AgentComposer, AgentConversationScroll, AgentContextUsage, AgentMessage } from "@kasitek-labs/ui/agent";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { ArrowUpRight, LoaderCircle, Plus, Square, MessageCircle as Bot, Send as ArrowUp, X } from "@/components/ui/interface-icons";
 import "./agents-workspace.css";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { growthAgents, isActiveTask, safeGrowthRoute, type GrowthAgentArtifact, type GrowthAgentTask } from "@/lib/growth-agents";
+import { isActiveTask, type GrowthAgentTask } from "@/lib/growth-agents";
 import { AgentSources, GrowthAgentMarkdown } from "./agent-content";
 export { AgentSources } from "./agent-content";
 import { useGrowthAgents } from "./agent-provider";
@@ -18,24 +17,9 @@ import { growthExecution } from "@/lib/growth-agent-presentation";
 import { useGrowthSubagent } from "./agent-subagent";
 import { AgentDraftReview } from "./agent-review";
 import { GrowthExecution } from "./agent-execution";
+import { TaskResults } from "./agent-results";
+import { GrowthAgentModelPicker } from "./agent-model-picker";
 
-
-function TaskResults({ task }: { task: GrowthAgentTask }) {
-  const [artifact, setArtifact] = useState<GrowthAgentArtifact | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  const openArtifact = async (id: string) => {
-    setBusy(true); setError(null);
-    const abort = new AbortController(); controller.current = abort;
-    try { const result = await growthAgents.artifact(task.id, id, abort.signal); if (!abort.signal.aborted) setArtifact(result.artifact); }
-    catch (cause) { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to open this result."); }
-    finally { if (!abort.signal.aborted) setBusy(false); }
-  };
-  const download = safeGrowthRoute(artifact?.downloadPath);
-  return <><div className="flex flex-wrap gap-2">{task.results?.map((result) => { const route = safeGrowthRoute(result.route); return route ? <Link key={result.id} to={route} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-secondary"><span className="truncate">{result.title}</span><ArrowUpRight className="size-3.5 shrink-0" /></Link> : result.artifactId ? <Button key={result.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openArtifact(result.artifactId!)}>{result.title}</Button> : <span key={result.id} className="text-xs text-muted-foreground">{result.title}</span>; })}</div>{error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}<Dialog open={Boolean(artifact)} onOpenChange={(open) => { if (!open) setArtifact(null); }}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{artifact?.title}</DialogTitle><DialogDescription className="sr-only">Agent result</DialogDescription></DialogHeader><div className="min-w-0 whitespace-pre-wrap break-words text-sm">{artifact?.text || "No preview available."}</div>{download ? <div className="flex justify-end"><Button asChild size="sm"><a href={download} download>Download</a></Button></div> : null}</DialogContent></Dialog></>;
-}
 
 export function AgentConversation({ expanded = false, onClose }: { expanded?: boolean; onClose?: () => void }) {
   const agents = useGrowthAgents();
@@ -63,8 +47,8 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
     {item.errorCode === "EVIDENCE_UNAVAILABLE" ? <p role="status" className="text-xs text-muted-foreground">Sources unavailable</p> : null}
     <GrowthExecution task={{ ...item, output: !agents.messages.some(message => message.role === "assistant" && message.taskId === item.id) ? item.output : null }} onOpenSubagent={(child, button) => specialistResult.open(item.id, child, button)} renderOutput={text => <AgentMessage role="assistant"><GrowthAgentMarkdown text={text} sources={item.sources} /><AgentSources sources={item.sources ?? []} /></AgentMessage>} />
     {pendingReviews.filter(review => review.taskId === item.id).map(review => <AgentDraftReview key={review.id} review={review} />)}
-    {item.results?.length ? <TaskResults task={item} /> : null}
-    {["failed", "uncertain", "refused", "cancelled", "incomplete"].includes(item.state) ? <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2"><p className="min-w-0 flex-1 text-xs text-muted-foreground" role="status">{taskFailureLabel(item)}</p>{item.canContinue && !running.length ? <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={agents.sending || agents.loading || agents.unconfirmed} onClick={() => void agents.continueTask(item.id)}>{agents.continuingTaskId === item.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : null}</div> : null}
+    {item.results?.length ? <TaskResults key={item.results.map(result => result.artifactId ?? result.id).join(":")} task={item} /> : null}
+    {["failed", "uncertain", "refused", "cancelled", "incomplete"].includes(item.state) && ((!item.errorCode && !item.boundary) || item.canContinue && !running.length) ? <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">{!item.errorCode && !item.boundary ? <p className="min-w-0 flex-1 text-xs text-muted-foreground" role="status">{taskFailureLabel(item)}</p> : null}{item.canContinue && !running.length ? <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={agents.sending || agents.loading || agents.unconfirmed} onClick={() => void agents.continueTask(item.id)}>{agents.continuingTaskId === item.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : null}</div> : null}
   </section> : null;
   return <section className="growth-agent-chat flex h-full min-h-0 min-w-0 flex-col bg-background" aria-label="Agent conversation">
     <header className="growth-agent-chat-header flex shrink-0 items-center gap-2 border-b border-border px-4">
@@ -91,7 +75,7 @@ export function AgentConversation({ expanded = false, onClose }: { expanded?: bo
     {agents.error ? <div className="flex flex-wrap items-center gap-2 border-t border-destructive/20 bg-destructive/5 px-4 py-3 text-sm" role="alert"><span className="min-w-0 flex-1 text-destructive">{agents.error}</span>{agents.unconfirmed ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.send()}>Retry message</Button> : agents.conversation ? <Button type="button" variant="outline" size="sm" onClick={() => { agents.setError(null); void agents.refresh().catch((cause: unknown) => agents.setError(cause instanceof Error ? cause.message : "Unable to reconnect.")); }}>Reconnect</Button> : <Button type="button" variant="outline" size="sm" onClick={() => void agents.openGeneral()}>Retry</Button>}</div> : null}
     <AgentComposer textareaRef={composer} value={agents.draft} onChange={agents.setDraft} onSubmit={() => void agents.send()} disabled={blocked} maxLength={canSteer ? 4000 : 131072} placeholder={canSteer ? "Add instructions…" : "Message your agent…"} label="Message agent" sendButton={null}
       context={<div className="flex min-w-0 flex-wrap items-center gap-x-2">{latest ? <AgentContextUsage context={growthExecution(latest).context} diagnostics={growthExecution(latest).diagnostics} /> : null}<ContextControl compact /></div>}
-      actions={<div className="flex min-w-0 flex-wrap items-center justify-end gap-2"><span className="hidden max-w-28 truncate text-[11px] text-muted-foreground sm:block" title={feature?.model?.label || agents.bootstrap?.model?.label || "Business default"}>{feature?.model?.label || agents.bootstrap?.model?.label || "Business default"}</span>{task?.canContinue ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.continueTask(task.id)}>{agents.continuingTaskId === task.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : null}{task ? <Button type="button" variant="outline" size="sm" disabled={agents.sending || task.state === "cancel_requested"} onClick={() => void stop()}><Square className="mr-1.5 size-3" />Stop</Button> : null}{!task || canSteer ? <Button type="submit" size="icon" className="size-8 rounded-lg" disabled={blocked || !agents.draft.trim()} aria-label={canSteer ? "Send instructions" : "Send message"}>{agents.sending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</Button> : null}</div>} />
+      actions={<div className="flex min-w-0 flex-wrap items-center justify-end gap-2"><GrowthAgentModelPicker key={`${agents.scopeKey}:${agents.conversation?.featureId ?? "assistant"}`} scopeKey={agents.scopeKey} featureId={agents.conversation?.featureId ?? "assistant"} label={feature?.model?.label || agents.bootstrap?.model?.label || "Default"} canConfigure={agents.bootstrap?.scope.canConfigureAgents === true} disabled={agents.loading || agents.sending || !agents.conversation} onSaved={() => agents.ensureBootstrap(true)} />{task?.canContinue ? <Button type="button" variant="outline" size="sm" disabled={agents.sending} onClick={() => void agents.continueTask(task.id)}>{agents.continuingTaskId === task.id ? <LoaderCircle className="mr-1.5 size-3 animate-spin" /> : null}Continue</Button> : null}{task ? <Button type="button" variant="outline" size="sm" disabled={agents.sending || task.state === "cancel_requested"} onClick={() => void stop()}><Square className="mr-1.5 size-3" />Stop</Button> : null}{!task || canSteer ? <Button type="submit" size="icon" className="size-8 rounded-lg" disabled={blocked || !agents.draft.trim()} aria-label={canSteer ? "Send instructions" : "Send message"}>{agents.sending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}</Button> : null}</div>} />
     {specialistResult.dialog}
   </section>;
 }

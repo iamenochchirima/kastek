@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { PlatformError, terminalTaskStates } from "../../contracts/contracts";
 import { transaction } from "../../infrastructure/database";
 import { loadExecution } from "./state";
+import { delegationAncestors, subtreeUsage } from "../delegation/scope";
 import { workUsage } from "./work-policy";
 
 /** A failed admission has no operation to retry. Wait only for reservations that can still settle. */
@@ -34,7 +35,8 @@ export async function executionReservationPressure(pool: Pool, taskId: string, r
       coalesce(sum(r.tokens_reserved+r.child_reserved_tokens),0)::double precision AS tokens,
       coalesce(sum(r.active_reserved_ms+r.child_reserved_ms),0)::double precision AS active_ms
       FROM agents_platform.execution_roots r JOIN agents_platform.tasks t ON t.id=r.root_task_id WHERE t.work_id=$1`, [workId])).rows[0];
-    const prepaidTokens = child && task.root_token_limit !== null, prepaidTime = child && task.allocation_active_ms !== null;
+    const rollingTree=task.harness_release==="product-capabilities-v15";
+    const prepaidTokens = !rollingTree && child && task.root_token_limit !== null, prepaidTime = !rollingTree && child && task.allocation_active_ms !== null;
     let pressure = false;
     const inspect = (limit: number | null, observed: number, reserved: number, required: number) => {
       if (limit === null) return true;
@@ -42,6 +44,12 @@ export async function executionReservationPressure(pool: Pool, taskId: string, r
       if (observed + reserved + required > limit) pressure = true;
       return true;
     };
+    if(rollingTree)for(const ancestor of [execution,...await delegationAncestors(db,execution)]) {
+      if(!ancestor.task.parent_task_id)continue;
+      const subtree=await subtreeUsage(db,ancestor.task.id);
+      if(!inspect(ancestor.task.root_token_limit,subtree.tokens,subtree.tokens_reserved,requiredTokens)||
+         !inspect(ancestor.task.allocation_active_ms,subtree.active_ms,subtree.active_reserved_ms,requiredMs))return false;
+    }
     if (child && (!inspect(task.root_token_limit, task.tokens_used, task.tokens_reserved, requiredTokens) ||
         !inspect(task.allocation_active_ms, task.active_ms, task.active_reserved_ms, requiredMs))) return false;
     if (!inspect(rootExecution.task.root_token_limit, usage.tokens - held.tokens, held.tokens, prepaidTokens ? 0 : requiredTokens) ||

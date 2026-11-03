@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {delegationRequestSchema} from "../src/execution/delegation/delegation";
 import {randomUUID} from "node:crypto";
 import {generateKeyPair,exportSPKI,SignJWT} from "jose";
@@ -8,7 +9,7 @@ import {growthFeatureConfiguration} from "../src/product/integrations/growth-fea
 import {compilePublishedComposition} from "../src/execution/programs/publication";
 import {defaultBusinessConfiguration,agentConfigurationSchema,executionGrantSchema,assertGrantAuthority,requestDigest} from "../src/contracts/contracts";
 import {registerProductAdapter,sameProductAuthority} from "../src/capabilities/products/product-capabilities";
-import {growthInstalledAdapterManifest} from "../src/execution/products/growth-runtime";
+import {growthInstalledAdapterManifest} from "../src/adapters/products/growth-capability-manifests";
 import {parseGrowthAgentCommand} from "@kasitek-labs/contracts";
 import {orchestrationTools} from "../src/contracts/orchestration";
 import type {GrowthAgentPublication,ProductCapabilityDescriptor,GrowthAgentCommand,GrowthAgentAction} from "@kasitek-labs/contracts";
@@ -89,7 +90,7 @@ describe("Growth product contracts",()=>{
   it("cannot give standalone or read-only agents Growth mutation authority",()=>{
     const config=contentConfiguration(),id=randomUUID(),authority={product:"agents" as const,organizationId:randomUUID(),resourceId:"content",callerClientId:"growth-api",principal:{kind:"human" as const,...actor}};
     const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:id,operations:["model.reply","product.read","product.write"],sourceRevisionIds:[],
-      maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
+      maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),rootTokenLimit:32000,expiresAt:new Date(Date.now()+60000).toISOString(),revokedAt:null});
     expect(()=>assertGrantAuthority(grant,authority,id,config)).toThrow();
     expect(()=>assertGrantAuthority({...grant,product:"growth",operations:["model.reply","product.read"]},{...authority,product:"growth"},id,config)).toThrow();
   });

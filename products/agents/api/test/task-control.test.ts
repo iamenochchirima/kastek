@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -34,7 +35,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       const authority = { product: "agents" as const, organizationId: org.id, resourceId: selectedAgent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: identity.issuer, subject: identity.subject } };
       const grant = await store.createGrant({ accountId: identity.id, grant: { ...authority, id: randomUUID(), versionId: selectedVersion.id,
         operations: operationsForConfiguration(configuration, true), maxInputBytes: configuration.model.maxInputBytes,
-        maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens,
+        maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration),
         expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null } });
       return (await store.admitTask({ authority, versionId: selectedVersion.id, grantId: grant.id, requestKey: randomUUID(), input: "PRIVATE_TASK_INPUT" })).task;
     };

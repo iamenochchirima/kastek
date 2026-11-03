@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash,randomUUID } from "node:crypto";
 import pg from "pg";
 import { readConfig } from "../src/config.js";
 import { installPgTimestampParsers } from "../src/db.js";
@@ -9,6 +9,7 @@ import { updatePublishedFacebookPost, reconcilePublishedFacebookEdit } from "../
 import { getSocialPost, deleteSocialPost } from "../src/services/social/posts.js";
 import { facebookPublishedMutationTarget } from "../src/services/social/provider-publishing.js";
 import { deleteSocialPostFromPlatforms } from "../src/services/social/publishing.js";
+import { apiJson,canonicalJson } from "@kasitek-labs/server-support/json";
 import type { RequestContext } from "../src/identity/request-context.js";
 installPgTimestampParsers();
 const config = readConfig({ DATABASE_URL: "postgres://unused", SOCIAL_TOKEN_ENCRYPTION_KEY: "fixture" });
@@ -38,6 +39,10 @@ async function fixture(run: (pool: pg.Pool) => Promise<void>) {
   await pool.query(schemaSql);
   await pool.query(`INSERT INTO "SocialChannelConnection"(id,"userId","orgId",platform,status,"displayName","externalAccountId","accessToken",metadata) VALUES('channel','user','org','FACEBOOK','CONNECTED','Page','123',$1,'{"permissions":["pages_manage_posts"],"permissionsInspected":true}')`, [encryptSocialSecret(config, "page-token")]);
   await pool.query(`INSERT INTO "SocialPost" VALUES('post','user','org','channel','Original title',NULL,'Original',ARRAY['FACEBOOK'],'PUBLISHED',NULL,NOW(),'{}',NOW(),NOW());INSERT INTO "SocialPostVariant" VALUES('variant','post','FACEBOOK','Original','APPROVED',false,'{}',NOW(),NOW());INSERT INTO "SocialPublishJob" VALUES('job','user','org','post','variant','channel','FACEBOOK','PUBLISHED',NULL,NOW(),'123_456',NULL,'{}','{"schema":"original","content":"Original"}',NOW(),NOW())`);
+  await pool.query(`ALTER TABLE "SocialPost" ADD COLUMN "agentReviewRevision" BIGINT NOT NULL DEFAULT 1;
+    ALTER TABLE "SocialChannelConnection" ADD COLUMN "agentReviewRevision" BIGINT NOT NULL DEFAULT 1;
+    CREATE TRIGGER agent_review_revision BEFORE UPDATE ON "SocialPost" FOR EACH ROW EXECUTE FUNCTION public.growth_advance_agent_review_revision();
+    CREATE TRIGGER agent_review_revision BEFORE UPDATE ON "SocialChannelConnection" FOR EACH ROW EXECUTE FUNCTION public.growth_advance_agent_review_revision()`);
   await run(pool);
  } finally { await pool.end(); await admin.query(`DROP SCHEMA "${schema}" CASCADE`); await admin.end(); }
 }
@@ -54,6 +59,10 @@ test("published Facebook edits preserve delivery evidence, enforce revision/acco
  };
  await assert.rejects(updatePublishedFacebookPost(pool, config, context("foreign", "foreign"), "post", input, { fetch: transport }), /Post not found/);
  await assert.rejects(updatePublishedFacebookPost(pool, config, context(), "post", input, { expectedAccounts: { channel: "stale" }, fetch: transport }), /publishing account changed/);
+ const reviewed=(await pool.query('SELECT id,status::text,"updatedAt","agentReviewRevision"::text AS "agentReviewRevision" FROM "SocialChannelConnection" WHERE id=\'channel\'')).rows[0];
+ const reviewedDigest=createHash("sha256").update(canonicalJson(JSON.parse(apiJson(reviewed)))).digest("hex");
+ await pool.query('UPDATE "SocialChannelConnection" SET "displayName"=$2 WHERE id=$1',["channel","Another account name"]);
+ await assert.rejects(updatePublishedFacebookPost(pool,config,context(),"post",input,{expectedAccounts:{channel:reviewedDigest},fetch:transport}),/publishing account changed/);
  assert.equal(calls.length, 0);
  const result = await updatePublishedFacebookPost(pool, config, context(), "post", input, { fetch: transport });
  assert.equal(result.content, "Updated"); assert.equal(result.status, "PUBLISHED"); assert.equal(result.title, "Original title");
@@ -65,6 +74,19 @@ test("published Facebook edits preserve delivery evidence, enforce revision/acco
  await assert.rejects(updatePublishedFacebookPost(pool, config, context(), "post", { ...input, content: "Different" }, { fetch: transport }), /another request/);
  await pool.query(`UPDATE "SocialPost" SET channels=ARRAY['FACEBOOK','X'] WHERE id='post'`);
  await assert.rejects(updatePublishedFacebookPost(pool, config, context("mixed"), "post", { ...input, expectedUpdatedAt: result.updated_at.toISOString() }, { fetch: transport }), /Facebook-only/);
+}));
+test("a post change after provider acceptance stays uncertain and never sends twice",opts,async()=>fixture(async pool=>{
+ const original=(await getSocialPost(pool,"org","post"))!,version=(await pool.query('SELECT "agentReviewRevision"::text AS version FROM "SocialPost" WHERE id=$1',["post"])).rows[0].version as string;
+ const input={content:"Accepted remotely",expectedUpdatedAt:original.updated_at.toISOString()};let writes=0;
+ const transport:typeof fetch=async(_url,init)=>{
+  if(init?.method==="POST"){writes++;await pool.query('UPDATE "SocialPost" SET title=$2 WHERE id=$1',["post","Other writer"]);return Response.json({success:true});}
+  return Response.json({id:"123_456",message:"Accepted remotely"});
+ };
+ await assert.rejects(updatePublishedFacebookPost(pool,config,context(),"post",input,{fetch:transport,expectedPostAgentRevision:version}),{code:"published_update_unconfirmed"});
+ assert.equal(writes,1);assert.equal((await getSocialPost(pool,"org","post"))!.content,"Original");
+ assert.equal((await pool.query('SELECT metadata->\'_kasitek_edit_intent\'->>\'state\' AS state FROM "SocialPublishJob" WHERE id=\'job\'')).rows[0].state,"executing");
+ await assert.rejects(reconcilePublishedFacebookEdit(pool,config,context(),"post",input,{fetch:transport,expectedPostAgentRevision:version}),/reviewed content changed/);
+ assert.equal(writes,1);
 }));
 test("Facebook photo edits resolve the original Page story, and denied readback stays uncertain until read-only reconciliation", opts, async () => fixture(async pool => {
  await pool.query(`UPDATE "SocialPublishJob" SET "externalPostId"='456' WHERE id='job';INSERT INTO "ContentMediaAsset" VALUES('asset','org','IMAGE','image/png','image.png',1,1,1,NULL,'READY','CLEAN');INSERT INTO "SocialPostMedia" VALUES('media','post','asset',0,'alt','{}')`);

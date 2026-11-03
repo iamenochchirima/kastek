@@ -281,6 +281,25 @@ suite("Agents HTTP and PostgreSQL integration", () => {
     expect((await request("/api/session", { cookie: f.cookie })).status).toBe(401);
   });
 
+  it("allows the metadata preflight when a saved website session sends authorization", async () => {
+    const f = await readyAgent(), deployed = await publish(f);
+    const base = `/api/website/${deployed.body.deployment.id}`, origin = "https://shop.example";
+    const session = await request(`${base}/session`, { method: "POST", origin });
+    expect(session.status).toBe(201);
+    const headers = { origin, "access-control-request-method": "GET", "access-control-request-headers": "authorization" };
+    const preflight = await fetch(endpoint + base, { method: "OPTIONS", headers });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("authorization");
+    expect(preflight.headers.get("access-control-allow-methods")).toContain("GET");
+    const metadata = await request(base, { origin, token: session.body.token });
+    expect(metadata.status).toBe(200); expect(metadata.headers.get("access-control-allow-origin")).toBe(origin);
+    const denied = await fetch(endpoint + base, { method: "OPTIONS", headers: { ...headers, origin: "https://unrelated.example" } });
+    expect(denied.status).toBe(403); expect(denied.headers.get("access-control-allow-origin")).toBeNull();
+    const missing = await fetch(endpoint + `/api/website/${randomUUID()}`, { method: "OPTIONS", headers });
+    expect(missing.status).toBe(404); expect(missing.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
   it("binds anonymous access to allowed origins and opaque visitor sessions", async () => {
     const f = await readyAgent(), deployed = await publish(f); expect(deployed.status).toBe(201);
     const base = `/api/website/${deployed.body.deployment.id}`;

@@ -26,10 +26,11 @@ const createInput = z.strictObject({ providerId: z.string().min(1).max(64), name
 const updateInput = z.strictObject({ expectedRevision: z.number().int().positive(), name: z.string().trim().min(1).max(120).optional(),
   apiKey: modelApiKeySchema.optional(), endpoint: modelEndpointSchema.optional() });
 const changed = () => new PlatformError("MODEL_CONNECTION_CHANGED", 409, "Model provider changed; refresh and try again");
+const managedReadOnly = () => new PlatformError("MODEL_MANAGED_READ_ONLY", 403, "Add your own provider to change the managed model or key");
 const missing = () => new PlatformError("MODEL_CONNECTION_NOT_FOUND", 404, "Model provider not found");
 type ConnectionRow = { id: string; organization_id: string; created_by: string; provider_id: string; name: string; endpoint: string;
   protocol: ProviderConnection["protocol"]; definition: ProviderDefinition; revision: number; credential_revision: number;
-  custody: ProviderConnection["custody"]; state: ProviderConnection["state"]; verification: ProviderConnection["verification"];
+  managed_model_id?: string | null; custody: ProviderConnection["custody"]; state: ProviderConnection["state"]; verification: ProviderConnection["verification"];
   created_at: Date; updated_at: Date };
 
 async function owner(db: PoolClient, scope: ActionScope): Promise<void> {
@@ -97,6 +98,7 @@ export class ModelProviderStore {
     const input = updateInput.parse(raw);
     return transaction(this.pool, async db => {
       await owner(db, scope); const row = await this.row(db, scope, id, true);
+      if (row.managed_model_id) throw managedReadOnly();
       if (row.revision !== input.expectedRevision || row.state === "revoked" && !input.apiKey) throw changed();
       const endpoint = input.endpoint ?? row.endpoint;
       const definition = getProviderDefinition(row.provider_id, this.registry);
@@ -132,6 +134,7 @@ export class ModelProviderStore {
     return transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, input.connectionId, true);
       if (connection.state !== "active") throw changed();
+      if (connection.managed_model_id && input.modelIds.some(id => id !== connection.managed_model_id)) throw managedReadOnly();
       if (input.consumer.kind === "agent" && !(await db.query("SELECT 1 FROM agents_platform.agents WHERE organization_id=$1 AND id=$2", [scope.organizationId, input.consumer.agentId])).rowCount) {
         throw new PlatformError("MODEL_CONSUMER_NOT_FOUND", 404, "Agent not found");
       }
@@ -162,6 +165,7 @@ export class ModelProviderStore {
       if ((prior?.revision ?? 0) !== (input.expectedRevision ?? 0)) throw new PlatformError("MODEL_DEFAULT_CHANGED", 409, "Default model changed; refresh and try again");
       const connection = await this.row(db, scope, input.connectionId);
       if (connection.state !== "active") throw changed();
+      if (connection.managed_model_id && input.modelId !== connection.managed_model_id) throw managedReadOnly();
       const grantId = randomUUID(), revision = (prior?.revision ?? 0) + 1;
       await db.query(`INSERT INTO agents_platform.model_provider_use_grants(id,organization_id,connection_id,consumer,roles,model_ids)
         VALUES($1,$2,$3,$4,$5,$6)`, [grantId, scope.organizationId, connection.id,
@@ -237,6 +241,7 @@ export class ModelProviderStore {
     const input = manualModelInput.parse(raw);
     const definition = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
+      if (connection.managed_model_id) throw managedReadOnly();
       if (connection.state !== "active" || connection.revision !== input.expectedRevision) throw changed();
       return providerDefinitionSchema.parse(connection.definition);
     });
@@ -273,6 +278,7 @@ export class ModelProviderStore {
     const prepared = await transaction(this.pool, async db => {
       await owner(db, scope); const connection = await this.row(db, scope, id);
       if (connection.revision !== input.expectedRevision || connection.state !== "active") throw changed();
+      if (connection.managed_model_id && input.modelId !== connection.managed_model_id) throw managedReadOnly();
       const cache = (await db.query(`SELECT snapshot,snapshot_digest FROM agents_platform.model_provider_catalogues
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`,
       [scope.organizationId, id, connection.revision, connection.credential_revision])).rows[0];
@@ -389,13 +395,15 @@ export class ModelProviderStore {
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4 FOR UPDATE`, key)).rows[0];
       if (previous && requestDigest(previous.snapshot) !== previous.snapshot_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Model catalogue has changed");
       if (result.kind === "discovered") {
+        if (current.managed_model_id) result.models = result.models.filter(model => model.id === current.managed_model_id &&
+          model.pricing?.inputMicrosPerMillionTokens === 0 && model.pricing?.outputMicrosPerMillionTokens === 0);
         const discoveredIds = new Set(result.models.map(model => model.id));
         const priorModels = (previous?.snapshot.models ?? []) as import("../../contracts/model-providers").ModelDescriptor[];
         const absent = priorModels.filter(model => !discoveredIds.has(model.id));
         result.models.push(...absent);
-        result.unavailableModelIds = result.complete ? absent.map(model => model.id) : (previous?.snapshot.unavailableModelIds ?? []).filter((id: string) => !discoveredIds.has(id));
+        result.unavailableModelIds = result.complete || current.managed_model_id ? absent.map(model => model.id) : (previous?.snapshot.unavailableModelIds ?? []).filter((id: string) => !discoveredIds.has(id));
       }
-      const manual = (await db.query(`SELECT descriptor,descriptor_digest FROM agents_platform.model_provider_manual_models
+      const manual = current.managed_model_id ? [] : (await db.query(`SELECT descriptor,descriptor_digest FROM agents_platform.model_provider_manual_models
         WHERE organization_id=$1 AND connection_id=$2 AND connection_revision=$3 AND credential_revision=$4`, key)).rows;
       for (const item of manual) {
         if (requestDigest(item.descriptor) !== item.descriptor_digest) throw new PlatformError("MODEL_CATALOGUE_INTEGRITY", 409, "Manual model metadata has changed");
@@ -430,6 +438,7 @@ export class ModelProviderStore {
       [binding.organizationId, binding.connectionId])).rows[0];
     if (!connection || connection.state !== "active" || connection.revision !== binding.connectionRevision ||
       connection.credential_revision !== binding.credentialRevision || connection.endpoint !== binding.endpoint || connection.protocol !== binding.protocol) throw changed();
+    if (connection.managed_model_id && binding.modelId !== connection.managed_model_id) throw managedReadOnly();
     const grant = (await db.query("SELECT * FROM agents_platform.model_provider_use_grants WHERE organization_id=$1 AND id=$2 AND connection_id=$3 FOR SHARE",
       [binding.organizationId, binding.useGrantId, binding.connectionId])).rows[0];
     if (!grant || grant.state !== "active" || grant.revision !== binding.useGrantRevision || canonicalJson(grant.consumer) !== canonicalJson(consumer) ||

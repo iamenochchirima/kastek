@@ -56,11 +56,11 @@ export async function reconcileGrowthOperationReceipt(core: CoreContext, review:
         || intent.contentDigest !== createHash("sha256").update(String(input.content).trim()).digest("hex")
         || Boolean(intent.removePhoto) !== Boolean(input.removePhoto)
         || intent.expectedUpdatedAt !== input.expectedUpdatedAt) return null;
-      if (context && ["executing", "uncertain"].includes(intent.state)) {
+      if (context && ["executing", "uncertain"].includes(intent.state) && typeof review.snapshot.postAgentRevision === "string") {
         try {
           await reconcilePublishedFacebookEdit(core.pool, core.config, { ...context, idempotencyKey: key }, String(input.postId), {
             content: String(input.content), expectedUpdatedAt: String(input.expectedUpdatedAt), removePhoto: input.removePhoto === true,
-          });
+          }, { expectedPostAgentRevision: review.snapshot.postAgentRevision });
           rows = await receiptRows();
           if (rows.length !== 1) return null;
           row = rows[0]; intent = row.intent;

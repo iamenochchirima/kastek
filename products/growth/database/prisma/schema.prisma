@@ -176,6 +176,7 @@ model ExternalConnection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@unique([orgId, sourceType, sourceId])
   @@index([orgId, status])
@@ -1623,6 +1624,7 @@ model Conversation {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@unique([channel, customerIdentifier])
   @@index([channel])
@@ -2151,6 +2153,7 @@ model SocialChannelConnection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@unique([orgId, platform, externalAccountId])
   @@index([userId, platform])
@@ -2238,6 +2241,7 @@ model SocialPost {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@index([userId, status])
   @@index([orgId, status])
@@ -2537,6 +2541,7 @@ model WhatsappContact {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@unique([orgId, phone])
   @@index([userId, optIn, excluded])
@@ -2570,6 +2575,7 @@ model WhatsappContactListMembership {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  agentReviewRevision BigInt @default(1)
 
   @@unique([orgId, contactId, listLabel])
   @@index([userId, listLabel])

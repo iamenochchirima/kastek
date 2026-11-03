@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
-/** Copy definitions only into a schema-only search path. No service data, triggers or foreign keys are copied. */
+/** Copy definitions into a schema-only search path; preserve the review revision trigger when installed. */
 export async function isolatedDatabase(
   url: string,
   prefix: string,
@@ -54,6 +54,11 @@ export async function isolatedDatabase(
       await pool.query(
         `CREATE TABLE "${table}"(LIKE public."${table}" INCLUDING ALL)`,
       );
+    const revisionTriggers = (await admin.query<{ name: string }>(`SELECT c.relname AS name FROM pg_trigger t
+      JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND t.tgname='agent_review_revision' AND NOT t.tgisinternal AND c.relname=ANY($1::text[])`, [tables])).rows;
+    for (const {name} of revisionTriggers)
+      await pool.query(`CREATE TRIGGER agent_review_revision BEFORE UPDATE ON "${name}" FOR EACH ROW EXECUTE FUNCTION public.growth_advance_agent_review_revision()`);
     const columns = (
       await admin.query<{
         table_name: string;

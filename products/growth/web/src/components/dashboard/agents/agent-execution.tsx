@@ -13,7 +13,7 @@ type Props = { task: GrowthAgentTask; onOpenSubagent?: ComponentProps<typeof Age
 export function mergeGrowthOperationHistory(taskId:string,history:GrowthAgentRuntimeOperation[],live:GrowthAgentRuntimeOperation[]) {
   const operations=new Map<string,GrowthAgentRuntimeOperation>();
   for(const operation of [...history,...live]) {
-    if(operation.taskId!==taskId||operation.kind==="model")continue;
+    if(operation.taskId!==taskId)continue;
     const previous=operations.get(operation.id);
     if(previous?.completedAt&&!operation.completedAt)continue;
     operations.set(operation.id,operation);
@@ -32,7 +32,7 @@ export function GrowthExecution({ task, onOpenSubagent, renderOutput }: Props) {
   const [busy, setBusy] = useState(false);
   const current = history.key === key ? history : null;
   const unavailable = task.errorCode === "EVIDENCE_UNAVAILABLE";
-  const head=task.runtime?.operations.filter(operation=>operation.taskId===task.id&&operation.kind!=="model").at(-1)?.id;
+  const head=task.runtime?.operations.filter(operation=>operation.taskId===task.id).at(-1)?.id;
   const latestHead=useRef(head);
   const invalidate = useCallback(() => { ++generation.current; controller.current?.abort(); }, []);
   useEffect(()=>{
@@ -92,7 +92,7 @@ export function GrowthExecution({ task, onOpenSubagent, renderOutput }: Props) {
     execution.context = undefined; execution.diagnostics = undefined; execution.elapsedMs = undefined; execution.label = "Activity unavailable";
   } else {
     execution.operations = mergeGrowthOperationHistory(task.id,current?.operations??[],task.runtime?.operations??[]).map(operation => ({
-      id: operation.id, label: operation.label, state: operation.state, kind: operation.kind, startedAt: operation.startedAt,
+      id: operation.id, taskId: operation.taskId, category: operation.category, source: operation.source, activityKind: operation.activityKind, technicalName: operation.technicalName, label: operation.label, state: operation.state, kind: operation.kind, startedAt: operation.startedAt, durationMs: operation.durationMs, errorCode: operation.errorCode,
       details: `Duration: ${(operation.durationMs / 1000).toFixed(1)} s${operation.errorCode ? ` · ${operation.errorCode}` : ""}`, detailAvailability: "available",
     }));
     execution.output = task.output;

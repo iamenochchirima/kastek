@@ -12,6 +12,7 @@ import { transaction } from "../../infrastructure/database";
 import { createModelFetch, type ModelFetch, type ModelNetworkPolicy } from "../../infrastructure/model-network";
 import type { PreparedInputCount } from "../../adapters/models/input-count";
 import { googleModelRequestUrl } from "../../adapters/models/google-transport";
+import type { ModelFailureDiagnostics } from "../../contracts/model-transport";
 
 export interface AcceptedModelDispatch {
   binding: ResolvedModelBinding;
@@ -39,7 +40,7 @@ export interface BoundModelDispatchInput {
   beforePayloadDispatch?: (payload: Readonly<Record<string, unknown>>, count: PreparedInputCount) => Promise<void>;
 }
 export class BoundModelDispatchError extends Error {
-  constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502) {
+  constructor(readonly code: string, readonly outcome: "rejected" | "uncertain", readonly status = 502,readonly diagnostics?:ModelFailureDiagnostics) {
     super(code); this.name = "BoundModelDispatchError";
   }
 }
@@ -132,9 +133,9 @@ export async function dispatchBoundModel(
         await input.beforePayloadDispatch?.(payload, count);
       } });
   } catch (error) {
-    if (counterFailure) throw new BoundModelDispatchError(counterFailure.code, counterFailure.outcome, counterFailure.status);
+    if (counterFailure) throw new BoundModelDispatchError(counterFailure.code, counterFailure.outcome, counterFailure.status,counterFailure.diagnostics);
     if (error instanceof BoundModelDispatchError) throw error;
-    if (error instanceof ProviderTransportError) throw new BoundModelDispatchError(error.code, error.outcome, error.status);
+    if (error instanceof ProviderTransportError) throw new BoundModelDispatchError(error.code, error.outcome, error.status,error.diagnostics);
     if (error instanceof PlatformError) throw rejected(error.code, error.statusCode);
     throw rejected("MODEL_DISPATCH_FAILED", 502);
   }

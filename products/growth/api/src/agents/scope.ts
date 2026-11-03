@@ -11,16 +11,16 @@ import { growthAgentDigest, growthAgentIdentityIssuer } from "./security.js";
 import { growthAgentProductGuide } from "./product-guide.js";
 export interface GrowthAgentScope { tenantId: string; actor: GrowthAgentActor }
 export async function authorizeGrowthAgentScope(core: CoreContext, scope: GrowthAgentScope, featureId?: GrowthAgentFeatureId,
-  db: Pool | PoolClient = core.pool, lock = false): Promise<{ businessName: string }> {
+  db: Pool | PoolClient = core.pool, lock = false): Promise<{ businessName: string; canConfigureAgents: boolean }> {
   if (scope.actor.issuer !== growthAgentIdentityIssuer(core.config)) throw new ApiError(403, "agent_actor_denied", "Agent identity is unavailable");
-  const row = (await db.query(`SELECT o.name FROM "OrganizationMember" m JOIN "Organization" o ON o.id=m."orgId"
+  const row = (await db.query(`SELECT o.name,m.role FROM "OrganizationMember" m JOIN "Organization" o ON o.id=m."orgId"
     JOIN "User" u ON u.id=m."userId" WHERE m."orgId"=$1 AND m."userId"=$2 AND u."emailVerified" IS NOT NULL${lock ? " FOR SHARE OF m,o,u" : ""}`,
   [scope.tenantId, scope.actor.subject])).rows[0];
   if (!row) throw new ApiError(403, "agent_scope_denied", "Business access is unavailable");
   await requireCapability(core.pool, scope.tenantId, "feature.agents.manage");
   if (featureId === "content") await requireCapability(core.pool, scope.tenantId, "feature.content.manage");
   if (featureId === "campaigns") await requireCapability(core.pool, scope.tenantId, "feature.campaigns.manage");
-  return { businessName: row.name };
+  return { businessName: row.name, canConfigureAgents: ["OWNER","ADMIN"].includes(row.role) };
 }
 function wire(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
@@ -29,6 +29,12 @@ function wire(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(wire);
   if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, wire(item)]));
   return value;
+}
+export function growthAgentContextModelView(context: GrowthAgentContext, data: unknown): { revision: string; data: unknown } {
+  const complete = wire(data), revision = growthAgentDigest(complete);
+  const modelData = context.kind === "content_post" && complete && typeof complete === "object" && !Array.isArray(complete)
+    ? Object.fromEntries(Object.entries(complete).filter(([key]) => key !== "selectedAccounts")) : complete;
+  return { revision, data: modelData };
 }
 export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAgentScope, context: GrowthAgentContext): Promise<GrowthAgentContextEvidence> {
   await authorizeGrowthAgentScope(core, scope);
@@ -63,8 +69,8 @@ export async function readGrowthAgentContext(core: CoreContext, scope: GrowthAge
       timezone: range.timezone, metrics: context.report?.metrics??[], breakdowns: context.report?.breakdowns??[], filters: context.report?.filters??{}, include_descendants: false });
     title = "Business analytics"; route = "/analytics";
   }
-  const safe = wire(data), revision = growthAgentDigest(safe);
-  return { context, revision, data: safe, sources: [{ id: `${context.kind}:${context.resourceId ?? scope.tenantId}`, title, route, revision }] };
+  const view = growthAgentContextModelView(context,data);
+  return { context, revision:view.revision, data:view.data, sources: [{ id: `${context.kind}:${context.resourceId ?? scope.tenantId}`, title, route, revision:view.revision }] };
 }
 export async function assertGrowthAgentContext(core: CoreContext, scope: GrowthAgentScope, context: GrowthAgentContext | null, revision?: string | null): Promise<void> {
   if (!context) return;

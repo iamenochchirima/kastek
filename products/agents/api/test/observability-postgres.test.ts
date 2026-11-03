@@ -8,6 +8,7 @@ import { observationSchema } from "../src/contracts/observations";
 import { PlatformStore } from "../src/product/agents/store";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { beginOperation, finishOperation } from "../src/execution/lifecycle/execution";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { collectNativeMetrics, createNativeMetrics } from "../src/observability/metrics";
 import { createObservationTelemetry, publishObservationBatch } from "../src/observability/telemetry";
 
@@ -30,7 +31,8 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution",
       principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
     const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply"],
-      maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
+      maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(config),
+      expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
     await store.createGrant({ accountId: account.id, grant });
     const { task } = await store.admitTask({ authority, versionId: version.id, grantId: grant.id, requestKey: randomUUID(), input: "PRIVATE_CUSTOMER_TEXT" });
     const operation = { id: `model:${task.id}:0`, kind: "model" as const, name: "model.generate", request: { messages: [{ role: "user", content: "PRIVATE_CUSTOMER_TEXT" }] }, reservedTokens: 100, reservedMs: 30000 };

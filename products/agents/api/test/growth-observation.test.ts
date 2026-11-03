@@ -14,7 +14,7 @@ function fixture(withChild=false) {
  const queries:{sql:string;values:any[]}[]=[];
  const operation=(n:number)=>({id:`tool:${id}:${n}`,cursor_id:String(n).padStart(32,"0"),cursor_position:`2026-11-02T10:00:00.12345${n}Z`,task_id:id,kind:"tool",name:"content.list",state:"completed",started_at:now,completed_at:now,error_code:null});
  const pool={query:vi.fn(async(sql:string,values:any[])=>{queries.push({sql,values});
-   if(sql.includes("WITH RECURSIVE family"))return {rows:withChild?[{...root,id:child,parent_task_id:id,agent_name:"Content",input:"PROTECTED_DERIVED_ASSIGNMENT",output:"PROTECTED_DERIVED_OUTPUT"}]:[]};
+   if(sql.includes("WITH RECURSIVE lineage"))return {rows:withChild?[{...root,id:child,parent_task_id:id,agent_name:"Content",input:"PROTECTED_DERIVED_ASSIGNMENT",output:"PROTECTED_DERIVED_OUTPUT"}]:[]};
    if(sql.includes("SELECT o.id,md5"))return {rows:values[2]?[operation(1)]:[operation(4),operation(3),operation(2)]};
    if(sql.includes("SELECT a.name"))return {rows:[{name:"Growth assistant"}]};
    return {rows:[]};
@@ -46,7 +46,7 @@ it.each([403,404,409,503])("does not return assignment, updates, operations or o
 });
 it("requires a scoped ancestry lookup for a child and never falls back to export or unrelated task detail",async()=>{
  const f=fixture();await expect(observeGrowthTask(f.service,{...f.command,input:{...f.command.input,childTaskId:f.child}})).rejects.toMatchObject({code:"NOT_FOUND"});
- const query=f.queries[0]!;expect(query.sql).toContain("WITH RECURSIVE family");expect(query.sql).toContain("t.root_task_id=$1 AND t.organization_id=$3 AND t.principal=$4::jsonb AND t.product='growth'");expect(query.sql).toContain("c.deleted_at IS NULL");expect(query.sql).toContain("f.enabled");expect(query.values).toEqual([f.id,f.child,f.org,JSON.stringify({kind:"human",issuer:"fixture",subject:"owner"}),"tenant"]);
+ const query=f.queries[0]!;expect(query.sql).toContain("WITH RECURSIVE lineage");expect(query.sql).toContain("t.root_task_id=$1 AND t.organization_id=$3 AND t.principal=$4::jsonb AND t.product=$6");expect(query.sql).toContain("c.deleted_at IS NULL");expect(query.sql).toContain("f.enabled");expect(query.values).toEqual([f.id,f.child,f.org,JSON.stringify({kind:"human",issuer:"fixture",subject:"owner"}),"tenant","growth"]);
  expect(f.service.taskDto).not.toHaveBeenCalled();
 });
 

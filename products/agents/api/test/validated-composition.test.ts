@@ -6,6 +6,10 @@ import {REPORT_WORKFLOW_BINDING} from '../src/capabilities/tool-descriptors';
 import {resolveProgram} from '../src/execution/programs/composition';
 import {compilePublishedComposition} from '../src/execution/programs/publication';
 import {createValidatedCompositionCompiler} from '../src/execution/lifecycle/validated-composition';
+import {publishedToolBindings} from '../src/capabilities/tool-definitions';
+import {PROTOCOL_TOOL_NAMES,protocolToolVersions,protocolToolBindings} from '../src/capabilities/protocol-tools';
+import {historyToolDefinitions} from '../src/capabilities/history-tools';
+import {validateBuiltinArguments} from '../src/capabilities/tool-contracts';
 
 function binding(){
  const organizationId=randomUUID(),connectionId=randomUUID(),inputSchema={type:'object',properties:{},additionalProperties:false};
@@ -38,6 +42,32 @@ describe('validated pure compilation cache',()=>{
   const present=agentConfigurationSchema.parse(withUndefined),compiler=vi.fn(compilePublishedComposition),compile=createValidatedCompositionCompiler(compiler);
   expect(JSON.stringify(absent)).toBe(JSON.stringify(present));
   expect(compile(absent,[]).configurationDigest).not.toBe(compile(present,[]).configurationDigest);expect(compiler).toHaveBeenCalledTimes(2);
+ });
+ it('pins fresh protocol schemas and preserves prior schema choices without sharing cache entries',()=>{
+  const config=defaultBusinessConfiguration();config.memory={enabled:true};config.tools=['memory.search','memory.propose'];
+  const oldPins=publishedToolBindings(config,false,new Map([['memory.search','2'],['memory.read','1'],['memory.propose','1']]));
+  const freshPins=publishedToolBindings(config),compiler=vi.fn(compilePublishedComposition),compile=createValidatedCompositionCompiler(compiler);
+  const original=compile(config,[],oldPins),fresh=compile(config,[],freshPins);
+  expect(original.capabilities.some(binding=>(PROTOCOL_TOOL_NAMES as readonly string[]).includes(binding.id))).toBe(false);
+  expect(fresh.capabilities.filter(binding=>(PROTOCOL_TOOL_NAMES as readonly string[]).includes(binding.id))).toEqual(expect.arrayContaining([
+    expect.objectContaining({id:'tools.discover',version:'2'}),expect.objectContaining({id:'history.read',version:'2'}),
+    expect.objectContaining({id:'history.search',version:'2'}),
+  ]));
+  expect(original.capabilities.find(binding=>binding.id==='memory.search')!.version).toBe('2');
+  expect(original.digest).not.toBe(fresh.digest);
+  expect(compile(config,[],structuredClone(oldPins))).toBe(original);expect(compiler).toHaveBeenCalledTimes(2);
+  const oldVersions=protocolToolVersions(oldPins);
+  expect(oldVersions.get('history.read')).toBe('1');
+  expect(historyToolDefinitions(oldVersions).find(tool=>tool.function.name==='history_read')!.function.parameters.properties).not.toHaveProperty('artifactId');
+  const input={taskId:randomUUID(),artifactId:randomUUID(),part:'artifact'};
+  expect(()=>validateBuiltinArguments('history.read',input,'1')).toThrow('capability contract');
+  expect(()=>validateBuiltinArguments('history.read',input,'2')).not.toThrow();
+  const artifactSearch={part:'artifacts',beforeArtifactId:randomUUID()};
+  expect(()=>validateBuiltinArguments('history.search',artifactSearch,'1')).toThrow('capability contract');
+  expect(()=>validateBuiltinArguments('history.search',artifactSearch,'2')).not.toThrow();
+  expect(historyToolDefinitions(oldVersions).find(tool=>tool.function.name==='history_search')!.function.parameters.properties).not.toHaveProperty('beforeArtifactId');
+  expect(protocolToolBindings(new Map(PROTOCOL_TOOL_NAMES.map(name=>[name,'1']))).find(binding=>binding.name==='history.search')!.digest)
+    .toBe('65beac207bf12ce5ff5591f9c44d585de15755f57fb530ab6f487466cdf64d45');
  });
  it('does not cache failures or expose private input through new error wrapping',()=>{
   const compiler=vi.fn(()=>{throw Error('Compilation failed');}),compile=createValidatedCompositionCompiler(compiler),config=defaultBusinessConfiguration();

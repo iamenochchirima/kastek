@@ -54,19 +54,37 @@ suite("fresh platform setup and database snapshot boundaries", () => {
     expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.accounts")).rows[0].count).toBe(0);
   });
 
-  it("applies recognized additive product capability schemas without resetting installed records",async()=>{
+  it.each(["070_product_capability_reviews.sql","104_retained_evidence_graph.sql","108_orchestration_stall_decisions.sql","109_product_task_artifacts.sql","110_platform_admission_gate.sql"])("applies recognized additive schema %s without resetting installed records",async suffix=>{
     const {pool}=await freshDatabase(),directory=resolve(__dirname,"../schema");
     const files=(await readdir(directory)).filter(name=>/^\d+_[a-z_]+\.sql$/.test(name)).sort();
-    const first=files.indexOf("070_product_capability_reviews.sql");expect(first).toBeGreaterThan(0);
+    const first=files.indexOf(suffix);expect(first).toBeGreaterThan(0);
     const source=(await Promise.all(files.slice(0,first).map(file=>readFile(resolve(directory,file),"utf8")))).join("\n");
     await pool.query(source);
     await pool.query("CREATE TABLE agents_platform.schema_version(version text PRIMARY KEY,checksum text NOT NULL)");
     await pool.query("INSERT INTO agents_platform.schema_version VALUES('001_platform',$1)",[createHash("sha256").update(source).digest("hex")]);
     const organizationId=randomUUID();await pool.query("INSERT INTO agents_platform.organizations(id,name) VALUES($1,'Existing organisation')",[organizationId]);
+    if(suffix==="104_retained_evidence_graph.sql")expect((await pool.query("SELECT conname FROM pg_constraint WHERE conrelid='agents_platform.evidence_nodes'::regclass AND conname IN ('evidence_nodes_evidence_ids_check','evidence_nodes_parents_check')")).rows).toHaveLength(2);
     await setupPlatformSchema(pool);await setupPlatformSchema(pool);
     expect((await pool.query("SELECT name FROM agents_platform.organizations WHERE id=$1",[organizationId])).rows[0].name).toBe("Existing organisation");
     expect((await pool.query("SELECT column_default FROM information_schema.columns WHERE table_schema='agents_platform' AND table_name='tasks' AND column_name='harness_release'")).rows[0].column_default).toContain("product-capabilities-v11");
     expect((await pool.query("SELECT to_regclass('agents_platform.growth_capability_publications') name")).rows[0].name).toBeTruthy();
+    if(suffix==="104_retained_evidence_graph.sql")expect((await pool.query("SELECT conname FROM pg_constraint WHERE conrelid='agents_platform.evidence_nodes'::regclass AND conname IN ('evidence_nodes_evidence_ids_check','evidence_nodes_parents_check')")).rows).toEqual([]);
+    if(suffix==="108_orchestration_stall_decisions.sql"||suffix==="109_product_task_artifacts.sql"||suffix==="110_platform_admission_gate.sql"){
+      const index=(await pool.query(`SELECT i.indisvalid,i.indisready,i.indisunique FROM pg_catalog.pg_index i
+        JOIN pg_catalog.pg_class x ON x.oid=i.indexrelid JOIN pg_catalog.pg_namespace n ON n.oid=x.relnamespace
+        WHERE n.nspname='agents_platform' AND x.relname='product_task_artifact_operation'`)).rows;
+      expect(index).toEqual([{indisvalid:true,indisready:true,indisunique:true}]);
+      const rollout=(await pool.query("SELECT column_default,is_nullable FROM information_schema.columns WHERE table_schema='agents_platform' AND table_name='product_execution_features' AND column_name='artifact_rollout_revision'")).rows[0];
+      expect(rollout).toEqual({column_default:"0",is_nullable:"NO"});
+      const directory=resolve(__dirname,"../schema");
+      const current=(await Promise.all((await readdir(directory)).filter(name=>/^\d+_[a-z_]+\.sql$/.test(name)).sort().map(name=>readFile(resolve(directory,name),"utf8")))).join("\n");
+      expect((await pool.query("SELECT checksum FROM agents_platform.schema_version WHERE version='001_platform'")).rows[0].checksum).toBe(createHash("sha256").update(current).digest("hex"));
+    }
+    if(suffix==="110_platform_admission_gate.sql"){
+      expect((await pool.query("SELECT accepting_roots,revision FROM agents_platform.platform_admission_gate WHERE id=1")).rows)
+        .toEqual([{accepting_roots:true,revision:"0"}]);
+      expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.platform_admission_gate_events")).rows[0].count).toBe(0);
+    }
   });
   it("refuses an installed schema whose checksum differs from the current SQL source", async () => {
     const { pool } = await freshDatabase(); await setupPlatformSchema(pool);

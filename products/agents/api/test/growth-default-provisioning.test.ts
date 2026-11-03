@@ -7,16 +7,22 @@ import {generateKeyPair,exportSPKI,exportPKCS8,jwtVerify,SignJWT} from "jose";
 import {beforeAll,afterAll,describe,it,expect} from "vitest";
 import type {GrowthAgentProvisionRequest} from "@kasitek-labs/contracts";
 import {GrowthProvisionAuth,GrowthProvisionService,registerGrowthProvisionRoute,growthManagedModelProfileSchema} from "../src/product/integrations/growth-provisioning";
-import {GrowthProductRuntime,growthInstalledAdapterManifest} from "../src/execution/products/growth-runtime";
+import {GrowthProductRuntime} from "../src/execution/products/growth-runtime";
+import {growthInstalledAdapterManifest} from "../src/adapters/products/growth-capability-manifests";
 import {GrowthActionClient} from "../src/adapters/products/growth-action-client";
-import type {GrowthAgentPublication,ProductCapabilityDescriptor} from "@kasitek-labs/contracts";
+import type {GrowthAgentCapabilityUpgradePreview,GrowthAgentCommand, GrowthAgentPublication,ProductCapabilityDescriptor} from "@kasitek-labs/contracts";
 import {GrowthExecutionService} from "../src/product/integrations/growth-execution";
+import {delegatedConfiguration} from "../src/execution/delegation/scope";
 import {provisionGrowthModel} from "../src/product/integrations/growth-model-provisioning";
 import {controlGrowthExecution} from "../src/product/integrations/growth-control";
 import {setupPlatformSchema} from "../src/composition/setup";
 import {ConnectionVault} from "../src/infrastructure/vault";
 import {ModelCredentialVault} from "../src/infrastructure/model-credential-vault";
 import {requestDigest} from "../src/contracts/contracts";
+import {compilePublishedComposition} from "../src/execution/programs/publication";
+import {SHARED_HARNESS_RELEASE,SHARED_WORKFLOW_NAME} from "../src/contracts/execution";
+import {createProductBindings,productAuthorityBindings} from "../src/capabilities/products/product-capabilities";
+import {growthAgentPublication as currentGrowthPublication,growthAgentPublicationV10} from "../../../growth/api/src/agents/manifest";
 const issuer="https://growth.fixture.test",profile={id:"growth-default",revision:"1",providerId:"openrouter",modelId:"fixture/default",credentialRef:"FIXTURE_MANAGED_MODEL_KEY"};
 function publication(revision="1"):GrowthAgentPublication {
  const descriptor:ProductCapabilityDescriptor={operation:"workspace.read",revision:"1",description:"Read approved fixture context",inputSchema:{type:"object",properties:{},additionalProperties:false},outputSchema:null,handlerRef:"growth.workspace.read@1",requiredAuthority:["feature.agents.manage"],evidence:"versioned_sources",policy:{effect:"read",disclosure:"approved_resource_identifiers",retry:"safe_read",approval:"none",cancel:"stop_admission"},limits:{timeoutMs:10000,maxPhysicalAttempts:1,maxResponseBytes:131072,maxModelResultBytes:8192}};
@@ -52,6 +58,68 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     service=new GrowthProvisionService(pool,{trust,vault,profile:()=>configured,credential:()=>credential,active:async()=>active,discoveryFetch});
   });
   afterAll(async()=>{await pool?.end();if(admin){await dropClosedTestDatabase(admin,database);await admin.end();}});
+  it("reviews capability-only upgrades with three-way restrictions and customized coordinator pins",async()=>{
+    const input={...request(),publication:growthAgentPublicationV10 as GrowthAgentPublication,defaultsRevision:"10"};
+    expect(await service.provision(input)).toMatchObject({state:"ready"});
+    expect((await pool.query("SELECT count(*)::int AS count FROM agents_platform.product_execution_features WHERE tenant_id=$1 AND managed_capability_baseline IS NOT NULL",[input.tenantId])).rows[0].count).toBe(4);
+    await pool.query("UPDATE agents_platform.product_execution_features SET managed_capability_baseline=NULL WHERE tenant_id=$1",[input.tenantId]);
+    const rows=(await pool.query(`SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1`,[input.tenantId])).rows;
+    const content=rows.find(row=>row.feature_id==="content")!,assistant=rows.find(row=>row.feature_id==="assistant")!;
+    const current=structuredClone(content.configuration);current.instructions="My customized content instructions.";current.context={mode:"automatic"};current.memory={enabled:true};current.model.generation={temperature:0.3};
+    const denied=current.productBindings.shift()!.definition.providerOperation;current.tools=current.tools.filter((name:string)=>name!=="artifact.create");
+    async function customize(feature:any,configuration:any){
+      const versionId=randomUUID(),number=feature.revision+1;
+      await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
+        SELECT $1,organization_id,agent_id,$3,$3,execution_kind,$4,created_by_service,tool_bindings,$5 FROM agents_platform.agent_versions WHERE id=$2`,[versionId,feature.version_id,number,configuration,compilePublishedComposition(configuration,[])]);
+      await pool.query("UPDATE agents_platform.agents SET draft=$2,draft_revision=$3 WHERE id=$1",[feature.agent_id,configuration,number]);
+      await pool.query("UPDATE agents_platform.product_execution_features SET version_id=$3,revision=$4 WHERE tenant_id=$1 AND feature_id=$2",[input.tenantId,feature.feature_id,versionId,number]);feature.version_id=versionId;feature.revision=number;
+    }
+    await customize(content,current);
+    await pool.query("UPDATE agents_platform.product_execution_features SET enabled=false WHERE tenant_id=$1 AND feature_id='content'",[input.tenantId]);
+    const parent=structuredClone({...assistant.configuration,instructions:"My customized coordinator."});
+    const restrictedRole=parent.capabilities.delegation.bindings.find((binding:any)=>binding.id==="content");restrictedRole.maxTokens=8192;restrictedRole.maxActiveMs=120000;restrictedRole.tools=[];
+    await customize(assistant,parent);
+    let authorized=true,checks=0;
+    const runtime={client:{call:async(action:any)=>{checks++;expect(action.input.manage).toBe(true);if(!authorized)throw Object.assign(new Error("Denied"),{code:"FORBIDDEN"});return {authorized:true};}}} as unknown as GrowthProductRuntime;
+    const execution=new GrowthExecutionService(pool,trust,runtime),actor={issuer:trust.actorIssuer,subject:"manager"};
+    const command={version:"1" as const,requestId:randomUUID(),tenantId:input.tenantId,actor,operation:"features.upgrade.preview" as const,input:{featureId:"content" as const,publication:currentGrowthPublication as GrowthAgentPublication}};
+    async function updateFeature(featureId:"research"|"campaigns"|"assistant"){
+      const proposal=await execution.execute({...command,requestId:randomUUID(),input:{...command.input,featureId}}) as GrowthAgentCapabilityUpgradePreview;
+      if(!proposal.canApply)return;
+      await execution.execute({...command,operation:"features.upgrade.apply",requestId:randomUUID(),input:{...command.input,featureId,targetPublicationDigest:proposal.targetPublicationDigest,diffDigest:proposal.diffDigest,expectedRevisions:proposal.expectedRevisions,resolutions:Object.fromEntries(proposal.conflicts.map(conflict=>[conflict.id,featureId==="assistant"&&conflict.id.startsWith("assistant:specialist:")?"use_update":"keep_current"]))}} as GrowthAgentCommand<"features.upgrade.apply">);
+    }
+    await updateFeature("research");
+    const preview=await execution.execute(command) as GrowthAgentCapabilityUpgradePreview;
+    expect(preview.canApply,JSON.stringify(preview.unavailable)).toBe(true);expect(preview.expectedRevisions).toHaveProperty("assistant");
+    expect(preview.conflicts.some(conflict=>conflict.id===`content:operation:${denied}`)).toBe(true);expect(preview.conflicts.some(conflict=>conflict.id==="assistant:pin:content")).toBe(true);
+    const resolutions=Object.fromEntries(preview.conflicts.map(conflict=>[conflict.id,conflict.id.startsWith("assistant:pin:")?"use_update":"keep_current"]));
+    const apply={...command,requestId:randomUUID(),operation:"features.upgrade.apply",input:{...command.input,targetPublicationDigest:preview.targetPublicationDigest,diffDigest:preview.diffDigest,expectedRevisions:preview.expectedRevisions,resolutions}} as GrowthAgentCommand<"features.upgrade.apply">;
+    await expect(execution.execute(apply)).rejects.toMatchObject({code:"CAPABILITY_AUTHORITY_LIMIT"});
+    apply.requestId=randomUUID();apply.input.resolutions=Object.fromEntries(preview.conflicts.map(conflict=>[conflict.id,"keep_current"]));
+    const result=await execution.execute(apply);expect(await execution.execute(apply)).toEqual(result);
+    const next=(await pool.query(`SELECT f.*,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1`,[input.tenantId])).rows;
+    const upgraded=next.find(row=>row.feature_id==="content")!,coordinator=next.find(row=>row.feature_id==="assistant")!;
+    expect(upgraded.revision).toBe(content.revision+1);expect(upgraded.enabled).toBe(false);
+    for(const field of ["instructions","model","context","memory","sourceRevisionIds","skillIds","retrievalProfile"])expect(upgraded.configuration[field]).toEqual(current[field]);
+    expect(upgraded.configuration.productBindings.some((binding:any)=>binding.definition.providerOperation===denied)).toBe(false);
+    expect(upgraded.configuration.tools).not.toContain("artifact.create");expect(upgraded.configuration.commissionableProductBindings?.some((binding:any)=>binding.definition.providerOperation===denied)??false).toBe(false);expect(upgraded.configuration.capabilities.delegation.bindings[0].tools).not.toContain("artifact.create");expect(upgraded.configuration.capabilities.delegation.bindings.map((binding:any)=>binding.id)).toEqual(["research"]);
+    const research=next.find(row=>row.feature_id==="research")!,researchRole=upgraded.configuration.capabilities.delegation.bindings[0];
+    expect(delegatedConfiguration(upgraded.configuration,researchRole,research.configuration).productBindings.map(binding=>binding.definition.providerOperation).sort()).toEqual(research.configuration.productBindings.filter((binding:any)=>binding.definition.providerOperation!==denied).map((binding:any)=>binding.definition.providerOperation).sort());
+    expect(coordinator.configuration.instructions).toBe(parent.instructions);expect(coordinator.configuration.capabilities.delegation.bindings.find((binding:any)=>binding.id==="content").versionId).toBe(parent.capabilities.delegation.bindings.find((binding:any)=>binding.id==="content").versionId);expect(coordinator.configuration.productBindings).toEqual(parent.productBindings);
+    expect((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[content.version_id])).rows[0].configuration).toEqual(current);
+    await expect(execution.execute({...apply,requestId:randomUUID()})).rejects.toMatchObject({code:"CONFIGURATION_CHANGED"});
+    const reviewedAgain=await execution.execute({...command,requestId:randomUUID()}) as GrowthAgentCapabilityUpgradePreview;expect(reviewedAgain.conflicts.some(conflict=>conflict.id===`content:operation:${denied}`)).toBe(true);
+    await updateFeature("campaigns");await updateFeature("assistant");
+    const parentAfter=(await pool.query(`SELECT v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'`,[input.tenantId])).rows[0].configuration;
+    const acceptedRole=parentAfter.capabilities.delegation.bindings.find((binding:any)=>binding.id==="content");expect(acceptedRole).toMatchObject({maxTokens:8192,maxActiveMs:120000,tools:[]});
+    expect(delegatedConfiguration(parentAfter,acceptedRole,upgraded.configuration).productBindings.map(binding=>binding.definition.providerOperation).sort()).toEqual(upgraded.configuration.productBindings.map((binding:any)=>binding.definition.providerOperation).sort());
+    for(const role of parentAfter.capabilities.delegation.bindings)for(const id of role.productBindingIds??[])expect(productAuthorityBindings(parentAfter).some(binding=>binding.id===id)).toBe(true);
+    authorized=false;await expect(execution.execute({...command,requestId:randomUUID()})).rejects.toMatchObject({code:"FORBIDDEN"});expect(checks).toBeGreaterThan(2);
+    const fresh={...request(),publication:currentGrowthPublication as GrowthAgentPublication,defaultsRevision:currentGrowthPublication.manifest.revision};expect(await service.provision(fresh)).toMatchObject({state:"ready"});
+    const defaults=(await pool.query(`SELECT f.version_id,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1`,[fresh.tenantId])).rows;
+    for(const item of defaults){expect(productAuthorityBindings(item.configuration).length).toBeLessThanOrEqual(64);if(item.configuration.capabilities.delegation.enabled)for(const role of item.configuration.capabilities.delegation.bindings){const child=defaults.find(row=>row.version_id===role.versionId)!;expect(delegatedConfiguration(item.configuration,role,child.configuration).productBindings.map(binding=>binding.definition.providerOperation).sort()).toEqual(child.configuration.productBindings.map((binding:any)=>binding.definition.providerOperation).sort());}}
+
+  },60_000);
   it("concurrent retries and lost acknowledgements converge without duplicate credentials or versions",async()=>{
     const input=request();expect((await Promise.all(Array.from({length:5},()=>service.provision(input)))).every(r=>r.state==="ready")).toBe(true);
     expect((await service.provision(input)).state).toBe("ready");expect(calls).toBe(1);
@@ -99,6 +167,39 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     const current=(await pool.query("SELECT f.enabled,f.version_id,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'",[input.tenantId])).rows[0];
     expect(current.enabled).toBe(false);expect(current.version_id).toBe(feature.version_id);expect(current.configuration.instructions).toBe("Customized");
     expect(Number((await pool.query("SELECT count(*) FROM agents_platform.product_execution_features WHERE tenant_id=$1",[input.tenantId])).rows[0].count)).toBe(4);
+  });
+  it("republishes a stale runtime from the normal feature path while preserving custom configuration and unsaved drafts",async()=>{
+    const input=request();expect((await service.provision(input)).state).toBe("ready");
+    const prior=(await pool.query(`SELECT f.*,v.configuration,v.created_by_service FROM agents_platform.product_execution_features f
+      JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'`,[input.tenantId])).rows[0];
+    const configuration={...prior.configuration,instructions:"Keep this published assistant",context:{maxInputTokens:8192,compactAtTokens:6144}};
+    const oldId=randomUUID(),oldComposition=compilePublishedComposition(configuration,[],{release:"product-capabilities-v14",workflow:"AgentsBusinessRunV24"});
+    await pool.query(`INSERT INTO agents_platform.agent_versions(id,organization_id,agent_id,number,draft_revision,execution_kind,configuration,created_by_service,tool_bindings,effective_composition)
+      SELECT $1,organization_id,agent_id,2,2,execution_kind,$2,created_by_service,tool_bindings,$3 FROM agents_platform.agent_versions WHERE id=$4`,[oldId,configuration,oldComposition,prior.version_id]);
+    await pool.query("UPDATE agents_platform.product_execution_features SET version_id=$2,revision=2 WHERE tenant_id=$1 AND feature_id='assistant'",[input.tenantId,oldId]);
+    const draft={...configuration,instructions:"Keep this unsaved draft"};
+    await pool.query("UPDATE agents_platform.agents SET draft=$2 WHERE id=$1",[prior.agent_id,draft]);
+    await pool.query("UPDATE agents_platform.product_execution_features SET enabled=false WHERE tenant_id=$1 AND feature_id='research'",[input.tenantId]);
+    const model=(await pool.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1",[prior.organization_id])).rows[0];
+    const latest=publication("9");latest.policy.optionalCapabilities.knowledge=true;latest.policy.optionalCapabilities.skills=true;latest.policy.optionalCapabilities.memory=true;
+    latest.presets=latest.presets.map(preset=>({...preset,operations:[]}));
+    const execution=new GrowthExecutionService(pool,trust),command={version:"1" as const,requestId:randomUUID(),tenantId:input.tenantId,
+      actor:{issuer:trust.actorIssuer,subject:"staff"},operation:"features.list" as const,input:{publication:latest}};
+    await execution.execute(command);
+    const current=(await pool.query(`SELECT f.version_id,v.configuration,v.effective_composition,v.draft_revision,a.draft,a.draft_revision AS current_draft_revision FROM agents_platform.product_execution_features f
+      JOIN agents_platform.agent_versions v ON v.id=f.version_id JOIN agents_platform.agents a ON a.id=f.agent_id WHERE f.tenant_id=$1 AND f.feature_id='assistant'`,[input.tenantId])).rows[0];
+    expect(current.version_id).not.toBe(oldId);expect(current.configuration).toEqual(configuration);expect(current.draft).toEqual(draft);
+    expect(current.draft_revision).toBe(3);expect(current.current_draft_revision).toBe(1);
+    expect(current.effective_composition.runtime).toEqual({kind:"business",release:SHARED_HARNESS_RELEASE,workflow:SHARED_WORKFLOW_NAME});
+    expect((await pool.query("SELECT effective_composition FROM agents_platform.agent_versions WHERE id=$1",[oldId])).rows[0].effective_composition).toEqual(oldComposition);
+    expect((await pool.query("SELECT enabled FROM agents_platform.product_execution_features WHERE tenant_id=$1 AND feature_id='research'",[input.tenantId])).rows[0].enabled).toBe(false);
+    expect((await pool.query("SELECT * FROM agents_platform.product_model_defaults WHERE organization_id=$1",[prior.organization_id])).rows[0]).toEqual(model);
+    expect((await pool.query("SELECT revision,publication#>'{policy,optionalCapabilities}' AS capabilities FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 1",[input.tenantId])).rows[0]).toMatchObject({revision:"9",capabilities:{knowledge:true,skills:true,memory:true}});
+    await execution.execute({...command,requestId:randomUUID()});
+    expect((await pool.query("SELECT version_id FROM agents_platform.product_execution_features WHERE tenant_id=$1 AND feature_id='assistant'",[input.tenantId])).rows[0].version_id).toBe(current.version_id);
+    await expect(execution.execute({...command,requestId:randomUUID(),operation:"features.configure",input:{featureId:"assistant",configuration}})).resolves.toHaveProperty("feature");
+    const original=configuration.productBindings[0]!,invented=createProductBindings(latest.manifest,prior.organization_id,original.authority!,[original.definition.providerOperation]);
+    await expect(execution.execute({...command,requestId:randomUUID(),operation:"features.configure",input:{featureId:"assistant",configuration:{...configuration,productBindings:invented}}})).rejects.toMatchObject({code:"PRODUCT_CAPABILITY_UNAVAILABLE"});
   });
   it("upgrades only managed defaults explicitly and preserves custom settings, disablement and model identity",async()=>{
     const input=request();expect((await service.provision(input)).state).toBe("ready");
@@ -153,11 +254,62 @@ const adminUrl=process.env.AGENTS_TEST_ADMIN_URL;
     expect(canonicalRows.find(row=>row.feature_id==='research').enabled).toBe(false);
     expect(canonicalAssistant.configuration.model).toEqual(assistant.configuration.model);
   });
+  it("upgrades managed Growth revision10 into the versioned recursive delegation graph",async()=>{
+    const tenantId=randomUUID(),input={...request(tenantId),defaultsRevision:"10",publication:growthAgentPublicationV10};
+    expect((await service.provision(input)).state).toBe("ready");
+    const read=async()=> (await pool.query("SELECT f.feature_id,f.version_id,f.revision,f.enabled,f.managed_defaults_revision,v.configuration FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.id=f.version_id WHERE f.tenant_id=$1",[tenantId])).rows;
+    const prior=await read(),priorAssistant=prior.find(row=>row.feature_id==='assistant')!;
+    expect(priorAssistant.configuration.capabilities.delegation.maxDepth).toBe(1);
+    expect(priorAssistant.configuration.capabilities.delegation.policy.maxTasks).toBe(16);
+    for(const binding of priorAssistant.configuration.capabilities.delegation.bindings){expect(binding.maxTokens).toBe(48000);expect(binding.maxActiveMs).toBe(300000);}
+
+    const upgrade={...input,requestId:randomUUID(),defaultsRevision:"11",publication:currentGrowthPublication,upgradeDefaults:true};
+    expect((await service.provision(upgrade)).state).toBe("ready");
+    const current=await read(),assistant=current.find(row=>row.feature_id==='assistant')!,content=current.find(row=>row.feature_id==='content')!,
+      research=current.find(row=>row.feature_id==='research')!,campaigns=current.find(row=>row.feature_id==='campaigns')!;
+    expect(assistant.version_id).not.toBe(priorAssistant.version_id);
+    expect(assistant.managed_defaults_revision).toBe("11");
+    expect(assistant.configuration.capabilities.delegation).toMatchObject({enabled:true,maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3}});
+    expect(assistant.configuration.capabilities.delegation.bindings).toHaveLength(3);
+    for(const binding of assistant.configuration.capabilities.delegation.bindings){
+      expect(binding.maxTokens).toBeNull();expect(binding.maxActiveMs).toBeNull();
+      expect(binding.versionId).toBe(current.find(row=>row.feature_id===binding.id)!.version_id);
+    }
+    expect(content.configuration.capabilities.delegation).toMatchObject({enabled:true,maxChildren:2,maxDepth:null,policy:{maxTasks:null,maxStalls:3}});
+    expect(content.configuration.tools).toContain("agents.start");
+    expect(content.configuration.capabilities.delegation.bindings.map(binding=>binding.id)).toEqual(["research"]);
+    expect(content.configuration.capabilities.delegation.bindings[0]!.versionId).toBe(research.version_id);
+    expect(campaigns.configuration.capabilities.delegation).toMatchObject({enabled:true,maxDepth:null,policy:{maxTasks:null,maxStalls:3}});
+    expect(campaigns.configuration.capabilities.delegation.bindings.map(binding=>binding.id)).toEqual(["research"]);
+    expect(research.configuration.capabilities.delegation.enabled).toBe(false);
+
+    const child=delegatedConfiguration(assistant.configuration,assistant.configuration.capabilities.delegation.bindings.find(binding=>binding.id==="content")!,content.configuration);
+    expect(child.capabilities.delegation.enabled).toBe(true);
+    expect(child.capabilities.delegation.maxDepth).toBeNull();
+    expect(child.tools).toContain("agents.start");
+    const grandchild=delegatedConfiguration(child,child.capabilities.delegation.bindings[0]!,research.configuration);
+    expect(grandchild.capabilities.delegation.enabled).toBe(false);
+    expect(grandchild.tools).not.toContain("agents.start");
+
+    expect((await pool.query("SELECT publication FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 AND revision='10'",[tenantId])).rows[0].publication).toEqual(growthAgentPublicationV10);
+    expect((await pool.query("SELECT configuration FROM agents_platform.agent_versions WHERE id=$1",[priorAssistant.version_id])).rows[0].configuration).toEqual(priorAssistant.configuration);
+    const versions=current.map(row=>row.version_id).sort();
+    expect((await service.provision(upgrade)).state).toBe("ready");
+    expect((await read()).map(row=>row.version_id).sort()).toEqual(versions);
+    expect((await pool.query("SELECT revision FROM agents_platform.growth_capability_publications WHERE tenant_id=$1 ORDER BY revision",[tenantId])).rows.map(row=>row.revision)).toEqual(["10","11"]);
+  });
   it("never revives tenant or model revocations, rejects implicit profile upgrades",async()=>{
     const input=request();await service.provision(input);await controlGrowthExecution(pool,{tenantId:input.tenantId,action:"tenant.disable"});
     expect(await service.provision(input)).toMatchObject({state:"blocked",code:"PRODUCT_TENANT_UNAVAILABLE"});
     const other=request();await service.provision(other);await controlGrowthExecution(pool,{tenantId:other.tenantId,action:"model.revoke"});
     expect(await service.provision(other)).toMatchObject({state:"blocked",code:"MODEL_CONNECTION_UNAVAILABLE"});
+    const credentialOnly=request();await service.provision(credentialOnly);
+    await pool.query(`UPDATE agents_platform.model_provider_credentials c SET state='revoked',envelope=NULL
+      FROM agents_platform.product_model_defaults d JOIN agents_platform.product_execution_tenants t ON t.organization_id=d.organization_id AND t.product=d.product
+      WHERE t.product='growth' AND t.tenant_id=$1 AND c.organization_id=d.organization_id AND c.connection_id=d.connection_id`,[credentialOnly.tenantId]);
+    expect(await service.provision(credentialOnly)).toMatchObject({state:"blocked",code:"MODEL_CREDENTIAL_REVOKED"});
+    expect((await pool.query(`SELECT c.state FROM agents_platform.model_provider_credentials c
+      JOIN agents_platform.product_execution_tenants t ON t.organization_id=c.organization_id WHERE t.product='growth' AND t.tenant_id=$1`,[credentialOnly.tenantId])).rows).toEqual([{state:"revoked"}]);
     const upgrade=request();await service.provision(upgrade);configured={...profile,revision:"2"};
     expect(await service.provision({...upgrade,modelProfileRevision:"2"})).toMatchObject({state:"blocked",code:"MODEL_PROFILE_UPGRADE_REQUIRED"});configured=profile;
   });

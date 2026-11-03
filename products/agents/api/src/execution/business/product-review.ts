@@ -7,10 +7,11 @@ import type { ProductRuntimePort } from "../products/product-runtime";
 import type { TaskOutcome } from "../../contracts/execution";
 import { PlatformError,terminalTaskStates } from "../../contracts/contracts";
 import { event } from "../lifecycle/execution";
+import { productEffectProjection } from "../../capabilities/products/product-capabilities";
 export async function awaitProductReview(ctx:restate.WorkflowContext,pool:Pool,runtime:ProductRuntimePort,taskId:string,operationId:string,binding:CapabilityBinding,args:unknown):
   Promise<{review:ProductReviewReference}|{outcome:TaskOutcome}|{errorCode:string}> {
   const prepared=await ctx.run("product-prepare:"+operationId,async()=>{
-    try {await runtime.authorizeTask(taskId);const value=await runtime.prepare(taskId,operationId,binding,args);return {review:value.review!};}
+    try {if(!productEffectProjection(binding))throw new PlatformError("PRODUCT_PROJECTION_UNAVAILABLE",403,"The product result is unavailable");await runtime.authorizeTask(taskId);const value=await runtime.prepare(taskId,operationId,binding,args);return {review:value.review!};}
     catch(error){if(error instanceof PlatformError)return {code:error.code};throw error;}
   });
   if("code" in prepared){

@@ -79,7 +79,90 @@ describe("native model transport", () => {
     let calls = 0;
     await expect(callProviderModel(request, { apiKey: "fixture-key", fetch: fetcher(() => {
       calls++; return new Response(JSON.stringify({ error: { message: "fixture-key refused", type: "rate_limit" } }), { status: Number(status) });
-    }) })).rejects.toMatchObject({ code, status, outcome: "rejected" });
+    }) })).rejects.toMatchObject({ code, status, outcome: "rejected",diagnostics:{httpStatus:status,dispatched:true,stage:"provider_stream"} });
+    expect(calls).toBe(1);
+  });
+
+  it("classifies an OpenRouter HTTP 503 as unavailable before generation, without replaying the request", async () => {
+    let calls = 0;
+    const text = vi.fn();
+    await expect(callProviderModel({ ...request, provider: "openrouter" }, { apiKey: "fixture-key", onText: text,
+      fetch: fetcher(() => { calls++; return new Response(JSON.stringify({ error: { code: 503, message: "No available provider" } }), { status: 503 }); }),
+    })).rejects.toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 503, dispatched: true } });
+    expect(calls).toBe(1);
+    expect(text).not.toHaveBeenCalled();
+  });
+
+  it("classifies an explicit HTTP 503 from other providers as rejected, without replaying the request", async () => {
+    let calls = 0;
+    const text = vi.fn();
+    await expect(callProviderModel({ ...request, provider: "nvidia" }, { apiKey: "fixture-key", onText: text,
+      fetch: fetcher(() => { calls++; return new Response(JSON.stringify({ error: { message: "Service unavailable" } }), { status: 503 }); }),
+    })).rejects.toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 503, dispatched: true } });
+    expect(calls).toBe(1);
+    expect(text).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicit HTTP 503 rejected when the provider error body is interrupted", async () => {
+    let calls = 0;
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"error":{"message":"PRIVATE_PROVIDER_DETAIL"}'));
+      controller.error(new ModelNetworkError("NETWORK_UNAVAILABLE", true));
+    } });
+    const error = await callProviderModel(request, { apiKey: "fixture-key", fetch: fetcher(() => {
+      calls++;
+      return new Response(body, { status: 503, headers: { "content-type": "application/json" } });
+    }) }).catch(error => error);
+    expect(error).toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 503, stage: "response_body", dispatched: true } });
+    expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_DETAIL|fixture-key/);
+    expect(calls).toBe(1);
+  });
+
+  it("classifies an HTTP 200 upstream 503 stream error as unavailable without replaying the request", async () => {
+    let calls = 0;
+    const deltas: string[] = [];
+    const partial = sse({ id: "response-1", model: "fixture-model",
+      choices: [{ index: 0, delta: { role: "assistant", content: "Partial" }, finish_reason: null }] });
+    const upstreamFailure = sse({ error: { code: 503, message: "PRIVATE_PROVIDER_SECRET" } });
+    const error = await callProviderModel(request, { apiKey: "fixture-key", onText: text => deltas.push(text), fetch: fetcher(() => {
+      calls++; return new Response(partial + upstreamFailure, { headers: { "Content-Type": "text/event-stream" } });
+    }) }).catch(error => error);
+    expect(deltas.join("")).toBe("Partial");
+    expect(error).toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 200, stage: "provider_stream", dispatched: true, streamErrorKind: "upstream_sse_error", providerErrorCode: 503 } });
+    expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_SECRET|fixture-key/);
+    expect(calls).toBe(1);
+  });
+
+  it("keeps an unterminated HTTP 200 SSE 503 frame uncertain", async () => {
+    let calls = 0;
+    const truncated = `event: error\ndata: ${JSON.stringify({ error: { code: 503, message: "PRIVATE_TRUNCATED_PROVIDER_DETAIL" } })}\n`;
+    const error = await callProviderModel(request, { apiKey: "fixture-key", fetch: fetcher(() => {
+      calls++; return new Response(truncated, { headers: { "Content-Type": "text/event-stream" } });
+    }) }).catch(error => error);
+    expect(error).toMatchObject({ code: "MODEL_STREAM_FAILED", outcome: "uncertain" });
+    expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_TRUNCATED_PROVIDER_DETAIL|fixture-key/);
+    expect(calls).toBe(1);
+  });
+
+  it("preserves a stream 503 when response consumption exits before the SDK error event", async () => {
+    let calls = 0;
+    const partial = sse({ id: "response-1", model: "fixture-model",
+      choices: [{ index: 0, delta: { role: "assistant", content: "Partial" }, finish_reason: null }] });
+    const unavailable = sse({ error: { status: 503, message: "PRIVATE_PROVIDER_DETAIL" } });
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(partial + unavailable));
+      controller.close();
+    } });
+    const error = await callProviderModel(request, { apiKey: "fixture-key", onText: () => { throw new Error("consumer stopped"); },
+      fetch: fetcher(() => { calls++; return new Response(body, { headers: { "Content-Type": "text/event-stream" } }); }),
+    }).catch(error => error);
+    expect(error).toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 200, stage: "provider_stream", dispatched: true, streamErrorKind: "upstream_sse_error", providerErrorCode: 503 } });
+    expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_DETAIL|fixture-key/);
     expect(calls).toBe(1);
   });
 
@@ -88,7 +171,7 @@ describe("native model transport", () => {
     const deltas: string[] = [];
     const partial = sse({ id: "response-1", model: "fixture-model",
       choices: [{ index: 0, delta: { role: "assistant", content: "Partial" }, finish_reason: null }] });
-    const tail = kind === "provider_error" ? sse({ error: { code: 503, message: "PRIVATE_PROVIDER_SECRET", metadata: { raw: "PRIVATE_PROMPT" } } }) : "data: [DONE]\n\n";
+    const tail = kind === "provider_error" ? sse({ error: { code: "temporary_failure", message: "PRIVATE_PROVIDER_SECRET", metadata: { raw: "PRIVATE_PROMPT" } } }) : "data: [DONE]\n\n";
     const error = await callProviderModel(request, { apiKey: "fixture-key", onText: text => deltas.push(text), fetch: fetcher(() => {
       calls++; return new Response(partial + tail, { headers: { "Content-Type": "text/event-stream" } });
     }) }).catch(error => error);
@@ -96,6 +179,34 @@ describe("native model transport", () => {
     expect(error).toMatchObject({ code: "MODEL_STREAM_FAILED", status: 502, outcome: "uncertain" });
     expect(String(error) + JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_SECRET|PRIVATE_PROMPT|fixture-key/);
     expect(calls).toBe(1);
+  });
+
+  it("distinguishes bounded SSE failures without retaining private content or changing valid chunked bytes",async()=>{
+    const privateValue="PRIVATE_PROVIDER_MESSAGE_Ω🙂",logged=vi.spyOn(console,"error").mockImplementation(()=>{});
+    const fragmented=(wire:string)=>{const bytes=Buffer.from(wire);let offset=0;return new Response(new ReadableStream<Uint8Array>({pull(controller){
+      if(offset===bytes.length){controller.close();return;}const end=Math.min(bytes.length,offset+17);controller.enqueue(bytes.subarray(offset,end));offset=end;
+    }}),{headers:{"content-type":"text/event-stream"}});};
+    try{
+      const cases=[
+        {wire:sse({error:{code:503,message:privateValue,metadata:{raw:"PRIVATE_REASONING"}}}),streamErrorKind:"upstream_sse_error",providerErrorCode:503},
+        {wire:`event: error\r\ndata: {"code":429,\r\ndata: "message":"${privateValue}"}\r\n\r\n`,streamErrorKind:"upstream_sse_error",providerErrorCode:429},
+        {wire:`data: {${privateValue}}\n\n`,streamErrorKind:"malformed_sse_json"},
+        {wire:sse({error:{code:503,message:privateValue.repeat(2000)}}),streamErrorKind:"unclassified"},
+        {wire:sse({error:{code:privateValue,message:privateValue}}),streamErrorKind:"upstream_sse_error"},
+      ];
+      for(const scenario of cases){
+        let calls=0;
+        const error=await callProviderModel(request,{apiKey:"fixture-key",fetch:fetcher(()=>{calls++;return fragmented(scenario.wire);})}).catch(error=>error);
+        const explicitUnavailable=scenario.streamErrorKind==="upstream_sse_error"&&scenario.providerErrorCode===503;
+        expect(error).toMatchObject({code:explicitUnavailable?"MODEL_PROVIDER_UNAVAILABLE":"MODEL_STREAM_FAILED",outcome:explicitUnavailable?"rejected":"uncertain",
+          ...(explicitUnavailable?{status:503}:{}),diagnostics:{httpStatus:200,stage:"provider_stream",dispatched:true,streamErrorKind:scenario.streamErrorKind}});
+        expect(error.diagnostics.providerErrorCode).toBe(scenario.providerErrorCode);
+        expect(String(error)+JSON.stringify(error)).not.toMatch(/PRIVATE|fixture-key|Ω|🙂/);expect(calls).toBe(1);
+      }
+      const text="Unchanged Unicode Ω🙂",wire="\uFEFF: heartbeat\r\n\r\n"+sse({id:"response-1",model:"fixture-model",choices:[{index:0,delta:{role:"assistant",content:text},finish_reason:"stop"}],fixturePadding:".".repeat(20_000)})+"data: [DONE]\n\n";
+      const result=await callProviderModel(request,{apiKey:"fixture-key",fetch:fetcher(()=>fragmented(wire))});expect(result.message.content).toBe(text);
+      expect(JSON.stringify(logged.mock.calls)).not.toMatch(/PRIVATE|fixture-key|Ω|🙂/);
+    }finally{logged.mockRestore();}
   });
 
   it("preserves the physical deadline after HTTP200 while the SDK consumes partial SSE output", async () => {
@@ -120,6 +231,33 @@ describe("native model transport", () => {
       server.closeAllConnections();
       await new Promise<void>(resolve=>server.close(()=>resolve()));
     }
+  });
+
+  it("does not replace an initiating malformed provider stream with SDK reader cleanup cancellation",async()=>{
+    let calls=0;
+    const server=createServer((_req,res)=>{calls++;res.writeHead(200,{"content-type":"text/event-stream"});res.write("data: {PRIVATE_PROVIDER_BAD_JSON}\n\n");});
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    const baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}/v1`;
+    const fetch=(async(url,init)=>createModelFetch({authorizeUrl:target=>target.href===baseUrl+"/chat/completions",
+      maxRequestBytes:100_000,maxResponseBytes:100_000,deadlineAt:Date.now()+1000,testLoopback:true})(url,init)) as typeof globalThis.fetch;
+    try{
+      const error=await callProviderModel({...request,baseUrl},{apiKey:"fixture-key",fetch}).catch(error=>error);
+      expect(error).toMatchObject({code:"MODEL_STREAM_FAILED",outcome:"uncertain",diagnostics:{httpStatus:200,stage:"provider_stream",dispatched:true}});
+      expect(calls).toBe(1);expect(String(error)+JSON.stringify(error)).not.toMatch(/PRIVATE_PROVIDER_BAD_JSON|fixture-key/);
+    }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  });
+
+  it("preserves genuine caller cancellation during protected response-body reads",async()=>{
+    const abort=new AbortController();
+    const server=createServer((_req,res)=>{res.writeHead(200,{"content-type":"text/event-stream"});res.write(": heartbeat\n\n");setTimeout(()=>abort.abort(),20);});
+    await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+    const baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}/v1`;
+    const fetch=(async(url,init)=>createModelFetch({authorizeUrl:target=>target.href===baseUrl+"/chat/completions",
+      maxRequestBytes:100_000,maxResponseBytes:100_000,deadlineAt:Date.now()+1000,testLoopback:true})(url,init)) as typeof globalThis.fetch;
+    try{
+      await expect(callProviderModel({...request,baseUrl},{apiKey:"fixture-key",fetch,signal:abort.signal})).rejects.toMatchObject({
+        code:"MODEL_CANCELLED",outcome:"uncertain",diagnostics:{httpStatus:200,stage:"provider_stream",dispatched:true}});
+    }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
   });
 
   it("rejects repaired partial tool arguments instead of executing them", async () => {

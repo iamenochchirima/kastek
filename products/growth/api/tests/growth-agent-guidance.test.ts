@@ -1,9 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
-import { readGrowthAgentContext, assertGrowthAgentContext } from "../src/agents/scope.js";
+import { readGrowthAgentContext, assertGrowthAgentContext,growthAgentContextModelView } from "../src/agents/scope.js";
+import { growthAgentDigest } from "../src/agents/security.js";
 import { readConfig } from "../src/config.js";
 import type { CoreContext } from "../src/context.js";
+test("selected content context hides account/job fields while its revision covers the full source",()=>{
+  const context={kind:"content_post" as const,resourceId:"draft"},source={id:"draft",title:"Draft",content:"Useful copy",channels:["FACEBOOK"],status:"DRAFT",
+    selectedAccounts:[{platform:"FACEBOOK",accountId:null,status:"PENDING"}]};
+  const first=growthAgentContextModelView(context,source);
+  assert.equal(first.revision,growthAgentDigest(source));
+  assert.deepEqual(first.data,{id:"draft",title:"Draft",content:"Useful copy",channels:["FACEBOOK"],status:"DRAFT"});
+  assert(!JSON.stringify(first.data).includes("PENDING"));
+  const changed=growthAgentContextModelView(context,{...source,selectedAccounts:[{platform:"FACEBOOK",accountId:null,status:"QUEUED"}]});
+  assert.notEqual(changed.revision,first.revision);
+});
 test("workspace guidance is sourced, bounded, permission-filtered and changes its accepted revision", async () => {
   const previous = process.env.KASITEK_BILLING_ENFORCEMENT; process.env.KASITEK_BILLING_ENFORCEMENT = "true";
   const allowed = new Set(["feature.agents.manage", "feature.content.manage"]), queries: string[] = [];

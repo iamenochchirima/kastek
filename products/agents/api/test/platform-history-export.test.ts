@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import { connectFixtureModel } from "./model-fixture";
 import { modelServiceDefaults } from "../src/execution/models/settings";
@@ -21,6 +22,16 @@ const exportModels = { primary: { binding: { organizationId: randomUUID(), conne
  policy: { ...modelServiceDefaults, revision: "fixture-1", digest: "a".repeat(64) } } } satisfies { primary: Pick<AcceptedModelRoutes["primary"], "binding" | "policy"> };
 const row = (id: string, changes: Partial<OperationRow> = {}): OperationRow => ({ id, task_id: taskId, kind: "model", name: "model.generate", state: "completed", request: { model: "fixture", messages: [{ role: "user", content: "question" }] }, output: { message: { role: "assistant", content: "answer" }, usage: { inputTokens: 3, outputTokens: 2 } }, error_code: null, accounted_tokens: 5, ...changes });
 describe("native model history export identity", () => {
+  it("withholds a private product effect receipt while preserving the observed status",()=>{
+    const model=row(`model:${taskId}:0`,{output:{message:{role:"assistant",content:null,tool_calls:[{id:"effect",type:"function",function:{name:"product_tool",arguments:"{}"}}]}}});
+    const tool=row(`tool:${taskId}:0:0`,{kind:"tool",name:"product_tool",request:{tool:"product_tool",arguments:"{}",productBindingId:randomUUID(),productReviewId:"review"},output:{value:{privateContent:"not exported"}}});
+    const status=JSON.stringify({value:{state:"saved",reviewId:"review"}});
+    const next=row(`model:${taskId}:1`,{request:{model:"fixture",messages:[model.output.message,{role:"tool",tool_call_id:"effect",content:status}]}});
+    const coverage=emptyExportCoverage(),[call]=exportModelCalls(taskId,[model,tool,next],[],coverage,exportModels);
+    expect(call!.toolResults[0]).toMatchObject({content:status,nativeOutput:null});
+    expect(coverage.toolResults.status).toBe("partial");
+    expect(coverage.toolResults.omissions).toContain("Private product effect receipt is retained but not exported");
+  });
   it("keeps exact request snapshots, response and token usage without prompt reconstruction", () => {
     const coverage = emptyExportCoverage(), input = row(`model:${taskId}:3`);
     const [call] = exportModelCalls(taskId, [input], [], coverage, exportModels);
@@ -78,7 +89,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const version = await store.createVersion({ accountId: account.id, organizationId: org.id, agentId: agent.id, expectedRevision: 1 });
     const authority: AdmissionAuthority = { product: "agents", organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human", issuer: account.issuer, subject: account.subject } };
     const grant: ExecutionGrant = { ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read"], sourceRevisionIds: config.sourceRevisionIds,
-      connectedToolBindingIds: [], maxContextTokens: config.context.maxInputTokens, rootTokenLimit: 32000, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
+      connectedToolBindingIds: [], maxContextTokens: contextGrantCeiling(config), rootTokenLimit: 32000, maxInputBytes: config.model.maxInputBytes, maxOutputTokens: config.model.maxOutputTokens, expiresAt: new Date(Date.now() + 300_000).toISOString(), revokedAt: null };
     await store.createGrant({ accountId: account.id, grant });
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Opening hours?" });
     const knowledgeId = `knowledge:${task.id}:initial`;

@@ -4,6 +4,66 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies([{ name: "kasitek_active_org", value: "growth-fixture-one", domain: "127.0.0.1", path: "/" }]);
 });
 
+test("reviews capability-only updates with explicit conflicts and stable apply retries", async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.route("**/api/agents/bootstrap",async route=>{
+    const response=await route.fetch(),value=await response.json();value.scope.canConfigureAgents=true;
+    await route.fulfill({response,json:value});
+  });
+  const preview={featureId:"content",targetPublicationRevision:"12",targetPublicationDigest:"a".repeat(64),diffDigest:"b".repeat(64),expectedRevisions:{content:7,assistant:9},
+    features:[{featureId:"content",name:"Content",revision:7,enabled:true,preserved:["Instructions","Model","Context","Memory","Sources and skills","Enabled state"],changes:[
+      {id:"content:posts",kind:"operation",action:"add",label:"Find posts",conflict:false},
+      {id:"content:restricted",kind:"operation",action:"change",label:"Update published post",before:"read",after:"reviewed_write",conflict:true},
+    ]},{featureId:"assistant",name:"Growth assistant",revision:9,enabled:true,preserved:["Instructions","Model"],changes:[{id:"assistant:content",kind:"specialist",action:"change",label:"Content specialist version",before:"private-version-id",after:"replacement-version-id",conflict:true}]}],
+    conflicts:[{id:"content:restricted",featureId:"content",label:"Update published post"},{id:"assistant:content",featureId:"assistant",label:"Content specialist version"}],unavailable:[],canApply:true};
+  await page.route("**/api/agents/features/content/upgrade/preview",route=>route.fulfill({json:preview}));
+  const attempts:Record<string,unknown>[]=[];
+  await page.route("**/api/agents/features/content/upgrade/apply",async route=>{
+    attempts.push(route.request().postDataJSON());
+    await route.fulfill(attempts.length===1?{status:503,json:{error:"Temporary failure"}}:{json:{revisions:{content:8,assistant:10}}});
+  });
+  await page.goto("/agents");
+  const card=page.getByRole("article").filter({has:page.getByRole("heading",{name:"Content",exact:true})});
+  await card.getByRole("button",{name:"Review update",exact:true}).click();
+  const dialog=page.getByRole("dialog",{name:"Review capability update",exact:true});
+  await expect(dialog.getByText("Find posts",{exact:true})).toBeVisible();
+  await expect(dialog.getByText("private-version-id → replacement-version-id",{exact:true})).not.toBeVisible();
+  await expect(dialog.getByRole("button",{name:"Apply update",exact:true})).toBeDisabled();
+  await dialog.getByRole("combobox",{name:"Content: Update published post",exact:true}).click();
+  await page.getByRole("option",{name:"Keep current",exact:true}).click();
+  await dialog.getByRole("combobox",{name:"Growth assistant: Content specialist version",exact:true}).click();
+  await page.getByRole("option",{name:"Use update",exact:true}).click();
+  await page.screenshot({path:test.info().outputPath("capability-upgrade-mobile.png"),animations:"disabled"});
+  await dialog.getByRole("button",{name:"Apply update",exact:true}).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await dialog.getByRole("button",{name:"Apply update",exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(attempts).toHaveLength(2);expect(attempts[0]).toEqual(attempts[1]);
+  expect(attempts[0]).toMatchObject({targetPublicationDigest:preview.targetPublicationDigest,diffDigest:preview.diffDigest,expectedRevisions:preview.expectedRevisions,
+    resolutions:{"content:restricted":"keep_current","assistant:content":"use_update"}});
+});
+
+test("shows configured specialist status without blocking assistant chat", async ({ page }) => {
+  await page.route("**/api/agents/bootstrap",async route=>{
+    const response=await route.fetch(),bootstrap=await response.json();
+    bootstrap.scope.canConfigureAgents=true;
+    bootstrap.features=bootstrap.features.map((feature:{id:string})=>feature.id==="assistant"?{...feature,specialists:[
+      {id:"research",name:"Research",state:"configured",memory:{enabled:true,availableToAssistant:false}},{id:"campaigns",name:"Campaigns",state:"disabled",memory:{enabled:false,availableToAssistant:false}},
+    ]}:feature);
+    await route.fulfill({response,json:bootstrap});
+  });
+  for(const width of [1440,768,390]){
+    await page.setViewportSize({width,height:900});await page.goto("/agents");
+    const card=page.getByRole("article").filter({has:page.getByRole("heading",{name:"Growth assistant",exact:true})});
+    await card.getByText("Specialists · 2").click();
+    await expect(card.getByText("Research",{exact:true})).toBeVisible();await expect(card.getByText("Configured",{exact:true})).toBeVisible();
+    await expect(card.getByText("Memory · Assistant memory off",{exact:true})).toBeVisible();
+    await expect(card.getByText("Campaigns",{exact:true})).toBeVisible();await expect(card.getByText("Disabled",{exact:true})).toBeVisible();
+    await expect(card.getByText("Memory · Off",{exact:true})).toBeVisible();
+    await expect(card.getByRole("button",{name:"Chat",exact:true})).toBeEnabled();
+  }
+});
+
 test("uses one conversation from quick access, full page and history", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/agents");
@@ -35,10 +95,16 @@ test("retries a lost acknowledgement with the same request identity", async ({ p
   await page.getByRole("textbox", { name: "Message agent" }).fill("lost response for safe retry");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByRole("button", { name: "Retry message" })).toBeVisible();
+  await page.getByRole("link", {name:"Expand conversation"}).click();
+  await expect(page).toHaveURL(/\/agents\/conversations\//);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Retry message" })).toBeVisible();
+  await expect(page.getByRole("textbox", {name:"Message agent"})).toHaveValue("lost response for safe retry");
   await page.getByRole("button", { name: "Retry message" }).click();
   await expect(page.getByRole("button", { name: "Retry message" })).toHaveCount(0);
   const state = await (await request.get("http://127.0.0.1:4310/__fixture/attempts")).json();
-  const attempts = state.attempts.filter((attempt: { text: string }) => attempt.text === "lost response for safe retry");
+  const conversationId=new URL(page.url()).pathname.split("/").at(-1);
+  const attempts = state.attempts.filter((attempt: { text: string;conversationId:string }) => attempt.text === "lost response for safe retry"&&attempt.conversationId===conversationId);
   expect(attempts).toHaveLength(2);
   expect(attempts[0].requestId).toBe(attempts[1].requestId);
 });

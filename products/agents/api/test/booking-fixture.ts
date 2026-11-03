@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {connectFixtureModel} from "./model-fixture";
 import {nativeProviderConnectors} from "../src/adapters/providers/connector-registry";
 import {createServer} from "node:http";
@@ -60,7 +61,7 @@ export async function publishBookingFixture(f:Awaited<ReturnType<typeof createBo
  const draft=await f.platform.updateDraft({...f.scope,agentId:f.agent.id,configuration,expectedRevision:1});
  const version=await f.platform.createVersion({...f.scope,agentId:f.agent.id,expectedRevision:draft.draft_revision});
  const authority:AdmissionAuthority={product:"agents",organizationId:f.organization.id,resourceId:f.agent.id,callerClientId:"agents-execution",principal:{kind:"human",issuer:f.account.issuer,subject:f.account.subject}};
- const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","booking.read",...(policy.definition.permittedOperations.includes("calendar.book")?["booking.execute" as const]:[])],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
+ const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","booking.read",...(policy.definition.permittedOperations.includes("calendar.book")?["booking.execute" as const]:[])],sourceRevisionIds:[],connectedToolBindingIds:[],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
  await f.platform.createGrant({accountId:f.account.id,grant});
  const request={authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Book a consultation."};
  const {task}=await f.platform.admitTask(request);return {...f,policy,configuration,version,authority,grant,request,task};

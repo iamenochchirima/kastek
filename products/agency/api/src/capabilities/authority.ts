@@ -4,7 +4,7 @@ import type { TenantContext } from "../context.js";
 import { TenantError, unauthorized } from "../error.js";
 import { capabilityDigest } from "./manifest.js";
 
-export async function verifyCapabilityService(context: TenantContext, authorization: string | undefined, body: unknown): Promise<void> {
+export async function verifyCapabilityService(context: TenantContext, authorization: string | undefined, body: unknown,audience="product-capability-actions"): Promise<void> {
   const env = context.config.env;
   if (!env.AGENTS_PRODUCT_ACTION_PUBLIC_KEY && !env.AGENTS_PRODUCT_ACTION_PUBLIC_KEYS_JSON)
     throw new TenantError(503, "product capability service unavailable");
@@ -21,7 +21,7 @@ export async function verifyCapabilityService(context: TenantContext, authorizat
     if (!key) throw unauthorized();
     const { payload } = await jwtVerify(token, await importSPKI(key.replace(/\\n/g, "\n"), "RS256"), {
       algorithms: ["RS256"], issuer: env.AGENTS_PRODUCT_ACTION_ISSUER ?? "https://agents.kasitek.co.za",
-      audience: "product-capability-actions", subject: "agents-worker", requiredClaims: ["iat", "exp", "jti", "requestDigest"], clockTolerance: 5,
+      audience, subject: "agents-worker", requiredClaims: ["iat", "exp", "jti", "requestDigest"], clockTolerance: 5,
     });
     if (!Number.isSafeInteger(payload.iat) || !Number.isSafeInteger(payload.exp) || payload.exp! - payload.iat! > 120 ||
       payload.exp! <= payload.iat! || payload.iat! > Date.now() / 1000 + 5 || typeof payload.jti !== "string" || !payload.jti || payload.jti.length > 256 ||
@@ -37,7 +37,15 @@ export function capabilityInvocation(value: unknown): ProductCapabilityInvocatio
   if (body.version !== "1" || !["requestId", "operationId", "taskId", "conversationId", "bindingId", "bindingDigest", "operation"].every(key => text((value as Record<string, unknown>)[key])) ||
       !body.actor || !text(body.actor.issuer) || !text(body.actor.subject) || !body.authority || body.authority.kind !== "product" ||
       !["originProduct", "destinationProduct", "originTenantId", "tenantId", "mappingRef", "policyRevision", "manifestDigest", "descriptorDigest", "handlerRef"].every(key => text((body.authority as unknown as Record<string, unknown>)[key])) ||
-      !["invoke", "authorize", "evidence"].includes(body.control) || !body.input || typeof body.input !== "object" || Array.isArray(body.input) || body.review !== undefined) throw bad();
+      !["invoke", "authorize", "evidence"].includes(body.control) || !body.input || typeof body.input !== "object" || Array.isArray(body.input) || body.review !== undefined ||
+      (body.authority.clientId!==undefined&&!text(body.authority.clientId))||(body.authority.originClientId!==undefined&&!text(body.authority.originClientId))) throw bad();
+  if(body.information && (body.information.version!=="1" || body.information.origin.product!==body.authority.originProduct ||
+    body.information.origin.tenantId!==body.authority.originTenantId || body.information.origin.actor.issuer!==body.actor.issuer ||
+    body.information.origin.actor.subject!==body.actor.subject || body.information.audience.product!==body.authority.originProduct ||
+    body.information.audience.tenantId!==body.authority.originTenantId || body.information.audience.actor.issuer!==body.actor.issuer ||
+    body.information.audience.actor.subject!==body.actor.subject || body.information.audience.conversationId!==body.conversationId ||
+    body.information.audience.clientId!==(body.authority.originClientId??null)))throw bad();
+  if(body.execution&&(body.execution.version!=="1"||body.execution.taskId!==body.taskId))throw bad();
   const input = body.input as Record<string, unknown>;
   if (body.control === "evidence") {
     const source = input.source as Record<string, unknown> | undefined;

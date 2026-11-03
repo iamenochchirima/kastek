@@ -4,15 +4,16 @@ const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-422
 const configuration = { executionKind: "business", instructions: "Help briefly.", model: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free", maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) };
 const specialistAssignment = "Find commuter audience insights using the launch brief.\nFocus on commuters who cycle to work.";
 type Task = { id: string; versionId: string; input: string; output: string | null; requestKey: string; conversationId: string; turnSequence: number; state: string; errorCode: string | null };
-async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean; errorCode?: string; child?: boolean; steer?: boolean } = {}) {
+async function fixture(page: Page, options: { unknown?: boolean; versions?: boolean; errorCode?: string; child?: boolean; steer?: boolean; memory?: boolean } = {}) {
   const tasks: Task[] = [], posts: Record<string, unknown>[] = [];
+  const fixtureConfiguration = options.memory ? { ...configuration, memory: { enabled: true } } : configuration;
   let unknown = options.unknown;
   await page.route("**/api/**", async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname, method = request.method(), body = request.postData() ? request.postDataJSON() : {};
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com", displayName: "Owner" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
     else if (path.endsWith("/agents/summaries")) data = { agents: [{ id: agentId, name: "Research assistant", latestVersion: { id: versionId, number: 1 }, hasUnpublishedChanges: false }], nextCursor: null };
-    else if (path.endsWith(`/agents/${agentId}`)) data = { agent: { id: agentId, name: "Research assistant", draft: configuration, draftRevision: 1 }, versions: [{ id: versionId, number: 1, configuration }, ...(options.versions ? [{ id: "version-2", number: 2, configuration }] : [])], deployments: [] };
+    else if (path.endsWith(`/agents/${agentId}`)) data = { agent: { id: agentId, name: "Research assistant", draft: fixtureConfiguration, draftRevision: 1 }, versions: [{ id: versionId, number: 1, configuration: fixtureConfiguration }, ...(options.versions ? [{ id: "version-2", number: 2, configuration: fixtureConfiguration }] : [])], deployments: [] };
     else if (path.endsWith("/knowledge/sources")) data = { sources: [], imports: [] };
     else if (path.endsWith("/tool-bindings")) data = { bindings: [] };
     else if (path.endsWith("/connections")) data = { connections: [], targets: [] };
@@ -81,6 +82,76 @@ test("mock transport: uncertain admission retries same key after reload and crea
   await page.reload(); await page.getByRole("button", { name: "Retry request" }).click();
   await expect(page).toHaveURL(/\/conversations\/conversation-1$/);
   expect(tasks).toHaveLength(1); expect(posts).toHaveLength(2); expect(posts[0]).toEqual(posts[1]); expect(posts[0].agentId).toBe(agentId);
+});
+
+test("mock transport: standalone shared memory review, correction and Forget redact an open edit after authority loss", async ({ page }) => {
+  await fixture(page, { memory: true });
+  const memoryId = "55555555-5555-4555-8555-555555555555", path = `/api/organizations/${org}/agents/${agentId}/memory`;
+  let denied = false, current = { id: memoryId, revision: 1, content: "Use British spelling in my drafts.", status: "candidate", origin: "model_candidate",
+    assertion: { context: "unspecified", conflict: "not_assessed" }, updatedAt: "2026-11-02T10:00:00Z" };
+  const changes: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+  await page.route("**/memory**", async route => {
+    const request = route.request(), url = new URL(request.url());
+    expect(url.pathname.startsWith(path)).toBe(true);
+    if (denied) { await route.fulfill({ status: 403, json: { error: { message: "Memory access withdrawn" } } }); return; }
+    if (request.method() === "GET") {
+      expect(url.searchParams.get("limit")).toBe("30");
+      await route.fulfill({ json: { generation: current.revision, items: current.status === "accepted" ? [current] : [], candidates: current.status === "candidate" ? [current] : [], nextOffset: null } });
+      return;
+    }
+    const body = request.postDataJSON(); changes.push({ method: request.method(), path: url.pathname, body });
+    expect(body.expectedRevision).toBe(current.revision); expect(body.operationId).toMatch(/^[a-f0-9-]{36}$/);
+    if (url.pathname === `${path}/candidates/${memoryId}/accept`) current = { ...current, status: "accepted", revision: current.revision + 1, assertion: body.assertion };
+    else if (request.method() === "PATCH" && url.pathname === `${path}/${memoryId}`) current = { ...current, content: body.content, revision: current.revision + 1, assertion: body.assertion };
+    else if (url.pathname === `${path}/${memoryId}/forget`) current = { ...current, status: "forgotten", content: "", revision: current.revision + 1 };
+    else throw Error("Unexpected memory mutation");
+    await route.fulfill({ json: current });
+  });
+  await page.goto(`/app/agents/${agentId}`);
+  const trigger = page.getByRole("button", { name: "Memory", exact: true });
+  await trigger.click();
+  const modal = page.getByRole("dialog");
+  await expect(modal.getByText(current.content, { exact: true })).toBeVisible();
+  await modal.getByRole("button", { name: "Review", exact: true }).click();
+  await modal.getByRole("combobox", { name: "Applies to", exact: true }).click();
+  await page.getByRole("option", { name: "Hypothetical scenario", exact: true }).click();
+  await modal.getByRole("combobox", { name: "Conflicts", exact: true }).click();
+  await page.getByRole("option", { name: "Conflict reported", exact: true }).click();
+  await page.screenshot({ path: test.info().outputPath("memory-review-desktop.png"), animations: "disabled" });
+  await modal.getByRole("button", { name: "Accept", exact: true }).click();
+  await expect(modal.getByText("Memory accepted", { exact: true })).toBeVisible();
+  expect(changes[0].body).toEqual({ operationId: expect.any(String), expectedRevision: 1, assertion: { context: "hypothetical", conflict: "reported" } });
+  await page.setViewportSize({ width: 768, height: 900 });
+  expect(await modal.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("memory-accepted-tablet.png"), animations: "disabled" });
+  await modal.getByRole("button", { name: "Correct", exact: true }).click();
+  const content = modal.getByRole("textbox", { name: "Memory", exact: true });
+  await content.fill("Use British spelling and short paragraphs in my drafts.");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.classList.add("dark"); document.documentElement.dataset.theme = "dark"; });
+  expect(await modal.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("memory-correction-mobile.png"), animations: "disabled" });
+  denied = true;
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(modal.getByText("Memory access withdrawn", { exact: true })).toBeVisible();
+  await expect(content).toHaveCount(0);
+  await expect(modal.getByText("Use British spelling in my drafts.", { exact: true })).toHaveCount(0);
+  denied = false;
+  await modal.getByRole("button", { name: "Retry", exact: true }).click();
+  await modal.getByRole("button", { name: "Correct", exact: true }).click();
+  await content.fill("Use British spelling and short paragraphs in my drafts.");
+  await modal.getByRole("button", { name: "Save correction", exact: true }).click();
+  await expect(modal.getByText("Memory corrected", { exact: true })).toBeVisible();
+  expect(changes[1]).toMatchObject({ method: "PATCH", path: `${path}/${memoryId}`, body: { expectedRevision: 2, content: "Use British spelling and short paragraphs in my drafts.", assertion: { context: "hypothetical", conflict: "reported" } } });
+  await modal.getByRole("button", { name: "Forget", exact: true }).click();
+  await expect(modal.getByRole("heading", { name: "Forget memory?", exact: true })).toBeVisible();
+  await modal.getByRole("button", { name: "Forget", exact: true }).click();
+  await expect(modal.getByText("No memories yet", { exact: true })).toBeVisible();
+  expect(changes[2].body).toEqual({ operationId: expect.any(String), expectedRevision: 3 });
+  expect(changes).toHaveLength(3);
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0); await expect(trigger).toBeFocused(); await expect(trigger).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("mock transport: draft changes require custom discard confirmation before navigation", async ({ page }) => {
@@ -179,6 +250,42 @@ test("mock transport: running subagent uses shared modal, retains parent and upd
   await page.keyboard.press("Escape");
   await expect(page.getByText("Launch work ready.", { exact: true })).toBeVisible();
   await expect(open).toBeFocused();
+  expect(posts).toHaveLength(1);
+});
+
+test("mock transport: nested subagent modal keeps its task identity and live duration freezes on completion", async ({ page }) => {
+  const { posts }=await fixture(page,{child:true});
+  let finished=false;
+  const clock="2026-11-02T10:00:00Z";
+  await page.route(`**/api/organizations/${org}/tasks/child-1`,route=>route.fulfill({json:{task:{id:"child-1",state:"running",input:specialistAssignment,output:null,errorCode:null,conversationId:"child-conversation",elapsedMs:65000,observedAt:clock},operations:[],events:[],children:[{id:"grandchild-1",agentName:"Content",state:finished?"completed":"running",parentTaskId:"child-1",rootTaskId:"task-1"}],resources:[],artifacts:[],actions:[]}}));
+  await page.route(`**/api/organizations/${org}/tasks/grandchild-1`,route=>route.fulfill({json:{task:{id:"grandchild-1",state:finished?"completed":"running",input:"Review the launch wording",output:finished?"The launch wording is ready.":null,errorCode:null,conversationId:"grandchild-conversation",elapsedMs:finished?22000:20000,observedAt:finished?"2026-11-02T10:00:02Z":clock},operations:[],events:[],children:[],resources:[],artifacts:[],actions:[]}}));
+  await page.goto(`/app/agents/${agentId}`);
+  await page.getByRole("textbox",{name:"Message",exact:true}).fill("Please review our launch.");
+  await page.getByRole("button",{name:"Send message",exact:true}).click();
+  const open=page.getByRole("button",{name:"Open Research activity",exact:true});
+  await open.click();
+  const modal=page.getByRole("dialog");
+  const researchTime=modal.getByLabel("Execution time");
+  await expect(researchTime).toContainText("1m 5s");
+  await expect(researchTime).not.toContainText("1m 5s",{timeout:3000});
+  await modal.getByRole("button",{name:"Open Content activity",exact:true}).click();
+  await expect(modal.getByRole("heading",{name:"Content",exact:true})).toBeVisible();
+  await expect(modal.getByLabel("Execution time")).toContainText("20s");
+  await modal.getByRole("button",{name:"Back to previous agent",exact:true}).click();
+  await expect(modal.getByRole("heading",{name:"Research",exact:true})).toBeVisible();
+  await modal.getByRole("button",{name:"Open Content activity",exact:true}).click();
+  finished=true;
+  await expect(modal.getByText("The launch wording is ready.",{exact:true})).toBeVisible();
+  await expect(modal.getByLabel("Execution time")).toContainText("22s");
+  await page.waitForTimeout(1200);
+  await expect(modal.getByLabel("Execution time")).toContainText("22s");
+  await page.setViewportSize({width:390,height:844});
+  expect(await modal.evaluate(element=>element.scrollWidth<=element.clientWidth)).toBe(true);
+  await page.screenshot({path:test.info().outputPath("nested-agent-duration-mobile.png"),animations:"disabled"});
+  await page.keyboard.press("Escape");
+  await expect(open).toBeFocused();
+  await open.click();
+  await expect(modal.getByRole("button",{name:"Open Content activity",exact:true})).toBeVisible();
   expect(posts).toHaveLength(1);
 });
 

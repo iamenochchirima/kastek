@@ -7,8 +7,10 @@ import { Pool } from "pg";
 export async function setupPlatformSchema(pool: Pool): Promise<void> {
   const directory = join(__dirname, "../../schema");
   const files = (await readdir(directory)).filter(name => /^\d+_[a-z_]+\.sql$/.test(name)).sort();
-  const sql = (await Promise.all(files.map(name => readFile(join(directory, name), "utf8")))).join("\n");
-  const checksum = createHash("sha256").update(sql).digest("hex");
+  const contents = new Map(await Promise.all(files.map(async name => [name, await readFile(join(directory, name), "utf8")] as const)));
+  const checksumFor = (names: readonly string[]) => createHash("sha256").update(names.map(name => contents.get(name)!).join("\n")).digest("hex");
+  const sql = files.map(name => contents.get(name)!).join("\n");
+  const checksum = checksumFor(files);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -19,17 +21,27 @@ export async function setupPlatformSchema(pool: Pool): Promise<void> {
     if (existing.rowCount) {
       const version = await client.query<{ version: string; checksum: string }>("SELECT version,checksum FROM agents_platform.schema_version");
       if (version.rowCount !== 1 || version.rows[0]?.version !== "001_platform") throw new Error("Unsupported Agents platform schema");
-      if (version.rows[0].checksum !== checksum) {
-        // Only the exact preceding schema can receive this additive migration.
-        let addition = -1;
-        for (const name of ["068_product_default_provisions.sql", "069_admin_customers.sql", "070_product_capability_reviews.sql", "071_growth_capability_publications.sql", "072_product_capability_release.sql", "073_operations_heartbeats.sql", "074_website_crawls.sql", "075_customer_setup.sql", "076_native_enquiries.sql", "077_guided_setup_progress.sql", "078_customer_records.sql", "079_customer_record_actions.sql", "080_agent_deletion.sql", "081_agent_directory_indexes.sql", "082_inbox_customer_identity.sql", "084_support_waiting.sql", "085_customer_followup.sql", "086_support_event_handoff.sql", "087_handoff_pending_receipts.sql", "088_support_presence.sql", "089_support_status_execution.sql", "090_connected_uncertain_escalations.sql", "091_connected_reconciliation.sql", "092_connected_uncertainty_notices.sql", "093_knowledge_object_contents.sql", "094_organization_assistant.sql", "095_member_channels.sql", "096_adaptive_orchestration.sql", "097_work_continuation.sql", "098_optional_execution_limits.sql"]) {
-          const candidate=files.indexOf(name);
-          if(candidate<0)continue;
-          const previous=(await Promise.all(files.slice(0,candidate).map(file=>readFile(join(directory,file),"utf8")))).join("\n");
-          if(version.rows[0].checksum===createHash("sha256").update(previous).digest("hex")){addition=candidate;break;}
+      const installedChecksum = version.rows[0].checksum;
+      if (installedChecksum !== checksum) {
+        // Both released branches share exact bytes through 098. Only complete known prefixes can advance.
+        const managedDefault = "099_managed_default_model.sql";
+        const firstUpgrade = files.indexOf("068_product_default_provisions.sql");
+        const prefixes = (lineage: readonly string[], minimum: number) => {
+          for (let end = minimum; end <= lineage.length; end++) {
+            const applied = lineage.slice(0, end);
+            if (installedChecksum === checksumFor(applied)) return new Set(applied);
+          }
+          return undefined;
+        };
+        let applied = firstUpgrade < 0 ? undefined : prefixes(files, firstUpgrade);
+        if (!applied && files.includes(managedDefault)) {
+          // The local recursive-delegation branch shipped before the independently released managed-model 099.
+          const localBranch = files.filter(name => name !== managedDefault);
+          const recursive = localBranch.indexOf("099_recursive_delegation.sql");
+          if (recursive >= 0) applied = prefixes(localBranch, recursive + 1);
         }
-        if(addition<0)throw new Error("Unsupported Agents platform schema");
-        for (const name of files.slice(addition)) await client.query(await readFile(join(directory, name), "utf8"));
+        if (!applied) throw new Error("Unsupported Agents platform schema");
+        for (const name of files) if (!applied.has(name)) await client.query(contents.get(name)!);
         await client.query("UPDATE agents_platform.schema_version SET checksum=$1 WHERE version='001_platform'", [checksum]);
       }
       await client.query("COMMIT");
@@ -55,6 +67,6 @@ if (require.main === module) {
   const pool = new Pool({ connectionString, ...databasePoolOptions("migration") });
   setupPlatformSchema(pool)
     .then(() => { process.stdout.write("Agents platform schema ready\n"); })
-    .catch(() => { process.stderr.write("Agents platform setup failed; use a fresh dedicated database and verify access\n"); process.exitCode = 1; })
+    .catch(() => { process.stderr.write("Agents platform setup failed; verify the installed schema checksum and migration access\n"); process.exitCode = 1; })
     .finally(() => pool.end());
 }

@@ -10,6 +10,19 @@ import { PlatformStore } from "../src/product/agents/store";
 import { defaultBusinessConfiguration } from "../src/contracts/contracts";
 
 const dbUrl = process.env.AGENTS_TEST_DATABASE_URL, endpoint = process.env.AGENTS_TEST_S3_ENDPOINT;
+it("classifies missing and interrupted private content without returning a partial body",async()=>{
+  const config={endpoint:"https://storage.example.test",region:"us-east-1",bucket:"fixture-content",accessKeyId:"fixture-access",secretAccessKey:"fixture-secret"};
+  const missing=new S3PrivateStore(config,async()=>new Response(null,{status:404}));
+  await expect(missing.get("retained/source")).rejects.toMatchObject({code:"ARTIFACT_CONTENT_MISSING",statusCode:404});
+  const unavailable=new S3PrivateStore(config,async()=>{throw Error("PRIVATE_TRANSPORT_DETAILS");});
+  await expect(unavailable.get("retained/source")).rejects.toMatchObject({code:"OBJECT_STORE_UNAVAILABLE",statusCode:503,message:"Private storage is unavailable"});
+  let reads=0;
+  const interrupted=new S3PrivateStore(config,async()=>new Response(new ReadableStream({pull(controller){
+    if(reads++===0)controller.enqueue(Buffer.from("only a partial retained source"));else controller.error(Error("PRIVATE_STREAM_DETAILS"));
+  }})));
+  await expect(interrupted.get("retained/source")).rejects.toMatchObject({code:"OBJECT_STORE_UNAVAILABLE",statusCode:503,message:"Private storage is unavailable"});
+  expect(reads).toBe(2);
+});
 const suite = dbUrl && endpoint ? describe : describe.skip;
 suite("private S3-compatible content with real PostgreSQL metadata", () => {
   let pool: Pool, admin: Pool, platform: PlatformStore, objects: S3PrivateStore, artifacts: ArtifactStore;

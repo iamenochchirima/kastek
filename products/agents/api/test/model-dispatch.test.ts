@@ -154,8 +154,12 @@ describe("authorized bound model dispatch", () => {
     await expect(dispatchBoundModel({ ...state.request, maxRequestBytes: 5 }, server.factory)).rejects.toMatchObject({ outcome: "rejected" });
     expect(server.calls).toHaveLength(0);
     const rejected = await fixture("openai_chat_completions", undefined, 401);
-    await expect(dispatchBoundModel(state.request, rejected.factory)).rejects.toMatchObject({ code: "MODEL_AUTHENTICATION_FAILED", outcome: "rejected" });
+    await expect(dispatchBoundModel(state.request, rejected.factory)).rejects.toMatchObject({ code: "MODEL_AUTHENTICATION_FAILED", outcome: "rejected",diagnostics:{httpStatus:401,stage:"provider_stream",dispatched:true} });
     expect(rejected.calls).toHaveLength(1);
+    const unavailable = await fixture("openai_chat_completions", undefined, 503);
+    await expect(dispatchBoundModel(state.request, unavailable.factory)).rejects.toMatchObject({ code: "MODEL_PROVIDER_UNAVAILABLE", status: 503, outcome: "rejected",
+      diagnostics: { httpStatus: 503, stage: "provider_stream", dispatched: true } });
+    expect(unavailable.calls).toHaveLength(1);
   });
   it("copies accepted authority before asynchronous work and keeps native continuation route-bound", async () => {
     const state = input(), server = await fixture();

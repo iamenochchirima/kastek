@@ -5,11 +5,12 @@ import type { HarnessMessage, ToolDefinition } from "../../contracts/model-messa
 import type { ModelProtocol } from "../../contracts/model-providers";
 import { ModelNetworkError } from "../../infrastructure/model-network";
 import { ProviderTransportError, type ProviderProtocol, type PrivateNativeState, type ProviderTransportRequest,
-  type ProviderTransportOptions, type ProviderTransportResponse } from "../../contracts/model-transport";
+  type ProviderTransportOptions, type ProviderTransportResponse,type ModelFailureDiagnostics } from "../../contracts/model-transport";
 export { ProviderTransportError } from "../../contracts/model-transport";
 export type { ProviderProtocol, PrivateNativeState, ProviderTransportRequest, ProviderTransportOptions, ProviderTransportResponse } from "../../contracts/model-transport";
 import { compatibleProfile, compatibleSdkSettings, prepareCompatiblePayload } from "./compatible-profiles";
 import { callGoogleProviderModel } from "./google-transport";
+import { observeSseFailures } from "./sse-failure-diagnostics";
 
 // Keep native import: TypeScript's CommonJS transform otherwise emits require(),
 // which cannot resolve pi-ai's import-only package exports.
@@ -42,13 +43,30 @@ export async function getBundledProviderModels(providerId: string): Promise<Bund
     cost: { input: model.cost.input, output: model.cost.output, cacheRead: model.cost.cacheRead, cacheWrite: model.cost.cacheWrite } }));
 }
 
-function failure(status: number | undefined, dispatched: boolean, cancelled: boolean): ProviderTransportError {
+function failure(status: number | undefined, dispatched: boolean, cancelled: boolean,
+  streamDiagnostic?: Pick<ModelFailureDiagnostics, "streamErrorKind" | "providerErrorCode">, responseCompleted = false,
+  diagnosticStage: ModelFailureDiagnostics["stage"] = "provider_stream"): ProviderTransportError {
   if (cancelled) return new ProviderTransportError("MODEL_CANCELLED", dispatched ? "uncertain" : "rejected", 409);
+  // An upstream SSE error explicitly reporting 503 rejects the generation, even when the
+  // provider uses HTTP 200 for the event stream, provided no complete response was accepted.
+  // Other post-200 failures remain uncertain.
+  if (!responseCompleted && streamDiagnostic?.streamErrorKind === "upstream_sse_error" && streamDiagnostic.providerErrorCode === 503) {
+    return new ProviderTransportError("MODEL_PROVIDER_UNAVAILABLE", "rejected", 503, {
+      ...(status === undefined ? {} : { httpStatus: status }), stage: "provider_stream", dispatched,
+      ...streamDiagnostic,
+    });
+  }
   // SDK error events can follow an accepted HTTP response, including partial output.
   // Their private errorMessage is not a safe diagnostic, and HTTP 200 is not an error status.
   if (status !== undefined && status >= 200 && status < 300) {
     return new ProviderTransportError("MODEL_STREAM_FAILED", dispatched ? "uncertain" : "rejected", 502);
   }
+  // An explicit HTTP503 remains a provider rejection even if its error body is interrupted.
+  // Other HTTP200 stream failures remain uncertain because generation may have started.
+  if (status === 503) return new ProviderTransportError("MODEL_PROVIDER_UNAVAILABLE", "rejected", 503, {
+    httpStatus: 503, stage: diagnosticStage, dispatched,
+    ...(streamDiagnostic?.streamErrorKind && streamDiagnostic.streamErrorKind !== "unclassified" ? streamDiagnostic : {}),
+  });
   const rejections: Record<number, string> = { 400: "MODEL_REQUEST_INVALID", 422: "MODEL_REQUEST_INVALID", 401: "MODEL_AUTHENTICATION_FAILED", 402: "MODEL_BILLING_REQUIRED",
     403: "MODEL_ACCESS_DENIED", 404: "MODEL_UNAVAILABLE", 429: "MODEL_RATE_LIMITED" };
   if (status && rejections[status]) return new ProviderTransportError(rejections[status], "rejected", status);
@@ -56,7 +74,7 @@ function failure(status: number | undefined, dispatched: boolean, cancelled: boo
 }
 
 // SDK error events omit the original body-reader error. Retain its type before SDK parsing.
-function observeResponseBody(response: Response, onFailure: (error: unknown) => void): Response {
+function observeResponseBody(response: Response, onFailure: (error: unknown) => void, observer?:ReturnType<typeof observeSseFailures>): Response {
   if (!response.body) return response;
   const reader = response.body.getReader();
   let released = false, cancelled = false;
@@ -66,17 +84,17 @@ function observeResponseBody(response: Response, onFailure: (error: unknown) => 
       try {
         const chunk = await reader.read();
         if (cancelled) return;
-        if (chunk.done) { release(); controller.close(); }
-        else controller.enqueue(chunk.value);
+        if (chunk.done) { observer?.finish(); release(); controller.close(); }
+        else { observer?.write(chunk.value); controller.enqueue(chunk.value); }
       } catch (error) {
-        onFailure(error); release();
+        if(!cancelled)onFailure(error); release();
         if (!cancelled) controller.error(error);
       }
     },
     async cancel(reason) {
       cancelled = true;
       try { await reader.cancel(reason); }
-      catch (error) { onFailure(error); throw error; }
+      catch { /* Reader cleanup cannot replace the failure which stopped SDK consumption. */ }
       finally { release(); }
     },
   });
@@ -141,11 +159,14 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
   if (request.protocol === "google_generate_content") return callGoogleProviderModel(request, options);
   if (options.signal?.aborted) throw new ProviderTransportError("MODEL_CANCELLED_BEFORE_DISPATCH", "rejected", 409);
   const nativeMistral = request.provider === "mistral";
+  const streamObserver=!nativeMistral&&["openai_chat_completions","openai_responses"].includes(request.protocol)?observeSseFailures(request.protocol==="openai_responses"):undefined;
   let rawReasoning: unknown;
-  let preparationFailure: ProviderTransportError | undefined, identityFailure: ProviderTransportError | undefined;
+  let preparationFailure: ProviderTransportError | undefined, identityFailure: ProviderTransportError | undefined,streamFailure:ProviderTransportError|undefined;
   const identity = observeModelIdentity(request.model);
   let dispatched = false, httpStatus: number | undefined, physicalFailure: ModelNetworkError | undefined,
     observed = false, inputObserved = false, outputObserved = false, refused = false, bytes = 0;
+  let responseCompleted = false;
+  let stage:ModelFailureDiagnostics["stage"]="request";
   const raw = new Map<string, string>();
   const control = new AbortController();
   const cancel = () => control.abort(options.signal?.reason);
@@ -181,12 +202,12 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
             init = { ...init, body };
           }
           const response = await options.fetch!(url, init);
-          httpStatus = response.status;
+          httpStatus = response.status;stage="provider_stream";
           return observeResponseBody(response, error => {
-            if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
-          });
+            if (error instanceof ModelNetworkError&&!physicalFailure) { physicalFailure = error; dispatched = error.dispatched;stage="response_body"; }
+          },streamObserver);
         } catch (error) {
-          if (error instanceof ModelNetworkError) { physicalFailure = error; dispatched = error.dispatched; }
+          if (error instanceof ModelNetworkError&&!physicalFailure) { physicalFailure = error; dispatched = error.dispatched; }
           if (error instanceof ProviderTransportError) preparationFailure = error;
           throw error;
         }
@@ -221,7 +242,7 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
         }
         bytes += Buffer.byteLength(JSON.stringify(event));
         if (request.maxResponseBytes !== undefined && bytes > request.maxResponseBytes) {
-          control.abort(); throw new ProviderTransportError("MODEL_RESPONSE_BYTES_EXCEEDED", "uncertain");
+          streamFailure=new ProviderTransportError("MODEL_RESPONSE_BYTES_EXCEEDED", "uncertain");control.abort();throw streamFailure;
         }
         if (event.usage && count(event.usage.prompt_tokens) && count(event.usage.completion_tokens)) observed = true;
         if (event.usage?.completion_tokens_details?.reasoning_tokens !== undefined) rawReasoning = event.usage.completion_tokens_details.reasoning_tokens;
@@ -245,14 +266,19 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
       if (event.type === "text_delta") {
         options.onText?.(event.delta);
       }
-      if (event.type === "done") result = event.message;
+      if (event.type === "done") { result = event.message; responseCompleted = result !== undefined; }
       if (event.type === "error") {
         if (identityFailure) throw identityFailure;
         if (preparationFailure) throw preparationFailure;
-        if (physicalFailure) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
-        throw failure(httpStatus, dispatched, control.signal.aborted);
+        if(streamFailure)throw streamFailure;
+        const diagnostic=streamObserver?.diagnostic();
+        const explicitUnavailable=httpStatus===503||!responseCompleted&&diagnostic?.streamErrorKind==="upstream_sse_error"&&diagnostic.providerErrorCode===503;
+        if (physicalFailure&&!explicitUnavailable) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
+        throw failure(httpStatus, dispatched,options.signal?.aborted===true,diagnostic,responseCompleted,
+          physicalFailure&&httpStatus===503?"response_body":"provider_stream");
       }
     }
+    stage="response_validation";
     if (identityFailure) throw identityFailure;
     if (!result || !["stop", "toolUse", "length"].includes(result.stopReason)) throw new ProviderTransportError("MODEL_INCOMPLETE_RESPONSE", "uncertain");
     for (const value of raw.values()) if (!object(JSON.parse(value))) throw new ProviderTransportError("MODEL_TOOL_ARGUMENTS_INVALID", "uncertain");
@@ -277,9 +303,17 @@ export async function callProviderModel(request: ProviderTransportRequest, optio
       nativeState: { provider: request.provider, protocol: request.protocol, model: request.model,
         baseUrl: request.baseUrl, credentialRevision: request.credentialRevision, assistant: structuredClone(result) } };
   } catch (error) {
+    const streamDiagnostic=streamObserver?.diagnostic();
+    const explicitStreamUnavailable=!options.signal?.aborted&&!responseCompleted&&streamDiagnostic?.streamErrorKind==="upstream_sse_error"&&streamDiagnostic.providerErrorCode===503;
+    const interruptedUnavailable=physicalFailure&&(httpStatus===503||explicitStreamUnavailable);
+    const initiating=interruptedUnavailable?failure(httpStatus,dispatched,options.signal?.aborted===true,streamDiagnostic,responseCompleted,
+      httpStatus===503?"response_body":"provider_stream"):
+      error instanceof ProviderTransportError?error:physicalFailure?
+        new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`,physicalFailure.dispatched?"uncertain":"rejected"):
+        failure(httpStatus,dispatched,options.signal?.aborted===true,streamDiagnostic,responseCompleted);
+    const diagnostics:ModelFailureDiagnostics=initiating.diagnostics??{...(httpStatus===undefined?{}:{httpStatus}),stage,dispatched,
+      ...(initiating.code==="MODEL_STREAM_FAILED"&&streamObserver?streamObserver.diagnostic():{})};
     control.abort();
-    if (error instanceof ProviderTransportError) throw error;
-    if (physicalFailure) throw new ProviderTransportError(`MODEL_NETWORK_${physicalFailure.code}`, physicalFailure.dispatched ? "uncertain" : "rejected");
-    throw new ProviderTransportError(options.signal?.aborted ? "MODEL_CANCELLED" : "MODEL_TRANSPORT_FAILED", dispatched ? "uncertain" : "rejected", httpStatus ?? 502);
+    throw new ProviderTransportError(initiating.code,initiating.outcome,initiating.status,diagnostics);
   } finally { options.signal?.removeEventListener("abort", cancel); }
 }

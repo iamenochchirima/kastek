@@ -59,6 +59,7 @@ export const ANALYTICS_CONTRACT_KEYS = [
   "core.scope.definition@1",
   "growth.agent.access@1",
   "growth.agent.command@1",
+  "growth.agent.command@2",
   "growth.agent.draft_saved@1",
   "growth.agent.review@1",
   "tenant.client.assignment@1",

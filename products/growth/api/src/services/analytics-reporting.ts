@@ -25,9 +25,20 @@ function scopeResponse(value:unknown):ScopeResolution {
  try{for(const key of ['scope_id','root_scope_id']){const raw=scope[key];if(typeof raw!=='number'&&typeof raw!=='bigint')throw Error('invalid integer');const id=integer(raw);if(id< -9223372036854775808n||id>9223372036854775807n)throw Error('invalid integer');}if(scope.parent_scope_id!=null){const raw=scope.parent_scope_id;if(typeof raw!=='number'&&typeof raw!=='bigint')throw Error('invalid integer');integer(raw);}for(const key of ['scope_kind','owning_source_service','external_source_id','reporting_timezone'])if(typeof scope[key]!=='string')throw Error('invalid string');}catch{throw new SyntaxError('invalid scope resolution');}
  return scope as unknown as ScopeResolution;
 }
-export async function reportForOrganization(context:CoreContext,userId:string,organizationId:string,input?:ReportQueryInput):Promise<unknown> {
+export async function reportForOrganization(context:CoreContext,userId:string,organizationId:string,input?:ReportQueryInput,
+  captureScope?:(scope:{id:string;root:string})=>void):Promise<unknown> {
  const {client,issuer}=await reportingDependencies(context);let scope:ScopeResolution;
  try{scope=scopeResponse(await client.resolveScope(SOURCE_SERVICE,SCOPE_KIND,organizationId));}catch(error){throw mapReportingError(error);}
+ captureScope?.({id:String(scope.scope_id),root:String(scope.root_scope_id)});
  let grant:string;try{grant=await issuer.issue({principal_id:userId,scope_id:scope.scope_id,root_scope_id:scope.root_scope_id,descendant_mode:'none',permissions:['analytics:read'],metric_keys:[],dimension_keys:[],correlation_id:`core-${createId()}`});}catch(error){throw mapReportingError(error,'signing');}
  try{const response=input?await client.report(grant,withScope(input,scope.scope_id)):await client.catalog(grant,scope.scope_id);return redactScopeId(response,SCOPE_KIND,organizationId);}catch(error){throw mapReportingError(error);}
+}
+
+/** Recheck the reporting destination and issue the same actor-scoped grant without running a report. */
+export async function assertReportingScope(context:CoreContext,userId:string,organizationId:string,expected:{id:string;root:string}):Promise<void> {
+ const {client,issuer}=await reportingDependencies(context);let scope:ScopeResolution;
+ try{scope=scopeResponse(await client.resolveScope(SOURCE_SERVICE,SCOPE_KIND,organizationId));}catch(error){throw mapReportingError(error);}
+ if(String(scope.scope_id)!==expected.id||String(scope.root_scope_id)!==expected.root)throw new ApiError(403,'agent_read_access_unavailable','The reporting scope changed');
+ try{await issuer.issue({principal_id:userId,scope_id:scope.scope_id,root_scope_id:scope.root_scope_id,descendant_mode:'none',permissions:['analytics:read'],metric_keys:[],dimension_keys:[],correlation_id:`core-${createId()}`});}
+ catch(error){throw mapReportingError(error,'signing');}
 }

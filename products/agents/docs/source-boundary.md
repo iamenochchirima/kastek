@@ -8,6 +8,12 @@ Agents is a fresh standalone product. Its API and business worker use the dedica
 startup. Explicit setup accepts only recognized preceding digests for supported additive upgrades.
 It rejects unknown schemas and does not import Growth state.
 
+Shared errors, initiating principals and canonical request digests are defined in
+`contracts/primitives.ts`; capability contracts do not import agent configuration to obtain them.
+`contracts/channel.ts` owns the handoff-feedback snapshot schema and fixed receipt deadline, while
+execution validates complete model-message groups. Support schedule calculations and aggregate
+presence reads belong to the support capabilities; Inbox owns presence updates and waiting notices.
+
 ## Private organization assistant
 
 `/app/assistant` opens an ordinary organization business agent and its current member's private
@@ -129,11 +135,28 @@ projection. Channel actions preselect the agent, preserve authorization return c
 website domains/customization/install snippets or messaging asset selection. Connected, paused,
 unconnected and needs-attention states come from records rather than selected checkboxes.
 Support hands off to the existing unassigned Inbox queue; free text does not create staffing rules.
-Customer-service setup can save weekly support hours and an IANA timezone. The saved schedule is
+Customer-service setup starts new support schedules with editable Monday–Friday 09:00–17:00
+values and the browser timezone; saved schedules are preserved. Enabling a day inserts real hours,
+not placeholder text. Time and timezone input is normalized before save; malformed, reversed and
+overlapping periods remain invalid, with 24:00 accepted only as closing time. These are suggested
+setup values, not inferred business facts. After creation, Configure → General → Human support
+edits the schedule directly through the revision-checked Save changes action. Existing hours are
+loaded without applying defaults; Set support hours explicitly initializes an absent schedule.
+Both draft and published-configuration saves synchronize changed hours to the saved setup record
+without regenerating instructions, tools or other setup fields. Explicit guided-setup submissions
+retain their existing derivation rules. The General page groups settings with section dividers and
+places setup status and connected-channel actions in a side panel on wide screens, stacking them
+below the form on smaller screens. The saved schedule is
 pinned to the agent configuration when published. When human support is selected in setup, its
 `support.get_status_v2` tool returns whether the current time falls within that schedule, the next
 opening when closed, and aggregate staff availability. It reports unknown when a schedule or
 availability is not known, and never derives staff presence or response times from the schedule.
+Website CORS preflight covers both the deployment metadata endpoint and its child routes, using
+the same explicit publication-origin checks. Saved visitors can reopen or reload the embedded
+widget with its authorization header; unrelated origins remain denied.
+Website enquiry, confirmation and followup-preference reads retain visitor/session and conversation
+authorization without charging the website write-rate budget. Message sends, confirmation decisions
+and followup mutations remain rate-limited; normal widget polling does not exhaust those writes.
 The Inbox lets a member explicitly select Available or Away. Availability expires after two minutes;
 only the visible Inbox tab that selected Available renews its lease. Revoked members do not count,
 and the tool never exposes individual staff identities. Previously published configurations keep
@@ -279,6 +302,10 @@ migration is required. Avatars permit HTTPS or local development HTTP and use no
 The widget can start and switch separate conversations in one browser tab. Each uses its own
 visitor session and pending request, stored in that tab's session storage. Switching waits for
 in-flight requests to finish. An expired session does not grant access to its earlier conversation.
+Rejected sends retain their text and a separate visible error through background refreshes.
+An unknown send outcome retains its original request key for retry. Model-configuration failures
+show a temporary-unavailability message to visitors; owners configure the provider and default
+model under Settings → Model providers. A connected website alone does not establish reply readiness.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
 
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
@@ -321,8 +348,15 @@ Changing the organization default affects new admissions; it does not redirect a
 The chat model picker and Configure support an explicit account/model selection through the
 existing background configuration-snapshot flow. Chat selection saves after any required impact
 confirmation; it preserves conversation history and drafts. Unsaved Configure edits block chat
-switching until saved or discarded. An environment key alone does not create a workspace
-connection. Owner dependency views list affected agents,
+switching until saved or discarded. With the platform OpenRouter key configured, authenticated
+owner workspace access initializes an included NVIDIA free model through the normal encrypted
+connection, discovered catalogue and organization-default grant. Existing defaults and historical
+included-provider revocation or removal prevent automatic replacement. Anonymous website requests
+do not initialize accounts. Schema099 pins the included connection's permitted model independently
+of catalogue edits and subsequent operator default changes. The included connection cannot be
+repurposed to use paid models or another endpoint; owners add their own provider key for other
+models. Generation still requires a saved connection and use grant, with no environment-key fallback.
+Owner dependency views list affected agents,
 schedules, defaults and active tasks before removal or revocation. Reconnection does not restore
 old use grants. An explicit revision-checked Restore access action authorizes only the agent's
 currently configured model IDs. Cached model reads for ordinary members are filtered to the
@@ -368,6 +402,16 @@ validate output caps, reject repaired tool JSON, and distinguish missing usage f
 The adapters scope private continuation to provider, protocol, model, endpoint, and credential
 revision. Google requests use the saved endpoint and credential header without ambient SDK
 cloud-backend selection.
+OpenAI-compatible stream failures can additionally retain a fixed SSE failure category and an
+optional numeric error-envelope status or code. A bounded preparse observation passes original
+bytes to the installed parser unchanged and preserves the diagnosis when the SDK emits an error or
+throws while consuming it; it stores no raw frame, provider error message, header or reasoning in
+ordinary diagnostics. Oversized or unexplained failure remains unclassified. See the
+[runtime runbook](operations/shared-runtime.md#investigation).
+Explicit HTTP503 responses remain `MODEL_PROVIDER_UNAVAILABLE` rejections if the error body is
+interrupted after its status arrives. Bounded upstream SSE error envelopes with numeric status503 or
+code503 have the same classification. Other interrupted or incomplete HTTP200 streams remain
+uncertain; the transport never retries or changes routes automatically.
 
 The pinned SDK receives instructions and tools through its leading system message. Actual
 outgoing-body tests guard this contract. Anthropic's SDK base path is normalized while the
@@ -414,6 +458,21 @@ counter or account. Counting and generation each recheck current credentials, sh
 call deadline and keep separate bounded physical requests. Counter responses are capped at
 64 KiB, an operator transport protection for the small count JSON response. Schema047 retains
 only count, precision, revision and payload digest privately. It does not retain another prompt.
+
+Schema100 adds immutable compaction jobs and compare-and-swap continuity checkpoints. A job freezes
+complete message groups, their digests, the exact prepared model snapshot, source dependencies,
+memory generation and base checkpoint revision. Original task, instruction and operation records
+remain retained. `AgentsContextCompactionV1` processes a prepared background job independently of
+foreground generation, using the same physical operation receipts, accepted compaction route,
+current-authority checks and root allowances. It uses the existing background capacity class;
+capacity notifications target the job's workflow key. One prepared background job per conversation
+prevents competing speculative summaries. A newer checkpoint supersedes an older candidate, and
+revoked or nonreducing output cannot replace the current summary. Appended complete groups and
+directions remain outside that frozen prefix. Replaying the workflow uses its recorded model
+receipt. Summary evidence derives from the exact frozen snapshot rather than later task evidence.
+See [Context management](operations/context-management.md) for the launch/join contract and
+operational checks.
+
 Compatible/custom routes use the explicitly labeled serialized-byte estimate until a qualified
 counter is installed. The estimator assigns one estimate unit per UTF-8 byte of the complete
 prepared JSON payload. The accepted request-byte cap bounds that value; the input allowance and
@@ -440,7 +499,7 @@ execution grants, and agent settings can reduce the effective allowances.
 | `maxInputTokens` | 196,608 | Input ceiling with space left for output and safety reserves. |
 | `maxOutputTokens` | 32,768 | Service output ceiling, also bounded by model and agent settings. |
 | `safetyTokens` | 1,024 | Explicit context reserve; contributing layers retain the largest reserve. |
-| `compactAtTokens` | 131,072 | Service compaction threshold, reduced by the saved agent threshold. |
+| `compactAtTokens` | 131,072 | Service compaction threshold; automatic mode preserves this headroom proportion inside the effective input allowance. An explicit saved threshold can reduce it. |
 | `maxModelCalls`, `maxToolCalls` | `null`, `null` | Optional local agent count ceilings, cumulative for the coordinator across continued segments. |
 | `maxRootModelCalls`, `maxRootToolCalls` | `null`, `null` | Optional shared work count ceilings, including specialists and compaction. |
 | `maxDurationMs`, `maxWallDurationMs`, `maxCallDurationMs` | `null`, `null`, 120,000 | Optional shared active time and work wall lifetime; finite deadline for each physical model call. Approval waits use separate durable waits. |
@@ -451,14 +510,21 @@ execution grants, and agent settings can reduce the effective allowances.
 | `maxCostMicros` | `null` | No operator monetary cap. Finite caps are rejected until their price and token bound can be enforced. |
 
 For example, `AGENTS_MODEL_POLICY_JSON={"maxModelCalls":32,"maxToolCalls":64}` changes only
-the two local call ceilings; use `maxRootModelCalls` / `maxRootToolCalls` for a shared team ceiling. Null never removes another finite policy layer. Saved agent defaults remain 8,192 input tokens, a 6,144-token compaction
-threshold, 4,096 reply tokens, 16,384 raw input bytes, and a 120-second model-call deadline.
-These are editable configuration defaults, not provider limits. Effective root grants can be
-smaller than the service allowance. The editor's Model limits section previews the effective
+the two local call ceilings; use `maxRootModelCalls` / `maxRootToolCalls` for a shared team ceiling. Null never removes another finite policy layer. New agent configurations use `context: {mode: "automatic"}`,
+4,096 reply tokens, 16,384 raw input bytes, and a 120-second model-call deadline. Automatic context
+uses the selected model's sourced window, subtracts the effective output and safety reserves, and
+intersects the service, product and finite work allowances. The compiler records each derived bound.
+Existing numeric context objects, including 8,192 / 6,144, remain explicit caps with unchanged
+configuration digests. Publication does not infer that an older numeric setting was automatic.
+Effective root grants can be smaller than the service allowance. The editor's Model limits section previews the effective
 context, reply and root allowances from the full unsaved configuration. Its authenticated
 `POST /api/organizations/:organizationId/agents/:agentId/model-policy` reads authorized cached
 metadata without a provider request or an execution grant. Invalid previews preserve edits.
-Input/output and compaction controls use the preview's effective bounds.
+Input/output and compaction controls use the preview's effective bounds. Context defaults to
+Automatic; selecting Custom limit exposes the finite input and compaction fields. New numeric
+execution grants use the trusted service compilation ceiling for automatic mode and the saved input
+cap for custom mode. Admission still intersects the selected route; accepted routes and narrower
+renewal grants retain their original pins. New policy compilations use `model-execution-policy-v3`.
 
 `adapters/models/model-control-profiles.json` records reviewed endpoint/model rules and official
 sources for temperature, effort, reasoning budgets and thinking levels. Unknown models and custom
@@ -480,11 +546,11 @@ relative to `api/src/`. These values are not vendor capacity promises.
 | --- | --- | --- |
 | Context, input and output capacities in `adapters/models/discovery.ts` and `model-metadata.ts` | Vendor metadata with per-field provenance. Missing context/output capacity blocks execution until sourced metadata exists. | Refresh the selected connection or supply owner-attested manual metadata. `model-discovery.test.ts`, `model-metadata.test.ts`, `model-execution-policy.test.ts`. |
 | Every operator field in the defaults table above, in `execution/models/settings.ts` | Platform policy limits request size, work, root cost exposure and transport memory. The policy compiler takes the smallest ceiling and largest safety reserve. | Strict `AGENTS_MODEL_POLICY_JSON`; `model-execution-policy.test.ts`, `model-dispatch.test.ts`. |
-| Agent defaults in `contracts/contracts.ts`: input16,384 bytes, output4,096 tokens, call120 seconds, context8,192 tokens, compaction6,144 tokens | Editable product defaults for a newly configured agent. Context and output must fit the effective model and root allowance; compaction must precede input exhaustion. | Saved configuration and the model-policy preview. `model-controls.test.ts`, `configuration-experience.spec.ts`. |
+| Agent defaults in `contracts/contracts.ts`: input16,384 bytes, output4,096 tokens, call120 seconds, automatic context | New configurations derive input capacity and compaction headroom at admission. Explicit numeric saved caps remain unchanged. | Saved configuration and the model-policy preview. `model-execution-policy.test.ts`, `model-controls.test.ts`, `configuration-experience.spec.ts`. |
 | Optional grant root allowance; tenant defaults2 active roots and100,000 tokens/day | Product and tenant admission policy, independent of a model's advertised context. Existing tenant reservations bound accepted work; child and compaction work share the root. | `executionGrantSchema`, persisted `tenant_admission`, accepted product assertion or evaluation scope. `model-accounting.test.ts`, admission and runtime tests. |
 | Cumulative task/root counters are exact nonnegative integers through9,007,199,254,740,991; per-operation and grant fields keep their own storage bounds | Persistence integrity, not an execution allowance. Unsafe totals fail rather than losing integer precision. | Schema098 and `execution/lifecycle/work-policy.ts`; `optional-execution-limits.test.ts`. |
-| Adaptive delegation1–8 concurrent children, depth1; token/time allocations nullable; legacy bindings finite through12,000 tokens | Nullable allocations reserve each bounded operation. Explicit finite pins remain binding; delegation never increases parent authority. | `delegationBindingSchema`, published capability and execution grant; adaptive and optional execution tests. |
-| Instructions8,000 characters, sources20, connected tools8, skills8 and direct builtin tools7 | Product configuration and authority collection bounds. Larger context does not increase capability authority. Full serialized content must still fit the accepted input policy. | `agentConfigurationSchema` and published program contracts. Configuration, publication and product-scope tests. |
+| Adaptive delegation1–8 concurrent children per parent; positive or nullable depth; token/time allocations nullable; legacy bindings finite through12,000 tokens | V15 reserves each physical operation once and checks finite intermediate subtree ceilings. Explicit ancestor pins remain binding; delegation never increases parent authority. | `delegationBindingSchema`, published capability and execution grant; adaptive and optional execution tests. |
+| Instructions8,000 characters, sources20, connected tools8, skills8; direct builtins are unique selections from the current `toolNameSchema` allowlist | Product configuration and authority collection bounds. Larger context does not increase capability authority. Full serialized content must still fit the accepted input policy. | `agentConfigurationSchema` and published program contracts. Configuration, publication and product-scope tests. |
 | Model controls in `adapters/models/model-control-profiles.json` | Sourced vendor parameter rules, matched to endpoint, API and model. Manual budgets additionally fit the effective output reserve. Unknown routes expose provider defaults. | Reviewed JSON revision pinned at admission. `model-controls.test.ts`, `model-provider-conformance.test.ts`. |
 | Catalogue2MiB/5,000 models, TTL5 minutes, refresh30 seconds, maximum backoff15 minutes and discovery30-second deadline | Setup transport/cache protections. These values bound provider setup separately from paid agent execution. | Injected validated `ModelSetupPolicy` in `product/model-providers/setup-policy.ts`. Store/discovery tests. |
 | Explicit probe256 output tokens,32KiB request,256KiB response and30 seconds | Setup policy bounds an explicitly billable model/tool test. Actual model capacity can lower the output allowance. | The same `ModelSetupPolicy`; provider probe tests. |
@@ -493,7 +559,7 @@ relative to `api/src/`. These values are not vendor capacity promises.
 | Optional work wall lifetime defaultsnull; staff chat grants and renewals30 minutes | Work deadlines are distinct from authority expiry, active-operation time and finite physical call/queue deadlines. Renewal cannot extend a finite accepted work deadline. Older accepted tasks retain their original finite deadlines. | `maxWallDurationMs`, schema098 and admission; `optional-execution-limits.test.ts` and continuation/deadline tests. |
 | Worker loop bounded by accepted `maxModelCalls`, including compaction | Platform execution policy. The operation ledger also enforces root call counts shared with delegated work. There is no independent 40-iteration ceiling. | `execution/business/business.ts` and `execution/lifecycle/execution.ts`; accepted-policy and operation-budget tests. |
 | Capacity wait at most256 wake cycles; authority renewal and tool-authority retry at most8 attempts; child-result reconciliation at most400 checks with250ms between checks | Bounded durable control and recovery work. These guards do not grant model calls or reset task deadlines. | Fixed in `execution/business/business.ts`; scheduling, authority, delegation and runtime recovery tests. |
-| Compaction retains up to1 recent whole message group | Worker context-selection policy. The remaining prefix is summarized without splitting tool exchanges. It does not change the accepted input or output allowance. | `prepareCompaction` receives `min(1, groups.length - 1)` from the worker. Context and compaction tests. |
+| Foreground compaction retains up to1 recent whole group; background compaction retains2 | Worker context-selection policy. The remaining prefix is summarized without splitting tool exchanges. Appended groups stay in the foreground. This does not change the accepted input or output allowance. | `prepareCompaction` and `context/background-planning.ts`. Context and compaction tests. |
 | Tool names at most64 characters; model IDs512; provider IDs64; model and counter revisions128; endpoints2,048 | Contract and protocol identity protections, independent of token capacity. The Google parser additionally rejects more than1 response candidate. | `contracts/model-providers.ts`, `execution/context/context.ts`, `adapters/models/google-transport.ts`. Contract, context and native-adapter tests. |
 | Native Mistral SDK timeout2,147,483,647ms | Adapter protection against a shorter SDK default. It cannot extend the accepted outer operation deadline or network timers. | `adapters/models/pi-transport.ts` and `infrastructure/model-network.ts`; compatible-provider conformance and network timeout tests. |
 
@@ -750,10 +816,57 @@ and selects its reviewed revision in the unsaved draft. Publication
 and runtime loading reject unreviewed packages. Import, installation and review never execute scripts.
 Package-based skills load names and descriptions first. Selected agents receive
 `skills.activate` and `skills.read` with a separate `skill.read` grant. Activation
-loads reviewed instructions; file reads require prior activation. Complete loads
-are limited to 4,096 UTF-8 bytes and the current model budget. Larger files fail
-explicitly. Exact package/file digests and loaded text survive compaction through
-durable receipts. Legacy text revisions retain their existing eager loading.
+loads the complete reviewed root `SKILL.md` procedure within the current model budget.
+The import limit is 64 KiB for that file; there is no separate 4 KiB runtime rejection.
+If the complete procedure cannot fit, activation reports `SKILL_CONTEXT_LIMIT` without
+silently truncating it. File reads require prior activation. Other package files are
+reference data or executable text, never system instructions. Large reference reads
+return UTF-8 byte ranges, completeness, exact package/file digests and `nextOffset`.
+The model can recover later pages using the same reviewed file identity. Resource pages
+are sized against the pending request and may be omitted or explicitly excerpted during later
+packing; the visible range and next offset describe only the UTF-8 bytes actually supplied.
+Compacted receipts identify loaded ranges separately and state that the corresponding content
+may be excerpted or omitted. Complete active procedures remain mandatory. Durable load receipts
+restore exact loaded ranges after compaction or worker replay. Reading a script never runs it.
+Previously published version 1 skill tools retain their exact complete-file contract and limits;
+new version 2 tools support paging. Legacy text revisions retain their existing eager loading.
+
+New publications pin `tools.discover` and `tools.load` version3. The shared v15 runtime builds an
+initial capability directory from the currently authorized direct catalogue, selected reviewed
+skills and permitted specialists. Friendly titles, purpose, effects and exact load handles describe
+available work; they do not grant permissions. Child-only commissioned tools remain outside the
+parent's direct catalogue. External connection descriptions stay reference data rather than
+privileged orientation. Measured budgets select eager/automatic schemas and directory details;
+counts and omitted entries remain explicit, and large schemas remain recoverable through loading.
+
+Version3 discovery supports explicit browse, ranked search, up to four purpose queries and stable
+bounded pages. `matchedCount`, `returnedCount`, `complete` and `nextOffset` distinguish one page
+from a complete inventory. Known safe handles from the directory can be loaded directly without
+search. A successful load pins exact schemas across worker replay; `replace` discards earlier
+optional selections. An oversized load returns `TOOL_SCHEMA_LIMIT` before a successful receipt,
+so the model can request fewer schemas or replace the prior selection. Each invocation must match
+a schema exposed in its accepted request and still authorized at dispatch.
+
+Version1 retains exact alias/qualified-handle loading and optional digest preconditions. Version2
+retains handle-only loading and its earlier discovery result shape and schema-selection policy.
+Accepted request snapshots, descriptor digests and operation receipts are not rewritten by the
+version3 directory or loading policy. Discovery and activation do not install adapters or bypass
+current authority and reviews.
+
+Growth's **Knowledge & skills** action uses the same native stores with a separate mapped product
+feature scope. Schema103 records service/actor provenance instead of creating standalone accounts.
+An owner/admin imports text/Markdown sources or portable/curated skills, reviews exact immutable
+content and selects it in a later configuration action. Sources preserve raw-object custody and
+normalized passage offsets; package review pins the complete digest. Selection publishes a new
+v15 composition and immutable native source pins. Current resource policy and current feature
+selection fence accepted work. The product-managed coordinator follows configured specialist
+versions in new publications, with commissioned source ceilings pinned separately from direct
+retrieval. Custom coordinators keep explicit version pins. Growth native uploads currently expose
+plain UTF-8 text/Markdown only; no PDF/URL acquisition, sandbox, workflow or connection authority is
+implied. The [Growth integration reference](growth-integration.md#knowledge-and-skills) defines
+the signed commands and owner route checks. Selected sources or skills missing from the bounded
+inventory are labelled unlisted; their status is unknown until checked separately.
+Small runtime/recovery tools remain available independently of optional business schemas.
 Tool-directed versions with selected skills and the separately enabled `sandbox.analyze` capability
 also expose `skills.run`. The model alias is `skills_run`. Activation is required; loading script
 source with `skills.read` is optional. Execution selects an exact reviewed `scripts/*.py` entry,
@@ -779,6 +892,12 @@ Skill requirements expose repair actions in the exact revision preview. Connecti
 shared connector flow and returns to that same agent/revision. The owner explicitly chooses current
 server-ready bindings, saves the draft, then adds the reviewed skill. Installation never selects a
 connection or grants access automatically. Catalogue readiness refreshes after a saved draft revision.
+Selected connected tools remain visible when their connection is revoked, expires or its permissions
+change. Their status identifies the problem and offers the existing reconnect or configuration path;
+the saved selection is not silently replaced. Skill requirement readiness counts a selected connection
+only while that connection is active, unexpired and still matches the binding's policy revision.
+Selected tools or skills missing from the returned catalogue remain removable as unlisted selections;
+the editor does not claim they were revoked.
 A Python runtime requirement opens contextual General Analysis configuration. This control also appears
 when analysis is already enabled; the default FAQ form remains compact. Enabling analysis is a separate
 explicit draft change for compatible tool-directed versions. The grounded program cannot enable it,
@@ -899,7 +1018,8 @@ retain their own identities; admission does not invent an Agents account or memb
 contract consumer supports model replies and approved public knowledge only. Rich product tools,
 private product records, delegated specialists, memory and sandbox scopes remain unavailable through
 this product adapter until their resource contracts exist. These constraints do not limit the separate
-shared harness acceptance fixtures. Full Agency execution and production deployment remain future work.
+shared harness acceptance fixtures. Agency's separate client-scoped ingress is described below;
+production deployment remains separate.
 
 Growth uses `product/integrations/growth-execution.ts` for private product conversations,
 configuration, tasks, review UI and exports. Its product-owned manifest and four presets live in
@@ -913,6 +1033,12 @@ Origin authorization and destination authorization are independent. The Growth a
 current originating business access before destination operations. Each binding pins origin and
 destination product/tenant, mapping, policy, descriptor, manifest, installed handler and resource
 ceiling. A tool selection, shared issuer or matching tenant string creates no cross-product grant.
+
+An explicitly selected Growth conversation context is resolved through the signed `context.read`
+action. The worker supplies its model-safe view and binds the reference, content revision and
+recipient/provider audience in evidence. Current access and the view digest are rechecked before
+replay, compaction, accepted-memory recall and delegated use. Post account and publishing-job fields
+are excluded from the model view.
 
 Growth exposes bounded workspace context/help, content discovery/read, WhatsApp campaign
 discovery/read, explicit-range analytics and reviewed DRAFT creation through existing domain
@@ -931,8 +1057,14 @@ Agency implements one signed `agency.workspace_agents.read` operation under prod
 workspace mappings, exact grants and current Agency roles. It excludes configuration and message
 bodies. Real PostgreSQL/API acceptance covers scoped reads and revocation. The shared-runtime
 acceptance also covers published inline bindings, HTTP invocation, evidence revalidation and
-independent runtime credentials. Full Agency execution, provisioning, UI and voice remain outside
-this implemented boundary; absent credentials/mapping/grants remain unavailable.
+independent runtime credentials. Agency staff now have a client-scoped product ingress and portal
+assistant through the shared runtime, plus optional reviewed personal memory and explicit model
+setup. Agents schema102 and Agency's client-scope migration preserve workspace/client/actor
+identity in conversations, bindings, observations and memory. The UI uses the shared conversation
+and specialist components. The initial business operation remains metadata read; voice, broader
+business effects and client-customer access are not enabled by this integration. See
+[Agency capability configuration](../../agency/docs/agent-capabilities.md) for trust, scope,
+readiness, current evidence and release limits. Absent credentials/mapping/grants remain unavailable.
 
 Growth's initiating user can export actual accepted composition, product bindings, model-route
 pins, operations and source evidence through `GET /api/agents/tasks/:taskId/export`. Current access
@@ -1047,6 +1179,13 @@ time. It excludes URLs, keys, headers, prompt and response text, tool arguments,
 raw errors and private reasoning/continuation. Model and connection identities appear only in logs
 and traces. OTLP spans share the root task trace and the native task parent. They use the existing
 exporter and its 64-pending-export bound; no extra Collector, scheduler or HTTP instrumentation runs.
+
+Typed model failures also retain the controlled failure code, actual observed HTTP status when
+available, request-dispatched flag and fixed failure stage in `model.observed` and the invocation
+record. The HTTP status is separate from the application's error status. SDK body-reader cleanup
+and transport teardown cannot replace an initiating parser/provider failure with cancellation;
+actual caller cancellation and physical read deadlines remain failures of their own. These fields
+do not reconstruct details missing from older attempts and do not authorize an automatic retry.
 
 Duration starts at the physical invocation wrapper and includes credential checks, private history
 restoration and native input counting. First visible token time records the first nonempty public
@@ -1246,8 +1385,8 @@ Inbox message inspection recognizes the two previously shipped grounded-conversa
 descriptors when the remaining pinned composition still matches. It continues to check the saved
 output, current authority and evidence policies. This does not make those releases executable.
 Saving unchanged settings refreshes these known older releases through normal configuration and
-channel validation, creating a new snapshot for subsequent messages. A widget keeps a failed
-message's error visible while its existing retry is pending.
+channel validation, creating a new snapshot for subsequent messages. Widget send errors remain
+visible across successful background reads until another send attempt or a conversation change.
 The Inbox conversation gives messages the main pane; the Details control opens and closes the
 customer and conversation details without resizing the thread.
 
@@ -1265,6 +1404,26 @@ a conflict; the user can retry after they finish. Provider accounts remain conne
 agents cannot be restored through the interface. Migration `080_agent_deletion.sql` adds the
 deletion marker.
 
+
+### Shared agent activity
+
+Owner conversations and task views use `@kasitek-labs/ui/agent` for messages, public activity,
+context details and specialist modals. An inspected branch can open its own child's activity;
+Back, close, reopen and reconnect observe existing task identities and do not submit work.
+Growth and configured Agency execution use the same renderer through root-scoped product
+observations. Current authority and evidence checks precede assignments, output and activity.
+Restricted customer histories retain their published-message delivery boundary.
+
+Task responses provide `observedAt`, nullable `elapsedMs` and nullable `finishedAt`. Wall time
+starts at acceptance and ends at the native terminal task event, including queue, review,
+authorization and descendant waits. It advances between observations while active, then freezes.
+Later projection updates cannot extend a settled duration. Missing timing is omitted; context
+capacity, model latency and active-operation usage remain separate measurements.
+The safe runtime projection supplies the selected task's context, compaction state, model timing
+and observed/accounted usage to standalone, Growth and Agency. `agentRuntimePresentation` owns
+their shared scalar labels and unavailable values. `workElapsedMs` separately measures the original
+logical request's acceptance through this task's current or terminal endpoint; a continued segment
+or child can therefore differ from its own task duration. Missing origin timing stays null.
 
 ### Configuration activation
 
@@ -1304,6 +1463,18 @@ Retries recover the original task across saves without reserving another grant o
 Connection setup may persist an incomplete draft, which remains pending until Save changes.
 The collapsed configuration history loads a prior configuration for a fresh validated save.
 
+The selected agent's header opens Memory from Chat, Activity or Configure. It uses the shared
+`AgentMemoryPanel` to inspect the current member's personal namespace, review exact candidates
+with their assertion context/conflict state, correct accepted text and Forget records. Reads page
+the native `/api/organizations/:organizationId/agents/:agentId/memory` route; mutations use its
+existing candidate acceptance, revision-checked PATCH and Forget endpoints with stable operation
+IDs. The account, organization and agent identify the panel scope. This entry does not expose
+product-actor memory or change configuration, namespaces or grants. Saved memory enablement is
+read-only here. Failed authorized reads clear both cached items and an open correction; visible
+revalidation and current revision checks belong to the shared panel. No memory bodies are saved
+to browser storage. `chat-workspace.spec.ts` covers this control journey with mocked transport;
+native namespace and mutation authority remain covered by the API memory fixtures.
+
 The global sidebar contains Agents, Tasks, Knowledge, Connections, Automations and
 Settings. The agent/history pane is separate from the main conversation. Tablet
 collapses global navigation. Mobile uses focus-managed navigation/history drawers
@@ -1342,11 +1513,46 @@ records. Compaction is an identified model operation with its own budget and
 recorded result. Large generated content uses private S3-compatible artifacts.
 Context snapshots are not currently stored as S3 objects.
 
-Selected tools are `knowledge.search`, `knowledge.read`, `memory.search`, and
-`memory.propose`, `agents.delegate` and `sandbox.analyze`. Trusted code validates their arguments and scope. A memory
+Selected tools include `knowledge.search`, `knowledge.read`, `memory.search`,
+`memory.read`, `memory.propose`, `agents.delegate` and `sandbox.analyze`. Trusted code validates their arguments and scope. A memory
 proposal creates a candidate. Only an authenticated management action accepts,
 corrects, or forgets it. Publishing a skill creates an immutable revision; skill
 text cannot install tools or grant permission.
+
+Personal memory belongs to one verified human and agent. Embedded product memory has a
+separate namespace containing the product, tenant, verified actor, agent and, for Agency,
+the required client ID. Product scopes use the signed product mapping and do not create
+standalone accounts. Missing actor/client scope fails closed. No automatic business-wide
+memory is enabled; current business facts remain product records. Disabling product memory
+fences accepted tasks' later retrieval and new proposals/acceptance, while authenticated
+inspection, correction and Forget remain available.
+
+A specialist can use its own memory namespace only when its parent and child configurations
+enable memory, the binding explicitly commissions its memory tools and the actual parent grant
+covers the derived memory operations. The parent's direct model catalogue may omit those child
+tools. No parent memory is copied into the child. Human acceptance of exact saved specialist text
+can permit recall in a later conversation of the same namespace; its reviewed transition preserves
+the original brief dependency and current resource/provider checks without transferring the old
+brief or source handles. Ordinary delegation inputs remain conversation scoped.
+
+Context selection ranks relevant accepted records with a recent fallback. `memory.search`
+returns marked previews, byte counts, exact IDs and an explicit next page; `memory.read`
+recovers one complete current accepted record. Both preserve source evidence and current
+scope. Accepted memory retains its assertion origin, freshness, current/hypothetical/unspecified
+context, reported conflict state and `verified: false`;
+acceptance is a persistence decision, not verification of a business fact. Current prompt
+selection retains a namespace-generation fence. New evidence dependencies identify each
+exact memory revision, so accepting an unrelated preference does not invalidate existing
+record evidence. Correcting or forgetting an influencing record invalidates its derivatives.
+Pending duplicate candidates cannot resurrect content suppressed by Forget.
+
+Optional expiry suppresses retrieval and advances selection generations. Forget clears the
+current body and records suppression digests. Private memory revisions retain full earlier content;
+source conversations and immutable context/request records have separate retention. Deleting
+conversation sources remains an explicit operation. None of these controls claims physical erasure
+from those retained copies, earlier provider requests or backups. See the
+[shared runtime operations runbook](operations/shared-runtime.md) for current retention, recovery
+and disable/restore boundaries.
 
 A minimal website FAQ uses this same controller with optional capabilities
 disabled. Public visitors receive conversation-scoped context and approved public
@@ -1419,13 +1625,13 @@ changed payloads conflict. Model, tool, and compaction operations have separate
 stable identities and receipts. A recorded result is reused after replay. An
 unconfirmed model request becomes uncertain rather than generating another reply.
 
-Root limits come from accepted execution policy. Policy v2 defaults local model/tool counts,
+Root limits come from accepted execution policy. Policy v2 and later default local model/tool counts,
 shared team counts, cumulative tokens and active time to null at the service layer. New standalone
 grants have no cumulative token cap unless explicitly configured; persisted finite grants remain
 finite. No service setting enlarges a finite grant. Nullable grants reserve each physical operation against the
 organization quota rather than reserving an unbounded root allocation. Finite grants reserve their
-accepted amount upfront. The saved agent starts with 8,192 estimated input tokens, 4,096 output
-tokens and a 120-second call deadline. Work wall lifetime defaults to null through `maxWallDurationMs`, independent of optional
+accepted amount upfront. New configurations use automatic context, 4,096 output tokens and a
+120-second call deadline. Older explicit numeric context settings remain binding. Work wall lifetime defaults to null through `maxWallDurationMs`, independent of optional
 active-operation time. Explicit wall deadlines remain anchored to the original work across continuation. Known late completion charges actual elapsed time; an uncertain operation
 consumes at least its reservation. Policy-v1 snapshots keep their aggregate counter semantics.
 Organization scheduling defaults allow two accepted roots, two model operations, and four tool
@@ -1505,16 +1711,23 @@ bodies stay in private PostgreSQL, so memory-only execution and withdrawal check
 not depend on object storage. Knowledge source bodies and query-embedding receipts use PostgreSQL; connected bodies still require private S3.
 
 PostgreSQL 17 with pgvector stores immutable chunks, full-text indexes and scoped
-384-dimensional vectors. `lexical-v1` returns only text matches. `hybrid-v1` uses
+384-dimensional vectors. `lexical-v1` normalizes a natural-language query into English lexemes,
+matches any of those terms and ranks the eligible passages. Additional words in a question do not
+require every word to occur in a short source note. Tenant, published-version, selected-revision,
+approval, visibility and current source filters apply before either retriever ranks candidates.
+`hybrid-v1` uses
 the explicitly pinned local BGE release, exact vector search and RRF (k=60),
 at most 20 candidates per retriever and five results. Missing semantic runtime
 fails visibly; there is no network embedding download or paid/lexical fallback.
-The small English benchmark passed twelve held-out positives and three negatives
+The historical small English benchmark used the previous all-term lexical query and passed twelve held-out positives and three negatives
 at 20,000 eligible chunks; measured warm end-to-end p95 was 1,325 ms. These results
-do not establish general answer quality or multilingual semantic quality. Lexical
-AND matching and the semantic cutoff can miss paraphrased questions against short
-policy snippets. The website fixture verifies a reviewed FAQ with explicit question
-coverage; it does not prove general retrieval recall.
+do not establish current end-to-end performance, general answer quality or multilingual semantic
+quality after the lexical correction. Lexical matching still requires shared terms; stemming does
+not make it semantic retrieval. The semantic cutoff can miss paraphrases. Current PostgreSQL
+runtime checks cover ordinary business questions, entity searches, exact passage provenance,
+withdrawal and foreign-source denial. Controlled vectors verify the hybrid query path, without
+claiming a new embedding-model quality benchmark. The website fixture verifies a reviewed FAQ
+with explicit question coverage; it does not prove general retrieval recall.
 
 Each actual retrieval/read operation issues span/hash/date-bound evidence IDs.
 Useful tail passages replace prefix context. A bounded continuation reads by
@@ -2184,8 +2397,8 @@ bucket backup and reverse-export limitation above define rollback.
 
 ## Adaptive specialist coordination
 
-New standalone `tool-directed` program version 4 publications use schemas096–098 and
-`product-capabilities-v14` / `AgentsBusinessRunV24`. Accepted v13/V23 journals keep their handler. Existing versions 1–3 and their accepted task
+New business publications use schema099 recursive lineage and
+`product-capabilities-v15` / `AgentsBusinessRunV25`. Schemas096–098 retain progress, continuation and nullable execution policy. Accepted v13/V23 journals keep their handler. Existing versions 1–3 and their accepted task
 journals remain pinned. It extends the ordinary Assistant and other authorized business agents;
 it creates no privileged replacement agent or cross-product authority.
 
@@ -2198,7 +2411,11 @@ to be partial. Native outcome and answer quality remain separate.
 
 Configuration permits 1–8 concurrent children (default 2), an optional cumulative child-task
 allowance (default null) and a repeated-unchanged-observation threshold of 1–8 (default 3).
-Depth remains one. With no active child, equal recent requests and results trigger a replanning
+Any explicitly configured specialist can commission a child. Positive depth limits count further edges
+and `null` has no configured depth ceiling; every finite ancestor ceiling remains binding. Immediate-parent
+source/connection/product ceilings, immutable lineage and work accounting apply at every edge. Subtree
+cancellation leaves siblings active, and intermediate settlement waits for descendants. Customer-safe
+configurations retain deployment/session identity without staff access. With no active child, equal recent requests and results trigger a replanning
 observation before a further unchanged action pauses. Changed results count as progress, and
 wait/progress inspection is excluded. This is not a general semantic progress judge. Nullable
 specialist token/time scopes use bounded per-operation reservations; explicit finite scopes remain
@@ -2243,3 +2460,14 @@ start the next ordinary turn; legacy programs keep new-turn admission. App and p
 the same scoped queue and serialized close gate. Context groups have stable per-instruction IDs,
 load in bounded batches, and are excluded after incorporation/compaction rather than continuously
 reappending all prior text. Native outcomes remain distinct from model-authored progress.
+
+### Retained executable lineages
+
+Ordinary adapter registration rejects a different digest or executor for an existing
+release. Growth also installs source-frozen local branch variants through a separate
+trusted registration path. Resolution uses the full adapter identity (ID, release and
+manifest digest); a persisted manifest cannot install an executor. Hosted releases
+3–8 retain their original handler sets and digests. The local projection-aware
+release 6 remains executable only at its exact frozen digest, alongside hosted
+release 6. New publication 12 selects projection-aware release 9. Runtime adoption
+does not add or replace product operation assignments.

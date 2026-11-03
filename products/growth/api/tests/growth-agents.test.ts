@@ -9,9 +9,27 @@ import { GrowthAgentClient } from "../src/agents/client.js";
 import { registerGrowthAgentRoutes } from "../src/agents/routes.js";
 import { growthAgentDigest, verifyGrowthAgentAction } from "../src/agents/security.js";
 import type { CoreContext } from "../src/context.js";
+import { ApiError } from "../src/error.js";
 const config = (env: Record<string, string> = {}) => readConfig({ DATABASE_URL: "postgres://unused", LOG_LEVEL: "silent", ...env });
 const actor = { issuer: "https://growth.kasitek.co.za/identity", subject: "user" };
 const action = () => ({ version: "1", requestId: "request", operationId: "operation", tenantId: "org", actor, taskId: "task", conversationId: "conversation", featureId: "content", context: null, operation: "workspace.read", input: {} });
+test("Growth synchronizes its current publication before direct resource calls and preserves native conflict details",async()=>{
+  const keys=await generateKeyPair("RS256",{extractable:true}),privateKey=await exportPKCS8(keys.privateKey),operations:string[]=[];
+  const settings=config({AGENTS_PRODUCT_API_URL:"https://agents.example.test",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey});
+  const client=new GrowthAgentClient(settings,{fetch:(async(_url,init)=>{
+    const command=parseGrowthAgentCommand(JSON.parse(String(init?.body)));operations.push(command.operation);
+    if(command.operation==="features.list"){
+      assert.equal(command.input.publication?.manifest.revision,"11");assert.equal(command.input.publication?.policy.optionalCapabilities.knowledge,true);
+      return Response.json({features:[],model:null});
+    }
+    assert.equal(command.operation,"resources.list");assert.deepEqual(command.actor,actor);return Response.json({featureId:"assistant",revision:1});
+  }) as typeof fetch});
+  await client.command({tenantId:"org",actor},"resources.list",{featureId:"assistant"},"first-resource-request");
+  await client.command({tenantId:"org",actor},"resources.list",{featureId:"assistant"},"next-resource-request");
+  assert.deepEqual(operations,["features.list","resources.list","resources.list"]);
+  const conflict=new GrowthAgentClient(settings,{fetch:(async()=>Response.json({error:{code:"SOURCE_SCOPE_DENIED",message:"Select an approved source revision"}},{status:409})) as typeof fetch});
+  await assert.rejects(conflict.command({tenantId:"org",actor},"tasks.list",{},"conflict"),error=>error instanceof ApiError&&error.code==="SOURCE_SCOPE_DENIED"&&error.message==="Select an approved source revision");
+});
 test("Growth contracts reject malformed context and hidden mutation authority", () => {
   assert.throws(() => parseGrowthAgentContext({ kind: "content_post" }));
   assert.throws(() => parseGrowthAgentContext({ kind: "workspace", grant: "all" }));
@@ -57,8 +75,23 @@ test("Growth browser bridge enforces origin and membership and reports truthful 
     assert.equal(bootstrap.json().setup.state, "pending");
     assert.equal(bootstrap.json().features[0].reasons[0].message, "Setting up");
     assert.equal(bootstrap.json().features.every((feature: { ready: boolean }) => !feature.ready), true);
-    assert.deepEqual(bootstrap.json().scope, { businessId: "org", userId: "user", businessName: "Business" });
+    assert.deepEqual(bootstrap.json().scope, { businessId: "org", userId: "user", businessName: "Business", canConfigureAgents:false });
     assert.equal((await app.inject({ method: "POST", url: "/api/agents/conversations", payload: { requestId: "one", featureId: "assistant" } })).statusCode, 403);
     member = false; assert.equal((await app.inject("/api/agents/bootstrap")).statusCode, 403);
   } finally { await app.close(); }
+});
+test("Growth exposes configured specialist metadata only to authorized managers",async()=>{
+  const keys=await generateKeyPair("RS256",{extractable:true}),privateKey=await exportPKCS8(keys.privateKey);
+  let role="MEMBER";
+  const core={config:config({AGENTS_PRODUCT_API_URL:"https://agents.example.test",GROWTH_AGENTS_SIGNING_PRIVATE_KEY:privateKey}),pool:{query:async(sql:string)=>({rows:sql.includes('SELECT status,"failureCode"')?[{status:"ready",failureCode:null,updatedAt:new Date()}]:[{name:"Business",role}]})}} as unknown as CoreContext;
+  const feature={id:"assistant",name:"Growth assistant",description:"",ready:true,reasons:[],memory:{enabled:false},specialists:[{id:"research",name:"Research",state:"disabled",memory:{enabled:true,availableToAssistant:false}}]};
+  const app=await buildApp(core,[(app,context)=>registerGrowthAgentRoutes(app,context,{resolveScope:async()=>({tenantId:"org",actor}),fetch:(async()=>Response.json({features:[feature],model:null})) as typeof fetch})]);
+  try{
+    const member=await app.inject("/api/agents/bootstrap");assert.equal(member.statusCode,200);
+    assert.equal(Object.hasOwn(member.json().features[0],"specialists"),false);
+    role="OWNER";
+    const owner=await app.inject("/api/agents/bootstrap");assert.equal(owner.statusCode,200);
+    assert.deepEqual(owner.json().features[0].specialists,feature.specialists);
+    assert.equal(owner.json().features[0].ready,true);
+  }finally{await app.close();}
 });

@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { connectFixtureModel } from "./model-fixture";
 import { randomUUID } from "node:crypto";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
@@ -31,7 +32,7 @@ const dbUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const agent=await platform.createAgent({accountId:account.id,organizationId:organization.id,name:"Analyst",configuration:config});
     const version=await platform.createVersion({accountId:account.id,organizationId:organization.id,agentId:agent.id,expectedRevision:1});
     const authority={product:"agents" as const,organizationId:organization.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-    const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","sandbox.execute","artifact.read","artifact.write"],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:config.context.maxInputTokens,expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null});
+    const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","sandbox.execute","artifact.read","artifact.write"],maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+60_000).toISOString(),revokedAt:null});
     await platform.createGrant({accountId:account.id,grant});
     const {task}=await platform.admitTask({authority,grantId:grant.id,versionId:version.id,input:"Analyze authorized data",requestKey:randomUUID()});
     const operationId=`analysis:${task.id}`;

@@ -1,4 +1,4 @@
-import { sameProductAuthority } from "../../capabilities/products/product-capabilities";
+import { delegatedConfiguration } from "./scope";
 import { delegatedSkills } from "./skills";
 import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import type { Pool } from "pg";
@@ -29,16 +29,17 @@ export async function discoverSpecialists(pool: Pool, taskId: string, input: unk
       if (!config) reasons.push("Pinned specialist unavailable");
       else {
         if(execution.task.product==="growth") {
-          const available=(await db.query("SELECT 1 FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.agent_id=f.agent_id WHERE f.product='growth' AND f.organization_id=$1 AND f.feature_id IN ('research','content','campaigns') AND f.enabled AND v.id=$2",[execution.task.organization_id,binding.versionId])).rowCount;
+          const available=(await db.query("SELECT 1 FROM agents_platform.product_execution_features f JOIN agents_platform.agent_versions v ON v.agent_id=f.agent_id WHERE f.product='growth' AND f.organization_id=$1 AND f.enabled AND v.id=$2",[execution.task.organization_id,binding.versionId])).rowCount;
           if(!available)reasons.push("Growth specialist unavailable");
-          if(config.productBindings.some(child=>!execution.configuration.productBindings.some(parent=>sameProductAuthority(parent,child))))reasons.push("Specialist exceeds coordinator product authority");
         }
-        if (config.executionKind !== "business" || config.memory.enabled || config.capabilities.delegation.enabled || (config.capabilities.sandbox.enabled && !execution.configuration.capabilities.sandbox.enabled) || config.capabilities.workflows.enabled || config.capabilities.businessActions.enabled) reasons.push("Unsupported specialist capabilities");
-        try { delegatedModelRoutes(execution.models, config, binding.maxTokens, binding.maxActiveMs); }
+        let effective=config;
+        try { effective=delegatedConfiguration(execution.configuration,binding,config); }
+        catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
+        try { delegatedModelRoutes(execution.models, effective, binding.maxTokens, binding.maxActiveMs); }
         catch (error) { if (error instanceof PlatformError) reasons.push(error.message); else throw error; }
         try{
-          const connections=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[execution.task.organization_id,binding.connectedToolBindingIds])).rows;
-          skills=(await delegatedSkills(db,{organizationId:execution.task.organization_id,agentId:row.agent_id,configuration:{...config,tools:binding.tools,sourceRevisionIds:binding.sourceRevisionIds,connectedToolBindingIds:binding.connectedToolBindingIds},connectedBindings:connections.map(row=>capabilityBindingSchema.parse(row.binding))})).map(skill=>({name:skill.name,description:skill.description}));
+          const connections=(await db.query("SELECT binding FROM agents_platform.capability_bindings WHERE organization_id=$1 AND id=ANY($2::uuid[])",[execution.task.organization_id,effective.connectedToolBindingIds])).rows;
+          skills=(await delegatedSkills(db,{organizationId:execution.task.organization_id,agentId:row.agent_id,configuration:effective,connectedBindings:connections.map(row=>capabilityBindingSchema.parse(row.binding))})).map(skill=>({name:skill.name,description:skill.description}));
         }catch(error){if(error instanceof PlatformError)reasons.push(error.message);else throw error;}
         if (binding.sourceRevisionIds.length) {
           const sources = await db.query(`SELECT r.id FROM agents_platform.source_revisions r JOIN agents_platform.sources s ON s.id=r.source_id

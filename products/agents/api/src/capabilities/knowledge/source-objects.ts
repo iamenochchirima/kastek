@@ -13,7 +13,7 @@ async function current(db:PoolClient,jobId:string,lock=false){
  const first=(await db.query("SELECT organization_id FROM agents_platform.ingestion_jobs WHERE id=$1",[jobId])).rows[0];if(!first)throw fail("SOURCE_NOT_FOUND");
  if(lock)await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE",[first.organization_id]);
  const job=(await db.query(`SELECT j.*,s.state AS source_state,s.generation AS source_generation,
-  EXISTS(SELECT 1 FROM agents_platform.memberships m WHERE m.organization_id=j.organization_id AND m.account_id=j.importer_account_id AND m.revoked_at IS NULL) AS member_active
+  agents_platform.knowledge_import_authorized(j) AS member_active
   FROM agents_platform.ingestion_jobs j JOIN agents_platform.sources s ON s.id=j.source_id WHERE j.id=$1 ${lock?"FOR UPDATE OF j,s":""}`,[jobId])).rows[0];return job;
 }
 function eligible(job:Record<string,any>):boolean{return job.member_active&&job.source_state==="active"&&job.source_generation===job.accepted_generation&&!["cancelled","failed"].includes(job.state)&&(job.state==="ready"||new Date(job.deadline).getTime()>Date.now());}
@@ -79,7 +79,7 @@ export async function reapSourceObjects(pool:Pool,objects:PrivateObjectStore,opt
     (j.state='ready' AND o.kind<>'stage' AND NOT EXISTS(SELECT 1 FROM agents_platform.source_revisions r WHERE r.id=j.revision_id AND (r.raw_key=o.object_key OR r.text_key=o.object_key))) OR
     (o.kind='stage' AND greatest(o.created_at,j.updated_at)<=$1::timestamptz-interval '7 days 15 minutes') OR
     (j.state='ready' AND o.kind='raw' AND greatest(o.created_at,j.updated_at)<=$1::timestamptz-interval '7 days 15 minutes') OR
-    (j.state<>'ready' AND (j.deadline<=$1 OR j.accepted_generation<>s.generation OR NOT EXISTS(SELECT 1 FROM agents_platform.memberships m WHERE m.organization_id=j.organization_id AND m.account_id=j.importer_account_id AND m.revoked_at IS NULL))))))
+    (j.state<>'ready' AND (j.deadline<=$1 OR j.accepted_generation<>s.generation OR NOT agents_platform.knowledge_import_authorized(j))))))
   ORDER BY coalesce(o.next_cleanup_at,o.created_at),o.id LIMIT $2`,[now,limit])).rows;
  for(const candidate of rows)await transaction(pool,async db=>{
   const row=(await db.query("SELECT * FROM agents_platform.source_objects WHERE id=$1 FOR UPDATE SKIP LOCKED",[candidate.id])).rows[0];if(!row)return;

@@ -3,10 +3,17 @@ import { GrowthAgentContractError } from "./growth-agents.js";
 export const GROWTH_AGENT_PROVISION_PATH = "/internal/v1/products/growth/provision";
 export const GROWTH_AGENT_PROVISION_CHECK_PATH = "/internal/agents/provisioning-check";
 export const GROWTH_AGENT_DEFAULTS_REVISION = "2" as const;
+export interface GrowthAgentDelegationPolicy {
+  maxChildren: number;
+  maxDepth: number | null;
+  policy: { maxTasks: number | null; maxStalls: number };
+  childLimits: { maxTokens: number | null; maxActiveMs: number | null };
+  delegates: Record<import("./growth-agents.js").GrowthAgentFeatureId, import("./growth-agents.js").GrowthAgentFeatureId[]>;
+}
 export interface GrowthAgentPublication {
   manifest: import("./product-capabilities.js").ProductCapabilityManifest;
   presets: readonly {id: import("./growth-agents.js").GrowthAgentFeatureId;name:string;description:string;instructions:string;operations:string[]}[];
-  policy: {revision:string; optionalCapabilities:Record<"knowledge"|"skills"|"memory"|"delegation"|"sandbox"|"workflows"|"connections",boolean>};
+  policy: {revision:string; optionalCapabilities:Record<"knowledge"|"skills"|"memory"|"delegation"|"sandbox"|"workflows"|"connections",boolean>;delegation?:GrowthAgentDelegationPolicy};
 }
 export interface GrowthAgentProvisionRequest {
   version: "1";

@@ -5,6 +5,10 @@ export interface GrowthAgentRuntimeOperation {
   agentName: string;
   kind: "model" | "compaction" | "tool" | "delegation" | "resource";
   label: string;
+  category?: string;
+  source?: "runtime" | "product" | "connection";
+  activityKind?: "capability_discovery" | "capability_loading";
+  technicalName?: string;
   state: "started" | "completed" | "failed" | "uncertain";
   startedAt: string;
   completedAt: string | null;
@@ -14,7 +18,9 @@ export interface GrowthAgentRuntimeOperation {
 export interface GrowthAgentRuntime {
   version: 1;
   observedAt: string;
-  elapsedMs: number;
+  elapsedMs: number | null;
+  workId?: string | null;
+  workElapsedMs?: number | null;
   model: {
     id: string | null;
     provider: string | null;

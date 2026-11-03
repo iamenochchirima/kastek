@@ -18,6 +18,7 @@ const Home = screen("tenant-home"),
   Business = screen("partner-business-settings"),
   Portal = screen("portal-entry"),
   ClientDetail = screen("client-detail"),
+  ClientAgent = screen("client-agent"),
   Conversation = screen("client-conversation-detail");
 function SignIn() {
   const [query] = useSearchParams();
@@ -35,7 +36,7 @@ function SignIn() {
 function Detail({
   kind,
 }: {
-  kind: "business" | "client" | "conversation" | "portal";
+  kind: "business" | "client" | "conversation" | "portal" | "client-agent";
 }) {
   const params = useParams();
   const [query] = useSearchParams();
@@ -45,6 +46,7 @@ function Detail({
     return <Portal key={params.slug} slug={params.slug!} />;
   if (kind === "conversation")
     return <Conversation key={params.id} conversationId={params.id!} />;
+  if (kind === "client-agent") return <ClientAgent key={params.id} clientId={params.id!} />;
   return (
     <ClientDetail
       key={params.id}
@@ -108,6 +110,7 @@ export function AgencyRoutes() {
         />
         <Route path="/portal/:slug" element={<Detail kind="portal" />} />
         <Route path="/clients/:id" element={<Detail kind="client" />} />
+        <Route path="/clients/:id/agent" element={<Detail kind="client-agent" />} />
         <Route
           path="/client/conversations/:id"
           element={<Detail kind="conversation" />}

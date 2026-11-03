@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { connectFixtureModel } from "./model-fixture";
 import {randomUUID} from "node:crypto";
 import {Pool} from "pg";
@@ -36,7 +37,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     // Deterministic already-completed fixture tasks do not invoke a worker or consume a model budget.
     await pool.query(`INSERT INTO agents_platform.execution_grants(id,product,organization_id,resource_id,caller_client_id,principal,version_id,operations,source_revision_ids,max_input_bytes,max_output_tokens,expires_at)
       VALUES($1,'agents',$2,$3,$6,$4,$5,'["model.reply"]'::jsonb,ARRAY[]::uuid[],$7,$8,now()+interval '1 hour')`,[grant,f.org,resourceId,principal,f.version,callerClientId,configuration.model.maxInputBytes,configuration.model.maxOutputTokens]);
-    const models=await transaction(pool,db=>resolveAcceptedModelRoutes(db,{organizationId:f.org,agentId:f.agent,product:"agents",selection:configuration.model.selection,layers:executionModelLayers(configuration,{id:grant,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000}),requiresTools:false}));
+    const models=await transaction(pool,db=>resolveAcceptedModelRoutes(db,{organizationId:f.org,agentId:f.agent,product:"agents",selection:configuration.model.selection,layers:executionModelLayers(configuration,{id:grant,maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000}),requiresTools:false}));
     const ids:string[]=[];for(let i=0;i<count;i++){const id=randomUUID();ids.push(id);await pool.query(`INSERT INTO agents_platform.tasks(id,product,organization_id,resource_id,principal,version_id,grant_id,conversation_id,request_key,request_digest,input,state,output,turn_sequence,effective_composition,caller_client_id,root_task_id,parent_task_id,depth)
       VALUES($1::uuid,'agents',$2,$3,$4,$5,$6,$7,$1::text,repeat('0',64),$8,'completed','SECRET OUTPUT',$9,(SELECT effective_composition FROM agents_platform.agent_versions WHERE id=$5),$10,coalesce($11::uuid,$1::uuid),$11::uuid,$12)`,[id,f.org,resourceId,principal,f.version,grant,conversation,i===0?"First <script> input\ntext":"Follow up",i+1,callerClientId,options.parentTaskId??null,options.parentTaskId?1:0]);await transaction(pool,db=>saveTaskModelRoutes(db,id,f.org,models));}
     return {conversation,ids};

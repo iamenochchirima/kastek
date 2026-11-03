@@ -1,4 +1,4 @@
-import { measureCompactionProgress, compactionDidNotProgress, type CompactionProgress } from "../context/compaction-progress";
+import { measureCompactionProgress, compactionDidNotProgress, compactionForecast, type CompactionProgress } from "../context/compaction-progress";
 import { executionReservationPressure } from "../lifecycle/reservation-pressure";
 import { executionAllowanceObservation } from "../lifecycle/work-policy";
 import { deadlineMillis } from "../lifecycle/deadline";
@@ -6,42 +6,42 @@ import { builtinObservationView } from "../../capabilities/tool-observation-feed
 import { visibleTaskControlTools } from "../../capabilities/task-control";
 import {validateBuiltinArguments,validateBuiltinResult} from "../../capabilities/tool-contracts";
 import { builtinArgumentFeedback } from "../../capabilities/tool-argument-feedback";
-import type {CapacityDecision} from "../scheduling/capacity";
-import {persistOperationReceipt} from "../scheduling/receipt-persistence";
 import * as restate from "@restatedev/restate-sdk";
 import type { Pool } from "pg";
 import { z } from "zod";
 import type { ConnectedExecutor,ConnectedObservation } from "../../capabilities/connected-tools/connected-executor";
 import { connectedModelView } from "../../capabilities/connected-tools/connected-model-view";
 import type { KnowledgeObservation,KnowledgeRuntime } from "../../capabilities/knowledge/knowledge-runtime";
-import { toolDescriptor } from "../../capabilities/tool-descriptors";
+import { toolDescriptor, toolDescriptorPresentation } from "../../capabilities/tool-descriptors";
+import { capabilityBindingPresentation } from "../../capabilities/tool-presentation";
+import { capabilityDirectory, capabilityExposure } from "../context/capability-directory";
 import { assertPublishedTools,builtinToolName,builtinToolEnabled,executeTool,fitUtf8,parseModelDelegationRequest,toolsFor } from "../../capabilities/tools";
-import { skillContext,skillReceiptGroups,skillLoadContextSource } from "../context/skills";
-import type { SkillLoadResult } from "../../capabilities/skills/runtime";
+import { skillContext,skillReceiptGroups,skillFitsRequest } from "../context/skills";
 import { isCustomerPrincipal,PlatformError,requestDigest,terminalTaskStates } from "../../contracts/contracts";
 import type { DependencyManifest } from "../../contracts/source-contracts";
+import { selectedProductContextText } from "../products/product-information";
 import type { TaskRecord } from "../../contracts/records";
-import { buildContext,prepareCompaction,skillSourceMessage,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
+import { buildContext,prepareCompaction,type ContextGroup,type ContextSource,type ContextModelPolicy,type RequestTimeContext } from "../context/context";
 import { loadContinuation } from "../context/continuation";
 import { workContinuationGroups } from "../lifecycle/work-continuation";
 import type { EvidenceStore } from "../context/evidence";
-import { executeWorkTool, primaryInstructionContext, orchestrationProgressObservation, orchestrationStalled, orchestrationInstructionGroups, closeOrchestrationInstructions } from "../delegation/progress";
+import { executeWorkTool, primaryInstructionContext, orchestrationProgressObservation, orchestrationStalled, orchestrationInstructionGroups, closeOrchestrationInstructions, decideStallStop, readStallDecision } from "../delegation/progress";
 import { discoverSpecialists } from "../delegation/discovery";
-import { cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, specialistTokenBackpressure, startSpecialist } from "../delegation/adaptive";
+import { activeSpecialistTaskIds, cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, specialistTokenBackpressure, startSpecialist } from "../delegation/adaptive";
 import { admitChildren,readChildResults,type DelegatedChild } from "../delegation/delegation";
 import {
-assertCurrentAuthority,beginOperation,
+assertCurrentAuthority,
 event,
-finishOperation,
 HARNESS_RELEASE,
 loadExecution,
 settleTask,transaction,
 WORKFLOW_NAME,
 type Execution,
-type MemoryFence,type OperationRequest,
+type MemoryFence,
 type TaskOutcome
 } from "../lifecycle/execution";
 import { MemoryStore, loadSkillRevisions } from "../memory/memory";
+import { executeMemoryTool } from "../../capabilities/memory-tools";
 import {
 ModelOperationError,
 requestDigest as modelRequestDigest,
@@ -63,11 +63,19 @@ import { awaitBookingConfirmation } from "./booking-review";
 import { awaitToolInvocationReview } from "./tool-review";
 import { invokeTaskModel, nativeContextCosts } from "../models/runtime";
 import { invokeObservedTaskModel } from "../models/observed-invocation";
-import { beginHandoffFeedbackOperation } from "../lifecycle/execution";
 import { assertHandoffFeedbackAuthority } from "../lifecycle/authority";
 import { assertCurrentEvidence } from "../context/evidence-policy";
-import type { HandoffFeedbackRequest } from "../lifecycle/handoff-feedback-contract";
-import { HANDOFF_RECEIPT_DEADLINE_MS } from "../../product/inbox/handoff-pending-receipt";
+import { SHARED_HARNESS_RELEASE } from "../../contracts/execution";
+import { historyResultBytes, readHistory, searchHistory, toolReceiptPreview, type RetainedArtifactReader } from "../context/journal";
+import { historyToolDefinitions } from "../../capabilities/history-tools";
+import { protocolToolVersions } from "../../capabilities/protocol-tools";
+import { loadContinuityCheckpoint, prepareCompactionJob, adoptCompactionCheckpoint, readCompactionJobOutcome, failCompactionJob, retireQueuedBackgroundCompaction, type CompactionJobOutcome, type ContinuityCheckpoint } from "../context/checkpoints";
+import { sharedProtocolInstructions } from "../context/protocol-instructions";
+import { planBackgroundCompaction } from "../context/background-planning";
+import { CONTEXT_COMPACTION_WORKFLOW,type ContextCompactionWorkflow } from "../context/compaction-workflow";
+import { createToolCatalog, progressiveModelTools, assertLoadedTool, discoverToolCatalog, loadToolSchemas, toolSchemaFailureFeedback, type ToolCatalog, type ToolCatalogMetadata } from "../../capabilities/tool-discovery";
+import { instructionHead } from "../context/request-manifest";
+import { HANDOFF_RECEIPT_DEADLINE_MS, type HandoffFeedbackRequest } from "../../contracts/channel";
 function contextModelPolicy(execution: Execution, role: "primary" | "compaction" = "primary", privateCosts: Map<string, number> = new Map(), packingOverhead = 0): ContextModelPolicy {
   const route = execution.models[role], policy = route.policy;
   return { modelId: route.binding.modelId, revision: policy.digest, counterRevision: packingOverhead ? `serialized-utf8-estimate-v1-native-${packingOverhead}` : "serialized-utf8-estimate-v1",
@@ -82,7 +90,8 @@ export function accountedModelTokens(value: ModelResponse, reserved: number): nu
 }
 export type { ActionState, ActionRuntime } from "../../workflows/report-delivery/program";
 import type { ProductReviewReference } from "@kasitek-labs/contracts";
-import { productModelTools } from "../../capabilities/products/product-capabilities";
+import { productModelTools,requiresProductAccess,productEffectProjection } from "../../capabilities/products/product-capabilities";
+import { productModelResult } from "../products/product-result";
 import type { ProductRuntimePort } from "../products/product-runtime";
 import { awaitProductReview } from "./product-review";
 export interface BusinessOptions {
@@ -92,6 +101,8 @@ export interface BusinessOptions {
   signal?: AbortSignal;
   actions?:ActionRuntime;
   evidence?: EvidenceStore;
+  readRetainedArtifact?: RetainedArtifactReader;
+  artifacts?: import("../artifacts/task-artifacts").TaskArtifactStore;
   knowledgeRuntime?: KnowledgeRuntime;
   connected?: ConnectedExecutor;
   toolReviews?: ToolReviewStore;
@@ -100,63 +111,12 @@ export interface BusinessOptions {
   selectReportArtifact?:(taskId:string,name:string,generatedOutput:string)=>Promise<{id:string}>;
   executeSandbox?: (taskId:string,operationId:string,args:{code:string;inputArtifactIds?:string[]}|{skillId:string;path:string;inputArtifactIds?:string[]})=>Promise<unknown>;
 }
-type Result<T> = { ok: true; value: T } | { ok: false; code: string; uncertain: boolean };
-const unknownOperationCodes = new Set(["CONNECTED_READ_UNCERTAIN", "CONNECTED_OPERATION_UNCERTAIN", "BOOKING_OUTCOME_UNCERTAIN", "QUERY_RESOURCE_UNCERTAIN", "EXECUTION_OBJECT_UNCERTAIN", "PRODUCT_EFFECT_UNCERTAIN"]);
-function uncertainOperation(error:ModelOperationError|PlatformError):boolean {return error instanceof ModelOperationError ? error.outcome === "uncertain" : unknownOperationCodes.has(error.code);}
+import { operation, uncertainOperation, type Result } from "../lifecycle/durable-operation";
+export { operation } from "../lifecycle/durable-operation";
 interface Snapshot { primaryInstructionIds?:string[]; id: string; messages: HarnessMessage[]; digest: string; estimatedTokens: number;
-  memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest }
+  memoryFence?: MemoryFence; historyCutoff: string; tools: ToolDefinition[]; evidenceManifest?: DependencyManifest; catalog?: ToolCatalog;instructionHead?:string }
 const terminalSql = "('completed','incomplete','refused','failed','cancelled','uncertain')";
 
-type JournaledOperation<T> = {result:Result<T>} | {waiting:Extract<CapacityDecision,{state:"waiting"}>} | {
-  receipt:{attemptId:string;state:"completed"|"failed"|"uncertain";value:T|null;tokens:number;code:string|null}
-};
-export async function operation<T>(ctx: restate.WorkflowContext, pool: Pool, taskId: string, input: OperationRequest,
-  perform: (recovering?:boolean) => Promise<{ value: T; tokens: number }>, journalName = input.id): Promise<Result<T>> {
-  for(let capacityAttempt=0;capacityAttempt<256;capacityAttempt++) {
-    const attemptName=capacityAttempt===0?journalName:`${journalName}:capacity:${capacityAttempt}`;
-    const outcome:JournaledOperation<T> = await ctx.run(`${attemptName}:perform`, async () => {
-      let attemptId:string|undefined;
-      try {
-        const admission = input.name === "model.handoff_feedback" ? await beginHandoffFeedbackOperation(pool,taskId,input) : await beginOperation(pool, taskId, input);
-        if(admission.waiting)return {waiting:admission.capacity};
-        if (admission.replayed) {
-          if (admission.operation.state === "completed") return {result:{ok:true as const,value:admission.operation.output as T}};
-          return {result:{ok:false as const,code:admission.operation.error_code??"OPERATION_OUTCOME_UNCERTAIN",uncertain:admission.operation.state==="uncertain"}};
-        }
-        attemptId=admission.operation.attempt_id;
-        const result = await perform(admission.recovering);
-        if(input.kind!=="delegation" && Date.now()-new Date(admission.operation.started_at).getTime()>input.reservedMs) throw new ModelOperationError("RESOURCE_TIME_BOUND_EXCEEDED","uncertain");
-        if(input.maxResultBytes!==undefined && Buffer.byteLength(JSON.stringify(result.value))>input.maxResultBytes) throw new PlatformError("TOOL_RESULT_LIMIT",413,"Tool result exceeded its published bound");
-        if (!Number.isSafeInteger(result.tokens) || result.tokens < 0) throw new ModelOperationError("MODEL_ACCOUNTING_INVALID", "uncertain");
-        return {receipt:{attemptId,state:"completed" as const,value:result.value,tokens:result.tokens,code:null}};
-      } catch (error) {
-        if (!(error instanceof ModelOperationError) && !(error instanceof PlatformError)) throw error;
-        if(error instanceof PlatformError&&error.code==="CONNECTED_READ_IN_PROGRESS")return {result:{ok:false as const,code:"CONNECTED_READ_IN_PROGRESS",uncertain:false}};
-        const uncertain = uncertainOperation(error);
-        if(attemptId)return {receipt:{attemptId,state:uncertain?"uncertain" as const:"failed" as const,value:null,tokens:uncertain?input.reservedTokens:0,code:error.code}};
-        return {result:{ok:false as const,code:error.code,uncertain}};
-      }
-    });
-    if('waiting' in outcome){
-      if(input.name === "model.handoff_feedback" || input.name === "model.support_status") return {ok:false,code:"CAPACITY_UNAVAILABLE",uncertain:false};
-      const remaining=new Date(outcome.waiting.deadline).getTime()-await ctx.date.now();
-      if(remaining<=0)return{ok:false,code:"CAPACITY_WAIT_EXPIRED",uncertain:false};
-      await restate.RestatePromise.race([ctx.promise(`capacity:${outcome.waiting.requestId}:${outcome.waiting.generation}`).get(),ctx.sleep(remaining)]);
-      continue;
-    }
-    // The physical outcome is durable before native persistence can retry or lose its acknowledgement.
-    const result:Result<T>='result' in outcome?outcome.result:await ctx.run(`${attemptName}:receipt`,async()=>{
-      const expected=outcome.receipt;
-      const receipt=await persistOperationReceipt(()=>finishOperation(pool,taskId,input.id,expected.state,expected.value,expected.code,expected.tokens,expected.attemptId));
-      if(receipt.attempt_id!==expected.attemptId||receipt.state!==expected.state||receipt.accounted_tokens!==expected.tokens||receipt.error_code!==expected.code||requestDigest(receipt.output)!==requestDigest(expected.value))
-        return {ok:false as const,code:receipt.error_code??"OPERATION_RECEIPT_CONFLICT",uncertain:receipt.state!=="failed"};
-      return expected.state==="completed"?{ok:true as const,value:expected.value as T}:{ok:false as const,code:expected.code!,uncertain:expected.state==="uncertain"};
-    });
-    if(!result.ok&&result.code==="CONNECTED_READ_IN_PROGRESS"){await ctx.sleep(1000);continue;}
-    return result;
-  }
-  return {ok:false,code:"CAPACITY_RETRY_LIMIT",uncertain:false};
-}
 
 async function guardedRun<T>(ctx:restate.WorkflowContext,name:string,perform:()=>Promise<T>):Promise<T>{
   const result=await ctx.run(name,async()=>{
@@ -206,14 +166,31 @@ export async function requestTimeContext(pool: Pool, task: TaskRecord): Promise<
     "SELECT created_at,harness_release FROM agents_platform.tasks WHERE id=$1 AND organization_id=$2 AND parent_task_id IS NULL",
     [originId,task.organization_id])).rows[0];
   if (!origin) throw new PlatformError("TASK_CONTEXT_INVALID",409,"Request time is unavailable");
-  if (origin.harness_release!=="product-capabilities-v14") return undefined;
+  if (!["product-capabilities-v14",SHARED_HARNESS_RELEASE].includes(origin.harness_release)) return undefined;
   return {receivedAt:new Date(origin.created_at).toISOString(),referenceTimezone:"UTC",businessTimezone:null};
+}
+
+async function originatingRequestContext(pool: Pool, task: TaskRecord): Promise<ContextSource> {
+  const workId=task.work_id??task.root_task_id;
+  const origin=(await pool.query<{input:string}>(`SELECT t.input FROM agents_platform.tasks t
+    JOIN agents_platform.conversations c ON c.id=t.conversation_id AND c.organization_id=t.organization_id AND c.principal=t.principal
+    WHERE t.id=$1 AND t.parent_task_id IS NULL AND t.root_task_id=t.id AND t.organization_id=$2
+      AND t.product=$3 AND t.principal=$4::jsonb AND c.deleted_at IS NULL`,
+  [workId,task.organization_id,task.product,JSON.stringify(task.principal)])).rows[0];
+  if(!origin)throw new PlatformError("TASK_CONTEXT_INVALID",409,"The originating user request is unavailable");
+  return {id:"originating-user-request",revision:requestDigest(origin.input),kind:"request",content:origin.input};
 }
 
 async function buildSnapshot(pool: Pool, taskId: string, step: number, working: ContextGroup[], summary: ContextSource | undefined,
   omitted: string[], options: BusinessOptions, initialKnowledge?: KnowledgeObservation, knownGeneration?: number, knownExpiry?: number, executionObservation?: string, packingOverhead = 0, deliveredInstructionIds: readonly string[] = []): Promise<{ snapshot?: Snapshot; history: ContextGroup[]; working: ContextGroup[];
-    memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean }> {
+    memoryFence?: MemoryFence; invalidated: boolean; needsCompaction: boolean; backgroundCompactionRequested?:boolean }> {
   const execution = await loadExecution(pool, taskId), task = execution.task, config = execution.configuration;
+  const protocolVersions=protocolToolVersions(execution.toolBindings);
+  if(task.product!=="agents"){
+    if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+    await options.product.authorizeTask(taskId);
+  }
+  const preparedInstructionHead=await instructionHead(pool,taskId);
   const snapshotId = `context:${taskId}:${step}`;
   const recorded = (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1 AND task_id=$2",[snapshotId,taskId])).rows[0];
   if (recorded) {
@@ -224,43 +201,82 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       await options.evidence.supplyContext(taskId,snapshotId,recorded.payload.evidenceIds ?? [],recorded.payload.continuationEvidenceIds ?? []);
       snapshot.evidenceManifest=await options.evidence.taskManifest(taskId);
     }
-    return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false};
+    return {snapshot,history:[],working:[...working,...(recorded.payload.instructionGroups??[]).filter((group:ContextGroup)=>!omitted.includes(group.id)&&!working.some(existing=>existing.id===group.id))],memoryFence:snapshot.memoryFence,invalidated:false,needsCompaction:false,backgroundCompactionRequested:recorded.payload.backgroundCompactionRequested===true};
   }
   const sources: ContextSource[] = initialKnowledge?.passages.map(passage => ({ id: passage.sourceId ?? passage.evidenceId,
     revision: passage.revisionId ?? passage.evidenceId, kind: "knowledge", evidenceId: passage.evidenceId,
     content: `[${passage.label}] ${passage.title} (${passage.acquiredAt})\n${passage.text}` })) ?? [];
   if(config.productBindings.length&&!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
   const availableProductBindings=config.productBindings.length?await options.product!.availableBindings(taskId):[];
-  const modelTools = await visibleTaskControlTools(pool,execution,await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
+  const memoryGrant = config.memory.enabled && task.principal.kind === "human"
+    ? (await pool.query("SELECT operations FROM agents_platform.execution_grants WHERE id=$1", [task.grant_id])).rows[0] : undefined;
+  const memoryOperations: string[] = Array.isArray(memoryGrant?.operations) ? memoryGrant.operations : [];
+  const visibleTools = await visibleTaskControlTools(pool,execution,await visibleRecordTools(pool,execution,toolsFor(config, [...productModelTools(availableProductBindings),...(execution.connectedBindings.length ? (() => {
     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE", 503, "Connected reads are unavailable");
     return options.connected.modelToolsFor(execution.connectedBindings);
-  })() : [])],task.harness_release==="product-capabilities-v13").filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2"].includes(tool.function.name))
+  })() : [])],task.harness_release==="product-capabilities-v13",new Map(execution.toolBindings.map(binding=>[binding.name,binding.version]))).filter(tool => (Boolean(task.channel_binding) || !["channel_request_handoff", "support_request_handoff", "support_request_handoff_v2", "support_get_status", "support_get_status_v2"].includes(tool.function.name))
+    && (tool.function.name!=="artifact_create" || Boolean(options.artifacts?.objects)&&!task.channel_binding&&["human","automation"].includes(task.principal.kind))
     && !(config.tools.includes("support.request_handoff") && tool.function.name === "channel_request_handoff")
     && !(config.tools.includes("support.request_handoff_v2") && tool.function.name === "support_request_handoff"))));
+  const directTools = visibleTools.filter(tool => !tool.function.name.startsWith("memory_") ||
+    memoryOperations.includes(tool.function.name === "memory_propose" ? "memory.propose" : "memory.read"));
+  const memoryReadAllowed = config.memory.enabled && memoryOperations.includes("memory.read");
+  const sharedProtocol=task.harness_release===SHARED_HARNESS_RELEASE;
+  const toolCalling=execution.models.primary.model.capabilities.tools.value===true;
+  const hasRetainedRecords=BigInt(task.turn_sequence)>1n||working.length>0||Boolean(initialKnowledge)||
+    Boolean(task.parent_task_id&&(await pool.query("SELECT 1 FROM agents_platform.task_artifact_transfers WHERE target_task_id=$1 LIMIT 1",[taskId])).rowCount);
+  const recoveryTools=sharedProtocol&&toolCalling&&!task.channel_binding&&options.evidence&&hasRetainedRecords?historyToolDefinitions(protocolVersions):[];
+  const directoryProtocol=sharedProtocol && protocolVersions.get("tools.discover")==="3";
+  const catalog=sharedProtocol&&toolCalling?createToolCatalog([...directTools,...recoveryTools],new Map<string,ToolCatalogMetadata>([
+    ...(directoryProtocol?[...directTools,...recoveryTools].map(tool=>[tool.function.name,{qualifiedName:`runtime:${tool.function.name}`,revision:requestDigest(tool),
+      ...toolDescriptorPresentation(builtinToolName(tool.function.name)??tool.function.name),purpose:tool.function.description.slice(0,512)}] as const):[]),
+    ...availableProductBindings.map(binding=>[binding.alias,{qualifiedName:`product:${binding.authority!.destinationProduct}:${binding.authority!.tenantId}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{})}] as const),
+    ...execution.connectedBindings.map(binding=>[binding.alias,{qualifiedName:`connection:${binding.connection?.id}:${binding.definition.providerOperation}`,revision:binding.digest,bindingDigest:binding.digest,...(directoryProtocol?capabilityBindingPresentation(binding):{})}] as const),
+  ]),protocolVersions.get("tools.discover")??"1"):undefined;
+  const loadedSchemas=catalog?(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output):[];
+  const alwaysAliases=[...recoveryTools.map(tool=>tool.function.name),...directTools.filter(tool=>/^(knowledge_|skills_|agents_|work_|support_|channel_)/.test(tool.function.name)).map(tool=>tool.function.name)];
+  const exposure=catalog&&directoryProtocol?capabilityExposure(catalog,loadedSchemas,protocolVersions,contextModelPolicy(execution,"primary",new Map(),packingOverhead)):undefined;
+  const modelTools=exposure?.tools??(catalog?progressiveModelTools(catalog,loadedSchemas,alwaysAliases,protocolVersions):directTools);
   let memoryFence: MemoryFence | undefined;
   const memory = new MemoryStore(pool);
-  if (config.memory.enabled) {
-    const selected = await memory.read({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal });
+  if (memoryReadAllowed) {
+    const selected = await memory.readForContext({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal,taskId },task.input);
     const eligible = options.evidence ? new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id)) : undefined;
     const memories = selected.memories.filter(item=>!eligible || eligible.has(item.id));
     const expiries = memories.flatMap(item => item.expiresAt ? [new Date(item.expiresAt).getTime()] : []);
     memoryFence = { id: selected.scope.id, generation: selected.generation,
       ...(expiries.length ? { expiresAt: Math.min(...expiries) } : {}) };
-    sources.push(...memories.slice(0, 8).map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: fitUtf8(item.content, 512) })));
+    sources.push(...memories.map(item => ({ id: item.id, revision: item.revision, kind: "memory" as const, content: item.content,
+      memoryAssertion:{...item.assertion,origin:item.origin,reviewStatus:"accepted" as const,verified:false as const,updatedAt:item.updatedAt,expiresAt:item.expiresAt} })));
   }
-  const skills = !config.skillIds.length ? [] : (task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
+  const skills = !config.skillIds.length ? [] : (task.product !== "agents" || task.principal.kind === "automation" || isCustomerPrincipal(task.principal)) ?
     await loadSkillRevisions(pool,task.organization_id,execution.agentId,config.skillIds) :
     await memory.readSkills({ organizationId: task.organization_id, agentId: execution.agentId, principal: task.principal }, config.skillIds);
   const loadedSkills = await skillContext(pool,taskId,skills);
+  const specialists:Awaited<ReturnType<typeof discoverSpecialists>>["specialists"]=[];
+  if(directoryProtocol&&directTools.some(tool=>tool.function.name==="agents_discover")){
+    let offset:number|undefined=0;
+    while(offset!==undefined){const page=await discoverSpecialists(pool,taskId,{offset});specialists.push(...page.specialists);offset=page.nextOffset??undefined;}
+  }
+  const directory=catalog&&directoryProtocol?capabilityDirectory({catalog,tools:modelTools,skills:loadedSkills.catalog,specialists,unavailableTools:config.productBindings.length-availableProductBindings.length,policy:contextModelPolicy(execution,"primary",new Map(),packingOverhead)}):undefined;
   const invalidated = (knownGeneration !== undefined && knownGeneration !== memoryFence?.generation) ||
     (knownExpiry !== undefined && Date.now() >= knownExpiry);
-  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state FROM agents_platform.tasks t
+  const prior = (await pool.query(`SELECT t.id,t.input,t.output,t.state,t.turn_sequence::text AS sequence,t.created_at FROM agents_platform.tasks t
     WHERE t.conversation_id=$1 AND t.turn_sequence<$2 AND t.state IN ${terminalSql}
     AND NOT EXISTS(SELECT 1 FROM agents_platform.context_snapshots c WHERE c.task_id=t.id AND c.memory_scope_id=$3
-      AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC LIMIT 100`,
+      AND c.memory_generation<>$4) ORDER BY t.turn_sequence DESC`,
   [task.conversation_id, task.turn_sequence, memoryFence?.id ?? null, memoryFence?.generation ?? null])).rows;
-  const eligible = options.evidence ? new Set((await options.evidence.checkHistory(taskId, prior.map(t => t.id))).filter(item => item.eligible).map(item => item.taskId)) : undefined;
+  const eligible = options.evidence ? new Set<string>() : undefined;
+  if(options.evidence)for(let offset=0;offset<prior.length;offset+=64){
+    for(const item of await options.evidence.checkHistory(taskId,prior.slice(offset,offset+64).map(t=>t.id)))if(item.eligible)eligible!.add(item.taskId);
+  }
   const selectedPrior = prior.reverse().filter(t => !omitted.includes(t.id) && (!eligible || eligible.has(t.id)));
+  if(sharedProtocol&&options.evidence&&!invalidated&&!task.channel_binding&&omitted.length){
+    const indexed=prior.filter(t=>omitted.includes(t.id)&&(!eligible||eligible.has(t.id))),page=indexed.slice(-6);
+    if(page.length)sources.push({id:"retained-history-index",revision:page.at(-1)!.sequence,kind:"result",content:JSON.stringify({kind:"retained_history_index",totalTurns:indexed.length,
+      items:page.map(t=>({taskId:t.id,sequence:t.sequence,createdAt:new Date(t.created_at).toISOString(),topic:fitUtf8(t.input,160),complete:false})),
+      olderBeforeSequence:indexed.length>page.length?page[0]!.sequence:null,recovery:"history_search lists older turns; history_read recovers the exact taskId."})});
+  }
   const priorInstructions = task.parent_task_id || !selectedPrior.length ? [] : (await pool.query(`
     SELECT i.task_id,i.instruction FROM agents_platform.orchestration_instructions i
     JOIN agents_platform.tasks t ON t.id=i.task_id
@@ -285,7 +301,7 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
       if (!omitted.includes(group.id) && !active.some(existing => existing.id === group.id)) active.push(group);
     }
   }
-  const modernInstructions=(task.execution_policy_version??1)>=2&&!task.parent_task_id&&config.program.version==="4";
+  const modernInstructions=(task.execution_policy_version??1)>=2&&(sharedProtocol||!task.parent_task_id&&config.program.version==="4");
   const instructionContext=modernInstructions?await primaryInstructionContext(pool,taskId,deliveredInstructionIds):undefined;
   if(modernInstructions){
     for(let index=active.length-1;index>=0;index--)if(active[index]!.id.startsWith("instruction:"))active.splice(index,1);
@@ -303,35 +319,57 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
   const continuation=needsContinuation?await loadContinuation(pool,taskId,true,supplied.items,supplied.omittedCount):undefined;
   const hasContinuation=continuation&&(continuation.checkpoint.operations.length||continuation.checkpoint.delegations.length||continuation.checkpoint.artifacts.length);
   const allowance=await executionAllowanceObservation(pool,execution);
-  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, currentInput: [task.input,...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
+  const historyArtifactsAvailable=recoveryTools.length>0&&Boolean(options.artifacts?.objects)&&protocolVersions.get("history.search")==="2"&&
+    ["human","automation"].includes(task.principal.kind)&&
+    Boolean((await pool.query("SELECT 1 FROM agents_platform.execution_grants WHERE id=$1 AND operations ? $2",[task.grant_id,"artifact.read"])).rowCount);
+  const recoveryInstructions=sharedProtocol?sharedProtocolInstructions({
+    delegationEnabled:config.capabilities.delegation.enabled,toolCalling:toolCalling&&modelTools.length>0,
+    discoveryAvailable:modelTools.some(tool=>tool.function.name==="tools_discover"),
+    historyAvailable:recoveryTools.length>0,historyArtifactsAvailable,memoryEnabled:memoryReadAllowed,
+    memoryCanPropose:toolCalling && directTools.some(tool=>tool.function.name==="memory_propose"),delegatedTask:Boolean(task.parent_task_id),
+  }):"";
+  const selectedProductContext=task.product!=="agents"?await options.product!.selectedContextReference(taskId):null;
+  if(selectedProductContext&&!options.evidence)throw new PlatformError("PRODUCT_CONTEXT_UNAVAILABLE",503,"Selected context evidence is unavailable");
+  const originatingRequest=sharedProtocol&&task.parent_task_id?await originatingRequestContext(pool,task):undefined;
+  const input = { requestTime: await requestTimeContext(pool,task), ...(hasContinuation?{continuation}:{}), instructions: config.instructions+recoveryInstructions+(directory?"\n"+directory.text:"")+(allowance?"\nExecution allowance remaining: "+JSON.stringify(allowance)+". As an explicit allowance runs low, prefer finishing with confirmed results. Avoid optional work that cannot fit along with its final response. Report unresolved work truthfully; tools cannot increase these allowances.":""), compactContinuation: (task.execution_policy_version??1)>=2, ...(originatingRequest?{originatingRequest,currentInputOrigin:"coordinator" as const}:{}), currentInput: [task.input,...(selectedProductContext?[selectedProductContextText(selectedProductContext.reference)]:[]),...(executionObservation?[executionObservation]:[]),...workInstructions.map(row => `Earlier instructions for this continuing request:\n${row.instruction}`)].join("\n\n"), history, workingGroups: active,
     summary: invalidated ? undefined : summary, sources,
     skills: loadedSkills.sources, skillCatalog: loadedSkills.catalog,
     tools: modelTools, model: execution.models.primary.binding.modelId, modelPolicy: contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution), packingOverhead), maxInputTokens: execution.models.primary.policy.maxInputTokens, maxOutputTokens: execution.models.primary.policy.maxOutputTokens };
   let built;
   try { built = buildContext(input); }
   catch (error) {
+    if(sharedProtocol&&error instanceof ModelOperationError&&error.code==="CONTEXT_LIMIT"){
+      try{buildContext({...input,history:[],summary:undefined,sources:[],continuation:undefined,workingGroups:active.filter(group=>group.id.startsWith("instruction:"))});}
+      catch(requiredError){
+        if(requiredError instanceof ModelOperationError&&requiredError.code==="CONTEXT_LIMIT")throw new ModelOperationError("CONTEXT_MANDATORY_OVERFLOW","rejected",413);
+        throw requiredError;
+      }
+    }
     if (error instanceof ModelOperationError && error.code === "CONTEXT_LIMIT" && history.length + active.filter(group=>!modernInstructions||!group.id.startsWith("instruction:")).length > 0) {
       return { history, working: active, memoryFence, invalidated, needsCompaction: true };
     }
     throw error;
   }
   const totalGroups = history.length + active.length;
-  if (built.status === "compaction_required" || (built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
+  if (built.status === "compaction_required" || (!sharedProtocol && built.estimatedTokens >= execution.models.primary.policy.compactAtTokens && totalGroups > 2)) {
     return { history, working: active, memoryFence, invalidated, needsCompaction: true };
   }
   const selectedContinuation=built.continuation;
+  const previousSize=sharedProtocol?(await pool.query("SELECT payload->>'estimatedTokens' AS tokens FROM agents_platform.context_snapshots WHERE task_id=$1 AND step>=0 AND step<$2 ORDER BY step DESC LIMIT 1",[taskId,step])).rows[0]:undefined;
+  const mandatory=sharedProtocol?buildContext({...input,history:[],summary:undefined,sources:[],workingGroups:active.filter(group=>group.id.startsWith("instruction:"))}).estimatedTokens:0;
+  const forecast=compactionForecast(execution.models.primary.policy,built.estimatedTokens,previousSize?Number(previousSize.tokens):undefined,mandatory);
   const id = `context:${taskId}:${step}`;
   const row = (await pool.query(`INSERT INTO agents_platform.context_snapshots
     (id,task_id,step,digest,payload,source_references,memory_scope_id,memory_generation,history_cutoff)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING RETURNING id`,
-  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), messages: built.messages, tools: modelTools, ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
+  [id, taskId, step, built.digest, { ...(selectedContinuation?{continuation:selectedContinuation,continuationEvidenceIds:selectedContinuation.checkpoint.evidence.map(item=>item.id)}:{}), ...(selectedProductContext?{selectedProductContext}:{}), messages: built.messages, tools: modelTools, ...(directory?{capabilities:{...directory,text:undefined,...(exposure?{schemaFootprint:exposure.schemaFootprint,schemaAllowance:exposure.schemaAllowance}: {})}}:{}), instructionHead:preparedInstructionHead, countMethod:input.modelPolicy.counterRevision, ...(catalog?{catalog}:{}), ...(modernInstructions?{primaryInstructionIds}:{}), instructionGroups:active.filter(group=>group.id.startsWith("instruction:")),
     historyGroupIds: built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:")),
-    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens, memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
+    ...(task.channel_binding?{channelHistoryGroupIds:built.historyGroupIds}:{}), estimatedTokens: built.estimatedTokens,...(sharedProtocol?{compactionForecast:forecast,backgroundCompactionRequested:forecast.requested&&totalGroups>2}:{}), memoryExpiresAt: memoryFence?.expiresAt, evidenceIds: [...new Set([...built.sourceReferences.flatMap(reference=>reference.evidenceId?[reference.evidenceId]:[]),...active.flatMap(group=>group.evidenceIds??[])])] }, JSON.stringify(built.sourceReferences),
     memoryFence?.id ?? null, memoryFence?.generation ?? null, task.history_cutoff ?? "0"])).rows[0];
   const saved = row ? undefined : (await pool.query("SELECT * FROM agents_platform.context_snapshots WHERE id=$1", [id])).rows[0];
   const snapshot: Snapshot = saved ? { id, ...saved.payload, digest: saved.digest, historyCutoff: saved.history_cutoff,
     memoryFence: saved.memory_scope_id ? { id: saved.memory_scope_id, generation: Number(saved.memory_generation), expiresAt: saved.payload.memoryExpiresAt } : undefined } :
-    { id, ...(modernInstructions?{primaryInstructionIds}:{}), messages: built.messages, tools: modelTools, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
+    { id, instructionHead:preparedInstructionHead,...(catalog?{catalog}:{}), ...(modernInstructions?{primaryInstructionIds}:{}), messages: built.messages, tools: modelTools, digest: built.digest, estimatedTokens: built.estimatedTokens, memoryFence, historyCutoff: task.history_cutoff ?? "0" };
   if (options.evidence) {
     const selected = saved?.payload.historyGroupIds ?? built.historyGroupIds.filter(groupId=>!groupId.startsWith("channel:"));
     await options.evidence.inheritHistory(taskId, id, selected);
@@ -340,13 +378,14 @@ async function buildSnapshot(pool: Pool, taskId: string, step: number, working: 
     snapshot.evidenceManifest = await options.evidence.taskManifest(taskId);
   }
   await event(pool, taskId, id, "context.prepared", { snapshotId: id, estimatedTokens: snapshot.estimatedTokens, compacted: Boolean(summary) });
-  return { snapshot, history, working: active, memoryFence: snapshot.memoryFence, invalidated, needsCompaction: false };
+  return { snapshot, history, working: active, memoryFence: snapshot.memoryFence, invalidated, needsCompaction: false,
+    backgroundCompactionRequested:sharedProtocol&&forecast.requested&&totalGroups>2 };
 }
 
 function failed(result: { code: string; uncertain: boolean }): TaskOutcome {
   if (result.uncertain) return { state: "uncertain", errorCode: result.code };
   if (result.code === "TASK_CANCELLED") return { state: "cancelled" };
-  if (["ROOT_LIMIT", "MODEL_CALL_LIMIT", "ROOT_MODEL_CALL_LIMIT", "TOOL_CALL_LIMIT", "ROOT_TOOL_CALL_LIMIT", "ROOT_TOKEN_LIMIT", "TASK_TOKEN_LIMIT", "ROOT_DURATION_LIMIT", "TASK_DURATION_LIMIT", "CAPACITY_RETRY_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT", "COMPACTION_INPUT_LIMIT", "COMPACTION_NO_PROGRESS", "ORCHESTRATION_STALLED", "TOOL_RESULT_LIMIT", "CAPABILITY_RESULT_INVALID", "EVIDENCE_UNAVAILABLE"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
+  if (["ROOT_LIMIT", "MODEL_CALL_LIMIT", "ROOT_MODEL_CALL_LIMIT", "TOOL_CALL_LIMIT", "ROOT_TOOL_CALL_LIMIT", "ROOT_TOKEN_LIMIT", "TASK_TOKEN_LIMIT", "ROOT_DURATION_LIMIT", "TASK_DURATION_LIMIT", "CAPACITY_RETRY_LIMIT", "TASK_DEADLINE", "CONTEXT_LIMIT","CONTEXT_MANDATORY_OVERFLOW", "COMPACTION_INPUT_LIMIT", "COMPACTION_NO_PROGRESS", "ORCHESTRATION_STALLED", "TOOL_RESULT_LIMIT", "CAPABILITY_RESULT_INVALID", "EVIDENCE_UNAVAILABLE"].includes(result.code)) return { state: "incomplete", errorCode: result.code };
   return { state: "failed", errorCode: result.code };
 }
 
@@ -362,17 +401,28 @@ export function formatPartialResult(saved: Awaited<ReturnType<typeof loadContinu
   return fitUtf8(lines.join("\n\n"),8192).replace(/\[E[a-f0-9]{0,32}$/, "");
 }
 
+async function boundedPartialResult(pool:Pool,taskId:string,evidence?:EvidenceStore):Promise<string>{
+  const current=await loadExecution(pool,taskId);await assertCurrentAuthority(pool,current);
+  const saved=await loadContinuation(pool,taskId,true),results=[];
+  for(const result of saved.results){
+    try {if(evidence)await evidence.validateCitations(taskId,result.output);results.push(result);}
+    catch(error){if(!(error instanceof PlatformError))throw error;}
+  }
+  return formatPartialResult(saved,results);
+}
+
 type SpecialistWait = { taskIds?: string[]; mode?: "any" | "all"; timeoutSeconds?: number };
 async function waitForSpecialists(ctx: restate.WorkflowContext, pool: Pool, taskId: string, label: string,
   input: SpecialistWait, includeInputNeeded = true) {
   const started = await ctx.date.now();
   const loaded = await ctx.run(`${label}:deadline`, () => loadExecution(pool, taskId));
+  const taskIds=input.taskIds??await guardedRun(ctx,`${label}:children`,()=>activeSpecialistTaskIds(pool,taskId));
   const deadline = Math.min(deadlineMillis(loaded.task.deadline_at), started + (input.timeoutSeconds ?? 30) * 1000);
   for (let attempt = 0; ; attempt++) {
     const authority=await awaitAuthority(ctx,pool,taskId,`${label}:authority:${attempt}`);
     if (!("configuration" in authority)) throw new PlatformError(authority.state==="cancelled"?"TASK_CANCELLED":authority.errorCode??"TASK_SETTLED",409,"Specialist waiting has ended");
     let observed: Awaited<ReturnType<typeof specialistStatus>>;
-    try { observed = await guardedRun(ctx,`${label}:status:${attempt}`, () => specialistStatus(pool, taskId, input.taskIds)); }
+    try { observed = await guardedRun(ctx,`${label}:status:${attempt}`, () => specialistStatus(pool, taskId, taskIds)); }
     catch(error) {
       if(error instanceof PlatformError && error.code==="AUTHORITY_EXPIRED") continue;
       throw error;
@@ -405,6 +455,31 @@ async function waitForExecutionReservations(ctx: restate.WorkflowContext, pool: 
   return {waited};
 }
 
+interface BackgroundCompactionJob { id:string;taskId:string;invocation:restate.InvocationHandle }
+function duplicateWorkflow(error:unknown):boolean {
+  return error instanceof restate.TerminalError && error.code===409 && /workflow method was already invoked/i.test(error.message);
+}
+export async function awaitBackgroundCompaction(ctx:restate.WorkflowContext,pool:Pool,job:BackgroundCompactionJob,label:string):Promise<CompactionJobOutcome> {
+  try {
+    // Retain the original call for already-journaled work. Restate rejects it when
+    // the preceding one-way send already started this workflow.
+    return await ctx.workflowClient<ContextCompactionWorkflow>({name:CONTEXT_COMPACTION_WORKFLOW},job.id).run({jobId:job.id,taskId:job.taskId});
+  } catch(error) {
+    if(!duplicateWorkflow(error))throw error;
+    try { return await ctx.invocation(await job.invocation.invocationId).attach<CompactionJobOutcome>(); }
+    catch(attachError) {
+      if(!duplicateWorkflow(attachError))throw attachError;
+      // A job reused from an earlier task may already have an invocation; our
+      // send handle then names the rejected duplicate, not that invocation.
+      for(let wait=0;;wait++) {
+        const observed=await guardedRun(ctx,`${label}:observe:${wait}`,()=>readCompactionJobOutcome(pool,job.id,job.taskId));
+        if(observed.state!=="pending")return observed;
+        await ctx.sleep(1000);
+      }
+    }
+  }
+}
+
 export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, runtime: {release:string;workflow:string} = {release:HARNESS_RELEASE,workflow:WORKFLOW_NAME}) {
   return restate.workflow({ name: runtime.workflow, options: { workflowRetention: { days: 7 }, journalRetention: { days: 7 } }, handlers: {
     run: async (ctx: restate.WorkflowContext, input: { taskId: string }) => {
@@ -423,8 +498,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
       let pendingStall: string | null = null;
       let packingOverhead = 0;
       let previousCompactionProgress: CompactionProgress | undefined;
-      const adaptiveExecution = runtime.release === "product-capabilities-v14";
+      const sharedProtocol = runtime.release === SHARED_HARNESS_RELEASE;
+      const adaptiveExecution = runtime.release === "product-capabilities-v14" || sharedProtocol;
       let working: ContextGroup[] = [], summary: ContextSource | undefined, omitted: string[] = [], knownGeneration: number | undefined, knownExpiry: number | undefined;
+      let continuity: ContinuityCheckpoint | undefined;
+      let backgroundJob:BackgroundCompactionJob|undefined,backgroundUnavailable=false;
       let partialChildren=false,finalMemoryFence:MemoryFence|undefined;
       try {
         // Durable ordered waits release the worker. PostgreSQL only selects the predecessor; it does not advance the loop.
@@ -452,6 +530,10 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
         await ctx.run("freeze-history-cutoff", async () => {
           await pool.query("UPDATE agents_platform.tasks SET history_cutoff=turn_sequence-1 WHERE id=$1 AND history_cutoff IS NULL", [taskId]);
         });
+        if(sharedProtocol && options.evidence){
+          continuity=await guardedRun(ctx,"continuity-checkpoint",()=>loadContinuityCheckpoint(pool,taskId,options.evidence!));
+          if(continuity){summary=continuity.summary;omitted=[...continuity.coveredHistoryIds];}
+        }
         const accepted = await guardedRun(ctx,"initial-knowledge-config", () => loadExecution(pool, taskId).then(value => ({ sourceRevisionIds: value.configuration.sourceRevisionIds, input: value.task.input })));
         let initialKnowledge: KnowledgeObservation | undefined;
         if (accepted.sourceRevisionIds.length) {
@@ -464,18 +546,57 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           initialKnowledge = retrieved.value;
         }
         for (let step = 0; ; step++) {
+          if(backgroundJob){
+            const observed=await guardedRun(ctx,`background-observe:${step}`,()=>readCompactionJobOutcome(pool,backgroundJob!.id,backgroundJob!.taskId));
+            if(observed.state!=="pending"){
+              backgroundJob=undefined;
+              if(observed.state==="adopted"&&observed.checkpoint){
+                continuity=observed.checkpoint;summary=continuity.summary;
+                omitted.push(...observed.compactedGroupIds,...continuity.coveredHistoryIds);
+                working=working.filter(group=>!observed.compactedGroupIds.includes(group.id));
+                previousCompactionProgress=undefined;
+              }else if(observed.state==="uncertain"){outcome={state:"uncertain",errorCode:observed.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
+              else backgroundUnavailable=true;
+            }
+          }
           const execution = await awaitAuthority(ctx, pool, taskId, `authority:${step}`);
           if (!("configuration" in execution)) return execution;
           const config = execution.configuration, policy = execution.models.primary.policy;
           if (policy.maxModelCalls !== null && execution.task.model_calls >= policy.maxModelCalls) { outcome = { state: "incomplete", errorCode: "MODEL_CALL_LIMIT" }; break; }
-          if(String(config.program.version)==="4" && !execution.task.parent_task_id && await guardedRun(ctx,`uncertain-specialist:${step}`,async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state='uncertain' LIMIT 1",[taskId])).rowCount))) {
+          if(String(config.program.version)==="4" && (!execution.task.parent_task_id || sharedProtocol) && await guardedRun(ctx,`uncertain-specialist:${step}`,async()=>Boolean((await pool.query("SELECT 1 FROM agents_platform.tasks WHERE parent_task_id=$1 AND state='uncertain' LIMIT 1",[taskId])).rowCount))) {
             outcome={state:"uncertain",errorCode:"CHILD_OUTCOME_UNCERTAIN"};break;
           }
-          if (!adaptiveExecution && String(config.program.version) === "4" && !execution.task.parent_task_id && await guardedRun(ctx,`stalled:${step}`, () => orchestrationStalled(pool,taskId))) {
+          if (!adaptiveExecution && String(config.program.version) === "4" && (!execution.task.parent_task_id || sharedProtocol) && await guardedRun(ctx,`stalled:${step}`, () => orchestrationStalled(pool,taskId))) {
             outcome = { state: "incomplete", errorCode: "ORCHESTRATION_STALLED" }; break;
           }
-          if (adaptiveExecution && String(config.program.version) === "4" && !execution.task.parent_task_id) {
-            const stalled = await guardedRun(ctx,`stalled:${step}`, () => orchestrationProgressObservation(pool,taskId));
+          if (adaptiveExecution && String(config.program.version) === "4" && (!execution.task.parent_task_id || sharedProtocol)) {
+            const observed=await guardedRun(ctx,`stalled:${step}`,async()=>{
+              if(sharedProtocol){const prior=await readStallDecision(pool,taskId,step);if(prior)return prior;}
+              const stalled=await orchestrationProgressObservation(pool,taskId);
+              if(!sharedProtocol||!stalled||stalled!==warnedStall)return stalled;
+              if(backgroundJob)return {kind:"wait_background" as const};
+              const output=await boundedPartialResult(pool,taskId,options.evidence);
+              if(options.evidence)await options.evidence.validateCitations(taskId,output);
+              return decideStallStop(pool,taskId,step,stalled,[...deliveredInstructionIds],{state:"incomplete",errorCode:"ORCHESTRATION_STALLED",output});
+            });
+            // Existing V25 journals contain string/null observations. Their recorded path is unchanged.
+            if(observed&&typeof observed==="object"){
+              if(observed.kind==="stop"){outcome=observed.outcome;break;}
+              if(observed.kind==="wait_background"){
+                if(!backgroundJob)throw new PlatformError("COMPACTION_SNAPSHOT_INVALID",409,"The background compaction is unavailable");
+                const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`stall-background-join:${step}`);
+                backgroundJob=undefined;
+                if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
+                if(settled.state==="adopted"&&settled.checkpoint){
+                  continuity=settled.checkpoint;summary=continuity.summary;
+                  omitted.push(...settled.compactedGroupIds,...continuity.coveredHistoryIds);
+                  working=working.filter(group=>!settled.compactedGroupIds.includes(group.id));
+                  previousCompactionProgress=undefined;
+                }else backgroundUnavailable=true;
+              }
+              warnedStall=null;pendingStall=null;continue;
+            }
+            const stalled=observed;
             if (stalled && warnedStall === stalled) { outcome = { state: "incomplete", errorCode: "ORCHESTRATION_STALLED" }; break; }
             if (stalled && pendingStall !== stalled) {
               await ctx.run(`replan-event:${step}`, () => event(pool,taskId,`replan:${step}`,"work.replan_requested",{reason:"unchanged_observations"}));
@@ -491,11 +612,18 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           if (!contextResult.ok) { outcome=failed({code:contextResult.code,uncertain:false}); break; }
           const assembled = contextResult.value;
           working = assembled.working;
-          if (assembled.invalidated) { working = assembled.working; summary = undefined; omitted = []; }
+          if (assembled.invalidated) { working = assembled.working; summary = undefined; omitted = []; continuity=undefined; }
           finalMemoryFence=assembled.memoryFence;
           knownGeneration = assembled.memoryFence?.generation;
           knownExpiry = assembled.memoryFence?.expiresAt;
           if (assembled.needsCompaction) {
+            if(backgroundJob){
+              const retired=await guardedRun(ctx,`background-foreground:${step}`,()=>retireQueuedBackgroundCompaction(pool,backgroundJob!.taskId,backgroundJob!.id));
+              const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`background-foreground-join:${step}`);
+              if(!retired)continue;
+              backgroundJob=undefined;backgroundUnavailable=true;
+              if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
+            }
             const groups = [...assembled.history, ...assembled.working].filter(group=>(execution.task.execution_policy_version??1)<2||!group.id.startsWith("instruction:"));
             const progress=measureCompactionProgress(groups,summary);
             if ((execution.task.execution_policy_version??1)>=2 && compactionDidNotProgress(assembled.invalidated ? undefined : previousCompactionProgress,progress)) {
@@ -518,17 +646,25 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               await options.evidence!.supplyContext(taskId,snapshotId,groups.filter(group=>plan.compactedGroupIds.includes(group.id)).flatMap(group=>group.evidenceIds??[]));
               return options.evidence!.taskManifest(taskId);
             }) : undefined;
+            if(sharedProtocol)await guardedRun(ctx,`compact-job:${step}`,()=>prepareCompactionJob(pool,{
+              id:`compact:${taskId}:${step}`,taskId,inputDigest:plan.inputDigest,
+              groups:groups.filter(group=>plan.compactedGroupIds.includes(group.id)),
+              historyIds:plan.compactedGroupIds.filter(id=>assembled.history.some(group=>group.id===id)&&/^[a-f0-9-]{36}$/.test(id)),
+              previous:continuity,manifest:compactManifest,memoryFence:assembled.memoryFence,
+              snapshotId:`context:compact:${taskId}:${step}`,
+            }));
             const compacted = await operation<ModelResponse>(ctx, pool, taskId, { id: `compact:${taskId}:${step}`, kind: "compaction", name: "context.compact",
               request, reservedTokens: Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens,
               reservedMs: execution.models.compaction.policy.maxCallDurationMs, memoryFence: assembled.memoryFence,evidenceManifest:compactManifest }, async () => {
-                if(config.productBindings.length>0) {
+                if(config.productBindings.length>0 || execution.task.product!=="agents") {
                   if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
                   await options.product.authorizeTask(taskId);
                 }
-                const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+                const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `compact:${taskId}:${step}`, role: "compaction", contextSnapshotId:`context:compact:${taskId}:${step}`, messages: request.messages, maxRequestBytes: execution.models.compaction.policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
                 return { value, tokens: accountedModelTokens(value, Math.min(execution.models.compaction.policy.maxInputTokens, plan.estimatedTokens + execution.models.compaction.policy.safetyTokens) + execution.models.compaction.policy.maxOutputTokens) };
               });
             if (!compacted.ok) {
+              if(sharedProtocol)await guardedRun(ctx,`compact-failed:${step}`,()=>failCompactionJob(pool,`compact:${taskId}:${step}`,taskId,compacted.uncertain?"uncertain":"failed",compacted.code));
               if (["AUTHORITY_EXPIRED","CONTEXT_INVALIDATED"].includes(compacted.code)) continue;
               if((execution.task.execution_policy_version??1)>=2 && !compacted.uncertain && ["ROOT_TOKEN_LIMIT","ROOT_DURATION_LIMIT"].includes(compacted.code)) {
                 const waiting=await waitForExecutionReservations(ctx,pool,taskId,step,
@@ -539,30 +675,53 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               }
               outcome = failed(compacted); break;
             }
-            if (compacted.value.finishReason !== "stop" || !compacted.value.message.content) { outcome = { state: "incomplete", errorCode: "COMPACTION_INVALID" }; break; }
+            if (compacted.value.finishReason !== "stop" || !compacted.value.message.content) {
+              if(sharedProtocol)await guardedRun(ctx,`compact-rejected:${step}`,()=>failCompactionJob(pool,`compact:${taskId}:${step}`,taskId,"rejected","COMPACTION_INVALID"));
+              outcome = { state: "incomplete", errorCode: "COMPACTION_INVALID" }; break;
+            }
             previousCompactionProgress=progress;
-            summary = { id: `compact:${taskId}:${step}`, revision: 1, kind: "summary", content: compacted.value.message.content };
-            if(options.evidence) await guardedRun(ctx,`summary-evidence:${step}`,()=>options.evidence!.derive(taskId,"summary",summary!.id));
+            if(sharedProtocol){
+              const adopted=await guardedRun(ctx,`compact-adopt:${step}`,()=>adoptCompactionCheckpoint(pool,{jobId:`compact:${taskId}:${step}`,taskId,
+                summary:compacted.value.message.content!,finishReason:compacted.value.finishReason,previousSummary:summary?.content}));
+              if(!adopted){outcome={state:"incomplete",errorCode:"COMPACTION_NO_PROGRESS"};break;}
+              continuity=adopted;summary=adopted.summary;
+            }else summary = { id: `compact:${taskId}:${step}`, revision: 1, kind: "summary", content: compacted.value.message.content };
+            if(options.evidence) await guardedRun(ctx,`summary-evidence:${step}`,()=>sharedProtocol
+              ? options.evidence!.deriveSummaryFromSnapshot(taskId,summary!.id,`context:compact:${taskId}:${step}`)
+              : options.evidence!.derive(taskId,"summary",summary!.id));
             omitted.push(...plan.compactedGroupIds); working = working.filter(group => !plan.compactedGroupIds.includes(group.id));
             await ctx.run(`compaction-event:${step}`, () => event(pool, taskId, summary!.id, "context.compacted", { compactedGroups: plan.compactedGroupIds.length }));
             continue;
           }
           previousCompactionProgress = undefined;
           const snapshot = assembled.snapshot!;
+          if(assembled.backgroundCompactionRequested&&!backgroundJob&&!backgroundUnavailable&&options.evidence){
+            const remaining=await guardedRun(ctx,`background-allowance:${step}`,()=>executionAllowanceObservation(pool,execution));
+            const hasFinishingCalls=[remaining?.agentModelCalls,remaining?.workModelCalls].every(value=>value===undefined||value>=3);
+            const planned=await ctx.run(`background-prepare:${step}`,async()=>{
+              try{return {ok:true as const,job:hasFinishingCalls?await planBackgroundCompaction(pool,{execution,step,history:assembled.history,working:assembled.working,
+                previous:continuity,memoryFence:assembled.memoryFence,modelPolicy:contextModelPolicy(execution,"compaction"),evidence:options.evidence!}):undefined};}
+              catch(error){if(error instanceof PlatformError||error instanceof ModelOperationError)return {ok:false as const,code:error.code};throw error;}
+            });
+            if(planned.ok&&planned.job){
+              const invocation=ctx.workflowSendClient<ContextCompactionWorkflow>({name:CONTEXT_COMPACTION_WORKFLOW},planned.job.id).run({jobId:planned.job.id,taskId:planned.job.taskId});
+              backgroundJob={id:planned.job.id,taskId:planned.job.taskId,invocation};
+            }else if(!planned.ok)backgroundUnavailable=true;
+          }
           const request: ModelRequest = { messages: snapshot.messages, tools: snapshot.tools, model: execution.models.primary.binding.modelId,
             maxInputTokens: policy.maxInputTokens, maxOutputTokens: policy.maxOutputTokens, maxDurationSeconds: policy.maxCallDurationMs / 1000 };
           const generated = await operation<ModelResponse>(ctx, pool, taskId, { id: `model:${taskId}:${step}`, kind: "model", name: "model.generate", request,
             reservedTokens: Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens,
             reservedMs: policy.maxCallDurationMs, memoryFence: snapshot.memoryFence, evidenceManifest: snapshot.evidenceManifest }, async () => {
-              if(config.productBindings.length>0) {
+              if(config.productBindings.length>0 || execution.task.product!=="agents") {
                 if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
                 await options.product.authorizeTask(taskId);
               }
-              const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
+              const value = await invokeObservedTaskModel({ pool, providerStore: options.modelProvider, execution, operationId: `model:${taskId}:${step}`, role: "primary", contextSnapshotId:snapshot.id, messages: request.messages, tools: request.tools, maxRequestBytes: policy.maxRequestBytes, signal: options.signal ? AbortSignal.any([options.signal, ctx.request().attemptCompletedSignal]) : ctx.request().attemptCompletedSignal }, options.modelRuntime);
               return { value, tokens: accountedModelTokens(value, Math.min(policy.maxInputTokens, snapshot.estimatedTokens + policy.safetyTokens) + policy.maxOutputTokens) };
             });
           if (!generated.ok) {
-            if (["CONTEXT_INVALIDATED","AUTHORITY_EXPIRED"].includes(generated.code)) continue;
+            if (["CONTEXT_INVALIDATED","CONTEXT_PREPARATION_STALE","AUTHORITY_EXPIRED"].includes(generated.code)) continue;
             if ((execution.task.execution_policy_version??1)>=2 && !generated.uncertain && generated.code === "CONTEXT_LIMIT") {
               const measured = await guardedRun(ctx,`prepared-input-overhead:${step}`, async () => {
                 const row=(await pool.query("SELECT state,input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1 AND task_id=$2",[`model:${taskId}:${step}`,taskId])).rows[0];
@@ -585,10 +744,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               if(waiting.waited)continue;
             }
             if(["ROOT_LIMIT","ROOT_TOKEN_LIMIT"].includes(generated.code) && config.program.id==="tool-directed" && config.program.version==="4" &&
-                config.capabilities.delegation.enabled && !execution.task.parent_task_id &&
+                config.capabilities.delegation.enabled && (!execution.task.parent_task_id || sharedProtocol) &&
                 await guardedRun(ctx,`specialist-budget:${step}`,()=>specialistTokenBackpressure(pool,taskId,
                   Math.min(policy.maxInputTokens,snapshot.estimatedTokens+policy.safetyTokens)+policy.maxOutputTokens,policy.maxCallDurationMs))) {
-              const pending=await guardedRun(ctx,`specialist-budget-status:${step}`,()=>specialistStatus(pool,taskId));
+              const activeIds=await guardedRun(ctx,`specialist-budget-children:${step}`,()=>activeSpecialistTaskIds(pool,taskId));
+              const pending=await guardedRun(ctx,`specialist-budget-status:${step}`,()=>specialistStatus(pool,taskId,activeIds));
               const active=pending.children.filter(child=>!terminalTaskStates.has(child.state));
               await ctx.run(`specialist-budget-event:${step}`,()=>event(pool,taskId,`specialist-budget:${step}`,"specialists.budget_wait",{reason:"child_token_reservations"}));
               let joined={...pending,timedOut:false};
@@ -604,22 +764,34 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           if((execution.task.execution_policy_version??1)>=2)for(const id of snapshot.primaryInstructionIds??[])deliveredInstructionIds.add(id);
           if (pendingStall) { warnedStall = pendingStall; pendingStall = null; }
           const response = generated.value;
-          if(config.productBindings.length>0) {
+          if(response.contextDisposition==="quarantined"){
+            await ctx.run(`quarantined:${step}`,()=>event(pool,taskId,`quarantined:${step}`,"context.response_quarantined",{operationId:`model:${taskId}:${step}`,reason:response.guardCode??"CONTEXT_INVALIDATED"}));
+            outcome={state:"incomplete",errorCode:"CONTEXT_INVALIDATED"};break;
+          }
+          if(sharedProtocol && snapshot.instructionHead!==await guardedRun(ctx,`returned-instruction-head:${step}`,()=>instructionHead(pool,taskId))){
+            await ctx.run(`returned-instruction-refresh:${step}`,()=>event(pool,taskId,`instruction-refresh:${step}`,"context.repack_required",{reason:"new_instruction_after_dispatch"}));
+            continue;
+          }
+          if(config.productBindings.length>0 || execution.task.product!=="agents") {
             if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
             await guardedRun(ctx,"product-output-authority:"+step,()=>options.product!.authorizeTask(taskId));
           }
           if (response.finishReason !== "tool_calls") {
-            if(config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id){
+            if(backgroundJob){
+              const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,`background-response-join:${step}`);
+              backgroundJob=undefined;
+              if(settled.state==="uncertain"){outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};break;}
+            }
+            if(sharedProtocol||config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id){
               const pending=await guardedRun(ctx,`pending-instructions:${step}`,()=>orchestrationInstructionGroups(pool,taskId,(execution.task.execution_policy_version??1)>=2?[...deliveredInstructionIds]:[...omitted,...working.map(group=>group.id)],1));
               if(pending.length)continue;
             }
-            if (config.program.id === "tool-directed" && String(config.program.version) === "4" && config.capabilities.delegation.enabled && !execution.task.parent_task_id) {
-              const background = await guardedRun(ctx,`finish-specialists:${step}`, () => specialistStatus(pool, taskId));
-              const active = background.children.filter(child => !terminalTaskStates.has(child.state));
-              if (active.length) {
+            if (config.program.id === "tool-directed" && String(config.program.version) === "4" && config.capabilities.delegation.enabled && (!execution.task.parent_task_id || sharedProtocol)) {
+              const activeIds = await guardedRun(ctx,`finish-specialists:${step}`, () => activeSpecialistTaskIds(pool, taskId));
+              if (activeIds.length) {
                 let joined: Awaited<ReturnType<typeof waitForSpecialists>>;
                 for(let batch=0;;batch++) {
-                  joined = await waitForSpecialists(ctx, pool, taskId, `finish-wait:${step}:${batch}`, { taskIds: active.map(child => child.taskId), mode: "all", timeoutSeconds: 60 }, false);
+                  joined = await waitForSpecialists(ctx, pool, taskId, `finish-wait:${step}:${batch}`, { taskIds: activeIds, mode: "all", timeoutSeconds: 60 }, false);
                   if(!joined.timedOut) break;
                 }
                 working.push({ id: `background:${taskId}:${step}`, messages: [{ role: "user", content: "Specialist execution status (reference data): " + JSON.stringify(joined) }] });
@@ -628,7 +800,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
             }
             outcome = { state: response.finishReason === "stop" ? (partialChildren?"incomplete":"completed") : response.finishReason === "refusal" ? "refused" : "incomplete",
               output: response.message.content ?? undefined, ...(response.finishReason === "length" ? { errorCode: "MODEL_OUTPUT_LIMIT" } : partialChildren?{errorCode:"CHILD_PARTIAL_FAILURE"}:{}) };
-            if(config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id&&config.capabilities.delegation.enabled){
+            if(sharedProtocol||config.program.id==="tool-directed"&&config.program.version==="4"&&!execution.task.parent_task_id&&config.capabilities.delegation.enabled){
               const closed=await guardedRun(ctx,`close-instructions:${step}`,()=>closeOrchestrationInstructions(pool,taskId,(execution.task.execution_policy_version??1)>=2?[...deliveredInstructionIds]:[...omitted,...working.map(group=>group.id)],outcome));
               if(!closed)continue;
             }
@@ -639,10 +811,22 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
           let stop = false, refreshContext = false;
           for (let callIndex = 0; callIndex < response.message.tool_calls!.length; callIndex++) {
             const call = response.message.tool_calls![callIndex]!, id = `tool:${taskId}:${step}:${callIndex}`;
+            if(sharedProtocol && snapshot.instructionHead!==await guardedRun(ctx,`tool-instruction-head:${step}:${callIndex}`,()=>instructionHead(pool,taskId))){refreshContext=true;break;}
             const binding = execution.connectedBindings.find(binding => binding.alias === call.function.name);
             const productBinding=config.productBindings.find(value=>value.alias===call.function.name);
-            const name = builtinToolName(call.function.name) ?? binding?.alias ?? productBinding?.alias ?? "unavailable";
-            const descriptor = toolDescriptor(name,runtime.release==="product-capabilities-v13");
+            const name = ({history_search:"history.search",history_read:"history.read"} as Record<string,string>)[call.function.name] ?? builtinToolName(call.function.name) ?? binding?.alias ?? productBinding?.alias ?? "unavailable";
+            const protocolVersions=protocolToolVersions(execution.toolBindings);
+            const acceptedToolVersion=protocolVersions.get(name)??execution.toolBindings.find(value=>value.name===name)?.version;
+            const descriptor = toolDescriptor(name,runtime.release==="product-capabilities-v13",acceptedToolVersion);
+            if(sharedProtocol&&snapshot.catalog){
+              try{assertLoadedTool(snapshot.catalog,snapshot.tools,call.function.name,protocolVersions);}
+              catch(error){
+                if(!(error instanceof PlatformError)||error.code!=="TOOL_SCHEMA_NOT_LOADED")throw error;
+                await ctx.run(`tool-denied:${step}:${callIndex}`,()=>event(pool,taskId,`tool-denied:${id}`,"tool.denied",{reason:error.code,alias:call.function.name.slice(0,64)}));
+                messages.push({role:"tool",tool_call_id:call.id,content:JSON.stringify({error:error.code,executed:false,...toolSchemaFailureFeedback(snapshot.catalog,error.code)})});
+                continue;
+              }
+            }
             let handoffFeedback: HandoffFeedbackRequest | undefined;
             if(name === "support.request_handoff_v2" && snapshot.evidenceManifest) {
               const feedbackMessages: HarnessMessage[] = [
@@ -663,17 +847,17 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                 if("outcome" in reviewed){outcome=reviewed.outcome;stop=true;break;}
                 if("errorCode" in reviewed)productArgumentError=reviewed.errorCode;else productReview=reviewed.review;}
             }
-            const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : descriptor?.maxResultBytes ?? 8192);
+            const resultBound = productBinding?.limits.maxModelResultBytes ?? (binding ? binding.limits.maxModelResultBytes : historyResultBytes[name as keyof typeof historyResultBytes] ?? descriptor?.maxResultBytes ?? 8192);
             if(name==="enquiry.submit"||name==="enquiry.amend") {
               let proposal:unknown;
-              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments));}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments),acceptedToolVersion);}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
               const confirmed=await awaitEnquiryConfirmation(ctx,pool,taskId,id,proposal,name);
               if(confirmed){outcome=confirmed;stop=true;break;}
             }
             if(name==="booking.reserve") {
               if(!options.bookings){outcome={state:"incomplete",errorCode:"BOOKING_PROVIDER_UNAVAILABLE"};stop=true;break;}
               let proposal:{start:string};
-              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as {start:string};}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
+              try{proposal=validateBuiltinArguments(name,JSON.parse(call.function.arguments),acceptedToolVersion) as {start:string};}catch{outcome={state:"failed",errorCode:"TOOL_ARGUMENTS_INVALID"};stop=true;break;}
               const confirmed=await awaitBookingConfirmation(ctx,pool,options.bookings,taskId,id,proposal.start);
               if(confirmed){outcome=confirmed;stop=true;break;}
             }
@@ -690,7 +874,7 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               let input: SpecialistWait | undefined;
               try {
                 if(!builtinToolEnabled(config,name)) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
-                input=validateBuiltinArguments(name,JSON.parse(call.function.arguments)) as SpecialistWait;
+                input=validateBuiltinArguments(name,JSON.parse(call.function.arguments),acceptedToolVersion) as SpecialistWait;
               } catch(error) {
                 if(error instanceof PlatformError) waitArgumentError=error.code;
                 else if(error instanceof SyntaxError) waitArgumentError="TOOL_ARGUMENTS_INVALID";
@@ -708,24 +892,56 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               const authorized = await awaitAuthority(ctx,pool,taskId,`tool-authority:${step}:${callIndex}:${retry}`);
               if (!("configuration" in authorized)) { outcome=authorized; stop=true; break; }
               result = await operation<unknown>(ctx, pool, taskId, { id, kind: descriptor?.effect==="delegation"?"delegation":descriptor?.effect==="resource"?"resource":"tool", name,
-                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1", ...(binding ? { bindingDigest: binding.digest } : {}), ...(productBinding?{product:productBinding.authority!.destinationProduct,productBindingId:productBinding.id,bindingDigest:productBinding.digest,productOperation:productBinding.definition.providerOperation,manifestDigest:productBinding.authority!.manifestDigest,descriptorDigest:productBinding.authority!.descriptorDigest,adapter:productBinding.adapter}:{}),...(productReview?{productReviewId:productReview.id,productReviewDigest:productReview.payloadDigest}:{}) }, reservedTokens: 0, reservedMs: productBinding?.limits.timeoutMs ?? binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
+                ...(sharedProtocol?{instructionHead:snapshot.instructionHead}:{}),
+                request: { tool: name, arguments: call.function.arguments, version: descriptor?.version??"1",...(sharedProtocol?{instructionHead:snapshot.instructionHead}:{}), ...(binding ? { bindingDigest: binding.digest } : {}), ...(productBinding?{product:productBinding.authority!.destinationProduct,productBindingId:productBinding.id,bindingDigest:productBinding.digest,productOperation:productBinding.definition.providerOperation,manifestDigest:productBinding.authority!.manifestDigest,descriptorDigest:productBinding.authority!.descriptorDigest,adapter:productBinding.adapter}:{}),...(productReview?{productReviewId:productReview.id,productReviewDigest:productReview.payloadDigest}:{}) }, reservedTokens: 0, reservedMs: productBinding?.limits.timeoutMs ?? binding?.limits.timeoutMs ?? descriptor?.maxDurationMs??30000,
                 retrySafe: productBinding?productBinding.policy.retry==="safe_read":binding ? binding.policy.retry==="safe_read" : descriptor?.retry!=="adapter_reconcile",reconcile:productBinding?.policy.retry==="status_only"||!binding&&descriptor?.retry==="adapter_reconcile", maxResultBytes:resultBound,memoryFence: snapshot.memoryFence,evidenceManifest:snapshot.evidenceManifest }, async (recovering) => {
                   let args:unknown; try{args=JSON.parse(call.function.arguments);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Tool arguments must be JSON");}
+                  if(execution.task.product!=="agents"){
+                    if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+                    if(recovering&&productBinding?.policy.retry==="status_only"&&options.product.authorizeReconciliation)await options.product.authorizeReconciliation(taskId);
+                    else await options.product.authorizeTask(taskId);
+                  }
+                  if(sharedProtocol && snapshot.catalog){
+                    assertLoadedTool(snapshot.catalog,snapshot.tools,call.function.name,protocolVersions);
+                    if(name==="tools.discover")return {value:discoverToolCatalog(snapshot.catalog,args,acceptedToolVersion),tokens:0};
+                    if(name==="tools.load"){
+                      const value=loadToolSchemas(snapshot.catalog,args,acceptedToolVersion??"1");
+                      if(acceptedToolVersion==="3"){
+                        const previous=(await pool.query("SELECT output FROM agents_platform.operations WHERE task_id=$1 AND name='tools.load' AND state='completed' ORDER BY started_at,id",[taskId])).rows.map(row=>row.output);
+                        capabilityExposure(snapshot.catalog,[...previous,value],protocolVersions,contextModelPolicy(execution));
+                      }
+                      return {value,tokens:0};
+                    }
+                    if(name==="history.search" || name==="history.read"){
+                      if(!options.evidence)throw new PlatformError("HISTORY_UNAVAILABLE",503,"History recovery is unavailable");
+                      args=validateBuiltinArguments(name,args,acceptedToolVersion);
+                      return {value:name==="history.search"?await searchHistory(pool,taskId,args,options.evidence,id):await readHistory(pool,taskId,args,options.evidence,id,options.readRetainedArtifact),tokens:0};
+                    }
+                  }
                   if(productBinding){
                     if(!options.product)throw new PlatformError("PRODUCT_RUNTIME_UNAVAILABLE",503,"Product execution is unavailable");
+                    if(requiresProductAccess(productBinding)&&!options.evidence)throw new PlatformError("PRODUCT_ACCESS_UNAVAILABLE",503,"Product result authorization is unavailable");
                     if(productArgumentError)throw new PlatformError(productArgumentError,400,"Check the arguments against the tool schema");
                     if(productBinding.policy.effect==="reviewed_write"){
                       if(!productReview)throw new PlatformError("PRODUCT_REVIEW_REQUIRED",409,"Review the exact operation before continuing");
+                      if(!recovering&&!productEffectProjection(productBinding))throw new PlatformError("PRODUCT_PROJECTION_UNAVAILABLE",403,"The product result is unavailable");
                       return {value:await options.product.commit(taskId,id,productBinding,productReview,ctx.request().attemptCompletedSignal,recovering),tokens:0};
                     }
-                    return {value:await options.product.invoke(taskId,id,productBinding,args,ctx.request().attemptCompletedSignal),tokens:0};
+                    return {value:await options.product.invoke(taskId,id,productBinding,args,ctx.request().attemptCompletedSignal,["draft_write","authorized_write"].includes(productBinding.policy.effect)&&recovering),tokens:0};
                   }
                   if (binding) {
                     if (!options.connected) throw new PlatformError("CONNECTED_RUNTIME_UNAVAILABLE",503,"Connected reads are unavailable");
                     return {value: await options.connected.execute(taskId,id,binding,args,ctx.request().attemptCompletedSignal),tokens:0};
                   }
                   if(!builtinToolEnabled(config,name) || !descriptor) throw new PlatformError("TOOL_DENIED",403,"Tool is unavailable");
-                  args=validateBuiltinArguments(name,args);
+                  args=validateBuiltinArguments(name,args,acceptedToolVersion);
+                  if(name==="artifact.create"){
+                    if(!options.artifacts)throw new PlatformError("OBJECT_STORE_UNAVAILABLE",503,"Private storage is unavailable");
+                    const input=args as {name:string;contentType:"text/plain"|"text/markdown"|"application/json";content:string};
+                    if(input.contentType==="application/json")try{JSON.parse(input.content);}catch{throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"The file must contain valid JSON");}
+                    const created=await options.artifacts.put(taskId,id,{name:input.name,contentType:input.contentType,content:Buffer.from(input.content,"utf8")});
+                    return {value:{id:created.id,taskId:created.taskId,rootTaskId:created.rootTaskId,name:created.name,contentType:created.contentType,bytes:created.bytes,contentDigest:created.contentDigest},tokens:0};
+                  }
                   if(name==="booking.availability"||name==="booking.reserve") {
                     if(!options.bookings)throw new PlatformError("BOOKING_PROVIDER_UNAVAILABLE",503,"Booking is unavailable");
                     const bookingArguments=args as {start:string;end:string};
@@ -735,14 +951,19 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                   if(name==="agents.delegate") return {value:await admitChildren(pool,taskId,id,parseModelDelegationRequest(args)),tokens:0};
                   if(name==="agents.discover") return {value:await discoverSpecialists(pool,taskId,args as Parameters<typeof discoverSpecialists>[2]),tokens:0};
                   if(name==="work.update" || name==="work.inspect") return {value:await executeWorkTool(pool,taskId,id,name,args),tokens:0};
-                  if(name==="agents.start") return {value:await startSpecialist(pool,taskId,id,args as Parameters<typeof startSpecialist>[3]),tokens:0};
-                  if(name==="agents.followup") return {value:await followupSpecialist(pool,taskId,id,args as Parameters<typeof followupSpecialist>[3]),tokens:0};
+                  if(name==="agents.start") return {value:await startSpecialist(pool,taskId,id,args as Parameters<typeof startSpecialist>[3],options.evidence,options.artifacts),tokens:0};
+                  if(name==="agents.followup") return {value:await followupSpecialist(pool,taskId,id,args as Parameters<typeof followupSpecialist>[3],options.evidence,options.artifacts),tokens:0};
                   if(name==="agents.status") return {value:await specialistStatus(pool,taskId,(args as SpecialistWait).taskIds,(args as {offset?:number}).offset),tokens:0};
                   if(name==="agents.wait") {
                     if(waitArgumentError || !waitedSpecialists) throw new PlatformError(waitArgumentError??"TOOL_ARGUMENTS_INVALID",400,"Check the specialist wait arguments");
                     return {value:waitedSpecialists,tokens:0};
                   }
-                  if(name==="agents.result") return {value:await specialistResult(pool,taskId,args as Parameters<typeof specialistResult>[2]),tokens:0};
+                  if(name==="agents.result"){
+                    const input=args as Parameters<typeof specialistResult>[2];
+                    // The parent must inherit a settled child's private sources before inspecting its file metadata.
+                    if(execution.task.product!=="agents"&&options.evidence)await options.evidence.joinChild(taskId,id,input.taskId);
+                    return {value:await specialistResult(pool,taskId,input),tokens:0};
+                  }
                   if(name==="agents.cancel") return {value:await cancelSpecialist(pool,taskId,(args as {taskId:string}).taskId),tokens:0};
                   if(name==="sandbox.analyze"||name==="skills.run") {
                     if(!config.capabilities.sandbox.enabled || !options.executeSandbox) throw new PlatformError("SANDBOX_UNAVAILABLE",503,"Analysis is unavailable");
@@ -760,31 +981,15 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
                       return {value:await options.knowledgeRuntime.read(taskId,id,input.evidenceId,input.offset),tokens:0};
                     } catch(error) { if(error instanceof z.ZodError) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the knowledge arguments"); throw error; }
                   }
-                  if (name === "memory.search" && options.evidence) {
-                    if (!config.memory.enabled || execution.task.principal.kind !== "human") throw new PlatformError("MEMORY_SCOPE_DENIED",403,"Memory is unavailable");
-                    const input=z.strictObject({query:z.string().max(512)}).safeParse(args);
-                    if(!input.success) throw new PlatformError("TOOL_ARGUMENTS_INVALID",400,"Check the memory arguments");
-                    const selected=await new MemoryStore(pool).read({organizationId:execution.task.organization_id,agentId:execution.agentId,principal:execution.task.principal},input.data.query);
-                    const eligible=new Set((await options.evidence.checkMemories(taskId,selected.memories.map(item=>item.id))).filter(item=>item.eligible).map(item=>item.id));
-                    const passages=[];
-                    for (const memory of selected.memories.filter(item=>eligible.has(item.id)).slice(0,2)) {
-                      const passage=await options.evidence.recordMemory(taskId,id,memory.id);
-                      passages.push({evidenceId:passage.reference.id,label:passage.label,citation:`[${passage.label}]`,text:passage.text,title:passage.title});
-                    }
-                    return {value:{generation:selected.generation,passages},tokens:0};
+                  if(name==="memory.search"||name==="memory.read"||name==="memory.propose"){
+                    const value=await executeMemoryTool(pool,taskId,id,name,args,options.evidence);
+                    if(name==="memory.propose" && options.evidence && value && typeof value==="object" && "candidateId" in value)await options.evidence.derive(taskId,"memory",String(value.candidateId));
+                    return {value,tokens:0};
                   }
-                  const skillBound=name==="skills.activate"||name==="skills.read"?Math.min(resultBound,Math.max(0,policy.maxInputTokens-snapshot.estimatedTokens-policy.safetyTokens)):undefined;
-                  const value = await executeTool(pool, taskId, id, name, call.function.arguments,skillBound,handoffFeedback);
-                  if(name==="skills.activate"||name==="skills.read") {
-                    const loaded=value as SkillLoadResult,source=skillSourceMessage(skillLoadContextSource(loaded,name));
-                    const existing=snapshot.messages.some(message=>message.role==="system"&&message.content===source.content);
-                    const receipt:HarnessMessage={role:"tool",tool_call_id:call.id,content:JSON.stringify({skillId:loaded.skillId,revision:loaded.revision,loaded:true,evidence:loaded.evidence})};
-                    const contextPolicy = contextModelPolicy(execution, "primary", await nativeContextCosts(pool, execution));
-                    const estimate = contextPolicy.estimateRequestTokens({...request,messages:[...snapshot.messages,...(existing?[]:[source]),response.message,receipt]});
-                    if(estimate+policy.safetyTokens>policy.maxInputTokens) {
-                      throw new PlatformError("SKILL_CONTEXT_LIMIT",413,"The complete skill file cannot fit the current context budget");
-                    }
-                  }
+                  const contextPolicy = name==="skills.activate"||name==="skills.read"
+                    ? contextModelPolicy(execution,"primary",await nativeContextCosts(pool,execution),packingOverhead) : undefined;
+                  const value = await executeTool(pool,taskId,id,name,call.function.arguments,resultBound,handoffFeedback,
+                    contextPolicy ? loaded => skillFitsRequest(loaded,name,request,messages,call.id,contextPolicy) : undefined,acceptedToolVersion);
                   if (name === "memory.propose" && options.evidence && value && typeof value === "object" && "candidateId" in value) await options.evidence.derive(taskId,"memory",String(value.candidateId));
                   return {value,tokens:0};
                 }, `${id}:admission:${retry}`);
@@ -825,8 +1030,8 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               const input=JSON.parse(call.function.arguments) as {taskId:string};
               await guardedRun(ctx,`specialist-evidence:${step}:${callIndex}`,()=>options.evidence!.joinChild(taskId,id,input.taskId));
             }
-            if(result.ok&&!binding&&!productBinding)validateBuiltinResult(name,result.value);
-            if(!result.ok && result.code==="CONTEXT_INVALIDATED") { refreshContext=true; break; }
+            if(result.ok&&!binding&&!productBinding)validateBuiltinResult(name,result.value,acceptedToolVersion);
+            if(!result.ok && ["CONTEXT_INVALIDATED","CONTEXT_PREPARATION_STALE"].includes(result.code)) { refreshContext=true; break; }
             if(result.ok && name==="support.request_handoff_v2") {
               let candidate:string|null=null;
               if(handoffFeedback && options.settleHandoffReceipt && options.evidence) {
@@ -864,27 +1069,43 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
               outcome = failed(result); stop = true; break;
             }
             if(result.ok && Buffer.byteLength(JSON.stringify(result.value))>resultBound) {outcome={state:"incomplete",errorCode:"TOOL_RESULT_LIMIT"};stop=true;break;}
-            if (result.ok && options.evidence) roundEvidence.push(...await guardedRun(ctx,`tool-evidence:${step}:${callIndex}`,()=>options.evidence!.operationEvidenceIds(taskId,id)));
-            const argumentFeedback=!result.ok&&!binding&&!productBinding?builtinArgumentFeedback(name,call.function.arguments,result.code):undefined;
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? result.value : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback }) });
+            const argumentFeedback=!result.ok&&!binding&&!productBinding?{
+              ...builtinArgumentFeedback(name,call.function.arguments,result.code,acceptedToolVersion),
+              ...(snapshot.catalog&&name==="tools.load"?toolSchemaFailureFeedback(snapshot.catalog,result.code):undefined),
+            }:undefined;
+            const modelValue=result.ok&&productBinding?productModelResult(productBinding,result.value,taskId,id):result.ok?result.value:undefined;
+            let content=JSON.stringify(result.ok ? binding ? connectedModelView(result.value as ConnectedObservation) : productBinding ? modelValue : builtinObservationView(name,call.function.arguments,result.value) : { error: result.code,...argumentFeedback });
+            let previewed=false;
+            if(sharedProtocol&&result.ok&&options.evidence&&Buffer.byteLength(content)>4096){
+              const estimated=await guardedRun(ctx,`result-context-cost:${step}:${callIndex}`,async()=>
+                contextModelPolicy(execution,"primary",await nativeContextCosts(pool,execution),packingOverhead)
+                  .estimateRequestTokens({...request,messages:[...snapshot.messages,...messages,{role:"tool",tool_call_id:call.id,content}]}));
+              if(estimated+policy.safetyTokens>policy.maxInputTokens){
+                const resultBytes=Buffer.byteLength(content);
+                await guardedRun(ctx,`result-dependencies:${step}:${callIndex}`,()=>options.evidence!.retainOperation(taskId,id));
+                content=JSON.stringify(toolReceiptPreview(id,name,modelValue,content));
+                previewed=true;
+                await ctx.run(`result-preview:${step}:${callIndex}`,()=>event(pool,taskId,`result-preview:${id}`,"context.result_previewed",{operationId:id,resultBytes,previewBytes:Buffer.byteLength(content)}));
+              }
+            }
+            if(result.ok&&options.evidence&&!previewed)roundEvidence.push(...await guardedRun(ctx,`tool-evidence:${step}:${callIndex}`,async()=>{
+              if(productBinding&&requiresProductAccess(productBinding))await options.evidence!.retainOperation(taskId,id);
+              return options.evidence!.operationEvidenceIds(taskId,id);
+            }));
+            messages.push({ role: "tool", tool_call_id: call.id, content });
           }
           if (stop) break;
-          if (refreshContext) continue;
+          if (refreshContext) {
+            const answered=new Set(messages.filter(message=>message.role==="tool").map(message=>message.tool_call_id));
+            for(const call of response.message.tool_calls!)if(!answered.has(call.id))messages.push({role:"tool",tool_call_id:call.id,content:JSON.stringify({error:"CONTEXT_PREPARATION_STALE",executed:false})});
+            working.push({id:`round:${taskId}:${step}`,messages,evidenceIds:roundEvidence});
+            continue;
+          }
           working.push({ id: `round:${taskId}:${step}`, messages, evidenceIds: roundEvidence });
         }
         if (adaptiveExecution && outcome.state === "incomplete" && !outcome.output && outcome.errorCode &&
             ["MODEL_CALL_LIMIT", "ROOT_MODEL_CALL_LIMIT", "TOOL_CALL_LIMIT", "ROOT_TOOL_CALL_LIMIT", "ROOT_TOKEN_LIMIT", "TASK_TOKEN_LIMIT", "ROOT_DURATION_LIMIT", "TASK_DURATION_LIMIT", "COMPACTION_NO_PROGRESS", "ORCHESTRATION_STALLED"].includes(outcome.errorCode)) {
-          const partial = await guardedRun(ctx,"bounded-partial-result", async () => {
-            const current = await loadExecution(pool,taskId);
-            await assertCurrentAuthority(pool,current);
-            const saved = await loadContinuation(pool,taskId,true);
-            const results = [];
-            for (const result of saved.results) {
-              try { if (options.evidence) await options.evidence.validateCitations(taskId,result.output); results.push(result); }
-              catch (error) { if (!(error instanceof PlatformError)) throw error; }
-            }
-            return formatPartialResult(saved, results);
-          });
+          const partial = await guardedRun(ctx,"bounded-partial-result", () => boundedPartialResult(pool,taskId,options.evidence));
           outcome = { ...outcome, output: partial };
         }
         if (outcome.output && options.evidence) await guardedRun(ctx,"validate-answer-citations", async()=>{
@@ -899,6 +1120,11 @@ export function createBusinessWorkflow(pool: Pool, options: BusinessOptions, run
         }
         if (error instanceof PlatformError || error instanceof ModelOperationError) outcome = failed({ code: error.code, uncertain: uncertainOperation(error) });
         else throw error;
+      }
+      if(backgroundJob){
+        const settled=await awaitBackgroundCompaction(ctx,pool,backgroundJob,"background-settle-join");
+        backgroundJob=undefined;
+        if(settled.state==="uncertain")outcome={state:"uncertain",errorCode:settled.code??"COMPACTION_OUTCOME_UNCERTAIN"};
       }
       await ctx.run("settle-task", () => settleTask(pool, taskId, outcome));
       return outcome;

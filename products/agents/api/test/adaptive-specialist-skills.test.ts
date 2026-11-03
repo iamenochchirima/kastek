@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll,beforeAll,describe,expect,it } from "vitest";
@@ -37,7 +38,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
   parentConfig.capabilities.delegation={enabled:true,maxChildren:2,maxDepth:1,policy:{maxTasks:8,maxStalls:3},bindings:[{id:"research",versionId:childVersion.id,sourceRevisionIds:[source.id],connectedToolBindingIds:[],tools:config.tools,maxTokens:8000,maxActiveMs:120000}]};
   const parent=await store.createAgent({...scope,name:"Coordinator",configuration:parentConfig});const version=await store.createVersion({...scope,agentId:parent.id,expectedRevision:1});
   const authority={product:"agents" as const,organizationId:org.id,resourceId:parent.id,callerClientId:"agents-execution",principal:{kind:"human" as const,issuer:account.issuer,subject:account.subject}};
-  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","delegation.execute"],sourceRevisionIds:[source.id],maxInputBytes:parentConfig.model.maxInputBytes,maxOutputTokens:parentConfig.model.maxOutputTokens,maxContextTokens:parentConfig.context.maxInputTokens,expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await store.createGrant({...scope,grant});
+  const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","delegation.execute"],sourceRevisionIds:[source.id],maxInputBytes:parentConfig.model.maxInputBytes,maxOutputTokens:parentConfig.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(parentConfig),expiresAt:new Date(Date.now()+600000).toISOString(),revokedAt:null});await store.createGrant({...scope,grant});
   const{task}=await store.admitTask({authority,grantId:grant.id,versionId:version.id,requestKey:randomUUID(),input:"Check the date"});
   return{scope,skillScope,source,imported,task};
  }

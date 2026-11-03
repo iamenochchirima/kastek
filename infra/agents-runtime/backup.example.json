@@ -1,0 +1,22 @@
+{
+  "backup_root": "/var/lib/kasitek-agents-backups",
+  "staging_root": "/run/kasitek-agents-backup",
+  "postgres_service": "agents-backup",
+  "postgres_database": "agents",
+  "restore_database_service": "agents-isolated-restore",
+  "restate_version": "1.7.13",
+  "restate_root": "/var/lib/kasitek-agents/restate",
+  "age_recipient": "REPLACE_WITH_RESTORE_HOST_PUBLIC_AGE_RECIPIENT",
+  "snapshot_signing_key": "/etc/kasitek/keys/backup-signing.pem",
+  "ledger_signing_key": "/etc/kasitek/keys/deletion-ledger-signing.pem",
+  "snapshot_verify_key": "/etc/kasitek/keys/pinned-backup-verify.pem",
+  "ledger_verify_key": "/etc/kasitek/keys/pinned-deletion-ledger-verify.pem",
+  "quiesce_command": ["/usr/local/libexec/agents-backup-stop-writers"],
+  "writers_stopped_command": ["/usr/local/libexec/agents-backup-check-writers-stopped"],
+  "resume_command": ["/usr/local/libexec/agents-backup-resume-writers"],
+  "object_export_command": ["aws", "s3", "sync", "s3://REPLACE_WITH_PRIVATE_AGENTS_BUCKET", "{objects}", "--only-show-errors"],
+  "ledger_export_command": ["pnpm", "--dir", "/opt/kasitek/products/agents/api", "exec", "tsx", "src/composition/retention-ledger.ts", "export", "--output", "{ledger}", "--database-service", "agents-backup"],
+  "ledger_replay_command": ["pnpm", "--dir", "/opt/kasitek/products/agents/api", "exec", "tsx", "src/composition/retention-ledger.ts", "replay", "--ledger", "{ledger}", "--database-service", "{service}"],
+  "recovery_check_command": ["/usr/local/libexec/agents-backup-check-restored-custody", "{restore}", "{service}"],
+  "isolated_restore_check_command": ["/usr/local/libexec/agents-backup-check-isolated-restore"]
+}

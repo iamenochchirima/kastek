@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Meter } from "@opentelemetry/api";
 import { requestDigest } from "../contracts/contracts";
 import { modelIdSchema, modelProtocolSchema, modelRoleSchema } from "../contracts/model-providers";
+import { modelStreamErrorKindSchema } from "../contracts/model-transport";
 
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const elapsed = z.number().finite().nonnegative();
@@ -15,6 +16,10 @@ export const modelInvocationEventSchema = z.strictObject({
   adapterRevision: z.string().min(1).max(128), runtimeRelease: z.string().min(1).max(128),
   outcome: z.enum(["completed", "tool_calls", "refused", "truncated", "rejected", "uncertain", "cancelled"]),
   failureClass: z.enum(["authorization", "credit", "rate_limit", "model_access", "quota", "context", "timeout", "cancelled", "provider", "internal"]).optional(),
+  failureCode:z.string().regex(/^[A-Z][A-Z0-9_]{0,99}$/).optional(),
+  httpStatus:z.number().int().min(100).max(599).optional(),
+  failureStage:z.enum(["request","response_body","provider_stream","response_validation"]).optional(),requestDispatched:z.boolean().optional(),
+  streamErrorKind:modelStreamErrorKindSchema.optional(),providerErrorCode:z.number().int().min(100).max(599).optional(),
   durationMs: elapsed, firstVisibleTokenMs: elapsed.optional(),
   firstVisibleTokenStatus: z.enum(["observed", "unavailable"]),
   queueStatus: z.enum(["unavailable", "observed"]), queueMs: elapsed.optional(),

@@ -181,6 +181,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     {name:"uncertain transport after dispatch",code:"MODEL_NETWORK_RESPONSE_LOST",outcome:"uncertain" as const},
   ])("does not authorize zero-dispatch repacking for $name", async failure => {
     const f=await fixture(),id=await operation(f),dependencies=controlledDispatch();
+    const diagnostics={httpStatus:failure.outcome==="rejected"?400:200,stage:"response_body" as const,dispatched:true};
     let physicalAttempts=0;
     dependencies.dispatch.mockImplementation(async request=>{
       const payload={messages:request.messages};
@@ -190,9 +191,9 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       await request.beforePayloadDispatch?.(payload,count);
       await request.beforeDispatch?.();
       physicalAttempts++;
-      throw new BoundModelDispatchError(failure.code,failure.outcome,502);
+      throw new BoundModelDispatchError(failure.code,failure.outcome,502,diagnostics);
     });
-    await expect(invokeTaskModel(invocation(f,id),dependencies)).rejects.toMatchObject({code:failure.code,outcome:failure.outcome});
+    await expect(invokeTaskModel(invocation(f,id),dependencies)).rejects.toMatchObject({code:failure.code,outcome:failure.outcome,diagnostics});
     const receipt=(await pool.query("SELECT state,input_count FROM agents_platform.private_model_continuations WHERE operation_id=$1",[id])).rows[0];
     expect(receipt).toMatchObject({state:failure.outcome,input_count:{precision:"serialized_bytes_estimate"}});
     expect(receipt.input_count).not.toHaveProperty("rejectedBeforeDispatch");

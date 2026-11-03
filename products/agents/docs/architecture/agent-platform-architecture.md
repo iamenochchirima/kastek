@@ -1,6 +1,6 @@
 # Agents platform architecture
 
-Owner: Agents engineering. Last reviewed: 2026-10-27.
+Owner: Agents engineering. Last reviewed: 2026-11-02.
 
 This is the target architecture agreed with the owner. It defines the shared execution service
 and the standalone Agents product separately. Design against these boundaries first. Existing
@@ -130,9 +130,11 @@ Evaluation-owned website routes and separately authorized existing schedules sta
 Knowledge imports remain separate reviewed-source operations. Product setup exposes capabilities
 needed for its customer outcome rather than every shared-runtime configuration control.
 
-### Private organization assistant
+### Existing private assistant implementation
 
-The standalone product includes one ordinary business assistant definition per organization.
+The existing private-assistant implementation provisions one ordinary business assistant definition
+per organization. It is outside this upgrade's approved product scope and does not establish a new
+supported standalone offering.
 Its lifecycle marker is used for provisioning and explicit restoration only; names and markers
 confer no authority. Members use normal private human-principal conversations and configure
 same-organization pinned specialists under the existing depth/concurrency/root-budget limits.
@@ -292,8 +294,9 @@ The initial platform uses self-hosted Keycloak 26.6.0 with OIDC authorization co
 nonce, plus separate browser and execution-service registrations. Fresh Agents records own product
 membership and revocable bounded execution grants. Keycloak caller identity alone grants no tenant
 authority. Growth has an installed originating-product authorizer and typed capability adapter.
-Agency metadata calls require separate destination-issued actor/workspace mappings and grants;
-full Agency execution remains unavailable.
+Agency's client-scoped staff assistant uses signed product admission and the installed metadata
+operation. Separate destination-issued actor/workspace/client mappings and grants remain required.
+Additional Agency business operations and voice execution remain unavailable through this slice.
 
 | Concept | Target responsibility |
 | --- | --- |
@@ -316,8 +319,10 @@ Execution tenant references must not assume that product workspace IDs are inter
 The initial application grant is a persisted record validated at admission and before model effects.
 It identifies the initiating human or website visitor, authenticated caller, product, organization,
 resource, immutable version, approved knowledge, operations, limits, expiry and revocation. Standalone
-grants last at most 30 minutes; visitor grants last 10 minutes. Automation and embedded-product
-issuance remain unavailable. This record is not a universal OAuth schema.
+grants last at most 30 minutes; visitor grants last 10 minutes. Growth and Agency signed commands
+issue product-scoped grants lasting 24 hours. Native automation occurrences issue grants lasting
+at most 24 hours within the automation's configured expiry. Each path preserves its initiating
+principal and current resource authority. This record is not a universal OAuth schema.
 
 | Field group | Content |
 | --- | --- |
@@ -331,8 +336,10 @@ issuance remain unavailable. This record is not a universal OAuth schema.
 User-delegated work uses a bounded subset of current authorized rights. Background work uses an
 explicit organization automation grant with its own scope and lifetime. It does not retain a
 browser session as permanent authority. The execution service validates or adopts grants through
-trusted product authorization before admitting work. The issuer, storage owner, validation mechanism,
-and exact wire schema remain decisions.
+trusted product authorization before admitting work. Native grants are persisted by Agents;
+embedded commands authenticate their owning backend and revalidate current origin and destination
+authority. The installed contracts below define these paths. General OAuth token exchange remains
+separate from this application grant.
 
 OAuth Token Exchange is a candidate for obtaining destination-specific delegated credentials while
 retaining subject and acting-service identity. Provider support and policy must be verified.
@@ -376,13 +383,14 @@ agreed idempotency contract.
 
 The target model separates an agent or product feature, its immutable configuration version,
 execution grant, connection, deployment binding, and run or task. The execution discriminator below
-is settled. The remaining configuration and wire schemas still need definition.
+is settled. The current configuration and contract inventory below records the implemented
+identities; it does not establish hosted release acceptance.
 An embedded feature can reference a product-managed version without creating a standalone Agents
 subscription or customer-owned agent record.
 
 Remove `system_hosted`, `kasitek_hosted`, and `external_connected` as target categories. Retire
-protected KasiAi identity, bootstrap, dedicated controls, and implicit privileges. Future Growth
-and Agencies guidance agents use ordinary feature/version and authorization contracts. Their role
+protected KasiAi identity, bootstrap, dedicated controls, and implicit privileges. Growth
+and Agency guidance agents use ordinary feature/version and authorization contracts. Their role
 comes from configuration and permitted operations.
 
 Legacy `general`, `custom`, and audience fields do not define the replacement data model. Product
@@ -394,6 +402,51 @@ Published versions pin instructions, model settings, knowledge revisions, tool b
 policy configuration. Each run records its admitted version. Current grants, resource permissions,
 and required reviews are still checked before effects. A deployment can bind a version to a
 website or channel without a hosting-mode enum.
+
+### Current contract identities and authority
+
+These identities come from the installed source, not a shared global version number. Agents owns
+the runtime contracts; each product owns its business schemas, permissions and authoritative
+receipts. A pin selects the accepted implementation and maximum authority. Current policy can
+reduce or revoke access without rewriting that pin. Metadata, recovered text and model output
+cannot increase authority.
+
+| Contract and owner | Current identity and accepted pins | Current authority |
+| --- | --- | --- |
+| Definition and composition, Agents | `AgentVersion` number, configuration digest and `EffectiveComposition.schemaVersion:1`; program releases1–4. `AgentConfiguration` has no separate outer wire-version field. | Saved configuration, publication rules and selected resources bound new work. Accepted work keeps its configuration; later changes cannot enlarge it. |
+| Task, work and grants, Agents admission | Persisted task/work/root/parent identities and exact grant/version; fresh publications use `product-capabilities-v15` / `AgentsBusinessRunV25`. These internal records have no universal outer envelope version. | Verified principal, product mapping, current membership/grant, channel ownership and finite ancestor limits are checked independently. |
+| Product catalogue and binding, owning product plus Agents registry | Manifest and capability binding `schemaVersion:1`, descriptor revision/schema digest, handler and adapter release. Growth publication/policy9 uses adapter5; Agency `agency-metadata-v1` uses adapter1 and descriptor revision1. | Only installed handlers and explicitly selected bindings are executable. Current product permissions, client/resource allowlists and readiness still apply. |
+| Product command and information boundary, owning product | Growth/Agency command version`"1"`; invocation, origin authorization, lineage and information-envelope version`"1"`. Audience pins product/tenant/actor/conversation/client; provider entries pin exact API destinations and model accounts. | Current origin and destination checks may narrow access. Action permission does not authorize disclosure to another audience or provider. |
+| Native tools and delegation, Agents | Accepted tool name/version/schema digest and specialist configuration/composition. Current discovery/load2, history search/read2, memory search3/read2/propose2, skill activate/read2, agents start4/followup4/result3/status2 and work inspect2; other tool versions remain descriptor-specific. | Direct tools and commissionable specialist ceilings are separate. Children intersect immediate-parent authority and retain ancestor/root accounting limits. Discovery or schema loading never grants execution. |
+| Model routes and policy, Agents model configuration | Primary/compaction/delegated route bindings pin provider, endpoint, model metadata, account/credential revisions, adapter, generation and policy digest. Compiler `model-execution-policy-v3`. | Current credential/provider grants and each influencing product information envelope apply before physical requests. No silent model or paid-route fallback. |
+| Sources and evidence, source owner plus Agents | Dependency manifest version1, exact source/revision/generation, binding and content digests. | Current source approval, withdrawal, actor/client scope and dependency checks govern retrieval and derived reuse. A retained handle cannot recreate missing bytes. |
+| Context journal and compaction, Agents | Original journal, immutable prefix/candidate/checkpoint identity and numeric revision; prepared-request manifest version1; `AgentsContextCompactionV1`. | Instruction head, source/memory fences and usable reduction are checked before adoption and model response release. Narrative and provider continuation never replace authority records. |
+| Memory, authenticated actor plus Agents | Personal or product-actor/agent namespace; product scope additionally pins tenant and client when present. Candidate, accepted revision, generation, assertion and expiry remain explicit. | Exact authenticated review accepts candidates; proposals are not accepted facts. Correction, expiry and Forget fence recall and derivatives. No organization-wide business-fact namespace is installed. |
+| Reviews, effects and results, owning product/adapter plus Agents | Logical operation, physical attempt, exact payload/schema/resource pins, review and authoritative receipt. Product review/result objects have no independent outer wire version; their owning descriptor and invocation1 govern them. | Exact unexpired review and current dispatch preconditions authorize a claim. An unknown effect needs reconciliation, not another mutation identity. |
+| Observation and child results, Agents plus product host | Runtime projection version1, accepted operation schemas, independent event/history cursors; `agents.result`3 includes metadata version`"1"`. The host's typed HTTP payload has no additional universal observation version. | Current observer, product client, evidence and output audience govern every read/reconnect. Opening a child never admits new work; forbidden content is redacted. |
+
+Canonical Growth reads negotiate a private `access-v1` observation without changing their pinned
+`evidence: none` descriptors or model-visible result. Growth records the authorized resource scope
+before chunking; Agents binds the exact read receipt to that scope and its narrowed information
+audience. Reuse, model requests, compaction, delegation, artifacts and reviewed memory retain the
+current-access dependency. Repeated reads of the same scope in one task share that dependency;
+distinct scopes still count toward the existing 1,024-dependency manifest bound. These checks do
+not establish content freshness or provide citations. Previously saved reads without an access
+record are unavailable for reuse. Prepare, review and commit outputs do not yet have equivalent
+retained per-result information fences.
+
+Source contracts live in Agents' `api/src/contracts/`, `api/src/capabilities/tool-descriptors.ts`,
+`api/src/execution/context/request-manifest.ts` and the shared `packages/contracts/src/`.
+Product-owned publication sources are Growth's `api/src/agents/manifest.ts` and Agency's
+`api/src/capabilities/manifest.ts`. See [product capabilities](../product-capabilities.md),
+[context management](../operations/context-management.md) and the
+[runtime runbook](../operations/shared-runtime.md) for operational limits.
+
+Retained V11–V14 / V21–V24 registrations and earlier tool schemas serve their accepted work.
+Missing pins on older contracts resolve through their original binding rules, not the latest
+descriptor. `compilePublishedComposition` selects V15/V25 for every fresh publication regardless
+of program; a supplied accepted runtime remains pinned. Database schemas through108 are separate
+from these protocol identities and from the platform release version.
 
 ### Two technical execution categories
 
@@ -423,6 +476,55 @@ Lina is a separate execution owner. A business agent using an isolated browser o
 `executionKind: "business"`; that capability does not change it into a workspace agent.
 Subagents are configured agents invoked under bounded child-task authority. Websites and messaging
 are channels. Sandboxes are execution resources. None adds a third category.
+
+### Business procedures within autonomous agents
+
+Target architecture, agreed direction recorded 3 November 2026. This section defines the target;
+it does not claim a generic procedure capability is implemented or deployed. The execution
+checklist is in the [shared workflow implementation plan](https://linear.app/kasitek/document/shared-autonomous-agent-workflows-architecture-and-implementation-42b7f624bdba).
+
+A business agent remains the same model-directed agent while carrying out a workflow. A workflow
+is a versioned business procedure exposed as a discoverable capability. Agent versions select
+which procedures are available. Eligible metadata is concise; the exact reviewed playbook,
+requirements and progress load when relevant. Definitions, model intent and skill activation do
+not grant authority. Current product policy, admitted grants and resource/channel ownership
+constrain every effect, including direct API/MCP and internal-agent entry paths.
+
+The standard separates reviewed conversational guidance, executable conditional requirements,
+durable procedure instances, product-owned guarded actions and execution coordination. The model
+chooses questions, permitted actions and flexible ordering. Code validates facts, dependencies,
+confirmations, transitions and completion using authoritative receipts. A model-written checklist
+or transcript summary cannot prove an effect succeeded or a notice was delivered.
+
+Procedure instances retain definition revisions, validated inputs and provenance, outstanding
+requirements, operation/message receipts, waits and outcomes across turns, compaction and
+restarts. Owning products retain their business records; shared execution stores references and
+progress rather than duplicating customer, callback, post, booking or payment databases. Soft
+skills and ordinary answers need no durable instance unless their obligations require one.
+
+Detours may suspend or reprioritize a procedure. They do not silently cancel committed requests
+or uncertain effects. Cancellation, compensation and reconciliation have explicit business
+semantics. Conditional outcomes allow refusal, withdrawal or accepted self-service without
+forcing unnecessary contact collection or tool calls. Multiple procedures may coexist with
+resource-conflict rules and one responder owner. Durable waits consume no continuously running
+model; resume rechecks current authority. New definitions cannot silently replace accepted
+semantics or expand their permissions.
+
+For deferred human assistance, the human request lifecycle is separate from execution ownership.
+A queued request or staff assignment does not itself stop useful agent assistance. Actual staff
+takeover fences stale agent work and queued sends. Explicit human-only preference also stops
+unwanted agent assistance without erasing the request. The after-hours procedure explains known
+availability, offers help, records human-help intent, collects missing preferred contact details
+when wanted and confirms only committed effects. Contact supplied, verified notification enabled,
+request saved, staff assigned and customer contacted remain distinct facts. Later contact is
+offered only through a real authorized delivery route; the next opening is not a callback promise.
+The earlier status-only pending-handoff restriction must be revised consistently across ingress,
+permissions, publication, timers, receipts and adapters for this target behavior.
+
+Support, content, booking and other business procedures share this contract while keeping their
+own domain schemas and actual confirmation/review policies. No separate permanent agent or
+execution engine is required per procedure. Existing mechanisms are reused only where they meet
+the contract; conflicting implementation rules must change.
 
 ### Model providers and configuration ownership
 
@@ -656,8 +758,10 @@ Model capacity, operator allowances, execution grants and agent configuration in
 admission. The resulting policy digest belongs to the accepted route. The operator can change
 service ceilings through `AGENTS_MODEL_POLICY_JSON`; this does not enlarge existing grants
 or accepted tasks. See the [defaults and configuration reference](../source-boundary.md) for
-the current values and their scope. New agents default to 4,096 reply tokens, an 8,192-token
-input estimate and 120 seconds per model call. Root grants and organization admission limits
+the current values and their scope. New agents default to 4,096 reply tokens, automatic context
+capacity and 120 seconds per model call. Automatic input capacity subtracts output and safety
+reserves from the selected model window and intersects service, product and work ceilings. Explicit
+saved numeric caps remain binding, and accepted routes retain their compiled policy. Root grants and organization admission limits
 remain separate from the model's advertised capacity. Invalid combinations fail admission.
 
 The current context counter estimates serialized UTF-8 bytes, including tools and private
@@ -863,7 +967,8 @@ recorded receipts resolve before registry lookup. Public repository connections 
 GitHub and DeepWiki reads; Stash uses selected private item IDs and encrypted bearer credentials.
 These profiles retain the same task, connection and evidence authority boundaries.
 
-The versioned AgentsBusinessRunV21 Restate workflow owns repeated model/tool execution. Each task
+The versioned AgentsBusinessRunV25 Restate workflow owns repeated model/tool execution for new
+business publications; accepted earlier releases retain their recorded handlers. Each task
 pins its agent configuration and harness release. Ordered conversation turns wait for the preceding
 execution and its recorded result. A short database transaction assigns order and freezes eligible
 history; it does not run the agent loop or hold a lock during external work.
@@ -877,6 +982,12 @@ If the fixed instructions, tools and resulting summary still exceed the limit, e
 incomplete instead of repeatedly compacting an empty context. Replaying a recorded context keeps
 its original evidence parents and rechecks their current policy.
 Summaries are derived data and never grant authority or prove an effect succeeded.
+New shared execution can prepare a background compaction job before input overflow. The separate
+AgentsContextCompactionV1 workflow processes an immutable prefix through the same model receipts,
+capacity queue, current authority and work accounting. Foreground execution retains complete recent
+groups and later appends. Adoption compares the expected conversation checkpoint revision; a stale,
+revoked or nonreducing candidate cannot replace the current checkpoint. Original records remain
+recoverable. See [Context management](../operations/context-management.md).
 After compaction, the context also includes a bounded execution checkpoint from
 recorded operations, actual child admissions, issued handles and available artifacts.
 Only validated control metadata enters its system message. Retained child output
@@ -884,6 +995,12 @@ remains untrusted reference data. The assembler fits whole records to the remain
 request allowance, records omissions and persists the selected view with the snapshot
 digest. Replaying it rechecks current evidence policy. Completed delegation does not
 consume a permanent child slot; the limit applies to outstanding children.
+New history-search version2 separately discovers current and earlier permitted artifact metadata
+by name/type and artifact-creation time, using exact cursor pages. It does not require the entire
+old transcript to remain eligible or an artifact ID to survive a checkpoint. Metadata keeps its
+source fences without supplying bytes, passages or citation handles. Exact byte recovery rechecks
+the original artifact audience and current authority. Accepted search-version1 schemas stay pinned;
+the initial task-observation artifact list is still bounded. See [Context management](../operations/context-management.md).
 Every influencing source, connection, memory and reviewed package dependency survives the summary and child join.
 A delegated brief retains an immutable snapshot of its parent dependencies, checked under
 the parent authority. Narrow specialist retrieval grants do not erase that provenance.
@@ -891,11 +1008,27 @@ Once consumed evidence is withdrawn or forgotten, the current task stops incompl
 discarding its dependency records. A fresh turn can select current evidence and omit invalid history.
 
 Personal semantic/episodic memory uses scoped PostgreSQL records and transactional full-text search.
+Its namespace is a verified human and agent. Product memory uses a separate product, tenant,
+verified actor and agent namespace, with a mandatory Agency client ID. Signed product identity
+does not create standalone customer accounts. Missing scope rejects retrieval before ranking
+or preview generation. No shared organization-fact namespace is inferred from model output.
+Memory search exposes marked previews and exact recovery IDs; a separate read recovers the
+complete accepted record. Relevant context selection and current dispatch use a namespace
+generation fence. Exact record-revision evidence preserves unrelated accepted records while
+correction and Forget invalidate influenced history, checkpoints and outputs.
 Model proposals remain candidates until authenticated management acceptance. Correction uses an
 expected revision. Forget suppresses future learned-memory retrieval and invalidates dependent
 context. Original conversation content has a separate source-deletion operation. Expiry advances
 selection generations. These controls do not claim physical erasure of prior provider requests,
-journals, revisions or backups. Procedural skills are immutable reviewed revisions pinned at
+journals, revisions or backups. Memory carries its user/model assertion origin, creation/update/expiry
+times, explicit current/hypothetical/unspecified context and reported conflict state. Unknown conflict
+assessment is explicit; the runtime does not infer that two free-text statements agree. A user can
+review these classifications with the exact candidate or correct them under the expected revision.
+The revision retains the actor and classification. Accepting or resolving a reported conflict never
+marks a statement verified or overrides current business receipts. Schema105 adds these fields;
+earlier records remain unspecified and unassessed. Newly published memory tools expose them, while
+accepted tool-version contracts keep their pinned schema and projection.
+Procedural skills are immutable reviewed revisions pinned at
 publication; they cannot install tools or expand permissions. Selected activated packages can expose
 `skills.run` only when the version separately authorizes the existing Python sandbox and artifact
 capabilities. Import remains inert. The run operation selects reviewed code by package/script digest
@@ -920,8 +1053,9 @@ permits the implemented memory, delegation, sandbox, connected-read and reviewed
 These are executable contracts, separate from FAQ/customer-service offering names. Published versions
 pin configuration, program, runtime, capability, workflow and connected-binding digests. Admission
 copies the effective composition to the task, including narrowed child compositions. Workers reject
-unavailable or changed releases before additional execution. New admissions use `product-capabilities-v11`
-and Restate workflow `AgentsBusinessRunV21`. Accepted work remains pinned to its original worker.
+unavailable or changed releases before additional execution. Fresh publications use
+`product-capabilities-v15` and Restate workflow `AgentsBusinessRunV25`, regardless of program.
+Accepted work remains pinned to its original worker.
 
 `tool-directed@3` compiles installed product bindings alongside these native and connected
 capabilities. Product-owned manifests define operation descriptions, schemas, handler references,
@@ -953,8 +1087,10 @@ authenticated continuation obtains a bounded replacement grant and follows the s
 and deadline commands stop future admissions and request runtime cancellation; confirmed receipts
 remain the effect evidence. PostgreSQL status and progress remain repairable projections.
 
-Restate server 1.7.13 and SDK 1.17.3 are pinned and tested together. Runtime retention is seven days,
-outbox retry is bounded to 24 hours, and settled tasks are not redispatched. The API returns bounded
+Restate server 1.7.13 and SDK 1.17.3 are pinned and tested together. Business workflow and journal
+retention is seven days. Compaction V1 and automation V1 do not override the pinned server's
+one-day default; confirm registered service metadata for a release. These periods do not govern
+PostgreSQL or backups. Outbox retry is bounded to 24 hours, and settled tasks are not redispatched. The API returns bounded
 operation/progress records, and Chat reconnects to the original task. Private context/receipt data
 stays in the dedicated database; large artifacts use a scoped private S3-compatible adapter.
 Workers validate signed Restate requests when configured. Production requires signing keys.
@@ -970,12 +1106,12 @@ cluster key distribution, backups, capacity or monitoring. See the
 
 ### Business subagents and temporary analysis
 
-Explicit `tool-directed` program version 4 adds a model-directed supervisor loop under
-`product-capabilities-v14` / `AgentsBusinessRunV24`. Its permitted roster supports 32 pinned
+The retained `product-capabilities-v14` / `AgentsBusinessRunV24` release introduced the explicit
+`tool-directed` program version4 model-directed supervisor loop. Its permitted roster supports 32 pinned
 specialists, 1–8 concurrent children (default 2), an optional total child-task allowance (default
 null), and a repeated-unchanged-observation threshold of 1–8 (default 3). The runtime gives the
 model a replanning opportunity before pausing unchanged work. Existing v13/V23 journals retain
-their original executable identity. Depth remains one. Separate discovery, start,
+their original executable identity. New V15/V25 work supports configured recursive delegation; a finite ancestor depth remains binding and null adds no configured depth ceiling. Each child narrows its immediate parent authority, retains root accounting and settles its own dependent subtree. Separate discovery, start,
 status, wait, paginated result, follow-up and cancel tools allow the model to evaluate findings
 and revise its approach. A configured roster does not impose a topic router or fixed sequence.
 
@@ -984,6 +1120,10 @@ prior-task ancestry authorizes its history; parent/channel transcripts are not c
 branches. Only selected child results join the coordinator's evidence. Work progress is persisted
 agent-authored data, distinct from native outcomes, and returns after compaction as untrusted
 reference content. Queued user instructions enter later contexts without rewriting accepted work.
+Newly evaluated V25 stall stops atomically recheck queued instructions, close input and retain the
+exact intended partial outcome. A correction admitted before that decision remains pending for
+processing; after closure, new corrections are rejected. Already journaled V25 stall observations
+keep their recorded path and need an idle/drained rollout or normal continuation.
 Schemas096–098 store progress, logical work lineage, nullable allowances and exact counters.
 Execution policy v2 separates nullable local model/tool counts from nullable aggregate team counts.
 Finite policy layers, root grants, quotas, call deadlines and authority still constrain operations.
@@ -1002,8 +1142,8 @@ recovery, Analytics and owner acceptance limits.
 A published coordinator pins same-organization specialist AgentVersions, permitted
 knowledge and read tools, and child token/time ceilings. Atomic delegation slots
 persist one child per parent operation and slot. Children run the common controller
-in private branches, without joining the parent conversational input queue. V1
-allows two outstanding children and one delegation edge. Personal memory,
+in private branches, without joining the parent conversational input queue. Earlier V1 configurations
+allow two outstanding children and one delegation edge. V15 child configurations can retain a separately commissioned specialist roster under the same protocol. Personal memory,
 credentials, sandbox access and further delegation are not inherited.
 
 The coordinator's connected-tool list controls its own execution and model catalog.
@@ -1043,9 +1183,14 @@ root settlement waits for dependent resource accounting.
 
 Task artifact authorization retains root/task/producing-operation provenance and
 explicit transfer references. Management artifact APIs cannot bypass task scope.
-Downloads validate the initiating account, current membership, root scope and
-source availability, and use a private attachment response. Artifacts outlive
-compute; deleted/revoked sources cannot silently become fresh model inputs.
+Standalone downloads check the initiating account and membership. Growth and Agency files
+instead use the real product task and current originating-product authorization; no standalone
+account is created. Their exact digest, inherited source dependencies and tenant/actor/conversation/
+client/provider audience travel through recovery, child transfers, model context and compaction.
+The optional `artifact.create` tool produces text, Markdown and JSON in private storage, without
+performing a business write or external delivery. Current product results can be downloaded through
+their authenticated product interface. Artifacts outlive compute; deleted or revoked sources cannot
+silently become fresh model inputs.
 
 Backend setup and verification are local development evidence, not hosted
 multi-tenant certification. The selected runtime must enforce its limits before
@@ -1081,15 +1226,37 @@ Shared runtime probes verify coordination capabilities without establishing cust
 offerings. Selected outbound MCP reads are implemented. The generic signed product adapter retains
 its contract for model replies and public knowledge. Growth's separate typed product contract now maps verified
 Growth actors and businesses to shared features, private conversations and tasks without creating
-standalone Agents accounts. Growth owns current membership, resource reads, immutable content
-reviews and authoritative DRAFT saves. The shared harness pins the managed model route, accepted
+standalone Agents accounts. Growth owns current membership, resource reads, exact action reviews
+and authoritative business receipts. The shared harness pins the managed model route, accepted
 context revision and private product evidence through history, compaction and artifacts. Initial
-Growth features leave delegation, personal memory, skills, native knowledge bindings, sandbox,
-workflows, external connections and arbitrary writes disabled until their product authority exists.
-Growth owns its four presets and operation manifest. Their shared read tools discover permitted
-content and WhatsApp campaigns, read multiple records and query explicitly scoped analytics.
-Assistant and Content can request exact reviewed DRAFT creation. Tool authority comes from the
-selected operation and current Growth permissions, not the preset name.
+Growth revision11 enables versioned per-preset delegation and optional actor memory, reviewed skills
+and native knowledge. Source/skill management uses exact mapped feature ownership and signed
+product authority without customer Agents accounts. Native import, review and selection remain
+separate; current deselection and withdrawal fence accepted work. Sandbox, workflows, enquiries,
+external connections and arbitrary writes remain unavailable in Growth.
+An explicitly selected Growth conversation context is pinned as a task reference, separate from
+the implicit workspace. The worker resolves it through Growth's signed `context.read` action and
+supplies only the owning product's model-safe projection. Its evidence binds the selected reference,
+content revision and original recipient/provider audience, and re-reads them on replay, compaction,
+accepted-memory recall and delegated use. The reference grants no record access; Growth checks
+current membership, entitlement and record access on each read. This revision fence does not apply
+to canonical operations whose descriptors provide no versioned-source evidence. Their separate
+`access-v1` receipt rechecks the captured read scope and provider audience, but does not assert that
+the record is unchanged.
+For Growth's reviewed effects, the worker retains the exact native outcome and exposes a versioned
+status-only model projection. The owning product issues a separate review-status access observation;
+current review authority and the recipient/provider envelope are checked through the same retained
+evidence graph. The private effect body is not authorized by that status observation. Existing
+untracked effect data cannot be reused, while status-only reconciliation keeps its original effect
+identity. Other product writes require an installed projection before they are exposed to a model.
+Growth owns its four presets and operation manifest. The current publication derives tools from
+Growth's canonical operation catalogue, including content, media, contacts, Inbox, bookings,
+campaign reads and explicitly scoped analytics. Installed writes include exact reviewed publishing,
+scheduling and Inbox sends. Campaign launch has no installed operation. Research and Campaigns
+receive permitted reads; Content receives its content/workspace/connection/review/analytics
+selection; Assistant receives the full published catalogue. Tool authority comes from the selected
+operation and current Growth permissions, not the preset name. Missing provider or domain readiness
+keeps an operation unavailable.
 Growth organisation creation records durable setup intent in the same local transaction as its owner membership. A dedicated service-only worker provisions the four managed defaults and an explicit model profile through signed HTTP. Agents reconciles missing defaults without overwriting customisation or revocation; repeated delivery converges on the same model custody and grants. Setup status is separate from current execution and operation-specific permissions. See [Growth integration](../growth-integration.md) for setup, repair and current boundaries.
 
 The external Harbor adapter submits isolated pinned trials through normal native interfaces.
@@ -1111,7 +1278,7 @@ unsupported or inconclusive. Each result names the criterion and evidence it act
 Remaining suite, recovery and model-quality criteria stay in Linear.
 External-agent access to Growth/Agencies MCP remains separate product work.
 
-Remaining work includes full Agency execution beyond its bounded metadata adapter, additional concrete third-party adapters,
+Remaining work includes Agency business operations beyond its client-scoped metadata assistant, additional concrete third-party adapters,
 commercial billing, production storage operations, other channels, Lina hosting and production
 containment certification, monitoring and deployment. Requirements and
 checklists stay in Linear. Repository documents describe maintained contracts and actual behavior.
@@ -1125,3 +1292,21 @@ checklists stay in Linear. Repository documents describe maintained contracts an
 - [Integration boundaries](../mcp-integration.md)
 - [Security boundaries](../THREAT_MODEL.md)
 - [Platform login](platform-login.md)
+
+
+### Shared capability orientation
+
+Version3 discovery/loading compiles the same currently authorized direct catalogue into readable
+purpose metadata, a measured initial directory and selected callable schemas. Direct tools, reviewed
+skills and specialist commissions remain separate. The capability-exposure-v1 policy measures eager
+preferences and automatic schemas rather than classifying them by product role or name prefix.
+Large/rare definitions defer behind exact handles and ranked/batched search with explicit omissions;
+a small fitting working set is callable without discovery. External connector descriptions remain
+reference data. Earlier accepted protocol definitions, context snapshots and effects retain their
+identity. [Product capabilities](../product-capabilities.md#tool-discovery) specifies the contract.
+
+Growth capability changes use a manager-reviewed three-way baseline/current/target diff, independent
+of instructions/model customization. Apply checks target/diff digests and all feature revisions,
+revalidates current authority and publishes immutable versions. Affected customized coordinators
+receive an explicit specialist-pin decision; child-only authority stays narrowed. Schema115 stores
+capability-baseline provenance, not permission. See [the upgrade runbook](../operations/growth-capability-upgrades.md).

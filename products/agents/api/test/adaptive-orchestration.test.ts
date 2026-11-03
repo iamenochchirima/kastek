@@ -1,18 +1,21 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PlatformStore } from "../src/product/agents/store";
-import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, executionGrantSchema, requestDigest } from "../src/contracts/contracts";
 import { setupPlatformSchema } from "../src/composition/setup";
 import { cancelSpecialist, followupSpecialist, specialistResult, specialistStatus, startSpecialist, specialistTokenBackpressure } from "../src/execution/delegation/adaptive";
 import { closeOrchestrationInstructions, orchestrationInstructionGroups, queueOrchestrationInstruction } from "../src/execution/delegation/progress";
 import { beginOperation, finishOperation, settleTask, transaction, queueChildContinuations, assertCurrentAuthority, loadExecution } from "../src/execution/lifecycle/execution";
 import { executionReservationPressure } from "../src/execution/lifecycle/reservation-pressure";
 import { dispatchTasksOnce } from "../src/execution/lifecycle/dispatcher";
-import { HARNESS_RELEASE, WORKFLOW_NAME } from "../src/contracts/execution";
+import { SHARED_HARNESS_RELEASE as HARNESS_RELEASE, SHARED_WORKFLOW_NAME as WORKFLOW_NAME } from "../src/contracts/execution";
 import { continueWorkInTransaction } from "../src/execution/lifecycle/work-continuation";
 import { connectFixtureModel } from "./model-fixture";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
+import { assertProductReadCustody } from "../src/execution/products/product-read-custody";
+import { createDependencyManifest } from "../src/contracts/source-contracts";
 
 const url = process.env.AGENTS_TEST_DATABASE_URL;
 (url ? describe : describe.skip)("durable adaptive specialist work", () => {
@@ -41,7 +44,7 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     const agent = await store.createAgent({ ...scope, name: "Coordinator", configuration });
     const version = await store.createVersion({ ...scope, agentId: agent.id, expectedRevision: 1 });
     const authority = { product: "agents" as const, organizationId: org.id, resourceId: agent.id, callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
-    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute"], sourceRevisionIds: [], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens, rootTokenLimit, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id, operations: ["model.reply", "knowledge.read", "delegation.execute"], sourceRevisionIds: [], maxInputBytes: configuration.model.maxInputBytes, maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration), rootTokenLimit, expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
     await store.createGrant({ ...scope, grant });
     const { task } = await store.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Investigate and revise" });
     return { task, scope, grant };
@@ -51,6 +54,22 @@ const url = process.env.AGENTS_TEST_DATABASE_URL;
     await settleTask(pool,id,{state:"completed",output});
   }
   const request = { requests: [{ bindingId: "specialist", brief: "Produce a draft" }] };
+
+  it("fences an untracked child read only after its result joins the parent",async()=>{
+    const f=await fixture(),child=(await startSpecialist(pool,f.task.id,"custody:child",request)).children[0]!.taskId;
+    const operationId=`tool:${child}:untracked`,bindingId=randomUUID();
+    await pool.query(`INSERT INTO agents_platform.operations(id,task_id,kind,name,request_digest,request,state,output,reserved_ms,attempt_id)
+      VALUES($1,$2,'tool','unknown_product_read',$3,$4,'completed',$5,1000,$6)`,
+    [operationId,child,"a".repeat(64),{productBindingId:bindingId,bindingDigest:"b".repeat(64)},{value:{private:"child result"}},randomUUID()]);
+    await expect(assertProductReadCustody(pool,f.task.id)).resolves.toBeUndefined();
+    const childNode=randomUUID(),parentNode=randomUUID(),manifest=createDependencyManifest([]);
+    const node=async(id:string,taskId:string,kind:string,ownerId:string,parents:string[])=>pool.query(`INSERT INTO agents_platform.evidence_nodes
+      (id,organization_id,root_task_id,task_id,kind,owner_id,evidence_ids,parents,manifest,request_digest)
+      VALUES($1,$2,$3,$4,$5,$6,'{}',$7,$8,$9)`,[id,f.task.organization_id,f.task.id,taskId,kind,ownerId,parents,manifest,requestDigest({ids:[],parentIds:parents,manifest})]);
+    await node(childNode,child,"child_result",child,[]);
+    await node(parentNode,f.task.id,"input","joined-child",[childNode]);
+    await expect(assertProductReadCustody(pool,f.task.id)).rejects.toMatchObject({code:"EVIDENCE_UNAVAILABLE"});
+  });
 
   it("keeps coordinator and specialist call limits local while atomically enforcing the shared ceiling",async()=>{
     const saved=process.env.AGENTS_MODEL_POLICY_JSON;

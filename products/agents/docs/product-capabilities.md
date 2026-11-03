@@ -1,8 +1,8 @@
 # Product capabilities
 
-Owner: Agents engineering. Last reviewed: 2026-10-23.
+Owner: Agents engineering. Last reviewed: 2026-11-03.
 
-Business agents use the same model/tool loop. `tool-directed@3` accepts installed
+Business agents use the same model/tool loop. Compatible `tool-directed` versions accept installed
 product capabilities alongside native and connected tools. Instructions, selected
 capabilities and current authority determine an agent's available work. A preset
 name does not select a separate execution engine or grant access.
@@ -31,12 +31,64 @@ Compiler cache identities include these inputs. Changed or missing releases fail
 instead of silently replacing accepted dependencies. Customers save configuration;
 immutable version creation remains a background operation.
 
+Direct `productBindings` determine the agent's own catalogue. Optional
+`commissionableProductBindings` pin a separate pool available only through an explicitly selected
+specialist role's `productBindingIds`. That pool is part of immutable composition but never adds
+child-only schemas to an ancestor's model request. Publication validates both pools against
+installed descriptors. A child's accepted configuration narrows its published ceiling through
+its immediate parent, while current destination permission remains separately required.
+
+## Tool discovery
+
+The effective direct catalogue contains only currently available authorized tools. New publications
+pin `tools.discover` and `tools.load` version3. Their readable category/purpose/effect metadata and
+safe `tool:alias` handles share the catalogue identity used by exact schema loading and invocation.
+Version1/2 definitions, result shapes, descriptor digests and accepted receipts remain unchanged.
+The policy is shared by every runtime host. Existing published versions retain their pinned
+contracts until republished; Growth's reviewed capability upgrade publishes the new contracts.
+Neither rollout rewrites an accepted task or its stored context snapshots.
+
+Version3 requests begin with a bounded capability directory. It describes direct tools, selected
+reviewed skills and separately permitted specialists; it does not expose a child's tools as direct
+parent authority. Trusted native/product/installed-adapter metadata supplies orientation. External
+MCP/custom API descriptions remain tool reference data; the trusted directory reports their category
+and count without importing those descriptions as instructions. Unavailable configured operations
+are counted without presenting their names as currently callable.
+
+The `capability-exposure-v1` policy measures schemas using the accepted model counting profile.
+It reserves one fifth of the input/request allowance for target schemas in addition to the measured
+discovery controls. Explicit eager preferences and automatic candidates must fit this allowance and
+maxTools; overflow stays deferred. A small all-fitting set is callable directly without discovery.
+Version3 schema loads validate the entire prior-plus-new selection before persisting success;
+oversized sets return `TOOL_SCHEMA_LIMIT` with fewer/replace guidance. Loading grants no authority.
+The directory uses one eighth of the input/request allowance with a minimal totals/category fallback;
+the complete request still passes the ordinary context-fit gate. All omitted details remain explicit.
+
+Browse mode enumerates; bounded batched purpose queries use normalized/stemmed ranked overlap
+across readable metadata and parameter descriptions. Results carry matched/returned counts,
+completeness and paging. Exact listed handles can be loaded without a preceding search. A lexical
+miss is not evidence that a capability does not exist. The renderer reuses only an identical measured
+directory; authority and availability are rebuilt before cache reuse. Compaction does not remove
+this first-request orientation on subsequent requests. Stored context snapshots are never rewritten.
+
+Retained history, customer/channel limits and exact schema gates remain unchanged. Existing
+version1/2 publications retain their accepted loading policy. New shared publications, Growth
+capability updates and ordinary immutable-version publication use the new protocol.
+
 ## Authority and execution
 
-A product binding identifies origin product and tenant, destination product and
-tenant, mapping reference, policy revision, operation and immutable digests.
-Origin and destination tenant IDs are separate. Matching strings establish no
-cross-product access.
+A product binding identifies origin product, tenant and optional `originClientId`, destination
+product, tenant and optional `clientId`, mapping reference, policy revision, operation and immutable
+digests. Origin and destination identities remain separate, including when both products use client
+scopes. Matching strings establish no cross-product access.
+
+New V15 invocations also carry work/root/parent/task lineage and an information envelope.
+Information authority is separate from action authority. The default audience is the verified
+origin actor, product tenant, conversation and optional Agency client. Eligible provider
+destinations pin provider/protocol/endpoint, connection/account and credential revision, model
+identity and accepted route receipt. A product can narrow the envelope's provider set; it cannot
+substitute another recipient or widen it. These internal envelopes are retained as evidence
+provenance, not serialized into model-visible tool results.
 
 The shared runtime checks these independent authorities:
 
@@ -49,6 +101,12 @@ An origin without its installed authorizer remains unavailable. Model-visible
 tools include only currently available selected bindings. Destination permission
 denials remove that tool from availability; transport/integrity failures remain
 errors. Execution rechecks authority before each operation.
+
+API and worker use the same configured-runtime factory. Agency can run without Growth credentials.
+Ingress service assertions, originating-product authority checks and destination operation calls
+use separate signed contracts and audiences. A model receives no service signing credential.
+Signed Growth and Agency service ingress uses those signatures instead of a browser Origin header.
+Browser writes retain their Origin check.
 
 The model can choose no tools, repeat a read, change its order or correct a
 recoverable argument error. The business loop contains no Growth preset dispatch
@@ -63,6 +121,14 @@ binding and source revision through subsequent context, compaction, history,
 artifacts and delegated dependency checks. Later use rechecks destination access
 and the exact source revision.
 
+Every model role checks its actual provider destination against influencing product information.
+An exact-conversation audience is not a general cross-conversation cache. Explicit human acceptance
+of a memory allows only the reviewed saved text in the same product/actor/client/agent memory
+namespace. Its recorded transition proves the accepted revision, source graph and named reviewer;
+original resource and provider dependencies remain current. Original source handles are not
+transferred with this memory. Permitted child briefs retain exact transition provenance through
+the authorized ancestor chain. Summaries and agent-written progress cannot approve this transfer.
+
 Reviewed effects use opaque product-owned review references. The destination
 owns the payload, exact approval, expiry, one-use decision and authoritative
 receipt. Shared execution waits durably and reconciles an uncertain operation
@@ -71,32 +137,70 @@ completed write.
 
 ## Growth configuration
 
-Growth owns `products/growth/api/src/agents/manifest.ts`. Its four presets are
-Growth assistant, Research, Content and Campaigns. Assistant and Content share the
-reviewed draft operation; all four share permitted read operations.
+Growth owns `products/growth/api/src/agents/manifest.ts`. Its four presets are Growth assistant,
+Research, Content and Campaigns. Current publications derive tools from the shared Growth operation
+catalogue, including content, media, contacts, Inbox, bookings, campaign reads and analytics.
+Research and Campaigns receive permitted reads. Content receives the content, workspace, connection,
+review and analytics selection; Assistant receives the full published catalogue. Current product
+permissions, account scope, provider readiness and domain rules remain required.
 
-The manifest exposes workspace context/help, bounded content discovery/read,
-WhatsApp campaign discovery/read, explicit-range analytics and reviewed content
-DRAFT creation. Domain handlers retain Growth membership, feature permissions,
-account scope and existing business rules. Campaign launch, publishing and
-scheduling are not installed effects. Missing analytics infrastructure makes the
-report operation unavailable.
+Installed writes, including publishing, scheduling and Inbox sends, retain exact review and owning
+product receipts. Campaign launch has no installed operation. Missing analytics infrastructure makes
+the report operation unavailable. Native adapter release `2` retains the earlier bounded product
+tools. Releases `3`, `4` and `5` match the immutable operation publications for revisions `6`, `7`,
+and `8`/`9`/`10`. Release `6` is current revision `11`; its handler digest also pins the
+`growth-content-post-read-v1` model projection. Earlier publication and adapter identities remain
+available to accepted work.
 
-Managed organisation setup publishes defaults revision `2`, manifest revision
-`2` and capability policy revision `2` through its authenticated provisioning
+The installed Growth adapters declare the `effect-status-v1` model projection for reviewed writes.
+The product's separate status observation authorizes only the confirmed state and review reference,
+not the private returned business content. Native receipts remain available for exact reconciliation;
+model-visible and recoverable operation history uses the projection. An adapter without a declared
+projection does not expose a reviewed write to the model. Growth staging transfers also receive a
+short-lived, actor-bound access observation; expired or inactive transfer details are not reused.
+
+Canonical content reads apply a trusted projection to `content.posts.get` and `content.posts.list`.
+The model receives draft text and fields needed to revise it, plus safe media references; account IDs,
+publishing-job states, errors, provider IDs and arbitrary metadata are omitted. The complete operation
+output and access digest remain in native custody. Older selected-content reads use the same reduced
+context view while their source revision remains bound to the full current record. The model-result
+boundary also applies this projection to retained accepted bindings that expose the same exact
+canonical Growth read handlers, even when their pinned adapter predates the projection declaration;
+their authority, execution identity and native receipt remain unchanged.
+
+Managed organisation setup publishes defaults, manifest and capability policy revision `11`
+through its authenticated provisioning
 boundary. Agents stores the publication and validates it against installed
 handlers. Ordinary repair preserves customised settings, disabled features,
 model selections and revoked tenants. The operator's explicit
 `upgrade-defaults` action applies the managed revision to eligible defaults for
 future turns. Accepted turns retain their original composition.
 
-The first Growth policy explicitly disables product bindings for knowledge,
-skills, personal memory, delegation, sandbox, workflows and external connections.
-The standalone harness already supports independently configured capabilities in
-these areas; Growth lacks their required product custody/principal authority.
-Changing a flag alone cannot make those authorities available.
+The Growth API also synchronizes its current signed publication before bootstrap, management and
+new-turn commands. This updates the owning product's capability policy without selecting those
+capabilities or replacing a custom definition. Current feature reads and submissions publish a
+runtime successor when the existing definition pins an earlier runtime. The successor retains its
+configuration, model and resource/specialist pins; unpublished draft content and its revision remain
+unchanged. Earlier accepted tasks retain their immutable composition. Native conflicts keep their
+specific public code and message through the Growth proxy.
 
-## Agency boundary
+Revision9 makes native knowledge, skills and actor-scoped memory available only after explicit
+configuration. Growth owners/admins import text/Markdown sources and portable or curated skills
+from each feature's **Knowledge & skills** dialog. Import, exact content review and selection are
+separate actions. Visible inventories and previews recheck current access and resource state;
+failed reads clear cached content, while background updates preserve unsaved selection and its
+original configuration revision. Sources and immutable skill packages carry the mapped product tenant, feature
+agent and verified service/actor provenance. They never acquire standalone Agents accounts or
+memberships. Each published configuration pins its reviewed resources; current deselection,
+withdrawal, disabled installation and origin access still fence accepted tasks and their evidence.
+The product-managed assistant updates its commissioned specialist versions and approved source
+ceilings in a new immutable version after specialist configuration changes. Custom coordinators
+retain their explicit bindings. Product memory uses a separate verified actor namespace and exact
+human acceptance. Sandbox, workflows, enquiries and external connections remain unavailable to
+Growth. See [the integration reference](growth-integration.md#knowledge-and-skills) for the native
+resource commands and ownership checks.
+
+## Agency integration
 
 The second installed destination exposes only
 `agency.workspace_agents.read`, under the shared product namespace `agencies`.
@@ -104,11 +208,19 @@ It reads actual `workspace_agents` metadata and excludes configuration and
 conversation bodies. An Agency-owned mapping and exact grant are required in
 addition to current workspace membership and `AGENT_ROLES`.
 
-[Agency capability configuration](../../agency/docs/agent-capabilities.md)
-defines service trust, destination mapping, resource allowlists and source
-revalidation. Configuring `AGENCY_PRODUCT_API_URL` and the worker signing key
-installs transport only. It does not publish a capability, issue a mapping,
-provision defaults or launch Agency UI, voice or workspace execution.
+[Agency capability configuration](../../agency/docs/agent-capabilities.md) defines the separate
+client-scoped ingress, staff portal assistant, managed model setup, reviewed personal memory and
+current-origin checks. The browser session stays in Agency. The shared service creates no
+standalone Agents account or membership. Each conversation, binding, memory and observation
+retains its explicit client scope. Voice and additional business operations remain unavailable
+through this initial configuration.
+
+Configuring transport alone grants no access. Agency's authenticated setup path publishes the
+installed metadata manifest, records the exact binding under the verified staff/client mapping,
+and issues an explicit resource allowlist. Current client status, staff role and assignment are
+checked again at the owning product. Revoked grants and explicit disabled setup are preserved.
+The service exposes readiness until model configuration, compatible schema and destination
+authority are available. The shared renderer uses the same activity, duration and modal protocol.
 
 ## Capture and evaluation
 
@@ -131,17 +243,17 @@ compatibility. Evaluation and grading runs remain owner-run.
 
 ## Release identity and recovery
 
-New admissions use harness `product-capabilities-v11` and Restate workflow
-`AgentsBusinessRunV21`. Schema070 generalizes product review projections;
-schema071 stores trusted Growth publications and managed configuration markers;
-schema072 changes the default release for new tasks. The setup command applies
+New business publications use harness `product-capabilities-v15` and Restate workflow
+`AgentsBusinessRunV25`. Schemas099–102 add recursive lineage, durable context/checkpoints,
+product memory namespaces and explicit client-scoped context/publication records. Schema070
+introduced generic product review projections; schema071 introduced Growth publications and
+managed markers. The setup command applies
 only recognized preceding schema digests under its database lock. Unknown digests
 remain rejected.
 
 Install matching product handlers, schemas and service configuration before
-publishing the new default revision or admitting new work. Retain V20 and its
-`growth-products-v10` worker for already accepted V20 work. Route or drain each
-accepted task on its pinned worker; never replay its journal through V21.
+publishing a new default revision or admitting new work. Route or drain already accepted work on
+its pinned compatible handler. Never rewrite its release or replay an older journal through V25.
 
 Rollback stops new admissions and selects an installed compatible configuration
 for future turns. Revoke destination grants or disable service trust to stop

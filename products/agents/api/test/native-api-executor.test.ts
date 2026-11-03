@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import {dropClosedTestDatabase} from "./support/database-cleanup";
 import {connectFixtureModel} from "./model-fixture";
 import {subscribeConnectionTelemetry,type ConnectionControlEvent} from "../src/observability/connection-telemetry";
@@ -52,7 +53,7 @@ const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
     const selected=await api.select(scope,created.id,{operationId:randomUUID(),expectedGeneration:created.generation,selections:[{operationId:operation.id,effectPolicy:read?"owner_reviewed_read":"exact_review"}]});
     const binding=selected.bindings[0]!,configuration={...defaultBusinessConfiguration(),connectedToolBindingIds:[binding.id]},agent=await platform.createAgent({...scope,name:"Native API agent",configuration}),version=await platform.createVersion({...scope,agentId:agent.id,expectedRevision:1});
     const authority={product:"agents"as const,organizationId:org.id,resourceId:agent.id,callerClientId:"agents-execution",principal:{kind:"human"as const,issuer:account.issuer,subject:account.subject}};
-    const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","connected.execute"],sourceRevisionIds:[],connectedToolBindingIds:[binding.id],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:configuration.context.maxInputTokens,rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
+    const grant:ExecutionGrant={...authority,id:randomUUID(),versionId:version.id,operations:["model.reply","knowledge.read","connected.read","connected.execute"],sourceRevisionIds:[],connectedToolBindingIds:[binding.id],maxInputBytes:configuration.model.maxInputBytes,maxOutputTokens:configuration.model.maxOutputTokens,maxContextTokens:contextGrantCeiling(configuration),rootTokenLimit:32000,expiresAt:new Date(Date.now()+300000).toISOString(),revokedAt:null};
     await platform.createGrant({accountId:account.id,grant});const{task}=await platform.admitTask({authority,versionId:version.id,grantId:grant.id,requestKey:randomUUID(),input:"Use the controlled API"});
     const args=read?{path:{id:"one"}}:{path:{id:"one"},body:{title:"Approved change"}};return{scope,connection:selected.connection,binding,task,args};
   }

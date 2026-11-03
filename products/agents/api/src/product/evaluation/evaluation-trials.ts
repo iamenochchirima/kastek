@@ -5,7 +5,7 @@ import { agentConfigurationSchema, parseAllowedOrigin, PlatformError, requestDig
 import { effectiveCompositionSchema } from "../../contracts/programs";
 import { transaction } from "../../infrastructure/database";
 import { resolveAcceptedModelRoutes } from "../../execution/models/resolution";
-import { executionModelLayers } from "../../execution/models/settings";
+import { contextGrantCeiling, executionModelLayers } from "../../execution/models/settings";
 import { type AcceptedModelRoutes } from "../../contracts/model-bindings";
 import { requestTreeCancellation } from "../../execution/lifecycle/execution";
 
@@ -37,7 +37,7 @@ export class EvaluationTrials {
     const configuration = agentConfigurationSchema.parse(row.configuration);
     const modelRoutes = await resolveAcceptedModelRoutes(db, { organizationId, agentId, product: "agents", selection: configuration.model.selection, generation: configuration.model.generation,
       layers: executionModelLayers(configuration, { id: `evaluation:${versionId}`, rootTokenLimit, maxInputBytes: configuration.model.maxInputBytes,
-        maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: configuration.context.maxInputTokens }),
+        maxOutputTokens: configuration.model.maxOutputTokens, maxContextTokens: contextGrantCeiling(configuration) }),
       requiresTools: configuration.tools.length > 0 || configuration.connectedToolBindingIds.length > 0 || configuration.skillIds.length > 0 });
     if (modelRoutes.primary.policy.maxRootTokens !== rootTokenLimit) throw new PlatformError("EVALUATION_BUDGET_EXCEEDED", 422, "Choose a root allocation within the effective service allowance");
     return { modelRoutes, modelRoutesDigest: requestDigest(modelRoutes), rootTokenLimit };

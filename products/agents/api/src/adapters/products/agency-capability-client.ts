@@ -1,12 +1,12 @@
 import { createProductHttpAdapterManifest } from "@kasitek-labs/contracts";
 import { requestDigest } from "../../contracts/contracts";
-import type { ProductRuntime } from "../../execution/products/product-runtime";
+import type { ProductAdapterInstallation } from "../../contracts/products";
 import { ProductActionClient } from "./product-action-client";
 
 const installed = createProductHttpAdapterManifest("agencies", "1", requestDigest);
-const installations = new WeakMap<ProductRuntime, string>();
+const installations = new WeakMap<ProductAdapterInstallation, string>();
 /** Installs transport only. A product composition still needs a destination-issued mapping and grant. */
-export function registerAgencyProductCapabilities(runtime: ProductRuntime, env: NodeJS.ProcessEnv = process.env): boolean {
+export function registerAgencyProductCapabilities(runtime: ProductAdapterInstallation, env: NodeJS.ProcessEnv = process.env): boolean {
   const origin = env.AGENCY_PRODUCT_API_URL;
   const privateKey = env.AGENTS_PRODUCT_ACTION_PRIVATE_KEY;
   if (!origin || !privateKey) return false;

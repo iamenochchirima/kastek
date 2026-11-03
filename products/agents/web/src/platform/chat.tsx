@@ -44,7 +44,7 @@ export function Chat({ endpoint, storageKey, token, agentId, versionId, versionN
   const canSteer = Boolean(activeId && last?.task?.canSteer && last.task.state !== "cancel_requested");
   useEffect(() => { pendingInstruction.current = null; }, [activeId]);
   useEffect(() => { onPendingChanged?.(unknown); }, [unknown, onPendingChanged]);
-  const needsContinuation = last?.task?.state === "waiting_authority" ||
+  const needsContinuation = last?.task?.canContinue === true || last?.task?.state === "waiting_authority" ||
     last?.task?.state === "waiting_children" && last.task.children?.some(child => child.state === "waiting_authority");
   const conversationId = initialConversationId ?? [...entries].reverse().find(entry => entry.task)?.task?.conversationId;
   function record(next: Entry[]) { setEntries(next); writeStored(storageKey, restorable(next)); }

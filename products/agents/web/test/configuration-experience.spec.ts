@@ -2,18 +2,23 @@ import { test, expect, type Page } from "@playwright/test";
 
 const org = "11111111-1111-4111-8111-111111111111", agentId = "22222222-2222-4222-8222-222222222222";
 const configuration = () => ({ executionKind: "business", instructions: "Answer customer questions.", context: { maxInputTokens:8192, compactAtTokens:6144 }, model: { selection: { kind:"organization_default" }, maxCostMicros:null, maxInputBytes: 16384, maxOutputTokens: 1024, maxDurationSeconds: 120 }, sourceRevisionIds: [], connectedToolBindingIds: [], skillIds: [], tools: [], capabilities: Object.fromEntries(["delegation", "sandbox", "businessActions", "workflows", "schedules"].map(key => [key, { enabled: false }])) });
-async function fixture(page: Page, impact = false, tools = false, missingSelection = false) {
+async function fixture(page: Page, impact = false, tools = false, missingSelection = false, support: "configured" | "missing" | false = false) {
   let draft = configuration(), revision = 1;
   if (tools) Object.assign(draft, { tools: ["knowledge_search"] });
   if (missingSelection) Reflect.deleteProperty(draft.model, "selection");
+  const setup = support ? { business: { name: "Support business", website: "", description: "" }, responsibilities: ["customer-support", "bookings"], channels: ["website", "facebook"], behaviour: { agentName: "Support", language: "English", tone: "friendly", handoffInstructions: "" }, ...(support === "configured" ? {supportHours: { timeZone: "Africa/Johannesburg", intervals: [{day:1,start:"09:00",end:"17:00"},{day:5,start:"09:00",end:"16:00"}] }} : {}) } : undefined;
+  if (setup?.supportHours) Object.assign(draft, { supportHours: structuredClone(setup.supportHours) });
   const snapshots = [{ id: "snapshot-initial", number: 1, configuration: structuredClone(draft), createdAt: "2026-10-20T10:00:00Z" }];
   const policies: Record<string, unknown>[] = [];
   const saves: Record<string, unknown>[] = [], posts: Record<string, unknown>[] = [], deployments: Record<string, unknown>[] = [], tasks: Record<string, unknown>[] = [];
-  await page.route("**/api/**", async route => {
+  await page.route(`${new URL(test.info().project.use.baseURL!).origin}/api/**`, async route => {
     const path = new URL(route.request().url()).pathname, method = route.request().method(), body = route.request().postData() ? route.request().postDataJSON() : {};
-    const agent = () => ({ id: agentId, name: "Support", offering: "faq", draft, draftRevision: revision });
+    const agent = () => ({ id: agentId, name: "Support", offering: support ? "customer-service" : "faq", setup, setupStep: setup ? "complete" : undefined, draft, draftRevision: revision });
     let data: unknown;
     if (path === "/api/session") data = { account: { id: "owner", email: "owner@example.com" }, organizations: [{ id: org, name: "Workspace", role: "owner" }] };
+    else if (path.endsWith("/setup-readiness")) data = { readiness: {readyToTest:false, setupStep:"complete", requirements:{model:{state:"ready",code:null},knowledge:{state:"deferred",code:null},bookings:{state:"blocked",code:"BOOKING_POLICY_REQUIRED"},handoff:{state:"ready",code:null}}, channels:[{kind:"website",state:"needs_connection"},{kind:"facebook",state:"connected"}] }};
+    else if (path.endsWith("/booking-policies")) data = {policies:[]};
+    else if (path.endsWith("/provider-calendars/connections")) data = {connections:[]};
     else if (path.endsWith("/model-providers/default")) data = {selection:{kind:"connection",connectionId:"provider-a",modelId:"model-a"},revision:1};
     else if (path.endsWith("/model-providers")) data = {connections:[{id:"provider-a",providerId:"openai",name:"OpenAI account",state:"active"},{id:"provider-b",providerId:"anthropic",name:"Anthropic account",state:"active"}]};
     else if (/model-providers\/provider-[ab]\/models$/.test(path)) data = {stale:false,result:{kind:"discovered",models:[{id:path.includes("provider-b")?"model-b":"model-a",name:path.includes("provider-b")?"Claude fixture":"GPT fixture",lifecycle:"active",inputModalities:["text"],outputModalities:["text"],contextTokens:{value:128000},maxOutputTokens:{value:32768},capabilities:{tools:{value:true,evidence:"discovered"}}}]}};
@@ -21,7 +26,9 @@ async function fixture(page: Page, impact = false, tools = false, missingSelecti
       policies.push(body); const cfg = body.configuration, selected = cfg.model.selection?.kind === "connection" ? cfg.model.selection.modelId : "model-a";
       data = { modelId: selected, modelRevision: "fixture-model-1", limits: { contextTokens: 128000, maxInputTokens: 65536,
         maxOutputTokens: 16384, maxCallDurationMs: 180000, maxRootTokens: 32000, safetyTokens: 1024 },
-        effectivePolicy: { contextTokens: 128000, maxOutputTokens: cfg.model.maxOutputTokens, maxRootTokens: 32000 }, errors: [],
+        effectivePolicy: { contextTokens: 128000, maxOutputTokens: cfg.model.maxOutputTokens, maxRootTokens: 32000,
+          maxInputTokens:cfg.context?.mode==="automatic"?30976:cfg.context?.maxInputTokens??30976,
+          compactAtTokens:cfg.context?.mode==="automatic"?20650:cfg.context?.compactAtTokens??20650 }, errors: [],
         controls: { temperature: selected === "model-a" ? { min: 0, max: 2, source: "fixture" } : null,
           reasoning: selected === "model-b" ? { kind: "budget", minTokens: 1024, maxTokens: 8192, source: "fixture" }
             : { kind: "effort", values: ["low", "medium", "high"], source: "fixture" } } };
@@ -61,6 +68,29 @@ test("configuration without an explicit model selection renders while policy loa
   release();
   await expect(page.getByLabel("Effective model limits", { exact: true })).toContainText("Task 32,000 tokens");
   expect(errors).toEqual([]);
+});
+
+for(const width of [1440,768,390])test(`context mode preserves explicit caps and opts into automatic capacity at ${width}px`,async({page})=>{
+  const state=await fixture(page);await page.setViewportSize({width,height:900});
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByText("Model limits",{exact:true}).click();
+  await expect(page.getByRole("combobox",{name:"Context mode",exact:true})).toHaveValue("custom");
+  await expect(page.getByLabel("Input context tokens",{exact:true})).toHaveValue("8192");
+  await expect(page.getByLabel("Compact at tokens",{exact:true})).toHaveValue("6144");
+  await page.getByRole("combobox",{name:"Context mode",exact:true}).selectOption("automatic");
+  await expect(page.getByLabel("Input context tokens",{exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect.poll(()=>state.saves.length).toBe(1);
+  expect(state.saves[0]).toMatchObject({configuration:{context:{mode:"automatic"}}});
+  expect((state.saves[0]!.configuration as {context:unknown}).context).toEqual({mode:"automatic"});
+  await expect.poll(()=>state.policies.at(-1)?.configuration).toMatchObject({context:{mode:"automatic"}});
+  await page.getByRole("combobox",{name:"Context mode",exact:true}).selectOption("custom");
+  await expect(page.getByLabel("Input context tokens",{exact:true})).toHaveValue("30976");
+  await expect(page.getByLabel("Compact at tokens",{exact:true})).toHaveValue("20650");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect.poll(()=>state.saves.length).toBe(2);
+  expect((state.saves[1]!.configuration as {context:unknown}).context).toEqual({maxInputTokens:30976,compactAtTokens:20650});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });
 
 test("configuration applies to the next turn in an existing chat; no ordinary version controls", async ({ page }) => {
@@ -208,12 +238,12 @@ for (const width of [1440, 390]) test(`chat model picker saves only the selected
   const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await expect(current).toBeVisible();
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this draft while changing models");
   await current.click(); const picker = page.getByRole("dialog", { name: "Choose model", exact: true });
-  await picker.getByRole("textbox", { name: "Search chat models", exact: true }).fill("Anthropic");
-  await picker.getByRole("button", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  await picker.getByRole("textbox", { name: "Search models", exact: true }).fill("Anthropic");
+  await picker.getByRole("radio", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Save model", exact: true }).click();
   const confirmation = page.getByRole("alertdialog"); await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel", exact: true }).click(); await expect(picker).toBeVisible(); await expect(current).toBeAttached();
   expect(state.snapshots).toHaveLength(1);
-  await picker.getByRole("button", { name: "Use model", exact: true }).click(); await confirmation.getByRole("button", { name: "Apply changes", exact: true }).click();
+  await picker.getByRole("button", { name: "Save model", exact: true }).click(); await confirmation.getByRole("button", { name: "Apply changes", exact: true }).click();
   await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue("Keep this draft while changing models");
   expect(state.snapshots).toHaveLength(2);
@@ -229,16 +259,16 @@ test("chat model picker preserves unsaved configuration and recovers after save 
   await page.getByRole("textbox", { name: "Instructions", exact: true }).fill("Unsaved instructions stay here");
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   const current = page.getByRole("button", { name: "Chat model: OpenAI account · GPT fixture", exact: true, includeHidden: true }); await current.click();
-  const picker = page.getByRole("dialog", { name: "Choose model", exact: true }); await expect(picker).toContainText("Save configuration changes in Configure");
-  await picker.getByRole("button", { name: /Claude fixture/ }).click(); await expect(picker.getByRole("button", { name: "Use model", exact: true })).toBeDisabled();
+  const picker = page.getByRole("dialog", { name: "Choose model", exact: true }); await expect(picker).toContainText("Save configuration changes");
+  await picker.getByRole("radio", { name: /Claude fixture/ }).click(); await expect(picker.getByRole("button", { name: "Save model", exact: true })).toBeDisabled();
   await picker.getByRole("button", { name: "Cancel", exact: true }).click(); expect(state.saves).toHaveLength(0);
   await page.getByRole("button", { name: "Configure", exact: true }).click(); await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue("Unsaved instructions stay here");
   await page.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.route("**/configuration", route => route.fulfill({ status: 503, json: { error: { message: "Save temporarily unavailable" } } }));
-  await current.click(); await picker.getByRole("button", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  await current.click(); await picker.getByRole("radio", { name: /Claude fixture/ }).click(); await picker.getByRole("button", { name: "Save model", exact: true }).click();
   await expect(picker.getByRole("alert")).toContainText("Save temporarily unavailable"); await expect(current).toBeAttached(); expect(state.snapshots).toHaveLength(2);
-  await page.unroute("**/configuration"); await picker.getByRole("button", { name: "Use model", exact: true }).click();
+  await page.unroute("**/configuration"); await picker.getByRole("button", { name: "Save model", exact: true }).click();
   await expect(picker).toHaveCount(0); await expect(page.getByRole("button", { name: "Chat model: Anthropic account · Claude fixture", exact: true })).toBeVisible();
   expect((state.saves.at(-1)!.configuration as ReturnType<typeof configuration>).instructions).toBe("Unsaved instructions stay here");
 });
@@ -256,8 +286,8 @@ test("chat model save reads current configuration instead of stale tab fields", 
   });
   await page.goto(`/app/agents/${agentId}`);
   await page.getByRole("button", { name: /^Chat model:/ }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Claude fixture", exact: true }).click();
-  await page.getByRole("button", { name: "Use model", exact: true }).click();
+  await page.getByRole("dialog").getByRole("radio", { name: /Claude fixture/ }).click();
+  await page.getByRole("button", { name: "Save model", exact: true }).click();
   await page.getByRole("button", { name: "Apply changes", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Support", exact: true })).toBeVisible();
@@ -305,4 +335,98 @@ test("a rejected deletion keeps the agent available", async ({ page }) => {
   await expect(dialog).toContainText("Not authorized");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Instructions", exact: true })).toBeVisible();
+});
+
+
+test("support hours save directly from General and survive reload", async ({page}) => {
+  const state = await fixture(page, false, false, false, "configured");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  const support = page.getByRole("region", {name:"Human support",exact:true});
+  await expect(support).toBeVisible();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  await expect(support.getByLabel("Friday closes",{exact:true})).toHaveValue("16:00");
+  await support.getByLabel("Monday opens",{exact:true}).fill("930");
+  await support.getByLabel("Monday closes",{exact:true}).fill("1800");
+  await support.getByLabel("Timezone",{exact:true}).fill(" africa/johannesburg ");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  expect(state.saves).toHaveLength(1);
+  expect(state.saves[0]).not.toHaveProperty("setup");
+  expect(state.saves[0]).toMatchObject({expectedRevision:1,configuration:{instructions:"Answer customer questions.",supportHours:{timeZone:"Africa/Johannesburg",intervals:[{day:1,start:"09:30",end:"18:00"},{day:5,start:"09:00",end:"16:00"}]}}});
+  await page.reload();
+  await expect(support.getByLabel("Monday opens",{exact:true})).toHaveValue("09:30");
+  await expect(support.getByLabel("Monday closes",{exact:true})).toHaveValue("18:00");
+  await expect(support.getByLabel("Friday closes",{exact:true})).toHaveValue("16:00");
+});
+
+test("invalid support hours block saving and failed saves preserve edits", async ({page}) => {
+  const state = await fixture(page, false, false, false, "configured");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  const opens=page.getByLabel("Monday opens",{exact:true}), closes=page.getByLabel("Monday closes",{exact:true});
+  await opens.fill("25:00");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(opens).toHaveAttribute("aria-invalid","true");
+  expect(state.saves).toHaveLength(0);
+  await opens.fill("10:00");
+  await page.getByRole("button",{name:"Add Monday hours"}).click();
+  await page.getByLabel("Monday opens 2",{exact:true}).fill("13:00");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByText("Hours overlap.").first()).toBeVisible();
+  expect(state.saves).toHaveLength(0);
+  await page.getByRole("button",{name:"Remove period",exact:true}).click();
+  await closes.fill("18:00");
+  let failed=false;
+  await page.route("**/configuration", async route => {if(!failed){failed=true;return route.fulfill({status:409,json:{error:{code:"DRAFT_CONFLICT",message:"Settings changed. Refresh and try again."}}});}return route.fallback();});
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("alert")).toContainText("Settings changed.");
+  await expect(opens).toHaveValue("10:00");
+  await expect(closes).toHaveValue("18:00");
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeEnabled();
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  expect(state.saves).toHaveLength(1);
+});
+
+test("missing support hours stay unset until explicitly configured", async ({page}) => {
+  await fixture(page,false,false,false,"missing");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  await expect(page.getByLabel("Monday opens",{exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"Set support hours",exact:true}).click();
+  await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeEnabled();
+});
+
+for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const) test(`General settings at ${width}px ${theme}`,async({page})=>{
+  await page.setViewportSize({width,height:1000});await page.emulateMedia({colorScheme:theme});
+  await fixture(page,false,false,false,"configured");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await expect(page.getByRole("region",{name:"Human support",exact:true})).toBeVisible();
+  await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
+  await expect(page.getByRole("link",{name:"Manage model providers",exact:true})).toHaveCount(1);
+  await expect(page.getByRole("button",{name:"Import website",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Delete agent",exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByLabel("Monday opens",{exact:true}).focus();
+  await page.screenshot({path:test.info().outputPath(`agent-general-${width}-${theme}.png`),fullPage:true});
+  await page.getByRole("button",{name:"Delete agent",exact:true}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:test.info().outputPath(`agent-general-secondary-${width}-${theme}.png`),fullPage:true});
+});
+
+
+test("loading valid history clears stale support-hour errors", async ({page}) => {
+  await fixture(page,false,false,false,"configured");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByLabel("Monday opens",{exact:true}).fill("invalid");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toBeVisible();
+  await page.getByText("Configuration history",{exact:true}).click();
+  await page.getByRole("button",{name:"Load configuration",exact:true}).click();
+  await page.getByRole("alertdialog").getByRole("button",{name:"Load configuration",exact:true}).click();
+  await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toHaveCount(0);
+  await page.getByLabel("Monday opens",{exact:true}).fill("10:00");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toHaveCount(0);
 });

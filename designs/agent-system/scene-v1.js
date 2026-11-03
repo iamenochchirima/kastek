@@ -1,0 +1,75 @@
+// Review board: target architecture, not a representation of shipped completeness.
+export function makeBoard(){const elements=[],groups={overview:[],runtime:[],delegation:[]};let scene='overview',ox=0;const colors={shared:['#f3e8ff','#6741a5'],product:['#e7f0ff','#245b9d'],config:['#fff4d6','#9a6700'],data:['#e5f5eb','#26734d'],neutral:['#ffffff','#495057']};
+const add=e=>{e.customData={scene};elements.push(e);groups[scene].push(e.id);return e.id};
+function text(id,x,y,value,size=24,color='#343a40'){return add({id,type:'text',x:x+ox,y,text:value,fontSize:size,fontFamily:1,strokeColor:color})}
+function box(id,x,y,w,h,value,kind='neutral'){const [bg,stroke]=colors[kind];return add({id,type:'rectangle',x:x+ox,y,width:w,height:h,backgroundColor:bg,strokeColor:stroke,fillStyle:'solid',strokeWidth:1.6,roughness:1,roundness:{type:3},label:{text:value,fontSize:22,fontFamily:1,textAlign:'center',verticalAlign:'middle'}})}
+function boundary(id,x,y,w,h,name,kind='shared'){const [bg,stroke]=colors[kind];add({id,type:'rectangle',x:x+ox,y,width:w,height:h,backgroundColor:'transparent',strokeColor:stroke,strokeStyle:'dashed',strokeWidth:2,roughness:1});text(id+'-title',x+20,y+15,name,28,stroke)}
+function arrow(id,from,to,x,y,dx,dy,label='',points){return add({id,type:'arrow',x:x+ox,y,width:Math.abs(dx),height:Math.abs(dy),points:points||[[0,0],[dx,dy]],start:{id:from},end:{id:to},endArrowhead:'arrow',strokeColor:'#495057',strokeWidth:1.7,roughness:1,...(label?{label:{text:label,fontSize:18,fontFamily:1}}:{})})}
+text('o-title',40,0,'1. WHOLE SYSTEM — target architecture under review',38);
+text('o-sub',40,60,'Products own business authority. Agents owns a shared execution protocol.',24);
+boundary('growth',40,140,600,1410,'GROWTH — product ownership','product');
+boundary('platform',740,140,820,1410,'AGENTS PLATFORM — shared machinery');
+boundary('agencies',1660,140,600,1410,'AGENCIES — product ownership','product');
+box('g-config',90,230,500,180,'Growth agent configuration\nPurpose + instructions + model\nSelected skills, tools, knowledge\nMemory and delegation policies','config');
+box('a-config',1710,230,500,180,'Agency agent configuration\nPurpose + instructions + model\nClient tools, skills and knowledge\nMemory and delegation policies','config');
+box('definitions',790,230,720,180,'Agent definition registry\nValidated, revisioned configurations\nA definition is a recipe, not a running process','config');
+arrow('g-def','g-config','definitions',590,310,200,0,'configure');arrow('a-def','a-config','definitions',1710,350,-200,0,'configure');
+box('g-request',90,530,500,150,'Growth request\nBackend verifies member, organization\nand requested resources','product');
+box('a-request',1710,530,500,150,'Agency request\nBackend verifies agency, workspace\nand selected client','product');
+box('admission',790,530,720,150,'Execution admission\nVerify caller + definition + current authority\nCreate task, scope and execution grant','shared');
+arrow('g-admit','g-request','admission',590,580,200,0,'authorized request');arrow('a-admit','a-request','admission',1710,625,-200,0,'authorized request');arrow('def-admit','definitions','admission',1150,410,0,120,'selected revision');
+box('instance',790,810,720,190,'Agent instance\nOne task using the shared runtime\nContext / model / tools / skills / memory\nDelegation when configured','shared');
+arrow('admit-instance','admission','instance',1150,680,0,130,'admitted task');
+text('g-facts',90,800,'Growth contributes:\n• Business instructions and skills\n• Permitted Growth tools\n• Relevant organization context\n• Content / Campaigns / Research\n  as ordinary agent definitions',25,'#245b9d');
+text('a-facts',1710,800,'Agencies contributes:\n• Agency-specific configurations\n• Client-scoped tools and context\n• Its own permission rules\n• Its own specialist catalogue\n\nNo inherited Growth access',25,'#245b9d');
+box('product-adapter',790,1140,720,130,'Execution gateway → product adapter\nNo credentials in model context\nStable operation IDs + confirmed / unknown receipts','shared');
+arrow('instance-adapter','instance','product-adapter',1150,1000,0,140,'validated tool invocation');
+box('g-api',90,1140,500,160,'Growth capability API\nRecheck current permissions and reviews\nExecute Growth business operations','product');
+box('a-api',1710,1140,500,160,'Agencies capability API\nRecheck client scope and approvals\nExecute agency business operations','product');
+arrow('adapter-g','product-adapter','g-api',790,1180,-200,0,'scoped call / receipt');arrow('adapter-a','product-adapter','a-api',1510,1230,200,0,'scoped call / receipt');
+box('g-data',90,1380,500,110,'Growth records and connections\nOwned by Growth','data');box('a-data',1710,1380,500,110,'Agency / client records and connections\nOwned by Agencies','data');arrow('g-record','g-api','g-data',340,1300,0,80);arrow('a-record','a-api','a-data',1960,1300,0,80);
+box('journal',790,1380,720,110,'Durable execution + scoped state\nHistory, summaries, memory, evidence, receipts\nRecovery and authorized live activity','data');arrow('record','product-adapter','journal',1150,1270,0,110,'record outcome');
+text('o-rule',40,1620,'Shared service ≠ shared access. Products keep their own databases, sessions and business rules.',27,'#6741a5');
+text('o-gap',40,1680,'Implementation gaps remain: nested delegation, Growth skills/memory, long-context continuity and catalogue loading.',24,'#9a6700');
+scene='runtime';ox=2500;
+text('r-title',40,0,'2. INSIDE ANY AGENT INSTANCE — same protocol',38);
+text('r-sub',40,60,'These are logical modules, not separate agent products or mandatory microservices.',24);
+boundary('r-boundary',490,140,1400,1290,'SHARED RUNTIME INSTANCE');
+box('r-config',40,220,350,180,'Effective configuration\nInstructions + model\nSelected capabilities\nAdmitted scope','config');
+box('r-admit',900,220,580,120,'Admission and execution policy\nVerified identity + scoped grants','shared');arrow('r-policy','r-config','r-admit',390,280,510,0,'configuration + grant');
+box('r-history',40,500,350,150,'Authorized history\nKnowledge and evidence\nContinuity summaries','data');
+box('r-context',560,500,410,150,'Context manager\nSelect + pack + compact\nTrack provenance and omissions','shared');
+box('r-model',1100,500,410,150,'Model loop\nReason about the request\nChoose answer or capability call','shared');
+box('r-provider',2010,500,350,150,'Model-provider adapter\nPermitted prompt only\nCredentials stay outside prompt','product');
+arrow('r-admitcontext','r-admit','r-context',1050,340,-285,160,'admitted request');arrow('r-historycontext','r-history','r-context',390,575,170,0,'relevant records');arrow('r-request','r-context','r-model',970,550,130,0,'assembled request');arrow('r-provider-call','r-model','r-provider',1510,575,500,0,'model request / response');
+box('r-skills',560,840,410,150,'Skill manager\nDiscover + activate + read\nInstructions ≠ reference data','shared');
+box('r-memory',1100,840,410,150,'Memory manager\nRetrieve + propose + accept\nCorrect + expire + forget','shared');
+box('r-catalogue',1100,1180,410,150,'Tool catalogue\nDiscover permitted bindings\nLoad selected exact schemas','shared');
+box('r-gateway',2010,840,350,170,'Execution gateway\nValidate schema and scope\nRecheck grants and approvals\nDispatch trusted adapter','shared');
+arrow('r-modelcall','r-model','r-gateway',1510,630,500,270,'requested capability');
+arrow('r-catalogue-call','r-model','r-catalogue',1305,650,0,530,'discover permitted tools');
+arrow('r-schema','r-catalogue','r-context',1100,1240,-130,-590,'schemas → context',[[0,0],[-80,0],[-80,-520],[-335,-520],[-335,-590]]);
+arrow('r-skillsload','r-skills','r-context',765,840,0,-190,'reviewed procedures');
+arrow('r-memoryload','r-memory','r-context',1100,900,-130,-250,'scoped memory evidence',[[0,0],[-70,0],[-70,-200],[-335,-200],[-335,-250]]);
+box('r-skillstore',40,840,350,150,'Reviewed skill packages\nPinned revisions\nSupporting resources','config');arrow('r-skillfiles','r-skillstore','r-skills',390,915,170,0,'selected files');
+box('r-memorystore',40,1180,350,150,'Scoped memory / knowledge\nOwner + source + revision\nAcceptance + expiry policy','data');arrow('r-memoryio','r-memorystore','r-memory',390,1255,710,-265,'authorized retrieval');
+box('r-adapters',2010,1180,350,150,'Purpose-specific adapters\nProduct APIs / providers\nDelegation / isolated tools','product');arrow('r-dispatch','r-gateway','r-adapters',2185,1010,0,170,'validated operation');
+arrow('r-result','r-gateway','r-context',2010,880,-1040,-230,'result + evidence + outcome',[[0,0],[-80,0],[-80,-470],[-1245,-470],[-1245,-380]]);
+text('r-contract',40,1510,'Every context item carries provenance. Every effect carries authority and a stable operation identity.',27,'#6741a5');
+text('r-separate',40,1570,'Conversation history ≠ persistent memory ≠ authoritative business records ≠ credentials.',26,'#26734d');
+text('r-memorydecision',40,1630,'Proposed: relevance/freshness-aware memory, durable conversation continuity, progressive tool and skill loading.',24,'#9a6700');
+scene='delegation';ox=5100;
+text('d-title',40,0,'3. DELEGATION IS A CAPABILITY — not a root-only privilege',38);
+text('d-sub',40,60,'Example tree. Agent names are configurations; every instance uses the same runtime.',24);
+box('d-growth',830,180,650,180,'Growth assistant\nShared runtime + Growth configuration\nDelegation enabled','shared');
+box('d-content',80,650,550,190,'Content agent\nShared runtime + content configuration\nDelegation enabled in this example','shared');
+box('d-research',880,650,550,190,'Research agent\nShared runtime + research configuration\nIts own delegation policy','shared');
+box('d-campaign',1680,650,550,190,'Campaign agent\nShared runtime + campaign configuration\nIts own delegation policy','shared');
+arrow('d-gc','d-growth','d-content',930,360,-575,290,'focused assignment');arrow('d-gr','d-growth','d-research',1155,360,0,290,'selected context');arrow('d-gp','d-growth','d-campaign',1380,360,575,290,'bounded authority');
+box('d-child',80,1190,550,190,'Another permitted child\nThe same shared runtime\nMay delegate if configured','shared');arrow('d-nested','d-content','d-child',355,840,0,350,'delegate when useful');
+arrow('d-return','d-child','d-content',630,1250,0,-470,'result + evidence + outcome',[[0,0],[100,0],[100,-470],[0,-470]]);
+box('d-assignment',880,1030,1350,180,'Assignment contract\nObjective + relevant facts/references + constraints + deliverable\nCurrent authority bounded by parent rights AND child configuration\nChild results are reference data, not new instructions','config');
+box('d-work',880,1300,1350,180,'Whole-tree execution contract\nShared work identity + parent/child lineage + operation receipts\nConcurrency / explicit allowances / cancellation / recovery\nDetect repeated unchanged work; no hard-coded specialist workflow','data');
+text('d-key',80,1550,'A child does not inherit the entire parent transcript, every tool, or staff personal memory.',27,'#6741a5');
+text('d-open',80,1620,'Under review: default depth/capacity policy, memory acceptance rules, retention and rollout sequence.',25,'#9a6700');
+return {elements,groups};}

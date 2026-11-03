@@ -11,7 +11,7 @@ defines 45 version-1 operations. MCP tools and signed internal descriptors use t
 identities and schemas; REST exposes `POST /v1/operations/{operation}`. `GET /v1/operations`
 filters discovery by the current credential, workspace membership and entitlements. Typed REST
 aliases delegate to the same handlers. There are no additional internal business operations in
-the current publication (manifest/policy revision 8, adapter release 5).
+the current publication (manifest/policy revision 11, adapter release 6).
 
 This table accounts for the historical tool families without reinstating their removed gateway,
 installation credentials or executor. Historical names are not compatibility aliases.
@@ -52,6 +52,22 @@ admission receipt is not a confirmed provider publication.
 Human UI commands retain their existing explicit-action flow and use the same domain guards.
 Presentation controls, navigation, draft editor state and OAuth browser consent are not model
 business tools. Provider credential setup/reconnection remains an authenticated human flow.
+
+## Review concurrency
+
+An operation review binds the exact input and the current resources it depends on. The review
+snapshot records a `agentReviewRevisionSchema` version and a separate monotonic `BIGINT` revision
+for Conversation, ExternalConnection, SocialPost, SocialChannelConnection, WhatsappContact and
+WhatsappContactListMembership. Account and contact revisions are included in their snapshot
+digests. These decimal revisions distinguish concurrent changes even when `updatedAt` has the same
+millisecond value; `updatedAt` keeps its timestamp and audit meaning.
+
+Growth re-reads the snapshot immediately before claiming an approved operation. If a resource or
+account changed, the proposed or approved review is stale and needs a new review. Existing reviews
+without the current revision schema cannot be approved or executed. An executing or uncertain
+operation keeps its original identity and may only reconcile that receipt; revision changes never
+authorize a fresh external effect. Ordinary product clients that submit `expectedUpdatedAt` retain
+that timestamp precondition and do not gain a revision-based compare-and-swap contract.
 
 ## Draft destinations
 

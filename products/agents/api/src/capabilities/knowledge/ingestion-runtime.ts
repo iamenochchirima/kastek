@@ -9,6 +9,7 @@ import { type DocumentInput,type DocumentOutput,type DocumentRuntime } from "./d
 import { KnowledgeStore,requireKnowledgeMember } from "./knowledge";
 import { acquirePublicSource,SourceAcquisitionError } from "./source-acquisition";
 import { writeSourceObject } from "./source-objects";
+import { knowledgeJobScope } from "../products/resource-scope";
 
 export const INGESTION_WORKFLOW = "AgentsKnowledgeImportV1";
 type Runtime = Pick<DocumentRuntime, "start" | "status" | "result" | "destroy">;
@@ -60,7 +61,7 @@ export class IngestionService {
     await db.query("SELECT id FROM agents_platform.organizations WHERE id=$1 FOR UPDATE", [initial.organization_id]);
     const job = (await db.query(`SELECT j.*,s.state AS source_state,s.generation AS current_generation FROM agents_platform.ingestion_jobs j
       JOIN agents_platform.sources s ON s.id=j.source_id WHERE j.id=$1 FOR UPDATE OF s,j`, [jobId])).rows[0];
-    await requireKnowledgeMember(db, { organizationId: job.organization_id, accountId: job.importer_account_id });
+    await requireKnowledgeMember(db, knowledgeJobScope(job));
     if (["cancelled", "failed"].includes(job.state) || job.source_state !== "active" || job.accepted_generation !== job.current_generation || new Date(job.deadline).getTime() <= Date.now()) throw failure("INGESTION_INVALIDATED");
     return job;
   }
@@ -289,14 +290,14 @@ export async function reapDocumentResources(pool: Pool, runtime: Runtime): Promi
     await pool.query(`UPDATE agents_platform.ingestion_jobs j SET state='failed',error_code=CASE WHEN deadline<=now() THEN 'INGESTION_DEADLINE' ELSE 'INGESTION_INVALIDATED' END,updated_at=now()
       WHERE state NOT IN ('ready','failed','cancelled') AND (deadline<=now()
         OR EXISTS(SELECT 1 FROM agents_platform.sources s WHERE s.id=j.source_id AND (s.state='withdrawn' OR s.generation<>j.accepted_generation))
-        OR NOT EXISTS(SELECT 1 FROM agents_platform.memberships m WHERE m.organization_id=j.organization_id AND m.account_id=j.importer_account_id AND m.revoked_at IS NULL))`);
+        OR NOT agents_platform.knowledge_import_authorized(j))`);
     await pool.query(`UPDATE agents_platform.ingestion_jobs j SET state='failed',error_code='SOURCE_WRITE_UNCERTAIN',updated_at=now()
       WHERE j.state NOT IN ('ready','failed','cancelled') AND j.raw_state='pending'
       AND EXISTS(SELECT 1 FROM agents_platform.source_objects o WHERE o.job_id=j.id AND o.kind='raw' AND o.state IN ('delete_pending','deleted'))`);
     const rows = (await pool.query(`SELECT a.id FROM agents_platform.document_allocations a JOIN agents_platform.ingestion_jobs j ON j.id=a.job_id
       JOIN agents_platform.sources s ON s.id=j.source_id WHERE a.state<>'destroyed'
       AND (a.state='completed' OR a.lease_expires_at<=now() OR j.deadline<=now() OR j.state IN ('cancelled','failed','ready') OR s.state='withdrawn' OR s.generation<>j.accepted_generation
-      OR NOT EXISTS(SELECT 1 FROM agents_platform.memberships m WHERE m.organization_id=j.organization_id AND m.account_id=j.importer_account_id AND m.revoked_at IS NULL)) LIMIT 20`)).rows;
+      OR NOT agents_platform.knowledge_import_authorized(j)) LIMIT 20`)).rows;
     for (const row of rows) await cleanupDocumentAllocation(pool, runtime, row.id);
     await pool.query("UPDATE agents_platform.ingestion_jobs SET state='failed',error_code='INGESTION_DEADLINE',updated_at=now() WHERE state NOT IN ('ready','failed','cancelled') AND deadline<=now()");
   }

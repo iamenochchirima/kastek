@@ -1,3 +1,4 @@
+import { contextGrantCeiling } from "../../execution/models/settings";
 import { authorizeOrchestration,queueOrchestrationInstructionInTransaction } from "../../execution/delegation/progress";
 import { memberAssistantEnabled, memberAssistantPolicy } from "../../infrastructure/member-assistant-policy";
 export { memberAssistantEnabled } from "../../infrastructure/member-assistant-policy";
@@ -7,7 +8,7 @@ import { capabilityBindingSchema } from "../../contracts/capability-catalog";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { PlatformError, requestDigest, executionGrantSchema, connectedToolAuthorityIds, type AdmissionAuthority } from "../../contracts/contracts";
+import { PlatformError, requestDigest, executionGrantSchema, sourceAuthorityIds,connectedToolAuthorityIds, type AdmissionAuthority } from "../../contracts/contracts";
 import type { ChannelWebhookEvent } from "../../contracts/channel-adapters";
 import type { Account, TaskRecord, VersionRecord } from "../../contracts/records";
 import { transaction } from "../../infrastructure/database";
@@ -205,9 +206,9 @@ export class MemberChannels {
       if(!user)throw deny();
       const authority:AdmissionAuthority={product:"agents",organizationId:row.organization_id,resourceId:version.agent_id,callerClientId:"agents-execution",principal:{kind:"human",issuer:user.issuer,subject:user.subject}};
       const config=version.configuration;
-      const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:operationsForConfiguration(config,true),sourceRevisionIds:config.sourceRevisionIds,
+      const grant=executionGrantSchema.parse({...authority,id:randomUUID(),versionId:version.id,operations:operationsForConfiguration(config,true),sourceRevisionIds:sourceAuthorityIds(config),
         connectedToolBindingIds:connectedToolAuthorityIds(config),maxInputBytes:config.model.maxInputBytes,maxOutputTokens:config.model.maxOutputTokens,
-        maxContextTokens:config.context.maxInputTokens,expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
+        maxContextTokens:contextGrantCeiling(config),expiresAt:new Date(Date.now()+30*60_000).toISOString(),revokedAt:null});
       await this.store.createGrantInTransaction(db,{accountId:user.id,grant});
       const result=await this.store.admitTaskInTransaction(db,{authority,grantId:grant.id,versionId:version.id,input:event.text!,requestKey:`member:${row.id}`,
         conversationId:link.conversation_id??undefined,configurationMode:"current"});

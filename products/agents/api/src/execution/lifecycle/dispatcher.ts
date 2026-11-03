@@ -1,6 +1,6 @@
 import {recordOperationsWorkerHeartbeat} from "@kasitek-labs/server-support/operations-source";
 import { randomUUID } from "node:crypto";
-import {dispatcherPhases,type DispatcherPhase} from "../../contracts/execution";
+import {CONTEXT_COMPACTION_WORKFLOW,dispatcherPhases,type DispatcherPhase} from "../../contracts/execution";
 import {advanceCapacity} from "../scheduling/capacity";
 import { claimDispatchBatch,parallelEach,type DispatchPolicy } from "../scheduling/dispatch-claims";
 import type { Pool } from "pg";
@@ -188,11 +188,13 @@ async function publishCapacityNotifications(pool:Pool,options:DispatcherOptions,
  WHERE t.harness_release=ANY($2::text[]) AND n.dispatched_at IS NULL AND available_at<=now() AND (lease_until IS NULL OR lease_until<now())
  ORDER BY n.available_at,n.request_id,n.generation FOR UPDATE OF n SKIP LOCKED LIMIT 64)
  UPDATE agents_platform.capacity_notifications n SET lease_owner=$1,lease_until=now()+interval '30 seconds' FROM due
- WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*,(SELECT harness_release FROM agents_platform.tasks WHERE id=n.task_id) AS harness_release`,[owner,Object.keys(routes)])).rows;
+ WHERE n.request_id=due.request_id AND n.generation=due.generation RETURNING n.*,(SELECT harness_release FROM agents_platform.tasks WHERE id=n.task_id) AS harness_release,
+   (SELECT id FROM agents_platform.context_compaction_jobs j WHERE j.id=n.request_id AND j.task_id=n.task_id AND j.mode='background') AS compaction_job_id`,[owner,Object.keys(routes)])).rows;
  await drainBatch(notifications,8,async row=>{
  const route=routes[row.harness_release]!;
  try{
-  const response=await request(`${route.ingressUrl.replace(/\/$/,"")}/${route.workflowName}/${row.task_id}/capacity`,{
+  const target=row.compaction_job_id?{workflow:CONTEXT_COMPACTION_WORKFLOW,key:row.compaction_job_id}:{workflow:route.workflowName,key:row.task_id};
+  const response=await request(`${route.ingressUrl.replace(/\/$/,"")}/${target.workflow}/${encodeURIComponent(target.key)}/capacity`,{
   method:"POST",headers:{"content-type":"application/json","idempotency-key":`capacity:${row.request_id}:${row.generation}`},
   body:JSON.stringify({requestId:row.request_id,generation:row.generation}),signal:AbortSignal.timeout(5000)});
   if(!response.ok)throw Error("CAPACITY_NOTIFICATION_FAILED");

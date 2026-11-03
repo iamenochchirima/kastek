@@ -6,7 +6,7 @@ import { setupPlatformSchema } from "../src/composition/setup";
 import { PlatformStore } from "../src/product/agents/store";
 import { SkillPackageStore } from "../src/product/agents/skill-package-store";
 import { registerSkillPackageRoutes } from "../src/product/agents/skill-package-routes";
-import { defaultBusinessConfiguration } from "../src/contracts/contracts";
+import { defaultBusinessConfiguration, executionGrantSchema } from "../src/contracts/contracts";
 import { activateSkillPackage, parseSkillPackage } from "../src/capabilities/skills/package";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { loadSkillRevisions, MemoryStore } from "../src/execution/memory/memory";
@@ -16,10 +16,12 @@ import { composeInbox } from "../src/composition/inbox";
 import { customerConfiguration } from "../src/product/offerings/offerings";
 import { assertPublicSkillPolicy } from "../src/capabilities/skills/public-policy";
 import { executeSkillTool } from "../src/capabilities/skills/runtime";
+import { contextGrantCeiling } from "../src/execution/models/settings";
 import { skillContext } from "../src/execution/context/skills";
 import { assertCurrentAuthority,beginOperation,finishOperation,loadExecution } from "../src/execution/lifecycle/execution";
 import { connectFixtureModel } from "./model-fixture";
 import { curatedSkillPackage } from "../src/capabilities/skills/curated";
+import { EvidenceStore } from "../src/execution/context/evidence";
 
 const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl ? describe : describe.skip)("reviewed skill package store on real PostgreSQL", () => {
@@ -220,6 +222,57 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     const changed = await store.import(scope, randomUUID(), parseSkillPackage(input("Changed reference instructions.")));
     await expect(loadSkillRevisions(pool, scope.organizationId, scope.agentId, [changed.id])).rejects.toMatchObject({ code: "SKILL_REVIEW_REQUIRED" });
     expect((await loadSkillRevisions(pool, scope.organizationId, scope.agentId, [revision.id]))[0]?.contentDigest).toBe(pkg.contentDigest);
+  });
+  it("persists long complete procedures and exact resource pages under current reviewed authority", async () => {
+    const scope = await fixture(), files = input("😀 decisive source data\n".repeat(600));
+    files.files[0]!.content += "\nCheck each approved source before writing. ".repeat(180);
+    const pkg = parseSkillPackage(files), installed = await store.import(scope, randomUUID(), pkg);
+    await store.review(scope, installed.id, installed.contentDigest);
+    const configuration = { ...defaultBusinessConfiguration(), skillIds: [installed.id] };
+    const draft = await platform.updateDraft({ ...scope, configuration, expectedRevision: 1 });
+    const version = await platform.createVersion({ ...scope, expectedRevision: draft.draft_revision });
+    const account = (await pool.query("SELECT issuer,subject FROM agents_platform.accounts WHERE id=$1", [scope.accountId])).rows[0];
+    const authority = { product: "agents" as const, organizationId: scope.organizationId, resourceId: scope.agentId,
+      callerClientId: "agents-execution", principal: { kind: "human" as const, issuer: account.issuer, subject: account.subject } };
+    const grant = executionGrantSchema.parse({ ...authority, id: randomUUID(), versionId: version.id,
+      operations: ["model.reply", "knowledge.read", "skill.read"], maxInputBytes: 16384, maxOutputTokens: configuration.model.maxOutputTokens,
+      maxContextTokens: contextGrantCeiling(configuration),
+      expiresAt: new Date(Date.now() + 600000).toISOString(), revokedAt: null });
+    await platform.createGrant({ accountId: scope.accountId, grant });
+    const { task } = await platform.admitTask({ authority, grantId: grant.id, versionId: version.id, requestKey: randomUUID(), input: "Prepare the report" });
+    const activate = randomUUID();
+    await beginOperation(pool, task.id, { id: activate, kind: "tool", name: "skills.activate", request: {}, reservedTokens: 0, reservedMs: 30000 });
+    const instructions = await executeSkillTool(pool, task.id, "skills.activate", { skillId: installed.id }, 20000);
+    expect(Buffer.byteLength(instructions.content)).toBeGreaterThan(4096);
+    await expect(executeSkillTool(pool, task.id, "skills.activate", { skillId: installed.id }, 6144, undefined, "1"))
+      .rejects.toMatchObject({ code: "SKILL_CONTEXT_LIMIT" });
+    await finishOperation(pool, task.id, activate, "completed", instructions, null, 0);
+    const legacy = await executeSkillTool(pool, task.id, "skills.read", { skillId: installed.id, path: "scripts/run.py" }, 6144, undefined, "1");
+    expect(legacy.content).toContain("never execute during import"); expect(legacy.range).toBeUndefined();
+    await expect(executeSkillTool(pool, task.id, "skills.read", { skillId: installed.id, path: "references/guide.md", offset: 0 }, 6144, undefined, "1"))
+      .rejects.toMatchObject({ code: "TOOL_ARGUMENTS_INVALID" });
+    await expect(executeSkillTool(pool, task.id, "skills.read", { skillId: installed.id, path: "references/guide.md" }, 6144, undefined, "1"))
+      .rejects.toMatchObject({ code: "SKILL_CONTEXT_LIMIT" });
+    let offset = 0;
+    for (let index = 0; index < 2; index++) {
+      const id = randomUUID();
+      await beginOperation(pool, task.id, { id, kind: "tool", name: "skills.read", request: { offset }, reservedTokens: 0, reservedMs: 30000 });
+      const page = await executeSkillTool(pool, task.id, "skills.read", { skillId: installed.id, path: "references/guide.md", offset }, 1200);
+      expect(page.range?.start).toBe(offset); expect(page.content).not.toContain("�");
+      expect(page.range?.nextOffset).toBeGreaterThan(offset);
+      await finishOperation(pool, task.id, id, "completed", page, null, 0);
+      offset = page.range!.nextOffset!;
+    }
+    const revisions = await loadSkillRevisions(pool, scope.organizationId, scope.agentId, [installed.id]);
+    const restored = await skillContext(pool, task.id, revisions);
+    expect(restored.sources).toHaveLength(3);
+    expect(restored.sources.filter(source => source.skillFile?.path === "references/guide.md").map(source => source.skillRange?.start)).toEqual([0, expect.any(Number)]);
+    expect(JSON.parse(restored.sources.find(source => source.skillFile?.path === "SKILL.md")!.content).instructions).toBe(pkg.body);
+    const receiptEvidence = new EvidenceStore(pool);
+    await expect(receiptEvidence.validateOperation(task.id, activate)).resolves.toBeUndefined();
+    await store.setState(scope, installed.id, { operationId: randomUUID(), expectedGeneration: 1, state: "disabled" });
+    await expect(receiptEvidence.retainOperation(task.id, activate)).rejects.toMatchObject({ code: "SKILL_DISABLED" });
+    await expect(executeSkillTool(pool, task.id, "skills.read", { skillId: installed.id, path: "references/guide.md", offset })).rejects.toMatchObject({ code: "SKILL_DISABLED" });
   });
   it("installs official skill packages with durable source identity and owner review without granting execution", async () => {
     const scope = await fixture(), member = await fixture(), operationId = randomUUID();
