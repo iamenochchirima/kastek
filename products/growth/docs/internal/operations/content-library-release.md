@@ -16,8 +16,8 @@ Other products' identity, data, hosting and business APIs are unaffected.
 
 Platform release version: `0.4.0`, authorized for push, merge and production deployment by the
 owner on 3 November 2026. The feature and logo commits are `715e05df8` and `44982a69a`.
-The release artifact manifest will record the merged source SHA, Railway deployment/image
-identities, Vercel deployment, migration checksums and production verification. Promotion follows
+The release artifact manifest records the merged source SHA, Railway deployment/image
+identities, Vercel deployment, migration checksums and production verification. Promotion followed
 successful additive migrations, backend readiness and frontend preview checks.
 
 ## Contracts and data
@@ -96,3 +96,34 @@ routes. A new ADR is not applicable: this extends the existing asset and canonic
 architecture. New provider acceptance, OAuth/Identity changes and cloud configuration are not
 applicable. This file is the user-visible change record for the candidate; final production release
 notes must link the promoted artifact identity.
+
+## Production outcome
+
+Deployed on 3 November 2026 through PR #55 at
+`defbe2be3b5d0912f01515b4a8a62e51d28cb534`, platform `0.4.0`. All ten services watching
+shared contracts deployed that source successfully; the full nineteen-service fleet is healthy.
+Vercel deployment `dpl_FhwVttEMFMByzXUHaJCmZu5NLBR4` is promoted on app.kasitek.co.za.
+Its prebuilt source tree matches the merged source exactly.
+
+Both additive migration checksums were read back before the merge. Private database and media
+backups are verified and retained outside the temporary worktree. Exact deployments, image
+digests, previous rollback identities and checksums are in
+`docs/operations/releases/platform-0.4.0-artifacts.json`.
+
+Live internal tools verified retained media preview, literal template rendering, materialization,
+duplication and same-identity replay. The actual external OAuth MCP connection saved and replayed
+a private draft. All three verification drafts were removed and the technical verification
+template was archived; no provider post was published. Eight successful durable receipts and eight
+registered lifecycle outbox rows were read back. Current publication 11/runtime 8 and retained
+publication 10/runtime 7 are installed. Existing pinned agents were not silently upgraded.
+
+Production HTTP checks passed for new routes, authentication, API proxy, unknown-route rejection
+and exact logo/shell hashes. Signed-in browser inspection rendered two retained image uploads,
+the Templates view and the actual 32×32 logo.
+
+CI additionally passed 86 Growth migration browser journeys and 53 Agents browser journeys. The
+broad Agents source suite remains baseline-red: 28 failing cases were already failing on base
+main, with zero new failing cases; 2,283 tests passed and 112 skipped. The changed adapter tests
+passed in that suite. This does not claim full Agents CI is green. Compare runs 41624928846 and
+41609659434. Immediate release smoke found no new failed/uncertain receipts. Review adoption,
+errors and latency on 4 November 2026; no recurring automation was created.
