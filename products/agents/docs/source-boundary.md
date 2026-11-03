@@ -145,6 +145,9 @@ pinned to the agent configuration when published. When human support is selected
 `support.get_status_v2` tool returns whether the current time falls within that schedule, the next
 opening when closed, and aggregate staff availability. It reports unknown when a schedule or
 availability is not known, and never derives staff presence or response times from the schedule.
+Website CORS preflight covers both the deployment metadata endpoint and its child routes, using
+the same explicit publication-origin checks. Saved visitors can reopen or reload the embedded
+widget with its authorization header; unrelated origins remain denied.
 Website enquiry, confirmation and followup-preference reads retain visitor/session and conversation
 authorization without charging the website write-rate budget. Message sends, confirmation decisions
 and followup mutations remain rate-limited; normal widget polling does not exhaust those writes.

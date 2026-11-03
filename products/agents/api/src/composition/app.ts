@@ -746,9 +746,12 @@ export async function buildPlatformApp(options: { config: PlatformConfig; pool: 
     }
     return { deployment, websiteOrigin, grantOrigin: websiteOrigin === origin ? deployment.allowed_origins[0]! : websiteOrigin };
   }
-  app.options("/api/website/:deploymentId/*", async (request, reply) => {
-    await websiteContext(request, reply); return reply.code(204).send();
-  });
+  // Saved visitors also preflight the metadata GET because it carries Authorization.
+  for (const path of ["/api/website/:deploymentId", "/api/website/:deploymentId/*"]) {
+    app.options(path, async (request, reply) => {
+      await websiteContext(request, reply); return reply.code(204).send();
+    });
+  }
   async function publicRate(deploymentId: string): Promise<void> {
     await pool.query("DELETE FROM agents_platform.website_rate_limits WHERE deployment_id=$1 AND minute<now()-interval '1 day'", [deploymentId]);
     const row = (await pool.query<{ requests: number }>(`INSERT INTO agents_platform.website_rate_limits(deployment_id,minute,requests)
