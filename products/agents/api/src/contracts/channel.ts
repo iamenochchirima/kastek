@@ -1,3 +1,5 @@
+import type {ProcedureDomainSnapshot} from "./procedure-domain";
+import type {ProcedureScope,ProcedureEvidence} from "./procedures";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { dependencyManifestSchema } from "./source-contracts";
@@ -30,6 +32,8 @@ export interface VisitorLineage {
   current: { deploymentId: string; sessionId: string }; origin: { deploymentId: string; sessionId: string }; originTaskId?: string;
 }
 export interface ChannelExecutionPorts {
+  procedureSnapshot?(db:PoolClient,scope:ProcedureScope,binding:ChannelBinding,taskId:string):Promise<ProcedureDomainSnapshot>;
+  verifyProcedureEvidence?(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence):Promise<boolean>;
   requestHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
   updateHumanAssistance?(db:PoolClient,binding:ChannelBinding,taskId:string,input:unknown):Promise<{requestId:string;status:"requested"|"human_owned"|"completed"|"withdrawn";state:string;noticeMessageId:string;supportFacts:unknown}>;
 

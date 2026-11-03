@@ -51,9 +51,10 @@ restores agent ownership under the normal Inbox authority rules.
 ## Progress and effect truth
 
 `contracts/procedures.ts` defines immutable references, instance state and revision-checked
-commands. `product/procedures/` owns the registry and durable instance store.
+commands. `contracts/procedure-definitions.ts` owns the registry; `execution/procedures/store.ts` owns durable instances.
 `capabilities/procedure-tools.ts` connects those tools to the existing business loop; Inbox
-owns support effects and evidence validation.
+owns support effects and evidence validation through the typed channel ports. Execution consumes
+scoped snapshots and receipt validation; it never reads product customer tables directly.
 
 Instances have `active`, `suspended`, `completed` or `cancelled` status. Customer routes are
 `callback`, `self_service`, `declined` or `withdrawn`; `callback` means a recorded follow-up

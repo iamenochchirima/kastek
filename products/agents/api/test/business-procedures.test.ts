@@ -1,6 +1,6 @@
 import {publicUpdateAssistanceSchema} from "../src/contracts/procedure-tools";
 import {describe,expect,it} from "vitest";
-import {discoverProcedures,loadProcedure,afterHoursProgress} from "../src/product/procedures/definitions";
+import {discoverProcedures,loadProcedure,afterHoursProgress} from "../src/contracts/procedure-definitions";
 import {procedureUpdateSchema,type ProcedureReceipt} from "../src/contracts/procedures";
 const evidence=(kind:ProcedureReceipt['kind'],status:ProcedureReceipt['status']='confirmed'):ProcedureReceipt=>({kind,status,sourceId:kind});
 describe('after-hours procedure contract',()=>{
@@ -36,7 +36,7 @@ import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {Pool} from 'pg';
 import {afterAll,beforeAll} from 'vitest';
-import {ProcedureStore} from '../src/product/procedures/store';
+import {ProcedureStore} from '../src/execution/procedures/store';
 import {dropClosedTestDatabase} from './support/database-cleanup';
 const databaseUrl=process.env.AGENTS_TEST_DATABASE_URL;
 (databaseUrl?describe:describe.skip)('durable procedure store',()=>{

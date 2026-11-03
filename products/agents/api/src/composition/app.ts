@@ -1,4 +1,4 @@
-import { afterHoursAssistance } from "../product/procedures/definitions";
+import { afterHoursAssistance } from "../contracts/procedure-definitions";
 import { contextGrantCeiling } from "../execution/models/settings";
 import { readTaskTiming } from "../execution/lifecycle/timing";
 import { readTaskRuntime, operationPresentation, productOperationMetadataSql } from "../product/integrations/growth-runtime-reporting";

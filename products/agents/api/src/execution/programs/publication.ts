@@ -1,4 +1,4 @@
-import { loadProcedure } from "../../product/procedures/definitions";
+import { loadProcedure } from "../../contracts/procedure-definitions";
 import type { CapabilityBinding } from "../../contracts/capability-catalog";
 import { requestDigest, type AgentConfiguration } from "../../contracts/contracts";
 import { SHARED_HARNESS_RELEASE, SHARED_WORKFLOW_NAME } from "../../contracts/execution";

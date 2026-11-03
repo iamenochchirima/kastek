@@ -44,7 +44,7 @@ test("keyboard focus follows confirmed claim, takeover and return", async ({ pag
   await expect(takeover).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Reply to customer")).toBeFocused();
-  const returnButton = page.getByRole("button", { name: "Return to automation" });
+  const returnButton = page.getByRole("button", { name: "Return to Agent" });
   await returnButton.focus(); await page.keyboard.press("Enter");
   await expect(takeover).toBeFocused();
 });

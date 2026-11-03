@@ -21,3 +21,6 @@
 .inbox-thread .customer-messages article p:first-child { margin-bottom: 7px; }
 @media (max-width: 767px) { .inbox-handoff-actions { width: 100%; } .inbox-handoff-assignment[open] { width: 100%; } .inbox-handoff-assign { position: static; width: 100%; margin-top: 8px; box-shadow: none; } .inbox-thread .customer-messages article { max-width: 92%; } }
 @media (prefers-reduced-motion: reduce) { .inbox-page .inbox-conversation { transition: none; } }
+
+.inbox-handoff-actions .inbox-return-agent { border-color: color-mix(in srgb, var(--success) 50%, var(--border)); background: color-mix(in srgb, var(--success) 10%, var(--card)); color: var(--success); }
+.inbox-handoff-actions .inbox-return-agent:hover:not(:disabled) { background: color-mix(in srgb, var(--success) 18%, var(--card)); }

@@ -57,7 +57,7 @@ export const growthRetainedOperationHandlers = [
   "growth.operation.templates.list@1",
   "growth.operation.analytics.read@1"
 ];
-import { retainedGrowthOperationHandlersV10 } from "../../execution/products/retained-growth-operation-handlers-v10";
+import { retainedGrowthOperationHandlersV10 } from "./retained-growth-operation-handlers-v10";
 const handler = (operation: typeof growthOperations[number]) => `growth.operation.${operation.name}@${operation.version}`;
 const operationAdapter=(release:string,handlers:readonly string[])=>({...growthInstalledAdapterManifest,release,
   executableDigest:requestDigest({release:"growth-operations-v1",handlers})});

@@ -3,7 +3,7 @@ import type {AgentConfiguration} from './contracts';
 import type {ToolDefinition} from './model-messages';
 import {procedureToolNames,procedureInstanceSchema,procedureReferenceSchema,type ProcedureReference} from './procedures';
 import {requestHumanAssistanceInputSchema} from './human-assistance';
-import {afterHoursAssistance} from '../product/procedures/definitions';
+import {afterHoursAssistance} from './procedure-definitions';
 export {procedureToolNames} from './procedures';
 
 type Name=typeof procedureToolNames[number];

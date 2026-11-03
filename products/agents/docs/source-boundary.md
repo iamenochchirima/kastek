@@ -17,8 +17,8 @@ presence reads belong to the support capabilities; Inbox owns presence updates a
 ## Business workflow boundary
 
 `contracts/procedures.ts` owns versioned definition references and durable progress contracts.
-`product/procedures/definitions.ts` contains the first immutable playbook,
-`after-hours-assistance@1`; `product/procedures/store.ts` owns instance/revision/idempotency
+`contracts/procedure-definitions.ts` contains the first immutable playbook,
+`after-hours-assistance@1`; `execution/procedures/store.ts` owns instance/revision/idempotency
 storage. Schemas116/117 add procedure state and the independent human-assistance request domain.
 `capabilities/procedure-tools.ts` exposes discovery, loading, lifecycle and support request tools
 to the existing business model loop. Procedures grant no capability authority.
@@ -325,13 +325,25 @@ colour, title, greeting, avatar URL, position, window size, corner radius, launc
 suggested messages and branding visibility. Settings use current owner authorization and
 optimistic appearance digests. Existing JSON settings receive recovered defaults; no schema
 migration is required. Avatars permit HTTPS or local development HTTP and use no referrer.
-The widget can start and switch separate conversations in one browser tab. Each uses its own
-visitor session and pending request, stored in that tab's session storage. Switching waits for
-in-flight requests to finish. An expired session does not grant access to its earlier conversation.
+The website widget shows one active conversation. New conversation starts a separate visitor
+session after in-flight requests finish; the header has no conversation selector. The active
+session and pending request survive reloads in the same browser tab. Previous conversations
+remain in the staff Inbox. An expired session does not grant access to its earlier conversation.
 Rejected sends retain their text and a separate visible error through background refreshes.
 An unknown send outcome retains its original request key for retry. Model-configuration failures
 show a temporary-unavailability message to visitors; owners configure the provider and default
 model under Settings → Model providers. A connected website alone does not establish reply readiness.
+The widget shows responding dots and elapsed seconds for the current automated turn. Visitor
+message reads expose bounded response activity from the authorized conversation's current
+ownership generation. Once acknowledged, timing runs from server message acceptance to the
+published assistant message, including queue and tool time. The completed duration remains on
+that reply as seconds only, such as `2s`, with an explanatory tooltip and accessible label. Human ownership, handoff, resolution and terminal failures stop the animation;
+reduced-motion mode keeps a static indicator. Response activity does not expose task IDs or
+private errors.
+Assistant and staff replies render a limited Markdown subset: paragraphs, headings, emphasis,
+code, lists and HTTP/HTTPS links. The widget builds DOM nodes without interpreting raw HTML;
+unsupported syntax remains text. Visitor messages remain literal. Rendering does not change
+stored message bodies, model instructions or tool execution.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.
 
 Website connection input accepts bare domains such as `kasitek.co.za` and stores the exact
@@ -699,7 +711,7 @@ these mocked transports do not establish live model acceptance.
 
 Direct agent chat and principal-scoped conversation history are implemented. Customer website
 messages have a separate canonical timeline with staff assignment, human takeover/replies,
-resolution and explicit return to automation. Human-owned ingress does not admit model work.
+resolution and explicit return to automation through the green **Return to Agent** action. Human-owned ingress does not admit model work.
 Returning control admits only a new visitor message. Generation checks suppress late automated
 output and fence subsequent operations, including inherited specialist authority.
 The automation occurrence inbox below is an event deduplication mechanism, not a customer inbox.

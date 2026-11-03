@@ -11,7 +11,7 @@ import { InboxStore, type ChannelBinding, type InboxCommand } from "../src/produ
 import { registerInboxRoutes } from "../src/product/inbox/inbox-routes";
 import { registerOverviewRoutes } from "../src/product/overview/routes";
 import { transaction } from "../src/infrastructure/database";
-import { registerChannelPorts } from "../src/infrastructure/channel-ports";
+import { channelPorts, registerChannelPorts } from "../src/infrastructure/channel-ports";
 import { beginOperation } from "../src/execution/lifecycle/execution";
 import { dropClosedTestDatabase } from "./support/database-cleanup";
 import { executeTool, publishedToolBindings, assertPublishedTools } from "../src/capabilities/tools";
@@ -39,7 +39,7 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
       async readableOutput(_db, taskId, body) { return withdrawn.has(taskId) ? null : body; },
       async cancelRoot(taskId) { cancelled.add(taskId); },
     });
-    registerChannelPorts(pool, { assertBinding: (...args) => inbox.assertBinding(...args), requestHandoff: (...args) => inbox.requestHandoff(...args), publishAutomated: (...args) => inbox.publishAutomated(...args), context: (...args) => inbox.context(...args) });
+    registerChannelPorts(pool, { procedureSnapshot:(...args)=>inbox.procedureSnapshot(...args),verifyProcedureEvidence:verifyHumanAssistanceEvidence, assertBinding: (...args) => inbox.assertBinding(...args), requestHandoff: (...args) => inbox.requestHandoff(...args), publishAutomated: (...args) => inbox.publishAutomated(...args), context: (...args) => inbox.context(...args) });
   });
   afterAll(async () => { await pool?.end(); if (admin) { await dropClosedTestDatabase(admin, database); await admin.end(); } });
   async function actor() { return platform.ensureAccount({ issuer: "https://identity.test", subject: randomUUID(), email: "inbox@example.test", displayName: "Operator" }); }
@@ -75,6 +75,11 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect(await transaction(pool,db=>verifyHumanAssistanceEvidence(db,procedureScope,{commandId:randomUUID(),expectedRevision:"1",route:"callback",receipts:[{kind:"after_hours_notice",sourceId:request.noticeMessageId,status:"confirmed"},{kind:"human_request",sourceId:request.requestId,status:"confirmed"}]}))).toBe(true);
     expect(await transaction(pool,db=>inbox.requestHumanAssistance(db,bound,taskId,{operationId,brief:{reason:"Human requested",brief:"Customer needs support"}}))).toEqual(request);
     const visible=await inbox.readVisitor(f.visitor,f.conversation.id);expect(visible.messages.at(-1)?.body).toContain("outside its support hours");expect(visible.messages.at(-1)?.body).toContain("I can still help here");
+    expect(visible.responseStatus).toBe("working");expect(visible.responseActivity?.replyMessageId).toBeNull();expect(visible.responseActivity?.startedAt).toEqual(turn.message.created_at);
+    const snapshot=await transaction(pool,db=>channelPorts(db).procedureSnapshot!(db,procedureScope,bound,taskId));
+    expect(snapshot.request).toMatchObject({id:request.requestId,noticeMessageId:request.noticeMessageId,noticeStatus:"confirmed"});
+    expect(snapshot.customerEvidence[0]).toEqual({id:turn.message.id,text:turn.message.body});
+    await expect(transaction(pool,db=>channelPorts(db).procedureSnapshot!(db,{...procedureScope,agentId:randomUUID()},bound,taskId))).rejects.toMatchObject({code:"HUMAN_ASSISTANCE_SCOPE_DENIED"});
     expect((await inbox.list(f.scope,{state:"human_requested",limit:30})).items.map(v=>v.id)).toContain(f.conversation.id);
     const contact={method:"email",value:"person@example.test",evidenceMessageId:turn.message.id,consentQuote:"Please contact me at person@example.test"};
     await expect(transaction(pool,db=>inbox.updateHumanAssistance(db,bound,taskId,{operationId:randomUUID(),requestId:request.requestId,contact:{...contact,value:"invented@example.test"}}))).rejects.toMatchObject({code:"HUMAN_ASSISTANCE_CONTACT_INVALID"});
@@ -111,6 +116,35 @@ const databaseUrl = process.env.AGENTS_TEST_DATABASE_URL;
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBe("failed");
     await transaction(pool, db => inbox.publishAutomated(db, { taskId: next.message.task_id!, binding: binding(f, next.message.id), output: "How can I help?" }));
     expect((await inbox.readVisitor(f.visitor, f.conversation.id)).responseStatus).toBeNull();
+  });
+  it("exposes scoped response progress and persisted reply timing without private task details", async () => {
+    const f=await fixture(),other=await fixture();
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBeNull();
+    const input=await inbox.ingress(f.visitor,f.conversation.id,{requestKey:randomUUID(),body:"Hello"});
+    let read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.responseStatus).toBe("working");expect(read.responseActivity?.inputMessageId).toBe(input.message.id);
+    const start=read.responseActivity!.startedAt;
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseActivity!.startedAt).toEqual(start);
+    await pool.query("UPDATE agents_platform.tasks SET state='failed',error_code='PRIVATE_PROVIDER_DETAIL' WHERE id=$1",[input.message.task_id]);
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBe("failed");
+    await expect(inbox.readVisitor(other.visitor,f.conversation.id)).rejects.toMatchObject({code:"INBOX_ACCESS_DENIED"});
+    await pool.query("UPDATE agents_platform.tasks SET state='completed',error_code=NULL WHERE id=$1",[input.message.task_id]);
+    await transaction(pool,db=>inbox.publishAutomated(db,{taskId:input.message.task_id!,binding:binding(f,input.message.id),output:"Delivered reply"}));
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);
+    expect(read.messages.at(-1)!.responseDurationMs).toBeGreaterThanOrEqual(0);
+    expect(read.responseStatus).toBeNull();expect(read.responseActivity?.replyMessageId).toBe(read.messages.at(-1)!.id);
+    expect(read.responseActivity!.completedAt!.getTime()).toBeGreaterThanOrEqual(start.getTime());
+    const app=Fastify();registerInboxRoutes(app,{inbox,resolveScope:async()=>f.scope,resolveVisitor:async()=>f.visitor});
+    try {const result=await app.inject({url:`/api/website/${f.deployment.id}/customer-conversations/${f.conversation.id}/messages`});
+      expect(result.json().responseActivity.inputMessageId).toBe(input.message.id);
+      expect(result.body).not.toContain(input.message.task_id!);expect(result.body).not.toContain("PRIVATE_PROVIDER_DETAIL");
+    } finally {await app.close()}
+    await command(f,"claim");await command(f,"takeover");
+    await pool.query("UPDATE agents_platform.tasks SET state='running' WHERE id=$1",[input.message.task_id]);
+    read=await inbox.readVisitor(f.visitor,f.conversation.id);expect(read.responseStatus).toBeNull();expect(read.responseActivity).toBeNull();
+    await command(f,"return");
+    expect((await inbox.readVisitor(f.visitor,f.conversation.id)).responseStatus).toBeNull();
   });
   it("reports the website channel as unavailable when paused or revoked", async () => {
     const f = await fixture();

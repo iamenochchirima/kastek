@@ -4,7 +4,7 @@ import {z} from "zod";
 import {procedureApplicabilitySchema,procedureEvidenceSchema,procedureReferenceSchema,procedureScopeSchema,procedureUpdateSchema,type ProcedureApplicability,type ProcedureEvidence,type ProcedureInstance,type ProcedureReference,type ProcedureScope,type ProcedureUpdate} from "../../contracts/procedures";
 import {PlatformError,requestDigest} from "../../contracts/primitives";
 import {transaction} from "../../infrastructure/database";
-import {resolveProcedure} from "./definitions";
+import {resolveProcedure} from "../../contracts/procedure-definitions";
 
 export type ProcedureEvidenceVerifier=(db:PoolClient,scope:ProcedureScope,evidence:ProcedureEvidence)=>Promise<boolean|void>;
 const missing=()=>new PlatformError("PROCEDURE_NOT_FOUND",404,"Procedure not found");

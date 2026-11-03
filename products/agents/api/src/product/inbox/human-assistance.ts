@@ -1,17 +1,19 @@
-import {resolveProcedure} from "../procedures/definitions";
-import {requestHumanAssistanceSchema,updateHumanAssistanceSchema,type PreferredSupportContact} from "../../contracts/human-assistance";
+import type {ProcedureDomainSnapshot} from "../../contracts/procedure-domain";
+import {procedureReady} from "../../contracts/procedure-tools";
+import {resolveProcedure} from "../../contracts/procedure-definitions";
+import {requestHumanAssistanceSchema,updateHumanAssistanceSchema} from "../../contracts/human-assistance";
 export {requestHumanAssistanceSchema,updateHumanAssistanceSchema,requestHumanAssistanceInputSchema,updateHumanAssistanceInputSchema,preferredSupportContactSchema} from "../../contracts/human-assistance";
 import {randomUUID} from "node:crypto";
 import type {Pool,PoolClient} from "pg";
-import {PlatformError,requestDigest} from "../../contracts/contracts";
+import {agentConfigurationSchema,PlatformError,requestDigest} from "../../contracts/contracts";
 import {type ChannelBinding} from "../../contracts/channel";
 import type {ProcedureEvidence,ProcedureScope} from "../../contracts/procedures";
 import {supportStatusV2} from "../../capabilities/support-status-v2";
-import type {CustomerConversation,CustomerMessage} from "./inbox-store";
+import type {CustomerConversation,CustomerMessage,HumanRequestView} from "./inbox-contracts";
+export type {HumanRequestView} from "./inbox-contracts";
 import {enqueueChannelMessage} from "../channels/channel-outbound";
 
 type Db=Pool|PoolClient;
-export type HumanRequestView={id:string;status:"requested"|"human_owned"|"completed"|"withdrawn";requestedAt:string;brief:{reason:string;brief:string};contact:PreferredSupportContact|null;humanOnly:boolean;workflow?:{name:string;status:"active"|"suspended"|"completed"|"cancelled";missing:string[]}};
 export type HumanAssistanceResult={requestId:string;status:HumanRequestView["status"];state:CustomerConversation["state"];noticeMessageId:string;supportFacts:Awaited<ReturnType<typeof supportStatusV2>>};
 
 type Ports={assertBinding(db:Db,binding:ChannelBinding,task:{organization_id:string;version_id:string;root_task_id:string}):Promise<void>;append(db:PoolClient,row:CustomerConversation,input:{key:string;digest:string;kind:"assistant";body:string}):Promise<CustomerMessage>;cancel(db:PoolClient,id:string,generation:string,exceptTaskId?:string):Promise<void>};
@@ -23,11 +25,21 @@ export function humanAssistanceNotice(facts:Awaited<ReturnType<typeof supportSta
   const hours=facts.hours.state==="closed" ? `The support team is outside its support hours.${opening ? ` Support hours resume ${opening} (${facts.hours.timeZone}).` : ""}` : facts.hours.state==="unknown" ? "The team's support hours are unavailable." : "I've recorded your request for the support team.";
   return `${hours}${facts.hours.state==="open"?"":" I've recorded your request for the support team."} You can leave your preferred contact details for staff to use when they review it. I can still help here—what do you need?`;
 }
-async function taskScope(db:PoolClient,row:CustomerConversation,binding:ChannelBinding,taskId:string,ports:Ports){
+async function taskScope(db:PoolClient,row:CustomerConversation,binding:ChannelBinding,taskId:string,ports:Pick<Ports,"assertBinding">){
   const task=(await db.query(`SELECT t.organization_id,t.version_id,t.root_task_id,v.configuration FROM agents_platform.tasks t JOIN agents_platform.agent_versions v ON v.id=t.version_id AND v.organization_id=t.organization_id JOIN agents_platform.execution_grants g ON g.id=t.grant_id AND g.organization_id=t.organization_id JOIN agents_platform.customer_task_links l ON l.task_id=t.id WHERE t.id=$1 AND t.root_task_id=t.id AND t.parent_task_id IS NULL AND t.organization_id=$2 AND l.conversation_id=$3 AND l.input_message_id=$4 AND l.ownership_generation=$5 AND t.channel_binding->>'customerConversationId'=$3::text AND t.channel_binding->>'inputMessageId'=$4::text AND t.channel_binding->>'ownershipGeneration'=$5::text AND g.product=t.product AND g.version_id=t.version_id AND g.principal=t.principal AND g.resource_id=t.resource_id AND g.caller_client_id=t.caller_client_id AND t.state IN ('accepted','running') AND (t.deadline_at IS NULL OR t.deadline_at>clock_timestamp()) AND NOT EXISTS(SELECT 1 FROM agents_platform.customer_cancellations cancel WHERE cancel.task_id=t.id) AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp() FOR SHARE OF t,v,g`,[taskId,row.organization_id,row.id,binding.inputMessageId,binding.ownershipGeneration])).rows[0];
   if(!task)throw denied();
   await ports.assertBinding(db,binding,task);
   return task;
+}
+export async function humanAssistanceSnapshot(db:PoolClient,row:CustomerConversation,scope:ProcedureScope,binding:ChannelBinding,taskId:string,ports:Pick<Ports,"assertBinding">):Promise<ProcedureDomainSnapshot>{
+ if(row.id!==binding.customerConversationId||row.organization_id!==scope.organizationId||row.agent_id!==scope.agentId||row.execution_conversation_id!==scope.conversationId)throw denied();
+ await taskScope(db,row,binding,taskId,ports);
+ const latest=(await db.query(`SELECT v.configuration FROM agents_platform.agents a JOIN LATERAL (SELECT configuration FROM agents_platform.agent_versions WHERE organization_id=a.organization_id AND agent_id=a.id ORDER BY number DESC LIMIT 1) v ON true WHERE a.organization_id=$1 AND a.id=$2 AND a.deleted_at IS NULL FOR SHARE OF a`,[scope.organizationId,scope.agentId])).rows[0];
+ if(!latest)throw denied();
+ const configuration=agentConfigurationSchema.parse(latest.configuration);
+ const request=(await db.query(`SELECT r.*,choice.customer_choice_message_id,choice.disposition FROM agents_platform.human_assistance_requests r LEFT JOIN LATERAL (SELECT cmd.customer_choice_message_id,cmd.disposition FROM agents_platform.human_assistance_commands cmd JOIN agents_platform.customer_messages m ON m.id=cmd.customer_choice_message_id WHERE cmd.request_id=r.id AND cmd.disposition IS NOT NULL ORDER BY m.sequence DESC LIMIT 1) choice ON true WHERE r.organization_id=$1 AND r.conversation_id=$2 ORDER BY r.requested_at DESC LIMIT 1`,[scope.organizationId,row.id])).rows[0];
+ const customerEvidence=(await db.query(`SELECT m.id,m.body FROM agents_platform.customer_messages m JOIN agents_platform.customer_messages current ON current.id=$2 AND current.conversation_id=m.conversation_id WHERE m.conversation_id=$1 AND m.author_kind='visitor' AND m.sequence<=current.sequence ORDER BY m.sequence DESC LIMIT 5`,[row.id,binding.inputMessageId])).rows.map(message=>({id:message.id,text:message.body}));
+ return {currentProcedures:(configuration.procedures??[]).filter(ref=>procedureReady(configuration,ref)),customerEvidence,request:request?{id:request.id,status:request.status,noticeMessageId:request.notice_message_id,inputMessageId:request.input_message_id,choiceMessageId:request.customer_choice_message_id??null,disposition:request.disposition??null,noticeStatus:await humanAssistanceNoticeStatus(db,scope,request.notice_message_id)}:null};
 }
 async function replay(db:PoolClient,taskId:string,operationId:string,digest:string):Promise<HumanAssistanceResult|null>{
   const prior=(await db.query("SELECT request_digest,result FROM agents_platform.human_assistance_commands WHERE task_id=$1 AND operation_id=$2",[taskId,operationId])).rows[0];

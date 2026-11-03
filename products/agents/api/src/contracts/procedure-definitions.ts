@@ -1,6 +1,6 @@
 import {z} from "zod";
-import type {ProcedureApplicability,ProcedureReceipt,ProcedureReference,ProcedureRoute} from "../../contracts/procedures";
-import {PlatformError} from "../../contracts/primitives";
+import type {ProcedureApplicability,ProcedureReceipt,ProcedureReference,ProcedureRoute} from "./procedures";
+import {PlatformError} from "./primitives";
 
 export const afterHoursAssistance = Object.freeze({
  id:"after-hours-assistance",version:"1",title:"After-hours assistance",
