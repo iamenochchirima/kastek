@@ -3,7 +3,8 @@ import {mkdir} from 'node:fs/promises';
 import {describe,it,expect} from 'vitest';
 import {websiteWidgetScript} from '../src/adapters/channels/website/widget';
 const {chromium,expect:check}=createRequire(__filename)('../../web/node_modules/@playwright/test');
-const body = ['## Available tools','', '- **[knowledge_search]** — Search *approved* sources.', '- `enquiry_submit` — Submit details.','', '1. First step','2. Second **bold and *italic*** step','   - Nested item','', '[Safe link](https://example.com/path?q=1)', '[Bad link](javascript:alert(1))','[Data link](data:text/html,hello)','', '\\*literal stars\\* and <img src=x onerror=alert(1)>','', '```js','<script>alert(1)</script>','const long = "'+ 'x'.repeat(160) +'";','```'].join('\n');
+const schedule=['| Day | Open from | Close at |','| :--- | :---: | ---: |',...['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(day=>'| '+day+' | 01:00 am | 02:00 am |'),'| Notes | Left \\| right | `open|close` <img src=x onerror=alert(1)> |'];
+const body = ['## Available tools','', 'Support hours:',...schedule,'', '- **[knowledge_search]** — Search *approved* sources.', '- `enquiry_submit` — Submit details.','', '1. First step','2. Second **bold and *italic*** step','   - Nested item','', '[Safe link](https://example.com/path?q=1)', '[Bad link](javascript:alert(1))','[Data link](data:text/html,hello)','', '\\*literal stars\\* and <img src=x onerror=alert(1)>','', '```js','<script>alert(1)</script>','const long = "'+ 'x'.repeat(160) +'";','```'].join('\n');
 describe('generated website widget Markdown with controlled HTTP',()=>{
  it('renders reply formatting as safe DOM and keeps visitor text literal at supported widths',async()=>{
   const browser=await chromium.launch({headless:true});
@@ -28,6 +29,13 @@ describe('generated website widget Markdown with controlled HTTP',()=>{
     await check(reply.locator('em').getByText('approved',{exact:true})).toBeVisible();
     await check(reply.locator('strong em')).toHaveText('italic');
     await check(reply.locator('ol>li')).toHaveCount(2);await check(reply.locator('ol ul>li')).toHaveText('Nested item');
+    const table=reply.getByRole('table');
+    await check(table).toHaveCount(1);await check(table.getByRole('columnheader')).toHaveText(['Day','Open from','Close at']);
+    await check(table.locator('tbody tr')).toHaveCount(8);await check(table.getByRole('cell',{name:'Sunday',exact:true})).toBeVisible();
+    await check(table.getByRole('cell',{name:'Left | right',exact:true})).toBeVisible();await check(table.locator('code')).toHaveText('open|close');
+    await check(table).toContainText('<img src=x onerror=alert(1)>');await check(table.locator('img')).toHaveCount(0);
+    expect(await table.getByRole('columnheader').nth(1).evaluate((n:HTMLElement)=>getComputedStyle(n).textAlign)).toBe('center');
+    await check(reply.getByRole('region',{name:'Table'})).toHaveAttribute('tabindex','0');
     await check(reply.locator('pre code')).toContainText('<script>alert(1)</script>');
     await check(reply.getByRole('link',{name:'Safe link'})).toHaveAttribute('href','https://example.com/path?q=1');
     await check(reply.getByRole('link',{name:'Safe link'})).toHaveAttribute('rel','noopener noreferrer');

@@ -342,7 +342,8 @@ that reply as seconds only, such as `2s`, with an explanatory tooltip and access
 reduced-motion mode keeps a static indicator. Response activity does not expose task IDs or
 private errors.
 Assistant and staff replies render a limited Markdown subset: paragraphs, headings, emphasis,
-code, lists and HTTP/HTTPS links. The widget builds DOM nodes without interpreting raw HTML;
+code, lists, pipe tables and HTTP/HTTPS links. Tables keep their header and cell structure and
+scroll within the message on narrow screens. The widget builds DOM nodes without interpreting raw HTML;
 unsupported syntax remains text. Visitor messages remain literal. Rendering does not change
 stored message bodies, model instructions or tool execution.
 Audio recording and arbitrary file uploads remain unavailable and have no widget controls.

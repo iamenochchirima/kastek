@@ -99,7 +99,9 @@ domain outcome, not that a human replied or an external callback occurred.
 
 After-hours support uses the agent's normal response publication path. Request IDs and other
 internal identifiers stay in tool calls; customer replies acknowledge the outcome without a
-reference number. Request tools return
+reference number. Schedule answers use the saved timezone without unsolicited UTC conversions.
+The agent answers the current question without repeating contact collection on every turn.
+Opening hours do not authorize a promise of a live connection or outreach. Request tools return
 facts and durable request outcomes without appending or enqueueing an automatic customer
 notice. Existing notice columns and historical notice records remain retained; this correction
 needs no schema migration. The ordinary response timer and loading state cover the agent reply.
