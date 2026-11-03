@@ -387,3 +387,21 @@ for(const width of [1440,768,390]) for(const theme of ["light","dark"] as const)
   await page.getByRole("button",{name:"Delete agent",exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:test.info().outputPath(`agent-general-secondary-${width}-${theme}.png`),fullPage:true});
 });
+
+
+test("loading valid history clears stale support-hour errors", async ({page}) => {
+  await fixture(page,false,false,false,"configured");
+  await page.goto(`/app/agents/${agentId}?section=configuration`);
+  await page.getByLabel("Monday opens",{exact:true}).fill("invalid");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toBeVisible();
+  await page.getByText("Configuration history",{exact:true}).click();
+  await page.getByRole("button",{name:"Load configuration",exact:true}).click();
+  await page.getByRole("alertdialog").getByRole("button",{name:"Load configuration",exact:true}).click();
+  await expect(page.getByLabel("Monday opens",{exact:true})).toHaveValue("09:00");
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toHaveCount(0);
+  await page.getByLabel("Monday opens",{exact:true}).fill("10:00");
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Save changes",exact:true})).toBeDisabled();
+  await expect(page.getByText("Enter valid support days, hours and timezone.", {exact:true})).toHaveCount(0);
+});
